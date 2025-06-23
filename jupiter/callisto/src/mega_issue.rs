@@ -11,11 +11,11 @@ pub struct Model {
     #[sea_orm(unique)]
     pub link: String,
     pub title: String,
-    pub owner: i64,
     pub status: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub closed_at: Option<DateTime>,
+    pub user_id: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -10,7 +10,7 @@ use crate::model::CommonResult;
 
 pub type MegaResult = Result<(), MegaError>;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub struct MegaError {
     pub error: Option<anyhow::Error>,
     pub code: i32,

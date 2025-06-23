@@ -4,16 +4,24 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use saturn::ActionEnum;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
-use ceres::protocol::mr::MergeRequest;
-use common::model::{CommonPage, CommonResult, PageParams};
-
-use crate::api::mr::{
-    FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, SaveCommentRequest,
+use common::{
+    errors::MegaError,
+    model::{CommonPage, CommonResult, PageParams},
 };
-use crate::api::MonoApiServiceState;
+
+use crate::api::{
+    issue::{issue_router::common_label_update, LabelUpdatePayload},
+    mr::{
+        FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem,
+        SaveCommentRequest,
+    },
+    oauth::model::LoginUser,
+};
+use crate::api::{util, MonoApiServiceState};
 use crate::{api::error::ApiError, server::https_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -27,7 +35,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(reopen_mr))
             .routes(routes!(get_mr_files_changed))
             .routes(routes!(save_comment))
-            .routes(routes!(delete_comment)),
+            .routes(routes!(delete_comment))
+            .routes(routes!(labels)),
     )
 }
 
@@ -44,29 +53,37 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     tag = MR_TAG
 )]
 async fn reopen_mr(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatusEnum::Closed {
-            // util::check_permissions(
-            //     &user.name,
-            //     &model.path,
-            //     ActionEnum::EditMergeRequest,
-            //     state.clone(),
-            // )
-            // .await
-            // .unwrap();
-            let mut mr: MergeRequest = model.into();
-            mr.status = MergeStatusEnum::Open;
-            let res = match state.mr_stg().reopen_mr(mr.into(), 0, "admin").await {
-                Ok(_) => CommonResult::success(None),
-                Err(err) => CommonResult::failed(&err.to_string()),
-            };
-            return Ok(Json(res));
-        }
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+
+    if model.status == MergeStatusEnum::Closed {
+        // util::check_permissions(
+        //     &user.name,
+        //     &model.path,
+        //     ActionEnum::EditMergeRequest,
+        //     state.clone(),
+        // )
+        // .await
+        // .unwrap();
+
+        let link = model.link.clone();
+        state.mr_stg().reopen_mr(model).await?;
+        state
+            .issue_stg()
+            .add_conversation(
+                &link,
+                &user.campsite_user_id,
+                Some(format!("{} reopen this", user.name)),
+                ConvTypeEnum::Reopen,
+            )
+            .await
+            .unwrap();
     }
-    Ok(Json(CommonResult::failed("not found")))
+    Ok(Json(CommonResult::success(None)))
 }
 
 /// Close Merge Request
@@ -82,30 +99,35 @@ async fn reopen_mr(
     tag = MR_TAG
 )]
 async fn close_mr(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatusEnum::Open {
-            // util::check_permissions(
-            //     &user.name,
-            //     &model.path,
-            //     ActionEnum::EditMergeRequest,
-            //     state.clone(),
-            // )
-            // .await
-            // .unwrap();
-            let mut mr: MergeRequest = model.into();
-            mr.status = MergeStatusEnum::Closed;
-            let res = match state.mr_stg().close_mr(mr.into(), 0, "admin").await {
-                Ok(_) => CommonResult::success(None),
-                Err(err) => CommonResult::failed(&err.to_string()),
-            };
-            return Ok(Json(res));
-        }
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+
+    if model.status == MergeStatusEnum::Open {
+        // util::check_permissions(
+        //     &user.name,
+        //     &model.path,
+        //     ActionEnum::EditMergeRequest,
+        //     state.clone(),
+        // )
+        // .await
+        // .unwrap();
+        let link = model.link.clone();
+        state.mr_stg().close_mr(model).await?;
+        state
+            .issue_stg()
+            .add_conversation(
+                &link,
+                &user.campsite_user_id,
+                Some(format!("{} closed this", user.name)),
+                ConvTypeEnum::Closed,
+            )
+            .await?;
     }
-    Ok(Json(CommonResult::failed("not found")))
+    Ok(Json(CommonResult::success(None)))
 }
 
 /// Approve Merge Request
@@ -121,30 +143,29 @@ async fn close_mr(
     tag = MR_TAG
 )]
 async fn merge(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatusEnum::Open {
-            // let path = model.path.clone();
-            // util::check_permissions(
-            //     &user.name,
-            //     &path,
-            //     ActionEnum::ApproveMergeRequest,
-            //     state.clone(),
-            // )
-            // .await
-            // .unwrap();
-            let res = state.monorepo().merge_mr(&mut model.into()).await;
-            let res = match res {
-                Ok(_) => CommonResult::success(None),
-                Err(err) => CommonResult::failed(&err.to_string()),
-            };
-            return Ok(Json(res));
-        }
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+
+    if model.status == MergeStatusEnum::Open {
+        let path = model.path.clone();
+        util::check_permissions(
+            &user.name,
+            &path,
+            ActionEnum::ApproveMergeRequest,
+            state.clone(),
+        )
+        .await
+        .unwrap();
+        state
+            .monorepo()
+            .merge_mr(user.campsite_user_id, model)
+            .await?;
     }
-    Ok(Json(CommonResult::failed("not found")))
+    Ok(Json(CommonResult::success(None)))
 }
 
 /// Fetch MR list
@@ -173,17 +194,14 @@ async fn fetch_mr_list(
             MergeStatusEnum::Merged,
         ]
     };
-    let res = match state
+    let (items, total) = state
         .mr_stg()
         .get_mr_by_status(status, json.pagination.page, json.pagination.per_page)
-        .await
-    {
-        Ok((items, total)) => CommonResult::success(Some(CommonPage {
-            items: items.into_iter().map(|m| m.into()).collect(),
-            total,
-        })),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
+        .await?;
+    let res = CommonResult::success(Some(CommonPage {
+        items: items.into_iter().map(|m| m.into()).collect(),
+        total,
+    }));
     Ok(Json(res))
 }
 
@@ -203,19 +221,12 @@ async fn mr_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<MRDetail>>, ApiError> {
-    let res = match state.mr_stg().get_mr(&link).await {
-        Ok(data) => {
-            if let Some(model) = data {
-                let mut detail: MRDetail = model.into();
-                let conversations = state.mr_stg().get_mr_conversations(&link).await.unwrap();
-                detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
-                CommonResult::success(Some(detail))
-            } else {
-                CommonResult::success(None)
-            }
-        }
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("MR Not Found"))?;
+    let mut detail: MRDetail = model.into();
+    let conversations = state.issue_stg().get_conversations(&link).await.unwrap();
+    detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
+    let res = CommonResult::success(Some(detail));
     Ok(Json(res))
 }
 
@@ -236,23 +247,17 @@ async fn get_mr_files_changed(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
     let listen_addr = &state.listen_addr;
-    let res = state.monorepo().content_diff(&link, listen_addr).await;
-    let res = match res {
-        Ok(data) => {
-            let diff_files = extract_files_with_status(&data);
-            let mut diff_list: Vec<FilesChangedItem> = vec![];
-            for (path, status) in diff_files {
-                diff_list.push(FilesChangedItem { path, status });
-            }
+    let diff_res = state.monorepo().content_diff(&link, listen_addr).await?;
 
-            CommonResult::success(Some(FilesChangedList {
-                files: diff_list,
-                content: data,
-            }))
-        }
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-
+    let diff_files = extract_files_with_status(&diff_res);
+    let mut diff_list: Vec<FilesChangedItem> = vec![];
+    for (path, status) in diff_files {
+        diff_list.push(FilesChangedItem { path, status });
+    }
+    let res = CommonResult::success(Some(FilesChangedList {
+        files: diff_list,
+        content: diff_res,
+    }));
     Ok(Json(res))
 }
 
@@ -270,22 +275,23 @@ async fn get_mr_files_changed(
     tag = MR_TAG
 )]
 async fn save_comment(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<SaveCommentRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        state
-            .mr_stg()
-            .add_mr_conversation(&model.link, 0, ConvTypeEnum::Comment, Some(payload.content))
-            .await
-            .unwrap();
-        CommonResult::success(None)
-    } else {
-        CommonResult::failed("Invalid link")
-    };
-    Ok(Json(res))
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    state
+        .issue_stg()
+        .add_conversation(
+            &model.link,
+            &user.campsite_user_id,
+            Some(payload.content),
+            ConvTypeEnum::Comment,
+        )
+        .await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 /// Delete Comment
@@ -304,11 +310,8 @@ async fn delete_comment(
     Path(conv_id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = match state.mr_stg().remove_mr_conversation(conv_id).await {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+    state.issue_stg().remove_conversation(conv_id).await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
@@ -329,6 +332,24 @@ fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
         }
     }
     files
+}
+
+/// update mr related labels
+#[utoipa::path(
+    post,
+    path = "/labels",
+    request_body = LabelUpdatePayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn labels(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<LabelUpdatePayload>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    common_label_update(user, state, payload).await
 }
 
 #[cfg(test)]

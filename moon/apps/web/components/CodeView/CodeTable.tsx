@@ -6,11 +6,9 @@ import { useMemo } from 'react'
 import { DocumentIcon, FolderIcon } from '@heroicons/react/20/solid'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { usePathname, useRouter } from 'next/navigation'
-import Markdown from 'react-markdown'
-
-import styles from './CodeTable.module.css'
 import RTable from './Table'
 import { columnsType, DirectoryType } from './Table/type'
+import Markdown from 'react-markdown'
 
 export interface DataType {
   oid: string
@@ -20,10 +18,18 @@ export interface DataType {
   date: number
 }
 
-const CodeTable = ({ directory, readmeContent, loading }: any) => {
+const CodeTable = ({ directory, loading, readmeContent}: any) => {
   const router = useRouter()
   const pathname = usePathname()
   let real_path = pathname?.replace('/tree', '')
+
+  const markdownContentStyle = {
+    margin:' 0 auto',
+    marginTop: 20,
+    border: '1px solid rgba(0, 0, 0, 0.112)',
+    padding: '2%',
+    borderRadius: '0.5rem',
+  }
 
   const columns = useMemo<columnsType<DirectoryType>[]>(
     () => [
@@ -102,9 +108,8 @@ const CodeTable = ({ directory, readmeContent, loading }: any) => {
         onClick={handleRowClick}
         loading={loading}
       />
-
-      {readmeContent && (
-        <div className={styles.markdownContent}>
+    {readmeContent && (
+        <div style={markdownContentStyle}>
           <div className='markdown-body'>
             <Markdown>{readmeContent}</Markdown>
           </div>

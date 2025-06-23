@@ -13,7 +13,6 @@ use repo::Repo;
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, PackHandler};
 
 pub mod import_refs;
-pub mod mr;
 pub mod repo;
 pub mod smart;
 

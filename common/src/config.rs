@@ -1,13 +1,19 @@
-use c::{ConfigError, FileFormat};
-use callisto::sea_orm_active_enums::StorageTypeEnum;
-pub use config as c;
-use config::builder::DefaultState;
-use config::{Source, ValueKind};
-use serde::{Deserialize, Deserializer, Serialize};
+//! Configuration management for the Mono and Mega application
+//! This module provides functionality to load, parse, and manage configuration settings
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
+
+use c::{ConfigError, FileFormat};
+pub use config as c;
+
+use config::builder::DefaultState;
+use config::{Source, ValueKind};
+use serde::{Deserialize, Deserializer, Serialize};
+
+use callisto::sea_orm_active_enums::StorageTypeEnum;
 
 use crate::utils;
 
@@ -39,6 +45,7 @@ pub fn mega_base() -> PathBuf {
             .unwrap()
             .to_string()
     });
+
     PathBuf::from(base_dir)
 }
 
@@ -70,6 +77,7 @@ pub fn mega_cache() -> PathBuf {
             .unwrap()
             .to_string()
     });
+
     PathBuf::from(cache_dir)
 }
 
@@ -95,8 +103,8 @@ impl Config {
                 c::Environment::with_prefix("mega")
                     .prefix_separator("_")
                     .separator("__"),
-            ); // e.g. MEGA_BASE_DIR == base_dir
-               // support ${} variable substitution
+            );
+
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
@@ -115,7 +123,7 @@ impl Config {
         }
     }
 
-    pub fn load_str(content: &str) -> Result<Self, c::ConfigError> {
+    pub fn load_str(content: &str) -> Result<Self, ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::from_str(content, FileFormat::Toml))
             .add_source(
@@ -129,7 +137,7 @@ impl Config {
         Config::from_config(config)
     }
 
-    pub fn load_sources<T>(sources: Vec<Box<T>>) -> Result<Self, c::ConfigError>
+    pub fn load_sources<T>(sources: Vec<Box<T>>) -> Result<Self, ConfigError>
     where
         T: Source + Send + Sync + 'static,
     {
@@ -143,8 +151,7 @@ impl Config {
         Config::from_config(config)
     }
 
-    pub fn from_config(config: c::Config) -> Result<Self, c::ConfigError> {
-        // config.get::<Self>(env!("CARGO_PKG_NAME"))
+    pub fn from_config(config: c::Config) -> Result<Self, ConfigError> {
         config.try_deserialize::<Config>()
     }
 }
@@ -539,6 +546,8 @@ pub struct OauthConfig {
     pub github_client_secret: String,
     pub ui_domain: String,
     pub cookie_domain: String,
+    pub campsite_api_domain: String,
+    pub allowed_cors_origins: Vec<String>,
 }
 
 #[cfg(test)]

@@ -19,10 +19,9 @@ use ceres::{
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::issue::issue_router;
-use crate::api::mr::mr_router;
-use crate::api::user::user_router;
-use crate::api::MonoApiServiceState;
+use crate::api::{
+    issue::issue_router, label::label_router, mr::mr_router, user::user_router, MonoApiServiceState,
+};
 use crate::{api::error::ApiError, server::https_server::GIT_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -41,6 +40,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(mr_router::routers())
         .merge(user_router::routers())
         .merge(issue_router::routers())
+        .merge(label_router::routers())
 }
 
 /// Get blob file as string

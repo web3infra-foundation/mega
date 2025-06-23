@@ -61,7 +61,7 @@ function CustomLabel({ icon: Icon, children, ...other }: CustomLabelProps) {
       {Icon && (
         <Box component={Icon} className="labelIcon" color="inherit" sx={{ mr: 1, fontSize: '1.2rem' }} />
       )}
-      <TreeItemLabel>{children}</TreeItemLabel>
+      <TreeItemLabel sx={{fontSize: '14px'}}>{children}</TreeItemLabel>
     </TreeItemLabel>
   );
 }

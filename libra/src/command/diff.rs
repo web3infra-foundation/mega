@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use imara_diff::{intern::InternedInput, Algorithm, UnifiedDiffBuilder};
+use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
 use mercury::{
     hash::SHA1,
     internal::{
@@ -49,6 +49,11 @@ pub struct DiffArgs {
 
     #[clap(help = "Files to compare")]
     pathspec: Vec<String>,
+
+    /// choose the exact diff algorithm default value is histogram
+    /// support myers and myersMinimal
+    #[clap(long, default_value = "histogram", value_parser=["histogram", "myers", "myersMinimal"])]
+    pub algorithm: Option<String>,
 
     // Print the result to file
     #[clap(long, value_name = "FILENAME")]
@@ -124,7 +129,14 @@ pub async fn execute(args: DiffArgs) {
 
     let mut buf: Vec<u8> = Vec::new();
     // filter files, cross old and new files, and pathspec
-    diff(old_blobs, new_blobs, paths.into_iter().collect(), &mut buf).await;
+    diff(
+        old_blobs,
+        new_blobs,
+        args.algorithm.unwrap_or_default(),
+        paths.into_iter().collect(),
+        &mut buf,
+    )
+    .await;
 
     match w {
         Some(ref mut file) => {
@@ -155,6 +167,7 @@ pub async fn execute(args: DiffArgs) {
 pub async fn diff(
     old_blobs: Vec<(PathBuf, SHA1)>,
     new_blobs: Vec<(PathBuf, SHA1)>,
+    algorithm: String,
     filter: Vec<PathBuf>,
     w: &mut dyn io::Write,
 ) {
@@ -231,7 +244,28 @@ pub async fn diff(
             String::from_utf8(new_content),
         ) {
             (Ok(old_text), Ok(new_text)) => {
-                imara_diff_result(&old_text, &new_text, w);
+                let (old_prefix, new_prefix) = if old_text.is_empty() {
+                    // New file
+                    (
+                        "/dev/null".to_string(),
+                        format!("b/{}", file_display(&file, new_hash, new_type)),
+                    )
+                } else if new_text.is_empty() {
+                    // Remove file
+                    (
+                        format!("a/{}", file_display(&file, old_hash, old_type)),
+                        "/dev/null".to_string(),
+                    )
+                } else {
+                    // Update file
+                    (
+                        format!("a/{}", file_display(&file, old_hash, old_type)),
+                        format!("b/{}", file_display(&file, new_hash, new_type)),
+                    )
+                };
+                writeln!(w, "--- {}", old_prefix).unwrap();
+                writeln!(w, "+++ {}", new_prefix).unwrap();
+                imara_diff_result(&old_text, &new_text, algorithm.as_str(), w);
             }
             _ => {
                 // TODO: Handle non-UTF-8 data as binary for now; consider optimization in the future.
@@ -331,14 +365,31 @@ fn similar_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
     }
 }
 
-fn imara_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
+fn imara_diff_result(old: &str, new: &str, algorithm: &str, w: &mut dyn io::Write) {
     let input = InternedInput::new(old, new);
-    let diff = imara_diff::diff(
-        Algorithm::Histogram,
-        &input,
-        UnifiedDiffBuilder::new(&input),
-    );
-    write!(w, "{}", diff).unwrap();
+
+    let algo = match algorithm {
+        "myers" => Algorithm::Myers,
+        "myersMinimal" => Algorithm::MyersMinimal,
+        // default is the histogram algo
+        _ => Algorithm::Histogram,
+    };
+    tracing::debug!("libra [diff]: choose the algorithm: {:?}", algo);
+
+    let mut diff = Diff::compute(algo, &input);
+
+    // did the postprocess_lines
+    diff.postprocess_lines(&input);
+
+    let result = diff
+        .unified_diff(
+            &BasicLineDiffPrinter(&input.interner),
+            UnifiedDiffConfig::default(),
+            &input,
+        )
+        .to_string();
+
+    write!(w, "{}", result).unwrap();
 }
 
 #[cfg(test)]
@@ -346,6 +397,7 @@ mod test {
     use crate::utils::test;
     use serial_test::serial;
     use std::fs;
+    use std::time::Instant;
     use tempfile::tempdir;
 
     use super::*;
@@ -357,7 +409,6 @@ mod test {
             let args = DiffArgs::try_parse_from(["diff", "--old", "old", "--new", "new", "paths"]);
             assert!(args.is_ok());
             let args = args.unwrap();
-            // println!("{:?}", args);
             assert_eq!(args.old, Some("old".to_string()));
             assert_eq!(args.new, Some("new".to_string()));
             assert_eq!(args.pathspec, vec!["paths".to_string()]);
@@ -385,6 +436,26 @@ mod test {
             ]);
             assert!(args.is_err());
             assert!(args.err().unwrap().kind() == clap::error::ErrorKind::MissingRequiredArgument);
+        }
+        {
+            // --algorithm arg
+            let args = DiffArgs::try_parse_from([
+                "diff",
+                "--old",
+                "old",
+                "--new",
+                "new",
+                "--algorithm",
+                "myers",
+                "target paths",
+            ])
+            .unwrap();
+            assert_eq!(args.algorithm, Some("myers".to_string()));
+        }
+        {
+            // --algorithm arg with default value
+            let args = DiffArgs::try_parse_from(["diff", "--old", "old", "target paths"]).unwrap();
+            assert_eq!(args.algorithm, Some("histogram".to_string()));
         }
     }
 
@@ -418,5 +489,75 @@ mod test {
         let blob = get_files_blobs(&[PathBuf::from("should_ignore"), PathBuf::from("not_ignore")]);
         assert_eq!(blob.len(), 1);
         assert_eq!(blob[0].0, PathBuf::from("not_ignore"));
+    }
+
+    #[test]
+    fn test_diff_algorithms_correctness_and_efficiency() {
+        let old = r#"function foo() {
+    if (condition) {
+        doSomething();
+        doSomethingElse();
+        andAnotherThing();
+    } else {
+        alternative();
+    }
+}"#;
+
+        let new = r#"function foo() {
+    if (condition) {
+        // Added comment
+        doSomething();
+        // Modified this line
+        modifiedSomethingElse();
+        andAnotherThing();
+    } else {
+        alternative();
+    }
+
+    // Added new block
+    addedNewFunctionality();
+}"#;
+        let mut outputs = Vec::new();
+
+        let algos = ["histogram", "myers", "myersMinimal"];
+
+        // test the different algo benchmark
+        for algo in algos {
+            let mut buf = Vec::new();
+            let start = Instant::now();
+            imara_diff_result(old, new, algo, &mut buf);
+            let elapse = start.elapsed();
+            let ouput = String::from_utf8(buf).expect("Invalid UTF-8 in diff ouput");
+
+            println!("libra diff algorithm: {:?} Spend Time: {:?}", algo, elapse);
+            assert!(
+                !ouput.is_empty(),
+                "libra diff algorithm: {} produce a empty output",
+                algo
+            );
+            assert!(
+                ouput.contains("@@"),
+                "libra diff algorithm: {}, ouput missing diff markers",
+                algo
+            );
+
+            outputs.push((algo, ouput));
+        }
+
+        // check the line counter difference
+        for (algo, output) in outputs {
+            let plus_line = output.lines().filter(|line| line.starts_with("+")).count();
+            let minus_line = output.lines().filter(|line| line.starts_with("-")).count();
+            assert_eq!(
+                plus_line, 6,
+                "libra diff algorithm {}, expect plus_line: 6, got {} ",
+                algo, plus_line
+            );
+            assert_eq!(
+                minus_line, 1,
+                "libra diff algorithm {}, expect minus_line: 1, got {} ",
+                algo, minus_line
+            );
+        }
     }
 }

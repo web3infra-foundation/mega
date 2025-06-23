@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
@@ -32,7 +34,6 @@ export const IssueIndex = () => {
   return (
     <>
       <FloatingNewDocButton />
-
       <SplitViewContainer>
         <IndexPageContainer>
           <BreadcrumbTitlebar className='justify-between'>
@@ -45,11 +46,10 @@ export const IssueIndex = () => {
             </Button>
             <NewIssueButton />
           </BreadcrumbTitlebar>
-          <IndexPageContent id='/[org]/notes' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
+          <IndexPageContent id='/[org]/issue' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
             <IssuesContent searching={isSearching} />
           </IndexPageContent>
         </IndexPageContainer>
-
         <SplitViewDetail />
       </SplitViewContainer>
     </>
@@ -101,7 +101,14 @@ export const NewIssueButton = () => {
   const { scope } = useScope()
 
   return (
-    <Button variant='primary' className='bg-[#1f883d]' size={'base'} onClick={() => router.push(`/${scope}/issue/new`)}>
+    <Button
+      variant='primary'
+      className='bg-[#1f883d]'
+      size={'base'}
+      onClick={() => {
+        router.push(`/${scope}/issue/new`)
+      }}
+    >
       New Issue
     </Button>
   )

@@ -34,7 +34,7 @@ pub struct SshCustom {
     ssh_port: u16,
 }
 
-/// start a ssh server
+/// start an ssh server
 pub async fn start_server(ctx: AppContext, command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
     let p_key = load_key(ctx.clone());

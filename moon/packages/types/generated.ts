@@ -3038,15 +3038,34 @@ export type CommonResultCommonPageIssueItem = {
     items: {
       /** @format int64 */
       closed_at?: number | null
+      labels: LabelItem[]
       link: string
       /** @format int64 */
       open_timestamp: number
-      /** @format int64 */
-      owner: number
       status: string
       title: string
       /** @format int64 */
       updated_at: number
+      user_id: string
+    }[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCommonPageLabelItem = {
+  data?: {
+    items: {
+      color: string
+      description: string
+      /** @format int64 */
+      id: number
+      name: string
     }[]
     /**
      * @format int64
@@ -3162,7 +3181,8 @@ export enum ConvTypeEnum {
   MergeQueue = 'MergeQueue',
   Merged = 'Merged',
   Closed = 'Closed',
-  Reopen = 'Reopen'
+  Reopen = 'Reopen',
+  Label = 'Label'
 }
 
 export type CreateFileInfo = {
@@ -3187,15 +3207,30 @@ export type FilesChangedList = {
 export type IssueItem = {
   /** @format int64 */
   closed_at?: number | null
+  labels: LabelItem[]
   link: string
   /** @format int64 */
   open_timestamp: number
-  /** @format int64 */
-  owner: number
   status: string
   title: string
   /** @format int64 */
   updated_at: number
+  user_id: string
+}
+
+export type LabelItem = {
+  color: string
+  description: string
+  /** @format int64 */
+  id: number
+  name: string
+}
+
+export type LabelUpdatePayload = {
+  /** @format int64 */
+  item_id: number
+  label_ids: number[]
+  link: string
 }
 
 export type LatestCommitInfo = {
@@ -3233,8 +3268,7 @@ export type MegaConversation = {
   id: number
   /** @format int64 */
   updated_at: number
-  /** @format int64 */
-  user_id: number
+  user_id: string
 }
 
 export enum MergeStatusEnum {
@@ -3260,6 +3294,12 @@ export type NewIssue = {
   title: string
 }
 
+export type NewLabel = {
+  color: string
+  description: string
+  name: string
+}
+
 export type PageParamsMRStatusParams = {
   additional: {
     status: string
@@ -3271,6 +3311,11 @@ export type PageParamsStatusParams = {
   additional: {
     status: string
   }
+  pagination: Pagination
+}
+
+export type PageParamsString = {
+  additional: string
   pagination: Pagination
 }
 
@@ -4463,6 +4508,8 @@ export type PostApiCreateFileData = CommonResultString
 
 export type DeleteApiIssueCommentDeleteData = CommonResultString
 
+export type PostApiIssueLabelsData = CommonResultString
+
 export type PostApiIssueListData = CommonResultCommonPageIssueItem
 
 export type PostApiIssueNewData = CommonResultString
@@ -4475,6 +4522,10 @@ export type GetApiIssueDetailData = CommonResultString
 
 export type PostApiIssueReopenData = CommonResultString
 
+export type PostApiLabelListData = CommonResultCommonPageLabelItem
+
+export type PostApiLabelNewData = CommonResultString
+
 export type GetApiLatestCommitParams = {
   refs?: string
   path?: string
@@ -4483,6 +4534,8 @@ export type GetApiLatestCommitParams = {
 export type GetApiLatestCommitData = LatestCommitInfo
 
 export type DeleteApiMrCommentDeleteData = CommonResultString
+
+export type PostApiMrLabelsData = CommonResultString
 
 export type PostApiMrListData = CommonResultCommonPageMrInfoItem
 
@@ -12889,6 +12942,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags issue
+     * @name PostApiIssueLabels
+     * @summary update issue related labels
+     * @request POST:/api/v1/issue/labels
+     */
+    postApiIssueLabels: () => {
+      const base = 'POST:/api/v1/issue/labels' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiIssueLabelsData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiIssueLabelsData>([base]),
+        request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiIssueLabelsData>({
+            path: `/api/v1/issue/labels`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags issue
      * @name PostApiIssueList
      * @summary Fetch Issue list
      * @request POST:/api/v1/issue/list
@@ -13032,6 +13110,56 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags label
+     * @name PostApiLabelList
+     * @summary List label in page
+     * @request POST:/api/v1/label/list
+     */
+    postApiLabelList: () => {
+      const base = 'POST:/api/v1/label/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLabelListData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiLabelListData>([base]),
+        request: (data: PageParamsString, params: RequestParams = {}) =>
+          this.request<PostApiLabelListData>({
+            path: `/api/v1/label/list`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags label
+     * @name PostApiLabelNew
+     * @summary New label
+     * @request POST:/api/v1/label/new
+     */
+    postApiLabelNew: () => {
+      const base = 'POST:/api/v1/label/new' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLabelNewData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiLabelNewData>([base]),
+        request: (data: NewLabel, params: RequestParams = {}) =>
+          this.request<PostApiLabelNewData>({
+            path: `/api/v1/label/new`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags git
      * @name GetApiLatestCommit
      * @summary Get latest commit by path
@@ -13071,6 +13199,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           this.request<DeleteApiMrCommentDeleteData>({
             path: `/api/v1/mr/comment/${convId}/delete`,
             method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrLabels
+     * @summary update mr related labels
+     * @request POST:/api/v1/mr/labels
+     */
+    postApiMrLabels: () => {
+      const base = 'POST:/api/v1/mr/labels' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrLabelsData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMrLabelsData>([base]),
+        request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrLabelsData>({
+            path: `/api/v1/mr/labels`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
             ...params
           })
       }

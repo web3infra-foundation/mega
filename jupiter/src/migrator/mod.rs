@@ -37,6 +37,8 @@ mod m20250314_025943_init;
 mod m20250427_031332_add_mr_refs_tag;
 mod m20250605_013340_alter_mega_mr_index;
 mod m20250610_000001_add_vault_storage;
+mod m20250613_033821_alter_user_id;
+mod m20250618_065050_add_label;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -51,12 +53,10 @@ fn pk_bigint<T: IntoIden>(name: T) -> ColumnDef {
     big_integer(name).primary_key().take()
 }
 
-
 /// The main migrator struct that implements the migration trait.
 ///
 /// This struct is responsible for managing all database migrations in the correct order.
 pub struct Migrator;
-
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
@@ -66,6 +66,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250427_031332_add_mr_refs_tag::Migration),
             Box::new(m20250605_013340_alter_mega_mr_index::Migration),
             Box::new(m20250610_000001_add_vault_storage::Migration),
+            Box::new(m20250613_033821_alter_user_id::Migration),
+            Box::new(m20250618_065050_add_label::Migration),
         ]
     }
 }
