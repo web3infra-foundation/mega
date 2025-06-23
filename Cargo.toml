@@ -16,6 +16,7 @@ members = [
     "third-party",
     "observatory",
     "scorpio",
+    "context",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
@@ -32,6 +33,7 @@ vault = { path = "vault" }
 saturn = { path = "saturn" }
 mono = { path = "mono" }
 orion = { path = "orion" }
+context = { path = "context" }
 
 anyhow = "1.0.98"
 serde = "1.0.219"

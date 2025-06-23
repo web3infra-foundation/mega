@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::{context::Storage, utils::converter::generate_git_keep_with_timestamp};
+use jupiter::{storage::Storage, utils::converter::generate_git_keep_with_timestamp};
 use mercury::{
     errors::GitError,
     hash::SHA1,

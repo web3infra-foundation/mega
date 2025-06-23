@@ -1,6 +1,6 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
-
-use crate::{context::AppContext, server::ssh_server::{start_server, SshOptions}};
+use context::AppContext;
+use crate::{server::ssh_server::{start_server, SshOptions}};
 use common::errors::MegaResult;
 
 pub fn cli() -> Command {

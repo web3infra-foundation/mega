@@ -5,6 +5,7 @@ use axum::routing::post;
 use axum::Json;
 use reqwest::Client;
 use serde_json::Value;
+use std::sync::LazyLock;
 use utoipa_axum::router::OpenApiRouter;
 
 pub fn routers() -> OpenApiRouter<MegaApiServiceState> {
@@ -38,13 +39,14 @@ pub async fn get_pr_files(pr_url: &str) -> Value {
 pub async fn get_pr_commits(pr_url: &str) -> Value {
     get_request(&format!("{}/commits", pr_url)).await
 }
-
 /// Send a GET request to the given URL and return the JSON response.
 async fn get_request(url: &str) -> Value {
-    static CLIENT: Client = Client::builder()
-        .user_agent("Mega/0.0.1") // IMPORTANT, or 403 Forbidden
-        .build()
-        .unwrap();
+    static CLIENT: LazyLock<Client> = LazyLock::new(|| {
+        Client::builder()
+            .user_agent("Mega/0.0.1") // IMPORTANT, or 403 Forbidden
+            .build()
+            .unwrap()
+    });
     let resp = CLIENT.get(url).send().await.unwrap();
     resp.json().await.unwrap()
 }

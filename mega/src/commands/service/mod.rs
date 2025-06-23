@@ -8,7 +8,7 @@ use clap::{ArgMatches, Command};
 use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
-use jupiter::context::Storage;
+use context::AppContext;
 
 mod http;
 mod multi;
@@ -27,14 +27,7 @@ pub fn cli() -> Command {
 // It determines which subcommand was used and calls the appropriate function.
 #[tokio::main]
 pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
-    let config = Arc::new(config);
-    let context = Storage::new(config.clone()).await;
-
-    context
-        .services
-        .mono_storage
-        .init_monorepo(&config.monorepo)
-        .await;
+    let context = AppContext::new(config).await;
 
     let (cmd, subcommand_args) = match args.subcommand() {
         Some((cmd, args)) => (cmd, args),

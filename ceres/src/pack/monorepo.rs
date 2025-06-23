@@ -16,7 +16,7 @@ use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
 };
-use jupiter::{context::Storage, storage::mr_storage::MrStorage};
+use jupiter::{storage::Storage, storage::mr_storage::MrStorage};
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,

@@ -8,7 +8,7 @@ use clap::{ArgMatches, Command};
 
 use common::{config::Config, errors::MegaResult};
 
-use crate::context::AppContext;
+use context::AppContext;
 
 pub mod http;
 pub mod multi;

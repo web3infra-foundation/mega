@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use clap::Args;
+use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
     keys::{ssh_key::rand_core::OsRng, Algorithm, PrivateKey},
@@ -16,7 +17,7 @@ use common::model::CommonHttpOptions;
 use tokio::sync::Mutex;
 use vault::integration::vault_core::VaultCoreInterface;
 
-use crate::{ context::AppContext, git_protocol::ssh::SshServer};
+use crate::{ git_protocol::ssh::SshServer};
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {

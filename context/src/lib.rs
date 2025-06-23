@@ -11,6 +11,10 @@ pub struct AppContext {
     /// The vault core for managing encrypted data.
     pub vault: vault::integration::vault_core::VaultCore,
 
+    /// The client for P2P communication.
+    #[cfg(feature = "p2p")]
+    pub client: gemini::p2p::client::P2PClient,
+
     /// The configuration settings for the application.
     pub config: Arc<common::config::Config>,
 }
@@ -21,11 +25,25 @@ impl AppContext {
         let config = Arc::new(config);
         let storage = jupiter::storage::Storage::new(config.clone()).await;
         let vault = vault::integration::vault_core::VaultCore::new(storage.clone());
+        #[cfg(feature = "p2p")]
+        let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
+
+        storage
+            .services
+            .mono_storage
+            .init_monorepo(&config.monorepo)
+            .await;
 
         Self {
             storage,
             vault,
             config,
+            #[cfg(feature = "p2p")]
+            client,
         }
+    }
+
+    pub fn wrapped_context(&self) -> Arc<Self> {
+        Arc::new(self.clone())
     }
 }

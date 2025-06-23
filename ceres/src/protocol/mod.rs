@@ -7,7 +7,7 @@ use common::{
     utils::ZERO_ID,
 };
 use import_refs::RefCommand;
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use repo::Repo;
 
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, PackHandler};

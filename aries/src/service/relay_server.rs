@@ -4,7 +4,8 @@ use axum::routing::get;
 use axum::{Json, Router};
 use clap::Parser;
 use common::config::Config;
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
+use vault::integration::VaultCore;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -30,6 +31,7 @@ pub struct RelayOptions {
 #[derive(Clone)]
 pub struct AppState {
     pub storage: Storage,
+    pub vault: VaultCore,
     pub relay_option: RelayOptions,
 }
 
@@ -38,8 +40,10 @@ pub async fn run_relay_server(config: Arc<Config>, option: RelayOptions) {
     let server_url = format!("{}:{}", option.host, option.relay_port);
     tracing::info!("start relay server: {server_url}");
     tokio::spawn(async move {
-        let context = Storage::new(config).await;
-        gemini::p2p::relay::run(context, option.host, option.relay_port).await
+        let storage = Storage::new(config).await;
+        let vault = VaultCore::new(storage.clone());
+        let relay = gemini::p2p::relay::P2PRelay::new(storage, vault);
+        relay.run(option.host, option.relay_port).await
     });
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -49,8 +53,12 @@ pub async fn run_relay_server(config: Arc<Config>, option: RelayOptions) {
 }
 
 pub async fn app(config: Arc<Config>, relay_option: RelayOptions) -> Router {
+    let storage = Storage::new(config).await;
+    let vault = VaultCore::new(storage.clone());
+
     let state = AppState {
-        storage: Storage::new(config).await,
+        storage,
+        vault,
         relay_option,
     };
 

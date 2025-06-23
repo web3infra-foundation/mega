@@ -16,6 +16,7 @@ mono = { workspace = true }
 jupiter = { workspace = true }
 gateway = { workspace = true }
 common = { workspace = true }
+context = { workspace = true }
 
 tokio = { workspace = true, features = ["macros"] }
 clap = { workspace = true, features = ["derive"] }

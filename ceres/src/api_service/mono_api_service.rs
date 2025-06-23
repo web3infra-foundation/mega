@@ -9,7 +9,7 @@ use tokio::process::Command;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use jupiter::storage::batch_save_model;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use mercury::errors::GitError;

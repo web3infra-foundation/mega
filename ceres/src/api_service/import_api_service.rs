@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;

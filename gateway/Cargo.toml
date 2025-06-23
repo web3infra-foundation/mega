@@ -15,6 +15,7 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 gemini = { workspace = true }
+context = { workspace = true , features = ["p2p"]}
 
 axum = { workspace = true }
 tower = { workspace = true }
