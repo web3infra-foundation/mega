@@ -7,6 +7,7 @@ use rcgen::{
 
 use anyhow::anyhow;
 use anyhow::Result;
+use vault::integration::VaultCore;
 
 use crate::ca::save_to_vault;
 
@@ -17,57 +18,57 @@ static ROOT_KEY: &str = "root_key";
 
 static USER_KEY_PRE: &str = "user_";
 
-pub async fn get_root_cert_pem() -> String {
-    match get_from_vault(ROOT_CERT.to_string()).await {
+pub fn get_root_cert_pem(vault: &VaultCore) -> String {
+    match get_from_vault(vault,ROOT_CERT.to_string()) {
         Some(cert) => cert,
-        None => init_self_signed_cert().await.0,
+        None => init_self_signed_cert(vault).0,
     }
 }
 
-pub async fn get_root_cert_der() -> CertificateDer<'static> {
-    let cert = get_root_cert_pem().await;
+pub fn get_root_cert_der(vault: &VaultCore) -> CertificateDer<'static> {
+    let cert = get_root_cert_pem(vault);
     let cert = CertificateDer::from_pem_slice(cert.as_bytes()).unwrap();
     cert
 }
 
-pub async fn get_root_key_pem() -> String {
-    match get_from_vault(ROOT_KEY.to_string()).await {
+pub fn get_root_key_pem(vault: &VaultCore) -> String {
+    match get_from_vault(vault, ROOT_KEY.to_string()) {
         Some(key) => key,
-        None => init_self_signed_cert().await.1,
+        None => init_self_signed_cert(vault).1,
     }
 }
 
-pub async fn get_root_key_der() -> PrivateKeyDer<'static> {
-    let key = get_root_key_pem().await;
+pub fn get_root_key_der(vault: &VaultCore) -> PrivateKeyDer<'static> {
+    let key = get_root_key_pem(vault);
     let key = PrivateKeyDer::from_pem_slice(key.as_bytes()).unwrap();
     key
 }
 
-async fn init_self_signed_cert() -> (String, String) {
+fn init_self_signed_cert(vault: &VaultCore) -> (String, String) {
     let subject_alt_names = vec!["localhost".to_string()];
 
     let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names).unwrap();
-    save_to_vault(ROOT_CERT.to_string(), cert.pem()).await;
-    save_to_vault(ROOT_KEY.to_string(), key_pair.serialize_pem()).await;
+    save_to_vault(vault, ROOT_CERT.to_string(), cert.pem());
+    save_to_vault(vault, ROOT_KEY.to_string(), key_pair.serialize_pem());
     (cert.pem(), key_pair.serialize_pem())
 }
 
-pub async fn get_certificate(name: String) -> Result<String> {
+pub fn get_certificate(vault: &VaultCore, name: String) -> Result<String> {
     if name == "ca" {
-        return Ok(get_root_cert_pem().await);
+        return Ok(get_root_cert_pem(vault));
     }
 
-    let cert_option = get_from_vault(add_user_key_pre(name)).await;
+    let cert_option = get_from_vault(vault, add_user_key_pre(name));
     match cert_option {
         Some(cert) => Ok(cert),
         None => Err(anyhow!("Username not found")),
     }
 }
 
-pub async fn issue_certificate(name: String, csr: String) -> Result<String> {
+pub fn issue_certificate(vault: &VaultCore, name: String, csr: String) -> Result<String> {
     tracing::info!("sign_certificate, name:{name},csr:{csr}");
-    let ca_key = KeyPair::from_pem(get_root_key_pem().await.as_str()).unwrap();
-    let params = CertificateParams::from_ca_cert_pem(get_root_cert_pem().await.as_str()).unwrap();
+    let ca_key = KeyPair::from_pem(get_root_key_pem(vault).as_str()).unwrap();
+    let params = CertificateParams::from_ca_cert_pem(get_root_cert_pem(vault).as_str()).unwrap();
     let ca_cert = params.self_signed(&ca_key).unwrap();
 
     let csrd = match CertificateSigningRequestDer::from_pem_slice(csr.as_bytes()) {
@@ -77,7 +78,7 @@ pub async fn issue_certificate(name: String, csr: String) -> Result<String> {
     let csrq = CertificateSigningRequestParams::from_der(&csrd).unwrap();
     let user_cert = csrq.signed_by(&ca_cert, &ca_key).unwrap();
 
-    save_to_vault(add_user_key_pre(name), user_cert.pem()).await;
+    save_to_vault(vault, add_user_key_pre(name), user_cert.pem());
     Ok(user_cert.pem())
 }
 

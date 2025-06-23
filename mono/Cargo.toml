@@ -7,6 +7,10 @@ keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 
+[lib]
+name = "mono"
+path = "src/lib.rs"
+
 [[bin]]
 name = "mono"
 path = "src/main.rs"

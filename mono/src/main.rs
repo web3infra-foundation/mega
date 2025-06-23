@@ -5,6 +5,7 @@
 
 mod cli;
 mod commands;
+mod context;
 
 pub mod api;
 pub mod git_protocol;

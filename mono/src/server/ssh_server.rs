@@ -14,6 +14,7 @@ use russh::{
 
 use common::model::CommonHttpOptions;
 use tokio::sync::Mutex;
+use vault::integration::vault_core::VaultCoreInterface;
 
 use crate::{ context::AppContext, git_protocol::ssh::SshServer};
 

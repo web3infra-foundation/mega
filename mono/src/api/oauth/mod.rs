@@ -52,7 +52,7 @@ async fn login_authorized(
     State(oauth_client): State<GithubClient>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let config = state.storage.config.oauth.as_ref().unwrap();
+    let config = state.storage.config().oauth.as_ref().unwrap().clone();
 
     let http_client = reqwest::ClientBuilder::new()
         .redirect(reqwest::redirect::Policy::none())
@@ -134,7 +134,7 @@ async fn logout(
     TypedHeader(cookies): TypedHeader<headers::Cookie>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let full_config = state.storage.config.clone();
+    let full_config = state.storage.config();
     let config = full_config.oauth.as_ref().unwrap();
     let cookie = cookies
         .get(COOKIE_NAME)

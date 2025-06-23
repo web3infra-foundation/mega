@@ -9,7 +9,7 @@ use pgp::types::SecretKeyTrait;
 pub use pgp::KeyType;
 use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
 
-use crate::integration::vault_core::VaultCore;
+use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
 
 const VAULT_KEY: &str = "pgp-signed-secret";
 

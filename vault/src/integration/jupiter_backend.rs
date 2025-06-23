@@ -1,14 +1,14 @@
-use jupiter::context::StorageContext;
+use jupiter::storage::Storage;
 use rusty_vault::storage::Backend;
 use tokio::runtime::Handle;
 
 pub struct JupiterBackend {
-    ctx: StorageContext,
+    ctx: Storage,
     rt: Handle,
 }
 
 impl JupiterBackend {
-    pub fn new(ctx: StorageContext) -> Self {
+    pub fn new(ctx: Storage) -> Self {
         let rt = tokio::runtime::Handle::current();
         JupiterBackend { ctx, rt }
     }

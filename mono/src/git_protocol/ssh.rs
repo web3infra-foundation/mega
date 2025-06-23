@@ -15,7 +15,7 @@ use ceres::lfs::lfs_structs::Link;
 use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use tokio::sync::Mutex;
 
 use crate::git_protocol::http::search_subsequence;

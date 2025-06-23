@@ -1,7 +1,7 @@
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use tracing::log;
 
-use crate::integration::vault_core::VaultCore;
+use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
 
 const NOSTR_IDENTITY_KEY: &str = "nostr_identity_key";
 
@@ -28,7 +28,7 @@ impl VaultCore {
     /// Initialize the Nostr ID if it's not found.
     /// - return: `(Nostr ID, secret_key)`
     /// - You can get `Public Key` by just `base58::decode(nostr)`
-    pub fn load_nostr_id(&self) -> (String, String) {
+    pub fn load_nostr_pair(&self) -> (String, String) {
         self.read_secret(NOSTR_IDENTITY_KEY).expect("Failed to read Nostr ID from vault").map(|data| {
             let nostr = data["nostr"].as_str().unwrap().to_string();
             let secret_key = data["secret_key"].as_str().unwrap().to_string();
@@ -50,14 +50,14 @@ impl VaultCore {
     }
 
     /// Initialize the Nostr ID and return it along with the secret key.
-    pub fn nostr_get_peerid(&self) -> String {
-        let (id, _sk) = self.load_nostr_id();
+    pub fn load_nostr_peerid(&self) -> String {
+        let (id, _sk) = self.load_nostr_pair();
         id
     }
 
     /// Initialize the Nostr ID and return it along with the secret key.
-    pub fn get_keypair(&self) -> secp256k1::Keypair {
-        let (_, sk) = self.load_nostr_id();
+    pub fn load_nostr_secp_pair(&self) -> secp256k1::Keypair {
+        let (_, sk) = self.load_nostr_pair();
         let secp = secp256k1::Secp256k1::new();
         secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
     }

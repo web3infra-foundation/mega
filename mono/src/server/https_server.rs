@@ -20,7 +20,7 @@ use tower_http::trace::TraceLayer;
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;

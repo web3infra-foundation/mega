@@ -17,7 +17,7 @@ use ceres::{
 };
 use common::errors::ProtocolError;
 use jupiter::{
-    context::Storage,
+    storage::Storage,
     storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
 };
 

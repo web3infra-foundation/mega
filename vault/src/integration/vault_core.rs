@@ -2,12 +2,12 @@ use std::sync::{Arc, RwLock};
 
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 
 use rusty_vault::{
     core::Core,
     logical::{Operation, Request, Response},
-    storage::{barrier_aes_gcm, Backend},
+    storage::{Backend, barrier_aes_gcm},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -24,11 +24,28 @@ struct CoreKey {
 #[derive(Clone)]
 pub struct VaultCore {
     core: Arc<RwLock<Core>>,
-    key: CoreKey,
+    key: Arc<CoreKey>,
+}
+
+/// This is a tool trait that provides methods to interact with the vault core.
+/// Commonly you don't need to implement this trait, but use `VaultCore` directly.
+/// It provides methods to read, write, and delete secrets in the vault.
+pub trait VaultCoreInterface {
+    fn token(&self) -> &str;
+    fn read_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError>;
+    fn write_api(
+        &self,
+        path: impl AsRef<str>,
+        data: Option<Map<String, Value>>,
+    ) -> Result<Option<Response>, MegaError>;
+    fn delete_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError>;
+    fn write_secret(&self, name: &str, data: Option<Map<String, Value>>) -> Result<(), MegaError>;
+    fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError>;
+    fn delete_secret(&self, name: &str) -> Result<(), MegaError>;
 }
 
 impl VaultCore {
-    pub fn new(ctx: Context) -> Self {
+    pub fn new(ctx: Storage) -> Self {
         let dir = common::config::mega_base().join("vault");
         let key_path = dir.join(CORE_KEY_FILE);
 
@@ -87,17 +104,19 @@ impl VaultCore {
                 core_key.root_token
             );
 
-            core_key
+            core_key.into()
         };
 
         Self { core, key }
     }
+}
 
-    pub fn token(&self) -> &str {
+impl VaultCoreInterface for VaultCore {
+    fn token(&self) -> &str {
         &self.key.root_token
     }
 
-    pub(crate) fn read_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
+    fn read_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
         let mut req = Request::new(path.as_ref());
         req.operation = Operation::Read;
         req.client_token = self.token().to_string();
@@ -107,7 +126,7 @@ impl VaultCore {
             .map_err(|_| MegaError::with_message("Failed to read from vault API"))
     }
 
-    pub(crate) fn write_api(
+    fn write_api(
         &self,
         path: impl AsRef<str>,
         data: Option<Map<String, Value>>,
@@ -122,7 +141,7 @@ impl VaultCore {
             .map_err(|_| MegaError::with_message("Failed to write to vault API"))
     }
 
-    pub(crate) fn delete_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
+    fn delete_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
         let mut req = Request::new(path.as_ref());
         req.operation = Operation::Delete;
         req.client_token = self.token().to_string();
@@ -132,7 +151,7 @@ impl VaultCore {
             .map_err(|_| MegaError::with_message("Failed to delete from vault API"))
     }
 
-    pub fn write_secret(
+    fn write_secret(
         &self,
         name: &str,
         data: Option<Map<String, Value>>,
@@ -142,7 +161,7 @@ impl VaultCore {
         Ok(())
     }
 
-    pub fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError> {
+    fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError> {
         let resp = self
             .read_api(&format!("secret/{}", name))
             .map_err(|_| MegaError::with_message(format!("Failed to read secret: {}", name)))?;
@@ -150,7 +169,7 @@ impl VaultCore {
         Ok(resp.map(|r| r.data).flatten())
     }
 
-    pub fn delete_secret(&self, name: &str) -> Result<(), MegaError> {
+    fn delete_secret(&self, name: &str) -> Result<(), MegaError> {
         self.delete_api(&format!("secret/{}", name))
             .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {}", name)))?;
         Ok(())

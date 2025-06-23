@@ -8,7 +8,7 @@ use base64::prelude::*;
 use bytes::{Bytes, BytesMut};
 use futures::{stream, TryStreamExt};
 use http::HeaderMap;
-use jupiter::context::Storage;
+use jupiter::storage::Storage;
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 

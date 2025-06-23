@@ -5,11 +5,12 @@ use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
 use serde_json::{json, Value};
 
-use crate::integration::vault_core::VaultCore;
+use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
 
 // FIXME: A more official and robust ROLE name
 const ROLE: &str = "test-role";
 
+#[allow(unused)]
 impl VaultCore {
     /// Initialize the Vault CA
     fn init_ca(&self) {

@@ -1,66 +1,80 @@
 use anyhow::Result;
 use anyhow::{anyhow, Ok};
 use rcgen::{CertificateParams, KeyPair};
-use reqwest::Client;
-use vault::get_peerid;
+use quinn::rustls::pki_types::pem::PemObject;
+use quinn::rustls::pki_types::CertificateDer;
+use quinn::rustls::pki_types::PrivateKeyDer;
+
+use crate::p2p::client::P2PClient;
 
 use super::{get_from_vault, save_to_vault};
 
 static USER_KEY: &str = "user_key";
 
-pub async fn get_user_key() -> String {
-    match get_from_vault(USER_KEY.to_string()).await {
-        Some(key) => key,
-        None => {
-            let user_key = KeyPair::generate().unwrap();
-            save_to_vault(USER_KEY.to_string(), user_key.serialize_pem()).await;
-            user_key.serialize_pem()
+impl P2PClient {
+    pub fn get_user_key(&self) -> String {
+        match get_from_vault(&self.vault, USER_KEY.to_string()) {
+            Some(key) => key,
+            None => {
+                let user_key = KeyPair::generate().unwrap();
+                save_to_vault(&self.vault, USER_KEY.to_string(), user_key.serialize_pem());
+                user_key.serialize_pem()
+            }
         }
     }
-}
 
-pub async fn get_user_cert_from_ca(ca: String) -> Result<String> {
-    let name = get_peerid().await;
-    //request to ca
-    let url = format!("{ca}/api/v1/ca/certificates/{name}");
-    let url = add_http_to_url(url);
-    let client = Client::new();
-    let response = client.get(url.clone()).send().await?;
-    if response.status().is_success() {
-        //cert exists
-        return Ok(response.text().await?);
+    pub async fn get_user_cert_from_ca(&self, ca: impl AsRef<str>) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>)> {
+        let name = self.get_peer_id();
+        // Request to ca
+        let url = format!("{}/api/v1/ca/certificates/{name}", ca.as_ref());
+        let url = add_http_to_url(url);
+        let response = self.http_client.get(url.clone()).send().await?;
+        if response.status().is_success() {
+            //cert exists
+            let cert = response.text().await?;
+            let cert = CertificateDer::from_pem_slice(cert.as_bytes())?;
+            let key = self.get_user_key();
+            let key = PrivateKeyDer::from_pem_slice(key.as_bytes())?;
+            return Ok((cert, key));
+        }
+
+        let params = CertificateParams::new(vec![name])?;
+
+        let key = self.get_user_key();
+        let key = KeyPair::from_pem(&key)?;
+        let user_csr = params.serialize_request(&key)?;
+        //request a new cert
+        let response = self.http_client
+            .post(url)
+            .body(user_csr.pem().unwrap())
+            .send()
+            .await
+            .unwrap();
+
+        if !response.status().is_success() {
+            return Err(anyhow!("get user certificate from ca failed"));
+        }
+
+        let cert = CertificateDer::from_pem_slice(response.text().await.unwrap().as_bytes())?;
+        let key = self.get_user_key();
+        let key = PrivateKeyDer::from_pem_slice(key.as_bytes())?;
+        Ok((cert, key))
+
     }
 
-    let params = CertificateParams::new(vec![name])?;
+    pub async fn get_ca_cert_from_ca(&self, ca: impl AsRef<str>) -> Result<CertificateDer<'static>> {
+        //request to ca
+        let url = format!("{}/api/v1/ca/certificates/ca", ca.as_ref());
+        let url = add_http_to_url(url);
+        let response = self.http_client.get(url.clone()).send().await?;
+        if response.status().is_success() {
+            let cert = response.text().await?;
+            let cert = CertificateDer::from_pem_slice(cert.as_bytes())?;
+            return Ok(cert);
+        }
 
-    let key = get_user_key().await;
-    let key = KeyPair::from_pem(&key)?;
-    let user_csr = params.serialize_request(&key)?;
-    //request a new cert
-    let response = client
-        .post(url)
-        .body(user_csr.pem().unwrap())
-        .send()
-        .await
-        .unwrap();
-    if response.status().is_success() {
-        return Ok(response.text().await.unwrap());
+        Err(anyhow!("get user certificate from ca failed"))
     }
-
-    Err(anyhow!("get user certificate from ca failed"))
-}
-
-pub async fn get_ca_cert_from_ca(ca: String) -> Result<String> {
-    //request to ca
-    let url = format!("{ca}/api/v1/ca/certificates/ca");
-    let url = add_http_to_url(url);
-    let client = Client::new();
-    let response = client.get(url.clone()).send().await?;
-    if response.status().is_success() {
-        return Ok(response.text().await?);
-    }
-
-    Err(anyhow!("get user certificate from ca failed"))
 }
 
 fn add_http_to_url(url: String) -> String {
