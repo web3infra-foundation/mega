@@ -16,7 +16,7 @@ import { apiErrorToast } from '@/utils/apiErrorToast'
 interface Item {
   closed_at?: number | null
   link: string
-  owner: number
+  user_id: string
   title: string
   status: string
   open_timestamp: number

@@ -3,7 +3,7 @@ import { uniqBy } from 'remeda'
 
 import { Mention } from '@gitmono/editor/extensions'
 import { OrganizationMember, SyncOrganizationMember } from '@gitmono/types/generated'
-import { UIText } from '@gitmono/ui'
+import { GitCommitIcon, UIText } from '@gitmono/ui'
 
 import { AppBadge } from '@/components/AppBadge'
 import { GuestBadge } from '@/components/GuestBadge'
@@ -19,23 +19,42 @@ type Props = Pick<ComponentPropsWithoutRef<typeof SuggestionRoot>, 'editor'> & {
 
 export function MentionList({ editor, defaultMentions, modal }: Props) {
   return (
-    <SuggestionRoot
-      modal={modal}
-      editor={editor}
-      char='@'
-      allow={({ state, range }) => {
-        const $from = state.doc.resolve(range.from)
-        const type = state.schema.nodes[Mention.name]
-        const allow = !!$from.parent.type.contentMatch.matchType(type)
+    <>
+      <SuggestionRoot
+        modal={modal}
+        editor={editor}
+        char='@'
+        allow={({ state, range }) => {
+          const $from = state.doc.resolve(range.from)
+          const type = state.schema.nodes[Mention.name]
+          const allow = !!$from.parent.type.contentMatch.matchType(type)
 
-        return allow
-      }}
-      minScore={0.2}
-      contentClassName='p-0 max-h-[min(480px,var(--radix-popover-content-available-height))] w-[min(350px,var(--radix-popover-content-available-width))]'
-      listClassName='p-1'
-    >
-      <InnerMentionList editor={editor} defaultMentions={defaultMentions} />
-    </SuggestionRoot>
+          return allow
+        }}
+        minScore={0.2}
+        contentClassName='p-0 max-h-[min(480px,var(--radix-popover-content-available-height))] w-[min(350px,var(--radix-popover-content-available-width))]'
+        listClassName='p-1'
+      >
+        <InnerMentionList editor={editor} defaultMentions={defaultMentions} />
+      </SuggestionRoot>
+      <SuggestionRoot
+        modal={modal}
+        editor={editor}
+        char='#'
+        allow={({ state, range }) => {
+          const $from = state.doc.resolve(range.from)
+          const type = state.schema.nodes[Mention.name]
+          const allow = !!$from.parent.type.contentMatch.matchType(type)
+
+          return allow
+        }}
+        minScore={0.2}
+        contentClassName='p-0 max-h-[min(480px,var(--radix-popover-content-available-height))] w-[min(350px,var(--radix-popover-content-available-width))]'
+        listClassName='p-1'
+      >
+        <InnerIssueList editor={editor} />
+      </SuggestionRoot>
+    </>
   )
 }
 
@@ -93,6 +112,51 @@ function InnerMentionList({ editor, defaultMentions }: Pick<Props, 'editor' | 'd
         <UIText className='truncate'>{member.user.display_name}</UIText>
         {member.role === 'guest' && <GuestBadge />}
         {member.role === 'app' && <AppBadge />}
+      </div>
+    </SuggestionItem>
+  ))
+}
+
+function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
+  const items = [
+    {
+      role: 'app',
+      issue: {
+        hash: '#1234',
+        name: 'This is an issue example.'
+      }
+    },
+    {
+      role: 'app',
+      issue: {
+        hash: '#5678',
+        name: 'Another issue example.'
+      }
+    }
+  ]
+
+  return items.map((member) => (
+    <SuggestionItem
+      key={member.issue.hash}
+      editor={editor}
+      value={member.issue.hash}
+      keywords={[member.issue.hash]}
+      // downrank guest members
+      scoreModifier={member.role === 'guest' ? 0.3 : 1}
+      onSelect={({ editor, range }) =>
+        editor.commands.insertMention({
+          range,
+          id: member.issue.hash,
+          label: member.issue.hash,
+          username: '',
+          role: member.role === 'app' ? 'app' : 'member'
+        })
+      }
+    >
+      <GitCommitIcon />
+      <div className='flex flex-1 items-center justify-between'>
+        <UIText className='truncate'>{member.issue.name}</UIText>
+        <UIText className='justify-self-end truncate text-sm text-gray-500'>{member.issue.hash}</UIText>
       </div>
     </SuggestionItem>
   ))

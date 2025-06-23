@@ -226,7 +226,10 @@ where
         let session = store
             .load_session(session_cookie.to_string())
             .await
-            .unwrap()
+            .map_err(|e| {
+                tracing::error!("load_session error: {:?}", e);
+                AuthRedirect
+            })?
             .ok_or(AuthRedirect)?;
 
         let user = session.get::<LoginUser>("user").ok_or(AuthRedirect)?;
