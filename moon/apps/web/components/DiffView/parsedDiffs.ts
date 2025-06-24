@@ -1,31 +1,49 @@
 const extensionToLangMap: Record<string, string> = {
-  ".ts": "typescript",
-  ".tsx": "typescriptreact",
-  ".js": "javascript",
-  ".jsx": "javascriptreact",
-  ".json": "json",
-  ".md": "markdown",
-  ".py": "python",
-  ".rs": "rust",
-  ".cpp": "cpp",
-  ".c": "c",
-  ".h": "cpp",
-  ".java": "java",
-  ".go": "go",
-  ".sh": "bash",
-  ".yml": "yaml",
-  ".yaml": "yaml",
-  ".css": "css",
-  ".scss": "scss",
-  ".html": "html",
-  ".vue": "vue",
-  ".toml": "toml",
-};
+  '.ts': 'typescript',
+  '.tsx': 'tsx',
+  '.js': 'javascript',
+  '.jsx': 'jsx',
+  '.json': 'json',
+  '.md': 'markdown',
+  '.py': 'python',
+  '.rs': 'rust',
+  '.cpp': 'cpp',
+  '.c': 'c',
+  '.h': 'cpp',
+  '.java': 'java',
+  '.go': 'go',
+  '.sh': 'bash',
+  '.yml': 'yaml',
+  '.yaml': 'yaml',
+  '.css': 'css',
+  '.scss': 'scss',
+  '.html': 'html',
+  '.vue': 'vue',
+  '.toml': 'toml',
+  'dockerfile': 'dockerfile',
+  '.dockerfile': 'dockerfile',
+  'license-mit': 'plaintext',
+  'buck': 'plaintext',
+  '.gitignore': 'plaintext',
+  '.env': 'plaintext',
+  'license-third-party': 'plaintext',
+  'license-apache': 'plaintext',
+}
 
 function getLangFromPath(path: string): string {
-  const ext = path.match(/\.[^./\\]+$/)?.[0]?.toLowerCase();
+  const extMatch = path.match(/\.[^./\\]+$/);
   
-  return ext ? extensionToLangMap[ext] ?? "plaintext" : "plaintext";
+  if(extMatch) {
+    return extensionToLangMap[extMatch[0].toLowerCase()] ?? "binary";
+  } else {
+    const lastPart = path.split('/').pop()?.toLowerCase();
+
+    if(lastPart) {
+      return extensionToLangMap[lastPart] ?? "binary";
+    }
+  }
+
+  return "binary";
 }
 
 export function parsedDiffs(diffText: string): { path: string; lang: string; diff: string }[] {
@@ -52,7 +70,7 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
       }
     }
 
-    if (getLangFromPath(path) === "plaintext") {
+    if (getLangFromPath(path) === "binary") {
       return {
         path,
         lang: getLangFromPath(path),

@@ -11,12 +11,12 @@ use futures::future::join_all;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{raw_blob, sea_orm_active_enums::ConvTypeEnum};
+use callisto::{mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
 };
-use jupiter::{context::Context, storage::mr_storage::MrStorage};
+use jupiter::context::Context;
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
@@ -29,10 +29,7 @@ use mercury::{
 
 use crate::{
     pack::PackHandler,
-    protocol::{
-        import_refs::{RefCommand, Refs},
-        mr::MergeRequest,
-    },
+    protocol::import_refs::{RefCommand, Refs},
 };
 
 pub struct MonoRepo {
@@ -290,7 +287,7 @@ impl PackHandler for MonoRepo {
         let storage = self.context.services.mono_storage.clone();
 
         if let Some(c) = commit {
-            let mr_link = self.handle_mr(&c.format_message()).await?;
+            let mr_link = self.handle_mr(&c.format_message()).await.unwrap();
             let ref_name = utils::mr_ref_name(&mr_link);
             if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
                 mr_ref.ref_commit_hash = refs.new_id.clone();
@@ -328,79 +325,64 @@ impl PackHandler for MonoRepo {
 }
 
 impl MonoRepo {
-    async fn handle_mr(&self, title: &str) -> Result<String, GitError> {
+    async fn handle_mr(&self, title: &str) -> Result<String, MegaError> {
         let storage = self.context.mr_stg();
         let path_str = self.path.to_str().unwrap();
 
         match storage.get_open_mr_by_path(path_str).await.unwrap() {
             Some(mr) => {
-                let mut mr = mr.into();
-                self.handle_existing_mr(&mut mr, &storage).await
+                let link = mr.link.clone();
+                self.handle_existing_mr(mr).await?;
+                Ok(link)
             }
             None => {
                 if self.from_hash == "0".repeat(40) {
-                    return Err(GitError::CustomError(String::from(
+                    return Err(MegaError::with_message(
                         "Can not init directory under monorepo directory!",
-                    )));
+                    ));
                 }
-                let link: String = utils::generate_link();
-                let mr = MergeRequest {
-                    path: path_str.to_owned(),
-                    from_hash: self.from_hash.clone(),
-                    to_hash: self.to_hash.clone(),
-                    link: link.clone(),
-                    title: title.to_string(),
-                    ..Default::default()
-                };
-                storage.save_mr(mr.clone().into()).await.unwrap();
+                let link = storage
+                    .new_mr(path_str, title, &self.from_hash, &self.to_hash)
+                    .await
+                    .unwrap();
                 Ok(link)
             }
         }
     }
 
-    async fn handle_existing_mr(
-        &self,
-        mr: &mut MergeRequest,
-        storage: &MrStorage,
-    ) -> Result<String, GitError> {
+    async fn handle_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
+        let mr_stg = self.context.mr_stg();
+        let issue_stg = self.context.issue_stg();
         if mr.from_hash == self.from_hash {
             if mr.to_hash != self.to_hash {
-                let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
-                mr.to_hash = self.to_hash.clone();
-                storage
-                    .add_mr_conversation(
+                issue_stg
+                    .add_conversation(
                         &mr.link,
-                        String::new(),
+                        "",
+                        Some(format!(
+                            "Mega updated the mr automatic from {} to {}",
+                            &mr.to_hash[..6],
+                            &self.to_hash[..6]
+                        )),
                         ConvTypeEnum::ForcePush,
-                        Some(comment),
                     )
-                    .await
-                    .unwrap();
+                    .await?;
+                mr_stg.update_mr_to_hash(mr, &self.to_hash).await?;
             } else {
                 tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
             }
         } else {
-            mr.close();
-            storage
-                .add_mr_conversation(
+            issue_stg
+                .add_conversation(
                     &mr.link,
-                    String::new(),
-                    ConvTypeEnum::Closed,
+                    "",
                     Some("Mega closed MR due to conflict".to_string()),
+                    ConvTypeEnum::Closed,
                 )
                 .await
                 .unwrap();
+            mr_stg.close_mr(mr).await?;
         }
-
-        storage.update_mr(mr.clone().into()).await.unwrap();
-        Ok(mr.link.clone())
-    }
-
-    fn comment_for_force_update(&self, from: &str, to: &str) -> String {
-        format!(
-            "Mega updated the mr automatic from {} to {}",
-            &from[..6],
-            &to[..6]
-        )
+        Ok(())
     }
 }

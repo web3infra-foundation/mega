@@ -9,11 +9,13 @@ export const filterAtom = atomFamily((scope: CookieValueTypes) =>
   atomWithWebStorage<IssueIndexFilterType>(`${scope}:issue-index-filter`, 'open')
 )
 
-type IssueIndexSortType = 'last_activity_at' | 'created_at'
+export interface IssueSortType {
+  [key: string]: string | string[]
+}
 
 export const sortAtom = atomFamily(
   ({ scope, filter }: { scope: CookieValueTypes; filter: string }) =>
-    atomWithWebStorage<IssueIndexSortType>(`${scope}:notes-index-sort:${filter}`, 'last_activity_at'),
+    atomWithWebStorage<IssueSortType>(`${scope}:issue-index-sort:${filter}`, {}),
   (a, b) => a.scope === b.scope && a.filter === b.filter
 )
 

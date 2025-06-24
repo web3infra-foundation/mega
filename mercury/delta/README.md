@@ -1,4 +1,5 @@
 # Git Delta
+
 In Git, delta refers to the differences or changes between files or data objects. It is a measure of the amount of change between two versions. By using delta, Git can more efficiently store and transfer changes to files or data objects.
 
 ## Example
@@ -17,6 +18,7 @@ If you want to decode a delta data, you need a base data(base_info) and a delta 
 
 ```rust
 use delta;
+
 let delta_result:Result<Vec<u8>, GitDeltaError> = delta::delta_decode(stream, base_info);
 ```
 

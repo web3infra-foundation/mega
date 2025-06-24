@@ -5,8 +5,8 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
-use callisto::{mega_conversation, mega_mr};
+use callisto::mega_mr;
+use callisto::sea_orm_active_enums::MergeStatusEnum;
 use common::errors::MegaError;
 use common::utils::generate_id;
 
@@ -64,98 +64,70 @@ impl MrStorage {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Link.eq(link))
             .one(self.get_connection())
-            .await
-            .unwrap();
+            .await?;
         Ok(model)
     }
 
-    pub async fn save_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let a_model = mr.into_active_model();
-        a_model.insert(self.get_connection()).await.unwrap();
-        Ok(())
-    }
-
-    pub async fn close_mr(
+    pub async fn new_mr(
         &self,
-        model: mega_mr::Model,
-        user_id: String,
-        username: &str,
-    ) -> Result<(), MegaError> {
-        self.update_mr(model.clone()).await.unwrap();
-        self.add_mr_conversation(
-            &model.link,
-            user_id,
-            ConvTypeEnum::Closed,
-            Some(format!("{} closed this", username)),
-        )
-        .await
-        .unwrap();
-        Ok(())
+        path: &str,
+        title: &str,
+        from_hash: &str,
+        to_hash: &str,
+    ) -> Result<String, MegaError> {
+        let link = common::utils::generate_link();
+
+        let mr = mega_mr::ActiveModel {
+            id: Set(generate_id()),
+            link: Set(link.clone()),
+            title: Set(title.to_owned()),
+            merge_date: Set(None),
+            status: Set(MergeStatusEnum::Open),
+            path: Set(path.to_owned()),
+            from_hash: Set(from_hash.to_owned()),
+            to_hash: Set(to_hash.to_owned()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        };
+
+        mr.insert(self.get_connection()).await.unwrap();
+        Ok(link)
     }
 
-    pub async fn reopen_mr(
-        &self,
-        model: mega_mr::Model,
-        user_id: String,
-        username: &str,
-    ) -> Result<(), MegaError> {
-        self.update_mr(model.clone()).await.unwrap();
-        self.add_mr_conversation(
-            &model.link,
-            user_id,
-            ConvTypeEnum::Reopen,
-            Some(format!("{} reopen this", username)),
-        )
-        .await
-        .unwrap();
-        Ok(())
-    }
-
-    pub async fn update_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let mut a_model = mr.into_active_model();
-        a_model = a_model.reset_all();
+    pub async fn close_mr(&self, model: mega_mr::Model) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.status = Set(MergeStatusEnum::Closed);
         a_model.updated_at = Set(chrono::Utc::now().naive_utc());
         a_model.update(self.get_connection()).await.unwrap();
         Ok(())
     }
 
-    pub async fn get_mr_conversations(
-        &self,
-        link: &str,
-    ) -> Result<Vec<mega_conversation::Model>, MegaError> {
-        let model = mega_conversation::Entity::find()
-            .filter(mega_conversation::Column::Link.eq(link))
-            .all(self.get_connection())
-            .await;
-        Ok(model?)
-    }
-
-    pub async fn remove_mr_conversation(&self, id: i64) -> Result<(), MegaError> {
-        mega_conversation::Entity::delete_by_id(id)
-            .exec(self.get_connection())
-            .await
-            .unwrap();
+    pub async fn reopen_mr(&self, model: mega_mr::Model) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.status = Set(MergeStatusEnum::Open);
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await.unwrap();
         Ok(())
     }
 
-    pub async fn add_mr_conversation(
-        &self,
-        link: &str,
-        user_id: String,
-        conv_type: ConvTypeEnum,
-        comment: Option<String>,
-    ) -> Result<i64, MegaError> {
-        let conversation = mega_conversation::Model {
-            id: generate_id(),
-            link: link.to_owned(),
-            user_id,
-            conv_type,
-            comment,
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        };
-        let conversation = conversation.into_active_model();
-        let res = conversation.insert(self.get_connection()).await.unwrap();
-        Ok(res.id)
+    pub async fn merge_mr(&self, model: mega_mr::Model) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.status = Set(MergeStatusEnum::Merged);
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await.unwrap();
+        Ok(())
     }
+
+    pub async fn update_mr_to_hash(
+        &self,
+        model: mega_mr::Model,
+        to_hash: &str,
+    ) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.to_hash = Set(to_hash.to_owned());
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await.unwrap();
+        Ok(())
+    }
+
 }

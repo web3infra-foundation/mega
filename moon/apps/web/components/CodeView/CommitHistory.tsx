@@ -1,6 +1,8 @@
-import { Card, Flex } from '@radix-ui/themes'
-import { Avatar, Button, ClockIcon } from '@gitmono/ui'
+import { Flex } from '@radix-ui/themes'
+import { Avatar, Button, ClockIcon, EyeIcon } from '@gitmono/ui'
 import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
+import CommitDetails from './CommitDetails'
+import { useState } from 'react'
 
 interface UserInfo {
   avatar_url: string
@@ -14,10 +16,23 @@ export interface CommitInfo {
   date: string
 }
 
-export default function CommitHistory({ info }: { info: CommitInfo }) {
+const CommitHyStyle = {
+  width: '100%', 
+  background: '#fff', 
+  border: '1px solid #d1d9e0', 
+  borderRadius: 8 
+}
+
+export default function CommitHistory({ flag, info }: {flag:string, info: CommitInfo }) {
+  const [Expand,setExpand] = useState(false)
+  const ExpandDetails =()=>{
+    setExpand(!Expand)
+  }
+
   return (
-    <Card style={{ width: '100%', background: '#fff', border: '1px solid #d1d9e0', borderRadius: 8 }}>
-      <Flex align='center' className='p-2'>
+    <>
+    <div style={CommitHyStyle}>
+      <Flex align='center' className='p-1'>
         <MemberHovercard username={info.user.name} role='member'>
           <Flex align='center'>
             <Avatar src={info.user.avatar_url} />
@@ -29,6 +44,19 @@ export default function CommitHistory({ info }: { info: CommitInfo }) {
         <span className='text-gray-500 text-sm'>
           {info.message}
         </span>
+        {
+          flag === 'contents' &&
+          <Flex>
+            <Button 
+              size='sm'
+              variant='plain'
+              className='p-0 ml-1'
+              tooltip='Open commit details'
+              onClick={ExpandDetails}>
+              <EyeIcon size={24} />
+            </Button>
+          </Flex>
+        }
 
         <span className='text-gray-400 text-xs ml-auto mr-3'>
           {info.hash} · {info.date}
@@ -44,6 +72,8 @@ export default function CommitHistory({ info }: { info: CommitInfo }) {
           </Flex>
         </Button>
       </Flex>
-    </Card>
+    </div>
+    {Expand &&<CommitDetails/>}
+    </>
   )
 }

@@ -127,7 +127,7 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
                         http::header::AUTHORIZATION,
                         http::header::CONTENT_TYPE,
                     ])
-                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE])
+                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE, Method::PUT])
                     .allow_credentials(true),
             ),
         )
@@ -192,9 +192,11 @@ pub async fn post_method_router(
     }
 }
 
+/// Swagger API tag
 pub const GIT_TAG: &str = "git";
 pub const MR_TAG: &str = "merge_request";
 pub const ISSUE_TAG: &str = "issue";
+pub const LABEL_TAG: &str = "label";
 #[derive(OpenApi)]
 #[openapi(
     tags(
