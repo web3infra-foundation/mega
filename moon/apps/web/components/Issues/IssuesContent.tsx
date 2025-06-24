@@ -26,7 +26,9 @@ import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
-import { IndexPageInstantLoading } from '../IndexPages/components'
+import { MemberAvatar } from '../MemberAvatar'
+import { IssueIndexTabFilter } from './IssueIndex'
+import { MemberHovercard } from './MemberHoverCardNE'
 import { Pagination } from './Pagenation'
 import { orderTags, tags } from './utils/consts'
 import { generateAllMenuItems, MenuConfig } from './utils/generateAllMenuItems'
@@ -62,7 +64,7 @@ export function IssuesContent({ searching }: Props) {
 
   const [pageSize, _setPageSize] = useState(10)
 
-  const [status, _setStatus] = useAtom(filterAtom(scope))
+  const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'issue' }))
 
   const [issueList, setIssueList] = useState<Item[]>([])
 
@@ -161,7 +163,6 @@ export function IssuesContent({ searching }: Props) {
 
       onSelectFactory: (_item: string) => (e: Event) => {
         e.preventDefault()
-       
       },
       className: 'overflow-hidden',
       labelFactory: (item: string) => <div>{item}</div>
@@ -273,9 +274,9 @@ export function IssuesContent({ searching }: Props) {
     fetchData(1, pageSize)
   }, [pageSize, fetchData])
 
-  if (loading) {
-    return <IndexPageInstantLoading />
-  }
+  // if (loading) {
+  //   return <IndexPageInstantLoading />
+  // }
 
   // if (!issueList.length) {
   //   return searching ? <EmptySearchResults /> : <IssueIndexEmptyState />
@@ -295,10 +296,14 @@ export function IssuesContent({ searching }: Props) {
       ) : (
         <>
           <IssueList
+            isLoading={loading}
             Issuelists={issueList}
             header={
               <ListBanner
                 pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types', `${order}`]}
+                tabfilter={
+                  <IssueIndexTabFilter openTooltip='Issues that are still open and need attention' part='issue' />
+                }
               >
                 {(p) => ListHeaderItem(p)}
               </ListBanner>
@@ -311,7 +316,7 @@ export function IssuesContent({ searching }: Props) {
                     key={i.link}
                     title={i.title}
                     leftIcon={<CheckCircleFilledFlushIcon color='#378f50' size={16} />}
-                    rightIcon={<ChatBubbleIcon />}
+                    rightIcon={<RightAvatar member={members[0]} />}
                   >
                     <div className='text-xs text-[#59636e]'>
                       {i.link} · {i.user_id} {i.status}{' '}
@@ -334,6 +339,19 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
     <>
       {/* <IssueList Issuelists={searchIssueList} /> */}
       {/* <IssueList Issuelists={issueList} /> <Pagination totalNum={100} pageSize={5} /> */}
+    </>
+  )
+}
+
+export const RightAvatar = ({ member }: { member: Member }) => {
+  return (
+    <>
+      <div className='mr-10 flex items-center justify-between gap-10'>
+        <ChatBubbleIcon />
+        <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
+          <MemberAvatar size='sm' member={member} />
+        </MemberHovercard>
+      </div>
     </>
   )
 }
