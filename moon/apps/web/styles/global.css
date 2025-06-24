@@ -215,6 +215,9 @@ body.grabbing * {
       @apply [-webkit-touch-callout:_none];
     }
   }
+  .select {
+    @apply select-text; 
+  }
 }
 
 @layer components {

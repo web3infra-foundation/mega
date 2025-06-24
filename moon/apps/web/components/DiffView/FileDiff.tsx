@@ -149,8 +149,10 @@ export default function FileDiff({ diffs }: { diffs: string }) {
                   <span className='text-red-500'>−{stats.deletions}</span>
                 </span>
               </div>
-
-              {isExpanded && <RenderDiffView file={file} instance={instance} />}
+              
+              <div className='select'>
+                {isExpanded && <RenderDiffView file={file} instance={instance} />}
+              </div>
             </div>
           )
         })}
