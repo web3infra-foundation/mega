@@ -25,10 +25,18 @@ function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; d
 
 function generateParsedFiles(diffFiles: { path: string; lang: string; diff: string }[]): { 
   file: { path: string; lang: string; diff: string }; 
-  instance: DiffFile; 
+  instance: DiffFile | null; 
   stats: { additions: number; deletions: number } 
 }[] {
   return diffFiles.map((file) => {
+    if (file.lang === 'binary') {
+      return {
+        file,
+        instance: null,
+        stats: { additions: 0, deletions: 0 },
+      };
+    }
+
     const instance = new DiffFile('', '', '', '', [file.diff], file.lang);
 
     try {
@@ -69,10 +77,12 @@ export default function FileDiff({ diffs }: { diffs: string }) {
 
   const RenderDiffView = ({ file, instance }: { 
     file: { path: string; lang: string; diff: string };
-    instance: DiffFile;
+    instance: DiffFile | null;
   }) => {
-    if (file.lang === 'binary') {
+    if (file.lang === 'binary' || instance === null) {
       return <div className='text-center p-2'>Binary file</div>
+    }else if(file.diff === 'empty\n') {
+      return <div className='text-center p-2'>No change</div>
     }
 
     return (
