@@ -5,8 +5,10 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
 export type IssueIndexFilterType = 'open' | 'closed' | 'Merged' | 'draft'
 
-export const filterAtom = atomFamily((scope: CookieValueTypes) =>
-  atomWithWebStorage<IssueIndexFilterType>(`${scope}:issue-index-filter`, 'open')
+export const filterAtom = atomFamily(
+  ({ scope, part }: { scope: CookieValueTypes; part: string }) =>
+    atomWithWebStorage<IssueIndexFilterType>(`${scope}:${part}-index-filter`, 'open'),
+  (a, b) => a.scope === b.scope && a.part === b.part
 )
 
 export interface IssueSortType {

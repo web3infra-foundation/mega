@@ -2,34 +2,30 @@
 
 import { useState } from 'react'
 import { useAtom } from 'jotai'
-import { useRouter } from 'next/router'
-import { useDebounce } from 'use-debounce'
 
-import { Button, LayeredHotkeys, UIText } from '@gitmono/ui'
+// import { useDebounce } from 'use-debounce'
+
+import { Button, LayeredHotkeys, Link, UIText } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { FloatingNewDocButton } from '@/components/FloatingButtons/NewDoc'
-import {
-  IndexPageContainer,
-  IndexPageContent,
-  IndexPageEmptyState,
-  IndexSearchInput
-} from '@/components/IndexPages/components'
+import { IndexPageContainer, IndexPageContent, IndexPageEmptyState } from '@/components/IndexPages/components'
 import { SplitViewContainer, SplitViewDetail } from '@/components/SplitView'
 import { IssueBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
-import { BreadcrumbLabel, BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
+import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { useScope } from '@/contexts/scope'
 
 import { IssuesContent } from './IssuesContent'
+import IssueSearch from './IssueSearch'
 import { filterAtom } from './utils/store'
 
 export const IssueIndex = () => {
-  const [query, setQuery] = useState('')
-  const [queryDebounced] = useDebounce(query, 150)
+  const [query, _setQuery] = useState('')
+  // const [queryDebounced] = useDebounce(query, 150)
 
   const isSearching = query.length > 0
   // const isSearchLoading = queryDebounced.length > 0 && getNotes.isFetching
-  const isSearchLoading = queryDebounced.length > 0
+  // const isSearchLoading = queryDebounced.length > 0
 
   return (
     <>
@@ -38,15 +34,9 @@ export const IssueIndex = () => {
         <IndexPageContainer>
           <BreadcrumbTitlebar className='justify-between'>
             <IssueBreadcrumbIcon />
-            <BreadcrumbLabel>Issue</BreadcrumbLabel>
-            <IndexSearchInput query={query} setQuery={setQuery} isSearchLoading={isSearchLoading} />
-
-            <Button variant='primary' size={'base'}>
-              Labels
-            </Button>
-            <NewIssueButton />
           </BreadcrumbTitlebar>
           <IndexPageContent id='/[org]/issue' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
+            <IssueSearch />
             <IssuesContent searching={isSearching} />
           </IndexPageContent>
         </IndexPageContainer>
@@ -57,17 +47,23 @@ export const IssueIndex = () => {
 }
 
 export function IssueIndexTabFilter({
+  part,
   fullWidth = false,
   openNum,
-  closeNum
+  closeNum,
+  openTooltip,
+  closeTooltip
 }: {
+  part: string
   fullWidth?: boolean
   openNum?: number
   closeNum?: number
+  openTooltip?: string
+  closeTooltip?: string
 }) {
   const { scope } = useScope()
 
-  const [filter, setFilter] = useAtom(filterAtom(scope))
+  const [filter, setFilter] = useAtom(filterAtom({ scope, part: `${part}` }))
 
   return (
     <>
@@ -79,7 +75,7 @@ export function IssueIndexTabFilter({
         fullWidth={fullWidth}
         onClick={() => setFilter('open')}
         variant={filter === 'open' ? 'flat' : 'plain'}
-        tooltip='Issues that are still open and need attention'
+        tooltip={openTooltip}
       >
         Open {openNum}
       </Button>
@@ -88,7 +84,7 @@ export function IssueIndexTabFilter({
         fullWidth={fullWidth}
         onClick={() => setFilter('closed')}
         variant={filter === 'closed' ? 'flat' : 'plain'}
-        tooltip='Closed'
+        tooltip={closeTooltip}
       >
         Closed {closeNum}
       </Button>
@@ -97,20 +93,14 @@ export function IssueIndexTabFilter({
 }
 
 export const NewIssueButton = () => {
-  const router = useRouter()
   const { scope } = useScope()
 
   return (
-    <Button
-      variant='primary'
-      className='bg-[#1f883d]'
-      size={'base'}
-      onClick={() => {
-        router.push(`/${scope}/issue/new`)
-      }}
-    >
-      New Issue
-    </Button>
+    <Link href={`/${scope}/issue/new`}>
+      <Button variant='primary' className='bg-[#1f883d]' size={'base'}>
+        New Issue
+      </Button>
+    </Link>
   )
 }
 

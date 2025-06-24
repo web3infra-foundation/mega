@@ -9,6 +9,7 @@ import {
   Command,
   ConditionalWrap,
   LazyLoadingSpinner,
+  LoadingSpinner,
   SearchIcon,
   useCommand
 } from '@gitmono/ui'
@@ -21,17 +22,18 @@ import { SubjectCommand } from '@/components/Subject/SubjectCommand'
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
 
 import { MemberAvatar } from '../MemberAvatar'
-import { IssueIndexTabFilter } from './IssueIndex'
 
 export function IssueList<T>({
   Issuelists,
   header,
-  children
+  children,
+  isLoading = false
 }: {
   Issuelists: T[]
   hideProject?: boolean
   header?: React.ReactNode
   children?: (issue: T[]) => React.ReactNode
+  isLoading?: boolean
 }) {
   const needsCommandWrap = !useCommand()
   const isDark = useAtomValue(darkModeAtom)
@@ -39,18 +41,25 @@ export function IssueList<T>({
   return (
     <>
       {!isDark ? (
-        <div className='issuecontainer overflow-hidden rounded-md border border-[#d0d7de]'>
+        <div className='max-h-[600px] overflow-auto rounded-md border border-[#d0d7de]'>
           {header}
-          <ConditionalWrap
-            condition={needsCommandWrap}
-            wrap={(children) => (
-              <SubjectCommand>
-                <Command.List className='flex flex-1 flex-col'>{children}</Command.List>
-              </SubjectCommand>
-            )}
-          >
-            {children?.(Issuelists)}
-          </ConditionalWrap>
+
+          {isLoading ? (
+            <div className='flex h-[400px] items-center justify-center'>
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <ConditionalWrap
+              condition={needsCommandWrap}
+              wrap={(children) => (
+                <SubjectCommand>
+                  <Command.List className='flex flex-1 flex-col'>{children}</Command.List>
+                </SubjectCommand>
+              )}
+            >
+              {children?.(Issuelists)}
+            </ConditionalWrap>
+          )}
         </div>
       ) : (
         <div>darkMode</div>
@@ -62,16 +71,18 @@ export function IssueList<T>({
 interface ListBannerProps {
   pickerTypes: string[]
   children?: (p: string) => React.ReactNode
+  tabfilter?: React.ReactNode
 }
 
 export const ListBanner = forwardRef<HTMLDivElement, ListBannerProps>(
-  ({ pickerTypes, children }: ListBannerProps, ref) => {
+  ({ pickerTypes, children, tabfilter }: ListBannerProps, ref) => {
     return (
       <>
         <div ref={ref}>
           <BreadcrumbTitlebar className='justify-between'>
             <ConditionalWrap condition={true} wrap={(c) => <div>{c}</div>}>
-              <IssueIndexTabFilter />
+              {tabfilter}
+              {/* <IssueIndexTabFilter /> */}
             </ConditionalWrap>
             <ConditionalWrap condition={true} wrap={(c) => <div>{c}</div>}>
               {pickerTypes.map((p) => {
