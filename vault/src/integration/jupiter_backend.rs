@@ -4,25 +4,33 @@ use tokio::runtime::Handle;
 
 pub struct JupiterBackend {
     ctx: Storage,
-    rt: Handle,
 }
 
 impl JupiterBackend {
     pub fn new(ctx: Storage) -> Self {
-        let rt = tokio::runtime::Handle::current();
-        JupiterBackend { ctx, rt }
+        JupiterBackend { ctx }
     }
 }
 
 impl Backend for JupiterBackend {
     fn list(&self, prefix: &str) -> Result<Vec<String>, rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
-        self.rt.block_on(async move {
-            match service.list_keys(prefix).await {
-                Ok(keys) => Ok(keys),
-                Err(_) => Err(rusty_vault::errors::RvError::ErrPhysicalBackendKeyInvalid),
-            }
+        let handle = Handle::current();
+        let prefix = prefix.to_string();
+        std::thread::spawn(move || {
+            // Using Handle::block_on to run async code in the new thread.
+            handle.block_on(async {
+                match service.list_keys(prefix).await {
+                    Ok(keys) => Ok(keys),
+                    Err(e) => {
+                        println!("list {:?}", e);
+                        Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
+                    }
+                }
+            })
         })
+        .join()
+        .unwrap()
     }
 
     fn get(
@@ -30,18 +38,32 @@ impl Backend for JupiterBackend {
         key: &str,
     ) -> Result<Option<rusty_vault::storage::BackendEntry>, rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
-        self.rt.block_on(async move {
-            match service.load(key).await {
-                Ok(model) => {
-                    let entry = rusty_vault::storage::BackendEntry {
-                        key: model.key,
-                        value: model.value,
-                    };
-                    Ok(Some(entry))
+        let handle = Handle::current();
+        let key = key.to_string();
+        std::thread::spawn(move || {
+            // Using Handle::block_on to run async code in the new thread.
+            handle.block_on(async move {
+                match service.load(key).await {
+                    Ok(Some(model)) => {
+                        let entry = rusty_vault::storage::BackendEntry {
+                            key: model.key,
+                            value: model.value,
+                        };
+                        Ok(Some(entry))
+                    }
+                    Ok(None) => Ok(None),
+                    Err(e) => {
+                        println!("get {:?}", e);
+                        Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
+                    }
                 }
-                Err(_) => Err(rusty_vault::errors::RvError::ErrPhysicalBackendKeyInvalid),
-            }
+            })
         })
+        .join()
+        .inspect_err(|e| {
+            eprintln!("Error in JupiterBackend::get: {:?}", e);
+        })
+        .unwrap()
     }
 
     fn put(
@@ -49,21 +71,41 @@ impl Backend for JupiterBackend {
         entry: &rusty_vault::storage::BackendEntry,
     ) -> Result<(), rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
-        self.rt.block_on(async move {
-            match service.save(&entry.key, entry.value.clone()).await {
-                Ok(_) => Ok(()),
-                Err(_) => Err(rusty_vault::errors::RvError::ErrPhysicalBackendKeyInvalid),
-            }
+        let handle = Handle::current();
+        let entry_clone = entry.clone();
+        std::thread::spawn(move || {
+            // Using Handle::block_on to run async code in the new thread.
+            handle.block_on(async move {
+                match service.save(entry_clone.key, entry_clone.value).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        println!("put {:?}", e);
+                        Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
+                    }
+                }
+            })
         })
+        .join()
+        .unwrap()
     }
 
     fn delete(&self, key: &str) -> Result<(), rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
-        self.rt.block_on(async move {
-            match service.delete(key).await {
-                Ok(_) => Ok(()),
-                Err(_) => Err(rusty_vault::errors::RvError::ErrPhysicalBackendKeyInvalid),
-            }
+        let handle = Handle::current();
+        let key = key.to_string();
+        std::thread::spawn(move || {
+            // Using Handle::block_on to run async code in the new thread.
+            handle.block_on(async move {
+                match service.delete(key).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        println!("delete {:?}", e);
+                        Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
+                    }
+                }
+            })
         })
+        .join()
+        .unwrap()
     }
 }

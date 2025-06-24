@@ -222,7 +222,9 @@ mod test {
 
     #[test]
     fn generate_swagger_json() {
-        let mut file = fs::File::create("gitmono.json").unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let temp_path = temp_dir.path().join("gitmono.json");
+        let mut file = fs::File::create(temp_path).unwrap();
         let json = ApiDoc::openapi().to_pretty_json().unwrap();
         file.write_all(json.as_bytes()).unwrap();
         println!("{}", json);

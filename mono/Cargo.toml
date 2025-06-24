@@ -67,3 +67,4 @@ jemallocator = { workspace = true }
 mimalloc = { workspace = true }
 
 [dev-dependencies]
+tempfile = { workspace = true}

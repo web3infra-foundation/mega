@@ -1,9 +1,4 @@
-use sea_orm_migration::{
-    prelude::*,
-    schema::{binary, string},
-};
-
-use crate::migrator::pk_bigint;
+use sea_orm_migration::{prelude::*, schema::big_integer};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -16,9 +11,20 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Vault::Table)
                     .if_not_exists()
-                    .col(pk_bigint(Vault::Id))
-                    .col(string(Vault::Key))
-                    .col(binary(Vault::Value))
+                    .col(big_integer(Vault::Id).primary_key().auto_increment())
+                    .col(ColumnDef::new(Vault::Key).string().not_null().unique_key())
+                    .col(ColumnDef::new(Vault::Value).binary().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("vault_key_unique")
+                    .table(Vault::Table)
+                    .col(Vault::Key)
+                    .unique()
                     .to_owned(),
             )
             .await?;
@@ -26,8 +32,10 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    async fn down(&self, _: &SchemaManager) -> Result<(), DbErr> {
-        Ok(())
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Vault::Table).to_owned())
+            .await
     }
 }
 

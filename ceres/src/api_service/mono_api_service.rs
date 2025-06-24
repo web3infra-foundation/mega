@@ -267,7 +267,7 @@ impl MonoApiService {
             // update mr status last
             self.storage
                 .mr_storage()
-                .merge_mr(mr.clone().into())
+                .merge_mr(mr.clone())
                 .await
                 .unwrap();
         } else {

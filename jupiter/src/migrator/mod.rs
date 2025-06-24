@@ -14,10 +14,12 @@
 //! - `m20250427_031332_add_mr_refs_tag` - Adds merge request reference tagging
 //! - `m20250605_013340_alter_mega_mr_index` - Modifies merge request indexing
 //! - `m20250610_000001_add_vault_storage` - Adds vault storage functionality
+//! - `m20250613_033821_alter_user_id` - Alters user ID column definitions
+//! - `m20250618_065050_add_label` - Adds label functionality to issues
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use jupiter::migrator::apply_migrations;
 //!
 //! // Apply pending migrations
@@ -99,4 +101,29 @@ pub async fn apply_migrations(db: &DatabaseConnection, refresh: bool) -> Result<
         log::error!("Failed to apply migrations: {}", e);
         e.into()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::test_db_connection;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_apply_migrations() {
+        let (db, _) = test_db_connection().await;
+        // Apply migrations to the mock database
+        let result = apply_migrations(&db, false).await;
+        assert!(
+            result.is_ok(),
+            "Failed to apply migrations: {:?}",
+            result.err()
+        );
+
+        // Verify that the migrations were applied correctly
+        let applied_migrations = Migrator::get_applied_migrations(&db).await.unwrap();
+        assert!(!applied_migrations.is_empty(), "No migrations were applied");
+
+        // Additional assertions can be added here to verify the state of the database
+    }
 }

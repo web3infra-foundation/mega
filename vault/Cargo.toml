@@ -19,7 +19,12 @@ tokio = { workspace = true, features = ["full"] }
 pgp = { workspace = true }
 smallvec = { workspace = true }
 
+
 [dependencies.rusty_vault]
 git = "https://github.com/Tongsuo-Project/RustyVault"
 tag = "v0.2.2"
 features = ["sync_handler"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rand = { workspace = true }

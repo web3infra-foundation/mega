@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
@@ -50,7 +53,17 @@ impl VaultCore {
         let key_path = dir.join(CORE_KEY_FILE);
 
         std::fs::create_dir_all(&dir).expect("Failed to create vault directory");
+        Self::config(ctx, key_path)
+    }
 
+    pub async fn mock(key_path: PathBuf) -> Self {
+        std::fs::create_dir_all(key_path.parent().unwrap())
+            .expect("Failed to create mock vault directory");
+        let storage = jupiter::tests::test_storage().await;
+        Self::config(storage, key_path)
+    }
+
+    fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
         let seal_config = rusty_vault::core::SealConfig {
@@ -71,10 +84,7 @@ impl VaultCore {
                 .config(core.clone(), None)
                 .expect("Failed to configure vault core");
 
-            let core_key = if !managed_core
-                .inited()
-                .expect("Failed to check if vault is initialized")
-            {
+            let core_key = if !key_path.exists() {
                 let result = managed_core
                     .init(&seal_config)
                     .expect("Failed to initialize vault");
@@ -87,6 +97,7 @@ impl VaultCore {
 
                 core_key
             } else {
+                println!("Using existing vault core key file: {}", key_path.display());
                 let key_data =
                     std::fs::read(&key_path).expect("Failed to read vault core key file");
                 serde_json::from_slice::<CoreKey>(&key_data)
@@ -96,7 +107,7 @@ impl VaultCore {
             for i in 0..seal_config.secret_threshold {
                 let key = &core_key.secret_shares[i as usize];
                 let unseal = managed_core.unseal(key);
-                assert!(unseal.is_ok());
+                assert!(unseal.is_ok(), "Unseal error: {:?}", unseal.err());
             }
 
             log::debug!(
@@ -169,5 +180,92 @@ impl VaultCoreInterface for VaultCore {
         self.delete_api(format!("secret/{}", name))
             .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {}", name)))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_vault_core_initialization() {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let key_path = temp_dir.path().join(CORE_KEY_FILE);
+        let vault_core = VaultCore::mock(key_path).await;
+
+        assert!(
+            !vault_core.token().is_empty(),
+            "Vault core token should not be empty"
+        );
+        assert!(
+            vault_core.core.read().unwrap().inited().unwrap(),
+            "Vault core should be initialized"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_vault_api() {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let key_path = temp_dir.path().join(CORE_KEY_FILE);
+        let vault_core = VaultCore::mock(key_path).await;
+
+        let random_pairs = (0..1024)
+            .map(|_| {
+                (
+                    rand::random::<u64>().to_string(),
+                    rand::random::<u64>().to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let data: HashMap<String, Map<String, Value>> = random_pairs
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    serde_json::json!({
+                        "data": v,
+                    })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+                )
+            })
+            .collect();
+
+        // Write secrets to the vault and store them in a map
+        for (name, value) in &data {
+            vault_core
+                .write_secret(name.as_str(), Some(value.clone()))
+                .expect("Failed to write secret");
+        }
+
+        // Read secrets from the vault and verify their values
+        for (name, value) in &data {
+            let read_value = vault_core
+                .read_secret(name.as_str())
+                .expect("Failed to read secret")
+                .expect("Secret should exist");
+            assert_eq!(
+                read_value, *value,
+                "Read value does not match written value for {}",
+                name
+            );
+        }
+
+        // Delete secrets from the vault and verify they are removed
+        for name in data.keys() {
+            vault_core
+                .delete_secret(name.as_str())
+                .expect("Failed to delete secret");
+
+            let read_value = vault_core.read_secret(name.as_str());
+            assert!(read_value.is_ok());
+            assert!(
+                read_value.unwrap().is_none(),
+                "Secret {} should be deleted but still exists",
+                name
+            );
+        }
     }
 }
