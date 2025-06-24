@@ -34,7 +34,7 @@ impl IssueStorage {
         &self,
         status: &str,
         page: Pagination,
-    ) -> Result<(Vec<mega_issue::Model>, u64), MegaError> {
+    ) -> Result<(Vec<(mega_issue::Model, Vec<label::Model>)>, u64), MegaError> {
         let paginator = mega_issue::Entity::find()
             .filter(mega_issue::Column::Status.eq(status))
             .order_by_desc(mega_issue::Column::CreatedAt)
@@ -45,14 +45,16 @@ impl IssueStorage {
             .await
             .map(|m| (m, num_pages))?;
 
-        // let issue_ids: Vec<i64> = issues.iter().map(|i| i.id).collect();
-        // let item_label_with_labels = item_labels::Entity::find()
-        //     .filter(item_labels::Column::ItemId.is_in(issue_ids.clone()))
-        //     .find_also_related(label::Entity)
-        //     .all(self.get_connection())
-        //     .await?;
+        let issues_with_label: Vec<(mega_issue::Model, Vec<label::Model>)> =
+            mega_issue::Entity::find()
+                .filter(
+                    mega_issue::Column::Id.is_in(issues.iter().map(|i| i.id).collect::<Vec<_>>()),
+                )
+                .find_with_related(label::Entity)
+                .all(self.get_connection())
+                .await?;
 
-        Ok((issues, page))
+        Ok((issues_with_label, page))
     }
 
     pub async fn get_issue(&self, link: &str) -> Result<Option<mega_issue::Model>, MegaError> {
