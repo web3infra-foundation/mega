@@ -5,7 +5,7 @@ sea-orm-cli migrate generate
 
 cd mega/jupiter/migration
 
-sea-orm-cli generate entity -u postgres://username:password@hostname/mono -o ../callisto/src --with-serde both
+sea-orm-cli generate entity -u postgres://postgres:postgres@localhost:5432/mono -o ../callisto/src --with-serde both
 
 ```
 

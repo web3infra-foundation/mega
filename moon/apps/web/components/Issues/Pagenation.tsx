@@ -16,7 +16,7 @@ interface PaginationType {
 }
 
 export const Pagination = ({ totalNum, pageSize, onChange }: PaginationType) => {
-  if (totalNum <= 0 || pageSize <= 0) throw new Error('invalid props')
+  if (totalNum < 0 || pageSize < 0) throw new Error('invalid props')
   const totalPages = Math.ceil(totalNum / pageSize)
   const [pages, setPages] = useState<(number | '...')[]>([])
   const [current, setCurrent] = useAtom(currentPage)

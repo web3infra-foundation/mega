@@ -2,11 +2,12 @@ import { Button, FaceSmilePlusIcon } from '@gitmono/ui'
 
 import { MarkdownEditorRef } from '../MarkdownEditor'
 import { ReactionPicker } from './ReactionPicker'
+import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
 
 interface ComposerReactionPickerProps {
   open?: boolean
   onOpenChange?: (value: boolean) => void
-  editorRef: React.RefObject<MarkdownEditorRef>
+  editorRef: React.RefObject<MarkdownEditorRef> | React.RefObject<SimpleNoteContentRef>
   disabled?: boolean
 }
 

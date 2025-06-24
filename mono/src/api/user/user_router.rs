@@ -56,7 +56,7 @@ async fn add_key(
             .to_owned()
     };
 
-    let res = state
+    state
         .user_stg()
         .save_ssh_key(
             user.campsite_user_id,
@@ -64,12 +64,8 @@ async fn add_key(
             &json.ssh_key,
             &key.fingerprint(HashAlg::Sha256).to_string(),
         )
-        .await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 async fn remove_key(
@@ -77,39 +73,35 @@ async fn remove_key(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state
+    state
         .user_stg()
         .delete_ssh_key(user.campsite_user_id, key_id)
-        .await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
-    let res = state.user_stg().list_user_ssh(user.campsite_user_id).await;
-    let res = match res {
-        Ok(data) => CommonResult::success(Some(data.into_iter().map(|x| x.into()).collect())),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+    let res = state
+        .user_stg()
+        .list_user_ssh(user.campsite_user_id)
+        .await?;
+    Ok(Json(CommonResult::success(Some(
+        res.into_iter().map(|x| x.into()).collect(),
+    ))))
 }
 
 async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.user_stg().generate_token(user.campsite_user_id).await;
-    let res = match res {
-        Ok(data) => CommonResult::success(Some(data)),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+    let res = state
+        .user_stg()
+        .generate_token(user.campsite_user_id)
+        .await?;
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 async fn remove_token(
@@ -117,30 +109,20 @@ async fn remove_token(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state
+    state
         .user_stg()
         .delete_token(user.campsite_user_id, key_id)
-        .await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
-    let res = state.user_stg().list_token(user.campsite_user_id).await;
-    let res = match res {
-        Ok(data) => {
-            let res = data.into_iter().map(|x| x.into()).collect();
-            CommonResult::success(Some(res))
-        }
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+    let data = state.user_stg().list_token(user.campsite_user_id).await?;
+    let res = data.into_iter().map(|x| x.into()).collect();
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 async fn repo_permissions(

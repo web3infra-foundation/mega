@@ -187,6 +187,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
                     backgroundColor: selectedLine === i ? '#f0f7ff' : 'transparent'
                   }}
                   className='flex h-6 items-center'
+                  onClick={() => handleLineClick(i)}
                 >
                   <span className='inline-block w-8'>
                     {selectedLine === i ?
@@ -211,7 +212,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
                       null
                     }
                   </span>
-                  <span className={styles.codeLineNumber} onClick={() => handleLineClick(i)}>
+                  <span className={styles.codeLineNumber}>
                     {i + 1}
                   </span>
                   {line.map((token, key) => (

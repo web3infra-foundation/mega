@@ -61,7 +61,7 @@ import_dir = "/third-party"
 admin = "admin"
 
 # Set serveral root dirs in directory init
-root_dirs = ["third-party", "project", "doc", "release"]
+root_dirs = ["third-party", "project", "doc", "release", "model"]
 
 [pack]
 # The maximum memory used by decode
@@ -115,8 +115,8 @@ ui_domain = "http://local.gitmega.com"
 # Set your own domain here, for example: .gitmono.com
 cookie_domain = "localhost"
 
-# Used for call api from campsite server
-campsite_api_domain = "http://api.gitmega.com"
+# Used for call api from campsite server, for example: http://api.gitmono.test:3001
+campsite_api_domain = "http://api.gitmono.test:3001"
 
 # allowed cors origins
-allowed_cors_origins = ["http://local.gitmega.com", "http://app.gitmega.com"]
+allowed_cors_origins = ["http://local.gitmega.com", "http://app.gitmega.com", "http://app.gitmono.test"]
