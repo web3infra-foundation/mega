@@ -80,19 +80,21 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
 
     let diffWithHeader = block;
     const plusMatch = block.match(/^\+\+\+ b\/([^\n\r]+)/m);
+    const hunkIndex = block.indexOf("@@");
 
     if(!plusMatch){
-      const hunkIndex = block.indexOf("@@");
-
       let prefix = `--- a/${path}\n+++ b/${path}\n`;
-      
+
       diffWithHeader = hunkIndex >= 0
         ? block.slice(0, hunkIndex) + prefix + block.slice(hunkIndex)
         : prefix + block;
 
-      if (!diffWithHeader.endsWith("\n")) {
-        diffWithHeader += "\n";
-      }
+    } else if(hunkIndex < 0){
+      diffWithHeader = 'EMPTY_DIFF_MARKER'
+    }
+
+    if (!diffWithHeader.endsWith("\n")) {
+      diffWithHeader += "\n";
     }
 
     return {
