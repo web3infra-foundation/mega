@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use callisto::{
-    mega_conversation, mega_mr,
+    label, mega_conversation, mega_mr,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum},
 };
 use utoipa::ToSchema;
+use uuid::Uuid;
+
+use crate::api::label::LabelItem;
 
 pub mod mr_router;
 
@@ -21,17 +24,19 @@ pub struct MrInfoItem {
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
     pub updated_at: i64,
+    pub labels: Vec<LabelItem>,
 }
 
-impl From<mega_mr::Model> for MrInfoItem {
-    fn from(value: mega_mr::Model) -> Self {
+impl From<(mega_mr::Model, Vec<label::Model>)> for MrInfoItem {
+    fn from(value: (mega_mr::Model, Vec<label::Model>)) -> Self {
         Self {
-            link: value.link,
-            title: value.title,
-            status: value.status,
-            open_timestamp: value.created_at.and_utc().timestamp(),
-            merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
-            updated_at: value.updated_at.and_utc().timestamp(),
+            link: value.0.link,
+            title: value.0.title,
+            status: value.0.status,
+            open_timestamp: value.0.created_at.and_utc().timestamp(),
+            merge_timestamp: value.0.merge_date.map(|dt| dt.and_utc().timestamp()),
+            updated_at: value.0.updated_at.and_utc().timestamp(),
+            labels: value.1.into_iter().map(|m| m.into()).collect(),
         }
     }
 }
@@ -84,16 +89,49 @@ impl From<mega_conversation::Model> for MegaConversation {
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct FilesChangedItem {
-    pub path: String,
-    pub status: String,
+#[derive(Serialize, ToSchema)]
+pub struct FilesChangedList {
+    pub mui_trees: Vec<MuiTreeNode>,
+    pub content: String,
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct FilesChangedList {
-    pub files: Vec<FilesChangedItem>,
-    pub content: String,
+#[derive(Serialize, Debug, ToSchema)]
+pub struct MuiTreeNode {
+    id: String,
+    label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(no_recursion)]
+    children: Option<Vec<MuiTreeNode>>,
+}
+
+impl MuiTreeNode {
+    fn new(label: &str) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            label: label.to_string(),
+            children: None,
+        }
+    }
+
+    fn insert_path(&mut self, parts: &[&str]) {
+        if parts.is_empty() {
+            return;
+        }
+
+        if self.children.is_none() {
+            self.children = Some(Vec::new());
+        }
+
+        let children = self.children.as_mut().unwrap();
+
+        if let Some(existing) = children.iter_mut().find(|c| c.label == parts[0]) {
+            existing.insert_path(&parts[1..]);
+        } else {
+            let mut new_node = MuiTreeNode::new(parts[0]);
+            new_node.insert_path(&parts[1..]);
+            children.push(new_node);
+        }
+    }
 }
 
 #[derive(Deserialize, ToSchema)]

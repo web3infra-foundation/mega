@@ -1,3 +1,7 @@
+import { SearchProps } from '@/components/Issues/Search'
+
+type SearchType = SearchProps['SearchListTable']['items']
+
 export const tags = [
   {
     id: 'label_1',
@@ -37,3 +41,58 @@ export const tags = [
 ]
 
 export const orderTags = ['Created on', 'Last updated', 'Total comments', 'Best match', 'Oldest', 'Newest']
+
+export const searchList: SearchType = [
+  {
+    type: 'item',
+    label: 'Is'
+  },
+  {
+    type: 'item',
+    label: 'State'
+  },
+  {
+    type: 'item',
+    label: 'Author'
+  },
+  {
+    type: 'item',
+    label: 'Project'
+  },
+  {
+    type: 'item',
+    label: 'Involvs'
+  },
+  { type: 'separator' },
+
+  {
+    type: 'item',
+    label: 'AND'
+  },
+  {
+    type: 'item',
+    label: 'OR'
+  },
+  {
+    type: 'item',
+    label: 'Exculd'
+  }
+]
+
+export const fuseOptions = {
+  isCaseSensitive: false,
+  // includeScore: false,
+  // ignoreDiacritics: false,
+  // shouldSort: true,
+  // includeMatches: false,
+  findAllMatches: true,
+  // minMatchCharLength: 1,
+  location: 0,
+  threshold: 0,
+  // distance: 100,
+  useExtendedSearch: true,
+  ignoreLocation: false,
+  // ignoreFieldNorm: false,
+  // fieldNormWeight: 1,
+  keys: ['label']
+}
