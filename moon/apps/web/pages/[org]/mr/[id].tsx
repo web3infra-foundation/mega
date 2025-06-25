@@ -7,7 +7,6 @@ import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon, PictureP
 import { formatDistance, fromUnixTime } from 'date-fns';
 import MRComment from '@/components/MrView/MRComment';
 import { useRouter } from 'next/router';
-import 'diff2html/bundles/css/diff2html.min.css';
 import FileDiff from '@/components/DiffView/FileDiff';
 import { Button } from '@gitmono/ui';
 // import { ReloadIcon } from '@radix-ui/react-icons';
