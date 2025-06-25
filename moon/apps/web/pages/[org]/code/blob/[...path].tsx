@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Flex, Layout } from 'antd'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
@@ -8,6 +8,9 @@ import { useGetBlob } from '@/hooks/useGetBlob'
 import { useRouter } from 'next/router'
 import { CommentSection } from '@/components/CodeView/BlobView/CommentSection'
 import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
+import RepoTree from '@/components/CodeView/TreeView/RepoTree'
+import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
+import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
 const codeStyle = {
   borderRadius: 8,
@@ -15,6 +18,14 @@ const codeStyle = {
   background: '#fff',
   border: '1px solid #d1d9e0',
   margin: '0 8px'
+}
+
+const treeStyle = {
+  borderRadius: 8,
+  overflow: 'hidden',
+  width: 'calc(20% - 8px)',
+  maxWidth: 'calc(20% - 8px)',
+  background: '#fff'
 }
 
 interface Comment {
@@ -77,6 +88,37 @@ function BlobPage() {
     hash: '5fe4235',
     date: '3 months ago'
   }
+  
+  const newPath = new_path?.split("/").slice(0, -1).join("/")
+  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
+  
+  type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
+  const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
+  const [newDirectory, setNewDirectory] = useState<any[]>([])
+
+  // eslint-disable-next-line no-console
+  console.log(directory, 'directory==directory')
+
+  useEffect(()=>{
+    const handleDirectory = () => {
+      const filteredItems = directory.filter((item) => {
+        return item.content_type !== 'directory';
+      });
+    
+      // eslint-disable-next-line no-console
+      console.log(filteredItems, 'filteredItems==');
+      setNewDirectory(filteredItems); // 直接设置过滤后的数组，而非嵌套数组
+    };
+
+    handleDirectory()
+    
+  },[directory, setNewDirectory])
+
+
+
+
+
+
 
   const handleAddComment = (__content: string, __lineNumber?: number) => {
     //wait for complete
@@ -93,17 +135,26 @@ function BlobPage() {
         <Layout>
           <BreadCrumb path={path} />
         </Layout>
-        <Layout className='m-2'>
-          <CommitHistory flag={'details'} info={commitInfo}/>
+        {/* tree */}
+        <Flex>
+        <Layout style={treeStyle}>
+          <RepoTree  flag={'detail'} directory={newDirectory} />
         </Layout>
-        <Flex gap='middle' wrap>
-          <Layout style={codeStyle}>
-            <CodeContent fileContent={fileContent} path={path} />
+
+        <Layout style={{background: '#fff'}}>
+          <Layout className='m-2'>
+            <CommitHistory flag={'details'} info={commitInfo}/>
           </Layout>
-          <Layout>
-            {/* @ts-ignore */}
-            <CommentSection comments={mockComments} onAddComment={handleAddComment} onReplyComment={handleReplyComment} />
-          </Layout>
+          <Flex gap='middle' wrap>
+            <Layout style={codeStyle}>
+              <CodeContent fileContent={fileContent} path={path} />
+            </Layout>
+            <Layout>
+              {/* @ts-ignore */}
+              <CommentSection comments={mockComments} onAddComment={handleAddComment} onReplyComment={handleReplyComment} />
+            </Layout>
+          </Flex>
+        </Layout>
         </Flex>
       </Flex>
     </div>
