@@ -3080,6 +3080,7 @@ export type CommonResultCommonPageLabelItem = {
 export type CommonResultCommonPageMrInfoItem = {
   data?: {
     items: {
+      labels: LabelItem[]
       link: string
       /** @format int64 */
       merge_timestamp?: number | null
@@ -3103,7 +3104,7 @@ export type CommonResultCommonPageMrInfoItem = {
 export type CommonResultFilesChangedList = {
   data?: {
     content: string
-    files: FilesChangedItem[]
+    mui_trees: MuiTreeNode[]
   }
   err_message: string
   req_result: boolean
@@ -3194,14 +3195,9 @@ export type CreateFileInfo = {
   path: string
 }
 
-export type FilesChangedItem = {
-  path: string
-  status: string
-}
-
 export type FilesChangedList = {
   content: string
-  files: FilesChangedItem[]
+  mui_trees: MuiTreeNode[]
 }
 
 export type IssueItem = {
@@ -3278,6 +3274,7 @@ export enum MergeStatusEnum {
 }
 
 export type MrInfoItem = {
+  labels: LabelItem[]
   link: string
   /** @format int64 */
   merge_timestamp?: number | null
@@ -3287,6 +3284,12 @@ export type MrInfoItem = {
   title: string
   /** @format int64 */
   updated_at: number
+}
+
+export type MuiTreeNode = {
+  children?: any[] | null
+  id: string
+  label: string
 }
 
 export type NewIssue = {

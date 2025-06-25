@@ -4,7 +4,6 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use saturn::ActionEnum;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
@@ -12,12 +11,15 @@ use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
+use saturn::ActionEnum;
 
 use crate::api::{
-    issue::{issue_router::common_label_update, LabelUpdatePayload}, mr::{
-        FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem,
+    issue::{issue_router::common_label_update, LabelUpdatePayload},
+    mr::{
+        FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, MuiTreeNode,
         SaveCommentRequest,
-    }, oauth::model::LoginUser
+    },
+    oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
 use crate::{api::error::ApiError, server::https_server::MR_TAG};
@@ -31,7 +33,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(merge))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
-            .routes(routes!(get_mr_files_changed))
+            .routes(routes!(mr_files_changed))
             .routes(routes!(save_comment))
             .routes(routes!(delete_comment))
             .routes(routes!(labels)),
@@ -194,13 +196,13 @@ async fn fetch_mr_list(
     };
     let (items, total) = state
         .mr_stg()
-        .get_mr_by_status(status, json.pagination.page, json.pagination.per_page)
+        .get_mr_by_status(status, json.pagination)
         .await?;
-    let res = CommonResult::success(Some(CommonPage {
+    let res = CommonPage {
         items: items.into_iter().map(|m| m.into()).collect(),
         total,
-    }));
-    Ok(Json(res))
+    };
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Get merge request details
@@ -240,7 +242,7 @@ async fn mr_detail(
     ),
     tag = MR_TAG
 )]
-async fn get_mr_files_changed(
+async fn mr_files_changed(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
@@ -248,12 +250,13 @@ async fn get_mr_files_changed(
     let diff_res = state.monorepo().content_diff(&link, listen_addr).await?;
 
     let diff_files = extract_files_with_status(&diff_res);
-    let mut diff_list: Vec<FilesChangedItem> = vec![];
-    for (path, status) in diff_files {
-        diff_list.push(FilesChangedItem { path, status });
+    let mut paths = vec![];
+    for (path, _) in diff_files {
+        paths.push(path);
     }
+    let mui_trees = build_forest(paths);
     let res = CommonResult::success(Some(FilesChangedList {
-        files: diff_list,
+        mui_trees,
         content: diff_res,
     }));
     Ok(Json(res))
@@ -350,11 +353,33 @@ async fn labels(
     common_label_update(user, state, payload).await
 }
 
+fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
+    let mut roots: Vec<MuiTreeNode> = Vec::new();
+
+    for path in paths {
+        let parts: Vec<&str> = path.split('/').collect();
+        if parts.is_empty() {
+            continue;
+        }
+
+        let root_label = parts[0];
+        if let Some(existing_root) = roots.iter_mut().find(|r| r.label == root_label) {
+            existing_root.insert_path(&parts[1..]);
+        } else {
+            let mut new_root = MuiTreeNode::new(root_label);
+            new_root.insert_path(&parts[1..]);
+            roots.push(new_root);
+        }
+    }
+
+    roots
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
 
-    use crate::api::mr::mr_router::extract_files_with_status;
+    use crate::api::mr::mr_router::{build_forest, extract_files_with_status};
 
     #[test]
     fn test_parse_diff_result_to_filelist() {
@@ -389,5 +414,18 @@ mod test {
         expected.insert("ceres/src/removed.rs".to_string(), "deleted".to_string());
 
         assert_eq!(files_with_status, expected);
+    }
+
+    #[test]
+    fn test_files_changed_tree() {
+        let paths = vec![
+            String::from("crates-pro/crates_pro/src/bin/bin_analyze.rs"),
+            String::from("crates-pro/images/analysis-tool-worker.Dockerfile"),
+            String::from("crates-pro/images/crates-pro.Dockerfile"),
+            String::from("another-root/foo/bar.txt"),
+        ];
+
+        let forest = build_forest(paths);
+        println!("{}", serde_json::to_string_pretty(&forest).unwrap());
     }
 }

@@ -15,7 +15,48 @@ pub struct Model {
     pub item_type: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    MegaIssue,
+    MegaMr,
+    Label
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::MegaIssue => Entity::belongs_to(super::mega_issue::Entity)
+                .from(Column::ItemId)
+                .to(super::mega_issue::Column::Id)
+                .into(),
+            Self::MegaMr => Entity::belongs_to(super::mega_mr::Entity)
+                .from(Column::ItemId)
+                .to(super::mega_mr::Column::Id)
+                .into(),
+            Self::Label => Entity::belongs_to(super::label::Entity)
+                .from(Column::LabelId)
+                .to(super::label::Column::Id)
+                .into(),
+        }
+    }
+}
+
+impl Related<super::label::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Label.def()
+    }
+}
+
+impl Related<super::mega_issue::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaIssue.def()
+    }
+}
+
+impl Related<super::mega_mr::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaMr.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
