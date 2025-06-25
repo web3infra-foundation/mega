@@ -37,7 +37,7 @@ impl GenerationNode {
             .client
             .post(&self.url)
             .json(&json!({
-                "model": "deepseek-r1",
+                "model": "deepseek-r1:7b",
                 "messages": [
                     {
                         "role": "user",

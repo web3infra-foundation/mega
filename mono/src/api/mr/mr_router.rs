@@ -15,10 +15,7 @@ use saturn::ActionEnum;
 
 use crate::api::{
     issue::{issue_router::common_label_update, LabelUpdatePayload},
-    mr::{
-        FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, MuiTreeNode,
-        SaveCommentRequest,
-    },
+    mr::{FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, MuiTreeNode, SaveCommentRequest},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};

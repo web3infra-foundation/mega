@@ -19,7 +19,7 @@ pub struct Model {
 pub enum Relation {
     MegaIssue,
     MegaMr,
-    Label
+    Label,
 }
 
 impl RelationTrait for Relation {

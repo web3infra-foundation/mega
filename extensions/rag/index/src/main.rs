@@ -85,7 +85,7 @@ fn update_knowledge_base(file_path: &PathBuf) {
     );
     let vect_client_id = vect_client_node.id();
 
-    let qdrant = QdrantNode::new(QDRANT_URL, "code_items");
+    let qdrant = QdrantNode::new(QDRANT_URL, "test_test_code_items");
     let qdrant_node = DefaultNode::with_action("qdrant".to_string(), qdrant, &mut index_node_table);
     let qdrant_id = qdrant_node.id();
 

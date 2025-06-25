@@ -265,11 +265,7 @@ impl MonoApiService {
                 .await
                 .unwrap();
             // update mr status last
-            self.context
-                .mr_stg()
-                .merge_mr(mr)
-                .await
-                .unwrap();
+            self.context.mr_stg().merge_mr(mr).await.unwrap();
         } else {
             return Err(MegaError::with_message("ref hash conflict"));
         }

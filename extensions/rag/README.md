@@ -52,7 +52,43 @@ docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v 
 docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.net -p 3000:3000 mega:mono-ui-latest
 ```
 
-4. Pull the vector database Qdrant and run the `chat` and `index` modules:
+4. Run Kafka for message queueing.
+
+   ```bash
+   # Pull the image (optional, docker run will do it automatically)
+   docker pull bitnami/kafka:3.5
+
+   # Run the Kafka container
+   docker run --rm -d \
+    --name kafka \
+    -p 9092:9092 \
+    --network mono-network \
+    -e KAFKA_KRAFT_CLUSTER_ID=zCG7EfxhRg6MgefynF9sEw== \
+    -e KAFKA_CFG_NODE_ID=1 \
+    -e KAFKA_CFG_PROCESS_ROLES=broker,controller \
+    -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093 \
+    -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+    -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 \
+    -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+    -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+    -e ALLOW_PLAINTEXT_LISTENER=yes \
+    bitnami/kafka:3.5
+   ```
+
+5. Install and configure Ollama for local LLM inference:
+   ```bash
+   # Pull the Ollama image
+   docker pull ollama/ollama
+   
+   # Run the Ollama container
+   docker run -d --network mono-network -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+
+   # Pull models into the Ollama container
+   docker exec -it ollama ollama pull bge-m3
+   docker exec -it ollama ollama pull deepseek-r1
+   ```
+
+6. Pull the vector database Qdrant and run the `chat` and `index` modules:
 
    - Run Qdrant:
      ```bash
@@ -61,22 +97,16 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
          qdrant/qdrant
      ```
 
-   - Run the `chat` module:
-     ```bash
-     docker build -t rag-chat -f ./extensions/rag/chat/Dockerfile .
-     docker run --rm -it -d --name rag-chat --network mono-network rag-chat
-     ```
-
    - Run the `index` module:
      ```bash
      docker build -t rag-index -f ./extensions/rag/index/Dockerfile .
      docker run --rm -it -d --name rag-index --network mono-network  -v /mnt/data:/opt/data rag-index \
      ```
 
-5. Install and configure Ollama in the container:
-   ```bash
-   docker-compose up --build -d
-
-   ```
+   - Run the `chat` module:
+     ```bash
+     docker build -t rag-chat -f ./extensions/rag/chat/Dockerfile .
+     docker run --rm -it  --name rag-chat --network mono-network rag-chat
+     ```
 
 Please adjust and supplement according to the specific functions and needs of the project. If there is any other specific information that needs to be added, please let me know! I will update the `README.md` file.

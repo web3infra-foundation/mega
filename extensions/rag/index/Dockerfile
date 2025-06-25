@@ -40,7 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制 requirements.txt
+
+
+    # 复制 requirements.txt
 COPY ./extensions/rag/index/requirements.txt .
 
 # 安装 Python 依赖
@@ -56,5 +58,8 @@ COPY --from=builder /index/extensions/sync.py /usr/local/bin/sync.py
 # 设置工作目录
 WORKDIR /index
 
+COPY ./extensions/rag/index/index.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # 设置默认命令
-CMD ["python3", "/usr/local/bin/sync.py"]
+ENTRYPOINT ["/entrypoint.sh"]

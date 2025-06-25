@@ -16,12 +16,11 @@ import datetime
 import uuid
 
 REPO_URL = "https://github.com/rust-lang/crates.io-index.git"
-CLONE_DIR = "/opt/data/tmp"
-#DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "download")
+CLONE_DIR = "/opt/data/crates.io-index"
 DOWNLOAD_DIR = "/opt/data/crates"
 MAX_RETRIES = 3  # 最大重试次数
 PROCESSED_FILE = "/opt/data/processed.json"
-MEGA_URL = "http://172.17.0.1:8000"  # 替换为实际mega仓库地址
+MEGA_URL = "http://mono-engine:8000"  # 替换为实际mega仓库地址
 KAFKA_BROKER = "kafka:9092"           # 替换为实际kafka broker
 KAFKA_TOPIC = "REPO_SYNC_STATUS.dev.0902"                  # 替换为实际kafka topic
 
@@ -40,7 +39,26 @@ def clone_or_update_index():
     # 确保路径是绝对路径
     clone_dir = os.path.abspath(CLONE_DIR)
 
-    # 克隆仓库
+    # 检查目录是否已存在
+    if os.path.exists(clone_dir):
+        if os.path.isdir(os.path.join(clone_dir, '.git')):
+            print(f"目录 {clone_dir} 已存在且是git仓库，尝试更新...")
+            try:
+                # 进入目录并执行git pull
+                original_dir = os.getcwd()
+                os.chdir(clone_dir)
+                subprocess.run(["git", "pull"], check=True)
+                os.chdir(original_dir)
+                print("仓库更新成功。")
+                return True
+            except subprocess.CalledProcessError as e:
+                print(f"更新失败: {e}")
+                return False
+        else:
+            print(f"错误: 目录 {clone_dir} 已存在但不是git仓库。")
+            return False
+    
+    # 如果目录不存在，则克隆仓库
     print(f"正在克隆到 {clone_dir}...")
     try:
         subprocess.run(["git", "clone", REPO_URL, clone_dir], check=True)
@@ -61,7 +79,7 @@ def save_processed(processed_dict):
         json.dump(processed_dict, f)
 
 def download_all_crates():
-    crates = get_all_files(CLONE_DIR + "/crates.io-index")
+    crates = get_all_files("/opt/data/tmp")
     print(f"找到 {len(crates)} 个 crate。")
     downloaded = {}
     for name, versions in crates.items():
@@ -118,6 +136,8 @@ def get_all_files(index_dir):
     try:
         # 递归遍历所有子目录
         for root, dirs, files in os.walk(index_dir):
+            if Path(root) == Path(index_dir):
+                continue  # 跳过 index_dir 根目录（避免处理 config.json）
             for file in files:
                 file_path = Path(os.path.join(root, file))
                 if not file_path.is_file():
@@ -356,7 +376,6 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
      # 1. 初始化/清空仓库
     init_or_clean_repo(repo_dir)
 
-
     # 2. 解压
     decompress_crate(crate_file, crate_entry)
 
@@ -382,8 +401,8 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
         "crate_name": crate_name,
         "crate_version": version,
         "cksum": checksum,
-        "data_source": "crates.io",
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "data_source": "Manual",
+        "timestamp": datetime.datetime.utcnow().isoformat()  + "Z" ,
         "version": "",
         "uuid": str(uuid.uuid4())
     }

@@ -124,8 +124,13 @@ impl CodeIndexer {
             .await
             .with_context(|| format!("Failed to read file: {:?}", file_path))?;
 
-        let ast = parse_file(&content)
-            .with_context(|| format!("Failed to parse Rust file: {:?}", file_path))?;
+        let ast = match parse_file(&content) {
+            Ok(ast) => ast,
+            Err(e) => {
+                eprintln!("[解析错误] {:?}: {}，跳过该文件", file_path, e);
+                return Ok(());
+            }
+        };
 
         println!("Found {} items in file", ast.items.len());
         for item in ast.items {
