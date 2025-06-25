@@ -256,17 +256,6 @@ catalog:
   antd: ^5.25.0
   github-markdown-css: ^5.8.1
   '@heroicons/react': ^2.2.0
-  diff2html: ^3.4.51
-  '@lexical/react': ^0.31.2
-  '@lexical/utils': ^0.31.2
-  '@lexical/selection': ^0.31.2
-  '@lexical/code': ^0.31.2
-  '@lexical/link': ^0.31.2
-  '@lexical/list': ^0.31.2
-  '@lexical/markdown': ^0.31.2
-  '@lexical/rich-text': ^0.31.2
-  '@lexical/table': ^0.31.2
-  lexical: ^0.31.2
   clsx: ^2.1.1
   copy-to-clipboard: ^3.3.3
   '@ant-design/icons': ^6.0.0

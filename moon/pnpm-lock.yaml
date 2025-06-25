@@ -24,60 +24,15 @@ catalogs:
     '@emotion/styled':
       specifier: ^11.14.0
       version: 11.14.0
-    '@flydotio/dockerfile':
-      specifier: ^0.4.11
-      version: 0.4.11
     '@heroicons/react':
       specifier: ^2.2.0
       version: 2.2.0
-    '@hocuspocus/extension-database':
-      specifier: ^2.13.5
-      version: 2.15.2
-    '@hocuspocus/extension-logger':
-      specifier: ^2.13.5
-      version: 2.15.2
     '@hocuspocus/provider':
       specifier: ^2.13.5
       version: 2.13.5
-    '@hocuspocus/server':
-      specifier: ^2.13.5
-      version: 2.15.2
-    '@hocuspocus/transformer':
-      specifier: ^2.13.5
-      version: 2.15.2
     '@hookform/resolvers':
       specifier: ^3.3.1
       version: 3.3.1
-    '@ianvs/prettier-plugin-sort-imports':
-      specifier: ^4.2.1
-      version: 4.2.1
-    '@lexical/code':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/link':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/list':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/markdown':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/react':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/rich-text':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/selection':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/table':
-      specifier: ^0.31.2
-      version: 0.31.2
-    '@lexical/utils':
-      specifier: ^0.31.2
-      version: 0.31.2
     '@mui/icons-material':
       specifier: ^7.1.0
       version: 7.1.0
@@ -102,24 +57,15 @@ catalogs:
     '@radix-ui/react-accordion':
       specifier: ^1.2.0
       version: 1.2.0
-    '@radix-ui/react-context-menu':
-      specifier: ^2.2.1
-      version: 2.2.1
     '@radix-ui/react-dialog':
       specifier: ^1.1.1
       version: 1.1.1
-    '@radix-ui/react-dropdown-menu':
-      specifier: ^2.1.1
-      version: 2.1.1
     '@radix-ui/react-hover-card':
       specifier: ^1.1.1
       version: 1.1.1
     '@radix-ui/react-popover':
       specifier: ^1.1.1
       version: 1.1.1
-    '@radix-ui/react-popper':
-      specifier: ^1.2.0
-      version: 1.2.0
     '@radix-ui/react-portal':
       specifier: ^1.1.1
       version: 1.1.1
@@ -132,33 +78,15 @@ catalogs:
     '@radix-ui/react-slot':
       specifier: ^1.1.0
       version: 1.1.0
-    '@radix-ui/react-switch':
-      specifier: ^1.1.0
-      version: 1.1.0
     '@radix-ui/react-tabs':
-      specifier: ^1.1.0
-      version: 1.1.0
-    '@radix-ui/react-toggle-group':
-      specifier: ^1.1.0
-      version: 1.1.0
-    '@radix-ui/react-tooltip':
-      specifier: ^1.1.2
-      version: 1.1.2
-    '@radix-ui/react-visually-hidden':
       specifier: ^1.1.0
       version: 1.1.0
     '@radix-ui/themes':
       specifier: ^3.2.1
       version: 3.2.1
-    '@sentry/cli':
-      specifier: ^2.30.1
-      version: 2.30.1
     '@sentry/nextjs':
       specifier: ^8.17.0
       version: 8.17.0
-    '@sentry/node':
-      specifier: ^7.106.1
-      version: 7.120.3
     '@shopify/react-shortcuts':
       specifier: ^5.2.0
       version: 5.2.0
@@ -192,18 +120,6 @@ catalogs:
     '@swc-jotai/react-refresh':
       specifier: ^0.0.7
       version: 0.0.7
-    '@tailwindcss/container-queries':
-      specifier: ^0.1.1
-      version: 0.1.1
-    '@tailwindcss/forms':
-      specifier: ^0.5.2
-      version: 0.5.3
-    '@tailwindcss/typography':
-      specifier: ^0.5.9
-      version: 0.5.9
-    '@tanstack/eslint-plugin-query':
-      specifier: ^4.34.1
-      version: 4.38.0
     '@tanstack/react-query':
       specifier: ^5.56.2
       version: 5.59.0
@@ -216,31 +132,7 @@ catalogs:
     '@testing-library/react':
       specifier: ^15.0.7
       version: 15.0.7
-    '@tiptap-pro/extension-details':
-      specifier: ^2.10.11
-      version: 2.10.11
-    '@tiptap-pro/extension-details-content':
-      specifier: ^2.10.11
-      version: 2.10.11
-    '@tiptap-pro/extension-details-summary':
-      specifier: ^2.10.11
-      version: 2.10.11
     '@tiptap/core':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-blockquote':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-bold':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-bullet-list':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-code':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-code-block':
       specifier: ^2.6.4
       version: 2.6.4
     '@tiptap/extension-collaboration':
@@ -249,66 +141,6 @@ catalogs:
     '@tiptap/extension-collaboration-cursor':
       specifier: ^2.6.4
       version: 2.6.4
-    '@tiptap/extension-document':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-dropcursor':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-hard-break':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-heading':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-history':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-horizontal-rule':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-italic':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-link':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-list-item':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-list-keymap':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-ordered-list':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-paragraph':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-placeholder':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-strike':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-task-item':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-task-list':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-text':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-typography':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/extension-underline':
-      specifier: ^2.6.4
-      version: 2.6.4
-    '@tiptap/html':
-      specifier: ^2.6.4
-      version: 2.13.0
     '@tiptap/pm':
       specifier: ^2.6.4
       version: 2.6.4
@@ -327,12 +159,6 @@ catalogs:
     '@types/d3-zoom':
       specifier: ^3.0.3
       version: 3.0.3
-    '@types/diff':
-      specifier: ^5.0.5
-      version: 5.0.5
-    '@types/markdown-it':
-      specifier: ^13.0.7
-      version: 13.0.7
     '@types/node':
       specifier: ^20.12.4
       version: 20.12.4
@@ -348,12 +174,6 @@ catalogs:
     '@types/uuid':
       specifier: ^9.0.4
       version: 9.0.4
-    '@typescript-eslint/eslint-plugin':
-      specifier: ^7.11.0
-      version: 7.11.0
-    '@typescript-eslint/parser':
-      specifier: ^7.11.0
-      version: 7.11.0
     '@vercel/og':
       specifier: ^0.6.2
       version: 0.6.2
@@ -372,9 +192,6 @@ catalogs:
     autoprefixer:
       specifier: ^10.4.8
       version: 10.4.14
-    class-variance-authority:
-      specifier: ^0.7.0
-      version: 0.7.0
     clsx:
       specifier: ^2.1.1
       version: 2.1.1
@@ -396,36 +213,9 @@ catalogs:
     deepmerge:
       specifier: ^4.3.1
       version: 4.3.1
-    diff:
-      specifier: ^5.1.0
-      version: 5.1.0
-    diff2html:
-      specifier: ^3.4.51
-      version: 3.4.51
-    dotenv:
-      specifier: ^16.3.1
-      version: 16.4.5
-    eslint:
-      specifier: ^8.57.0
-      version: 8.57.0
-    eslint-config-next:
-      specifier: ^14.2.3
-      version: 14.2.3
-    eslint-config-turbo:
-      specifier: ^2.0.9
-      version: 2.0.9
-    eslint-plugin-react:
-      specifier: ^7.34.1
-      version: 7.34.1
-    eslint-plugin-react-hooks:
-      specifier: ^4.6.2
-      version: 4.6.2
     eslint-plugin-storybook:
       specifier: ^0.8.0
       version: 0.8.0
-    eslint-plugin-unused-imports:
-      specifier: ^3.2.0
-      version: 3.2.0
     fast-deep-equal:
       specifier: ^3.1.3
       version: 3.1.3
@@ -447,15 +237,9 @@ catalogs:
     js-base64:
       specifier: ^3.7.5
       version: 3.7.5
-    jsdom:
-      specifier: ^24.0.0
-      version: 24.0.0
     jszip:
       specifier: ^3.10.1
       version: 3.10.1
-    lexical:
-      specifier: ^0.31.2
-      version: 0.31.2
     linkify-react:
       specifier: ^4.1.3
       version: 4.1.3
@@ -465,9 +249,6 @@ catalogs:
     lottie-web:
       specifier: ^5.11.0
       version: 5.11.0
-    markdown-it:
-      specifier: ^14.1.0
-      version: 14.1.0
     metascraper:
       specifier: ^5.34.8
       version: 5.34.8
@@ -540,18 +321,6 @@ catalogs:
     postcss:
       specifier: ^8.4.29
       version: 8.4.38
-    postcss-import:
-      specifier: ^15.1.0
-      version: 15.1.0
-    prettier:
-      specifier: ^3.2.5
-      version: 3.3.3
-    prettier-plugin-packagejson:
-      specifier: ^2.4.14
-      version: 2.4.14
-    prettier-plugin-tailwindcss:
-      specifier: ^0.6.8
-      version: 0.6.8
     prism-react-renderer:
       specifier: ^2.4.1
       version: 2.4.1
@@ -564,9 +333,6 @@ catalogs:
     react-aria:
       specifier: ^3.27.0
       version: 3.27.0
-    react-day-picker:
-      specifier: ^8.10.1
-      version: 8.10.1
     react-device-detect:
       specifier: ^2.2.2
       version: 2.2.3
@@ -576,9 +342,6 @@ catalogs:
     react-dropzone:
       specifier: ^14.2.2
       version: 14.2.3
-    react-error-boundary:
-      specifier: ^4.0.13
-      version: 4.0.13
     react-hook-form:
       specifier: ^7.46.1
       version: 7.46.1
@@ -612,9 +375,6 @@ catalogs:
     react-select:
       specifier: ^5.7.0
       version: 5.7.0
-    react-textarea-autosize:
-      specifier: ^8.5.3
-      version: 8.5.3
     react-timeago:
       specifier: ^7.2.0
       version: 7.2.0
@@ -627,48 +387,21 @@ catalogs:
     react-wrap-balancer:
       specifier: ^0.5.0
       version: 0.5.0
-    refractor:
-      specifier: ^4.8.1
-      version: 4.8.1
     remeda:
       specifier: ^1.23.0
       version: 1.23.0
-    rfc6902:
-      specifier: ^5.0.1
-      version: 5.0.1
     slugify:
       specifier: ^1.6.6
       version: 1.6.6
     storybook:
       specifier: ^8.0.0-beta.3
       version: 8.0.5
-    swagger-typescript-api:
-      specifier: ^12.0.4
-      version: 12.0.4
-    tailwind-merge:
-      specifier: ^2.3.0
-      version: 2.3.0
-    tailwind-scrollbar-hide:
-      specifier: ^1.1.7
-      version: 1.1.7
     tailwindcss:
       specifier: ^3.4.3
       version: 3.4.3
-    tailwindcss-animate:
-      specifier: ^1.0.7
-      version: 1.0.7
-    tailwindcss-safe-area:
-      specifier: ^0.4.1
-      version: 0.4.1
     tippy.js:
       specifier: ^6.3.7
       version: 6.3.7
-    tsup:
-      specifier: ^8.0.2
-      version: 8.0.2
-    turbo:
-      specifier: ^2.1.2
-      version: 2.1.2
     typescript:
       specifier: ^5.4.3
       version: 5.4.3
@@ -830,33 +563,6 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 3.3.1(react-hook-form@7.46.1(react@18.2.0))
-      '@lexical/code':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/link':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/list':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/markdown':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/react':
-        specifier: 'catalog:'
-        version: 0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(yjs@13.6.8)
-      '@lexical/rich-text':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/selection':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/table':
-        specifier: 'catalog:'
-        version: 0.31.2
-      '@lexical/utils':
-        specifier: 'catalog:'
-        version: 0.31.2
       '@mui/icons-material':
         specifier: 'catalog:'
         version: 7.1.0(@mui/material@7.1.0(@emotion/react@11.14.0(@types/react@18.2.74)(react@18.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@18.2.74)(react@18.2.0))(@types/react@18.2.74)(react@18.2.0))(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.74)(react@18.2.0)
@@ -962,9 +668,6 @@ importers:
       deepmerge:
         specifier: 'catalog:'
         version: 4.3.1
-      diff2html:
-        specifier: 'catalog:'
-        version: 3.4.51
       fast-deep-equal:
         specifier: 'catalog:'
         version: 3.1.3
@@ -992,9 +695,6 @@ importers:
       jszip:
         specifier: 'catalog:'
         version: 3.10.1
-      lexical:
-        specifier: 'catalog:'
-        version: 0.31.2
       linkify-react:
         specifier: 'catalog:'
         version: 4.1.3(linkifyjs@4.1.3)(react@18.2.0)
@@ -3030,77 +2730,6 @@ packages:
   '@keyvhq/memoize@2.0.3':
     resolution: {integrity: sha512-ID5Br2OshdhyD4G0g1dm7915Ol2ee6RmCPMDSEh7QFtkbHrtzkgJfYS60na6tGWRBqViAMrCByBfD6uSinjAgg==}
     engines: {node: '>= 16'}
-
-  '@lexical/clipboard@0.31.2':
-    resolution: {integrity: sha512-cedna5jXfNzbmGl0nLOiLoQoE42i3NfCU6wtugO/auWTLbv1/gD9g0egLg2lAUod+BApaCgdTU4tV2bqww2GWQ==}
-
-  '@lexical/code@0.31.2':
-    resolution: {integrity: sha512-pix3n43zJzzkOgiUV0aTkWL4syItiHrP7YkdenkXgauVMAqZq3IvmK1hSQYKeDsVw/3N8mU26oRp0g5kPDV1rA==}
-
-  '@lexical/devtools-core@0.31.2':
-    resolution: {integrity: sha512-Ae5jJzeo6+3DVEWj9n6h+Vz8R4eL+Z7egGHOAwSa3E65PVp8WNlAoM+Z0rNNpvmbFglWD7d9pSPHcK/G5B7Bfw==}
-    peerDependencies:
-      react: '>=17.x'
-      react-dom: '>=17.x'
-
-  '@lexical/dragon@0.31.2':
-    resolution: {integrity: sha512-exFqbyyLyfZmmKQgjB4sJOYHV5DQYIPw0orvxpGMeaVCOgfP0RvB21QLHyazmGlnVNcahscHYieZmLJdpwHYMQ==}
-
-  '@lexical/hashtag@0.31.2':
-    resolution: {integrity: sha512-/sa8bsCq2CKmdpvN/l2B8K/sJrsmd4pAafFG4JWB7JXjPxJyDe80WbSaQfBPdrhvqdLY8l05GeWM17SsEV1sMw==}
-
-  '@lexical/history@0.31.2':
-    resolution: {integrity: sha512-q3Ykv3oi711XmuFdg7LuppLImyedgpLD5KekXLXRVyOGOTvvaNfb2YQfRjFBalxl3umj2QHYR22Zkamx8zfFXw==}
-
-  '@lexical/html@0.31.2':
-    resolution: {integrity: sha512-92Oi9daBDNCaionS9ENnXkC+jzzz5WdFTHxTkPqcGaJZE/jF0rAe6LQo6356O/yr9dYK/KIsE8V79AJHqQKJhg==}
-
-  '@lexical/link@0.31.2':
-    resolution: {integrity: sha512-sLtpW+cuFdVq1V6vlEFUEC1BRHyHBxEdCrxwTP7T0CreJDKrUrBD2oBafb/4AiOPhM7CHAwW88pbuY5KvWOovw==}
-
-  '@lexical/list@0.31.2':
-    resolution: {integrity: sha512-NbdpxSttk/MmYCSovsxiQwS2h3h2U/Kg3WwNfW9vgpvdZE+qmg6jqpzUFVe51/i+GF2WU0uRPG0J5StMGhtYlg==}
-
-  '@lexical/mark@0.31.2':
-    resolution: {integrity: sha512-orzsqWaejgdUhSHXRFogF0HNzRWKf2HD7DgiGxKF7LrjVLl4j14+zA8UWX9d4qNwIbRPdfQkYfeOSPwbYx3iRw==}
-
-  '@lexical/markdown@0.31.2':
-    resolution: {integrity: sha512-2gWo7HiMONTor3whJo1237LZz769eVVRT8kGUgBq/p5QyFsb131NUYSxCperKdDaO43k+4ZQspPHyQJjoyOxHg==}
-
-  '@lexical/offset@0.31.2':
-    resolution: {integrity: sha512-f8bNvys2jNgnjQWoUd6us7KBXdB7AhKqgWqso7nGeoB1CWGTkd88Qxm8A9uX/muPK0cb6fed4X7wN2xuRDWpyQ==}
-
-  '@lexical/overflow@0.31.2':
-    resolution: {integrity: sha512-l5jbPglBX8CiXZ7F+okTcfdOwfAgf1JIa8BJhkQrtRP/fEiY3NnCehBYfp/Iyd9uBZDWlVlp1+UsqFFtEeT3Yg==}
-
-  '@lexical/plain-text@0.31.2':
-    resolution: {integrity: sha512-CMKuWPUCyDZ8ET10YZM7RxDyIB2UiHJ7mEwqEKl86OS9XOhWtp0qUQUonyeAy4f9yfuMTA7fQ2iLlEmAaeVu+g==}
-
-  '@lexical/react@0.31.2':
-    resolution: {integrity: sha512-A/Ub9Ub5vx9EE0WEhVeE3t/SMVecnaPGeN37Q5LMPXiGgQCsMKEYtjHKvAjjAXSk8YD1lGTd/k4LOjyl8Y9ZyA==}
-    peerDependencies:
-      react: '>=17.x'
-      react-dom: '>=17.x'
-
-  '@lexical/rich-text@0.31.2':
-    resolution: {integrity: sha512-iBkqY0CvTKbwk3T+a4wtI6/OjhM/CdxXvha6b88Gb9d5tYj5k7cT5SznYF1sXPmwtqpXg9TWkBN2Puqv3LPvsg==}
-
-  '@lexical/selection@0.31.2':
-    resolution: {integrity: sha512-8hwNgAVWob09y8/Z2QKknw0z6vFcfjsQfHkyDwXwXUeTcJFjlAokrXrc65PRuufI4TaFDQHnXQpP5GcOYROE6Q==}
-
-  '@lexical/table@0.31.2':
-    resolution: {integrity: sha512-S4W6DdkDCYP32qL6QD4jyksEatyfapRBc4sqoRove83fQEWnFhJ1iBheiG3hSm3YDbDmLclZxcE2CuSIZ6bd0Q==}
-
-  '@lexical/text@0.31.2':
-    resolution: {integrity: sha512-+rGRAqE4uKdJf25e4stqDImhBh5RgVmxMJf00OyQdwq1P2M+/xF3NddqRpoACHyMyHhuR1wOSONSnYbMqMtc6w==}
-
-  '@lexical/utils@0.31.2':
-    resolution: {integrity: sha512-vtPzZuJt134cz+oiHAPSIHT3hGt/9Gtug/Cf8OftqJeg3/7P6dKiTdAvAql3q4QxHlCAup4Ed87Ec8PYsICGGg==}
-
-  '@lexical/yjs@0.31.2':
-    resolution: {integrity: sha512-H1OV+NFGTmHqr+0BFkxo4bDBsdw1WmSwCzIoMVU1uA4levH7tLay/xBV/67ghh+5InSwGR6gcJeFdbL86URuOw==}
-    peerDependencies:
-      yjs: '>=13.5.22'
 
   '@lifeomic/attempt@3.0.3':
     resolution: {integrity: sha512-GlM2AbzrErd/TmLL3E8hAHmb5Q7VhDJp35vIbyPVA5Rz55LZuRr8pwL3qrwwkVNo05gMX1J44gURKb4MHQZo7w==}
@@ -7852,20 +7481,12 @@ packages:
     resolution: {integrity: sha512-EjePK1srD3P08o2j4f0ExnylqRs5B9tJjcp9t1krH2qRi8CCdsYfwe9JgSLurFBWwq4uOlipzfk5fHNvwFKr8Q==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  diff2html@3.4.51:
-    resolution: {integrity: sha512-/rVCSDyokkzSCEGaGjkkElXtIRwyNDRzIa3S8VUhR6pjk25p6+AMnb1s2zGmhjl66D5m/HnV3IeZoxnWsvTy+w==}
-    engines: {node: '>=12'}
-
   diff@4.0.2:
     resolution: {integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==}
     engines: {node: '>=0.3.1'}
 
   diff@5.1.0:
     resolution: {integrity: sha512-D+mk+qE8VC/PAUrlAU34N+VfXev0ghe5ywmpqrawphmVZc1bEfn56uo9qpyGp1p4xpzOHkSW4ztBd6L7Xx4ACw==}
-    engines: {node: '>=0.3.1'}
-
-  diff@7.0.0:
-    resolution: {integrity: sha512-PJWHUb1RFevKCwaFA9RlG5tCd+FO5iRh9A8HEtkmBH2Li03iJriB6m6JIN4rGz3K3JLawI7/veA1xzRKP6ISBw==}
     engines: {node: '>=0.3.1'}
 
   diffie-hellman@5.0.3:
@@ -8792,19 +8413,11 @@ packages:
     resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
     engines: {node: '>=12.0.0'}
 
-  highlight.js@11.9.0:
-    resolution: {integrity: sha512-fJ7cW7fQGCYAkgv4CPfwFHrfd/cLS4Hau96JuJ+ZTOWhjnhoeN1ub1tFmALm/+lW5z4WCAuAV9bm05AP0mS6Gw==}
-    engines: {node: '>=12.0.0'}
-
   himalaya@1.1.0:
     resolution: {integrity: sha512-LLase1dHCRMel68/HZTFft0N0wti0epHr3nNY7ynpLbyZpmrKMQ8YIpiOV77TM97cNpC8Wb2n6f66IRggwdWPw==}
 
   hmac-drbg@1.0.1:
     resolution: {integrity: sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg==}
-
-  hogan.js@3.0.2:
-    resolution: {integrity: sha512-RqGs4wavGYJWE07t35JQccByczmNUXQT0E12ZYV1VKYu5UiAU9lsos/yBAcf840+zrUQQxgVduCR5/B8nNtibg==}
-    hasBin: true
 
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
@@ -9425,9 +9038,6 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
-  lexical@0.31.2:
-    resolution: {integrity: sha512-1GRqzl/QAdtzqOoYXVfMFOkyiSQKIIPcazsgIs+WvsLL8UIcwP16WWeKUtamJgyvS84GN/tuMJsd1Iv+Qzw9WA==}
-
   lib0@0.2.108:
     resolution: {integrity: sha512-+3eK/B0SqYoZiQu9fNk4VEc6EX8cb0Li96tPGKgugzoGj/OdRdREtuTLvUW+mtinoB2mFiJjSqOJBIaMkAGhxQ==}
     engines: {node: '>=16'}
@@ -9928,10 +9538,6 @@ packages:
   mkdirp-classic@0.5.3:
     resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
 
-  mkdirp@0.3.0:
-    resolution: {integrity: sha512-OHsdUcVAQ6pOtg5JYWpCBo9W/GySVuwvP9hueRMW7UqshC0tbfzLv8wjySTPm3tfUZ/21CE9E1pJagOA91Pxew==}
-    deprecated: Legacy versions of mkdirp are no longer supported. Please update to mkdirp 1.x. (Note that the API surface has changed to use Promises in 1.x.)
-
   mkdirp@1.0.4:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
     engines: {node: '>=10'}
@@ -10097,10 +9703,6 @@ packages:
 
   node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
-
-  nopt@1.0.10:
-    resolution: {integrity: sha512-NWmpvLSqUrgrAC9HCuxEvb+PSloHpqVu+FqcO4eeF2h5qYRhA7ev6KvelyQAKtegUbC6RypJnlEOhd8vloNKYg==}
-    hasBin: true
 
   nopt@6.0.0:
     resolution: {integrity: sha512-ZwLpbTgdhuZUnZzjd7nb1ZV+4DoiC6/sfiVKok72ym/4Tlf+DFdlHYmT2JPmcNNWV6Pi3SDf1kT+A4r9RTuT9g==}
@@ -10696,10 +10298,6 @@ packages:
     peerDependencies:
       react: '>=16.0.0'
 
-  prismjs@1.30.0:
-    resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
-    engines: {node: '>=6'}
-
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
 
@@ -11200,12 +10798,6 @@ packages:
     peerDependencies:
       react: ^0.14.8 || ^15.0.1 || ^16.0.0 || ^17.0.1 || ^18.0.0
       react-dom: ^0.14.8 || ^15.0.1 || ^16.0.0 || ^17.0.1 || ^18.0.0
-
-  react-error-boundary@3.1.4:
-    resolution: {integrity: sha512-uM9uPzZJTF6wRQORmSrvOIgt4lJ9MC1sNgEOj2XGsDTRE4kmpWxg7ENK9EWNKJRMAOY9z0MuF4yIfl6gp4sotA==}
-    engines: {node: '>=10', npm: '>=6'}
-    peerDependencies:
-      react: '>=16.13.1'
 
   react-error-boundary@4.0.13:
     resolution: {integrity: sha512-b6PwbdSv8XeOSYvjt8LpgpKrZ0yGdtZokYwkwV2wlcZbxgopHX/hgPl5VgpnoVOWd868n1hktM8Qm4b+02MiLQ==}
@@ -14621,151 +14213,6 @@ snapshots:
     dependencies:
       '@keyvhq/core': 2.0.0
       mimic-fn: 3.0.0
-
-  '@lexical/clipboard@0.31.2':
-    dependencies:
-      '@lexical/html': 0.31.2
-      '@lexical/list': 0.31.2
-      '@lexical/selection': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/code@0.31.2':
-    dependencies:
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-      prismjs: 1.30.0
-
-  '@lexical/devtools-core@0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@lexical/html': 0.31.2
-      '@lexical/link': 0.31.2
-      '@lexical/mark': 0.31.2
-      '@lexical/table': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@lexical/dragon@0.31.2':
-    dependencies:
-      lexical: 0.31.2
-
-  '@lexical/hashtag@0.31.2':
-    dependencies:
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/history@0.31.2':
-    dependencies:
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/html@0.31.2':
-    dependencies:
-      '@lexical/selection': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/link@0.31.2':
-    dependencies:
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/list@0.31.2':
-    dependencies:
-      '@lexical/selection': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/mark@0.31.2':
-    dependencies:
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/markdown@0.31.2':
-    dependencies:
-      '@lexical/code': 0.31.2
-      '@lexical/link': 0.31.2
-      '@lexical/list': 0.31.2
-      '@lexical/rich-text': 0.31.2
-      '@lexical/text': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/offset@0.31.2':
-    dependencies:
-      lexical: 0.31.2
-
-  '@lexical/overflow@0.31.2':
-    dependencies:
-      lexical: 0.31.2
-
-  '@lexical/plain-text@0.31.2':
-    dependencies:
-      '@lexical/clipboard': 0.31.2
-      '@lexical/selection': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/react@0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(yjs@13.6.8)':
-    dependencies:
-      '@lexical/devtools-core': 0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@lexical/dragon': 0.31.2
-      '@lexical/hashtag': 0.31.2
-      '@lexical/history': 0.31.2
-      '@lexical/link': 0.31.2
-      '@lexical/list': 0.31.2
-      '@lexical/mark': 0.31.2
-      '@lexical/markdown': 0.31.2
-      '@lexical/overflow': 0.31.2
-      '@lexical/plain-text': 0.31.2
-      '@lexical/rich-text': 0.31.2
-      '@lexical/table': 0.31.2
-      '@lexical/text': 0.31.2
-      '@lexical/utils': 0.31.2
-      '@lexical/yjs': 0.31.2(yjs@13.6.8)
-      lexical: 0.31.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-error-boundary: 3.1.4(react@18.2.0)
-    transitivePeerDependencies:
-      - yjs
-
-  '@lexical/rich-text@0.31.2':
-    dependencies:
-      '@lexical/clipboard': 0.31.2
-      '@lexical/selection': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/selection@0.31.2':
-    dependencies:
-      lexical: 0.31.2
-
-  '@lexical/table@0.31.2':
-    dependencies:
-      '@lexical/clipboard': 0.31.2
-      '@lexical/utils': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/text@0.31.2':
-    dependencies:
-      lexical: 0.31.2
-
-  '@lexical/utils@0.31.2':
-    dependencies:
-      '@lexical/list': 0.31.2
-      '@lexical/selection': 0.31.2
-      '@lexical/table': 0.31.2
-      lexical: 0.31.2
-
-  '@lexical/yjs@0.31.2(yjs@13.6.8)':
-    dependencies:
-      '@lexical/offset': 0.31.2
-      '@lexical/selection': 0.31.2
-      lexical: 0.31.2
-      yjs: 13.6.8
 
   '@lifeomic/attempt@3.0.3': {}
 
@@ -20956,19 +20403,10 @@ snapshots:
 
   diff-sequences@29.6.3: {}
 
-  diff2html@3.4.51:
-    dependencies:
-      diff: 7.0.0
-      hogan.js: 3.0.2
-    optionalDependencies:
-      highlight.js: 11.9.0
-
   diff@4.0.2:
     optional: true
 
   diff@5.1.0: {}
-
-  diff@7.0.0: {}
 
   diffie-hellman@5.0.3:
     dependencies:
@@ -22182,9 +21620,6 @@ snapshots:
 
   highlight.js@11.11.1: {}
 
-  highlight.js@11.9.0:
-    optional: true
-
   himalaya@1.1.0: {}
 
   hmac-drbg@1.0.1:
@@ -22192,11 +21627,6 @@ snapshots:
       hash.js: 1.1.7
       minimalistic-assert: 1.0.1
       minimalistic-crypto-utils: 1.0.1
-
-  hogan.js@3.0.2:
-    dependencies:
-      mkdirp: 0.3.0
-      nopt: 1.0.10
 
   hoist-non-react-statics@3.3.2:
     dependencies:
@@ -22879,8 +22309,6 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  lexical@0.31.2: {}
-
   lib0@0.2.108:
     dependencies:
       isomorphic.js: 0.2.5
@@ -23557,8 +22985,6 @@ snapshots:
 
   mkdirp-classic@0.5.3: {}
 
-  mkdirp@0.3.0: {}
-
   mkdirp@1.0.4: {}
 
   mlly@1.4.2:
@@ -23740,10 +23166,6 @@ snapshots:
       es6-promise: 3.3.1
 
   node-releases@2.0.14: {}
-
-  nopt@1.0.10:
-    dependencies:
-      abbrev: 1.1.1
 
   nopt@6.0.0:
     dependencies:
@@ -24331,8 +23753,6 @@ snapshots:
       '@types/prismjs': 1.26.3
       clsx: 2.1.1
       react: 18.2.0
-
-  prismjs@1.30.0: {}
 
   process-nextick-args@2.0.1: {}
 
@@ -25095,11 +24515,6 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       react-is: 18.1.0
-
-  react-error-boundary@3.1.4(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.27.1
-      react: 18.2.0
 
   react-error-boundary@4.0.13(react@18.2.0):
     dependencies:
@@ -27234,15 +26649,6 @@ snapshots:
       prosemirror-model: 1.22.3
       prosemirror-state: 1.4.3
       prosemirror-view: 1.33.9
-      y-protocols: 1.0.6(yjs@13.6.8)
-      yjs: 13.6.8
-
-  y-prosemirror@1.2.12(prosemirror-model@1.25.1)(prosemirror-state@1.4.3)(prosemirror-view@1.40.0)(y-protocols@1.0.6(yjs@13.6.8))(yjs@13.6.8):
-    dependencies:
-      lib0: 0.2.97
-      prosemirror-model: 1.25.1
-      prosemirror-state: 1.4.3
-      prosemirror-view: 1.40.0
       y-protocols: 1.0.6(yjs@13.6.8)
       yjs: 13.6.8
 
