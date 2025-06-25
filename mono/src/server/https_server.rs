@@ -127,7 +127,13 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
                         http::header::AUTHORIZATION,
                         http::header::CONTENT_TYPE,
                     ])
-                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE, Method::PUT])
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::OPTIONS,
+                        Method::DELETE,
+                        Method::PUT,
+                    ])
                     .allow_credentials(true),
             ),
         )

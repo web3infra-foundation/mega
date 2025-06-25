@@ -28,7 +28,7 @@ impl From<(mega_issue::Model, Vec<label::Model>)> for IssueItem {
             open_timestamp: value.0.created_at.and_utc().timestamp(),
             closed_at: value.0.closed_at.map(|dt| dt.and_utc().timestamp()),
             updated_at: value.0.updated_at.and_utc().timestamp(),
-            labels: value.1.into_iter().map(|m| m.into()).collect()
+            labels: value.1.into_iter().map(|m| m.into()).collect(),
         }
     }
 }
@@ -66,5 +66,5 @@ impl From<mega_issue::Model> for IssueDetail {
 pub struct LabelUpdatePayload {
     label_ids: Vec<i64>,
     item_id: i64,
-    link: String
+    link: String,
 }
