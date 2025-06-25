@@ -1,7 +1,7 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
-use tempfile::TempDir;
 use tracing::log;
 
+use std::path::Path;
 use std::sync::{Arc, LazyLock};
 
 use common::config::Config;
@@ -16,10 +16,9 @@ use crate::storage::{
 };
 use crate::storage::{Service, Storage};
 
-pub async fn test_db_connection() -> (DatabaseConnection, TempDir) {
-    let temp_dir = TempDir::new().expect("Failed to create temporary directory");
-    let db_url = format!("sqlite://{}/test.db", temp_dir.path().to_string_lossy());
-    std::fs::File::create(temp_dir.path().join("test.db"))
+pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
+    let db_url = format!("sqlite://{}/test.db", temp_dir.as_ref().to_string_lossy());
+    std::fs::File::create(temp_dir.as_ref().join("test.db"))
         .expect("Failed to create test database file");
 
     let mut opt = ConnectOptions::new(db_url);
@@ -32,12 +31,12 @@ pub async fn test_db_connection() -> (DatabaseConnection, TempDir) {
         .await
         .expect("Failed to connect to mock database");
 
-    (db, temp_dir)
+    db
 }
 
-pub async fn test_storage() -> Storage {
+pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
-    let (connection, _) = test_db_connection().await;
+    let connection = test_db_connection(temp_dir).await;
     let connection = Arc::new(connection);
     let lfs_db_storage = LfsDbStorage::new(connection.clone()).await;
     let config = CONFIG.clone();
@@ -53,10 +52,11 @@ pub async fn test_storage() -> Storage {
         mr_storage: MrStorage::new(connection.clone()).await,
         issue_storage: IssueStorage::new(connection.clone()).await,
         vault_storage: VaultStorage::new(connection.clone()).await,
-        lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it until you really use it.
+        lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
     };
 
     apply_migrations(&connection, true).await.unwrap();
+
     Storage {
         services: Arc::new(svc),
         config: Arc::downgrade(&config),
