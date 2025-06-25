@@ -90,7 +90,7 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
         : prefix + block;
 
     } else if(hunkIndex < 0){
-      diffWithHeader = 'empty'
+      diffWithHeader = 'EMPTY_DIFF_MARKER'
     }
 
     if (!diffWithHeader.endsWith("\n")) {

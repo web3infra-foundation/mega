@@ -81,7 +81,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
   }) => {
     if (file.lang === 'binary' || instance === null) {
       return <div className='text-center p-2'>Binary file</div>
-    }else if(file.diff === 'empty\n') {
+    }else if(file.diff === 'EMPTY_DIFF_MARKER\n') {
       return <div className='text-center p-2'>No change</div>
     }
 
@@ -150,7 +150,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
                 </span>
               </div>
               
-              <div className='select'>
+              <div className='copyable-text'>
                 {isExpanded && <RenderDiffView file={file} instance={instance} />}
               </div>
             </div>

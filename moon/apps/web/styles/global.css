@@ -215,7 +215,7 @@ body.grabbing * {
       @apply [-webkit-touch-callout:_none];
     }
   }
-  .select {
+  .copyable-text {
     @apply select-text; 
   }
 }

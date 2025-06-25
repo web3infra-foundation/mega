@@ -147,7 +147,6 @@ export default function MrView() {
                   }}
                 >
                   <MrItem
-                    key={i.link}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
                     rightIcon={<ChatBubbleIcon />}
