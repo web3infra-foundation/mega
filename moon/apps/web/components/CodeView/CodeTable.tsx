@@ -39,10 +39,10 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
         key: 'name',
         render: (_, record) => (
           <>
-            <div className='flex'>
-              {record.content_type === 'directory' && <FolderIcon className='size-6' />}
-              {record.content_type === 'file' && <DocumentIcon className='size-6' />}
-              <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff]'>{record.name}</a>
+            <div className='flex items-center'>
+              {record.content_type === 'directory' && <FolderIcon className='size-4 text-gray-600' />}
+              {record.content_type === 'file' && <DocumentIcon className='size-4 text-gray-600' />}
+              <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff] pl-2'>{record.name}</a>
             </div>
           </>
         )

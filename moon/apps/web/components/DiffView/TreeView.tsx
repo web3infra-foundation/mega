@@ -143,7 +143,7 @@ const CustomTreeItem = React.forwardRef(function CustomTreeItem(
   );
 });
 
-const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
+const RepoTree = ({ directory }: { directory: any[] }) => {
   const router = useRouter();
   const scope = router.query.org as string;
   const pathname = usePathname();
@@ -159,8 +159,7 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
 
   const [loadPath, setLoadPath] = useState<string | null >(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null >(null);
-  // const [loadingError, setLoadingError] = useState<string| null>(null);
-  const [isInitialLoading, setIsInitialLoading] = useState(true); 
+
   const { data: response, isLoading, error } = useGetTree({ path: loadPath??undefined});
 
   const convertToTreeData = useCallback((parentBasePath: string, directory: any[]) => {
@@ -171,15 +170,12 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
     
     return sortProjectsByType(directory).map((item) => {
       
-      const nodeName = item?.name ?? ''; 
-      const currentPath = `${parentBasePath}/${nodeName}`.replace('//', '/') || '/';
-
-      // eslint-disable-next-line no-console
-      // console.log('生成节点路径:', nodeName, '=>', currentPath);
+      const currentPath = `${parentBasePath}/${item.name}`.replace('//', '/') || '/';
+      // console.log('生成节点路径:', item.name, '=>', currentPath);
 
       return {
         id: uuidv4(), 
-        label: item.name,
+        label: '我是文件夹',
         path: currentPath,
         isLeaf: item.content_type !== 'directory',
         content_type: item.content_type,
@@ -195,16 +191,10 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
   }, []); 
 
   useEffect(() => {
-    if (!Array.isArray(directory) || directory.length === 0) {
-      // console.warn('RepoTree: 接收到非数组或空的初始数据', directory);
-      setIsInitialLoading(false);
-      return;
-    }
     
     const rootPath = basePath || '/'; // 使用基路径作为根路径
-    
+
     setTreeData(convertToTreeData(rootPath, directory));
-    setIsInitialLoading(false);
   }, [directory, convertToTreeData,basePath]);
 
   const sortProjectsByType = (projects: any[]) => {
@@ -283,12 +273,6 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
           ? targetNode.path 
           : `/${targetNode?.path}`;
 
-          // eslint-disable-next-line no-console
-          // console.log(targetNode?.path, 'reqPath=1')
-          
-          // eslint-disable-next-line no-console
-          // console.log(reqPath,'reqPath=reqPath')
-
         if (
           targetNode && 
           targetNode.content_type === 'directory' && 
@@ -343,35 +327,13 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
       const node = findNode(treeData, nodeId);
 
       if (!node) return;
-
-      const basePath = pathname?.replace(`/${scope}/code/tree`, '') || '';
-      
-      let fullPath = node.path;
-
-      if (basePath && fullPath?.startsWith(basePath)) {
-        fullPath = fullPath?.substring(basePath.length);
-      }
-
-      fullPath = fullPath?.replace(/^\//, '');
-      if (flag ==='contents' && node?.isLeaf) {
-        router.push(`/${scope}/code/blob${basePath}/${fullPath}`);
-      }
   
       },
-    [findNode, treeData, pathname, scope, flag, router],
+    [treeData, findNode],
   );
 
   return (
     <>
-      {isInitialLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
-          <CircularProgress />
-        </Box>
-      ) : treeData.length === 0 ? (
-        <Box sx={{ color: 'text.secondary', padding: '16px' }}>
-          no data
-        </Box>
-      ) : (
         <RichTreeView
           items={treeData}
           defaultExpandedItems={['grid', 'pickers']}
@@ -389,12 +351,6 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
           }}
         >
         </RichTreeView>
-      )}
-      {/* {loadingError && (
-        <Box sx={{ color: 'error.main', mt: 2, padding: '0 16px' }}>
-          加载错误: {loadingError}
-        </Box>
-      )} */}
     </>
   );
 };
