@@ -127,7 +127,7 @@ impl VaultCoreInterface for VaultCore {
         let guard = self.core.read().unwrap();
         guard
             .handle_request(&mut req)
-            .map_err(|_| MegaError::with_message("Failed to read from vault API"))
+            .map_err(|e| MegaError::with_message(format!("Failed to read from vault API: {}", e)))
     }
 
     fn write_api(
