@@ -89,7 +89,7 @@ function TreeDetailPage() {
           </Layout>
           {/* tree */}
           <Layout style={treeStyle}>
-            <RepoTree directory={directory} />
+            <RepoTree flag={'contents'} directory={directory} />
           </Layout>
           <Layout style={codeStyle}>
             {
