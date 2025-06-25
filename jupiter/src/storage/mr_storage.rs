@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use common::model::Pagination;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use callisto::mega_mr;
+use callisto::{label, mega_mr};
 use callisto::sea_orm_active_enums::MergeStatusEnum;
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -46,18 +47,28 @@ impl MrStorage {
     pub async fn get_mr_by_status(
         &self,
         status: Vec<MergeStatusEnum>,
-        page: u64,
-        per_page: u64,
-    ) -> Result<(Vec<mega_mr::Model>, u64), MegaError> {
+        page: Pagination,
+    ) -> Result<(Vec<(mega_mr::Model, Vec<label::Model>)>, u64), MegaError> {
         let paginator = mega_mr::Entity::find()
             .filter(mega_mr::Column::Status.is_in(status))
             .order_by_desc(mega_mr::Column::CreatedAt)
-            .paginate(self.get_connection(), per_page);
+            .paginate(self.get_connection(), page.per_page);
         let num_pages = paginator.num_items().await?;
-        Ok(paginator
-            .fetch_page(page - 1)
+
+        let (mr_list, page) = paginator
+            .fetch_page(page.page - 1)
             .await
-            .map(|m| (m, num_pages))?)
+            .map(|m| (m, num_pages))?;
+
+        let mr_with_label: Vec<(mega_mr::Model, Vec<label::Model>)> =
+            mega_mr::Entity::find()
+                .filter(
+                    mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()),
+                )
+                .find_with_related(label::Entity)
+                .all(self.get_connection())
+                .await?;
+        Ok((mr_with_label, page))
     }
 
     pub async fn get_mr(&self, link: &str) -> Result<Option<mega_mr::Model>, MegaError> {

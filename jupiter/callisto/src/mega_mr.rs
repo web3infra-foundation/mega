@@ -22,7 +22,27 @@ pub struct Model {
     pub updated_at: DateTime,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    Label,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::Label => Entity::has_many(super::item_labels::Entity).into(),
+        }
+    }
+}
+
+impl Related<super::label::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::item_labels::Relation::Label.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        Some(super::item_labels::Relation::MegaMr.def().rev())
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

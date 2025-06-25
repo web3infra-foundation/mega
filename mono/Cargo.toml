@@ -59,6 +59,8 @@ cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
+uuid = { workspace = true, features = ["v4"] }
+
 
 [target.'cfg(not(windows))'.dependencies]
 jemallocator = { workspace = true }

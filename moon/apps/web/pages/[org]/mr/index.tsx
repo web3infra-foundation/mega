@@ -5,6 +5,7 @@ import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
 import { PageWithLayout } from '@/utils/types'
 import MrView from '@/components/MrView'
 
+
 const OrganizationMrPage: PageWithLayout<any> = () => {
 
   return (

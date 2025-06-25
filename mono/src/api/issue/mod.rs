@@ -1,4 +1,4 @@
-use callisto::mega_issue;
+use callisto::{label, mega_issue};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -18,17 +18,17 @@ pub struct IssueItem {
     pub updated_at: i64,
 }
 
-impl From<mega_issue::Model> for IssueItem {
-    fn from(value: mega_issue::Model) -> Self {
+impl From<(mega_issue::Model, Vec<label::Model>)> for IssueItem {
+    fn from(value: (mega_issue::Model, Vec<label::Model>)) -> Self {
         Self {
-            link: value.link,
-            title: value.title,
-            status: value.status.to_string(),
-            user_id: value.user_id,
-            open_timestamp: value.created_at.and_utc().timestamp(),
-            closed_at: value.closed_at.map(|dt| dt.and_utc().timestamp()),
-            updated_at: value.updated_at.and_utc().timestamp(),
-            labels: vec![],
+            link: value.0.link,
+            title: value.0.title,
+            status: value.0.status.to_string(),
+            user_id: value.0.user_id,
+            open_timestamp: value.0.created_at.and_utc().timestamp(),
+            closed_at: value.0.closed_at.map(|dt| dt.and_utc().timestamp()),
+            updated_at: value.0.updated_at.and_utc().timestamp(),
+            labels: value.1.into_iter().map(|m| m.into()).collect()
         }
     }
 }

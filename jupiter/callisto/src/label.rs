@@ -15,7 +15,17 @@ pub struct Model {
     pub description: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    ItemLabels,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::ItemLabels => Entity::has_many(super::item_labels::Entity).into(),
+        }
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
