@@ -111,7 +111,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_migrations() {
-        let (db, _) = test_db_connection().await;
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temporary directory");
+        let db = test_db_connection(temp_dir.path()).await;
         // Apply migrations to the mock database
         let result = apply_migrations(&db, false).await;
         assert!(

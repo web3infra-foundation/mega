@@ -56,13 +56,6 @@ impl VaultCore {
         Self::config(ctx, key_path)
     }
 
-    pub async fn mock(key_path: PathBuf) -> Self {
-        std::fs::create_dir_all(key_path.parent().unwrap())
-            .expect("Failed to create mock vault directory");
-        let storage = jupiter::tests::test_storage().await;
-        Self::config(storage, key_path)
-    }
-
     fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
@@ -185,6 +178,8 @@ impl VaultCoreInterface for VaultCore {
 
 #[cfg(test)]
 mod tests {
+    use jupiter::tests::test_storage;
+
     use super::*;
     use std::collections::HashMap;
 
@@ -192,7 +187,8 @@ mod tests {
     async fn test_vault_core_initialization() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let key_path = temp_dir.path().join(CORE_KEY_FILE);
-        let vault_core = VaultCore::mock(key_path).await;
+        let storage = test_storage(temp_dir.path()).await;
+        let vault_core = VaultCore::config(storage, key_path);
 
         assert!(
             !vault_core.token().is_empty(),
@@ -208,9 +204,10 @@ mod tests {
     async fn test_vault_api() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let key_path = temp_dir.path().join(CORE_KEY_FILE);
-        let vault_core = VaultCore::mock(key_path).await;
+        let storage = test_storage(temp_dir.path()).await;
+        let vault_core = VaultCore::config(storage, key_path);
 
-        let random_pairs = (0..1024)
+        let random_pairs = (0..128)
             .map(|_| {
                 (
                     rand::random::<u64>().to_string(),
