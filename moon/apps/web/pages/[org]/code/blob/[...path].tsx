@@ -14,17 +14,16 @@ import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
 const codeStyle = {
   borderRadius: 8,
-  width: 'calc(85% - 8px)',
   background: '#fff',
   border: '1px solid #d1d9e0',
-  margin: '0 8px'
+  margin: '0 8px',
+  width: 'calc(80% - 8px)',
 }
 
 const treeStyle = {
   borderRadius: 8,
   overflow: 'hidden',
   width: 'calc(20% - 8px)',
-  maxWidth: 'calc(20% - 8px)',
   background: '#fff'
 }
 
@@ -91,33 +90,28 @@ function BlobPage() {
   
   const newPath = new_path?.split("/").slice(0, -1).join("/")
   const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
+
   
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
   const [newDirectory, setNewDirectory] = useState<any[]>([])
 
-  // eslint-disable-next-line no-console
-  console.log(directory, 'directory==directory')
+  const currentFileName = new_path.split('/').pop() || '';
 
   useEffect(()=>{
     const handleDirectory = () => {
+      
       const filteredItems = directory.filter((item) => {
-        return item.content_type !== 'directory';
+        // 只保留文件名与当前文件匹配的项
+        return item.name == currentFileName;
       });
-    
-      // eslint-disable-next-line no-console
-      console.log(filteredItems, 'filteredItems==');
-      setNewDirectory(filteredItems); // 直接设置过滤后的数组，而非嵌套数组
+      
+      setNewDirectory(filteredItems);
     };
 
     handleDirectory()
     
-  },[directory, setNewDirectory])
-
-
-
-
-
+  },[currentFileName, directory, setNewDirectory])
 
 
   const handleAddComment = (__content: string, __lineNumber?: number) => {
@@ -141,7 +135,7 @@ function BlobPage() {
           <RepoTree  flag={'detail'} directory={newDirectory} />
         </Layout>
 
-        <Layout style={{background: '#fff'}}>
+        <Layout style={codeStyle}>
           <Layout className='m-2'>
             <CommitHistory flag={'details'} info={commitInfo}/>
           </Layout>
