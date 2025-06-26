@@ -28,7 +28,6 @@ chrono = { workspace = true }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 quinn = { workspace = true }
 anyhow = { workspace = true }
-lazy_static = { workspace = true }
 rcgen = { workspace = true, features = ["x509-parser", "pem", "crypto"] }
 dashmap = { workspace = true }
 uuid = { workspace = true }

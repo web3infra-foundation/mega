@@ -2,6 +2,9 @@ use std::fmt;
 
 use callisto::import_refs;
 use serde::{Deserialize, Serialize};
+use vault::{integration::VaultCore, Vault};
+
+use crate::p2p::client::P2PClient;
 
 pub mod client;
 pub mod relay;
@@ -85,6 +88,15 @@ pub struct LFSHeader {
     pub target: String,
     pub oid: String,
     pub size: i64,
+}
+
+impl Vault for P2PClient {
+    type Core = VaultCore;
+    const VAULT_PREFIX: &'static str = "p2p_client";
+
+    fn core(&self) -> &Self::Core {
+        &self.vault
+    }
 }
 
 #[cfg(test)]

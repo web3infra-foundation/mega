@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
@@ -20,14 +20,14 @@ use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
 pub struct ImportApiService {
-    pub context: Context,
+    pub storage: Storage,
     pub repo: Repo,
 }
 
 #[async_trait]
 impl ApiHandler for ImportApiService {
-    fn get_context(&self) -> Context {
-        self.context.clone()
+    fn get_context(&self) -> Storage {
+        self.storage.clone()
     }
 
     async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
@@ -47,7 +47,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_root_commit(&self) -> Commit {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let refs = storage
             .get_default_ref(self.repo.repo_id)
             .await
@@ -62,7 +62,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_root_tree(&self) -> Tree {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let refs = storage
             .get_default_ref(self.repo.repo_id)
             .await
@@ -83,7 +83,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.context
+        self.storage
             .services
             .git_db_storage
             .get_tree_by_hash(self.repo.repo_id, hash)
@@ -94,7 +94,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let commit = storage
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
@@ -103,7 +103,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let tree_info = storage
             .get_tree_by_hash(self.repo.repo_id, t_hash)
             .await
@@ -118,7 +118,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let commits = storage
             .get_commits_by_hashes(self.repo.repo_id, &c_hashes)
             .await

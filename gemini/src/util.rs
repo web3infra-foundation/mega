@@ -1,13 +1,14 @@
 use callisto::git_repo;
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use std::{
     net::TcpListener,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn get_short_peer_id(peer_id: String) -> String {
+pub fn get_short_peer_id(peer_id: impl AsRef<str>) -> String {
+    let peer_id = peer_id.as_ref();
     if peer_id.len() <= 7 {
-        return peer_id;
+        return peer_id.to_string();
     }
     peer_id[0..7].to_string()
 }
@@ -45,23 +46,27 @@ pub async fn handle_response(
     }
 }
 
-pub async fn repo_alias_to_identifier(alias: String) -> String {
-    let peer_id = vault::get_peerid().await;
-    format!("p2p://{}/{alias}", peer_id.clone())
+pub async fn repo_alias_to_identifier(peer_id: impl AsRef<str>, alias: impl AsRef<str>) -> String {
+    format!("p2p://{}/{}", peer_id.as_ref(), alias.as_ref())
 }
 
-pub async fn repo_path_to_identifier(repo_path: String) -> String {
-    let peer_id = vault::get_peerid().await;
-    if repo_path.starts_with("/") {
-        return format!("p2p://{}{repo_path}.git", peer_id.clone());
+pub async fn repo_path_to_identifier(
+    peer_id: impl AsRef<str>,
+    repo_path: impl AsRef<str>,
+) -> String {
+    if repo_path.as_ref().starts_with("/") {
+        return format!("p2p://{}{}.git", peer_id.as_ref(), repo_path.as_ref());
     }
-    format!("p2p://{}/{repo_path}.git", peer_id.clone())
+    format!("p2p://{}/{}.git", peer_id.as_ref(), repo_path.as_ref())
 }
 
-pub async fn get_ztm_app_tunnel_bound_name(remote_peer_id: String) -> String {
+pub async fn get_ztm_app_tunnel_bound_name(
+    local_peer_id: impl AsRef<str>,
+    remote_peer_id: impl AsRef<str>,
+) -> String {
     format!(
         "{}_{}",
-        get_short_peer_id(vault::get_peerid().await),
+        get_short_peer_id(local_peer_id),
         get_short_peer_id(remote_peer_id)
     )
 }
@@ -73,8 +78,8 @@ pub fn get_repo_path(mut path: String) -> String {
     path.to_string()
 }
 
-pub async fn get_git_model_by_path(context: Context, path: String) -> Option<git_repo::Model> {
-    let git_model = context
+pub async fn get_git_model_by_path(storage: Storage, path: String) -> Option<git_repo::Model> {
+    let git_model = storage
         .services
         .git_db_storage
         .find_git_repo_exact_match(get_repo_path(path).as_str())

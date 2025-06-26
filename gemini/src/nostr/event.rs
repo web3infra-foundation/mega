@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fmt;
 use std::str::FromStr;
-use vault::init;
 
 use super::GitEvent;
 
@@ -152,12 +151,11 @@ impl TryFrom<relay_nostr_event::Model> for NostrEvent {
 }
 
 impl NostrEvent {
-    pub async fn new(tags: Vec<Tag>, content: String) -> Self {
+    pub async fn new(sk: impl AsRef<str>, tags: Vec<Tag>, content: String) -> Self {
         let created_at = get_utc_timestamp();
 
-        let (_, sk) = init().await;
         let secp = Secp256k1::new();
-        let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
+        let keypair = secp256k1::Keypair::from_seckey_str(&secp, sk.as_ref()).unwrap();
 
         Self::new_with_timestamp(keypair, created_at, NostrKind::Mega, tags, content)
     }

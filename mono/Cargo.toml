@@ -7,6 +7,10 @@ keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 
+[lib]
+name = "mono"
+path = "src/lib.rs"
+
 [[bin]]
 name = "mono"
 path = "src/main.rs"
@@ -18,6 +22,7 @@ jupiter = { workspace = true }
 ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
+context = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -64,3 +69,4 @@ jemallocator = { workspace = true }
 mimalloc = { workspace = true }
 
 [dev-dependencies]
+tempfile = { workspace = true}

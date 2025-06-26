@@ -16,7 +16,7 @@ use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
 };
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
@@ -33,7 +33,7 @@ use crate::{
 };
 
 pub struct MonoRepo {
-    pub context: Context,
+    pub storage: Storage,
     pub path: PathBuf,
     pub from_hash: String,
     pub to_hash: String,
@@ -42,7 +42,7 @@ pub struct MonoRepo {
 #[async_trait]
 impl PackHandler for MonoRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
-        let storage = self.context.services.mono_storage.clone();
+        let storage = self.storage.services.mono_storage.clone();
 
         let result = storage.get_refs(self.path.to_str().unwrap()).await.unwrap();
 
@@ -126,7 +126,7 @@ impl PackHandler for MonoRepo {
         &self,
         mut receiver: UnboundedReceiver<Entry>,
     ) -> Result<Option<Commit>, GitError> {
-        let storage = self.context.services.mono_storage.clone();
+        let storage = self.storage.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
         let mut current_commit_id = String::new();
@@ -175,8 +175,8 @@ impl PackHandler for MonoRepo {
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();
-        let pack_config = &self.context.config.pack;
-        let storage = self.context.services.mono_storage.clone();
+        let pack_config = &self.storage.config().pack;
+        let storage = self.storage.services.mono_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
         let mut exist_objs = HashSet::new();
@@ -261,7 +261,7 @@ impl PackHandler for MonoRepo {
 
     async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError> {
         Ok(self
-            .context
+            .storage
             .services
             .mono_storage
             .get_trees_by_hashes(hashes)
@@ -276,7 +276,7 @@ impl PackHandler for MonoRepo {
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        self.context
+        self.storage
             .services
             .raw_db_storage
             .get_raw_blobs_by_hashes(hashes)
@@ -284,7 +284,7 @@ impl PackHandler for MonoRepo {
     }
 
     async fn update_refs(&self, commit: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
-        let storage = self.context.services.mono_storage.clone();
+        let storage = self.storage.services.mono_storage.clone();
 
         if let Some(c) = commit {
             let mr_link = self.handle_mr(&c.format_message()).await.unwrap();
@@ -310,7 +310,7 @@ impl PackHandler for MonoRepo {
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
-        self.context
+        self.storage
             .services
             .mono_storage
             .get_commit_by_hash(hash)
@@ -326,7 +326,7 @@ impl PackHandler for MonoRepo {
 
 impl MonoRepo {
     async fn handle_mr(&self, title: &str) -> Result<String, MegaError> {
-        let storage = self.context.mr_stg();
+        let storage = self.storage.mr_storage();
         let path_str = self.path.to_str().unwrap();
 
         match storage.get_open_mr_by_path(path_str).await.unwrap() {
@@ -351,8 +351,8 @@ impl MonoRepo {
     }
 
     async fn handle_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let mr_stg = self.context.mr_stg();
-        let issue_stg = self.context.issue_stg();
+        let mr_stg = self.storage.mr_storage();
+        let issue_stg = self.storage.issue_storage();
         if mr.from_hash == self.from_hash {
             if mr.to_hash != self.to_hash {
                 issue_stg

@@ -6,7 +6,6 @@ members = [
     "common",
     "mercury",
     "jupiter",
-    "jupiter/migration",
     "ceres",
     "libra",
     "vault",
@@ -14,9 +13,9 @@ members = [
     "saturn",
     "orion",
     "orion-server",
-    "third-party",
     "observatory",
     "scorpio",
+    "context",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
@@ -28,12 +27,12 @@ mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
-migration = { path = "jupiter/migration" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
 mono = { path = "mono" }
 orion = { path = "orion" }
+context = { path = "context" }
 
 anyhow = "1.0.98"
 serde = "1.0.219"
@@ -50,7 +49,6 @@ tokio-stream = "0.1.17"
 tokio-test = "0.4.4"
 tokio-util = "0.7.15"
 clap = "4.5.39"
-async-std = "1.13.1"
 async-trait = "0.1.88"
 async-stream = "0.3.6"
 bytes = "1.10.1"
