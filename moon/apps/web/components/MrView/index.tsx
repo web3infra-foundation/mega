@@ -137,15 +137,7 @@ export default function MrView() {
           >
             {(issueList) => {
               return issueList.map((i) => (
-                <Link
-                  key={i.link}
-                  href={{
-                    pathname: `/${scope}/mr/${i.link}`,
-                    query: {
-                      title: i.title
-                    }
-                  }}
-                >
+                <Link key={i.link} href={`/${scope}/mr/${i.link}`}>
                   <MrItem
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
