@@ -1,7 +1,0 @@
-{
-    "bundle": {
-        "resources": [
-            "libs/pipy.dll"
-        ]
-    }
-}
