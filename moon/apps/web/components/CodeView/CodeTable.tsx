@@ -49,10 +49,13 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
       },
       {
         title: 'Message',
-        dataIndex: ['message'],
-        key: 'message',
-        render: (_, { message }) => (
-          <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff]'>{message}</a>
+        dataIndex: ['commit_message'],
+        key: 'commit_message',
+        render: (_, {commit_message}) => (
+
+          // console.log(message, 'message')
+
+          <a className='cursor-pointer transition-colors duration-300 text-gray-600 hover:text-[#69b1ff]'>{commit_message}</a>
         )
       },
       {

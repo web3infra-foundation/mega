@@ -7,9 +7,9 @@ export interface columnsType<T> {
 }
 
 export interface DirectoryType {
+  commit_message: string
   content_type: string
   date: string
-  message: string
   name: string
   oid: string
 }

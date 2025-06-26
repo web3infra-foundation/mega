@@ -4,7 +4,7 @@ import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
-import TreeView from './TreeView'
+// import TreeView from './TreeView'
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
   const lines = diffText.split('\n');
@@ -60,7 +60,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
 
   const parsedFiles = useMemo(() => generateParsedFiles(diffFiles), [diffFiles]);
 
-  // const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(diffFiles.map((f) => [f.path, false]))
@@ -102,7 +102,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
       <div
         className='rounded-lg w-[300px] h-[85vh]  p-2 overflow-y-auto sticky top-5'
       >
-        {/* <ul>
+        <ul>
           {parsedFiles.map(({ file }) => (
             <li
               key={file.path}
@@ -122,8 +122,8 @@ export default function FileDiff({ diffs }: { diffs: string }) {
           ))
           }
           
-        </ul> */}
-        <TreeView directory={parsedFiles} />
+        </ul>
+        {/* <TreeView directory={parsedFiles} /> */}
       </div>
 
       <div className='flex-1 overflow-y-auto px-4'>

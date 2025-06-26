@@ -170,12 +170,12 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
     
     return sortProjectsByType(directory).map((item) => {
       
-      const currentPath = `${parentBasePath}/${item.name}`.replace('//', '/') || '/';
+      const currentPath = `${parentBasePath}/${item.label}`.replace('//', '/') || '/';
       // console.log('生成节点路径:', item.name, '=>', currentPath);
 
       return {
         id: uuidv4(), 
-        label: '我是文件夹',
+        label: item.label,
         path: currentPath,
         isLeaf: item.content_type !== 'directory',
         content_type: item.content_type,
