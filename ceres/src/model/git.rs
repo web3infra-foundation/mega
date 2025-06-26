@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
@@ -163,4 +165,16 @@ impl From<TreeItem> for TreeBriefItem {
 
 fn default_path() -> String {
     "/".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TreeResponse {
+    pub file_tree: HashMap<String, FileTreeItem>,
+    pub tree_items: Vec<TreeBriefItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct FileTreeItem {
+    pub tree_items: Vec<TreeBriefItem>,
+    pub total_count: usize,
 }
