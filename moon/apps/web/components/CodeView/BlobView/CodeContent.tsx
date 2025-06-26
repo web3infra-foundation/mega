@@ -8,6 +8,30 @@ import { DotsHorizontal } from '@gitmono/ui';
 import 'github-markdown-css/github-markdown-light.css';
 import styles from './CodeContent.module.css';
 
+const suffixToLangMap: Record<string, string> = {
+  '.jsx': 'jsx',
+  '.tsx': 'tsx',
+  '.kt': 'kotlin',
+  '.json': 'json',
+  '.md': 'markdown',
+  '.py': 'python',
+  '.rs': 'rust',
+  '.cpp': 'cpp',
+  '.h': 'cpp',
+  '.go': 'go',
+  '.yml': 'yaml',
+  '.yaml': 'yaml',
+}
+
+function getLangFromFileName(fileName: string): string {
+  const lastPart = fileName.toLowerCase().match(/\.[^./\\]+$/);
+
+  if(lastPart) {
+    return suffixToLangMap[lastPart[0].toLowerCase()] ?? "markdown";
+  }
+  return "markdown";
+}
+
 const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string[] }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
@@ -163,7 +187,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
         </div>
       </div>
       {/*todo: Dynamic support for language types*/}
-      <Highlight theme={themes.github} code={fileContent} language='rust'>
+      <Highlight theme={themes.github} code={fileContent} language={getLangFromFileName(filename)}>
         {({ style, tokens, getLineProps, getTokenProps }) => (
           <pre
             style={{

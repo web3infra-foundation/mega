@@ -40,7 +40,7 @@ export function MentionList({ editor, defaultMentions, modal }: Props) {
       <SuggestionRoot
         modal={modal}
         editor={editor}
-        char='#'
+        char='$'
         allow={({ state, range }) => {
           const $from = state.doc.resolve(range.from)
           const type = state.schema.nodes[Mention.name]
