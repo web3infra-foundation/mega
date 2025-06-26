@@ -66,6 +66,7 @@ impl MrStorage {
                     mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()),
                 )
                 .find_with_related(label::Entity)
+                .order_by_desc(mega_mr::Column::CreatedAt)
                 .all(self.get_connection())
                 .await?;
         Ok((mr_with_label, page))

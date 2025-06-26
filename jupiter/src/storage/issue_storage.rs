@@ -51,6 +51,7 @@ impl IssueStorage {
                     mega_issue::Column::Id.is_in(issues.iter().map(|i| i.id).collect::<Vec<_>>()),
                 )
                 .find_with_related(label::Entity)
+                .order_by_desc(mega_issue::Column::CreatedAt)
                 .all(self.get_connection())
                 .await?;
 
