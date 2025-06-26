@@ -8,7 +8,7 @@ use base64::prelude::*;
 use bytes::{Bytes, BytesMut};
 use futures::{stream, TryStreamExt};
 use http::HeaderMap;
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
@@ -41,7 +41,7 @@ pub async fn git_info_refs(
     Ok(response)
 }
 
-async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
+async fn http_auth(header: &HeaderMap<HeaderValue>, storage: &Storage) -> bool {
     for (k, v) in header {
         if k == http::header::AUTHORIZATION {
             let decoded = general_purpose::STANDARD
@@ -58,23 +58,23 @@ async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
             let username = parts.next().unwrap_or("");
             let token = parts.next().unwrap_or("");
             tracing::debug!("{}, {}", username, token);
-            let auth_config = context.config.authentication.clone();
+            let auth_config = storage.config().authentication.clone();
             if auth_config.enable_test_user
                 && username == auth_config.test_user_name
                 && token == auth_config.test_user_token
             {
                 return true;
             }
-            match context
-                .user_stg()
+            match storage
+                .user_storage()
                 .find_user_by_name(username)
                 .await
                 .unwrap()
             {
                 // TODO refactor later
                 Some(_) => {
-                    return context
-                        .user_stg()
+                    return storage
+                        .user_storage()
                         .check_token(String::new(), token)
                         .await
                         .unwrap();
@@ -186,8 +186,12 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.context.config.authentication.enable_http_auth
-        && !http_auth(req.headers(), &pack_protocol.context).await
+    if pack_protocol
+        .storage
+        .config()
+        .authentication
+        .enable_http_auth
+        && !http_auth(req.headers(), &pack_protocol.storage).await
     {
         return auth_failed();
     }

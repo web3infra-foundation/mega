@@ -35,9 +35,7 @@ impl SessionStore for CampsiteApiStore {
         if resp.status().is_success() {
             // let text = resp.text().await?;
             // println!("Raw response: {}", text);
-            let campsite_user = resp
-                .json::<CampsiteUserJson>()
-                .await?;
+            let campsite_user = resp.json::<CampsiteUserJson>().await?;
             let login_user: LoginUser = campsite_user.into();
             session
                 .insert("user", &login_user)

@@ -10,8 +10,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::lfs_locks;
 use common::config::PackConfig;
 use common::errors::{GitLFSError, MegaError};
-use jupiter::context::Context;
 use jupiter::storage::lfs_db_storage::LfsDbStorage;
+use jupiter::storage::Storage;
 
 use crate::lfs::lfs_structs::{
     BatchRequest, BatchResponse, ChunkDownloadObject, Link, Lock, LockList, LockListQuery,
@@ -175,16 +175,16 @@ pub async fn lfs_delete_lock(
 /// Reference:
 ///     1. [Git LFS Batch API](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md)
 pub async fn lfs_process_batch(
-    context: &Context,
+    storage: &Storage,
     request: BatchRequest,
     listen_addr: &str,
 ) -> Result<BatchResponse, GitLFSError> {
     let objects = request.objects;
 
     let mut response_objects = Vec::new();
-    let file_storage = context.lfs_file_stg();
-    let db_storage = context.lfs_stg();
-    let config = context.config.lfs.clone();
+    let file_storage = storage.lfs_file_storage();
+    let db_storage = storage.lfs_db_storage();
+    let config = storage.config().lfs.clone();
     for object in objects {
         let meta_res = lfs_get_meta(db_storage.clone(), &object.oid).await.unwrap();
         let meta = match meta_res {
@@ -243,18 +243,18 @@ pub async fn lfs_process_batch(
 /// if server enable split, then return a list of chunk ids.
 /// else return an error.
 pub async fn lfs_fetch_chunk_ids(
-    context: &Context,
+    storage: &Storage,
     oid: &str,
     listen_addr: &str,
 ) -> Result<Vec<ChunkDownloadObject>, GitLFSError> {
-    let config = context.config.lfs.clone();
+    let config = storage.config().lfs.clone();
 
     if !config.local.enable_split {
         return Err(GitLFSError::GeneralError(
             "Server didn't run in `split` mode, didn't support chunk ids".to_string(),
         ));
     }
-    let db_storage = context.lfs_stg();
+    let db_storage = storage.lfs_db_storage();
 
     let meta = lfs_get_meta(db_storage.clone(), oid)
         .await
@@ -281,8 +281,8 @@ pub async fn lfs_fetch_chunk_ids(
             size: relation.size,
             ..Default::default()
         };
-        let download_url = context
-            .lfs_file_stg()
+        let download_url = storage
+            .lfs_file_storage()
             .download_url(&req_obj.oid, listen_addr)
             .await
             .unwrap();
@@ -299,13 +299,13 @@ pub async fn lfs_fetch_chunk_ids(
 /// Upload object to storage.
 /// if server enable split, split the object and upload each part to storage, save the relationship to database.
 pub async fn lfs_upload_object(
-    context: &Context,
+    storage: &Storage,
     req_obj: &RequestObject,
     body_bytes: Vec<u8>,
 ) -> Result<(), GitLFSError> {
-    let config = context.config.lfs.clone();
-    let db_storage = context.lfs_stg();
-    let file_storage = context.lfs_file_stg();
+    let config = storage.config().lfs.clone();
+    let db_storage = storage.lfs_db_storage();
+    let file_storage = storage.lfs_file_storage();
 
     let meta = if let Some(meta) = lfs_get_meta(db_storage.clone(), &req_obj.oid).await? {
         tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
@@ -350,11 +350,11 @@ pub async fn lfs_upload_object(
 /// Download object from storage.
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
 pub async fn lfs_download_object(
-    context: Context,
+    storage: Storage,
     oid: String,
 ) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
-    let db_storage = context.lfs_stg();
-    let file_storage = context.lfs_file_stg();
+    let db_storage = storage.lfs_db_storage();
+    let file_storage = storage.lfs_file_storage();
 
     let meta = lfs_get_meta(db_storage.clone(), &oid).await?;
     match meta {
@@ -418,15 +418,15 @@ pub async fn lfs_download_object(
 /// It's used when server didn't have splited chunk, but client request a chunk.
 /// If the server enable split, then the chunk must be a splited chunk, rather than a random part of the object.
 pub async fn lfs_download_chunk(
-    context: Context,
+    storage: Storage,
     origin_oid: &str,
     chunk_oid: &String,
     offset: u64,
     size: u64,
 ) -> Result<Bytes, GitLFSError> {
-    let config = &context.config.lfs;
-    let db_storage = context.lfs_stg();
-    let file_storage = context.lfs_file_stg();
+    let config = &storage.config().lfs;
+    let db_storage = storage.lfs_db_storage();
+    let file_storage = storage.lfs_file_storage();
 
     // check if the chunk is already exist.
     if config.local.enable_split {

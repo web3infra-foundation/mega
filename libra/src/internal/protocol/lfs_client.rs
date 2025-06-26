@@ -541,6 +541,7 @@ impl LFSClient {
         &self,
         file_uri: &str, // p2p protocol
         path: impl AsRef<Path>,
+        peer_id: String,
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
             f64,                                                // step
@@ -554,6 +555,7 @@ impl LFSClient {
         let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).unwrap();
         tracing::info!("Downloading LFS file: {}", hash);
         let peer_ports = gemini::lfs::create_lfs_download_tunnel(
+            peer_id.clone(),
             bootstrap_node.clone(),
             *ztm_agent_port,
             file_uri.to_owned(),

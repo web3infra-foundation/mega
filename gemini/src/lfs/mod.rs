@@ -27,6 +27,7 @@ use crate::{util::handle_response, LFSInfo, LFSInfoPostBody, LFSInfoRes};
 /// This method will send a Post request to the relay to share lfs
 ///
 pub async fn share_lfs(
+    peer_id: String,
     bootstrap_node: String,
     file_hash: String,
     hash_type: String,
@@ -37,7 +38,7 @@ pub async fn share_lfs(
         file_hash,
         hash_type,
         file_size,
-        peer_id: vault::get_peerid().await,
+        peer_id,
         origin,
     };
     tracing::info!("Share lfs {:?}", lfs);
@@ -119,6 +120,7 @@ pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> O
 ///
 /// Each port is for a remote peer
 pub async fn create_lfs_download_tunnel(
+    peer_id: String,
     bootstrap_node: String,
     _ztm_agent_port: u16,
     file_uri: String,
@@ -146,7 +148,6 @@ pub async fn create_lfs_download_tunnel(
             return Err(e.to_string());
         }
     };
-    let peer_id = vault::get_peerid().await;
     let peer_list: HashSet<String> = lfs_list
         .iter()
         .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != peer_id)

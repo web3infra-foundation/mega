@@ -289,10 +289,10 @@ async fn path_can_be_cloned(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<bool>>, ApiError> {
     let path: PathBuf = query.path.clone().into();
-    let import_dir = state.context.config.monorepo.import_dir.clone();
+    let import_dir = state.storage.config().monorepo.import_dir.clone();
     let res = if path.starts_with(&import_dir) {
         state
-            .context
+            .storage
             .services
             .git_db_storage
             .find_git_repo_exact_match(path.to_str().unwrap())

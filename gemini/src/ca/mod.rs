@@ -1,9 +1,10 @@
 use serde_json::json;
+use vault::integration::{vault_core::VaultCoreInterface, VaultCore};
 
 pub mod client;
 pub mod server;
 
-async fn save_to_vault(key: String, value: String) {
+fn save_to_vault(vault: &VaultCore, key: String, value: String) {
     let key_f = format!("ca_{key}");
     let kv_data = json!({
         key_f.clone(): value,
@@ -11,33 +12,25 @@ async fn save_to_vault(key: String, value: String) {
     .as_object()
     .unwrap()
     .clone();
-    vault::vault::write_secret(key_f.as_str(), Some(kv_data.clone()))
-        .await
+    vault
+        .write_secret(key_f.as_str(), Some(kv_data.clone()))
         .unwrap();
 }
 
-async fn get_from_vault(key: String) -> Option<String> {
+fn get_from_vault(vault: &VaultCore, key: String) -> Option<String> {
     let key_f = format!("ca_{key}");
-    let secret = match vault::vault::read_secret(key_f.as_str()).await.unwrap() {
-        Some(res) => res.data,
-        None => return None,
-    };
-
-    match secret {
-        Some(m) => {
-            let s = m.get(key_f.as_str()).unwrap().as_str().unwrap().to_string();
-            let s = s.trim_matches(char::is_control).to_string();
-            Some(s)
-        }
+    match vault.read_secret(key_f.as_str()).unwrap() {
+        Some(res) => res.get(key_f.as_str()).and_then(|v| {
+            v.as_str()
+                .map(|vv| String::from(vv.trim_matches(char::is_control)))
+        }),
         None => None,
     }
 }
 
-async fn _delete_to_vault(key: String) {
+fn _delete_to_vault(vault: &VaultCore, key: String) {
     let key_f = format!("ca_{key}");
-    vault::vault::write_secret(key_f.as_str(), None)
-        .await
-        .unwrap();
+    vault.delete_secret(key_f.as_str()).unwrap();
 }
 
 #[cfg(test)]

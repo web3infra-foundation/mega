@@ -53,7 +53,7 @@ async fn receive(
                 }
             };
             //save
-            let storage = state.context.services.relay_storage.clone();
+            let storage = state.storage.services.relay_storage.clone();
             if storage
                 .get_nostr_event_by_id(&ztm_nostr_event.id)
                 .await
@@ -89,7 +89,7 @@ async fn receive(
                 filters: filters_json.clone(),
                 id: Uuid::new_v4().to_string(),
             };
-            let storage = state.context.services.relay_storage.clone();
+            let storage = state.storage.services.relay_storage.clone();
             let req_list: Vec<Req> = storage
                 .get_all_nostr_req_by_subscription_id(&subscription_id.to_string())
                 .await
@@ -113,7 +113,7 @@ pub async fn event_list(
     Query(_query): Query<HashMap<String, String>>,
     state: State<AppState>,
 ) -> Result<Json<Vec<NostrEvent>>, (StatusCode, String)> {
-    let storage = state.context.services.relay_storage.clone();
+    let storage = state.storage.services.relay_storage.clone();
     let event_list: Vec<NostrEvent> = storage
         .get_all_nostr_event()
         .await
@@ -128,7 +128,7 @@ pub async fn req_list(
     Query(_query): Query<HashMap<String, String>>,
     state: State<AppState>,
 ) -> Result<Json<Vec<Req>>, (StatusCode, String)> {
-    let storage = state.context.services.relay_storage.clone();
+    let storage = state.storage.services.relay_storage.clone();
     let req_list: Vec<Req> = storage
         .get_all_nostr_req()
         .await

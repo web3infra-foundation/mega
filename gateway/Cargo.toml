@@ -15,6 +15,7 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 gemini = { workspace = true }
+context = { workspace = true , features = ["p2p"]}
 
 axum = { workspace = true }
 tower = { workspace = true }
@@ -29,7 +30,6 @@ tower-http = { workspace = true, features = [
 ] }
 tokio = { workspace = true, features = ["net"] }
 reqwest = { workspace = true, features = ["json"] }
-lazy_static = { workspace = true }
 chrono = { workspace = true }
 quinn = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }

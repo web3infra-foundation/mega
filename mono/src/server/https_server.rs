@@ -20,7 +20,7 @@ use tower_http::trace::TraceLayer;
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -30,10 +30,11 @@ use crate::api::lfs::lfs_router;
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use crate::api::oauth::oauth_client;
 use crate::api::MonoApiServiceState;
+use context::AppContext;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub context: Context,
+    pub storage: Storage,
     pub host: String,
     pub port: u16,
 }
@@ -42,10 +43,10 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_http(context: Context, options: CommonHttpOptions) {
+pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
-    let app = app(context, host.clone(), port).await;
+    let app = app(ctx.storage, host.clone(), port).await;
 
     let server_url = format!("{}:{}", host, port);
 
@@ -85,17 +86,17 @@ pub async fn start_http(context: Context, options: CommonHttpOptions) {
 ///   - GET        end of `Regex::new(r"/info/refs$")`
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
-pub async fn app(context: Context, host: String, port: u16) -> Router {
+pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let state = AppState {
         host: host.clone(),
         port,
-        context: context.clone(),
+        storage: storage.clone(),
     };
 
-    let config = context.config.clone();
+    let config = storage.config();
     let oauth_config = config.oauth.clone().unwrap();
     let api_state = MonoApiServiceState {
-        context: context.clone(),
+        storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
         store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
         listen_addr: format!("http://{}:{}", host, port),
@@ -127,7 +128,13 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
                         http::header::AUTHORIZATION,
                         http::header::CONTENT_TYPE,
                     ])
-                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE, Method::PUT])
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::OPTIONS,
+                        Method::DELETE,
+                        Method::PUT,
+                    ])
                     .allow_credentials(true),
             ),
         )
@@ -153,7 +160,7 @@ pub async fn get_method_router(
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         crate::git_protocol::http::git_info_refs(params, pack_protocol).await
@@ -172,7 +179,7 @@ pub async fn post_method_router(
     if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
@@ -180,7 +187,7 @@ pub async fn post_method_router(
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
@@ -215,7 +222,9 @@ mod test {
 
     #[test]
     fn generate_swagger_json() {
-        let mut file = fs::File::create("gitmono.json").unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let temp_path = temp_dir.path().join("gitmono.json");
+        let mut file = fs::File::create(temp_path).unwrap();
         let json = ApiDoc::openapi().to_pretty_json().unwrap();
         file.write_all(json.as_bytes()).unwrap();
         println!("{}", json);

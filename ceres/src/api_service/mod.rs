@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::{context::Context, utils::converter::generate_git_keep_with_timestamp};
+use jupiter::{storage::Storage, utils::converter::generate_git_keep_with_timestamp};
 use mercury::{
     errors::GitError,
     hash::SHA1,
@@ -33,7 +33,7 @@ pub struct GitObjectCache {
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
-    fn get_context(&self) -> Context;
+    fn get_context(&self) -> Storage;
 
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
 

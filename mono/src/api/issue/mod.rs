@@ -66,5 +66,5 @@ impl From<mega_issue::Model> for IssueDetail {
 pub struct LabelUpdatePayload {
     label_ids: Vec<i64>,
     item_id: i64,
-    link: String
+    link: String,
 }

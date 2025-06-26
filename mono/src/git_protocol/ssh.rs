@@ -15,7 +15,7 @@ use ceres::lfs::lfs_structs::Link;
 use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
-use jupiter::context::Context;
+use jupiter::storage::Storage;
 use tokio::sync::Mutex;
 
 use crate::git_protocol::http::search_subsequence;
@@ -26,7 +26,7 @@ type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
-    pub context: Context,
+    pub storage: Storage,
     pub smart_protocol: Option<SmartProtocol>,
     pub data_combined: BytesMut,
 }
@@ -84,7 +84,7 @@ impl server::Handler for SshServer {
         let path = path.replace(".git", "").replace('\'', "");
         let mut smart_protocol = SmartProtocol::new(
             PathBuf::from(&path),
-            self.context.clone(),
+            self.storage.clone(),
             TransportProtocol::Ssh,
         );
         match command[0] {
@@ -106,7 +106,7 @@ impl server::Handler for SshServer {
             // back to the hybrid protocol using `git-lfs-authenticate`.
             "git-lfs-authenticate" => {
                 let mut header = HashMap::new();
-                let config = smart_protocol.context.config.clone();
+                let config = smart_protocol.storage.config();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {
                     href: config.lfs.ssh.http_url.clone(),
@@ -133,8 +133,8 @@ impl server::Handler for SshServer {
 
         tracing::info!("auth_publickey: {} / {}", user, fingerprint);
         let res = self
-            .context
-            .user_stg()
+            .storage
+            .user_storage()
             .search_ssh_key_finger(&fingerprint)
             .await
             .unwrap();
