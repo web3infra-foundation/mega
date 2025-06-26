@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Flex, Layout } from 'antd'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
@@ -88,30 +88,22 @@ function BlobPage() {
     date: '3 months ago'
   }
   
-  const newPath = new_path?.split("/").slice(0, -1).join("/")
+  const newPath = useMemo(() => {
+    return new_path?.split("/").slice(0, -1).join("/");
+  }, [new_path]);
   const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
 
   
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
-  const [newDirectory, setNewDirectory] = useState<any[]>([])
 
-  const currentFileName = new_path.split('/').pop() || '';
-
-  useEffect(()=>{
-    const handleDirectory = () => {
-      
-      const filteredItems = directory.filter((item) => {
-        // 只保留文件名与当前文件匹配的项
-        return item.name == currentFileName;
-      });
-      
-      setNewDirectory(filteredItems);
-    };
-
-    handleDirectory()
+  const newDirectory = useMemo(() => {
+    if (!directory || directory.length === 0) return [];
     
-  },[currentFileName, directory, setNewDirectory])
+    const currentFileName = new_path.split('/').pop() || '';
+    
+    return directory.filter(item => item.name === currentFileName);
+  }, [directory, new_path]);
 
 
   const handleAddComment = (__content: string, __lineNumber?: number) => {

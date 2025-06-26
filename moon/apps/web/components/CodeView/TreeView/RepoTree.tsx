@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ArticleIcon from '@mui/icons-material/Article';
 import FolderRounded from '@mui/icons-material/FolderRounded';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, Skeleton } from '@mui/material';
 import {
   TreeItemDragAndDropOverlay,
   TreeItemIcon,
@@ -366,14 +366,14 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
 
   return (
     <>
-      {isInitialLoading ? (
+      {isInitialLoading? (
         <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
           <CircularProgress  size="1.2rem" color="inherit"/>
         </Box>
       ) 
       : treeData.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
-          <CircularProgress size="1.2rem" color="inherit"/>
+        <Box sx={{ display: 'flex', paddingLeft:'16px' }}>
+          <Skeleton width="200px" height="30px"/>
         </Box>
       ) 
       : (
