@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ArticleIcon from '@mui/icons-material/Article';
 import FolderRounded from '@mui/icons-material/FolderRounded';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, Skeleton } from '@mui/material';
 import {
   TreeItemDragAndDropOverlay,
   TreeItemIcon,
@@ -170,9 +170,11 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
     }
     
     return sortProjectsByType(directory).map((item) => {
-      
+    
       const nodeName = item?.name ?? ''; 
-      const currentPath = `${parentBasePath}/${nodeName}`.replace('//', '/') || '/';
+      const currentPath = flag === 'contents' ?
+      `${parentBasePath}/${nodeName}`.replace('//', '/') || '/'
+      : `${parentBasePath}`.replace('//', '/') || '/'
 
       // eslint-disable-next-line no-console
       // console.log('生成节点路径:', nodeName, '=>', currentPath);
@@ -192,7 +194,7 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
         ] : undefined,
       };
     });
-  }, []); 
+  }, [flag]); 
 
   useEffect(() => {
     if (!Array.isArray(directory) || directory.length === 0) {
@@ -205,7 +207,7 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
     
     setTreeData(convertToTreeData(rootPath, directory));
     setIsInitialLoading(false);
-  }, [directory, convertToTreeData,basePath]);
+  }, [directory, convertToTreeData, basePath]);
 
   const sortProjectsByType = (projects: any[]) => {
     if (!Array.isArray(projects) || projects.length === 0) {
@@ -230,8 +232,9 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
         // console.warn('updateTreeData: 接收到非数组或空的当前树数据', currentTree);
         return [];
       }
-      
+
       return currentTree.map((node) => {
+
         if (node.id === nodeId) {
           return {
             ...node,
@@ -363,15 +366,17 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
 
   return (
     <>
-      {isInitialLoading ? (
+      {isInitialLoading? (
         <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
-          <CircularProgress />
+          <CircularProgress  size="1.2rem" color="inherit"/>
         </Box>
-      ) : treeData.length === 0 ? (
-        <Box sx={{ color: 'text.secondary', padding: '16px' }}>
-          no data
+      ) 
+      : treeData.length === 0 ? (
+        <Box sx={{ display: 'flex', paddingLeft:'16px' }}>
+          <Skeleton width="200px" height="30px"/>
         </Box>
-      ) : (
+      ) 
+      : (
         <RichTreeView
           items={treeData}
           defaultExpandedItems={['grid', 'pickers']}
@@ -379,7 +384,7 @@ const RepoTree = ( {flag, directory }: {flag:string, directory: any[] }) => {
           selectedItems={selectedNode}
           onExpandedItemsChange={handleNodeToggle}
           onSelectedItemsChange={handleNodeSelect}
-          sx={{ height: 'fit-content', flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
+          sx={{ height: 'fit-content', flexGrow: 1, Width: 400, overflowY: 'auto' }}
           slots={{
             item: (itemProps) => (
               <CustomTreeItem 

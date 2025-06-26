@@ -45,13 +45,11 @@ function TreeDetailPage() {
     date: '3 months ago'
   }
 
-
-
   const treeStyle = {
     borderRadius: 8,
     overflow: 'hidden',
     width: 'calc(20% - 8px)',
-    maxWidth: 'calc(20% - 8px)',
+    minWidth: 'calc(20% - 8px)',
     background: '#fff'
   }
 
