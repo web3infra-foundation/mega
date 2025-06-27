@@ -7,7 +7,7 @@ use oauth2::{
     },
     Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
 };
-use std::path::PathBuf;
+use std::path::Path;
 
 use ceres::{
     api_service::{
@@ -102,7 +102,7 @@ impl MonoApiServiceState {
         self.storage.user_storage()
     }
 
-    async fn api_handler(&self, path: PathBuf) -> Result<Box<dyn ApiHandler>, ProtocolError> {
+    async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
         let import_dir = self.storage.config().monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
             if let Some(model) = self
