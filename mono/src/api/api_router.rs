@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
     body::Body,
@@ -12,8 +12,8 @@ use http::StatusCode;
 use ceres::{
     api_service::ApiHandler,
     model::git::{
-        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem,
-        TreeCommitItem, TreeHashItem, TreeQuery,
+        BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
+        TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
     },
 };
 use common::model::CommonResult;
@@ -60,7 +60,7 @@ async fn get_blob_string(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let data = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.as_ref())
         .await?
         .get_blob_as_string(query.path.into())
         .await?;
@@ -95,7 +95,7 @@ async fn create_file(
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .api_handler(json.path.clone().into())
+        .api_handler(json.path.as_ref())
         .await?
         .create_monorepo_file(json.clone())
         .await?;
@@ -119,7 +119,7 @@ async fn get_latest_commit(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
     let res = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.as_ref())
         .await?
         .get_latest_commit(query.path.into())
         .await?;
@@ -134,20 +134,55 @@ async fn get_latest_commit(
         CodePreviewQuery
     ),
     responses(
-        (status = 200, body = CommonResult<Vec<TreeBriefItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<TreeResponse>, content_type = "application/json")
     ),
     tag = GIT_TAG
 )]
 async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, ApiError> {
-    let data = state
-        .api_handler(query.path.clone().into())
+) -> Result<Json<CommonResult<TreeResponse>>, ApiError> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut segments = query.path.split('/').peekable();
+
+    while let Some(segment) = segments.next() {
+        if segment.is_empty() {
+            current = "/".to_string();
+            parts.push(current.clone());
+        } else if segments.peek().is_some() {
+            if current != "/" {
+                current.push('/');
+            }
+            current.push_str(segment);
+            parts.push(current.clone());
+        }
+    }
+
+    let mut file_tree = HashMap::new();
+
+    for part in parts {
+        let path = part.as_ref();
+        let handler = state.api_handler(path).await?;
+        let tree_items = handler.get_tree_info(path).await?;
+        file_tree.insert(
+            part,
+            FileTreeItem {
+                total_count: tree_items.len(),
+                tree_items,
+            },
+        );
+    }
+
+    let tree_items = state
+        .api_handler(query.path.as_ref())
         .await?
-        .get_tree_info(query.path.into())
+        .get_tree_info(query.path.as_ref())
         .await?;
-    Ok(Json(CommonResult::success(Some(data))))
+    Ok(Json(CommonResult::success(Some(TreeResponse {
+        file_tree,
+        tree_items,
+    }))))
 }
 
 /// List matching trees with commit msg by query
@@ -167,7 +202,7 @@ async fn get_tree_commit_info(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
     let data = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.as_ref())
         .await?
         .get_tree_commit_info(query.path.into())
         .await?;
@@ -191,7 +226,7 @@ async fn get_tree_content_hash(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeHashItem>>>, ApiError> {
     let data = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.as_ref())
         .await?
         .get_tree_content_hash(query.path.into())
         .await?;
@@ -223,7 +258,7 @@ async fn get_tree_dir_hash(
     let target_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
     let data = state
-        .api_handler(parent_path.clone().into())
+        .api_handler(parent_path.as_ref())
         .await?
         .get_tree_dir_hash(parent_path.into(), target_name)
         .await?;
@@ -259,7 +294,7 @@ pub async fn get_tree_file(
     Query(query): Query<TreeQuery>,
 ) -> Result<Response, ApiError> {
     let data = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.as_ref())
         .await?
         .get_binary_tree_by_path(std::path::Path::new(&query.path), query.oid)
         .await?;
