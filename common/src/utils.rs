@@ -44,7 +44,7 @@ pub fn generate_rich_text(content: &str) -> String {
 }
 
 pub fn mr_ref_name(mr_link: &str) -> String {
-    format!("refs/mr/{}", mr_link)
+    format!("refs/mr/{mr_link}")
 }
 
 /// Format commit message with GPG signature<br>
@@ -54,10 +54,10 @@ pub fn mr_ref_name(mr_link: &str) -> String {
 pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
     match gpg_sig {
         None => {
-            format!("\n{}", msg)
+            format!("\n{msg}")
         }
         Some(gpg) => {
-            format!("{}\n\n{}", gpg, msg)
+            format!("{gpg}\n\n{msg}")
         }
     }
 }
@@ -96,8 +96,7 @@ pub fn check_conventional_commits_message(msg: &str) -> bool {
     let unicode_pattern = r"\p{L}\p{N}\p{P}\p{S}\p{Z}";
     // type only support characters&numbers, others fields support all unicode characters
     let regex_str = format!(
-        r"^(?P<type>[\p{{L}}\p{{N}}_-]+)(?:\((?P<scope>[{unicode}]+)\))?!?: (?P<description>[{unicode}]+)$",
-        unicode = unicode_pattern
+        r"^(?P<type>[\p{{L}}\p{{N}}_-]+)(?:\((?P<scope>[{unicode_pattern}]+)\))?!?: (?P<description>[{unicode_pattern}]+)$",
     );
 
     let re = Regex::new(&regex_str).unwrap();
@@ -116,7 +115,7 @@ pub fn check_conventional_commits_message(msg: &str) -> bool {
 
         let commit_type = commit_type.unwrap();
         if !RECOMMENDED_TYPES.contains(&commit_type.to_lowercase().as_str()) {
-            println!("`{}` is not a recommended commit type, refer to https://www.conventionalcommits.org/en/v1.0.0/ for more information", commit_type);
+            println!("`{commit_type}` is not a recommended commit type, refer to https://www.conventionalcommits.org/en/v1.0.0/ for more information");
         }
 
         // println!("{}({}): {}\n{}", commit_type, scope.unwrap_or("None".to_string()), description.unwrap(), body_footer);

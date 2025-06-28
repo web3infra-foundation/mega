@@ -73,7 +73,7 @@ impl BasicAuth {
             }
             // 401 (Unauthorized): username or password is incorrect
             if try_cnt >= MAX_TRY {
-                eprintln!("Failed to authenticate after {} attempts", MAX_TRY);
+                eprintln!("Failed to authenticate after {MAX_TRY} attempts");
                 break;
             }
             eprintln!("Authentication required, retrying...");
@@ -108,7 +108,7 @@ impl HttpsClient {
         let service: &str = &service.to_string();
         let url = self
             .url
-            .join(&format!("info/refs?service={}", service))
+            .join(&format!("info/refs?service={service}"))
             .unwrap();
         let res = BasicAuth::send(|| async { self.client.get(url.clone()) })
             .await
@@ -130,10 +130,9 @@ impl HttpsClient {
 
         // check Content-Type MUST be application/x-$servicename-advertisement
         let content_type = res.headers().get("Content-Type").unwrap().to_str().unwrap();
-        if content_type != format!("application/x-{}-advertisement", service) {
+        if content_type != format!("application/x-{service}-advertisement") {
             return Err(GitError::NetworkError(format!(
-                "Content-type must be `application/x-{}-advertisement`, but got: {}",
-                service, content_type
+                "Content-type must be `application/x-{service}-advertisement`, but got: {content_type}"
             )));
         }
 
@@ -143,10 +142,9 @@ impl HttpsClient {
         // the first five bytes of the response entity matches the regex ^[0-9a-f]{4}#.
         // verify the first pkt-line is # service=$servicename, and ignore LF
         let (_, first_line) = read_pkt_line(&mut response_content);
-        if first_line[..].ne(format!("# service={}\n", service).as_bytes()) {
+        if first_line[..].ne(format!("# service={service}\n").as_bytes()) {
             return Err(GitError::NetworkError(format!(
-                "Error Response format, didn't start with `# service={}`",
-                service
+                "Error Response format, didn't start with `# service={service}`"
             )));
         }
 
@@ -256,16 +254,16 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
         if !write_first_line {
             add_pkt_line_string(
                 &mut buf,
-                format!("want {} {} agent=libra/0.1.0\n", w, capability).to_string(),
+                format!("want {w} {capability} agent=libra/0.1.0\n").to_string(),
             );
             write_first_line = true;
         } else {
-            add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
+            add_pkt_line_string(&mut buf, format!("want {w}\n").to_string());
         }
     }
     buf.extend(b"0000"); // split pkt-lines with a flush-pkt
     for h in have {
-        add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
+        add_pkt_line_string(&mut buf, format!("have {h}\n").to_string());
     }
 
     add_pkt_line_string(&mut buf, "done\n".to_string());

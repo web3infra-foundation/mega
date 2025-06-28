@@ -176,7 +176,7 @@ pub fn oauth_client(oauth_config: OauthConfig) -> Result<GithubClient, ApiError>
     let client_secret = oauth_config.github_client_secret;
     let ui_domain = oauth_config.ui_domain;
 
-    let redirect_url = format!("{}/auth/authorized", ui_domain);
+    let redirect_url = format!("{ui_domain}/auth/authorized");
 
     let auth_url = "https://github.com/login/oauth/authorize".to_string();
 

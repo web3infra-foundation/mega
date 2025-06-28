@@ -127,7 +127,7 @@ impl VaultCoreInterface for VaultCore {
         let guard = self.core.read().unwrap();
         guard
             .handle_request(&mut req)
-            .map_err(|e| MegaError::with_message(format!("Failed to read from vault API: {}", e)))
+            .map_err(|e| MegaError::with_message(format!("Failed to read from vault API: {e}")))
     }
 
     fn write_api(
@@ -156,22 +156,22 @@ impl VaultCoreInterface for VaultCore {
     }
 
     fn write_secret(&self, name: &str, data: Option<Map<String, Value>>) -> Result<(), MegaError> {
-        self.write_api(format!("secret/{}", name), data)
-            .map_err(|_| MegaError::with_message(format!("Failed to write secret: {}", name)))?;
+        self.write_api(format!("secret/{name}"), data)
+            .map_err(|_| MegaError::with_message(format!("Failed to write secret: {name}")))?;
         Ok(())
     }
 
     fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError> {
         let resp = self
-            .read_api(format!("secret/{}", name))
-            .map_err(|_| MegaError::with_message(format!("Failed to read secret: {}", name)))?;
+            .read_api(format!("secret/{name}"))
+            .map_err(|_| MegaError::with_message(format!("Failed to read secret: {name}")))?;
 
         Ok(resp.and_then(|r| r.data))
     }
 
     fn delete_secret(&self, name: &str) -> Result<(), MegaError> {
-        self.delete_api(format!("secret/{}", name))
-            .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {}", name)))?;
+        self.delete_api(format!("secret/{name}"))
+            .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {name}")))?;
         Ok(())
     }
 }
@@ -245,8 +245,7 @@ mod tests {
                 .expect("Secret should exist");
             assert_eq!(
                 read_value, *value,
-                "Read value does not match written value for {}",
-                name
+                "Read value does not match written value for {name}"
             );
         }
 
@@ -260,8 +259,7 @@ mod tests {
             assert!(read_value.is_ok());
             assert!(
                 read_value.unwrap().is_none(),
-                "Secret {} should be deleted but still exists",
-                name
+                "Secret {name} should be deleted but still exists"
             );
         }
     }

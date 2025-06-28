@@ -116,10 +116,10 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
         let storage = util::objects_storage();
         let possible_commits = storage.search(branch_or_commit).await;
         if possible_commits.len() > 1 {
-            return Err(format!("Ambiguous commit hash '{}'", branch_or_commit).into());
+            return Err(format!("Ambiguous commit hash '{branch_or_commit}'").into());
         }
         if possible_commits.is_empty() {
-            return Err(format!("No such branch or commit: '{}'", branch_or_commit).into());
+            return Err(format!("No such branch or commit: '{branch_or_commit}'").into());
         }
         Ok(possible_commits[0])
     } else {

@@ -402,7 +402,7 @@ mod test {
         let files_with_status = extract_files_with_status(diff_output);
         println!("Files with status:");
         for (file, status) in &files_with_status {
-            println!("{} ({})", file, status);
+            println!("{file} ({status})");
         }
 
         let mut expected = HashMap::new();

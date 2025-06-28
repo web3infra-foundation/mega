@@ -44,7 +44,7 @@ pub fn try_get_storage_path(path: Option<PathBuf>) -> Result<PathBuf, io::Error>
         if !path.pop() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{:?} is not a libra repository", orig),
+                format!("{orig:?} is not a libra repository"),
             ));
         }
     }
@@ -298,9 +298,9 @@ pub async fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
 
     let commits = storage.search(commit_base).await;
     if commits.is_empty() {
-        return Err(format!("fatal: invalid reference: {}", commit_base));
+        return Err(format!("fatal: invalid reference: {commit_base}"));
     } else if commits.len() > 1 {
-        return Err(format!("fatal: ambiguous argument: {}", commit_base));
+        return Err(format!("fatal: ambiguous argument: {commit_base}"));
     }
     if !storage.is_object_type(&commits[0], ObjectType::Commit) {
         Err(format!(
@@ -360,8 +360,7 @@ pub fn check_gitignore(work_dir: &PathBuf, target_file: &PathBuf) -> bool {
             let (ignore, err) = Gitignore::new(&cur_file);
             if let Some(e) = err {
                 println!(
-                    "warning: There are some invalid globs in libraignore file {:#?}:\n{}\n",
-                    cur_file, e
+                    "warning: There are some invalid globs in libraignore file {cur_file:#?}:\n{e}\n"
                 );
             }
             if let Match::Ignore(_) = ignore.matched(target_file, false) {

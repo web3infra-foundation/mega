@@ -50,7 +50,7 @@ lazy_static! {
 
 fn is_port_in_use(port: u16) -> bool {
     TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", port).parse().unwrap(),
+        &format!("127.0.0.1:{port}").parse().unwrap(),
         Duration::from_millis(1000),
     )
     .is_ok()
@@ -63,7 +63,7 @@ async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
         panic!("mega binary not found in \"target/debug/\", skip lfs test");
     }
     if is_port_in_use(mapping_port) {
-        panic!("port {} is already in use", mapping_port);
+        panic!("port {mapping_port} is already in use");
     }
     let port_str = mapping_port.to_string();
     let cmd = vec![
@@ -103,7 +103,7 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
     let container = mega_container(mapping_port).await;
     let mega_ip = container.get_bridge_ip_address().await.unwrap();
     let mega_port: u16 = container.get_host_port_ipv4(mapping_port).await.unwrap();
-    (container, format!("http://{}:{}", mega_ip, mega_port))
+    (container, format!("http://{mega_ip}:{mega_port}"))
 }
 
 #[tokio::test]
@@ -111,7 +111,7 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 ///Use container to run mega server and test push and download
 async fn test_push_object_and_download() {
     let (_container, mega_server_url) = mega_bootstrap_servers(12000).await;
-    println!("container: {}", mega_server_url);
+    println!("container: {mega_server_url}");
     let file_map = mercury::test_utils::setup_lfs_file().await;
     let file = file_map
         .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
@@ -121,7 +121,7 @@ async fn test_push_object_and_download() {
 
     match client.push_object(&oid, file).await {
         Ok(_) => println!("Pushed successfully."),
-        Err(err) => eprintln!("Push failed: {:?}", err),
+        Err(err) => eprintln!("Push failed: {err:?}"),
     }
     #[cfg(feature = "p2p")]
     test_download_chunk_mega(&mega_server_url).await;
@@ -136,7 +136,7 @@ async fn test_download_chunk_mega(mega_server_url: &str) {
     let client = LFSClient::from_url(&Url::parse(mega_server_url).unwrap());
     let oid = lfs::calc_lfs_file_hash(file).unwrap();
     let sub_oid = "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
-    let url = format!("{}/objects/{}/{}", mega_server_url, oid, sub_oid);
+    let url = format!("{mega_server_url}/objects/{oid}/{sub_oid}");
     let size = 20971520;
     let offset = 83886080;
     let data = client

@@ -50,7 +50,7 @@ pub async fn execute() {
             println!("HEAD detached at {}", &commit_hash.to_string()[..8]);
         }
         Head::Branch(branch) => {
-            println!("On branch {}", branch);
+            println!("On branch {branch}");
         }
     }
 

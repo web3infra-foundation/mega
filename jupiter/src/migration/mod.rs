@@ -100,7 +100,7 @@ pub async fn apply_migrations(db: &DatabaseConnection, refresh: bool) -> Result<
         false => Migrator::up(db, None).await,
     }
     .map_err(|e| {
-        log::error!("Failed to apply migrations: {}", e);
+        log::error!("Failed to apply migrations: {e}");
         e.into()
     })
 }

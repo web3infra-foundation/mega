@@ -17,7 +17,7 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
         match postgres_connection(db_config).await {
             Ok(conn) => conn,
             Err(e) => {
-                log::error!("Failed to connect to postgres: {}", e);
+                log::error!("Failed to connect to postgres: {e}");
                 log::info!("Falling back to sqlite");
                 sqlite_connection(db_config)
                     .await
@@ -36,7 +36,7 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
 
 async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, MegaError> {
     let db_url = db_config.db_url.to_owned();
-    log::info!("Connecting to database: {}", db_url);
+    log::info!("Connecting to database: {db_url}");
 
     let opt = setup_option(db_url);
     Database::connect(opt).await.map_err(|e| e.into())
@@ -49,7 +49,7 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
         std::fs::File::create(&db_config.db_path)?;
     }
     let db_url = format!("sqlite://{}", db_config.db_path.to_string_lossy());
-    log::info!("Connecting to database: {}", db_url);
+    log::info!("Connecting to database: {db_url}");
 
     let opt = setup_option(db_url);
     let conn = Database::connect(opt).await?;

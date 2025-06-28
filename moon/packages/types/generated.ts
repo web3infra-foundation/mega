@@ -3269,7 +3269,7 @@ export type MegaConversation = {
   id: number
   /** @format int64 */
   updated_at: number
-  user_id: string
+  username: string
 }
 
 export enum MergeStatusEnum {

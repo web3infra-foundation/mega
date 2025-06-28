@@ -63,7 +63,7 @@ async fn create_and_switch_new_branch(new_branch: &str) {
 }
 
 async fn get_remote(branch_name: &str) {
-    let remote_branch_name: String = format!("origin/{}", branch_name);
+    let remote_branch_name: String = format!("origin/{branch_name}");
 
     create_and_switch_new_branch(branch_name).await;
     // Set branch upstream
@@ -81,7 +81,7 @@ pub async fn check_branch(branch_name: &str) -> Option<bool> {
 
     let target_branch: Option<Branch> = Branch::find_branch(branch_name, None).await;
     if target_branch.is_none() {
-        let remote_branch_name: String = format!("origin/{}", branch_name);
+        let remote_branch_name: String = format!("origin/{branch_name}");
         if !Branch::search_branch(&remote_branch_name).await.is_empty() {
             println!("branch '{branch_name}' set up to track '{remote_branch_name}'.");
 

@@ -152,8 +152,7 @@ impl ClientStorage {
 
         if !re.is_match(path) {
             return Err(GitError::InvalidArgument(format!(
-                "Invalid reference path: {}",
-                path
+                "Invalid reference path: {path}"
             )));
         }
         for cap in re.captures_iter(path) {
@@ -218,8 +217,7 @@ impl ClientStorage {
         // the index starts from 0
         if n == 0 || n > commit.parent_commit_ids.len() {
             return Err(GitError::ObjectNotFound(format!(
-                "Parent {} does not exist",
-                n
+                "Parent {n} does not exist"
             )));
         }
 
@@ -572,7 +570,7 @@ mod tests {
         let client_storage = ClientStorage::init(source);
         let objs = client_storage.list_objects_loose();
         for obj in objs {
-            println!("{}", obj);
+            println!("{obj}");
         }
     }
 

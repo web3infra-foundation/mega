@@ -318,7 +318,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                             if !complete_signal.load(Ordering::Acquire) {
                                 let res = data_copy.f_save(&path_copy);
                                 if let Err(e) = res {
-                                    println!("[f_save] {:?} error: {:?}", path_copy, e);
+                                    println!("[f_save] {path_copy:?} error: {e:?}");
                                 }
                             }
                         });
@@ -326,7 +326,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                     None => {
                         let res = self.data.f_save(path);
                         if let Err(e) = res {
-                            println!("[f_save] {:?} error: {:?}", path, e);
+                            println!("[f_save] {path:?} error: {e:?}");
                         }
                     }
                 }

@@ -21,7 +21,7 @@ impl FromStr for SupportOauthType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "github" => Ok(Self::GitHub),
-            _ => Err(format!("'{}' is not a valid oauth type", s)),
+            _ => Err(format!("'{s}' is not a valid oauth type")),
         }
     }
 }

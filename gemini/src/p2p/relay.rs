@@ -61,7 +61,7 @@ impl P2PRelay {
 
     pub async fn run(&self, host: String, port: u16) -> Result<()> {
         let server_config = self.get_server_config().await?;
-        let addr = format!("{}:{}", host, port);
+        let addr = format!("{host}:{port}");
         let endpoint =
             quinn::Endpoint::server(server_config, SocketAddr::from_str(addr.as_str()).unwrap())?;
         info!("Quic server listening on udp {}", endpoint.local_addr()?);
@@ -670,7 +670,7 @@ impl P2PRelay {
             "File handle receive, target_id:{}, from:{}, file_path:{}",
             target_id, from, git_path
         );
-        let key = format!("git-clone-{}-{}", target_id, from);
+        let key = format!("git-clone-{target_id}-{from}");
 
         if let Some(target_conn) = self.git_objects_connection_map.get(&key) {
             info!("Find target connection to {}", target_id);
@@ -708,11 +708,8 @@ impl P2PRelay {
         let header = String::from_utf8_lossy(&header_buf[..len]);
         let header: LFSHeader = serde_json::from_str(&header)?;
         let (target_id, from, oid, size) = (header.target, header.from, header.oid, header.size);
-        info!(
-            "LFS handle receive, target_id:{}, from:{}, oid:{}: size:{}",
-            target_id, from, oid, size
-        );
-        let key = format!("lfs-{}-{}", target_id, from);
+        info!("LFS handle receive, target_id:{target_id}, from:{from}, oid:{oid}: size:{size}");
+        let key = format!("lfs-{target_id}-{from}");
 
         if let Some(target_conn) = self.lfs_connection_map.get(&key) {
             info!("Find target connection to {}", target_id);

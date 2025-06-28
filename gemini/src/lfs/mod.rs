@@ -45,7 +45,7 @@ pub async fn share_lfs(
     let json = serde_json::to_string(&lfs).unwrap();
 
     let client = Client::new();
-    let url = format!("{}/api/v1/lfs_share", bootstrap_node);
+    let url = format!("{bootstrap_node}/api/v1/lfs_share");
     let response = client
         .post(url)
         .header("content-type", "application/json")
@@ -79,13 +79,12 @@ pub async fn share_lfs(
 ///
 pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> Option<LFSInfoRes> {
     let url = format!(
-        "{}/api/v1/lfs_chunk?file_hash={}",
-        bootstrap_node, file_hash
+        "{bootstrap_node}/api/v1/lfs_chunk?file_hash={file_hash}"
     );
     let lfs_info: LFSInfoRes = match get(url.clone()).await {
         Ok(response) => {
             if !response.status().is_success() {
-                println!("Get lfs chuncks info failed  {}", url);
+                println!("Get lfs chuncks info failed  {url}");
                 return None;
             }
             let body = response.text().await.unwrap();
@@ -93,7 +92,7 @@ pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> O
             lfs_info
         }
         Err(_) => {
-            println!("Get lfs chuncks info failed {}", url);
+            println!("Get lfs chuncks info failed {url}");
             return None;
         }
     };

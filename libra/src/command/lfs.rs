@@ -108,7 +108,7 @@ pub async fn execute(cmd: LfsCmds) {
         LfsCmds::Lock { path } => {
             // Only check existence
             if !Path::new(&path).exists() {
-                eprintln!("fatal: pathspec '{}' did not match any files", path);
+                eprintln!("fatal: pathspec '{path}' did not match any files");
                 return;
             }
 
@@ -118,7 +118,7 @@ pub async fn execute(cmd: LfsCmds) {
                 .lock(path.clone(), refspec.clone())
                 .await;
             if code.is_success() {
-                println!("Locked {}", path);
+                println!("Locked {path}");
             } else if code == StatusCode::FORBIDDEN {
                 eprintln!("Forbidden: You must have push access to create a lock");
             } else if code == StatusCode::CONFLICT {
@@ -128,7 +128,7 @@ pub async fn execute(cmd: LfsCmds) {
         LfsCmds::Unlock { path, force, id } => {
             if !force {
                 if !Path::new(&path).exists() {
-                    eprintln!("fatal: pathspec '{}' did not match any files", path);
+                    eprintln!("fatal: pathspec '{path}' did not match any files");
                     return;
                 }
                 if !status::is_clean().await {
@@ -152,7 +152,7 @@ pub async fn execute(cmd: LfsCmds) {
                         .await
                         .locks;
                     if locks.is_empty() {
-                        eprintln!("fatal: no lock found for path '{}'", path);
+                        eprintln!("fatal: no lock found for path '{path}'");
                         return;
                     }
                     locks[0].id.clone()
@@ -164,7 +164,7 @@ pub async fn execute(cmd: LfsCmds) {
                 .unlock(id.clone(), refspec.clone(), force)
                 .await;
             if code.is_success() {
-                println!("Unlocked {}", path);
+                println!("Unlocked {path}");
             } else if code == StatusCode::FORBIDDEN {
                 eprintln!("Forbidden: You must have push access to unlock");
             }
@@ -212,7 +212,7 @@ pub async fn execute(cmd: LfsCmds) {
 
 pub(crate) async fn current_refspec() -> Option<String> {
     match Head::current().await {
-        Head::Branch(name) => Some(format!("refs/heads/{}", name)),
+        Head::Branch(name) => Some(format!("refs/heads/{name}")),
         Head::Detached(_) => {
             println!("fatal: HEAD is detached");
             None
@@ -252,7 +252,7 @@ fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
         if lfs_patterns.contains(&pattern) {
             continue;
         }
-        println!("Tracking \"{}\"", pattern);
+        println!("Tracking \"{pattern}\"");
         let pattern = format!(
             "{} filter=lfs diff=lfs merge=lfs -text\n",
             pattern.replace(" ", r"\ ")
@@ -283,7 +283,7 @@ fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()
             }
         }
         match matched_pattern {
-            Some(pattern) => println!("Untracking \"{}\"", pattern),
+            Some(pattern) => println!("Untracking \"{pattern}\""),
             None => lines.push(line),
         }
     }

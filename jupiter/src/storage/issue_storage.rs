@@ -219,7 +219,7 @@ impl IssueStorage {
             self.add_conversation(
                 link,
                 username,
-                Some(format!("{} removed {:?}", username, to_remove)),
+                Some(format!("{username} removed {to_remove:?}")),
                 ConvTypeEnum::Label,
             )
             .await?;
@@ -246,7 +246,7 @@ impl IssueStorage {
             self.add_conversation(
                 link,
                 username,
-                Some(format!("{} added {:?}", username, to_add)),
+                Some(format!("{username} added {to_add:?}")),
                 ConvTypeEnum::Label,
             )
             .await?;

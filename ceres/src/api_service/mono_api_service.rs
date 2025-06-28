@@ -434,7 +434,7 @@ mod test {
             let cloned_path = full_path.clone(); // Clone full_path
             let name = cloned_path.file_name().unwrap().to_str().unwrap();
             full_path.pop();
-            println!("name: {}, path: {:?}", name, full_path);
+            println!("name: {name}, path: {full_path:?}");
         }
     }
 }

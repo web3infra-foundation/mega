@@ -273,7 +273,7 @@ pub async fn get_blob_file(
     let api_handler = state.monorepo();
 
     let result = api_handler.get_raw_blob_by_hash(&oid).await.unwrap();
-    let file_name = format!("inline; filename=\"{}\"", oid);
+    let file_name = format!("inline; filename=\"{oid}\"");
     match result {
         Some(model) => Ok(Response::builder()
             .header("Content-Type", "application/octet-stream")
