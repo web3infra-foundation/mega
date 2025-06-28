@@ -232,7 +232,7 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn merge_mr(&self, user_id: String, mr: mega_mr::Model) -> Result<(), MegaError> {
+    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), MegaError> {
         let storage = self.storage.services.mono_storage.clone();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -261,7 +261,7 @@ impl MonoApiService {
             // add conversation
             self.storage
                 .issue_storage()
-                .add_conversation(&mr.link, &user_id, None, ConvTypeEnum::Merged)
+                .add_conversation(&mr.link, username, None, ConvTypeEnum::Merged)
                 .await
                 .unwrap();
             // update mr status last

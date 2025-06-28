@@ -4,7 +4,7 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{path::Path, time::Duration};
 use tracing::log;
 
-use crate::migrator::apply_migrations;
+use crate::migration::apply_migrations;
 
 use crate::utils::id_generator;
 

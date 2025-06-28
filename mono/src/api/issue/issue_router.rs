@@ -108,13 +108,13 @@ async fn new_issue(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let stg = state.issue_stg().clone();
     let res = stg
-        .save_issue(&user.campsite_user_id, &json.title)
+        .save_issue(&user.username, &json.title)
         .await
         .unwrap();
     let _ = stg
         .add_conversation(
             &res.link,
-            &user.campsite_user_id,
+            &user.username,
             Some(json.description),
             ConvTypeEnum::Comment,
         )
@@ -187,7 +187,7 @@ async fn save_comment(
         .issue_stg()
         .add_conversation(
             &link,
-            &user.campsite_user_id,
+            &user.username,
             Some(payload.content),
             ConvTypeEnum::Comment,
         )
@@ -259,7 +259,7 @@ pub async fn common_label_update(
     let to_remove: Vec<i64> = old_ids.difference(&new_ids).copied().collect();
 
     issue_storage
-        .modify_labels(&user.campsite_user_id, item_id, &link, to_add, to_remove)
+        .modify_labels(&user.username, item_id, &link, to_add, to_remove)
         .await?;
     Ok(Json(CommonResult::success(None)))
 }

@@ -69,7 +69,7 @@ impl From<mega_mr::Model> for MRDetail {
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct MegaConversation {
     pub id: i64,
-    pub user_id: String,
+    pub username: String,
     pub conv_type: ConvTypeEnum,
     pub comment: Option<String>,
     pub created_at: i64,
@@ -80,7 +80,7 @@ impl From<mega_conversation::Model> for MegaConversation {
     fn from(value: mega_conversation::Model) -> Self {
         Self {
             id: value.id,
-            user_id: value.user_id,
+            username: value.username,
             conv_type: value.conv_type,
             comment: value.comment,
             created_at: value.created_at.and_utc().timestamp(),

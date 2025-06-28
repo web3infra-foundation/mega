@@ -143,18 +143,18 @@ async fn get_tree_info(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<TreeResponse>>, ApiError> {
     let mut parts = Vec::new();
+
+    let normalized_path = PathBuf::from(query.path.clone());
+    let mut segments = normalized_path.components().peekable();
     let mut current = String::new();
-    let mut segments = query.path.split('/').peekable();
 
     while let Some(segment) = segments.next() {
-        if segment.is_empty() {
-            current = "/".to_string();
-            parts.push(current.clone());
-        } else if segments.peek().is_some() {
-            if current != "/" {
+        let part = segment.as_os_str().to_string_lossy().to_string();
+        if segments.peek().is_some() {
+            if current != "/" && part != "/" {
                 current.push('/');
             }
-            current.push_str(segment);
+            current.push_str(&part);
             parts.push(current.clone());
         }
     }

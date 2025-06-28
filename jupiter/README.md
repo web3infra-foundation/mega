@@ -1,18 +1,26 @@
 ## Jupiter Module - Monorepo and Mega Database Storage Engine
 
 ### Migration Guideline
-1. Generate entity files
-sea-orm-cli migrate generate
+1. Generate new migration
 
 ```bash
 
-cd mega/jupiter/src/migration
+cd mega/jupiter/src
+
+sea-orm-cli migrate generate
+```
+
+2. Generate entity files
+
+```bash
+
+cd mega/jupiter/src
 
 sea-orm-cli generate entity -u postgres://postgres:postgres@localhost:5432/mono -o ../callisto/src --with-serde both
 
 ```
 
-2. Running Migrator CLI
+3. Running Migrator CLI
 
 - Generate a new migration file
     ```sh
