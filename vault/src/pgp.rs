@@ -115,14 +115,14 @@ impl VaultCore {
         .clone();
         self.write_secret(VAULT_KEY, Some(data))
             .unwrap_or_else(|e| {
-                panic!("Failed to write PGP keys: {:?}", e);
+                panic!("Failed to write PGP keys: {e:?}");
             });
     }
 
     /// Deletes the key pair from the vault.
     pub fn delete_keys(&self) {
         self.delete_secret(VAULT_KEY).unwrap_or_else(|e| {
-            panic!("Failed to delete PGP keys: {:?}", e);
+            panic!("Failed to delete PGP keys: {e:?}");
         });
     }
 

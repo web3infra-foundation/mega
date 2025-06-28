@@ -72,8 +72,7 @@ pub async fn execute(args: DiffArgs) {
             let file = std::fs::File::create(path)
                 .map_err(|e| {
                     eprintln!(
-                        "fatal: could not open to file '{}' for writing: {}",
-                        path, e
+                        "fatal: could not open to file '{path}' for writing: {e}"
                     );
                 })
                 .unwrap();
@@ -86,7 +85,7 @@ pub async fn execute(args: DiffArgs) {
         Some(ref source) => match get_target_commit(source).await {
             Ok(commit_hash) => get_commit_blobs(&commit_hash).await,
             Err(e) => {
-                eprintln!("fatal: {}, can't use as diff old source", e);
+                eprintln!("fatal: {e}, can't use as diff old source");
                 return;
             }
         },
@@ -107,7 +106,7 @@ pub async fn execute(args: DiffArgs) {
         Some(ref source) => match get_target_commit(source).await {
             Ok(commit_hash) => get_commit_blobs(&commit_hash).await,
             Err(e) => {
-                eprintln!("fatal: {}, can't use as diff new source", e);
+                eprintln!("fatal: {e}, can't use as diff new source");
                 return;
             }
         },
@@ -235,7 +234,7 @@ pub async fn diff(
 
         let old_index = old_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
         let new_index = new_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
-        writeln!(w, "index {}..{}", old_index, new_index).unwrap();
+        writeln!(w, "index {old_index}..{new_index}").unwrap();
         // check is the content is valid utf-8 or maybe binary
         let old_type = infer::get(&old_content);
         let new_type = infer::get(&new_content);
@@ -263,8 +262,8 @@ pub async fn diff(
                         format!("b/{}", file_display(&file, new_hash, new_type)),
                     )
                 };
-                writeln!(w, "--- {}", old_prefix).unwrap();
-                writeln!(w, "+++ {}", new_prefix).unwrap();
+                writeln!(w, "--- {old_prefix}").unwrap();
+                writeln!(w, "+++ {new_prefix}").unwrap();
                 imara_diff_result(&old_text, &new_text, algorithm.as_str(), w);
             }
             _ => {
@@ -389,7 +388,7 @@ fn imara_diff_result(old: &str, new: &str, algorithm: &str, w: &mut dyn io::Writ
         )
         .to_string();
 
-    write!(w, "{}", result).unwrap();
+    write!(w, "{result}").unwrap();
 }
 
 #[cfg(test)]
@@ -468,7 +467,7 @@ mod test {
         let mut buf = Vec::new();
         similar_diff_result(old, new, &mut buf);
         let result = String::from_utf8(buf).unwrap();
-        println!("{}", result);
+        println!("{result}");
     }
 
     #[tokio::test]
@@ -529,16 +528,14 @@ mod test {
             let elapse = start.elapsed();
             let ouput = String::from_utf8(buf).expect("Invalid UTF-8 in diff ouput");
 
-            println!("libra diff algorithm: {:?} Spend Time: {:?}", algo, elapse);
+            println!("libra diff algorithm: {algo:?} Spend Time: {elapse:?}");
             assert!(
                 !ouput.is_empty(),
-                "libra diff algorithm: {} produce a empty output",
-                algo
+                "libra diff algorithm: {algo} produce a empty output"
             );
             assert!(
                 ouput.contains("@@"),
-                "libra diff algorithm: {}, ouput missing diff markers",
-                algo
+                "libra diff algorithm: {algo}, ouput missing diff markers"
             );
 
             outputs.push((algo, ouput));
@@ -550,13 +547,11 @@ mod test {
             let minus_line = output.lines().filter(|line| line.starts_with("-")).count();
             assert_eq!(
                 plus_line, 6,
-                "libra diff algorithm {}, expect plus_line: 6, got {} ",
-                algo, plus_line
+                "libra diff algorithm {algo}, expect plus_line: 6, got {plus_line} "
             );
             assert_eq!(
                 minus_line, 1,
-                "libra diff algorithm {}, expect minus_line: 1, got {} ",
-                algo, minus_line
+                "libra diff algorithm {algo}, expect minus_line: 1, got {minus_line} "
             );
         }
     }

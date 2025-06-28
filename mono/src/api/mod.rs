@@ -169,14 +169,14 @@ pub mod util {
         let entities = get_entitystore(path.into(), state).await;
         let cedar_context = CedarContext::new(entities).unwrap();
         cedar_context.is_authorized(
-            format!(r#"User::"{}""#, username)
+            format!(r#"User::"{username}""#)
                 .to_owned()
                 .parse::<EntityUid>()
                 .unwrap(),
-            format!(r#"Action::"{}""#, operation)
+            format!(r#"Action::"{operation}""#)
                 .parse::<EntityUid>()
                 .unwrap(),
-            format!(r#"Repository::"{}""#, path)
+            format!(r#"Repository::"{path}""#)
                 .parse::<EntityUid>()
                 .unwrap(),
             Context::empty(),

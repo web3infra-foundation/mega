@@ -61,7 +61,7 @@ pub async fn execute(args: PushArgs) {
             if let Some(remote) = remote {
                 remote
             } else {
-                eprintln!("fatal: no remote configured for branch '{}'", branch);
+                eprintln!("fatal: no remote configured for branch '{branch}'");
                 return;
             }
         }
@@ -76,8 +76,7 @@ pub async fn execute(args: PushArgs) {
         .to_string();
 
     println!(
-        "pushing {}({}) to {}({})",
-        branch, commit_hash, repository, repo_url
+        "pushing {branch}({commit_hash}) to {repository}({repo_url})"
     );
 
     let url = Url::parse(&repo_url).unwrap();
@@ -85,14 +84,14 @@ pub async fn execute(args: PushArgs) {
     let refs = match client.discovery_reference(ReceivePack).await {
         Ok(refs) => refs,
         Err(e) => {
-            eprintln!("fatal: {}", e);
+            eprintln!("fatal: {e}");
             return;
         }
     };
 
     let tracked_branch = Config::get("branch", Some(&branch), "merge")
         .await // New branch may not have tracking branch
-        .unwrap_or_else(|| format!("refs/heads/{}", branch));
+        .unwrap_or_else(|| format!("refs/heads/{branch}"));
 
     let tracked_ref = refs.iter().find(|r| r._ref == tracked_branch);
     // [0; 20] if new branch
@@ -108,8 +107,7 @@ pub async fn execute(args: PushArgs) {
     add_pkt_line_string(
         &mut data,
         format!(
-            "{} {} {}\0report-status\n",
-            remote_hash, commit_hash, tracked_branch
+            "{remote_hash} {commit_hash} {tracked_branch}\0report-status\n"
         ),
     );
     data.extend_from_slice(b"0000");
@@ -165,7 +163,7 @@ pub async fn execute(args: PushArgs) {
     }
     let (_, pkt_line) = read_pkt_line(&mut data);
     if !pkt_line.starts_with("ok".as_ref()) {
-        eprintln!("fatal: ref update failed [{:?}]", pkt_line);
+        eprintln!("fatal: ref update failed [{pkt_line:?}]");
         return;
     }
     let (len, _) = read_pkt_line(&mut data);
@@ -175,7 +173,7 @@ pub async fn execute(args: PushArgs) {
 
     // set after push success
     if args.set_upstream {
-        branch::set_upstream(&branch, &format!("{}/{}", repository, branch)).await;
+        branch::set_upstream(&branch, &format!("{repository}/{branch}")).await;
     }
 }
 

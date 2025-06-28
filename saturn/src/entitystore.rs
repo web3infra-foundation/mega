@@ -86,9 +86,9 @@ pub fn generate_entity(user: &str, repo: &str) -> Result<String, Box<dyn std::er
     if let Some(users) = json_data.get_mut("users") {
         if let Some(users_map) = users.as_object_mut() {
             users_map.insert(
-                format!("User::\"{}\"", user),
+                format!("User::\"{user}\""),
                 json!({
-                        "euid": format!("User::\"{}\"", user),
+                        "euid": format!("User::\"{user}\""),
                         "parents": [
                             "UserGroup::\"admin\""
                         ]
@@ -100,9 +100,9 @@ pub fn generate_entity(user: &str, repo: &str) -> Result<String, Box<dyn std::er
     if let Some(repos) = json_data.get_mut("repos") {
         if let Some(repos_map) = repos.as_object_mut() {
             repos_map.insert(
-                format!("Repository::\"{}\"", repo),
+                format!("Repository::\"{repo}\""),
                 json!({
-                        "euid": format!("Repository::\"{}\"", repo),
+                        "euid": format!("Repository::\"{repo}\""),
                         "is_private": true,
                         "admins": "UserGroup::\"admin\"",
                         "maintainers": "UserGroup::\"matainer\"",

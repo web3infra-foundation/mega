@@ -7,7 +7,7 @@ use std::sync::{Arc, LazyLock};
 use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
-use crate::migrator::apply_migrations;
+use crate::migration::apply_migrations;
 use crate::storage::{
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
     mono_storage::MonoStorage, mq_storage::MQStorage, mr_storage::MrStorage,

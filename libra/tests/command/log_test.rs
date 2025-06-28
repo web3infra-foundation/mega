@@ -31,8 +31,7 @@ async fn test_execute_log() {
         let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
             panic!(
-                "fatal: your current branch '{}' does not have any commits yet ",
-                branch_name
+                "fatal: your current branch '{branch_name}' does not have any commits yet "
             );
         }
     }
@@ -46,7 +45,7 @@ async fn test_execute_log() {
     let max_output_number = min(6, reachable_commits.len());
     let mut output_number = 6;
     for commit in reachable_commits.iter().take(max_output_number) {
-        assert_eq!(commit.message, format!("\nCommit_{}", output_number));
+        assert_eq!(commit.message, format!("\nCommit_{output_number}"));
         output_number -= 1;
     }
 }

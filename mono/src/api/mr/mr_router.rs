@@ -76,8 +76,8 @@ async fn reopen_mr(
             .issue_stg()
             .add_conversation(
                 &link,
-                &user.campsite_user_id,
-                Some(format!("{} reopen this", user.name)),
+                &user.username,
+                Some(format!("{} reopen this", user.username)),
                 ConvTypeEnum::Reopen,
             )
             .await
@@ -121,8 +121,8 @@ async fn close_mr(
             .issue_stg()
             .add_conversation(
                 &link,
-                &user.campsite_user_id,
-                Some(format!("{} closed this", user.name)),
+                &user.username,
+                Some(format!("{} closed this", user.username)),
                 ConvTypeEnum::Closed,
             )
             .await?;
@@ -153,7 +153,7 @@ async fn merge(
     if model.status == MergeStatusEnum::Open {
         let path = model.path.clone();
         util::check_permissions(
-            &user.name,
+            &user.username,
             &path,
             ActionEnum::ApproveMergeRequest,
             state.clone(),
@@ -162,7 +162,7 @@ async fn merge(
         .unwrap();
         state
             .monorepo()
-            .merge_mr(user.campsite_user_id, model)
+            .merge_mr(&user.username, model)
             .await?;
     }
     Ok(Json(CommonResult::success(None)))
@@ -287,7 +287,7 @@ async fn save_comment(
         .issue_stg()
         .add_conversation(
             &model.link,
-            &user.campsite_user_id,
+            &user.username,
             Some(payload.content),
             ConvTypeEnum::Comment,
         )
@@ -402,7 +402,7 @@ mod test {
         let files_with_status = extract_files_with_status(diff_output);
         println!("Files with status:");
         for (file, status) in &files_with_status {
-            println!("{} ({})", file, status);
+            println!("{file} ({status})");
         }
 
         let mut expected = HashMap::new();

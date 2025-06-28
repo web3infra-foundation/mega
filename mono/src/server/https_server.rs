@@ -48,7 +48,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
 
     let app = app(ctx.storage, host.clone(), port).await;
 
-    let server_url = format!("{}:{}", host, port);
+    let server_url = format!("{host}:{port}");
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -99,7 +99,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
         store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
-        listen_addr: format!("http://{}:{}", host, port),
+        listen_addr: format!("http://{host}:{port}"),
     };
 
     let origins: Vec<HeaderValue> = oauth_config
@@ -227,6 +227,6 @@ mod test {
         let mut file = fs::File::create(temp_path).unwrap();
         let json = ApiDoc::openapi().to_pretty_json().unwrap();
         file.write_all(json.as_bytes()).unwrap();
-        println!("{}", json);
+        println!("{json}");
     }
 }

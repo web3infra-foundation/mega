@@ -52,7 +52,7 @@ pub struct CampsiteUserJson {
 impl From<CampsiteUserJson> for LoginUser {
     fn from(value: CampsiteUserJson) -> Self {
         Self {
-            name: value.username,
+            username: value.username,
             email: value.email.unwrap_or_default(),
             avatar_url: value.avatar_url,
             campsite_user_id: value.id,
@@ -64,7 +64,7 @@ impl From<CampsiteUserJson> for LoginUser {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginUser {
     pub campsite_user_id: String,
-    pub name: String,
+    pub username: String,
     pub avatar_url: String,
     pub email: String,
     pub created_at: NaiveDateTime,
@@ -73,11 +73,11 @@ pub struct LoginUser {
 impl From<user::Model> for LoginUser {
     fn from(value: user::Model) -> Self {
         Self {
-            name: value.name,
             avatar_url: value.avatar_url,
             email: value.email,
             created_at: value.created_at,
             campsite_user_id: String::new(),
+            username: String::new()
         }
     }
 }

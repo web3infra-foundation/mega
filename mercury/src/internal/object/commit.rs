@@ -52,7 +52,7 @@ impl Display for Commit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "tree: {}", self.tree_id)?;
         for parent in self.parent_commit_ids.iter() {
-            writeln!(f, "parent: {}", parent)?;
+            writeln!(f, "parent: {parent}")?;
         }
         writeln!(f, "author {}", self.author)?;
         writeln!(f, "committer {}", self.committer)?;

@@ -42,7 +42,7 @@ pub trait ObjectTrait: Send + Sync + Display {
         let hash_str = h.finalize();
         Self::from_bytes(
             &content,
-            SHA1::from_str(&format!("{:x}", hash_str)).unwrap(),
+            SHA1::from_str(&format!("{hash_str:x}")).unwrap(),
         )
         .unwrap()
     }

@@ -69,8 +69,7 @@ pub async fn execute(args: FetchArgs) {
             None => {
                 tracing::error!("remote config '{}' not found", remote);
                 eprintln!(
-                    "fatal: '{}' does not appear to be a libra repository",
-                    remote
+                    "fatal: '{remote}' does not appear to be a libra repository"
                 );
             }
         }
@@ -84,7 +83,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         "fetching from {}{}",
         remote_config.name,
         if let Some(branch) = &branch {
-            format!(" ({})", branch)
+            format!(" ({branch})")
         } else {
             "".to_owned()
         }
@@ -103,7 +102,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     let mut refs = match http_client.discovery_reference(UploadPack).await {
         Ok(refs) => refs,
         Err(e) => {
-            eprintln!("fatal: {}", e);
+            eprintln!("fatal: {e}");
             return;
         }
     };
@@ -124,14 +123,14 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     // filter by branch
     if let Some(ref branch) = branch {
         let branch = if !branch.starts_with("refs") {
-            format!("refs/heads/{}", branch)
+            format!("refs/heads/{branch}")
         } else {
             branch.to_owned()
         };
         refs.retain(|r| r._ref == branch);
 
         if refs.is_empty() {
-            eprintln!("fatal: '{}' not found in remote", branch);
+            eprintln!("fatal: '{branch}' not found in remote");
             return;
         }
     }
@@ -180,7 +179,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
                     eprintln!("{}", String::from_utf8_lossy(data));
                 }
                 _ => {
-                    eprintln!("unknown side-band-64k code: {}", code);
+                    eprintln!("unknown side-band-64k code: {code}");
                 }
             }
         } else if &data != b"NAK\n" {
@@ -198,13 +197,13 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         let checksum = SHA1::from_bytes(&pack_data[pack_data.len() - 20..]);
         assert_eq!(hash, checksum);
         let checksum = checksum.to_string();
-        println!("checksum: {}", checksum);
+        println!("checksum: {checksum}");
 
         if pack_data.len() > 32 {
             // 12 header + 20 hash
             let pack_file = utils::path::objects()
                 .join("pack")
-                .join(format!("pack-{}.pack", checksum));
+                .join(format!("pack-{checksum}.pack"));
             let mut file = fs::File::create(pack_file.clone()).unwrap();
             file.write_all(&pack_data).expect("write failed");
 
@@ -231,7 +230,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         if let Some(branch_name) = ref_str.strip_prefix("refs/heads/") {
             Branch::update_branch(branch_name, &r._hash, remote).await;
         } else if let Some(mr_name) = ref_str.strip_prefix("refs/mr/") {
-            let branch_name = format!("mr/{}", mr_name);
+            let branch_name = format!("mr/{mr_name}");
             Branch::update_branch(&branch_name, &r._hash, remote).await;
         } else {
             tracing::warn!("Unsupported ref type: {}", ref_str);

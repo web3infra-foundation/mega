@@ -101,7 +101,7 @@ impl VaultCore {
             .clone();
 
         // config role
-        self.write_api(format!("pki/roles/{}", ROLE), Some(role_data))
+        self.write_api(format!("pki/roles/{ROLE}"), Some(role_data))
             .expect("Failed to configure role");
     }
 
@@ -116,7 +116,7 @@ impl VaultCore {
             .clone();
 
         // issue cert
-        let resp = self.write_api(format!("pki/issue/{}", ROLE), Some(issue_data));
+        let resp = self.write_api(format!("pki/issue/{ROLE}"), Some(issue_data));
         let resp_body = resp.unwrap();
         let cert_data = resp_body.unwrap().data.unwrap();
 
@@ -293,7 +293,7 @@ mod tests_raw {
         let data = resp.unwrap().data;
         assert!(data.is_some());
         let role_data = data.unwrap();
-        println!("role_data: {:?}", role_data);
+        println!("role_data: {role_data:?}");
         assert_eq!(role_data["ttl"].as_u64().unwrap(), 60 * 24 * 60 * 60);
         assert_eq!(role_data["max_ttl"].as_u64().unwrap(), 365 * 24 * 60 * 60);
         assert_eq!(role_data["not_before_duration"].as_u64().unwrap(), 30);
@@ -499,7 +499,7 @@ mod tests_raw {
         );
 
         let mut root_token = String::new();
-        println!("root_token: {:?}", root_token);
+        println!("root_token: {root_token:?}");
 
         let mut conf: HashMap<String, Value> = HashMap::new();
         conf.insert(
@@ -528,7 +528,7 @@ mod tests_raw {
             let result = core.init(&seal_config);
             assert!(result.is_ok());
             let init_result = result.unwrap();
-            println!("init_result: {:?}", init_result);
+            println!("init_result: {init_result:?}");
 
             let mut unsealed = false;
             for i in 0..seal_config.secret_threshold {
@@ -544,7 +544,7 @@ mod tests_raw {
         }
 
         {
-            println!("root_token: {:?}", root_token);
+            println!("root_token: {root_token:?}");
             test_pki_config_ca(Arc::clone(&c), &root_token).await;
             test_pki_generate_root(Arc::clone(&c), &root_token, false, true).await;
             test_pki_config_role(Arc::clone(&c), &root_token).await;

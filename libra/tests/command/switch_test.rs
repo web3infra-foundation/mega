@@ -97,7 +97,7 @@ async fn test_switch_function() {
             _ => panic!("head not detached,unreachable"),
             // Head::Detached(name) => name.to_string(),
         };
-        println!("detach {:?}", ref_name);
+        println!("detach {ref_name:?}");
         assert_eq!(
             ref_name, commit_id_str,
             "detach the head to a commit failed!"
@@ -130,7 +130,7 @@ async fn test_parts_of_switch_module_function() {
     let temp_path = tempdir().unwrap();
     test::setup_with_new_libra_in(temp_path.path()).await;
     let _guard = ChangeDirGuard::new(temp_path.path());
-    println!("temp_path {:?}", temp_path);
+    println!("temp_path {temp_path:?}");
 
     //Test check the branch
     test_switch_function().await;
@@ -149,11 +149,11 @@ async fn test_detach_head_basic() {
     let temp_path = tempdir().unwrap();
     test::setup_with_new_libra_in(temp_path.path()).await;
     let _guard = ChangeDirGuard::new(temp_path.path());
-    println!("temp_path {:?}", temp_path);
+    println!("temp_path {temp_path:?}");
 
     for i in 0..6 {
         let args = CommitArgs {
-            message: format!("commit_{}", i),
+            message: format!("commit_{i}"),
             allow_empty: true,
             conventional: false,
             amend: false,
@@ -191,7 +191,7 @@ async fn test_detach_head_basic() {
 
     for i in 6..12 {
         let args = CommitArgs {
-            message: format!("commit_{}", i),
+            message: format!("commit_{i}"),
             allow_empty: true,
             conventional: false,
             amend: false,
@@ -247,28 +247,28 @@ async fn test_detach_head_basic() {
     //detach use commit's ref
     {
         switch_to_branch("master".to_string()).await;
-        let commit_message = switch_to_detach(format!("{}~11", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}~11")).await;
         assert_eq!(&commit_message, "commit_0");
     }
     {
         switch_to_branch("master".to_string()).await;
-        let commit_message = switch_to_detach(format!("{}~11", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}~11")).await;
         assert_eq!(&commit_message, "commit_0");
     }
     {
         switch_to_branch("master".to_string()).await;
-        let commit_message = switch_to_detach(format!("{}~~~~~~~~~~~", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}~~~~~~~~~~~")).await;
         assert_eq!(&commit_message, "commit_0");
     }
     {
         switch_to_branch("master".to_string()).await;
-        let commit_message = switch_to_detach(format!("{}^^^^^^^^^^^", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}^^^^^^^^^^^")).await;
         assert_eq!(&commit_message, "commit_0");
     }
 
     {
         switch_to_branch("master".to_string()).await;
-        let commit_message = switch_to_detach(format!("{}^~^~^~^~^~^", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}^~^~^~^~^~^")).await;
         assert_eq!(&commit_message, "commit_0");
     }
 }
@@ -291,7 +291,7 @@ async fn create_commit_tree() {
         let mut commit = Commit::from_tree_id(
             tree.id,
             vec![commit_1.id],
-            &format_commit_msg(&format!("commit_{}", i), None),
+            &format_commit_msg(&format!("commit_{i}"), None),
         );
         commit.committer.timestamp = (i + 1) as usize;
         save_object(&commit, &commit.id).unwrap();
@@ -320,7 +320,7 @@ async fn test_detach_head_extra() {
     let temp_path = tempdir().unwrap();
     test::setup_with_new_libra_in(temp_path.path()).await;
     let _guard = ChangeDirGuard::new(temp_path.path());
-    println!("temp_path {:?}", temp_path);
+    println!("temp_path {temp_path:?}");
 
     create_commit_tree().await;
     //detach to head
@@ -330,16 +330,16 @@ async fn test_detach_head_extra() {
     }
 
     for i in 1..12 {
-        let commit_message = switch_to_detach(format!("HEAD^{}", i)).await;
-        assert_eq!(commit_message, format!("commit_{}", i));
+        let commit_message = switch_to_detach(format!("HEAD^{i}")).await;
+        assert_eq!(commit_message, format!("commit_{i}"));
 
         //back to the last commit
         switch_to_branch("master".to_string()).await;
     }
     //detach use the branch's ref
     for i in 1..12 {
-        let commit_message = switch_to_detach(format!("master^{}", i)).await;
-        assert_eq!(commit_message, format!("commit_{}", i));
+        let commit_message = switch_to_detach(format!("master^{i}")).await;
+        assert_eq!(commit_message, format!("commit_{i}"));
 
         //back to the last commit
         switch_to_branch("master".to_string()).await;
@@ -359,7 +359,7 @@ async fn test_detach_head_extra() {
     let master_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
     //detach use commit's ref
     {
-        let commit_message = switch_to_detach(format!("{}^11~", master_commit_id)).await;
+        let commit_message = switch_to_detach(format!("{master_commit_id}^11~")).await;
         assert_eq!(commit_message, "commit_0".to_string());
         switch_to_branch("master".to_string()).await;
     }

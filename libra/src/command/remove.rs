@@ -81,7 +81,7 @@ fn validate_pathspec(pathspec: &[String], index: &Index) -> bool {
             // not tracked, but path may be a directory
             // check if any tracked file in the directory
             if !index.contains_dir_file(&path_wd) {
-                println!("fatal: pathspec '{}' did not match any files", path_str);
+                println!("fatal: pathspec '{path_str}' did not match any files");
                 return false;
             }
         }

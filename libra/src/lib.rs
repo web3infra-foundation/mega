@@ -45,9 +45,9 @@ mod tests {
         use url::Url;
 
         let client = LFSClient::from_url(&Url::parse("https://git.gitmono.org").unwrap());
-        println!("{:?}", client);
+        println!("{client:?}");
         let mut report_fn = |progress: f64| {
-            println!("progress: {:.2}%", progress);
+            println!("progress: {progress:.2}%");
             Ok(())
         };
         client

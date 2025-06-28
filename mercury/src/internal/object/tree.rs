@@ -174,8 +174,7 @@ impl TreeItem {
             let (decoded, _, had_errors) = GBK.decode(raw_name);
             if had_errors {
                 return Err(GitError::InvalidTreeItem(format!(
-                    "Unsupported raw format: {:?}",
-                    raw_name
+                    "Unsupported raw format: {raw_name:?}"
                 )));
             } else {
                 decoded.to_string()
@@ -237,7 +236,7 @@ impl Display for Tree {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "Tree: {}", self.id.to_string().blue())?;
         for item in &self.tree_items {
-            writeln!(f, "{}", item)?;
+            writeln!(f, "{item}")?;
         }
         Ok(())
     }

@@ -100,9 +100,9 @@ pub async fn execute(args: RestoreArgs) {
             } else {
                 let src = source.unwrap();
                 if storage.search(&src).await.len() != 1 {
-                    eprintln!("fatal: could not resolve {}", src);
+                    eprintln!("fatal: could not resolve {src}");
                 } else {
-                    eprintln!("fatal: reference is not a commit: {}", src);
+                    eprintln!("fatal: reference is not a commit: {src}");
                 }
                 return;
             }
@@ -159,7 +159,7 @@ async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
                     .download_object(&oid, size, &path_abs, None)
                     .await
                 {
-                    eprintln!("fatal: {}", e);
+                    eprintln!("fatal: {e}");
                 }
             }
         }

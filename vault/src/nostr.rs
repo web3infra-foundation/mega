@@ -82,8 +82,8 @@ mod tests {
     #[test]
     fn test_generate_nostr_id() {
         let (nostr, keypair) = generate_nostr_id();
-        println!("nostr: {:?}", nostr);
-        println!("keypair: {:?}", keypair);
+        println!("nostr: {nostr:?}");
+        println!("keypair: {keypair:?}");
         let secret_key = keypair.0;
         let public_key = keypair.1;
 

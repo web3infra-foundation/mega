@@ -206,7 +206,7 @@ impl GitDbStorage {
         repo_path: &str,
     ) -> Result<Option<git_repo::Model>, MegaError> {
         let query = git_repo::Entity::find()
-            .filter(Expr::cust(format!("'{}' LIKE repo_path || '%'", repo_path)))
+            .filter(Expr::cust(format!("'{repo_path}' LIKE repo_path || '%'")))
             .order_by_desc(Expr::cust("LENGTH(repo_path)"));
         tracing::debug!("{}", query.build(DbBackend::Postgres).to_string());
         let result = query.one(self.get_connection()).await?;

@@ -90,7 +90,7 @@ fn _is_reserved_key(name: String) -> bool {
 }
 
 fn add_user_key_pre(name: String) -> String {
-    format!("{}{}", USER_KEY_PRE, name)
+    format!("{USER_KEY_PRE}{name}")
 }
 
 pub fn get_cert_name_from_path(path: &str) -> Option<String> {

@@ -116,7 +116,7 @@ pub async fn list_locks_for_verification(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -143,7 +143,7 @@ pub async fn create_lock(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -171,7 +171,7 @@ pub async fn delete_lock(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -196,7 +196,7 @@ pub async fn lfs_process_batch(
 
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -225,7 +225,7 @@ pub async fn lfs_fetch_chunk_ids(
             tracing::error!("Error: {}", err);
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -244,7 +244,7 @@ pub async fn lfs_download_object(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -283,7 +283,7 @@ pub async fn lfs_download_chunk(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }
@@ -319,7 +319,7 @@ pub async fn lfs_upload_object(
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {}", err)))
+                .body(Body::from(format!("Error: {err}")))
                 .unwrap()
         }),
     }

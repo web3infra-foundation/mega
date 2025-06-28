@@ -19,7 +19,7 @@ fn main() {
         Ok(_) => {}
         Err(e) => {
             if !matches!(e, GitError::RepoNotFound) {
-                eprintln!("Error: {:?}", e);
+                eprintln!("Error: {e:?}");
             }
         }
     }

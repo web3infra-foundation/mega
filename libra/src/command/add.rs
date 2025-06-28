@@ -85,7 +85,7 @@ pub async fn execute(args: AddArgs) {
         match add_a_file(file, &mut index, args.verbose).await {
             Ok(_) => {}
             Err(e) => {
-                println!("{}", e);
+                println!("{e}");
                 if !args.ignore_errors {
                     // if `--ignore-errors` is not set, stop on first error
                     return;
@@ -147,7 +147,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) -> Result<(),
         FileStatus::Deleted => {
             index.remove(file_str, 0);
             if verbose {
-                println!("removed: {}", file_str);
+                println!("removed: {file_str}");
             }
         }
         FileStatus::NotFound => {

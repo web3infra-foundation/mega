@@ -70,10 +70,10 @@ impl SmartProtocol {
             "HEAD"
         };
         let cap_list = match service_type {
-            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, COMMON_CAP_LIST),
-            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, COMMON_CAP_LIST),
+            ServiceType::UploadPack => format!("{UPLOAD_CAP_LIST}{COMMON_CAP_LIST}"),
+            ServiceType::ReceivePack => format!("{RECEIVE_CAP_LIST}{COMMON_CAP_LIST}"),
         };
-        let pkt_line = format!("{}{}{}{}{}{}", head_hash, SP, name, NUL, cap_list, LF);
+        let pkt_line = format!("{head_hash}{SP}{name}{NUL}{cap_list}{LF}");
         let mut ref_list = vec![pkt_line];
 
         for git_ref in git_refs {
@@ -152,7 +152,7 @@ impl SmartProtocol {
 
                 for hash in &have {
                     if pack_handler.check_commit_exist(hash).await {
-                        add_pkt_line_string(&mut protocol_buf, format!("ACK {} common\n", hash));
+                        add_pkt_line_string(&mut protocol_buf, format!("ACK {hash} common\n"));
                         if last_common_commit.is_empty() {
                             last_common_commit = hash.to_string();
                         }
@@ -174,7 +174,7 @@ impl SmartProtocol {
                     if self.capabilities.contains(&Capability::NoDone) {
                         // If multi_ack_detailed and no-done are both present, then the sender is free to immediately send a pack
                         // following its first "ACK obj-id ready" message.
-                        add_pkt_line_string(&mut protocol_buf, format!("ACK {} ready\n", hash));
+                        add_pkt_line_string(&mut protocol_buf, format!("ACK {hash} ready\n"));
                     }
                 }
             } else {
@@ -183,7 +183,7 @@ impl SmartProtocol {
                 let (_, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
                 pack_data = ReceiverStream::new(rx);
             }
-            add_pkt_line_string(&mut protocol_buf, format!("ACK {} \n", last_common_commit));
+            add_pkt_line_string(&mut protocol_buf, format!("ACK {last_common_commit} \n"));
         }
         Ok((pack_data, protocol_buf))
     }
@@ -299,7 +299,7 @@ impl SmartProtocol {
     pub fn build_smart_reply(&self, ref_list: &Vec<String>, service: String) -> BytesMut {
         let mut pkt_line_stream = BytesMut::new();
         if self.transport_protocol == TransportProtocol::Http {
-            add_pkt_line_string(&mut pkt_line_stream, format!("# service={}\n", service));
+            add_pkt_line_string(&mut pkt_line_stream, format!("# service={service}\n"));
             pkt_line_stream.put(&PKT_LINE_END_MARKER[..]);
         }
 
@@ -385,7 +385,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
     }
     let pkt_length = bytes.copy_to_bytes(4);
     let pkt_length = usize::from_str_radix(core::str::from_utf8(&pkt_length).unwrap(), 16)
-        .unwrap_or_else(|_| panic!("{:?} is not a valid digit?", pkt_length));
+        .unwrap_or_else(|_| panic!("{pkt_length:?} is not a valid digit?"));
     if pkt_length == 0 {
         return (0, Bytes::new());
     }

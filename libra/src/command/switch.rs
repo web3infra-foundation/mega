@@ -90,8 +90,7 @@ async fn switch_to_branch(branch_name: String) {
     if target_branch.is_none() {
         if !Branch::search_branch(&branch_name).await.is_empty() {
             eprintln!(
-                "fatal: a branch is expected, got remote branch {}",
-                branch_name
+                "fatal: a branch is expected, got remote branch {branch_name}"
             );
         } else {
             eprintln!("fatal: branch '{}' not found", &branch_name);
@@ -133,6 +132,6 @@ mod tests {
             &commit_id.to_string(),
             "./",
         ]);
-        println!("{:?}", restore_args);
+        println!("{restore_args:?}");
     }
 }

@@ -111,8 +111,7 @@ impl ObjectType {
             6 => Ok(ObjectType::OffsetDelta),
             7 => Ok(ObjectType::HashDelta),
             _ => Err(GitError::InvalidObjectType(format!(
-                "Invalid object type number: {}",
-                number
+                "Invalid object type number: {number}"
             ))),
         }
     }

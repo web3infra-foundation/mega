@@ -50,8 +50,8 @@ impl IssueStorage {
                 .filter(
                     mega_issue::Column::Id.is_in(issues.iter().map(|i| i.id).collect::<Vec<_>>()),
                 )
-                .find_with_related(label::Entity)
                 .order_by_desc(mega_issue::Column::CreatedAt)
+                .find_with_related(label::Entity)
                 .all(self.get_connection())
                 .await?;
 
@@ -137,18 +137,18 @@ impl IssueStorage {
     pub async fn add_conversation(
         &self,
         link: &str,
-        user_id: &str,
+        username: &str,
         comment: Option<String>,
         conv_type: ConvTypeEnum,
     ) -> Result<i64, MegaError> {
         let conversation = mega_conversation::Model {
             id: generate_id(),
             link: link.to_owned(),
-            user_id: user_id.to_owned(),
             conv_type,
             comment,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
+            username: username.to_owned(),
         };
         let conversation = conversation.into_active_model();
         let res = conversation.insert(self.get_connection()).await.unwrap();
@@ -201,7 +201,7 @@ impl IssueStorage {
 
     pub async fn modify_labels(
         &self,
-        user_id: &str,
+        username: &str,
         item_id: i64,
         link: &str,
         to_add: Vec<i64>,
@@ -218,8 +218,8 @@ impl IssueStorage {
 
             self.add_conversation(
                 link,
-                user_id,
-                Some(format!("{} removed {:?}", user_id, to_remove)),
+                username,
+                Some(format!("{username} removed {to_remove:?}")),
                 ConvTypeEnum::Label,
             )
             .await?;
@@ -245,8 +245,8 @@ impl IssueStorage {
                 .await?;
             self.add_conversation(
                 link,
-                user_id,
-                Some(format!("{} added {:?}", user_id, to_add)),
+                username,
+                Some(format!("{username} added {to_add:?}")),
                 ConvTypeEnum::Label,
             )
             .await?;

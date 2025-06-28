@@ -6,8 +6,8 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use callisto::{label, mega_mr};
 use callisto::sea_orm_active_enums::MergeStatusEnum;
+use callisto::{label, mega_mr};
 use common::errors::MegaError;
 use common::utils::generate_id;
 
@@ -60,15 +60,12 @@ impl MrStorage {
             .await
             .map(|m| (m, num_pages))?;
 
-        let mr_with_label: Vec<(mega_mr::Model, Vec<label::Model>)> =
-            mega_mr::Entity::find()
-                .filter(
-                    mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()),
-                )
-                .find_with_related(label::Entity)
-                .order_by_desc(mega_mr::Column::CreatedAt)
-                .all(self.get_connection())
-                .await?;
+        let mr_with_label: Vec<(mega_mr::Model, Vec<label::Model>)> = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()))
+            .order_by_desc(mega_mr::Column::CreatedAt)
+            .find_with_related(label::Entity)
+            .all(self.get_connection())
+            .await?;
         Ok((mr_with_label, page))
     }
 

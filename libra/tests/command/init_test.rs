@@ -9,7 +9,7 @@ pub fn verify_init(base_dir: &Path) {
     // Loop through the directories and verify they exist
     for dir in dirs {
         let dir_path = base_dir.join(dir);
-        assert!(dir_path.exists(), "Directory {} does not exist", dir);
+        assert!(dir_path.exists(), "Directory {dir} does not exist");
     }
 
     // Additional file verification
@@ -17,7 +17,7 @@ pub fn verify_init(base_dir: &Path) {
 
     for file in files {
         let file_path = base_dir.join(file);
-        assert!(file_path.exists(), "File {} does not exist", file);
+        assert!(file_path.exists(), "File {file} does not exist");
     }
 }
 #[tokio::test]
