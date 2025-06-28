@@ -31,7 +31,7 @@ pub async fn git_info_refs(
 
     let pkt_line_stream = pack_protocol.git_info_refs().await?;
 
-    let content_type = format!("application/x-{}-advertisement", service_name);
+    let content_type = format!("application/x-{service_name}-advertisement");
     let response = add_default_header(
         content_type,
         Response::builder()

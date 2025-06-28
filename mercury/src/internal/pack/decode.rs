@@ -134,8 +134,7 @@ impl Pack {
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackFile(format!(
-                    "Error reading magic identifier: {}",
-                    e
+                    "Error reading magic identifier: {e}"
                 )));
             }
         }
@@ -153,16 +152,14 @@ impl Pack {
                 if version != 2 {
                     // Git currently supports version 2, so error if not version 2
                     return Err(GitError::InvalidPackFile(format!(
-                        "Version Number is {}, not 2",
-                        version
+                        "Version Number is {version}, not 2"
                     )));
                 }
             }
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackFile(format!(
-                    "Error reading version number: {}",
-                    e
+                    "Error reading version number: {e}"
                 )));
             }
         }
@@ -183,8 +180,7 @@ impl Pack {
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 Err(GitError::InvalidPackFile(format!(
-                    "Error reading object number: {}",
-                    e
+                    "Error reading object number: {e}"
                 )))
             }
         }
@@ -230,8 +226,7 @@ impl Pack {
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 Err(GitError::InvalidPackFile(format!(
-                    "Decompression error: {}",
-                    e
+                    "Decompression error: {e}"
                 )))
             }
         }
@@ -261,7 +256,7 @@ impl Pack {
             Err(e) => {
                 // Handle the error e.g., by logging it or converting it to GitError
                 // and then return from the function
-                return Err(GitError::InvalidPackFile(format!("Read error: {}", e)));
+                return Err(GitError::InvalidPackFile(format!("Read error: {e}")));
             }
         };
 
@@ -489,7 +484,7 @@ impl Pack {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
                 if let Err(e) = sender.send(entry) {
-                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                    eprintln!("Channel full, failed to send entry: {e:?}");
                 }
             })
             .unwrap();
@@ -509,7 +504,7 @@ impl Pack {
             while let Some(chunk) = stream.next().await {
                 let data = chunk.unwrap().to_vec();
                 if let Err(e) = tx.send(data) {
-                    eprintln!("Sending Error: {:?}", e);
+                    eprintln!("Sending Error: {e:?}");
                     break;
                 }
             }
@@ -520,7 +515,7 @@ impl Pack {
             self.decode(&mut reader, move |entry: Entry, _| {
                 // as we used unbound channel here, it will never full so can be send with synchronous
                 if let Err(e) = sender.send(entry) {
-                    eprintln!("unbound channel Sending Error: {:?}", e);
+                    eprintln!("unbound channel Sending Error: {e:?}");
                 }
             })
             .unwrap();
@@ -613,7 +608,7 @@ impl Pack {
                 Err(err) => {
                     panic!(
                         "{}",
-                        GitError::DeltaObjectError(format!("Wrong instruction in delta :{}", err))
+                        GitError::DeltaObjectError(format!("Wrong instruction in delta :{err}"))
                     );
                 }
             };

@@ -67,7 +67,7 @@ pub async fn set_upstream(branch: &str, upstream: &str) {
         let (remote, remote_branch) = match upstream.split_once('/') {
             Some((remote, branch)) => (remote, branch),
             None => {
-                eprintln!("fatal: invalid upstream '{}'", upstream);
+                eprintln!("fatal: invalid upstream '{upstream}'");
                 return;
             }
         };
@@ -77,13 +77,12 @@ pub async fn set_upstream(branch: &str, upstream: &str) {
             "branch",
             Some(branch),
             "merge",
-            &format!("refs/heads/{}", remote_branch),
+            &format!("refs/heads/{remote_branch}"),
         )
         .await;
     }
     println!(
-        "Branch '{}' set up to track remote branch '{}'",
-        branch, upstream
+        "Branch '{branch}' set up to track remote branch '{upstream}'"
     );
 }
 
@@ -91,14 +90,14 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
     tracing::debug!("create branch: {} from {:?}", new_branch, branch_or_commit);
 
     if !is_valid_git_branch_name(&new_branch) {
-        eprintln!("fatal: invalid branch name: {}", new_branch);
+        eprintln!("fatal: invalid branch name: {new_branch}");
         return;
     }
 
     // check if branch exists
     let branch = Branch::find_branch(&new_branch, None).await;
     if branch.is_some() {
-        panic!("fatal: A branch named '{}' already exists.", new_branch);
+        panic!("fatal: A branch named '{new_branch}' already exists.");
     }
 
     let commit_id = match branch_or_commit {
@@ -107,7 +106,7 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
             match commit {
                 Ok(commit) => commit,
                 Err(e) => {
-                    eprintln!("fatal: {}", e);
+                    eprintln!("fatal: {e}");
                     return;
                 }
             }
@@ -118,7 +117,7 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
 
     // check if commit_hash exists
     let _ = load_object::<Commit>(&commit_id)
-        .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_id));
+        .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{commit_id}'"));
 
     // create branch
     Branch::update_branch(&new_branch, &commit_id.to_string(), None).await;
@@ -127,14 +126,13 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
 async fn delete_branch(branch_name: String) {
     let _ = Branch::find_branch(&branch_name, None)
         .await
-        .unwrap_or_else(|| panic!("fatal: branch '{}' not found", branch_name));
+        .unwrap_or_else(|| panic!("fatal: branch '{branch_name}' not found"));
     let head = Head::current().await;
 
     if let Head::Branch(name) = head {
         if name == branch_name {
             panic!(
-                "fatal: Cannot delete the branch '{}' which you are currently on",
-                branch_name
+                "fatal: Cannot delete the branch '{branch_name}' which you are currently on"
             );
         }
     }
@@ -150,7 +148,7 @@ async fn show_current_branch() {
             println!("HEAD detached at {}", &commit_hash.to_string()[..8]);
         }
         Head::Branch(name) => {
-            println!("{}", name);
+            println!("{name}");
         }
     }
 }
@@ -174,7 +172,7 @@ pub async fn list_branches(remotes: bool) {
     if let Head::Detached(commit) = head {
         let s = "HEAD detached at  ".to_string() + &commit.to_string()[..8];
         let s = s.green();
-        println!("{}", s);
+        println!("{s}");
     };
     let head_name = match head {
         Head::Branch(name) => name,
@@ -189,7 +187,7 @@ pub async fn list_branches(remotes: bool) {
         if head_name == name {
             println!("* {}", name.green());
         } else {
-            println!("  {}", name);
+            println!("  {name}");
         };
     }
 }

@@ -5,7 +5,7 @@ use sea_orm_migration::{
     sea_orm::{DatabaseBackend, EnumIter, Iterable},
 };
 
-use crate::migrator::pk_bigint;
+use crate::migration::pk_bigint;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

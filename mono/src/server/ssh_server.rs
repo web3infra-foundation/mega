@@ -63,7 +63,7 @@ pub async fn start_server(ctx: AppContext, command: &SshOptions) {
         smart_protocol: None,
         data_combined: BytesMut::new(),
     };
-    let server_url = format!("{}:{}", host, ssh_port);
+    let server_url = format!("{host}:{ssh_port}");
     let addr = SocketAddr::from_str(&server_url).unwrap();
     ssh_server.run_on_address(ru_config, addr).await.unwrap();
 }
@@ -87,7 +87,7 @@ pub fn load_key(ctx: AppContext) -> PrivateKey {
         match ctx.vault.write_secret("ssh_server_key", Some(secret)) {
             Ok(_) => keys,
             Err(e) => {
-                panic!("Failed to write SSH server key to vault: {}", e);
+                panic!("Failed to write SSH server key to vault: {e}");
             }
         }
     }

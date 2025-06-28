@@ -20,7 +20,7 @@ pub fn get_available_port() -> Result<u16, String> {
             let port = listener.local_addr().unwrap().port();
             Ok(port)
         }
-        Err(e) => Err(format!("Failed to bind to a port: {}", e)),
+        Err(e) => Err(format!("Failed to bind to a port: {e}")),
     }
 }
 
@@ -101,12 +101,12 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     }
     // Start with format `version ...`
     if let Some(data) =
-        data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes())
+        data.strip_prefix(format!("version {LFS_VERSION}\noid {LFS_HASH_ALGO}:").as_bytes())
     {
         if data.len() > LFS_OID_LEN && data[LFS_OID_LEN] == b'\n' {
             // check `oid` length
             let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
-            if let Some(data) = data.strip_prefix(format!("{}\nsize ", oid).as_bytes()) {
+            if let Some(data) = data.strip_prefix(format!("{oid}\nsize ").as_bytes()) {
                 let data = String::from_utf8(data[..].to_vec()).unwrap();
                 if let Ok(size) = data.trim_end().parse::<u64>() {
                     return Some((oid, size));

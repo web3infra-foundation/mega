@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*, sea_orm::DatabaseBackend};
 
-use crate::migrator::pk_bigint;
+use crate::migration::pk_bigint;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

@@ -42,7 +42,7 @@ pub async fn http_server(context: AppContext, options: HttpOptions) {
 
     let app = app(context.storage, host.clone(), port, p2p.clone()).await;
 
-    let server_url = format!("{}:{}", host, port);
+    let server_url = format!("{host}:{port}");
 
     let listener = tokio::net::TcpListener::bind(server_url).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -61,7 +61,7 @@ pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> 
         storage: storage.clone(),
         oauth_client: None,
         store: None,
-        listen_addr: format!("http://{}:{}", host, port),
+        listen_addr: format!("http://{host}:{port}"),
     };
 
     let mega_api_state = MegaApiServiceState {

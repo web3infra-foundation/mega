@@ -29,7 +29,7 @@ pub async fn execute(command: RemoteCmds) {
         }
         RemoteCmds::Remove { name } => {
             if let Err(e) = Config::remove_remote(&name).await {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
         }
         RemoteCmds::List => {
@@ -52,13 +52,13 @@ async fn show_remote_verbose(remote: &str) {
     let urls = Config::get_all("remote", Some(remote), "url").await;
     match urls.first() {
         Some(url) => {
-            println!("{} {} (fetch)", remote, url);
+            println!("{remote} {url} (fetch)");
         }
         None => {
-            eprintln!("fatal: no URL configured for remote '{}'", remote);
+            eprintln!("fatal: no URL configured for remote '{remote}'");
         }
     }
     for url in urls {
-        println!("{} {} (push)", remote, url);
+        println!("{remote} {url} (push)");
     }
 }

@@ -109,7 +109,7 @@ fn run_libra_cmd_with_stdin(args: &[&str], stdin: Option<&str>, envs: Option<Vec
 
 fn is_port_in_use(port: u16) -> bool {
     TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", port).parse().unwrap(),
+        &format!("127.0.0.1:{port}").parse().unwrap(),
         Duration::from_millis(1000),
     )
     .is_ok()
@@ -121,14 +121,14 @@ fn run_mega_server(data_dir: &Path, http_port: u16) -> ChildGuard {
         panic!("mega binary not found in \"target/debug/\", skip lfs test");
     }
     if is_port_in_use(http_port) {
-        panic!("port {} is already in use", http_port);
+        panic!("port {http_port} is already in use");
     }
 
     // env var can be shared between parent and child process
     env::set_var("MEGA_BASE_DIR", data_dir);
 
     let server = Command::new(MEGA.to_str().unwrap())
-        .args(["service", "multi", "http", "-p", &format!("{}", http_port)])
+        .args(["service", "multi", "http", "-p", &format!("{http_port}")])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .spawn()
         .expect("Failed to start mega server");
@@ -140,7 +140,7 @@ fn run_mega_server(data_dir: &Path, http_port: u16) -> ChildGuard {
         i += 1;
     }
     assert!(is_port_in_use(http_port), "mega server not started");
-    println!("mega server started in {} secs", i);
+    println!("mega server started in {i} secs");
     thread::sleep(Duration::from_secs(1));
 
     // server
@@ -165,7 +165,7 @@ fn generate_large_file(path: &str, size_mb: usize) -> io::Result<()> {
 fn git_lfs_push(url: &str, lfs_url: &str) -> io::Result<()> {
     let temp_dir = TempDir::new()?;
     let repo_path = temp_dir.path().to_str().unwrap();
-    println!("repo_path: {}", repo_path);
+    println!("repo_path: {repo_path}");
 
     // git init
     run_git_cmd(&["init", repo_path]);
@@ -193,7 +193,7 @@ fn git_lfs_push(url: &str, lfs_url: &str) -> io::Result<()> {
 fn libra_lfs_push(url: &str) -> io::Result<()> {
     let temp_dir = TempDir::new()?;
     let repo_path = temp_dir.path().to_str().unwrap();
-    println!("repo_path: {}", repo_path);
+    println!("repo_path: {repo_path}");
 
     env::set_current_dir(repo_path)?;
 
@@ -228,7 +228,7 @@ fn git_lfs_clone(url: &str, lfs_url: &str) -> io::Result<()> {
     env::set_current_dir(temp_dir.path())?;
     // git clone url
     // `--config`: temporary set lfs.url
-    run_git_cmd(&["clone", url, "--config", &format!("lfs.url={}", lfs_url)]);
+    run_git_cmd(&["clone", url, "--config", &format!("lfs.url={lfs_url}")]);
 
     let file = Path::new("lfs/large_file.bin");
     assert!(file.exists(), "Failed to clone large file");
@@ -267,8 +267,8 @@ fn lfs_split_with_git() {
                                                                     // start mega server at background (new process)
     let mega = run_mega_server(mega_dir.path(), 58001);
     let mega_start_port = 58001;
-    let url = &format!("http://localhost:{}/third-party/lfs.git", mega_start_port);
-    let lfs_url = format!("http://localhost:{}", mega_start_port);
+    let url = &format!("http://localhost:{mega_start_port}/third-party/lfs.git");
+    let lfs_url = format!("http://localhost:{mega_start_port}");
     let push_result = git_lfs_push(url, &lfs_url);
     let clone_result = git_lfs_clone(url, &lfs_url);
 
@@ -315,7 +315,7 @@ async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
         panic!("mega binary not found in \"target/debug/\", skip lfs test");
     }
     if is_port_in_use(mapping_port) {
-        panic!("port {} is already in use", mapping_port);
+        panic!("port {mapping_port} is already in use");
     }
     let port_str = mapping_port.to_string();
     let cmd = vec![
@@ -357,7 +357,7 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
     let container = mega_container(mapping_port).await;
     let mega_ip = container.get_bridge_ip_address().await.unwrap();
     let mega_port: u16 = container.get_host_port_ipv4(mapping_port).await.unwrap();
-    (container, format!("http://{}:{}", mega_ip, mega_port))
+    (container, format!("http://{mega_ip}:{mega_port}"))
 }
 
 #[tokio::test]
@@ -365,13 +365,13 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 ///Use container to run mega server and test lfs_split
 async fn test_lfs_split_with_containers() {
     let (_container, mega_server_url) = mega_bootstrap_servers(10000).await;
-    println!("container: {}", mega_server_url);
+    println!("container: {mega_server_url}");
     test_git_lfs_split(&mega_server_url);
     test_libra_lfs_split(&mega_server_url);
 }
 
 fn test_git_lfs_split(mega_server_url: &str) {
-    let url = &format!("{}/third-party/lfs.git", mega_server_url);
+    let url = &format!("{mega_server_url}/third-party/lfs.git");
     let push_result = git_lfs_push(url, mega_server_url);
     let clone_result = git_lfs_clone(url, mega_server_url);
     push_result.expect("Failed to push large file to mega server");
@@ -379,7 +379,7 @@ fn test_git_lfs_split(mega_server_url: &str) {
 }
 
 fn test_libra_lfs_split(mega_server_url: &str) {
-    let url = &format!("{}/third-party/lfs-libra.git", mega_server_url);
+    let url = &format!("{mega_server_url}/third-party/lfs-libra.git");
     let push_result = libra_lfs_push(url);
     let clone_result = libra_lfs_clone(url);
     push_result.expect("Failed to push large file to mega server");

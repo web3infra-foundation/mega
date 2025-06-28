@@ -171,7 +171,7 @@ impl Default for Config {
             .lines()
             .map(|line| {
                 if line.starts_with("base_dir ") {
-                    format!("base_dir = {:?}", base_dir)
+                    format!("base_dir = {base_dir:?}")
                 } else {
                     line.to_string()
                 }
@@ -257,7 +257,7 @@ fn traverse_config(key: &str, value: &c::Value, f: &impl Fn(&str, &c::Value)) {
                 let new_key = if key.is_empty() {
                     k.clone()
                 } else {
-                    format!("{}.{}", key, k)
+                    format!("{key}.{k}")
                 };
                 traverse_config(&new_key, v, f);
             }
@@ -424,7 +424,7 @@ impl PackConfig {
             let percentage: f64 = size_str
                 .trim_end_matches('%')
                 .parse()
-                .map_err(|_| format!("Invalid percentage: {}", size_str))?;
+                .map_err(|_| format!("Invalid percentage: {size_str}"))?;
             let total_mem = fn_get_total_capacity()?;
 
             return Ok((total_mem as f64 * percentage / 100.0) as usize);
@@ -457,7 +457,7 @@ impl PackConfig {
 
         let value: f64 = number
             .parse()
-            .map_err(|_| format!("Invalid size: {}", size_str))?;
+            .map_err(|_| format!("Invalid size: {size_str}"))?;
         let unit = chars.collect::<String>().to_uppercase();
 
         // For compatibility,
@@ -476,7 +476,7 @@ impl PackConfig {
             "MIB" | "M" => value * 1_024.0 * 1_024.0,
             "GIB" | "G" => value * 1_024.0 * 1_024.0 * 1_024.0,
             "TIB" | "T" => value * 1_099_511_627_776.0,
-            _ => Err(format!("Invalid unit: {}", unit))?,
+            _ => Err(format!("Invalid unit: {unit}"))?,
         };
 
         Ok(bytes as usize)

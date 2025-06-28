@@ -75,8 +75,7 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
 
 pub fn format_pointer_string(oid: &str, size: u64) -> String {
     format!(
-        "version {}\noid {}:{}\nsize {}\n",
-        LFS_VERSION, LFS_HASH_ALGO, oid, size
+        "version {LFS_VERSION}\noid {LFS_HASH_ALGO}:{oid}\nsize {size}\n"
     )
 }
 
@@ -212,12 +211,12 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     }
     // Start with format `version ...`
     if let Some(data) =
-        data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes())
+        data.strip_prefix(format!("version {LFS_VERSION}\noid {LFS_HASH_ALGO}:").as_bytes())
     {
         if data[LFS_OID_LEN] == b'\n' {
             // check `oid` length
             let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
-            if let Some(data) = data.strip_prefix(format!("{}\nsize ", oid).as_bytes()) {
+            if let Some(data) = data.strip_prefix(format!("{oid}\nsize ").as_bytes()) {
                 let data = String::from_utf8(data[..].to_vec()).unwrap();
                 if let Ok(size) = data.trim_end().parse::<u64>() {
                     return Some((oid, size));
@@ -289,7 +288,7 @@ mod tests {
             .unwrap();
 
         let (pointer, _oid) = generate_pointer_file(path);
-        print!("{}", pointer);
+        print!("{pointer}");
     }
 
     #[test]
@@ -340,7 +339,7 @@ oid sha256:4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba
 size 10
 "#;
         let res = parse_pointer_data(data.as_bytes()).unwrap();
-        println!("{:?}", res);
+        println!("{res:?}");
         assert_eq!(
             res.0,
             "4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba"

@@ -122,7 +122,7 @@ impl PackHandler for ImportRepo {
                         let entry = c.into();
                         entry_tx.send(entry).await.unwrap();
                     }
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
             tracing::info!("send commits end");
@@ -135,7 +135,7 @@ impl PackHandler for ImportRepo {
                         let entry = t.into();
                         entry_tx.send(entry).await.unwrap();
                     }
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
             tracing::info!("send trees end");
@@ -145,7 +145,7 @@ impl PackHandler for ImportRepo {
             while let Some(model) = bid_stream.next().await {
                 match model {
                     Ok(m) => bids.push(m.blob_id),
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
 
@@ -164,7 +164,7 @@ impl PackHandler for ImportRepo {
                             let entry: Entry = b.into();
                             sender_clone.send(entry).await.unwrap();
                         }
-                        Err(err) => eprintln!("Error: {:?}", err),
+                        Err(err) => eprintln!("Error: {err:?}"),
                     }
                 }
                 // });
@@ -383,7 +383,7 @@ impl ImportRepo {
         let new_commit = Commit::from_tree_id(
             save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &format!("\n{}", commit_msg),
+            &format!("\n{commit_msg}"),
         );
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
@@ -415,7 +415,7 @@ mod test {
         let path = PathBuf::from("/third-party/crates/tokio/tokio-console");
         let ancestors: Vec<_> = path.ancestors().collect();
         for path in ancestors.into_iter() {
-            println!("{:?}", path);
+            println!("{path:?}");
         }
     }
 }

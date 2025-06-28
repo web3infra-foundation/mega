@@ -127,7 +127,7 @@ pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
     let path = path.as_ref();
     fs::create_dir_all(path.parent().unwrap()).unwrap(); // ensure父目录
     let mut file = fs::File::create(util::working_dir().join(path))
-        .unwrap_or_else(|_| panic!("Cannot create file：{:?}", path));
+        .unwrap_or_else(|_| panic!("Cannot create file：{path:?}"));
     if let Some(content) = content {
         file.write_all(content.as_bytes()).unwrap();
     } else {

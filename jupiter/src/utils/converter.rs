@@ -28,7 +28,7 @@ pub fn init_trees(mono_config: &MonoConfig) -> (HashMap<SHA1, Tree>, HashMap<SHA
     let mut blobs = Vec::new();
     for dir in mono_config.root_dirs.clone() {
         let entity_str =
-            saturn::entitystore::generate_entity(&mono_config.admin, &format!("/{}", dir)).unwrap();
+            saturn::entitystore::generate_entity(&mono_config.admin, &format!("/{dir}")).unwrap();
         let blob = Blob::from_content(&entity_str);
 
         let tree_item = TreeItem {

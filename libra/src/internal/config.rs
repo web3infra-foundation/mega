@@ -99,7 +99,7 @@ impl Config {
     pub async fn get_remote_url(remote: &str) -> String {
         match Config::get("remote", Some(remote), "url").await {
             Some(url) => url,
-            None => panic!("fatal: No URL configured for remote '{}'.", remote),
+            None => panic!("fatal: No URL configured for remote '{remote}'."),
         }
     }
 
@@ -181,7 +181,7 @@ impl Config {
             .await
             .unwrap();
         if remote.is_empty() {
-            return Err(format!("fatal: No such remote: {}", name));
+            return Err(format!("fatal: No such remote: {name}"));
         }
         for r in remote {
             let r: ActiveModel = r.into();

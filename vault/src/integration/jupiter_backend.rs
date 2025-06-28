@@ -23,7 +23,7 @@ impl Backend for JupiterBackend {
                 match service.list_keys(prefix).await {
                     Ok(keys) => Ok(keys),
                     Err(e) => {
-                        println!("list {:?}", e);
+                        println!("list {e:?}");
                         Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
                     }
                 }
@@ -53,7 +53,7 @@ impl Backend for JupiterBackend {
                     }
                     Ok(None) => Ok(None),
                     Err(e) => {
-                        println!("get {:?}", e);
+                        println!("get {e:?}");
                         Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
                     }
                 }
@@ -61,7 +61,7 @@ impl Backend for JupiterBackend {
         })
         .join()
         .inspect_err(|e| {
-            eprintln!("Error in JupiterBackend::get: {:?}", e);
+            eprintln!("Error in JupiterBackend::get: {e:?}");
         })
         .unwrap()
     }
@@ -79,7 +79,7 @@ impl Backend for JupiterBackend {
                 match service.save(entry_clone.key, entry_clone.value).await {
                     Ok(_) => Ok(()),
                     Err(e) => {
-                        println!("put {:?}", e);
+                        println!("put {e:?}");
                         Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
                     }
                 }
@@ -99,7 +99,7 @@ impl Backend for JupiterBackend {
                 match service.delete(key).await {
                     Ok(_) => Ok(()),
                     Err(e) => {
-                        println!("delete {:?}", e);
+                        println!("delete {e:?}");
                         Err(rusty_vault::errors::RvError::ErrAuthModuleDisabled)
                     }
                 }
