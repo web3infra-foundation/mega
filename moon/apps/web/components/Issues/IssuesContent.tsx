@@ -4,7 +4,14 @@ import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 
 import { SyncOrganizationMember as Member, PostApiIssueListData } from '@gitmono/types/generated'
-import { Button, ChatBubbleIcon, CheckCircleFilledFlushIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
+import {
+  Button,
+  ChatBubbleIcon,
+  CheckCircleFilledFlushIcon,
+  ChevronDownIcon,
+  CircleFilledCloseIcon,
+  OrderedListIcon
+} from '@gitmono/ui'
 import { Link } from '@gitmono/ui/Link'
 
 // import { MenuItem } from '@gitmono/ui/Menu'
@@ -285,6 +292,19 @@ export function IssuesContent({ searching }: Props) {
     return <EmptySearchResults />
   }
 
+  const getStatusIcon = (status: string) => {
+    const normalizedStatus = status.toLowerCase()
+
+    switch (normalizedStatus) {
+      case 'open':
+        return <CircleFilledCloseIcon color='#f44613' />
+      case 'closed':
+        return <CheckCircleFilledFlushIcon color='#378f50' size={16} />
+      default:
+        return null
+    }
+  }
+
   return (
     <>
       {/* TODO:Searching logic need to be completed */}
@@ -315,7 +335,7 @@ export function IssuesContent({ searching }: Props) {
                   <ListItem
                     key={i.link}
                     title={i.title}
-                    leftIcon={<CheckCircleFilledFlushIcon color='#378f50' size={16} />}
+                    leftIcon={getStatusIcon(i.status)}
                     rightIcon={<RightAvatar member={members[0]} />}
                   >
                     <div className='text-xs text-[#59636e]'>
