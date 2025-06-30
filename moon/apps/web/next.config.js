@@ -118,7 +118,8 @@ const moduleExports = {
     '@gitmono/config',
     '@gitmono/regex',
     '@gitmono/editor',
-    'react-tweet'
+    'react-tweet',
+    '@primer/react'
   ],
   reactStrictMode: true,
   images: {
