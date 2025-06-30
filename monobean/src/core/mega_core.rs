@@ -9,7 +9,8 @@ use ceres::api_service::ApiHandler;
 use ceres::protocol::repo::Repo;
 use common::config::Config;
 use common::model::P2pOptions;
-use jupiter::context::Context as MegaContext;
+// use jupiter::context::Context as MegaContext;
+use context::AppContext as MegaContext;
 use mercury::internal::object::tree::Tree;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -19,6 +20,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{oneshot, OnceCell, RwLock};
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
+use vault::integration::vault_core::VaultCore;
 
 pub struct MegaCore {
     config: Arc<RwLock<Config>>,
@@ -145,20 +147,30 @@ impl MegaCore {
                     chan.send(Err(MonoBeanError::ReinitError)).unwrap();
                     return;
                 }
+                
+                
+                let guard = self.running_context.read().await;
+                let vault_core = if let Some(ctx) = guard.as_ref() {
+                    &ctx.vault  
+                } else {
+                    return;
+                };
 
-                if let Some(pk) = vault::pgp::load_pub_key().await {
-                    let sk = vault::pgp::load_sec_key().await.unwrap();
+               
+
+                if let Some(pk) = vault_core.load_pub_key() {
+                    let sk = vault_core.load_sec_key().await.unwrap();
                     chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 } else {
                     let uid = format!("{} <{}>", user_name, user_email);
-                    let params = vault::pgp::params(
+                    let params = VaultCore::params(
                         vault::pgp::KeyType::Rsa(2048),
                         passwd.clone(),
                         uid.as_ref(),
                     );
-                    let (pk, sk) = vault::pgp::gen_pgp_keypair(params, passwd);
-                    vault::pgp::save_keys(pk.clone(), sk.clone()).await;
+                    let (pk, sk) = vault_core.gen_pgp_keypair(params, passwd);
+                    vault_core.save_keys(pk.clone(), sk.clone());
                     chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 }
@@ -190,9 +202,16 @@ impl MegaCore {
             self.initialized.store(true, Ordering::Release);
         }
 
+        let guard = self.running_context.read().await;
+        let vault_core = if let Some(ctx) = guard.as_ref() {
+                    &ctx.vault  
+                } else {
+                    return;
+                };       
+
         // Try to load pgp keys from vault.
-        if let Some(pk) = vault::pgp::load_pub_key().await {
-            let sk = vault::pgp::load_sec_key().await.unwrap();
+        if let Some(pk) = vault_core.load_pub_key(){
+            let sk = vault_core.load_sec_key().await.unwrap();
             self.pgp.set((pk, sk)).unwrap();
             tracing::debug!("Loaded pgp keys from vault");
         }
@@ -211,13 +230,14 @@ impl MegaCore {
             return Err(MonoBeanError::MegaCoreError(err.to_string()));
         }
 
-        let config: Arc<Config> = self.config.read().await.clone().into();
+        // let config: Arc<Config> = self.config.read().await.clone().into();
+        let config = self.config.read().await.clone();
         let inner = MegaContext::new(config.clone()).await;
-        inner
-            .services
-            .mono_storage
-            .init_monorepo(&config.monorepo)
-            .await;
+        // inner
+        //     .services
+        //     .mono_storage
+        //     .init_monorepo(&config.monorepo)
+        //     .await;
 
         let http_ctx = inner.clone();
         *self.http_options.write().await = http_addr
@@ -281,7 +301,8 @@ impl MegaCore {
 
         if path.as_ref().starts_with(&import_dir) && path.as_ref() != import_dir {
             if let Some(model) = ctx
-                .services
+                .storage
+                .services.as_ref()
                 .git_db_storage
                 .find_git_repo_like_path(path.as_ref().to_string_lossy().as_ref())
                 .await
@@ -289,13 +310,13 @@ impl MegaCore {
             {
                 let repo: Repo = model.into();
                 return Ok(Box::new(ImportApiService {
-                    context: ctx.clone(),
+                    storage: ctx.storage.clone(),
                     repo,
                 }));
             }
         }
         let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
-            context: ctx.clone(),
+            storage: ctx.storage.clone(),
         });
 
         // Rust-analyzer cannot infer the type of `ret` correctly and always reports an error.
@@ -328,7 +349,7 @@ impl MegaCore {
 
     async fn load_blob(&self, id: impl AsRef<str>) -> MonoBeanResult<String> {
         let ctx = self.running_context.read().await.clone().unwrap();
-        let mono = MonoApiService { context: ctx };
+        let mono = MonoApiService {storage: ctx.storage };
         let raw = mono
             .get_raw_blob_by_hash(id.as_ref())
             .await
@@ -500,6 +521,7 @@ mod tests {
     #[tokio::test]
     async fn test_launch_http() {
         let temp_base = TempDir::new().unwrap();
+        
         let core = test_core(&temp_base).await;
         core.process_command(MegaCommands::MegaStart(
             Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),

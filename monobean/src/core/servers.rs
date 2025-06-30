@@ -2,7 +2,8 @@ use crate::error::MonoBeanResult;
 use bytes::BytesMut;
 use common::model::P2pOptions;
 use gateway::https_server::{app, check_run_with_p2p};
-use jupiter::context::Context as MegaContext;
+// use jupiter::context::Context as MegaContext;
+use context::AppContext as MegaContext;
 use mono::git_protocol::ssh::SshServer;
 use russh::server::Server;
 use std::collections::HashMap;
@@ -31,7 +32,7 @@ impl HttpOptions {
 
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
         let app = app(
-            mega_ctx.clone(),
+            mega_ctx.storage.clone(),
             self.addr.ip().to_string(),
             self.addr.port(),
             self.p2p.clone(),
@@ -88,7 +89,7 @@ impl SshOptions {
         // Use rusty vault configurations...
         let (tx, mut rx) = mpsc::channel::<()>(1);
         self.abort.set(tx).unwrap();
-        let key = mono::server::ssh_server::load_key().await;
+        let key = mono::server::ssh_server::load_key(mega_ctx.clone());
         let ssh_config = russh::server::Config {
             auth_rejection_time: std::time::Duration::from_secs(3),
             keys: vec![key],
@@ -100,7 +101,7 @@ impl SshOptions {
         let mut ssh_server = SshServer {
             clients: Arc::new(Mutex::new(HashMap::new())),
             id: 0,
-            context: mega_ctx,
+            storage: mega_ctx.storage.clone(),
             smart_protocol: None,
             data_combined: BytesMut::new(),
         };
