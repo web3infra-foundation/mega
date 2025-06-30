@@ -201,7 +201,7 @@ impl MegaCore {
         } else {
             self.initialized.store(true, Ordering::Release);
         }
-
+        
         let guard = self.running_context.read().await;
         let vault_core = if let Some(ctx) = guard.as_ref() {
                     &ctx.vault  
@@ -229,16 +229,17 @@ impl MegaCore {
             tracing::error!(err);
             return Err(MonoBeanError::MegaCoreError(err.to_string()));
         }
-
+        
         // let config: Arc<Config> = self.config.read().await.clone().into();
         let config = self.config.read().await.clone();
+        
         let inner = MegaContext::new(config.clone()).await;
         // inner
         //     .services
         //     .mono_storage
         //     .init_monorepo(&config.monorepo)
         //     .await;
-
+        
         let http_ctx = inner.clone();
         *self.http_options.write().await = http_addr
             .map(|addr| HttpOptions::new(addr, p2p_opt))
@@ -255,7 +256,7 @@ impl MegaCore {
                 }
             }
         });
-
+        
         let ssh_ctx = inner.clone();
         let ssh_opt = ssh_addr.map(SshOptions::new).or(None);
         *self.ssh_options.write().await = ssh_opt;
@@ -271,7 +272,7 @@ impl MegaCore {
                 }
             }
         });
-
+        
         *self.running_context.write().await = Some(inner);
         Ok(())
     }
@@ -476,6 +477,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
     use tempfile::TempDir;
 
+    
     async fn test_core(temp_base: &TempDir) -> MegaCore {
         let (tx, _) = bounded(1);
         let (_, cmd_rx) = bounded(1);
@@ -495,6 +497,7 @@ mod tests {
         };
 
         let core = MegaCore::new(tx, cmd_rx, config);
+        println!("core start ok");
         core.init().await;
         core
     }
@@ -520,9 +523,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_launch_http() {
-        let temp_base = TempDir::new().unwrap();
         
+        let temp_base = TempDir::new().unwrap();
+    
         let core = test_core(&temp_base).await;
+        println!("temp_base: {:?}", temp_base.path());
+        
+        
         core.process_command(MegaCommands::MegaStart(
             Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
             None,
@@ -531,7 +538,7 @@ mod tests {
         .await;
         assert!(core.http_options.read().await.is_some());
         assert!(!core.ssh_options.read().await.is_some());
-
+        
         core.process_command(MegaCommands::MegaShutdown).await;
         assert!(core.http_options.read().await.is_none());
         assert!(core.ssh_options.read().await.is_none());
@@ -557,4 +564,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_config() {}
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_mega_context_new() {
+        // 创建临时目录作为 base_dir
+        let temp_base = TempDir::new().unwrap();
+
+        // 构造一个简单的 Config
+        let config = Config {
+            base_dir: temp_base.path().to_path_buf(),
+            log: LogConfig {
+                log_path: temp_base.path().to_path_buf(),
+                level: "debug".to_string(),
+                print_std: true,
+            },
+            database: DbConfig {
+                db_type: "sqlite".to_string(),
+                db_path: temp_base.path().to_path_buf().join("test.db"),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        eprintln!("排查阻塞");
+        // 调用 MegaContext::new
+        let ctx = MegaContext::new(config).await;
+
+        
+    }
 }

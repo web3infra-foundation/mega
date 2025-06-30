@@ -1,8 +1,5 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
-
+use std::{path::PathBuf, result, sync::{Arc, RwLock}};
+use std::sync::{Mutex, OnceLock};
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
@@ -17,6 +14,8 @@ use serde_json::{Map, Value};
 use tracing::log;
 
 const CORE_KEY_FILE: &str = "core_key.json"; // where the core key is stored, like `root_token`
+
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CoreKey {
@@ -51,9 +50,10 @@ impl VaultCore {
     pub fn new(ctx: Storage) -> Self {
         let dir = common::config::mega_base().join("vault");
         let key_path = dir.join(CORE_KEY_FILE);
-
+        println!("{:?}", key_path);
         std::fs::create_dir_all(&dir).expect("Failed to create vault directory");
-        Self::config(ctx, key_path)
+        let result = Self::config(ctx.clone(), key_path);
+        result
     }
 
     fn config(ctx: Storage, key_path: PathBuf) -> Self {
@@ -71,6 +71,7 @@ impl VaultCore {
         };
         let core = Arc::new(RwLock::new(core));
 
+        
         let key = {
             let mut managed_core = core.write().unwrap();
             managed_core
@@ -78,6 +79,9 @@ impl VaultCore {
                 .expect("Failed to configure vault core");
 
             let core_key = if !key_path.exists() {
+                
+                let _guard = INIT_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap();
+                
                 let result = managed_core
                     .init(&seal_config)
                     .expect("Failed to initialize vault");
@@ -85,9 +89,9 @@ impl VaultCore {
                     secret_shares: Vec::from(&result.secret_shares[..]),
                     root_token: result.root_token,
                 };
-                let file = std::fs::File::create(key_path).unwrap();
+                println!("[vault] Creating new core_key.json at: {}", key_path.display());
+                let file = std::fs::File::create(&key_path).unwrap();
                 serde_json::to_writer_pretty(file, &core_key).unwrap();
-
                 core_key
             } else {
                 println!("Using existing vault core key file: {}", key_path.display());
@@ -110,7 +114,6 @@ impl VaultCore {
 
             core_key.into()
         };
-
         Self { core, key }
     }
 }
@@ -182,11 +185,13 @@ mod tests {
 
     use super::*;
     use std::collections::HashMap;
+    use tempfile::TempDir;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_core_initialization() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let key_path = temp_dir.path().join(CORE_KEY_FILE);
+        println!("Key path: {:?}", key_path);
         let storage = test_storage(temp_dir.path()).await;
         let vault_core = VaultCore::config(storage, key_path);
 
@@ -200,6 +205,16 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_vault_core_new() {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let key_path = temp_dir.path().join(CORE_KEY_FILE);
+        println!("Key path: {:?}", key_path);
+        let storage = test_storage(temp_dir.path()).await;
+        let vault_core = VaultCore::new(storage);
+        
+    }
+    
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_api() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
