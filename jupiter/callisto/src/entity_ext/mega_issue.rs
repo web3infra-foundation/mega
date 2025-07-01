@@ -21,6 +21,10 @@ impl Related<crate::label::Entity> for Entity {
     }
 
     fn via() -> Option<RelationDef> {
-        Some(crate::entity_ext::item_labels::Relation::MegaIssue.def().rev())
+        Some(
+            crate::entity_ext::item_labels::Relation::MegaIssue
+                .def()
+                .rev(),
+        )
     }
 }

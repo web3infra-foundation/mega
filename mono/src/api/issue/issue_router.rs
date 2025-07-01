@@ -107,10 +107,7 @@ async fn new_issue(
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let stg = state.issue_stg().clone();
-    let res = stg
-        .save_issue(&user.username, &json.title)
-        .await
-        .unwrap();
+    let res = stg.save_issue(&user.username, &json.title).await.unwrap();
     let _ = stg
         .add_conversation(
             &res.link,

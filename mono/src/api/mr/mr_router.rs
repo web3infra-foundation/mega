@@ -157,10 +157,7 @@ async fn merge(
         )
         .await
         .unwrap();
-        state
-            .monorepo()
-            .merge_mr(&user.username, model)
-            .await?;
+        state.monorepo().merge_mr(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))
 }

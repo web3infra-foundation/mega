@@ -10,8 +10,11 @@ use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_
 use observatory::facilities::Telescope;
 use observatory::model::crates::CrateMessage;
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
 
@@ -25,34 +28,52 @@ fn main() {
     env::set_var("RUST_LOG", "INFO");
     env_logger::init();
 
+    // 1. Initialize the shared atomic counter once at the start.
+    let id_path = "/opt/data/last_id.json";
+    let initial_id = fs::read_to_string(id_path)
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let shared_id_counter = Arc::new(AtomicU64::new(initial_id));
+
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let telescope = Telescope::new(BROKER, CONSUMER_GROUP, TOPIC);
+
+        // 1. Clone the Arc *before* the loop's closure.
+        // This clone is moved into the closure, allowing the original to remain.
+        let id_counter_for_loop = Arc::clone(&shared_id_counter);
+
         telescope
-            .consume_loop(|payload: String| async move {
-                println!("✅ Received: {}", payload);
+            .consume_loop(move |payload: String| {
+                // 2. Clone the Arc again *inside* the closure for each task.
+                // This ensures each spawned task gets its own reference.
+                let id_counter_for_task = Arc::clone(&id_counter_for_loop);
+                async move {
+                    println!("✅ Received: {}", payload);
 
-                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
-                let file_path = get_file_path(
-                    &PathBuf::from(CRATES_PATH),
-                    &crate_msg.crate_name,
-                    &crate_msg.crate_version,
-                );
-                println!("📦 File path: {:?}", file_path);
+                    let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
+                    let file_path = get_file_path(
+                        &PathBuf::from(CRATES_PATH),
+                        &crate_msg.crate_name,
+                        &crate_msg.crate_version,
+                    );
+                    println!("📦 File path: {:?}", file_path);
 
-                tokio::spawn(async move {
-                    tokio::task::spawn_blocking(move || {
-                        update_knowledge_base(&file_path);
-                    })
-                    .await
-                    .unwrap();
-                });
+                    tokio::spawn(async move {
+                        tokio::task::spawn_blocking(move || {
+                            update_knowledge_base(&file_path, id_counter_for_task);
+                        })
+                        .await
+                        .unwrap();
+                    });
+                }
             })
             .await;
     });
 }
 
-fn update_knowledge_base(file_path: &PathBuf) {
+fn update_knowledge_base(file_path: &PathBuf, id_counter: Arc<AtomicU64>) {
     log::info!("Start updating knowledge base...");
     let indexer = CodeIndexer::new(file_path);
     log::info!("Start indexing directory: {:?}", indexer.crate_path);
@@ -85,7 +106,8 @@ fn update_knowledge_base(file_path: &PathBuf) {
     );
     let vect_client_id = vect_client_node.id();
 
-    let qdrant = QdrantNode::new(QDRANT_URL, "test_test_code_items");
+    // 3. Pass the shared counter to the QdrantNode constructor.
+    let qdrant = QdrantNode::new(QDRANT_URL, "test_test_code_items", id_counter);
     let qdrant_node = DefaultNode::with_action("qdrant".to_string(), qdrant, &mut index_node_table);
     let qdrant_id = qdrant_node.id();
 

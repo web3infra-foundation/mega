@@ -81,9 +81,7 @@ pub async fn set_upstream(branch: &str, upstream: &str) {
         )
         .await;
     }
-    println!(
-        "Branch '{branch}' set up to track remote branch '{upstream}'"
-    );
+    println!("Branch '{branch}' set up to track remote branch '{upstream}'");
 }
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
@@ -131,9 +129,7 @@ async fn delete_branch(branch_name: String) {
 
     if let Head::Branch(name) = head {
         if name == branch_name {
-            panic!(
-                "fatal: Cannot delete the branch '{branch_name}' which you are currently on"
-            );
+            panic!("fatal: Cannot delete the branch '{branch_name}' which you are currently on");
         }
     }
 

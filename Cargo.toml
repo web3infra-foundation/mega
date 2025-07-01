@@ -13,7 +13,6 @@ members = [
     "saturn",
     "orion",
     "orion-server",
-    "third-party",
     "extensions/rag/chat",
     "extensions/rag/index",
     "extensions/observatory",

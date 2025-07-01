@@ -68,9 +68,7 @@ pub async fn execute(args: FetchArgs) {
             Some(remote_config) => fetch_repository(&remote_config, args.refspec).await,
             None => {
                 tracing::error!("remote config '{}' not found", remote);
-                eprintln!(
-                    "fatal: '{remote}' does not appear to be a libra repository"
-                );
+                eprintln!("fatal: '{remote}' does not appear to be a libra repository");
             }
         }
     }

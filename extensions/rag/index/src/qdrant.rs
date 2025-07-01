@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use qdrant_client::Qdrant;
+use std::fs;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::utils::CodeItem;
@@ -10,14 +12,16 @@ use crate::VECT_CLIENT_NODE;
 pub struct QdrantNode {
     client: Qdrant,
     collection_name: String,
+    id_counter: Arc<AtomicU64>,
 }
 
 impl QdrantNode {
-    pub fn new(url: &str, collection_name: &str) -> Self {
+    pub fn new(url: &str, collection_name: &str, id_counter: Arc<AtomicU64>) -> Self {
         let client = Qdrant::from_url(url).build().unwrap();
         Self {
             client,
             collection_name: collection_name.to_string(),
+            id_counter,
         }
     }
 
@@ -53,7 +57,7 @@ impl Action for QdrantNode {
         self.ensure_collection().await;
         let node_id = env.get_ref(VECT_CLIENT_NODE).unwrap();
         println!("qdrant_id: {:?}", node_id);
-        let mut id_counter = 0;
+
         let mut processed_count = 0;
 
         log::info!("Waiting for code items to process...");
@@ -61,9 +65,9 @@ impl Action for QdrantNode {
             log::info!("Received item to store in Qdrant");
             let item: &CodeItem = content.get().unwrap();
 
-            // Use the to_qdrant_point method of CodeItem to create PointStruct
-            let point = item.to_qdrant_point(id_counter);
-            id_counter += 1;
+            // Atomically fetch and increment the ID from the shared counter
+            let new_id = self.id_counter.fetch_add(1, Ordering::SeqCst);
+            let point = item.to_qdrant_point(new_id);
 
             // Store to Qdrant
             if let Err(e) = self

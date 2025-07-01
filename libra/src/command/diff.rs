@@ -71,9 +71,7 @@ pub async fn execute(args: DiffArgs) {
         Some(ref path) => {
             let file = std::fs::File::create(path)
                 .map_err(|e| {
-                    eprintln!(
-                        "fatal: could not open to file '{path}' for writing: {e}"
-                    );
+                    eprintln!("fatal: could not open to file '{path}' for writing: {e}");
                 })
                 .unwrap();
             Some(file)
