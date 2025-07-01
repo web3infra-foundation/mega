@@ -47,7 +47,7 @@ impl Action for VectClient {
         log::info!("VectClient is running");
         let node_id = env.get_ref(PROCESS_ITEMS_NODE).unwrap();
         let out_node_id = env.get_ref(QDRANT_NODE).unwrap();
-        println!("vect_client_id: {:?}", node_id);
+        log::info!("vect_client_id: {:?}", node_id);
 
         while let Ok(content) = in_channels.recv_from(node_id).await {
             log::info!("Received items to vectorize");

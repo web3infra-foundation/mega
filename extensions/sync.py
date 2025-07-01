@@ -10,7 +10,6 @@ import hashlib
 import tarfile
 from packaging.version import parse as vparse
 from git import Repo, Actor
-import os
 from kafka import KafkaProducer
 import datetime
 import uuid
@@ -79,7 +78,7 @@ def save_processed(processed_dict):
         json.dump(processed_dict, f)
 
 def download_all_crates():
-    crates = get_all_files("/opt/data/tmp")
+    crates = get_all_files(CLONE_DIR)
     print(f"找到 {len(crates)} 个 crate。")
     downloaded = {}
     for name, versions in crates.items():

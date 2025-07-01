@@ -5,15 +5,15 @@ use index::indexer::ProcessItemsAction;
 use index::indexer::WalkDirAction;
 use index::qdrant::QdrantNode;
 use index::vectorization::VectClient;
-use index::{BROKER, CONSUMER_GROUP, CRATES_PATH, TOPIC};
-use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
+use index::{broker, consumer_group, crates_path, topic};
+use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, VECT_CLIENT_NODE, qdrant_url, vect_url};
 use observatory::facilities::Telescope;
 use observatory::model::crates::CrateMessage;
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
@@ -28,6 +28,8 @@ fn main() {
     env::set_var("RUST_LOG", "INFO");
     env_logger::init();
 
+    dotenv::from_path("extensions/rag/.env").ok();
+
     // 1. Initialize the shared atomic counter once at the start.
     let id_path = "/opt/data/last_id.json";
     let initial_id = fs::read_to_string(id_path)
@@ -38,7 +40,7 @@ fn main() {
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let telescope = Telescope::new(BROKER, CONSUMER_GROUP, TOPIC);
+        let telescope = Telescope::new(&broker(), &consumer_group(), &topic());
         
         // 1. Clone the Arc *before* the loop's closure.
         // This clone is moved into the closure, allowing the original to remain.
@@ -54,7 +56,7 @@ fn main() {
 
                     let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
                     let file_path = get_file_path(
-                        &PathBuf::from(CRATES_PATH),
+                        &PathBuf::from(crates_path()),
                         &crate_msg.crate_name,
                         &crate_msg.crate_version,
                     );
@@ -98,7 +100,7 @@ fn update_knowledge_base(file_path: &PathBuf, id_counter: Arc<AtomicU64>) {
     );
     let process_items_id = process_items.id();
 
-    let vect_client = VectClient::new(VECT_URL);
+    let vect_client = VectClient::new(&vect_url());
     let vect_client_node = DefaultNode::with_action(
         "vect_client".to_string(),
         vect_client,
@@ -107,7 +109,7 @@ fn update_knowledge_base(file_path: &PathBuf, id_counter: Arc<AtomicU64>) {
     let vect_client_id = vect_client_node.id();
 
     // 3. Pass the shared counter to the QdrantNode constructor.
-    let qdrant = QdrantNode::new(QDRANT_URL, "test_test_code_items", id_counter);
+    let qdrant = QdrantNode::new(&qdrant_url(), "test_test_code_items", id_counter);
     let qdrant_node = DefaultNode::with_action("qdrant".to_string(), qdrant, &mut index_node_table);
     let qdrant_id = qdrant_node.id();
 

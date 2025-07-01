@@ -8,7 +8,6 @@ pub struct CodeItem {
     pub content: String,
     pub item_type: ItemType,
     pub file_path: PathBuf,
-    pub line_number: usize,
     pub vector: Vec<f64>,
 }
 
@@ -38,10 +37,6 @@ impl CodeItem {
             (
                 "file_path".to_string(),
                 self.file_path.to_string_lossy().into_owned().into(),
-            ),
-            (
-                "line_number".to_string(),
-                self.line_number.to_string().into(),
             ),
         ]
         .into_iter()

@@ -22,4 +22,5 @@ dagrs = { workspace = true }
 observatory = { workspace = true }
 flate2 = { workspace = true }
 tar = { workspace = true }
+dotenv = { workspace = true }
 

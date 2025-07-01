@@ -1,7 +1,7 @@
 use chat::command::{Cli, Commands};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
-use chat::{GENERATION_NODE, LLM_URL, QDRANT_URL, SEARCH_NODE, VECT_URL};
+use chat::{GENERATION_NODE, SEARCH_NODE, vect_url, qdrant_url, llm_url};
 use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};
@@ -10,9 +10,11 @@ use std::env;
 use std::thread;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logger
+    // Initialize logger 
     env::set_var("RUST_LOG", "info");
     env_logger::init();
+
+    dotenv::from_path("extensions/rag/.env").ok();
 
     let args = Cli::parse();
 
@@ -24,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut search_node_table = NodeTable::default();
 
             // Safely create SearchNode
-            let search_node = match SearchNode::new(VECT_URL, QDRANT_URL, "code_items") {
+            let search_node = match SearchNode::new(&vect_url(), &qdrant_url(), "code_items") {
                 Ok(node) => node,
                 Err(e) => {
                     error!("Failed to create SearchNode: {}", e);
@@ -40,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let search_id = search_node.id();
 
             // Create GenerationNode
-            let generation_node = GenerationNode::new(LLM_URL);
+            let generation_node = GenerationNode::new(&llm_url());
             let generation_node = DefaultNode::with_action(
                 GENERATION_NODE.to_string(),
                 generation_node,

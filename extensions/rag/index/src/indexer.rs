@@ -144,7 +144,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Function,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Struct(struct_item) => {
@@ -156,7 +155,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Struct,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Enum(enum_item) => {
@@ -168,7 +166,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Enum,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Trait(trait_item) => {
@@ -180,7 +177,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Trait,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Impl(impl_item) => {
@@ -192,7 +188,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Impl,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Type(type_item) => {
@@ -204,7 +199,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Type,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Const(const_item) => {
@@ -216,7 +210,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Const,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Static(static_item) => {
@@ -228,7 +221,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Static,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 Item::Mod(mod_item) => {
@@ -240,7 +232,6 @@ impl CodeIndexer {
                         tokens.to_string(),
                         ItemType::Module,
                         file_path.to_path_buf(),
-                        file_path.metadata()?.len() as usize,
                     ));
                 }
                 _ => continue,
@@ -256,14 +247,12 @@ impl CodeIndexer {
         content: String,
         item_type: ItemType,
         file_path: PathBuf,
-        line_number: usize,
     ) -> CodeItem {
         CodeItem {
             name,
             content,
             item_type,
             file_path,
-            line_number,
             vector: vec![],
         }
     }
@@ -320,10 +309,7 @@ impl Action for ProcessItemsAction {
 
         println!("Processing {} items", items.len());
         for item in &items {
-            println!(
-                "Found {:?} at {:?}:{}",
-                item.item_type, item.file_path, item.line_number
-            );
+            println!("Found {:?} at {:?}", item.item_type, item.file_path);
             println!("Name: {}", item.name);
             println!("Content:\n{}\n", item.content);
         }

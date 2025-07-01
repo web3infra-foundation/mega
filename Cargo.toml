@@ -6,7 +6,6 @@ members = [
     "common",
     "mercury",
     "jupiter",
-    "jupiter/migration",
     "ceres",
     "libra",
     "vault",
@@ -14,11 +13,11 @@ members = [
     "saturn",
     "orion",
     "orion-server",
-    "third-party",
     "extensions/rag/chat",
     "extensions/rag/index",
     "extensions/observatory",
     "scorpio",
+    "context",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
@@ -30,13 +29,13 @@ mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
-migration = { path = "jupiter/migration" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
 mono = { path = "mono" }
 observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
+context = { path = "context" }
 
 anyhow = "1.0.98"
 serde = "1.0.219"
@@ -154,6 +153,7 @@ libc = "0.2.172"
 zstd-sys = "2.0.15+zstd.1.5.7"
 quickcheck = "1.0.3"
 directories = "6.0.0"
+dotenv = "0.15"
 
 [profile.release]
 debug = true

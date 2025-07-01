@@ -20,3 +20,4 @@ walkdir = { workspace = true }
 dagrs = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+dotenv = { workspace = true }
