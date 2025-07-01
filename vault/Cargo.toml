@@ -1,20 +1,30 @@
 [package]
 name = "vault"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
+jupiter = { workspace = true }
 common = { workspace = true}
-rusty_vault = { workspace = true }
+
+tracing = { workspace = true }
 serde_json = { workspace = true }
 go-defer = { workspace = true }
 openssl = { workspace = true }
 hex = { workspace = true }
-lazy_static = { workspace = true }
 bs58 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 tokio = { workspace = true, features = ["full"] }
-async-std = { workspace = true }
 pgp = { workspace = true }
 smallvec = { workspace = true }
+
+
+[dependencies.rusty_vault]
+git = "https://github.com/Tongsuo-Project/RustyVault"
+tag = "v0.2.2"
+features = ["sync_handler"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rand = { workspace = true }

@@ -62,6 +62,7 @@ impl MrStorage {
 
         let mr_with_label: Vec<(mega_mr::Model, Vec<label::Model>)> = mega_mr::Entity::find()
             .filter(mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()))
+            .order_by_desc(mega_mr::Column::CreatedAt)
             .find_with_related(label::Entity)
             .all(self.get_connection())
             .await?;

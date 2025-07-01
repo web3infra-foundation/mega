@@ -52,7 +52,7 @@ pub struct Key {
 
 pub async fn execute(args: ConfigArgs) {
     if let Err(e) = args.validate() {
-        eprintln!("error: {}", e);
+        eprintln!("error: {e}");
         return;
     }
     if args.list {
@@ -88,7 +88,7 @@ async fn parse_key(mut origin_key: String) -> Key {
     (configuration, origin_key) = match origin_key.split_once(".") {
         Some((first_part, remainer)) => (first_part.to_string(), remainer.to_string()),
         None => {
-            panic!("error: key does not contain a section: {}", origin_key);
+            panic!("error: key does not contain a section: {origin_key}");
         }
     };
     (name, origin_key) = match origin_key.rsplit_once(".") {
@@ -138,15 +138,15 @@ async fn get_config(key: &Key, default: Option<&str>, valuepattern: Option<&str>
         if let Some(vp) = valuepattern {
             // if value pattern is present, check it
             if v.contains(vp) {
-                println!("{}", v);
+                println!("{v}");
             }
         } else {
             // if value pattern is not present, just print it
-            println!("{}", v);
+            println!("{v}");
         }
     } else if let Some(default_value) = default {
         // if value is not exits just return the default value if it's present
-        println!("{}", default_value);
+        println!("{default_value}");
     }
 }
 
@@ -159,19 +159,19 @@ async fn get_all_config(key: &Key, default: Option<&str>, valuepattern: Option<&
         if let Some(vp) = valuepattern {
             // for each value, check if it matches the pattern
             if value.contains(vp) {
-                println!("{}", value);
+                println!("{value}");
                 matched_any = true;
             }
         } else {
             // print all if value pattern is not present
             matched_any = true;
-            println!("{}", value);
+            println!("{value}");
         }
     }
     if !matched_any {
         if let Some(default_value) = default {
             // if no value matches the pattern, print the default value if it's present
-            println!("{}", default_value);
+            println!("{default_value}");
         }
     }
 }
@@ -204,6 +204,6 @@ async fn unset_all_config(key: &Key, valuepattern: Option<&str>) {
 async fn list_config() {
     let configurations = config::Config::list_all().await;
     for (key, value) in configurations {
-        println!("{}={}", key, value);
+        println!("{key}={value}");
     }
 }

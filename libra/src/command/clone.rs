@@ -61,7 +61,7 @@ pub async fn execute(args: CloneArgs) {
             return;
         }
         let repo_name = local_path.file_name().unwrap().to_str().unwrap();
-        println!("Cloning into '{}'", repo_name);
+        println!("Cloning into '{repo_name}'");
     }
 
     let is_success = Cell::new(false);
@@ -76,7 +76,7 @@ pub async fn execute(args: CloneArgs) {
     //check if the branch name is valid
     if let Some(branch) = args.branch.clone() {
         if !branch::is_valid_git_branch_name(&branch) {
-            eprintln!("invalid branch name: '{}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.", branch);
+            eprintln!("invalid branch name: '{branch}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.");
             return;
         }
     }

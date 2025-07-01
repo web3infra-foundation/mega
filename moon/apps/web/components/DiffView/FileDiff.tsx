@@ -4,6 +4,7 @@ import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
+// import TreeView from './TreeView'
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
   const lines = diffText.split('\n');
@@ -25,10 +26,18 @@ function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; d
 
 function generateParsedFiles(diffFiles: { path: string; lang: string; diff: string }[]): { 
   file: { path: string; lang: string; diff: string }; 
-  instance: DiffFile; 
+  instance: DiffFile | null; 
   stats: { additions: number; deletions: number } 
 }[] {
   return diffFiles.map((file) => {
+    if (file.lang === 'binary') {
+      return {
+        file,
+        instance: null,
+        stats: { additions: 0, deletions: 0 },
+      };
+    }
+
     const instance = new DiffFile('', '', '', '', [file.diff], file.lang);
 
     try {
@@ -69,10 +78,12 @@ export default function FileDiff({ diffs }: { diffs: string }) {
 
   const RenderDiffView = ({ file, instance }: { 
     file: { path: string; lang: string; diff: string };
-    instance: DiffFile;
+    instance: DiffFile | null;
   }) => {
-    if (file.lang === 'binary') {
+    if (file.lang === 'binary' || instance === null) {
       return <div className='text-center p-2'>Binary file</div>
+    }else if(file.diff === 'EMPTY_DIFF_MARKER\n') {
+      return <div className='text-center p-2'>No change</div>
     }
 
     return (
@@ -89,7 +100,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
   return (
     <div className='flex font-sans'>
       <div
-        className='rounded-lg bg-gray-100 w-[300px] h-[85vh] border border-[#ddd] p-2 overflow-y-auto sticky top-5'
+        className='rounded-lg w-[300px] h-[85vh]  p-2 overflow-y-auto sticky top-5'
       >
         <ul>
           {parsedFiles.map(({ file }) => (
@@ -108,8 +119,11 @@ export default function FileDiff({ diffs }: { diffs: string }) {
             >
               {file.path}
             </li>
-          ))}
+          ))
+          }
+          
         </ul>
+        {/* <TreeView directory={parsedFiles} /> */}
       </div>
 
       <div className='flex-1 overflow-y-auto px-4'>
@@ -139,8 +153,10 @@ export default function FileDiff({ diffs }: { diffs: string }) {
                   <span className='text-red-500'>−{stats.deletions}</span>
                 </span>
               </div>
-
-              {isExpanded && <RenderDiffView file={file} instance={instance} />}
+              
+              <div className='copyable-text'>
+                {isExpanded && <RenderDiffView file={file} instance={instance} />}
+              </div>
             </div>
           )
         })}

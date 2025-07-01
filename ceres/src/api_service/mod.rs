@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::{context::Context, utils::converter::generate_git_keep_with_timestamp};
+use jupiter::{storage::Storage, utils::converter::generate_git_keep_with_timestamp};
 use mercury::{
     errors::GitError,
     hash::SHA1,
@@ -33,7 +33,7 @@ pub struct GitObjectCache {
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
-    fn get_context(&self) -> Context;
+    fn get_context(&self) -> Storage;
 
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
 
@@ -104,21 +104,22 @@ pub trait ApiHandler: Send + Sync {
         Ok(commit.into())
     }
 
-    async fn get_tree_info(&self, path: PathBuf) -> Result<Vec<TreeBriefItem>, GitError> {
-        match self.search_tree_by_path(&path).await? {
+    async fn get_tree_info(&self, path: &Path) -> Result<Vec<TreeBriefItem>, GitError> {
+        match self.search_tree_by_path(path).await? {
             Some(tree) => {
-                let mut items = Vec::new();
-                for item in tree.tree_items {
-                    let mut info: TreeBriefItem = item.clone().into();
-                    path.join(item.name)
-                        .to_str()
-                        .unwrap()
-                        .clone_into(&mut info.path);
-                    items.push(info);
-                }
+                let items = tree
+                    .tree_items
+                    .into_iter()
+                    .map(|item| {
+                        let full_path = path.join(&item.name);
+                        let mut info: TreeBriefItem = item.into();
+                        info.path = full_path.to_str().unwrap().to_owned();
+                        info
+                    })
+                    .collect();
                 Ok(items)
             }
-            None => Ok(Vec::new()),
+            None => Ok(vec![]),
         }
     }
 

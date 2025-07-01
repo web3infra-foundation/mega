@@ -3133,12 +3133,11 @@ export type CommonResultString = {
   req_result: boolean
 }
 
-export type CommonResultVecTreeBriefItem = {
+export type CommonResultTreeResponse = {
   data?: {
-    content_type: string
-    name: string
-    path: string
-  }[]
+    file_tree: Record<string, FileTreeItem>
+    tree_items: TreeBriefItem[]
+  }
   err_message: string
   req_result: boolean
 }
@@ -3193,6 +3192,12 @@ export type CreateFileInfo = {
   name: string
   /** leave empty if it's under root */
   path: string
+}
+
+export type FileTreeItem = {
+  /** @min 0 */
+  total_count: number
+  tree_items: TreeBriefItem[]
 }
 
 export type FilesChangedList = {
@@ -3264,7 +3269,7 @@ export type MegaConversation = {
   id: number
   /** @format int64 */
   updated_at: number
-  user_id: string
+  username: string
 }
 
 export enum MergeStatusEnum {
@@ -3361,6 +3366,11 @@ export type TreeHashItem = {
   content_type: string
   name: string
   oid: string
+}
+
+export type TreeResponse = {
+  file_tree: Record<string, FileTreeItem>
+  tree_items: TreeBriefItem[]
 }
 
 export type UserInfo = {
@@ -4561,7 +4571,7 @@ export type GetApiTreeParams = {
   path?: string
 }
 
-export type GetApiTreeData = CommonResultVecTreeBriefItem
+export type GetApiTreeData = CommonResultTreeResponse
 
 export type GetApiTreeCommitInfoParams = {
   refs?: string

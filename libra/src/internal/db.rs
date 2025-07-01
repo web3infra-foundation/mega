@@ -24,11 +24,11 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
         ));
     }
 
-    let mut option = ConnectOptions::new(format!("sqlite://{}", db_path));
+    let mut option = ConnectOptions::new(format!("sqlite://{db_path}"));
     option.sqlx_logging(false); // TODO use better option
     Database::connect(option)
         .await
-        .map_err(|err| IOError::other(format!("Database connection error: {:?}", err)))
+        .map_err(|err| IOError::other(format!("Database connection error: {err:?}")))
 }
 // #[cfg(not(test))]
 // static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
@@ -149,13 +149,13 @@ pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
     }
 
     std::fs::File::create(db_path)
-        .map_err(|err| IOError::other(format!("Failed to create database file: {:?}", err)))?;
+        .map_err(|err| IOError::other(format!("Failed to create database file: {err:?}")))?;
 
     // Connect to the new database and set up the schema.
     if let Ok(conn) = establish_connection(db_path).await {
         setup_database_sql(&conn)
             .await
-            .map_err(|err| IOError::other(format!("Failed to setup database: {:?}", err)))?;
+            .map_err(|err| IOError::other(format!("Failed to setup database: {err:?}")))?;
         Ok(conn)
     } else {
         Err(IOError::other("Failed to connect to new database."))
@@ -206,7 +206,7 @@ mod tests {
             fs::remove_file(db_path).unwrap();
         }
         let result = create_database(db_path).await;
-        assert!(result.is_ok(), "create_database failed: {:?}", result);
+        assert!(result.is_ok(), "create_database failed: {result:?}");
         assert!(Path::new(db_path).exists());
         let result = create_database(db_path).await;
         assert!(result.is_err());

@@ -80,9 +80,9 @@ macro_rules! get_setting {
 /// The directory is determined in the following priority order:
 /// 1. Uses the `MONOBEAN_BASE_DIR` environment variable if set
 /// 2. Falls back to system default paths when environment variable is not set:
-///     - On Linux: `~/.local/share/monobean`
-///     - On Windows: `C:\Users\{UserName}\AppData\Local\monobean`
-///     - On macOS: `~/Library/Application Support/monobean`
+///     - On Linux: `~/.local/share/mega/monobean`
+///     - On Windows: `C:\Users\{UserName}\AppData\Local\mega\monobean`
+///     - On macOS: `~/Library/Application Support/mega/monobean`
 ///
 /// # Returns
 /// A PathBuf containing the base directory path
@@ -94,16 +94,9 @@ macro_rules! get_setting {
 ///
 pub fn monobean_base() -> PathBuf {
     // Get the base directory from the environment variable or use the default
-    let base_dir = std::env::var("MONOBEAN_BASE_DIR").unwrap_or_else(|_| {
-        let base_dirs = directories::BaseDirs::new().unwrap();
-        base_dirs
-            .data_local_dir()
-            .join("monobean")
-            .to_str()
-            .unwrap()
-            .to_string()
-    });
-    PathBuf::from(base_dir)
+    std::env::var("MONOBEAN_BASE_DIR")
+        .map(|inner| PathBuf::from(inner))
+        .unwrap_or_else(|_| common::config::mega_base().join("monobean"))
 }
 
 /// Retrieves the cache directory path for Monobean
@@ -111,9 +104,9 @@ pub fn monobean_base() -> PathBuf {
 /// The directory is determined in the following priority order:
 /// 1. Uses the `MONOBEAN_CACHE_DIR` environment variable if set
 /// 2. Falls back to system default paths when environment variable is not set:
-///     - On Linux: `~/.cache/monobean`
-///     - On Windows: `C:\Users\{username}\AppData\Local\Cache\monobean`
-///     - On macOS: `~/Library/Caches/monobean`
+///     - On Linux: `~/.cache/mega/monobean`
+///     - On Windows: `C:\Users\{username}\AppData\Local\Cache\mega\monobean`
+///     - On macOS: `~/Library/Caches/mega/monobean`
 ///
 /// # Returns
 /// A PathBuf containing the cache directory path
@@ -125,16 +118,9 @@ pub fn monobean_base() -> PathBuf {
 ///
 pub fn monobean_cache() -> PathBuf {
     // Get the cache directory from the environment variable or use the default
-    let cache_dir = std::env::var("MONOBEAN_CACHE_DIR").unwrap_or_else(|_| {
-        let base_dirs = directories::BaseDirs::new().unwrap();
-        base_dirs
-            .cache_dir()
-            .join("monobean")
-            .to_str()
-            .unwrap()
-            .to_string()
-    });
-    PathBuf::from(cache_dir)
+    std::env::var("MONOBEAN_CACHE_DIR")
+        .map(|inner| PathBuf::from(inner))
+        .unwrap_or_else(|_| common::config::mega_cache().join("monobean"))
 }
 
 /// TODO: So ugly...

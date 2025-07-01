@@ -4,19 +4,38 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 
-import { ChatBubbleIcon, CheckCircleFilledFlushIcon, CircleFilledCloseIcon, ClockIcon } from '@gitmono/ui'
+import { SyncOrganizationMember as Member } from '@gitmono/types/generated'
+import {
+  Button,
+  ChatBubbleIcon,
+  CheckCircleFilledFlushIcon,
+  ChevronDownIcon,
+  CircleFilledCloseIcon,
+  ClockIcon
+} from '@gitmono/ui'
 import { Link } from '@gitmono/ui/Link'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { IssueIndexTabFilter as MRIndexTabFilter } from '@/components/Issues/IssueIndex'
-import { ListBanner, ListItem as MrItem, IssueList as MrList } from '@/components/Issues/IssueList'
+import {
+  Dropdown,
+  DropdownItemwithAvatar,
+  DropdownItemwithLabel,
+  ListBanner,
+  ListItem as MrItem,
+  IssueList as MrList
+} from '@/components/Issues/IssueList'
 import { useScope } from '@/contexts/scope'
 import { usePostMrList } from '@/hooks/usePostMrList'
+import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
+import { Label } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
-import { filterAtom } from '../Issues/utils/store'
+import { tags } from '../Issues/utils/consts'
+import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
+import { filterAtom, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
 
 interface MrInfoItem {
@@ -95,7 +114,7 @@ export default function MrView() {
 
     switch (normalizedStatus) {
       case 'open':
-        return <CircleFilledCloseIcon color='#378f50' />
+        return <CircleFilledCloseIcon color='#f44613' />
       case 'closed':
         return <ClockIcon size={16} />
       case 'merged':
@@ -124,6 +143,144 @@ export default function MrView() {
     }
   }
 
+  const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPickerMR' }))
+  const { members } = useSyncedMembers()
+
+  const MemberConfig: MenuConfig<Member>[] = [
+    {
+      key: 'Author',
+      isChosen: (item) => item.user.id === sort['Author'],
+      onSelectFactory: (item: Member) => (e: Event) => {
+        e.preventDefault()
+        if (item.user.id === sort['Author']) {
+          loadMrList()
+          setSort({
+            ...sort,
+            Author: ''
+          })
+        } else {
+          setMrList(mrList.filter((i) => i.link === sort['Author']))
+          setSort({
+            ...sort,
+            Author: item.user.id
+          })
+        }
+      },
+      className: 'overflow-hidden',
+      labelFactory: (item: Member) => <DropdownItemwithAvatar member={item} classname='text-sm' />
+    },
+    {
+      key: 'Assignees',
+      isChosen: (item: Member) => item.user.id === sort['Assignees'],
+      onSelectFactory: (item: Member) => (e: Event) => {
+        e.preventDefault()
+        if (item.user.id === sort['Assignees']) {
+          loadMrList()
+
+          setSort({
+            ...sort,
+            Assignees: ''
+          })
+        } else {
+          setMrList(mrList.filter((i) => i.link === sort['Assignees']))
+          setSort({
+            ...sort,
+            Assignees: item.user.id
+          })
+        }
+      },
+      className: 'overflow-hidden',
+      labelFactory: (item: Member) => <DropdownItemwithAvatar member={item} classname='text-sm' />
+    }
+  ]
+
+  const LabelConfig: MenuConfig<Label>[] = [
+    {
+      key: 'Labels',
+      isChosen: (item) => sort['Labels']?.includes(item.id),
+
+      onSelectFactory: (item: Label) => (e: Event) => {
+        e.preventDefault()
+        if (sort['Labels']?.includes(item.id)) {
+          // fetchData(1, pageSize)
+          // sort['Labels'] contains the id of each labels which are chosed
+          setSort({
+            ...sort,
+            Labels: (sort['Labels'] as string[]).filter((i) => i !== item.id)
+          })
+        } else {
+          // setIssueList(issueList.filter((i) => i.link === sort['Labels']))
+          setSort({
+            ...sort,
+            // make sure labels must be an array of string
+            Labels: [...((sort['Labels'] as string[]) ?? []), item.id]
+          })
+        }
+      },
+      className: 'overflow-hidden',
+      labelFactory: (item: Label) => <DropdownItemwithLabel label={item} />
+    }
+  ]
+
+  const handleOpen = (open: boolean) => {
+    if (open) {
+      // open: do nothing
+    } else {
+      // close: fetch data from labels array
+    }
+  }
+
+  const member = generateAllMenuItems(members, MemberConfig)
+
+  const labels = generateAllMenuItems(tags, LabelConfig)
+
+  const ListHeaderItem = (p: string) => {
+    switch (p) {
+      case 'Author':
+        return (
+          <Dropdown
+            isChosen={sort['Author'] === ''}
+            key={p}
+            name={p}
+            dropdownArr={member?.get('Author').all}
+            dropdownItem={member?.get('Author').chosen}
+          />
+        )
+      case 'Assignees':
+        return (
+          <Dropdown
+            isChosen={sort['Assignees'] === ''}
+            key={p}
+            name={p}
+            dropdownArr={member?.get('Assignees').all}
+            dropdownItem={member?.get('Assignees').chosen}
+          />
+        )
+      case 'Labels':
+        return (
+          <Dropdown
+            onOpen={(open) => handleOpen(open)}
+            isChosen={!sort['Labels']?.length}
+            key={p}
+            name={p}
+            dropdownArr={labels?.get('Labels').all}
+            dropdownItem={labels?.get('Labels').chosen}
+          />
+        )
+      default:
+        return (
+          <>
+            <Button size='sm' variant={'plain'} tooltipShortcut={p}>
+              <div className='flex items-center justify-center'>
+                {p}
+                <ChevronDownIcon />
+              </div>
+            </Button>
+          </>
+        )
+    }
+  }
+
   return (
     <div className='m-4'>
       <Heading>Merge Request</Heading>
@@ -133,13 +290,19 @@ export default function MrView() {
           <MrList
             isLoading={isLoading}
             Issuelists={mrList}
-            header={<ListBanner pickerTypes={[]} tabfilter={<MRIndexTabFilter part='mr' />} />}
+            header={
+              <ListBanner
+                pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types']}
+                tabfilter={<MRIndexTabFilter part='mr' />}
+              >
+                {(p) => ListHeaderItem(p)}
+              </ListBanner>
+            }
           >
             {(issueList) => {
               return issueList.map((i) => (
                 <Link key={i.link} href={`/${scope}/mr/${i.link}`}>
                   <MrItem
-                    key={i.link}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
                     rightIcon={<ChatBubbleIcon />}

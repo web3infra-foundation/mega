@@ -28,7 +28,7 @@ impl SessionStore for CampsiteApiStore {
         let resp = self
             .client
             .get(url)
-            .header(COOKIE, format!("{}={}", CAMPSITE_API_COOKIE, cookie_value))
+            .header(COOKIE, format!("{CAMPSITE_API_COOKIE}={cookie_value}"))
             .send()
             .await?;
 

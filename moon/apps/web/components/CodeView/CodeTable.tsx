@@ -39,20 +39,23 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
         key: 'name',
         render: (_, record) => (
           <>
-            <div className='flex'>
-              {record.content_type === 'directory' && <FolderIcon className='size-6' />}
-              {record.content_type === 'file' && <DocumentIcon className='size-6' />}
-              <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff]'>{record.name}</a>
+            <div className='flex items-center'>
+              {record.content_type === 'directory' && <FolderIcon className='size-4 text-gray-600' />}
+              {record.content_type === 'file' && <DocumentIcon className='size-4 text-gray-600' />}
+              <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff] pl-2'>{record.name}</a>
             </div>
           </>
         )
       },
       {
         title: 'Message',
-        dataIndex: ['message'],
-        key: 'message',
-        render: (_, { message }) => (
-          <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff]'>{message}</a>
+        dataIndex: ['commit_message'],
+        key: 'commit_message',
+        render: (_, {commit_message}) => (
+
+          // console.log(message, 'message')
+
+          <a className='cursor-pointer transition-colors duration-300 text-gray-600 hover:text-[#69b1ff]'>{commit_message}</a>
         )
       },
       {

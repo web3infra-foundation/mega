@@ -1,56 +1,62 @@
+use crate::integration::vault_core::VaultCoreInterface;
+
+pub mod integration;
+
 pub mod nostr;
 pub mod pgp;
 pub mod pki;
-pub mod vault;
 
-/// Initialize the Nostr ID if it's not found.
-/// - return: `(Nostr ID, secret_key)`
-/// - You can get `Public Key` by just `base58::decode(nostr)`
-pub async fn init() -> (String, String) {
-    use crate::vault::{read_secret, write_secret};
+/// A trait that defines the interface for a vault.
+/// It provides methods to save, get, and delete secrets.
+/// You can conviniently implement this trait for your structs that need to interact with a vault.
+/// It is designed to be used with a vault core implementation, such as `VaultCore`.
+///
+/// # Example:
+/// ```rust
+/// use vault::Vault;
+/// use vault::integration::vault_core::VaultCore;
+/// struct MyVault {
+///     core: VaultCore,
+/// }
+///
+/// impl Vault for MyVault {
+///    type Core = VaultCore;
+///    const VAULT_PREFIX: &'static str = "my_vault_key_prefix";
+///    fn core(&self) -> &Self::Core {
+///        &self.core
+///   }
+/// }
+/// ```
+pub trait Vault {
+    type Core: VaultCoreInterface;
+    const VAULT_PREFIX: &'static str;
 
-    let mut id = read_secret("id").await.unwrap();
-    if id.is_none() {
-        println!("Nostr ID not found, generating new one...");
-        let (nostr, (secret_key, _)) = nostr::generate_nostr_id();
-        let data = serde_json::json!({
-            "nostr": nostr,
-            "secret_key": secret_key.display_secret().to_string(),
+    fn core(&self) -> &Self::Core;
+
+    /// Save a secret to the vault.
+    fn save_to_vault(&self, key: impl AsRef<str>, value: impl AsRef<str>) {
+        let key_f = format!("{}_{}", Self::VAULT_PREFIX, key.as_ref());
+        let kv_data = serde_json::json!({
+            "data": value.as_ref(),
         })
         .as_object()
         .unwrap()
         .clone();
-        write_secret("id", Some(data)).await.unwrap_or_else(|e| {
-            panic!("Failed to write Nostr ID: {:?}", e);
-        });
-        id = read_secret("id").await.unwrap();
+        _ = self.core().write_secret(key_f.as_str(), Some(kv_data));
     }
-    let id_data = id.unwrap().data.unwrap();
-    (
-        id_data["nostr"].as_str().unwrap().to_string(),
-        id_data["secret_key"].as_str().unwrap().to_string(),
-    )
-}
 
-pub async fn get_peerid() -> String {
-    let (id, _sk) = init().await;
-    id
-}
+    /// Get a secret from the vault.
+    fn get_from_vault(&self, key: String) -> Option<String> {
+        let key_f = format!("{}_{}", Self::VAULT_PREFIX, key);
+        match self.core().read_secret(key_f.as_str()) {
+            Ok(Some(data)) => data.get("data").and_then(|v| v.as_str().map(String::from)),
+            Ok(None) | Err(_) => None,
+        }
+    }
 
-pub async fn get_keypair() -> secp256k1::Keypair {
-    let (_, sk) = init().await;
-    let secp = secp256k1::Secp256k1::new();
-    secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_init() {
-        let id = init().await;
-        println!("Nostr ID: {:?}", id.0);
-        println!("Secret Key: {:?}", id.1); // private key
+    /// Delete a secret from the vault.
+    fn delete_from_vault(&self, key: String) {
+        let key_f = format!("{}_{}", Self::VAULT_PREFIX, key);
+        _ = self.core().delete_secret(key_f.as_str());
     }
 }

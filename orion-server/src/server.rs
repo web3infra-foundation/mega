@@ -30,7 +30,7 @@ pub async fn start_server(port: u16) {
 
     tracing::info!("Listening on port {}", port);
 
-    let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port))
+    let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
         .await
         .unwrap();
     axum::serve(

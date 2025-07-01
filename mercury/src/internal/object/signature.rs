@@ -193,7 +193,7 @@ impl Signature {
         let minutes = offset / 60 % 60;
 
         // Format the offset as a string (e.g., "+0800", "-0300", etc.)
-        let offset_str = format!("{:+03}{:02}", hours, minutes);
+        let offset_str = format!("{hours:+03}{minutes:02}");
 
         // Return the Signature struct with the provided information
         Signature {

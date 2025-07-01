@@ -42,7 +42,7 @@ impl LfsFileStorage for LocalStorage {
             .join("objects")
             .join(transform_path(object_id));
         let mut file =
-            fs::File::open(&path).unwrap_or_else(|_| panic!("Open file:{:?} failed!", path));
+            fs::File::open(&path).unwrap_or_else(|_| panic!("Open file:{path:?} failed!"));
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         Ok(Bytes::from(buffer))

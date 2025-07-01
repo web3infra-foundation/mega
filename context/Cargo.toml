@@ -1,0 +1,19 @@
+[package]
+name = "context"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "context"
+path = "src/lib.rs"
+
+[features]
+default = []
+p2p = ["gemini"]
+
+[dependencies]
+common = { workspace = true }
+jupiter = { workspace = true }
+vault = { workspace = true }
+
+gemini = { workspace = true, optional = true }

@@ -67,8 +67,7 @@ pub async fn execute(args: LogArgs) {
         let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
             panic!(
-                "fatal: your current branch '{}' does not have any commits yet ",
-                branch_name
+                "fatal: your current branch '{branch_name}' does not have any commits yet "
             );
         }
     }
@@ -103,12 +102,12 @@ pub async fn execute(args: LogArgs) {
         };
         message.push_str(&format!("\nAuthor: {}", commit.author));
         let (msg, _) = parse_commit_msg(&commit.message);
-        message.push_str(&format!("\n{}\n", msg));
+        message.push_str(&format!("\n{msg}\n"));
 
         #[cfg(unix)]
         {
             if let Some(ref mut stdin) = process.stdin {
-                writeln!(stdin, "{}", message).unwrap();
+                writeln!(stdin, "{message}").unwrap();
             } else {
                 eprintln!("Failed to capture stdin");
             }

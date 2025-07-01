@@ -111,7 +111,7 @@ impl LFSClient {
         for (oid, _) in &lfs_oids {
             let path = lfs::lfs_object_path(oid);
             if !path.exists() {
-                eprintln!("fatal: LFS object not found: {}", oid);
+                eprintln!("fatal: LFS object not found: {oid}");
                 continue;
             }
             let size = path.metadata().unwrap().len() as i64;
@@ -145,7 +145,7 @@ impl LFSClient {
                 // By default, an LFS server that doesn't implement any locking endpoints should return 404.
                 // This response will not halt any Git pushes.
             } else if !code.is_success() {
-                eprintln!("fatal: LFS verify locks failed. Status: {}", code);
+                eprintln!("fatal: LFS verify locks failed. Status: {code}");
                 return Err(());
             } else {
                 // success
@@ -433,7 +433,7 @@ impl LFSClient {
             file
         };
 
-        println!("Downloading LFS file: {}", oid);
+        println!("Downloading LFS file: {oid}");
         let parts = links.len();
         let mut downloaded: u64 = file.metadata().await?.len();
         let mut last_progress = 0.0;
@@ -441,7 +441,7 @@ impl LFSClient {
         for link in links.iter().skip(start_part) {
             got_parts += 1;
             if is_chunked {
-                println!("- part: {}/{}", got_parts, parts);
+                println!("- part: {got_parts}/{parts}");
             }
 
             let response = BasicAuth::send(|| async {
@@ -495,7 +495,7 @@ impl LFSClient {
             println!("Downloaded.");
             Ok(())
         } else {
-            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, oid);
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {checksum} != {oid}. Fallback to pointer file.");
             let pointer = lfs::format_pointer_string(oid, size);
             file.set_len(0).await?; // clear
             file.seek(tokio::io::SeekFrom::Start(0)).await?; // ensure
@@ -541,6 +541,7 @@ impl LFSClient {
         &self,
         file_uri: &str, // p2p protocol
         path: impl AsRef<Path>,
+        peer_id: String,
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
             f64,                                                // step
@@ -554,6 +555,7 @@ impl LFSClient {
         let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).unwrap();
         tracing::info!("Downloading LFS file: {}", hash);
         let peer_ports = gemini::lfs::create_lfs_download_tunnel(
+            peer_id.clone(),
             bootstrap_node.clone(),
             *ztm_agent_port,
             file_uri.to_owned(),
@@ -626,7 +628,7 @@ impl LFSClient {
                 match data {
                     Ok(data) => break data,
                     Err(e) => {
-                        eprintln!("fatal: LFS download failed. Error: {}. Retry", e);
+                        eprintln!("fatal: LFS download failed. Error: {e}. Retry");
                         retry += 1;
                         if retry > 5 {
                             eprintln!("fatal: LFS download failed. Retry limit exceeded.");
@@ -643,7 +645,7 @@ impl LFSClient {
             println!("Downloaded(p2p).");
             Ok(())
         } else {
-            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, hash);
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {checksum} != {hash}. Fallback to pointer file.");
             file.set_len(0).await?; // clear
             file.rewind().await?; // == seek(0)
             let pointer = lfs::format_pointer_string(&hash, lfs_info.size as u64);
@@ -688,8 +690,7 @@ impl LFSClient {
         let checksum = hex::encode(checksum.finish().as_ref());
         if checksum != hash {
             eprintln!(
-                "fatal: chunk download failed. Chunk checksum mismatch: {} != {}",
-                checksum, hash
+                "fatal: chunk download failed. Chunk checksum mismatch: {checksum} != {hash}"
             );
             return Err(anyhow!("Chunk checksum mismatch."));
         }
@@ -752,7 +753,7 @@ impl LFSClient {
     }
 
     pub async fn unlock(&self, id: String, refspec: String, force: bool) -> StatusCode {
-        let url = self.lfs_url.join(&format!("locks/{}/unlock", id)).unwrap();
+        let url = self.lfs_url.join(&format!("locks/{id}/unlock")).unwrap();
         let resp = BasicAuth::send(|| async {
             self.client.post(url.clone()).json(&UnlockRequest {
                 force: Some(force),
@@ -842,10 +843,10 @@ mod tests {
             .post(lfs_client.batch_url.clone())
             .json(&batch_request)
             .headers(lfs::LFS_HEADERS.clone());
-        println!("Request {:?}", request);
+        println!("Request {request:?}");
         let response = request.send().await.unwrap();
         let text = response.text().await.unwrap();
-        println!("Text {:?}", text);
+        println!("Text {text:?}");
         let _resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
     }
 
@@ -861,7 +862,7 @@ mod tests {
 
         match client.push_object(&oid, file).await {
             Ok(_) => println!("Pushed successfully."),
-            Err(err) => eprintln!("Push failed: {:?}", err),
+            Err(err) => eprintln!("Push failed: {err:?}"),
         }
     }
 
@@ -877,7 +878,7 @@ mod tests {
         let oid = utils::lfs::calc_lfs_file_hash(file).unwrap();
         let sub_oid =
             "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
-        let url = format!("http://localhost:8000/objects/{}/{}", oid, sub_oid);
+        let url = format!("http://localhost:8000/objects/{oid}/{sub_oid}");
         let size = 20971520;
         let offset = 83886080;
         let data = client

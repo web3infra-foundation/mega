@@ -7,7 +7,6 @@ import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon, PictureP
 import { formatDistance, fromUnixTime } from 'date-fns';
 import MRComment from '@/components/MrView/MRComment';
 import { useRouter } from 'next/router';
-import 'diff2html/bundles/css/diff2html.min.css';
 import FileDiff from '@/components/DiffView/FileDiff';
 import { Button } from '@gitmono/ui';
 // import { ReloadIcon } from '@radix-ui/react-icons';
@@ -45,7 +44,7 @@ export interface Conversation {
 
 const  MRDetailPage:PageWithLayout<any> = () =>{
     const router = useRouter();
-    const { id : tempId, title } = router.query;
+    const { id : tempId } = router.query;
     const { scope } = useScope()
     const [login, _setLogin] = useState(true);
     const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
@@ -140,64 +139,79 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
         key: '1',
         label: 'Conversation',
         children:
-          <div className="prose flex flex-col w-full">
+          <div className="flex flex-col w-full">
             <Timeline items={conv_items}/>
-            <h2>Add a comment</h2>
-            <input {...dropzone.getInputProps()} />
-            <div className='border p-6 rounded-lg'>
-              <SimpleNoteContent
-                commentId="temp" //  Temporary filling, replacement later
-                ref={editorRef}
-                editable="all"
-                content={EMPTY_HTML}
-                autofocus={true}
-                onKeyDown={onKeyDownScrollHandler}
-              />
-              <Button
-                variant='plain'
-                iconOnly={<PicturePlusIcon />}
-                accessibilityLabel='Add files'
-                onClick={dropzone.open}
-                tooltip='Add files'
-              />
-              <ComposerReactionPicker
-                editorRef={editorRef}
-                open={isReactionPickerOpen}
-                onOpenChange={setIsReactionPickerOpen}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              {mrDetail && mrDetail.status === "open" &&
+            <div className='prose'>
+              <div className="flex">
+                {mrDetail && mrDetail.status === "open" &&
+                  <Button
+                    disabled={!login || mrMergeIsPending}
+                    onClick={handleMrApprove}
+                    aria-label="Merge MR"
+                    className={cn(buttonClasses)}
+                    loading={mrMergeIsPending}
+                  >
+                    Merge MR
+                  </Button>
+                }
+              </div>
+              <h2>Add a comment</h2>
+              <input {...dropzone.getInputProps()} />
+              <div className='border p-6 rounded-lg'>
+                <SimpleNoteContent
+                  commentId="temp" //  Temporary filling, replacement later
+                  ref={editorRef}
+                  editable="all"
+                  content={EMPTY_HTML}
+                  autofocus={true}
+                  onKeyDown={onKeyDownScrollHandler}
+                />
                 <Button
-                  disabled={!login || mrCloseIsPending}
-                  onClick={handleMrClose}
-                  aria-label="Close Merge Request"
-                  className={cn(buttonClasses)}
-                  loading={mrCloseIsPending}
-                >
-                  Close Merge Request
-                </Button>
-              }
-              {mrDetail && mrDetail.status === "closed" &&
+                  variant='plain'
+                  iconOnly={<PicturePlusIcon />}
+                  accessibilityLabel='Add files'
+                  onClick={dropzone.open}
+                  tooltip='Add files'
+                />
+                <ComposerReactionPicker
+                  editorRef={editorRef}
+                  open={isReactionPickerOpen}
+                  onOpenChange={setIsReactionPickerOpen}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                {mrDetail && mrDetail.status === "open" &&
+                  <Button
+                    disabled={!login || mrCloseIsPending}
+                    onClick={handleMrClose}
+                    aria-label="Close Merge Request"
+                    className={cn(buttonClasses)}
+                    loading={mrCloseIsPending}
+                  >
+                    Close Merge Request
+                  </Button>
+                }
+                {mrDetail && mrDetail.status === "closed" &&
+                  <Button
+                    disabled={!login || mrReopenIsPending}
+                    onClick={handleMrReopen}
+                    aria-label="Reopen Merge Request"
+                    className={cn(buttonClasses)}
+                    loading={mrReopenIsPending}
+                  >
+                    Reopen Merge Request
+                  </Button>
+                }
                 <Button
-                  disabled={!login || mrReopenIsPending}
-                  onClick={handleMrReopen}
-                  aria-label="Reopen Merge Request"
+                  disabled={!login || mrCommentIsPending}
+                  onClick={() => send_comment()}
+                  aria-label="Comment"
                   className={cn(buttonClasses)}
-                  loading={mrReopenIsPending}
+                  loading={mrCommentIsPending}
                 >
-                  Reopen Merge Request
+                  Comment
                 </Button>
-              }
-              <Button
-                disabled={!login || mrCommentIsPending}
-                onClick={() => send_comment()}
-                aria-label="Comment"
-                className={cn(buttonClasses)}
-                loading={mrCommentIsPending}
-              >
-                Comment
-              </Button>
+              </div>
             </div>
           </div>
       },
@@ -211,18 +225,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     ];
 
     return (
-      <Card title={title + " #" + id} className="h-screen overflow-auto">
-          {mrDetail && mrDetail.status === "open" &&
-            <Button
-              disabled={!login || mrMergeIsPending}
-              onClick={handleMrApprove}
-              aria-label="Merge MR"
-              className={cn(buttonClasses)}
-              loading={mrMergeIsPending}
-            >
-              Merge MR
-            </Button>
-          }
+      <Card title={`${mrDetail?.title || ""}#${id}`} className="h-screen overflow-auto">
           <Tabs defaultActiveKey="1" items={tab_items} />
       </Card>
     )

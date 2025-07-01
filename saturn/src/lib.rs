@@ -40,7 +40,7 @@ impl Display for ActionEnum {
             ActionEnum::DeleteIssue => "deleteIssue",
             ActionEnum::DeleteMergeRequest => "deleteMergeRequest",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

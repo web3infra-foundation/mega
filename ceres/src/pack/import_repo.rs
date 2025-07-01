@@ -18,7 +18,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
-use jupiter::{context::Context, storage::batch_save_model};
+use jupiter::{storage::batch_save_model, storage::Storage};
 use mercury::{
     errors::GitError,
     internal::{
@@ -38,7 +38,7 @@ use crate::{
 };
 
 pub struct ImportRepo {
-    pub context: Context,
+    pub storage: Storage,
     pub repo: Repo,
     pub command_list: Vec<RefCommand>,
 }
@@ -47,7 +47,7 @@ pub struct ImportRepo {
 impl PackHandler for ImportRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
-            .context
+            .storage
             .services
             .git_db_storage
             .get_ref(self.repo.repo_id)
@@ -62,7 +62,7 @@ impl PackHandler for ImportRepo {
         &self,
         mut receiver: UnboundedReceiver<Entry>,
     ) -> Result<Option<Commit>, GitError> {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let semaphore = Arc::new(Semaphore::new(8));
         let mut join_tasks = vec![];
@@ -101,12 +101,12 @@ impl PackHandler for ImportRepo {
     }
 
     async fn full_pack(&self, _: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
-        let pack_config = &self.context.config.pack;
+        let pack_config = &self.storage.config().pack;
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
-        let storage = self.context.services.git_db_storage.clone();
-        let raw_storage = self.context.services.raw_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
+        let raw_storage = self.storage.services.raw_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
@@ -122,7 +122,7 @@ impl PackHandler for ImportRepo {
                         let entry = c.into();
                         entry_tx.send(entry).await.unwrap();
                     }
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
             tracing::info!("send commits end");
@@ -135,7 +135,7 @@ impl PackHandler for ImportRepo {
                         let entry = t.into();
                         entry_tx.send(entry).await.unwrap();
                     }
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
             tracing::info!("send trees end");
@@ -145,7 +145,7 @@ impl PackHandler for ImportRepo {
             while let Some(model) = bid_stream.next().await {
                 match model {
                     Ok(m) => bids.push(m.blob_id),
-                    Err(err) => eprintln!("Error: {:?}", err),
+                    Err(err) => eprintln!("Error: {err:?}"),
                 }
             }
 
@@ -164,7 +164,7 @@ impl PackHandler for ImportRepo {
                             let entry: Entry = b.into();
                             sender_clone.send(entry).await.unwrap();
                         }
-                        Err(err) => eprintln!("Error: {:?}", err),
+                        Err(err) => eprintln!("Error: {err:?}"),
                     }
                 }
                 // });
@@ -192,8 +192,8 @@ impl PackHandler for ImportRepo {
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();
-        let pack_config = &self.context.config.pack;
-        let storage = self.context.services.git_db_storage.clone();
+        let pack_config = &self.storage.config().pack;
+        let storage = self.storage.services.git_db_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
         let mut exist_objs = HashSet::new();
@@ -285,7 +285,7 @@ impl PackHandler for ImportRepo {
 
     async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError> {
         Ok(self
-            .context
+            .storage
             .services
             .git_db_storage
             .get_trees_by_hashes(self.repo.repo_id, hashes)
@@ -300,7 +300,7 @@ impl PackHandler for ImportRepo {
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        self.context
+        self.storage
             .services
             .raw_db_storage
             .get_raw_blobs_by_hashes(hashes)
@@ -308,7 +308,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn update_refs(&self, _: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {
                 storage
@@ -331,7 +331,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
-        self.context
+        self.storage
             .services
             .git_db_storage
             .get_commit_by_hash(self.repo.repo_id, hash)
@@ -341,7 +341,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn check_default_branch(&self) -> bool {
-        let storage = self.context.services.git_db_storage.clone();
+        let storage = self.storage.services.git_db_storage.clone();
         storage
             .default_branch_exist(self.repo.repo_id)
             .await
@@ -364,14 +364,14 @@ impl ImportRepo {
 
         let path = PathBuf::from(self.repo.repo_path.clone());
         let mono_api_service = MonoApiService {
-            context: self.context.clone(),
+            storage: self.storage.clone(),
         };
-        let storage = self.context.services.mono_storage.clone();
+        let storage = self.storage.services.mono_storage.clone();
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
         let latest_commit: Commit = self
-            .context
+            .storage
             .services
             .git_db_storage
             .get_commit_by_hash(self.repo.repo_id, &commit_id)
@@ -383,7 +383,7 @@ impl ImportRepo {
         let new_commit = Commit::from_tree_id(
             save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &format!("\n{}", commit_msg),
+            &format!("\n{commit_msg}"),
         );
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
@@ -415,7 +415,7 @@ mod test {
         let path = PathBuf::from("/third-party/crates/tokio/tokio-console");
         let ancestors: Vec<_> = path.ancestors().collect();
         for path in ancestors.into_iter() {
-            println!("{:?}", path);
+            println!("{path:?}");
         }
     }
 }

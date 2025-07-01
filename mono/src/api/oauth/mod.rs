@@ -54,7 +54,7 @@ async fn login_authorized(
     State(oauth_client): State<GithubClient>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let config = state.context.config.oauth.as_ref().unwrap();
+    let config = state.storage.config().oauth.as_ref().unwrap().clone();
 
     let http_client = reqwest::ClientBuilder::new()
         .redirect(reqwest::redirect::Policy::none())
@@ -136,7 +136,7 @@ async fn logout(
     TypedHeader(cookies): TypedHeader<headers::Cookie>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let full_config = state.context.config.clone();
+    let full_config = state.storage.config();
     let config = full_config.oauth.as_ref().unwrap();
     let cookie = cookies
         .get(COOKIE_NAME)
@@ -176,7 +176,7 @@ pub fn oauth_client(oauth_config: OauthConfig) -> Result<GithubClient, ApiError>
     let client_secret = oauth_config.github_client_secret;
     let ui_domain = oauth_config.ui_domain;
 
-    let redirect_url = format!("{}/auth/authorized", ui_domain);
+    let redirect_url = format!("{ui_domain}/auth/authorized");
 
     let auth_url = "https://github.com/login/oauth/authorize".to_string();
 

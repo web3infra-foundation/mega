@@ -15,7 +15,7 @@ pub fn routers() -> Router<AppState> {
 }
 
 async fn get_method_router(
-    _state: State<AppState>,
+    state: State<AppState>,
     Query(_params): Query<RelayGetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
@@ -29,7 +29,7 @@ async fn get_method_router(
                 return Err((StatusCode::BAD_REQUEST, "Bad request".to_string()));
             }
         };
-        return match gemini::ca::server::get_certificate(name).await {
+        return match gemini::ca::server::get_certificate(&state.vault, name) {
             Ok(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
             Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
         };
@@ -41,7 +41,7 @@ async fn get_method_router(
 }
 
 async fn post_method_router(
-    _state: State<AppState>,
+    state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
@@ -55,7 +55,7 @@ async fn post_method_router(
         };
         let bytes = to_bytes(req.into_body(), usize::MAX).await.unwrap();
         let csr = String::from_utf8(bytes.to_vec()).unwrap();
-        return match gemini::ca::server::issue_certificate(name, csr).await {
+        return match gemini::ca::server::issue_certificate(&state.vault, name, csr) {
             Ok(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
             Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
         };
