@@ -18,8 +18,8 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{oneshot, OnceCell, RwLock};
-use vault::pgp::{SignedPublicKey, SignedSecretKey};
 use vault::integration::vault_core::VaultCore;
+use vault::pgp::{SignedPublicKey, SignedSecretKey};
 
 pub struct MegaCore {
     config: Arc<RwLock<Config>>,
@@ -146,25 +146,22 @@ impl MegaCore {
                     chan.send(Err(MonoBeanError::ReinitError)).unwrap();
                     return;
                 }
-                
-                
+
                 let guard = self.running_context.read().await;
                 let vault_core = if let Some(ctx) = guard.as_ref() {
-                    &ctx.vault  
+                    &ctx.vault
                 } else {
                     let err_msg = "Mega core is not running, failed to get vault core";
                     tracing::error!(err_msg);
                     return;
                 };
 
-               
-
                 if let Some(pk) = vault_core.load_pub_key() {
                     let sk = vault_core.load_sec_key().await.unwrap();
                     chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 } else {
-                    let uid = format!("{} <{}>", user_name, user_email);
+                    let uid = format!("{user_name} <{user_email}>");
                     let params = VaultCore::params(
                         vault::pgp::KeyType::Rsa(2048),
                         passwd.clone(),
@@ -202,18 +199,18 @@ impl MegaCore {
         } else {
             self.initialized.store(true, Ordering::Release);
         }
-        
+
         let guard = self.running_context.read().await;
         let vault_core = if let Some(ctx) = guard.as_ref() {
-                    &ctx.vault  
-                } else {
-                    let err_msg = "Mega core is not running, failed to get vault core";
-                    tracing::error!(err_msg);
-                    return ;
-                };       
+            &ctx.vault
+        } else {
+            let err_msg = "Mega core is not running, failed to get vault core";
+            tracing::error!(err_msg);
+            return;
+        };
 
         // Try to load pgp keys from vault.
-        if let Some(pk) = vault_core.load_pub_key(){
+        if let Some(pk) = vault_core.load_pub_key() {
             let sk = vault_core.load_sec_key().await.unwrap();
             self.pgp.set((pk, sk)).unwrap();
             tracing::debug!("Loaded pgp keys from vault");
@@ -232,13 +229,11 @@ impl MegaCore {
             tracing::error!(err);
             return Err(MonoBeanError::MegaCoreError(err.to_string()));
         }
-        
-        
+
         let config = self.config.read().await.clone();
-        
+
         let inner = MegaContext::new(config.clone()).await;
-       
-        
+
         let http_ctx = inner.clone();
         *self.http_options.write().await = http_addr
             .map(|addr| HttpOptions::new(addr, p2p_opt))
@@ -255,7 +250,7 @@ impl MegaCore {
                 }
             }
         });
-        
+
         let ssh_ctx = inner.clone();
         let ssh_opt = ssh_addr.map(SshOptions::new).or(None);
         *self.ssh_options.write().await = ssh_opt;
@@ -271,7 +266,7 @@ impl MegaCore {
                 }
             }
         });
-        
+
         *self.running_context.write().await = Some(inner);
         Ok(())
     }
@@ -302,7 +297,8 @@ impl MegaCore {
         if path.as_ref().starts_with(&import_dir) && path.as_ref() != import_dir {
             if let Some(model) = ctx
                 .storage
-                .services.as_ref()
+                .services
+                .as_ref()
                 .git_db_storage
                 .find_git_repo_like_path(path.as_ref().to_string_lossy().as_ref())
                 .await
@@ -340,7 +336,7 @@ impl MegaCore {
         match tree {
             Ok(Some(tree)) => Ok(tree),
             _ => {
-                let err_msg = format!("Failed to load tree: {:?}", path);
+                let err_msg = format!("Failed to load tree: {path:?}");
                 tracing::error!(err_msg);
                 Err(MonoBeanError::MegaCoreError(err_msg))
             }
@@ -349,7 +345,9 @@ impl MegaCore {
 
     async fn load_blob(&self, id: impl AsRef<str>) -> MonoBeanResult<String> {
         let ctx = self.running_context.read().await.clone().unwrap();
-        let mono = MonoApiService {storage: ctx.storage };
+        let mono = MonoApiService {
+            storage: ctx.storage,
+        };
         let raw = mono
             .get_raw_blob_by_hash(id.as_ref())
             .await
@@ -359,7 +357,7 @@ impl MegaCore {
                 Some(data) => match String::from_utf8(data) {
                     Ok(string) => Ok(string),
                     Err(err) => {
-                        let err_msg = format!("Invalid UTF-8 data: {}", err);
+                        let err_msg = format!("Invalid UTF-8 data: {err}");
                         tracing::error!(err_msg);
                         Err(MonoBeanError::MegaCoreError(err_msg))
                     }
@@ -476,7 +474,6 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
     use tempfile::TempDir;
 
-    
     async fn test_core(temp_base: &TempDir) -> MegaCore {
         let (tx, _) = bounded(1);
         let (_, cmd_rx) = bounded(1);
@@ -496,7 +493,6 @@ mod tests {
         };
 
         let core = MegaCore::new(tx, cmd_rx, config);
-        println!("core start ok");
         core.init().await;
         core
     }
@@ -522,13 +518,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_launch_http() {
-        
         let temp_base = TempDir::new().unwrap();
-    
+
+        // 设置环境变量，让 mega_base() 返回临时目录
+        unsafe {
+            std::env::set_var("MEGA_BASE_DIR", temp_base.path());
+        }
+
         let core = test_core(&temp_base).await;
-        println!("temp_base: {:?}", temp_base.path());
-        
-        
+
         core.process_command(MegaCommands::MegaStart(
             Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
             None,
@@ -537,15 +535,18 @@ mod tests {
         .await;
         assert!(core.http_options.read().await.is_some());
         assert!(!core.ssh_options.read().await.is_some());
-        
+
         core.process_command(MegaCommands::MegaShutdown).await;
         assert!(core.http_options.read().await.is_none());
         assert!(core.ssh_options.read().await.is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_launch_ssh() {
         let temp_base = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("MEGA_BASE_DIR", temp_base.path());
+        }
         let core = test_core(&temp_base).await;
         core.process_command(MegaCommands::MegaStart(
             None,
@@ -563,5 +564,4 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_config() {}
-    
 }
