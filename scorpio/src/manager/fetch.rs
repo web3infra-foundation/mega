@@ -165,7 +165,7 @@ async fn worker_thread(
                         Ok(bytes) => {
                             match Tree::try_from(&bytes[..]) {
                                 Ok(tree) => {
-                                    trace!("ID:{},path:{}", id, path);
+                                    trace!("ID:{id},path:{path}");
                                     send_tree.send(tree.clone()).await;
                                     //trace!("path:{},new tree:{}",path,tree );
                                     for item in tree.tree_items {
@@ -188,12 +188,12 @@ async fn worker_thread(
                                     }
                                 }
                                 Err(e) => {
-                                    println!("Failed to parse tree: {:?}", e);
+                                    println!("Failed to parse tree: {e:?}");
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("Failed to get response bytes: {:?}", e);
+                            println!("Failed to get response bytes: {e:?}");
                         }
                     }
                 } else {
@@ -201,7 +201,7 @@ async fn worker_thread(
                 }
             }
             Err(e) => {
-                println!("Failed to send request: {:?}", e);
+                println!("Failed to send request: {e:?}");
             }
         }
     }
@@ -216,7 +216,7 @@ async fn worker_ro_thread(
     send_tree: Sender<(GPath, Tree)>,
 ) {
     let tree = fetch_tree(&path).await.unwrap();
-    trace!("path:{}", path);
+    trace!("path:{path}");
     let _ = send_tree.send((path.clone(), tree.clone())).await;
     let mut handlers = Vec::new();
     //trace!("path:{},new tree:{}",path,tree );
@@ -237,7 +237,7 @@ async fn worker_ro_thread(
             tokio::fs::create_dir_all(real_path).await.unwrap();
         } else {
             let e = fetch_and_save_file(&item.id, real_path).await;
-            println!("{:?}", e);
+            println!("{e:?}");
         }
     }
     for h in handlers {
@@ -282,7 +282,7 @@ async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Resul
         .await
         .unwrap();
 
-    print!("finish code for {}...", path);
+    print!("finish code for {path}...");
 
     Ok(())
 }
@@ -293,7 +293,7 @@ async fn set_parent_commit(work_path: &Path) -> std::io::Result<()> {
     let parent_commit = match fetch_parent_commit().await {
         Ok(info) => info,
         Err(e) => {
-            eprintln!("Failed to fetch parent commit info: {}", e);
+            eprintln!("Failed to fetch parent commit info: {e}");
             return Err(std::io::Error::other("Failed to fetch parent commit info"));
         }
     };
@@ -356,7 +356,7 @@ async fn fetch_and_save_file(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let file_blob_endpoint = config::file_blob_endpoint();
-    let url = format!("{}/{}", file_blob_endpoint, url);
+    let url = format!("{file_blob_endpoint}/{url}");
     // Send GET request
     let response = client.get(url).send().await?;
 
@@ -453,7 +453,7 @@ mod tests {
             // // You can add more assertions or validation logic here
             // assert!(!data.is_empty(), "Data should not be empty");
 
-            println!("{}", tree);
+            println!("{tree}");
             // You can also validate the specific content of the data
             // assert_eq!(data, expected_data); // You need to define expected_data
         } else {
