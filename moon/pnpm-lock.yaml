@@ -27,6 +27,9 @@ catalogs:
     '@flydotio/dockerfile':
       specifier: ^0.4.11
       version: 0.4.11
+    '@git-diff-view/react':
+      specifier: 0.0.26
+      version: 0.0.26
     '@heroicons/react':
       specifier: ^2.2.0
       version: 2.2.0
@@ -72,6 +75,15 @@ catalogs:
     '@playwright/test':
       specifier: ^1.43.1
       version: 1.43.1
+    '@primer/octicons-react':
+      specifier: ^19.15.3
+      version: 19.15.3
+    '@primer/primitives':
+      specifier: ^10.7.0
+      version: 10.7.0
+    '@primer/react':
+      specifier: ^37.27.0
+      version: 37.27.0
     '@radix-ui/react-accordion':
       specifier: ^1.2.0
       version: 1.2.0
@@ -402,6 +414,9 @@ catalogs:
     framer-motion:
       specifier: ^11.11.11
       version: 11.11.11
+    fuse.js:
+      specifier: ^7.1.0
+      version: 7.1.0
     github-markdown-css:
       specifier: ^5.8.1
       version: 5.8.1
@@ -609,6 +624,9 @@ catalogs:
     storybook:
       specifier: ^8.0.0-beta.3
       version: 8.0.5
+    styled-components:
+      specifier: ^6.1.19
+      version: 6.1.19
     swagger-typescript-api:
       specifier: ^12.0.4
       version: 12.0.4
@@ -774,7 +792,7 @@ importers:
         specifier: 'catalog:'
         version: 11.14.0(@emotion/react@11.14.0(@types/react@18.2.74)(react@18.2.0))(@types/react@18.2.74)(react@18.2.0)
       '@git-diff-view/react':
-        specifier: 0.0.26
+        specifier: 'catalog:'
         version: 0.0.26(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@gitmono/config':
         specifier: workspace:*
@@ -815,11 +833,14 @@ importers:
       '@octokit/core':
         specifier: 'catalog:'
         version: 6.1.2
+      '@primer/octicons-react':
+        specifier: 'catalog:'
+        version: 19.15.3(react@18.2.0)
       '@primer/primitives':
-        specifier: ^10.7.0
+        specifier: 'catalog:'
         version: 10.7.0
       '@primer/react':
-        specifier: ^37.27.0
+        specifier: 'catalog:'
         version: 37.27.0(@types/react-dom@18.2.24)(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.1.19(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@radix-ui/react-accordion':
         specifier: 'catalog:'
@@ -915,7 +936,7 @@ importers:
         specifier: 'catalog:'
         version: 11.11.11(@emotion/is-prop-valid@1.3.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       fuse.js:
-        specifier: ^7.1.0
+        specifier: 'catalog:'
         version: 7.1.0
       github-markdown-css:
         specifier: 'catalog:'
@@ -1086,7 +1107,7 @@ importers:
         specifier: 'catalog:'
         version: 1.6.6
       styled-components:
-        specifier: ^6.1.19
+        specifier: 'catalog:'
         version: 6.1.19(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       tippy.js:
         specifier: 'catalog:'
@@ -23844,9 +23865,9 @@ snapshots:
 
   postcss@8.4.31:
     dependencies:
-      nanoid: 3.3.7
-      picocolors: 1.0.0
-      source-map-js: 1.2.0
+      nanoid: 3.3.11
+      picocolors: 1.1.1
+      source-map-js: 1.2.1
 
   postcss@8.4.38:
     dependencies:
@@ -26641,7 +26662,7 @@ snapshots:
       html-escaper: 2.0.2
       is-plain-object: 5.0.0
       opener: 1.5.2
-      picocolors: 1.0.0
+      picocolors: 1.1.1
       sirv: 2.0.4
       ws: 7.5.9
     transitivePeerDependencies:

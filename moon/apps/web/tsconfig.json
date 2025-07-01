@@ -24,7 +24,9 @@
         "name": "next"
       }
     ],
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "extends": "@gitmono/tsconfig/nextjs.json",
   "include": [
