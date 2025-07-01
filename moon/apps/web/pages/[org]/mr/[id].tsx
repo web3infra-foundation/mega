@@ -48,7 +48,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const id = typeof tempId === 'string' ? tempId : '';
     const { data: MrDetailData, isLoading: detailIsLoading } = useGetMrDetail(id)
     const mrDetail = MrDetailData?.data as MRDetail | undefined
-    const UnderlinePanels = require('@primer/react/experimental')
+    const { UnderlinePanels } = require('@primer/react/experimental')
     
     if (mrDetail && typeof mrDetail.status === 'string') {
       mrDetail.status = mrDetail.status.toLowerCase();
