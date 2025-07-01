@@ -232,6 +232,10 @@ impl MegaCore {
 
         let config = self.config.read().await.clone();
 
+        #[cfg(test)]
+        let inner = MegaContext::mock(config.clone()).await;
+
+        #[cfg(not(test))]
         let inner = MegaContext::new(config.clone()).await;
 
         let http_ctx = inner.clone();
@@ -467,10 +471,11 @@ mod tests {
     use crate::config::APP_NAME;
     use crate::config::MEGA_CONFIG_PATH;
     use async_channel::bounded;
-    use common::config::DbConfig;
     use common::config::LogConfig;
+    use common::config::{AuthConfig, DbConfig, LFSConfig, MonoConfig, PackConfig};
     use gtk::gio;
     use gtk::glib;
+    use std::fs;
     use std::net::{IpAddr, Ipv4Addr};
     use tempfile::TempDir;
 
@@ -489,8 +494,21 @@ mod tests {
                 db_path: temp_base.path().to_path_buf().join("test.db"),
                 ..Default::default()
             },
-            ..Default::default()
+            monorepo: MonoConfig::default(),
+            pack: PackConfig::default(),
+            authentication: AuthConfig::default(),
+            lfs: LFSConfig::default(),
+            oauth: None,
+            //..Default::default()
         };
+
+        // make config saved in temp dir
+        let config_dir = temp_base.path().join("etc");
+        fs::create_dir_all(&config_dir).unwrap();
+        let config_path = config_dir.join("config.toml");
+        let toml_str = toml::to_string(&config).unwrap();
+        fs::write(&config_path, toml_str).unwrap();
+        let config = Config::new(config_path.to_str().unwrap()).unwrap();
 
         let core = MegaCore::new(tx, cmd_rx, config);
         core.init().await;
@@ -520,11 +538,6 @@ mod tests {
     async fn test_launch_http() {
         let temp_base = TempDir::new().unwrap();
 
-        // 设置环境变量，让 mega_base() 返回临时目录
-        unsafe {
-            std::env::set_var("MEGA_BASE_DIR", temp_base.path());
-        }
-
         let core = test_core(&temp_base).await;
 
         core.process_command(MegaCommands::MegaStart(
@@ -541,12 +554,10 @@ mod tests {
         assert!(core.ssh_options.read().await.is_none());
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
     async fn test_launch_ssh() {
         let temp_base = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("MEGA_BASE_DIR", temp_base.path());
-        }
+
         let core = test_core(&temp_base).await;
         core.process_command(MegaCommands::MegaStart(
             None,

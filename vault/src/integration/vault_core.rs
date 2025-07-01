@@ -55,7 +55,7 @@ impl VaultCore {
         result
     }
 
-    fn config(ctx: Storage, key_path: PathBuf) -> Self {
+    pub fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
         let seal_config = rusty_vault::core::SealConfig {
