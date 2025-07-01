@@ -9,7 +9,6 @@ use ceres::api_service::ApiHandler;
 use ceres::protocol::repo::Repo;
 use common::config::Config;
 use common::model::P2pOptions;
-// use jupiter::context::Context as MegaContext;
 use context::AppContext as MegaContext;
 use mercury::internal::object::tree::Tree;
 use std::fmt;
@@ -153,6 +152,8 @@ impl MegaCore {
                 let vault_core = if let Some(ctx) = guard.as_ref() {
                     &ctx.vault  
                 } else {
+                    let err_msg = "Mega core is not running, failed to get vault core";
+                    tracing::error!(err_msg);
                     return;
                 };
 
@@ -206,7 +207,9 @@ impl MegaCore {
         let vault_core = if let Some(ctx) = guard.as_ref() {
                     &ctx.vault  
                 } else {
-                    return;
+                    let err_msg = "Mega core is not running, failed to get vault core";
+                    tracing::error!(err_msg);
+                    return ;
                 };       
 
         // Try to load pgp keys from vault.
@@ -230,15 +233,11 @@ impl MegaCore {
             return Err(MonoBeanError::MegaCoreError(err.to_string()));
         }
         
-        // let config: Arc<Config> = self.config.read().await.clone().into();
+        
         let config = self.config.read().await.clone();
         
         let inner = MegaContext::new(config.clone()).await;
-        // inner
-        //     .services
-        //     .mono_storage
-        //     .init_monorepo(&config.monorepo)
-        //     .await;
+       
         
         let http_ctx = inner.clone();
         *self.http_options.write().await = http_addr
@@ -564,32 +563,5 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_config() {}
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_mega_context_new() {
-        // 创建临时目录作为 base_dir
-        let temp_base = TempDir::new().unwrap();
-
-        // 构造一个简单的 Config
-        let config = Config {
-            base_dir: temp_base.path().to_path_buf(),
-            log: LogConfig {
-                log_path: temp_base.path().to_path_buf(),
-                level: "debug".to_string(),
-                print_std: true,
-            },
-            database: DbConfig {
-                db_type: "sqlite".to_string(),
-                db_path: temp_base.path().to_path_buf().join("test.db"),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        eprintln!("排查阻塞");
-        // 调用 MegaContext::new
-        let ctx = MegaContext::new(config).await;
-
-        
-    }
+    
 }

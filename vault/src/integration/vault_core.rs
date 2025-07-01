@@ -1,5 +1,4 @@
-use std::{path::PathBuf, result, sync::{Arc, RwLock}};
-use std::sync::{Mutex, OnceLock};
+use std::{path::PathBuf, sync::{Arc, RwLock}};
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
@@ -80,7 +79,6 @@ impl VaultCore {
 
             let core_key = if !key_path.exists() {
                 
-                let _guard = INIT_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap();
                 
                 let result = managed_core
                     .init(&seal_config)
@@ -185,7 +183,6 @@ mod tests {
 
     use super::*;
     use std::collections::HashMap;
-    use tempfile::TempDir;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_core_initialization() {
@@ -204,16 +201,7 @@ mod tests {
             "Vault core should be initialized"
         );
     }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_vault_core_new() {
-        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
-        let key_path = temp_dir.path().join(CORE_KEY_FILE);
-        println!("Key path: {:?}", key_path);
-        let storage = test_storage(temp_dir.path()).await;
-        let vault_core = VaultCore::new(storage);
-        
-    }
+    
     
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_api() {

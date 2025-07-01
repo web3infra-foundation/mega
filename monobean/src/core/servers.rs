@@ -2,7 +2,6 @@ use crate::error::MonoBeanResult;
 use bytes::BytesMut;
 use common::model::P2pOptions;
 use gateway::https_server::{app, check_run_with_p2p};
-// use jupiter::context::Context as MegaContext;
 use context::AppContext as MegaContext;
 use mono::git_protocol::ssh::SshServer;
 use russh::server::Server;
