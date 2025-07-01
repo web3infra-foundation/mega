@@ -30,7 +30,7 @@ async fn main() {
     let args = Args::parse();
 
     if let Err(e) = config::init_config(&args.config_path) {
-        eprintln!("Failed to load config: {}", e);
+        eprintln!("Failed to load config: {e}");
         std::process::exit(1);
     }
 

@@ -141,7 +141,7 @@ async fn mount_handler(
         return axum::Json(MountResponse {
             status: FAIL.into(),
             mount: MountInfo::default(),
-            message: format!("The {} is already check-out ", mounted_path),
+            message: format!("The {mounted_path} is already check-out "),
         });
     }
     let store_path = config::store_path();
@@ -252,7 +252,7 @@ async fn umount_handler(
         }
         Err(err) => axum::Json(UmountResponse {
             status: FAIL.into(),
-            message: format!("Umount process error :{}.", err),
+            message: format!("Umount process error :{err}."),
         }),
     }
 }

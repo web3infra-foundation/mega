@@ -35,7 +35,7 @@ impl TreeStore for sled::Db {
                 // If the db is empty, return an error not a panic.
                 Err(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("Path '{}' not found", key),
+                    format!("Path '{key}' not found"),
                 ))
             }
         }
@@ -591,7 +591,7 @@ mod test {
         if let Some(encoded_value) = db.get(t.id.as_ref()).unwrap() {
             // use bincode to deserialize the value .
             let decoded: Tree = bincode::deserialize(&encoded_value).unwrap();
-            println!(" {}", decoded);
+            println!(" {decoded}");
         };
     }
 
@@ -609,10 +609,10 @@ mod test {
                     let decoded: Result<Tree, _> = bincode::deserialize(&value);
                     let key_str = std::str::from_utf8(&key).unwrap();
 
-                    println!("path:{}", key_str);
+                    println!("path:{key_str}");
 
                     if let Ok(tree) = decoded {
-                        println!("{}", tree);
+                        println!("{tree}");
                     } else {
                         println!(
                             "Deserialization error for key: {}",
@@ -621,7 +621,7 @@ mod test {
                     }
                 }
                 Err(error) => {
-                    println!("Error iterating over trees: {}", error);
+                    println!("Error iterating over trees: {error}");
                 }
             }
         }
