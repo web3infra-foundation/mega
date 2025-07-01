@@ -145,6 +145,48 @@ export const EditorBubbleMenu = memo(function EditorBubbleMemo({
     }
   }, [closeLinkEditor, editor, linkEditorOpen, openLinkEditor, forceUpdate])
 
+  // Handle clicking outside to hide menu
+  useEffect(() => {
+    if (typeof window === 'undefined' || !editor?.view?.dom) {
+      return
+    }
+
+    const handleClickOutside = (event: Event) => {
+      const target = event.target as Node
+      const editorElement = editor?.view.dom
+      const menuElement = containerRef.current
+      
+      // Check if click is outside both editor and menu
+      if (editorElement && menuElement) {
+        const isClickInsideEditor = editorElement.contains(target)
+        const isClickInsideMenu = menuElement.contains(target)
+        
+        if (!isClickInsideEditor && !isClickInsideMenu) {
+          // Clear selection to hide the bubble menu
+          editor?.commands.setTextSelection(editor.state.selection.from)
+          // Also blur the editor to ensure menu hides
+          editor?.view.dom.blur()
+        }
+      }
+    }
+
+    try {
+      document.addEventListener('mousedown', handleClickOutside)
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to add click outside listener:', error)
+    }
+    
+    return () => {
+      try {
+        document.removeEventListener('mousedown', handleClickOutside)
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to remove click outside listener:', error)
+      }
+    }
+  }, [editor])
+
   const containerRef = useRef<HTMLDivElement>(null)
 
   if (!editor) return null
