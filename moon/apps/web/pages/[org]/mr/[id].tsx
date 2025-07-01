@@ -23,7 +23,6 @@ import { trimHtml } from '@/utils/trimHtml'
 import { toast } from 'react-hot-toast'
 import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker';
 import { useUploadHelpers } from '@/hooks/useUploadHelpers';
-import { UnderlinePanels } from '@primer/react/experimental'
 import { CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
 import TimelineItems from '@/components/MrView/TimelineItems';
 
@@ -49,7 +48,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const id = typeof tempId === 'string' ? tempId : '';
     const { data: MrDetailData, isLoading: detailIsLoading } = useGetMrDetail(id)
     const mrDetail = MrDetailData?.data as MRDetail | undefined
-
+    const UnderlinePanels = require('@primer/react/experimental')
     
     if (mrDetail && typeof mrDetail.status === 'string') {
       mrDetail.status = mrDetail.status.toLowerCase();
