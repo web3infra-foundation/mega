@@ -13,7 +13,9 @@ members = [
     "saturn",
     "orion",
     "orion-server",
-    "observatory",
+    "extensions/rag/chat",
+    "extensions/rag/index",
+    "extensions/observatory",
     "scorpio",
     "context",
 ]
@@ -31,6 +33,7 @@ gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
 mono = { path = "mono" }
+observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 context = { path = "context" }
 
@@ -49,6 +52,7 @@ tokio-stream = "0.1.17"
 tokio-test = "0.4.4"
 tokio-util = "0.7.15"
 clap = "4.5.39"
+async-std = "1.13.1"
 async-trait = "0.1.88"
 async-stream = "0.3.6"
 bytes = "1.10.1"
@@ -132,6 +136,16 @@ tungstenite = "0.27.0"
 itertools = "0.14.0"
 rusty_vault = "0.2.1"
 bs58 = "0.5.1"
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+log = "0.4.27"
+env_logger = "0.11.7"
+qdrant-client = "1.7"
+walkdir = "2.4"
+dagrs = "0.4.4"
+tar = "0.4"
+
 envsubst = "0.2.1"
 rcgen = "0.13.2"
 diffs = "0.5.1"
@@ -139,6 +153,7 @@ libc = "0.2.172"
 zstd-sys = "2.0.15+zstd.1.5.7"
 quickcheck = "1.0.3"
 directories = "6.0.0"
+dotenv = "0.15"
 
 [profile.release]
 debug = true
