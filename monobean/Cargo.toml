@@ -25,6 +25,7 @@ vault = { path = "../vault" }
 gateway = { path = "../gateway" }
 ceres = { path = "../ceres" }
 mercury = { path = "../mercury" }
+context = {path = "../context"}
 
 thiserror = { version = "2.0.11", features = ["default"] }
 tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] }

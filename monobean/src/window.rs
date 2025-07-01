@@ -253,7 +253,7 @@ fn load_css() {
         .into_iter()
         .map(|f| {
             let provider = CssProvider::new();
-            provider.load_from_resource(&format!("{}/css/{}", PREFIX, f));
+            provider.load_from_resource(&format!("{PREFIX}/css/{f}"));
             style_context_add_provider_for_display(
                 &gtk::gdk::Display::default().expect("Could not connect to a display."),
                 &provider,

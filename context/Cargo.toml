@@ -17,3 +17,4 @@ jupiter = { workspace = true }
 vault = { workspace = true }
 
 gemini = { workspace = true, optional = true }
+tokio = "1.45.1"
