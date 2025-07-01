@@ -30,7 +30,7 @@ impl AppContext {
         let storage_for_vault = storage.clone();
         let vault = tokio::task::spawn_blocking(move || {
             vault::integration::vault_core::VaultCore::new(storage_for_vault)
-        }).await.expect("VaultCore::new panicked________");
+        }).await.expect("VaultCore::new panicked");
         
         
         #[cfg(feature = "p2p")]
