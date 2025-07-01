@@ -95,7 +95,7 @@ fn run_git_cmd(args: &[&str]) {
 
 fn is_port_in_use(port: u16) -> bool {
     TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", port).parse().unwrap(),
+        &format!("127.0.0.1:{port}").parse().unwrap(),
         Duration::from_millis(1000),
     )
     .is_ok()
@@ -118,14 +118,14 @@ fn git_clone(url: &str, mono_server_url: &str) -> io::Result<HashMap<i32, BTreeS
     env::set_current_dir(SCOR_DIR.to_owned())?;
 
     if !is_valid_git_repo() {
-        println!("No valid git repo found, cloning from {}", url);
+        println!("No valid git repo found, cloning from {url}");
         run_git_cmd(&["clone", url]);
 
         let repo_name = url.split('/').next_back().unwrap().trim_end_matches(".git");
         let repo_dir = SCOR_DIR.join(repo_name);
         env::set_current_dir(&repo_dir)?;
 
-        let mono_url = format!("{}/third-party/dir_test.git", mono_server_url);
+        let mono_url = format!("{mono_server_url}/third-party/dir_test.git");
         run_git_cmd(&["remote", "add", "mono", mono_url.as_str()]);
         run_git_cmd(&["push", "--all", "mono"]);
     } else {
@@ -133,7 +133,7 @@ fn git_clone(url: &str, mono_server_url: &str) -> io::Result<HashMap<i32, BTreeS
         let repo_dir = SCOR_DIR.join("dir_test");
 
         env::set_current_dir(&repo_dir)?;
-        let mono_url = format!("{}/third-party/dir_test.git", mono_server_url);
+        let mono_url = format!("{mono_server_url}/third-party/dir_test.git");
         run_git_cmd(&["remote", "remove", "mono"]);
         run_git_cmd(&["remote", "add", "mono", mono_url.as_str()]);
         run_git_cmd(&["push", "--all", "mono"]);
@@ -205,7 +205,7 @@ load_dir_depth = "4"
             }
         }
         Err(e) => {
-            println!("Umount command failed (this is usually okay): {}", e);
+            println!("Umount command failed (this is usually okay): {e}");
         }
     }
 
@@ -254,14 +254,14 @@ pub async fn mono_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
     let container = mono_container(mapping_port).await;
     let mega_ip = container.get_bridge_ip_address().await.unwrap();
     let mega_port: u16 = container.get_host_port_ipv4(mapping_port).await.unwrap();
-    (container, format!("http://{}:{}", mega_ip, mega_port))
+    (container, format!("http://{mega_ip}:{mega_port}"))
 }
 
 #[tokio::test]
 ///Use container to run mono server and test the scorpio service
 async fn test_scorpio_service_with_containers() {
     let (_container, mono_server_url) = mono_bootstrap_servers(12001).await;
-    println!("container: {}", mono_server_url);
+    println!("container: {mono_server_url}");
     let dir_list = git_clone("https://github.com/yyjeqhc/dir_test.git", &mono_server_url).unwrap();
 
     let (cmd_tx, cmd_rx) = mpsc::channel(32);
@@ -279,7 +279,7 @@ async fn test_scorpio_service_with_containers() {
         }
         success = result_rx.recv() => {
             if let Some(CommandResult::InitFinish(depth)) = success {
-                   println!("scorpio service started successfully, max depth: {}", depth);
+                   println!("scorpio service started successfully, max depth: {depth}");
                    max_depth = depth;
             }
         }
@@ -295,8 +295,7 @@ async fn test_scorpio_service_with_containers() {
                     assert_eq!(
                         dir_list.get(&i).unwrap(),
                         store_items.get(&i).unwrap(),
-                        "dir structure at depth {} does not match.",
-                        i
+                        "dir structure at depth {i} does not match."
                     );
                 }
                 println!("import_arc,load dir success");
@@ -456,8 +455,7 @@ async fn test_scorpio_service_with_containers() {
                     assert_eq!(
                         expected_items.get(&i).unwrap(),
                         store_items.get(&i).unwrap(),
-                        "dir structure at depth {} does not match.",
-                        i
+                        "dir structure at depth {i} does not match."
                     );
                 }
                 println!("load_dir,preload dir success");
@@ -483,7 +481,7 @@ async fn test_scorpio_dir(
     result_tx: mpsc::Sender<CommandResult>,
 ) {
     if let Err(e) = config::init_config(SCOR_DIR.join("scorpio.toml").to_str().unwrap()) {
-        eprintln!("init config fail {:?}", e);
+        eprintln!("init config fail {e:?}");
         let _ = result_tx
             .send(CommandResult::Error("load config error".to_string()))
             .await;
@@ -547,7 +545,7 @@ async fn test_scorpio_dir(
                         let dir_items = store.get_dir_by_path(&path).await;
                         if dir_items.is_empty() {
                             let _ = result_tx
-                                .send(CommandResult::Error(format!("LoadDir fail: {}", path)))
+                                .send(CommandResult::Error(format!("LoadDir fail: {path}")))
                                 .await;
                         } else {
                             let _ = result_tx
@@ -566,7 +564,7 @@ async fn test_scorpio_dir(
                         //         .await;
                         //     continue;
                         // }
-                        println!("ReadFileContent {:?}", file_path);
+                        println!("ReadFileContent {file_path:?}");
                         let content = store
                             .get_file_content_by_path(&file_path)
                             .await

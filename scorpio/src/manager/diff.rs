@@ -148,11 +148,11 @@ pub fn change(
     let root_tree = db.get_bypath(&tree_path);
     if let Ok(root_tree) = root_tree {
         // exit dictionry
-        println!("exit tree:{:?}", tree_path);
+        println!("exit tree:{tree_path:?}");
         tree = root_tree;
     } else {
         // there is a new dictionary.
-        println!("new tree:{:?}", tree_path);
+        println!("new tree:{tree_path:?}");
         tree = Tree {
             id: SHA1::default(),
             tree_items: vec![],
@@ -205,7 +205,7 @@ pub fn change(
         if new {
             // a new file or dictionary
             if path.is_dir() {
-                println!("change: new tree  {:?}", name);
+                println!("change: new tree  {name:?}");
                 let new_tree_path = tree_path.join(path.file_name().unwrap());
                 let new_tree = change(path.clone(), new_tree_path, trees, blobs, db);
 
@@ -217,7 +217,7 @@ pub fn change(
                 });
                 trees.push(new_tree);
             } else {
-                println!("change: new file  {}", name);
+                println!("change: new file  {name}");
                 let content = std::fs::read(&path).unwrap();
                 let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
                 blobs.push(Blob {
@@ -248,7 +248,7 @@ mod tests {
         let temp_dir = "/home/luxian/code/mega/scorpio/src";
         let paths = collect_paths(temp_dir);
         for p in paths {
-            println!("{:?}", p);
+            println!("{p:?}");
         }
     }
 

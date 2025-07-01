@@ -106,8 +106,8 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
             let commit_time = extract_data("commit_time");
             let message = extract_data("message");
 
-            println!("author_time = {}", author_time);
-            println!("commit_time = {}", commit_time);
+            println!("author_time = {author_time}");
+            println!("commit_time = {commit_time}");
 
             // This part of the code is to prevent the timestamp
             // change from causing the Commit Hash to change
@@ -229,12 +229,12 @@ pub async fn push_core(
         .header(CONTENT_TYPE, "application/x-git-receive-pack-request")
         .body(data.freeze());
 
-    println!("send_pack request: {:?}", res);
+    println!("send_pack request: {res:?}");
 
     let res = match res.send().await {
         Ok(response) => response,
         Err(e) => {
-            eprintln!("\x1b[31mFailed to send request: {:?}\x1b[0m", e);
+            eprintln!("\x1b[31mFailed to send request: {e:?}\x1b[0m");
             return Err(std::io::Error::other("Failed to send request"));
         }
     };
@@ -288,7 +288,7 @@ Added some tmp files"###;
             }
             Err(e) => {
                 std::fs::remove_dir_all(&tmp_path).expect("Failed to remove tmp directory");
-                eprintln!("\x1b[31mParse failed: {}\x1b[0m", e);
+                eprintln!("\x1b[31mParse failed: {e}\x1b[0m");
             }
         }
     }

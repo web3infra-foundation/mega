@@ -97,7 +97,7 @@ impl Filesystem for Dicfuse {
     /// [fuse_common.h](https://libfuse.github.io/doxygen/include_2fuse__common_8h_source.html) for
     /// more details.
     async fn open(&self, _req: Request, inode: Inode, _flags: u32) -> Result<ReplyOpen> {
-        println!("open a new readonly one inode {}", inode);
+        println!("open a new readonly one inode {inode}");
         // let trees = fetch_tree();
         Ok(ReplyOpen { fh: 0, flags: 0 })
     }

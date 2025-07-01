@@ -13,7 +13,7 @@ impl ContentStorage {
     }
     pub fn new() -> io::Result<Self> {
         let store_path = config::store_path();
-        let path = format!("{}/content.db", store_path);
+        let path = format!("{store_path}/content.db");
         let db = sled::open(path)?;
         Ok(ContentStorage { db })
     }
