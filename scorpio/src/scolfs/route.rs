@@ -123,7 +123,7 @@ async fn list_locks(
 async fn create_lock(Path(path): Path<String>) -> Result<StatusCode, ErrorResponse> {
     if !PathBuf::from(&path).exists() {
         return Err(ErrorResponse {
-            error: format!("Path '{}' not found", path),
+            error: format!("Path '{path}' not found"),
         });
     }
 

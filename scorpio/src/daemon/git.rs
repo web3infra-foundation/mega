@@ -192,10 +192,10 @@ pub(super) async fn git_push_handler(
             }
         }
         Err(e) => {
-            eprintln!("Error during push: {}", e);
+            eprintln!("Error during push: {e}");
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Error: {}", e),
+                format!("Error: {e}"),
             )
                 .into_response()
         }

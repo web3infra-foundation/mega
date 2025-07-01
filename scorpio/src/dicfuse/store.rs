@@ -194,14 +194,14 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
 /// Download a file from the server using its OID/hash
 async fn fetch_file(oid: &str) -> Vec<u8> {
     let file_blob_endpoint = config::file_blob_endpoint();
-    let url = format!("{}/{}", file_blob_endpoint, oid);
+    let url = format!("{file_blob_endpoint}/{oid}");
     let client = Client::new();
 
     // Send GET request
     let response = match client.get(url).send().await {
         Ok(resp) => resp,
         Err(_) => {
-            eprintln!("Failed to fetch file with OID: {}", oid);
+            eprintln!("Failed to fetch file with OID: {oid}");
             return Vec::new(); // Return empty vector on error
         }
     };
@@ -212,7 +212,7 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
         let content = match response.bytes().await {
             Ok(bytes) => bytes,
             Err(_) => {
-                eprintln!("Failed to read content for OID: {}", oid);
+                eprintln!("Failed to read content for OID: {oid}");
                 return Vec::new(); // Return empty vector on error
             }
         };
@@ -245,7 +245,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         Ok(info) => info,
         Err(e) => {
             return Err(DictionaryError {
-                message: format!("Failed to parse commit info: {}", e),
+                message: format!("Failed to parse commit info: {e}"),
             });
         }
     };
@@ -263,7 +263,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     } else if path.ends_with('/') {
         path.to_string()
     } else {
-        format!("{}/", path)
+        format!("{path}/")
     };
 
     for info in tree_info.data {
@@ -315,7 +315,7 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
         Ok(info) => info,
         Err(e) => {
             return Err(DictionaryError {
-                message: format!("Failed to parse commit info: {}", e),
+                message: format!("Failed to parse commit info: {e}"),
             });
         }
     };
@@ -333,7 +333,7 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
     } else if path.ends_with('/') {
         path.to_string()
     } else {
-        format!("{}/", path)
+        format!("{path}/")
     };
 
     for info in tree_info.data {
@@ -458,9 +458,9 @@ impl DictionaryStore {
             let child_name = child_item.get_name();
 
             let child_full_path = if current_path == "/" {
-                format!("/{}", child_name)
+                format!("/{child_name}")
             } else {
-                format!("{}/{}", current_path, child_name)
+                format!("{current_path}/{child_name}")
             };
 
             let relative_path = if base_path == "/" {
@@ -470,7 +470,7 @@ impl DictionaryStore {
                     .to_string()
             } else if child_full_path == base_path {
                 ".".to_string()
-            } else if child_full_path.starts_with(&format!("{}/", base_path)) {
+            } else if child_full_path.starts_with(&format!("{base_path}/")) {
                 child_full_path[base_path.len() + 1..].to_string()
             } else {
                 continue;
@@ -524,7 +524,7 @@ impl DictionaryStore {
         let normalized_base_dir = if base_dir.is_empty() || base_dir == "." {
             "/".to_string()
         } else if !base_dir.starts_with('/') {
-            format!("/{}", base_dir)
+            format!("/{base_dir}")
         } else {
             base_dir.to_string()
         };
@@ -534,14 +534,14 @@ impl DictionaryStore {
                 .traverse_directory(&normalized_base_dir, &normalized_base_dir, &mut depth_items)
                 .await
             {
-                println!("Error traversing directory {}: {}", normalized_base_dir, e);
+                println!("Error traversing directory {normalized_base_dir}: {e}");
             }
 
             if normalized_base_dir != "/" {
                 depth_items.entry(0).or_default();
             }
         } else {
-            println!("Base directory {} not found", normalized_base_dir);
+            println!("Base directory {normalized_base_dir} not found");
         }
 
         depth_items
@@ -559,7 +559,7 @@ impl DictionaryStore {
                     .get_all_path(parent_inode)
                     .unwrap()
                     .to_string();
-            println!("update hash {:?}", path);
+            println!("update hash {path:?}");
             let hash = get_dir_hash(&path).await;
             if hash.is_empty() {
                 return;
@@ -644,7 +644,7 @@ impl DictionaryStore {
 
             let it = self.persistent_path_store.get_all_path(one_inode).unwrap();
             let path = it.to_string();
-            println!("fetch path :{}", path);
+            println!("fetch path :{path}");
             // get tree by parent inode.
             new_items = fetch_dir(&path).await.unwrap().data;
 
@@ -778,7 +778,7 @@ impl DictionaryStore {
 /// * `parent_path` - The path to an empty directory where subdirectories will be loaded.
 /// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
 pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) {
-    println!("load_dir_depth {:?}", parent_path);
+    println!("load_dir_depth {parent_path:?}");
     let queue = Arc::new(SegQueue::new());
     let items = fetch_dir(&parent_path).await.unwrap().data;
     // only count the directories.
@@ -835,7 +835,7 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                     //get the whole path.
                     let path =
                         "/".to_string() + &path_store.get_all_path(inode).unwrap().to_string();
-                    println!("Worker processing path: {}", path);
+                    println!("Worker processing path: {path}");
                     // get all children inode
                     match fetch_dir(&path).await {
                         Ok(new_items) => {
@@ -857,7 +857,7 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                                         producers.fetch_add(1, Ordering::Relaxed);
                                         queue.push(new_inode);
                                     } else {
-                                        println!("max_depth reach path = {:?}", tmp_path);
+                                        println!("max_depth reach path = {tmp_path:?}");
                                     }
                                     store.dirs.insert(
                                         tmp_path,
@@ -975,11 +975,11 @@ async fn get_dir_hash(path: &str) -> String {
 /// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
 pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) -> bool {
     if parent_path.matches('/').count() >= max_depth {
-        println!("max depth reached for path: {}", parent_path);
+        println!("max depth reached for path: {parent_path}");
         return false;
     }
     if max_depth < store.max_depth() + 2 {
-        println!("max depth is less than config, skipping: {}", parent_path);
+        println!("max depth is less than config, skipping: {parent_path}");
         return false;
     }
 
@@ -991,10 +991,10 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
 
     //the dir may be deleted.
     if self_hash.is_empty() {
-        println!("Directory {} is empty, no items to load.", parent_path);
+        println!("Directory {parent_path} is empty, no items to load.");
         return true;
     }
-    println!("load_dir parent_path {:?}", parent_path);
+    println!("load_dir parent_path {parent_path:?}");
 
     //empty dir,load the dir to the max_depth.
     if dirs.get(&parent_path).unwrap().file_list.is_empty() {
@@ -1052,7 +1052,7 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
                 .file_list
                 .insert(path.to_owned(), true);
             if is_dir {
-                println!("hash changes dir {:?}", path);
+                println!("hash changes dir {path:?}");
                 load_dir(store.clone(), path.to_owned(), max_depth).await;
             } else {
                 let inode = store.get_inode_from_path(&path).await.unwrap();
@@ -1068,11 +1068,11 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
-            println!("load dir add new file {:?}", path);
+            println!("load dir add new file {path:?}");
             let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
             //fetch a new dir.
             if is_dir {
-                println!("add dir {:?}", path);
+                println!("add dir {path:?}");
                 dirs.insert(
                     path.to_owned(),
                     DirItem {
@@ -1101,7 +1101,7 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         });
     for item in remove_items {
         let inode = store.get_inode_from_path(&item).await.unwrap();
-        println!("delete {:?} {} ", inode, item);
+        println!("delete {inode:?} {item} ");
         tree_db.remove_item(inode).unwrap();
         let _ = store.remove_file_by_node(inode);
     }
@@ -1144,7 +1144,7 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
                     dir_it.hash = it.hash.to_owned();
                     //also update the hash in the db.
 
-                    println!("modify dir {:?}", path);
+                    println!("modify dir {path:?}");
                 } else {
                     // If it's a file, fetch its content
                     // update the hash in the db.
@@ -1157,13 +1157,13 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
-            println!("update_dir new add file {:?}", path);
+            println!("update_dir new add file {path:?}");
             let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
 
             let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
             //fetch a new dir.
             if is_dir {
-                println!("add dir {:?}", path);
+                println!("add dir {path:?}");
                 dirs.insert(
                     path,
                     DirItem {
@@ -1193,7 +1193,7 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
         });
     for item in remove_items {
         let inode = store.get_inode_from_path(&item).await.unwrap();
-        println!("delete {:?} {} ", inode, item);
+        println!("delete {inode:?} {item} ");
         tree_db.remove_item(inode).unwrap();
         let _ = store.remove_file_by_node(inode);
     }
@@ -1215,7 +1215,7 @@ mod tests {
         let path: &str = "/third-party/mega";
 
         let result = fetch_tree(path).await.unwrap();
-        println!("result: {:?}", result);
+        println!("result: {result:?}");
     }
 
     #[test]
@@ -1231,6 +1231,6 @@ mod tests {
         t.insert(String::from("/a/b/1"), 0);
 
         let c = t.children();
-        c.into_iter().for_each(|it| println!("{:?}\n", it))
+        c.into_iter().for_each(|it| println!("{it:?}\n"))
     }
 }

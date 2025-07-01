@@ -43,7 +43,7 @@ pub async fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io
         if lfs_patterns.contains(&pattern) {
             continue;
         }
-        println!("Tracking \"{}\"", pattern);
+        println!("Tracking \"{pattern}\"");
         let pattern = format!(
             "{} filter=lfs diff=lfs merge=lfs -text\n",
             pattern.replace(" ", r"\ ")
@@ -109,7 +109,7 @@ pub async fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std
             }
         }
         match matched_pattern {
-            Some(pattern) => println!("Untracking \"{}\"", pattern),
+            Some(pattern) => println!("Untracking \"{pattern}\""),
             None => lines.push(line),
         }
     }
@@ -173,7 +173,7 @@ pub async fn lfs_restore(mono_path: &str, lower_path: &str) -> std::io::Result<(
                 } else {
                     // not exist, download from server
                     if let Err(e) = lfs_client.download_object(&oid, size, path_str, None).await {
-                        eprintln!("LFS Download fatal: {}", e);
+                        eprintln!("LFS Download fatal: {e}");
                     }
                 }
             }
@@ -260,7 +260,7 @@ mod tests {
         std::fs::write(&test_bin_path, b"dummy content").expect("Failed to create test.bin");
         // Generate pointer file and oid
         let (pointer, oid) = libra::utils::lfs::generate_pointer_file(test_bin_path);
-        println!("pointer: {}, oid: {}", pointer, oid);
+        println!("pointer: {pointer}, oid: {oid}");
 
         // Create a dummy file to backup
         let test_file = temp_dir.join("test.bin");
@@ -282,10 +282,10 @@ mod tests {
             let url = url::Url::parse("http://47.79.35.136:8000/third-party/mega.git").unwrap();
             let client = LFSClient::from_url(&url);
             let bin_blob = Blob::from_lfs_file(temp_dir.join("test.bin"));
-            print!("{}", bin_blob);
+            print!("{bin_blob}");
             let data_string = String::from_utf8(bin_blob.data.clone())
                 .expect("Failed to convert bin_blob data to string");
-            println!("bin_blob data as string: {}", data_string);
+            println!("bin_blob data as string: {data_string}");
             let e = Entry::from(bin_blob);
             let res = client.scorpio_push([e].iter()).await;
 
