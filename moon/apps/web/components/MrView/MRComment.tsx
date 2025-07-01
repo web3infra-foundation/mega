@@ -76,7 +76,7 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
         </Dropdown>
       }
     >
-      <div className='prose'>
+      <div className='prose copyable-text'>
         <RichTextRenderer content={conv.comment} extensions={extensions} />
       </div>
     </Card>
