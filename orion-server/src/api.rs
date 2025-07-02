@@ -17,7 +17,7 @@ use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
-use sea_orm::{ActiveModelTrait, DatabaseConnection};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::io::Write;
@@ -38,6 +38,7 @@ struct BuildRequest {
     repo: String,
     target: String,
     args: Option<Vec<String>>,
+    mr:Option<String>
 }
 
 pub struct BuildInfo {
@@ -45,6 +46,7 @@ pub struct BuildInfo {
     target: String,
     args: Option<Vec<String>>,
     start_at: DateTimeUtc,
+    mr: Option<String>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -79,6 +81,8 @@ pub fn routers() -> Router<AppState> {
         .route("/task", post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
+        .route("/mr-task/{mr}", get(task_query_by_mr)) 
+
 }
 
 async fn task_status_handler(
@@ -202,6 +206,7 @@ async fn task_handler(
             target: req.target.clone(),
             args: req.args.clone(),
             start_at: chrono::Utc::now(),
+            mr: req.mr.clone(),
         },
     );
 
@@ -351,6 +356,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                         repo_name: Set(info.repo.clone()),
                         target: Set(info.target.clone()),
                         arguments: Set(info.args.clone().unwrap_or_default().join(" ")),
+                        mr: Set(info.mr.clone().unwrap_or_default()),
                     };
                     drop(info); // !!release ref or deadlock when insert
                     model.insert(&state.conn).await.unwrap();
@@ -389,6 +395,38 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
     ControlFlow::Continue(())
 }
 
+use sea_orm::ColumnTrait;
+
+/// Query builds by merge request (MR) number
+/// This is a new endpoint to query builds by MR number.
+/// It returns a list of builds associated with the given MR number.
+/// If no builds are found, it returns an empty list.
+/// If an error occurs during the query, it returns an empty list with a 500 status code.
+#[axum::debug_handler]
+async fn task_query_by_mr(
+    State(state): State<AppState>,
+    Path(mr): Path<String>,
+) -> Result<Json<Vec<builds::Model>>, (StatusCode, Json<serde_json::Value>)> {
+    let db = &state.conn;
+    match builds::Entity::find()
+        .filter(builds::Column::Mr.eq(mr))
+        .all(db)
+        .await
+    {
+        Ok(builds) if !builds.is_empty() => Ok(Json(builds)),
+        Ok(_) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "message": "No builds found for the given MR" })),
+        )),
+        Err(e) => {
+            tracing::error!("Database error: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "Internal server error" })),
+            ))
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     #[test]
