@@ -22,9 +22,17 @@ pub struct AppContext {
 impl AppContext {
     /// Creates a new application context with the given configuration.
     pub async fn new(config: common::config::Config) -> Self {
+
         let config = Arc::new(config);
+       
         let storage = jupiter::storage::Storage::new(config.clone()).await;
-        let vault = vault::integration::vault_core::VaultCore::new(storage.clone());
+        
+        let storage_for_vault = storage.clone();
+        let vault = tokio::task::spawn_blocking(move || {
+            vault::integration::vault_core::VaultCore::new(storage_for_vault)
+        }).await.expect("VaultCore::new panicked");
+        
+        
         #[cfg(feature = "p2p")]
         let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
 
@@ -41,9 +49,12 @@ impl AppContext {
             #[cfg(feature = "p2p")]
             client,
         }
+
+      
     }
 
     pub fn wrapped_context(&self) -> Arc<Self> {
         Arc::new(self.clone())
     }
 }
+

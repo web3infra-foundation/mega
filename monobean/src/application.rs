@@ -294,7 +294,7 @@ impl MonobeanApplication {
                     glib::LogLevel::Debug => tracing::Level::DEBUG,
                 };
 
-                println!("{}: {}", level, fields);
+                println!("{level}: {fields}");
             },
         );
     }

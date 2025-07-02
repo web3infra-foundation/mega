@@ -98,7 +98,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
   }
 
   return (
-    <div className='flex font-sans'>
+    <div className='flex font-sans mt-3'>
       <div
         className='rounded-lg w-[300px] h-[85vh]  p-2 overflow-y-auto sticky top-5'
       >

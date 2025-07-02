@@ -89,7 +89,7 @@ impl HelloPage {
     fn setup_logo(&self) {
         let logo = self.imp().logo.clone();
         let id = random_int_range(1, 6);
-        logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+        logo.set_icon_name(Some(format!("walrus-{id}").as_str()));
 
         let gesture = gtk::GestureClick::new();
         gesture.connect_pressed(clone!(
@@ -97,7 +97,7 @@ impl HelloPage {
             logo,
             move |_, _, _, _| {
                 let id = random_int_range(1, 6);
-                logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+                logo.set_icon_name(Some(format!("walrus-{id}").as_str()));
             }
         ));
         logo.add_controller(gesture);
