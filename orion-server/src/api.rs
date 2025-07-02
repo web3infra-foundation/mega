@@ -17,7 +17,7 @@ use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait,ColumnTrait,QueryFilter as _};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::io::Write;
@@ -38,7 +38,7 @@ struct BuildRequest {
     repo: String,
     target: String,
     args: Option<Vec<String>>,
-    mr:Option<String>
+    mr: Option<String>
 }
 
 pub struct BuildInfo {
@@ -395,7 +395,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
     ControlFlow::Continue(())
 }
 
-use sea_orm::ColumnTrait;
+
 
 /// Query builds by merge request (MR) number
 /// This is a new endpoint to query builds by MR number.
