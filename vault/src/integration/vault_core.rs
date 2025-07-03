@@ -49,10 +49,9 @@ impl VaultCore {
     pub fn new(ctx: Storage) -> Self {
         let dir = common::config::mega_base().join("vault");
         let key_path = dir.join(CORE_KEY_FILE);
-        println!("{:?}", key_path);
+        tracing::info!("{key_path:?}");
         std::fs::create_dir_all(&dir).expect("Failed to create vault directory");
-        let result = Self::config(ctx.clone(), key_path);
-        result
+        Self::config(ctx.clone(), key_path)
     }
 
     fn config(ctx: Storage, key_path: PathBuf) -> Self {
