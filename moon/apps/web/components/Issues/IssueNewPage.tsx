@@ -74,7 +74,7 @@ export default function IssueNewPage() {
   const labels: ItemInput[] = useMemo(
     () =>
       tags.map((i) => ({
-        text: i.remarks,
+        text: i.description,
         leadingVisual: () => (
           <div
             className='h-[14px] w-[14px] rounded-full border'
@@ -148,7 +148,7 @@ export default function IssueNewPage() {
     const map = new Map()
 
     tags.map((i) => {
-      map.set(i.remarks, i)
+      map.set(i.description, i)
     })
     return map
   }, [])

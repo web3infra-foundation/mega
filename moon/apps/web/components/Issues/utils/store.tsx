@@ -17,7 +17,7 @@ export interface IssueSortType {
 
 export const sortAtom = atomFamily(
   ({ scope, filter }: { scope: CookieValueTypes; filter: string }) =>
-    atomWithWebStorage<IssueSortType>(`${scope}:issue-index-sort:${filter}`, {}),
+    atomWithWebStorage<IssueSortType>(`${scope}:issue-index-sort:${filter}`, { Author: '', Assignees: [] }),
   (a, b) => a.scope === b.scope && a.filter === b.filter
 )
 

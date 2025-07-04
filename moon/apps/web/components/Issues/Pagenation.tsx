@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
 
 import { Button, ButtonProps, ChevronLeftIcon, ChevronRightIcon } from '@gitmono/ui'
@@ -45,8 +45,9 @@ export const Pagination = ({ totalNum, pageSize, onChange }: PaginationType) => 
         {totalPages === 1 ? (
           <PaginationItem tooltip='1'>1</PaginationItem>
         ) : (
-          pages.map((p) => (
-            <>
+          pages.map((p, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <React.Fragment key={index}>
               {p === '...' ? (
                 <PaginationItem disabled={true} variant='plain' key={p}>
                   {p}
@@ -61,7 +62,7 @@ export const Pagination = ({ totalNum, pageSize, onChange }: PaginationType) => 
                   {p}
                 </PaginationItem>
               )}
-            </>
+            </React.Fragment>
           ))
         )}
         {current === totalPages ? (
