@@ -9,6 +9,7 @@ pub mod issue_router;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ItemRes {
+    pub id: i64,
     pub link: String,
     pub title: String,
     pub status: String,
@@ -26,6 +27,7 @@ impl From<ItemDetails> for ItemRes {
     fn from(value: ItemDetails) -> Self {
         match value.item {
             ItemKind::Issue(model) => Self {
+                id: model.id,
                 link: model.link,
                 title: model.title,
                 status: model.status.to_string(),
@@ -39,6 +41,7 @@ impl From<ItemDetails> for ItemRes {
                 comment_num: value.comment_num,
             },
             ItemKind::Mr(model) => Self {
+                id: model.id,
                 link: model.link,
                 title: model.title,
                 status: format!("{:?}", model.status),

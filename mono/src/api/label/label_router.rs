@@ -28,7 +28,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     tag = LABEL_TAG
 )]
 async fn fetch_label_list(
-    _user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<CommonPage<LabelItem>>>, ApiError> {
