@@ -68,7 +68,8 @@ export default function MrView() {
             per_page: pageSize
           },
           additional: {
-            status
+            status,
+            asc: false
           }
         }
       },
