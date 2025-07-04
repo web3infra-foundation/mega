@@ -51,6 +51,10 @@ impl IssueStorage {
                 JoinType::LeftJoin,
                 callisto::entity_ext::mega_issue::Relation::ItemLabels.def(),
             )
+            .join(
+                JoinType::LeftJoin,
+                callisto::entity_ext::mega_issue::Relation::ItemAssignees.def(),
+            )
             .filter(mega_issue::Column::Status.eq(params.status))
             .filter(cond)
             .distinct();

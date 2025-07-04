@@ -76,6 +76,10 @@ impl MrStorage {
                 JoinType::LeftJoin,
                 callisto::entity_ext::mega_mr::Relation::ItemLabels.def(),
             )
+            .join(
+                JoinType::LeftJoin,
+                callisto::entity_ext::mega_mr::Relation::ItemAssignees.def(),
+            )
             .filter(mega_mr::Column::Status.is_in(status))
             .filter(cond)
             .distinct();
