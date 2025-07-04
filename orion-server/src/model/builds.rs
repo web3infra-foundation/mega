@@ -1,6 +1,7 @@
 use sea_orm::entity::prelude::*;
+use serde::Serialize;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq,Serialize)]
 #[sea_orm(table_name = "builds")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -12,6 +13,7 @@ pub struct Model {
     pub repo_name: String,
     pub target: String, // build target, e.g. "//:main"
     pub arguments: String,
+    pub mr: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
