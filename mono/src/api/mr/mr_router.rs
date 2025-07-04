@@ -14,11 +14,10 @@ use common::{
 use saturn::ActionEnum;
 
 use crate::api::{
-    issue::{issue_router::common_label_update, LabelUpdatePayload},
-    mr::{
-        FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, MuiTreeNode,
-        SaveCommentRequest,
-    },
+    api_common,
+    api_common::model::{AssigneeUpdatePayload, LabelUpdatePayload, ListPayload},
+    issue::ItemRes,
+    mr::{FilesChangedList, MRDetail, MuiTreeNode, SaveCommentRequest},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
@@ -36,7 +35,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(mr_files_changed))
             .routes(routes!(save_comment))
             .routes(routes!(delete_comment))
-            .routes(routes!(labels)),
+            .routes(routes!(labels))
+            .routes(routes!(assignees)),
     )
 }
 
@@ -160,10 +160,7 @@ async fn merge(
         )
         .await
         .unwrap();
-        state
-            .monorepo()
-            .merge_mr(&user.username, model)
-            .await?;
+        state.monorepo().merge_mr(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -172,31 +169,19 @@ async fn merge(
 #[utoipa::path(
     post,
     path = "/list",
-    request_body = PageParams<MRStatusParams>,
+    request_body = PageParams<ListPayload>,
     responses(
-        (status = 200, body = CommonResult<CommonPage<MrInfoItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<CommonPage<ItemRes>>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
 async fn fetch_mr_list(
     state: State<MonoApiServiceState>,
-    Json(json): Json<PageParams<MRStatusParams>>,
-) -> Result<Json<CommonResult<CommonPage<MrInfoItem>>>, ApiError> {
-    let status = json.additional.status;
-    let status = if status == "open" {
-        vec![MergeStatusEnum::Open]
-    } else if status == "closed" {
-        vec![MergeStatusEnum::Closed, MergeStatusEnum::Merged]
-    } else {
-        vec![
-            MergeStatusEnum::Open,
-            MergeStatusEnum::Closed,
-            MergeStatusEnum::Merged,
-        ]
-    };
+    Json(json): Json<PageParams<ListPayload>>,
+) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let (items, total) = state
         .mr_stg()
-        .get_mr_by_status(status, json.pagination)
+        .get_mr_list(json.additional.into(), json.pagination)
         .await?;
     let res = CommonPage {
         items: items.into_iter().map(|m| m.into()).collect(),
@@ -350,7 +335,25 @@ async fn labels(
     state: State<MonoApiServiceState>,
     Json(payload): Json<LabelUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    common_label_update(user, state, payload).await
+    api_common::label_assignee::label_update(user, state, payload, String::from("mr")).await
+}
+
+/// update MR related assignees
+#[utoipa::path(
+    post,
+    path = "/assignees",
+    request_body = AssigneeUpdatePayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn assignees(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<AssigneeUpdatePayload>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
 }
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {

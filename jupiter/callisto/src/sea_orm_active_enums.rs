@@ -33,6 +33,8 @@ pub enum ConvTypeEnum {
     Reopen,
     #[sea_orm(string_value = "label")]
     Label,
+    #[sea_orm(string_value = "assignee")]
+    Assignee,
 }
 #[derive(
     Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
