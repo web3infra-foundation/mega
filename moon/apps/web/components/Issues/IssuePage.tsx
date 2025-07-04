@@ -15,7 +15,7 @@ import { apiErrorToast } from '@/utils/apiErrorToast'
 interface Item {
   closed_at?: number | null
   link: string
-  user_id: string
+  author: string
   title: string
   status: string
   open_timestamp: number
@@ -37,7 +37,10 @@ export default function IssuePage() {
 
       issueLists(
         {
-          data: { pagination: { page, per_page }, additional: { status } }
+          data: { pagination: { page, per_page }, additional: {
+            status,
+            asc: false
+          } }
         },
         {
           onSuccess: (response) => {

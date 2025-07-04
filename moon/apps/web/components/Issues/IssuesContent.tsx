@@ -49,7 +49,7 @@ interface Props {
 export interface Item {
   closed_at?: number | null
   link: string
-  user_id: string
+  author: string
   title: string
   status: string
   open_timestamp: number
@@ -259,7 +259,10 @@ export function IssuesContent({ searching }: Props) {
       setLoading(true)
       issueLists(
         {
-          data: { pagination: { page, per_page }, additional: { status } }
+          data: { pagination: { page, per_page }, additional: {
+            status,
+            asc: false
+          } }
         },
         {
           onSuccess: (response) => {
@@ -339,7 +342,7 @@ export function IssuesContent({ searching }: Props) {
                     rightIcon={<RightAvatar member={members[0]} />}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      {i.link} · {i.user_id} {i.status}{' '}
+                      {i.link} · {i.author} {i.status}{' '}
                       {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
                     </div>
                   </ListItem>

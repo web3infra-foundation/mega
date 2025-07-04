@@ -4,19 +4,23 @@ on:
     branches:
       - main
     paths-ignore:
+      - '.devcontainer/**'
+      - '.github/**'
       - 'alfs/**'
-      - 'archived/**'
       - 'aries/**'
       - 'config/**'
       - 'docker/**'
       - 'docs/**'
+      - 'extensions/**'
+      - 'monobean/**'
       - 'moon/**'
-      - 'rust/**'
+      - 'orion/**'
+      - 'orion-server/**'
+      - 'scorpio/**'
       - 'scripts/**'
+      - 'tests/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-**'
-      - '.github/workflows/mono-engine-deploy.yml'
 
 env:
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
