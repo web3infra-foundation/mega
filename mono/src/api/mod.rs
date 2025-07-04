@@ -23,6 +23,7 @@ use jupiter::{
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 
+pub mod api_common;
 pub mod api_router;
 pub mod error;
 pub mod issue;

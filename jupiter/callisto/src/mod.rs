@@ -13,6 +13,7 @@ pub mod git_repo;
 pub mod git_tag;
 pub mod git_tree;
 pub mod import_refs;
+pub mod item_assignees;
 pub mod item_labels;
 pub mod label;
 pub mod lfs_locks;

@@ -145,7 +145,7 @@ qdrant-client = "1.7"
 walkdir = "2.4"
 dagrs = "0.5.0"
 tar = "0.4"
-
+indexmap = "2.10.0"
 envsubst = "0.2.1"
 rcgen = "0.13.2"
 diffs = "0.5.1"

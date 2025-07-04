@@ -1,14 +1,20 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
-};
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
+    JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
+};
+
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{item_labels, label, mega_conversation, mega_issue};
+use callisto::{item_assignees, item_labels, label, mega_conversation, mega_issue};
 use common::errors::MegaError;
 use common::model::Pagination;
 use common::utils::{generate_id, generate_link};
+
+use crate::storage::stg_common::combine_item_list;
+use crate::storage::stg_common::model::{ItemDetails, LabelAssigneeParams, ListParams};
+use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]
 pub struct IssueStorage {
@@ -30,32 +36,70 @@ impl IssueStorage {
         }
     }
 
-    pub async fn get_issue_by_status(
+    pub async fn get_issue_list(
         &self,
-        status: &str,
+        params: ListParams,
         page: Pagination,
-    ) -> Result<(Vec<(mega_issue::Model, Vec<label::Model>)>, u64), MegaError> {
-        let paginator = mega_issue::Entity::find()
-            .filter(mega_issue::Column::Status.eq(status))
-            .order_by_desc(mega_issue::Column::CreatedAt)
-            .paginate(self.get_connection(), page.per_page);
+    ) -> Result<(Vec<ItemDetails>, u64), MegaError> {
+        let cond = Condition::all();
+        let cond = filter_by_labels(cond, params.labels);
+        let cond = filter_by_author(cond, params.author);
+        let cond = filter_by_assignees(cond, params.assignees);
+
+        let query = mega_issue::Entity::find()
+            .join(
+                JoinType::LeftJoin,
+                callisto::entity_ext::mega_issue::Relation::ItemLabels.def(),
+            )
+            .filter(mega_issue::Column::Status.eq(params.status))
+            .filter(cond)
+            .distinct();
+
+        let mut sort_map = HashMap::new();
+        sort_map.insert("created_at", mega_issue::Column::CreatedAt);
+        sort_map.insert("updated_at", mega_issue::Column::UpdatedAt);
+
+        let query = apply_sort(query, params.sort_by.as_deref(), params.asc, &sort_map);
+
+        let paginator = query.paginate(self.get_connection(), page.per_page);
         let num_pages = paginator.num_items().await?;
         let (issues, page) = paginator
             .fetch_page(page.page - 1)
             .await
             .map(|m| (m, num_pages))?;
 
-        let issues_with_label: Vec<(mega_issue::Model, Vec<label::Model>)> =
+        let issue_ids = issues.iter().map(|m| m.id).collect::<Vec<_>>();
+
+        let label_query =
+            mega_issue::Entity::find().filter(mega_issue::Column::Id.is_in(issue_ids.clone()));
+        let label_query = apply_sort(
+            label_query,
+            params.sort_by.as_deref(),
+            params.asc,
+            &sort_map,
+        );
+        let labels: Vec<(mega_issue::Model, Vec<label::Model>)> = label_query
+            .find_with_related(label::Entity)
+            .all(self.get_connection())
+            .await?;
+
+        let assignees: Vec<(mega_issue::Model, Vec<item_assignees::Model>)> =
             mega_issue::Entity::find()
-                .filter(
-                    mega_issue::Column::Id.is_in(issues.iter().map(|i| i.id).collect::<Vec<_>>()),
-                )
-                .order_by_desc(mega_issue::Column::CreatedAt)
-                .find_with_related(label::Entity)
+                .filter(mega_issue::Column::Id.is_in(issue_ids.clone()))
+                .find_with_related(item_assignees::Entity)
                 .all(self.get_connection())
                 .await?;
 
-        Ok((issues_with_label, page))
+        let conversations: Vec<(mega_issue::Model, Vec<mega_conversation::Model>)> =
+            mega_issue::Entity::find()
+                .filter(mega_issue::Column::Id.is_in(issue_ids))
+                .find_with_related(mega_conversation::Entity)
+                .all(self.get_connection())
+                .await?;
+
+        let res = combine_item_list::<mega_issue::Entity>(labels, assignees, conversations);
+
+        Ok((res, page))
     }
 
     pub async fn get_issue(&self, link: &str) -> Result<Option<mega_issue::Model>, MegaError> {
@@ -77,14 +121,14 @@ impl IssueStorage {
 
     pub async fn save_issue(
         &self,
-        user_id: &str,
+        username: &str,
         title: &str,
     ) -> Result<mega_issue::Model, MegaError> {
         let model = mega_issue::Model {
             id: generate_id(),
             link: generate_link(),
             title: title.to_owned(),
-            user_id: user_id.to_owned(),
+            author: username.to_owned(),
             status: "open".to_owned(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
@@ -199,15 +243,31 @@ impl IssueStorage {
         Ok(item_labels)
     }
 
+    pub async fn find_item_exist_assignees(
+        &self,
+        item_id: i64,
+    ) -> Result<Vec<item_assignees::Model>, MegaError> {
+        let item_assignees = item_assignees::Entity::find()
+            .filter(item_assignees::Column::ItemId.eq(item_id))
+            .all(self.get_connection())
+            .await?;
+        Ok(item_assignees)
+    }
+
     pub async fn modify_labels(
         &self,
-        username: &str,
-        item_id: i64,
-        link: &str,
         to_add: Vec<i64>,
         to_remove: Vec<i64>,
+        params: LabelAssigneeParams,
     ) -> Result<(), MegaError> {
         let txn = self.get_connection().begin().await?;
+
+        let LabelAssigneeParams {
+            item_id,
+            link,
+            username,
+            item_type,
+        } = params;
 
         if !to_remove.is_empty() {
             item_labels::Entity::delete_many()
@@ -217,8 +277,8 @@ impl IssueStorage {
                 .await?;
 
             self.add_conversation(
-                link,
-                username,
+                &link,
+                &username,
                 Some(format!("{username} removed {to_remove:?}")),
                 ConvTypeEnum::Label,
             )
@@ -234,7 +294,7 @@ impl IssueStorage {
                         updated_at: chrono::Utc::now().naive_utc(),
                         item_id,
                         label_id,
-                        item_type: String::from("issue"),
+                        item_type: item_type.clone(),
                     }
                     .into_active_model(),
                 );
@@ -244,8 +304,8 @@ impl IssueStorage {
                 .exec(&txn)
                 .await?;
             self.add_conversation(
-                link,
-                username,
+                &link,
+                &username,
                 Some(format!("{username} added {to_add:?}")),
                 ConvTypeEnum::Label,
             )
@@ -255,5 +315,76 @@ impl IssueStorage {
         txn.commit().await?;
 
         Ok(())
+    }
+
+    pub async fn modify_assignees(
+        &self,
+        to_add: Vec<String>,
+        to_remove: Vec<String>,
+        params: LabelAssigneeParams,
+    ) -> Result<(), MegaError> {
+        let txn = self.get_connection().begin().await?;
+
+        let LabelAssigneeParams {
+            item_id,
+            link,
+            username,
+            item_type,
+        } = params;
+
+        if !to_remove.is_empty() {
+            item_assignees::Entity::delete_many()
+                .filter(item_assignees::Column::ItemId.eq(item_id))
+                .filter(item_assignees::Column::AssignneeId.is_in(to_remove.clone()))
+                .exec(&txn)
+                .await?;
+
+            self.add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} unassigned {to_remove:?}")),
+                ConvTypeEnum::Assignee,
+            )
+            .await?;
+        }
+
+        if !to_add.is_empty() {
+            let mut new_item = Vec::new();
+            for assignnee_id in to_add.clone() {
+                new_item.push(
+                    item_assignees::Model {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        updated_at: chrono::Utc::now().naive_utc(),
+                        item_id,
+                        assignnee_id,
+                        item_type: item_type.clone(),
+                    }
+                    .into_active_model(),
+                );
+            }
+
+            item_assignees::Entity::insert_many(new_item)
+                .exec(&txn)
+                .await?;
+            self.add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} assigned {to_add:?}")),
+                ConvTypeEnum::Assignee,
+            )
+            .await?;
+        }
+
+        txn.commit().await?;
+
+        Ok(())
+    }
+}
+
+fn filter_by_author(cond: Condition, author: Option<String>) -> Condition {
+    if let Some(value) = author {
+        cond.add(mega_issue::Column::Author.eq(value))
+    } else {
+        cond
     }
 }

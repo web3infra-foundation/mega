@@ -3033,20 +3033,32 @@ export type FigmaKeyPair = {
   write_key: string
 }
 
-export type CommonResultCommonPageIssueItem = {
+export type AssigneeUpdatePayload = {
+  assignees: string[]
+  /** @format int64 */
+  item_id: number
+  link: string
+}
+
+export type CommonResultCommonPageItemRes = {
   data?: {
     items: {
+      assignees: string[]
+      author: string
       /** @format int64 */
       closed_at?: number | null
+      /** @min 0 */
+      comment_num: number
       labels: LabelItem[]
       link: string
+      /** @format int64 */
+      merge_timestamp?: number | null
       /** @format int64 */
       open_timestamp: number
       status: string
       title: string
       /** @format int64 */
       updated_at: number
-      user_id: string
     }[]
     /**
      * @format int64
@@ -3066,30 +3078,6 @@ export type CommonResultCommonPageLabelItem = {
       /** @format int64 */
       id: number
       name: string
-    }[]
-    /**
-     * @format int64
-     * @min 0
-     */
-    total: number
-  }
-  err_message: string
-  req_result: boolean
-}
-
-export type CommonResultCommonPageMrInfoItem = {
-  data?: {
-    items: {
-      labels: LabelItem[]
-      link: string
-      /** @format int64 */
-      merge_timestamp?: number | null
-      /** @format int64 */
-      open_timestamp: number
-      status: MergeStatusEnum
-      title: string
-      /** @format int64 */
-      updated_at: number
     }[]
     /**
      * @format int64
@@ -3182,7 +3170,8 @@ export enum ConvTypeEnum {
   Merged = 'Merged',
   Closed = 'Closed',
   Reopen = 'Reopen',
-  Label = 'Label'
+  Label = 'Label',
+  Assignee = 'Assignee'
 }
 
 export type CreateFileInfo = {
@@ -3205,18 +3194,23 @@ export type FilesChangedList = {
   mui_trees: MuiTreeNode[]
 }
 
-export type IssueItem = {
+export type ItemRes = {
+  assignees: string[]
+  author: string
   /** @format int64 */
   closed_at?: number | null
+  /** @min 0 */
+  comment_num: number
   labels: LabelItem[]
   link: string
+  /** @format int64 */
+  merge_timestamp?: number | null
   /** @format int64 */
   open_timestamp: number
   status: string
   title: string
   /** @format int64 */
   updated_at: number
-  user_id: string
 }
 
 export type LabelItem = {
@@ -3243,6 +3237,15 @@ export type LatestCommitInfo = {
   status: string
 }
 
+export type ListPayload = {
+  asc: boolean
+  assignees?: any[] | null
+  author?: string | null
+  labels?: any[] | null
+  sort_by?: string | null
+  status: string
+}
+
 export type MRDetail = {
   conversations: MegaConversation[]
   /** @format int64 */
@@ -3254,10 +3257,6 @@ export type MRDetail = {
   open_timestamp: number
   status: MergeStatusEnum
   title: string
-}
-
-export type MRStatusParams = {
-  status: string
 }
 
 export type MegaConversation = {
@@ -3278,19 +3277,6 @@ export enum MergeStatusEnum {
   Closed = 'Closed'
 }
 
-export type MrInfoItem = {
-  labels: LabelItem[]
-  link: string
-  /** @format int64 */
-  merge_timestamp?: number | null
-  /** @format int64 */
-  open_timestamp: number
-  status: MergeStatusEnum
-  title: string
-  /** @format int64 */
-  updated_at: number
-}
-
 export type MuiTreeNode = {
   children?: any[] | null
   id: string
@@ -3308,15 +3294,13 @@ export type NewLabel = {
   name: string
 }
 
-export type PageParamsMRStatusParams = {
+export type PageParamsListPayload = {
   additional: {
-    status: string
-  }
-  pagination: Pagination
-}
-
-export type PageParamsStatusParams = {
-  additional: {
+    asc: boolean
+    assignees?: any[] | null
+    author?: string | null
+    labels?: any[] | null
+    sort_by?: string | null
     status: string
   }
   pagination: Pagination
@@ -3342,10 +3326,6 @@ export type Pagination = {
 
 export type SaveCommentRequest = {
   content: string
-}
-
-export type StatusParams = {
-  status: string
 }
 
 export type TreeBriefItem = {
@@ -4519,11 +4499,13 @@ export type GetApiBlobData = CommonResultString
 
 export type PostApiCreateFileData = CommonResultString
 
+export type PostApiIssueAssigneesData = CommonResultString
+
 export type DeleteApiIssueCommentDeleteData = CommonResultString
 
 export type PostApiIssueLabelsData = CommonResultString
 
-export type PostApiIssueListData = CommonResultCommonPageIssueItem
+export type PostApiIssueListData = CommonResultCommonPageItemRes
 
 export type PostApiIssueNewData = CommonResultString
 
@@ -4546,11 +4528,13 @@ export type GetApiLatestCommitParams = {
 
 export type GetApiLatestCommitData = LatestCommitInfo
 
+export type PostApiMrAssigneesData = CommonResultString
+
 export type DeleteApiMrCommentDeleteData = CommonResultString
 
 export type PostApiMrLabelsData = CommonResultString
 
-export type PostApiMrListData = CommonResultCommonPageMrInfoItem
+export type PostApiMrListData = CommonResultCommonPageItemRes
 
 export type PostApiMrCloseData = CommonResultString
 
@@ -12932,6 +12916,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags issue
+     * @name PostApiIssueAssignees
+     * @summary update issue related assignees
+     * @request POST:/api/v1/issue/assignees
+     */
+    postApiIssueAssignees: () => {
+      const base = 'POST:/api/v1/issue/assignees' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiIssueAssigneesData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiIssueAssigneesData>([base]),
+        request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiIssueAssigneesData>({
+            path: `/api/v1/issue/assignees`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags issue
      * @name DeleteApiIssueCommentDelete
      * @summary Delete Issue Comment
      * @request DELETE:/api/v1/issue/comment/{id}/delete
@@ -12990,7 +12999,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueListData>([base]),
         requestKey: () => dataTaggedQueryKey<PostApiIssueListData>([base]),
-        request: (data: PageParamsStatusParams, params: RequestParams = {}) =>
+        request: (data: PageParamsListPayload, params: RequestParams = {}) =>
           this.request<PostApiIssueListData>({
             path: `/api/v1/issue/list`,
             method: 'POST',
@@ -13198,6 +13207,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags merge_request
+     * @name PostApiMrAssignees
+     * @summary update MR related assignees
+     * @request POST:/api/v1/mr/assignees
+     */
+    postApiMrAssignees: () => {
+      const base = 'POST:/api/v1/mr/assignees' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrAssigneesData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMrAssigneesData>([base]),
+        request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrAssigneesData>({
+            path: `/api/v1/mr/assignees`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
      * @name DeleteApiMrCommentDelete
      * @summary Delete Comment
      * @request DELETE:/api/v1/mr/comment/{conv_id}/delete
@@ -13256,7 +13290,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       return {
         baseKey: dataTaggedQueryKey<PostApiMrListData>([base]),
         requestKey: () => dataTaggedQueryKey<PostApiMrListData>([base]),
-        request: (data: PageParamsMRStatusParams, params: RequestParams = {}) =>
+        request: (data: PageParamsListPayload, params: RequestParams = {}) =>
           this.request<PostApiMrListData>({
             path: `/api/v1/mr/list`,
             method: 'POST',
