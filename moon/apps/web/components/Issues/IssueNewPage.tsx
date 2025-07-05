@@ -6,6 +6,8 @@ import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
+import '@primer/primitives/dist/css/functional/themes/light.css'
+
 import { Button, HelpIcon, Link, PicturePlusIcon } from '@gitmono/ui'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
@@ -183,19 +185,21 @@ export default function IssueNewPage() {
           </div>
 
           <div className='flex gap-9'>
-            <div className='w-[70%]'>
-              <FormControl className='w-full' required>
-                <FormControl.Label>Add a title</FormControl.Label>
-                <TextInput
-                  placeholder='Title'
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className='w-full'
-                />
-              </FormControl>
-              <FormControl className='mt-[3%]'>
+            <div className='flex w-[70%] flex-col'>
+              <div className='h-[20%]'>
+                <FormControl className='w-full' required>
+                  <FormControl.Label>Add a title</FormControl.Label>
+                  <TextInput
+                    placeholder='Title'
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className='new-issue-input no-border-input w-full'
+                  />
+                </FormControl>
+              </div>
+              <FormControl>
                 <FormControl.Label>Add a description</FormControl.Label>
-                <div className='h-[300px] w-full rounded-lg border p-6'>
+                <div className='h-[550px] w-full rounded-lg border p-6'>
                   <SimpleNoteContent
                     commentId='temp' //  Temporary filling, replacement later
                     ref={editorRef}
@@ -339,6 +343,7 @@ const BadgeItem = ({
       <div className='w-full'>
         <ActionList>
           <SelectPanel
+            className='no-border-input new-issue-side-input'
             overlayProps={{ width: 'medium', height: 'medium', overflow: 'auto' }}
             renderAnchor={({ children: container, ...anchorProps }) => {
               return (

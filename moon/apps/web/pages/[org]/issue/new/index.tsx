@@ -1,8 +1,6 @@
 import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useRouter } from 'next/router'
 
-import '@primer/primitives/dist/css/functional/themes/light.css'
-
 import IssueNewPage from '@/components/Issues/IssueNewPage'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
