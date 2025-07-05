@@ -1,42 +1,39 @@
+import { LabelItem } from '@gitmono/types/generated'
+
 import { SearchProps } from '@/components/Issues/Search'
 
 type SearchType = SearchProps['SearchListTable']['items']
 
-export const tags = [
+export const tags: LabelItem[] = [
   {
-    id: 'label_1',
+    id: 12334444,
     name: 'Bug',
     color: '#ff4d4f',
-    remarks: 'Issue related to bug',
-    checked: false
+    description: 'Issue related to bug'
   },
   {
-    id: 'label_2',
+    id: 333444555,
     name: 'Feature',
     color: '#1890ff',
-    remarks: 'Feature or enhancement',
-    checked: true
+    description: 'Feature or enhancement'
   },
   {
-    id: 'label_3',
+    id: 6667778888,
     name: 'Docs',
     color: '#52c41a',
-    remarks: 'Related to documentation',
-    checked: false
+    description: 'Related to documentation'
   },
   {
-    id: 'label_4',
+    id: 8887775555,
     name: 'Design',
     color: '#faad14',
-    remarks: 'Design consideration',
-    checked: true
+    description: 'Design consideration'
   },
   {
-    id: 'label_5',
+    id: 55544433222,
     name: 'Question',
     color: '#13c2c2',
-    remarks: 'General questions or clarification',
-    checked: false
+    description: 'General questions or clarification'
   }
 ]
 
