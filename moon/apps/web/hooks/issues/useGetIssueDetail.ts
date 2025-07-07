@@ -4,11 +4,11 @@ import { legacyApiClient } from '@/utils/queryClient'
 
 interface conversations {
   id: number
-  user_id: number
   conv_type: string
   comment: string
   created_at: number
   updated_at: number
+  username: string
 }
 
 interface raw {
@@ -22,7 +22,7 @@ interface raw {
 
 interface issueDetail {
   status: string
-  conversations: { id: number; user_id: number; conv_type: string; comment: string; created_at: number }[]
+  conversations: conversations[]
   title: string
 }
 
