@@ -208,11 +208,10 @@ export function IssuesContent({ searching }: Props) {
 
       if (order.time === 'Newest') {
         additional.asc = false
-        additional.sort_by = handleSort(order['sort'])
       } else if (order.time === 'Oldest') {
         additional.asc = true
-        additional.sort_by = handleSort(order['sort'])
       }
+      additional.sort_by = handleSort(order['sort'])
       return additional
     },
     [order, sort, status]
@@ -305,7 +304,7 @@ export function IssuesContent({ searching }: Props) {
         return 'updated_at'
 
       default:
-        return 'Created on'
+        return 'created_at'
     }
   }
 
