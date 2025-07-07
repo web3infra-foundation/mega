@@ -1,13 +1,10 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Theme } from '@radix-ui/themes'
 import { Flex, Layout } from 'antd'
 import { useParams } from 'next/navigation'
-
 import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
-import { LoadingSpinner } from '@gitmono/ui'
-
 import CodeTable from '@/components/CodeView/CodeTable'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
@@ -24,10 +21,12 @@ function TreeDetailPage() {
   const { path = [] } = params as { path?: string[] }
   const new_path = '/' + path?.join('/')
 
-  const { data: TreeCommitInfo } = useGetTreeCommitInfo(new_path)
+  const [newPath, setNewPath] = useState(new_path)
+  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
 
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
+  // const [newDirectory,setNewDirectory] = useState(directory)
 
   const { data: canClone } = useGetTreePathCanClone({ path: new_path })
 
@@ -71,34 +70,39 @@ function TreeDetailPage() {
 
   return (
     <div className='relative m-2 h-screen overflow-auto'>
-      {!TreeCommitInfo ? (
-        <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
-          <LoadingSpinner />
-        </div>
-      ) : (
+
         <Flex gap='middle' wrap>
           <Layout style={breadStyle}>
             <BreadCrumb path={path} />
             {canClone?.data && (
-              <Flex justify={'flex-end'}>
+              <Flex justify={'flex-end'} className='m-1'>
                 <CloneTabs/>
               </Flex>
             )}
           </Layout>
           {/* tree */}
           <Layout style={treeStyle}>
-            <RepoTree flag={'contents'} directory={directory} />
+            <RepoTree 
+            flag={'contents'}
+            onCommitInfoChange={(path:string)=>setNewPath(path)} />
           </Layout>
+
           <Layout style={codeStyle}>
             {
              commitInfo &&  <Layout>
                 <CommitHistory flag={'contents'} info={commitInfo}/>
               </Layout>
             }
-            <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent?.data}/>
-          </Layout>
+          <CodeTable 
+          directory={directory} 
+          loading={!TreeCommitInfo} 
+          onCommitInfoChange={(path:string)=>setNewPath(path)}
+          readmeContent={readmeContent?.data}
+          />
+        
+         </Layout>
         </Flex>
-      )}
+
     </div>
   )
 }

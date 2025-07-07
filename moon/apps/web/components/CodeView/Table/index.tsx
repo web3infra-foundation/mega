@@ -1,8 +1,9 @@
-import { Spinner, Table } from '@radix-ui/themes'
-
+import { Table } from '@radix-ui/themes'
 import { columnsType, DirectoryType } from './type'
+import { Skeleton } from '@mui/material';
+import { useMemo } from 'react';
 
-const table = <T extends DirectoryType>({
+const TableComponent = <T extends DirectoryType>({
   columns,
   datasource,
   size,
@@ -19,48 +20,54 @@ const table = <T extends DirectoryType>({
   onClick?: (record: T) => void
   loading?: boolean
 }) => {
+  // 使用useMemo缓存列配置，只有当columns数组变化时才重新计算
+  const memoizedColumns = useMemo(() => columns,[columns]);
+
   return (
-    <>
-      <Spinner loading={loading}>
-        <Table.Root size={size}>
-          <Table.Header>
-            <Table.Row align={align}>
-              {columns.map((c) => (
-                <Table.ColumnHeaderCell key={c.title}>{c.title}</Table.ColumnHeaderCell>
+    <Table.Root size={size}>
+      <Table.Header>
+        <Table.Row align={align}>
+          {memoizedColumns.map((c) => (
+            <Table.ColumnHeaderCell key={c.title}>{c.title}</Table.ColumnHeaderCell>
+          ))}
+        </Table.Row>
+      </Table.Header>
+
+      <Table.Body>
+        {loading ? (
+          // 骨架屏行
+          Array.from({ length: 5 }).map((item, rowIndex) => (
+            <Table.Row key={item?.key || rowIndex}>
+              {memoizedColumns.map((_) => (
+                <Table.Cell key={_.key}>
+                  <Skeleton variant="rounded" height={16} width="100%" />
+                </Table.Cell>
               ))}
             </Table.Row>
-          </Table.Header>
+          ))
+        ) : datasource.length > 0 && (
+          // 实际数据行
+          datasource.map((d, index) => (
 
-          <Table.Body>
-            {datasource.map((d, index) => {
-              if (d) {
-                return (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <Table.Row className='hover:bg-gray-100' key={index}>
-                    {columns.map((c, index) => (
-                      <Table.Cell
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onClick?.(d)
-                        }}
-                        justify={justify}
-                        // eslint-disable-next-line react/no-array-index-key
-                        key={c.key + index}
-                      >
-                        {c.render ? c.render(c.dataIndex[0], d, index) : null}
-                      </Table.Cell>
-                    ))}
-                  </Table.Row>
-                )
-              } else {
-                return null
-              }
-            })}
-          </Table.Body>
-        </Table.Root>
-      </Spinner>
-    </>
-  )
-}
+            <Table.Row className='hover:bg-gray-100' key={d?.id || index}>
+              {memoizedColumns.map((c) => (
+                <Table.Cell
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClick?.(d);
+                  }}
+                  justify={justify}
+                  key={c.key || c.title}
+                >
+                  {c.render ? c.render(c.dataIndex[0], d, index) : null}
+                </Table.Cell>
+              ))}
+            </Table.Row>
+          ))
+        )}
+      </Table.Body>
+    </Table.Root>
+  );
+};
 
-export default table
+export default TableComponent;
