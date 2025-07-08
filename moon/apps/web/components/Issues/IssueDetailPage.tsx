@@ -27,10 +27,11 @@ interface IssueDetail {
 }
 interface Conversation {
   id: number
-  user_id: number
   conv_type: string
   comment: string
-  created_at: number
+  created_at: number,
+  updated_at: number,
+  username: string,
 }
 
 interface detailRes {
