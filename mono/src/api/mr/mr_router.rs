@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
     extract::{Path, State},
@@ -14,10 +14,12 @@ use common::{
 use saturn::ActionEnum;
 
 use crate::api::{
-    api_common,
-    api_common::model::{AssigneeUpdatePayload, LabelUpdatePayload, ListPayload},
+    api_common::{
+        self,
+        model::{AssigneeUpdatePayload, LabelUpdatePayload, ListPayload},
+    },
     issue::ItemRes,
-    mr::{FilesChangedList, MRDetail, MuiTreeNode, SaveCommentRequest},
+    mr::{FilesChangedList, MRDetail, MrFilesRes, MuiTreeNode, SaveCommentRequest},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
@@ -33,6 +35,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
             .routes(routes!(mr_files_changed))
+            .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
             .routes(routes!(delete_comment))
             .routes(routes!(labels))
@@ -245,6 +248,45 @@ async fn mr_files_changed(
         content: diff_res,
     }));
     Ok(Json(res))
+}
+
+/// Get Merge Request file list
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/files-list",
+    responses(
+        (status = 200, body = CommonResult<Vec<MrFilesRes>>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn mr_files_list(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<MrFilesRes>>>, ApiError> {
+    let mr = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?;
+
+    let stg = state.monorepo();
+    let old_files = stg.get_commit_blobs(&mr.from_hash).await?;
+    let new_files = stg.get_commit_blobs(&mr.to_hash).await?;
+    let mr_diff_files = stg.mr_files_list(old_files, new_files.clone()).await?;
+
+    let mr_base = PathBuf::from(mr.path);
+    let res = mr_diff_files
+        .into_iter()
+        .map(|m| {
+            let mut item: MrFilesRes = m.into();
+            item.path = mr_base.join(item.path).to_string_lossy().to_string();
+            item
+        })
+        .collect::<Vec<MrFilesRes>>();
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Add new comment on Merge Request
