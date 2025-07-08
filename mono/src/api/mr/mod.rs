@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use ceres::model::mr::MrDiffFile;
 use serde::{Deserialize, Serialize};
 
 use callisto::{
@@ -105,4 +108,33 @@ impl MuiTreeNode {
 #[derive(Deserialize, ToSchema)]
 pub struct SaveCommentRequest {
     pub content: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct MrFilesRes {
+    pub path: String,
+    pub sha: String,
+    pub action: String,
+}
+
+impl From<MrDiffFile> for MrFilesRes {
+    fn from(value: MrDiffFile) -> Self {
+        match value {
+            MrDiffFile::New(path, sha) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: sha.to_string(),
+                action: String::from_str("new").unwrap(),
+            },
+            MrDiffFile::Deleted(path, sha) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: sha.to_string(),
+                action: String::from_str("deleted").unwrap(),
+            },
+            MrDiffFile::Modified(path, _, new) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: new.to_string(),
+                action: String::from_str("modified").unwrap(),
+            },
+        }
+    }
 }
