@@ -20,6 +20,7 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
+use crate::model::mr::MrDiffFile;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -421,6 +422,74 @@ impl MonoApiService {
             .await?;
         Ok(())
     }
+
+    pub async fn mr_files_list(
+        &self,
+        old_files: Vec<(PathBuf, SHA1)>,
+        new_files: Vec<(PathBuf, SHA1)>,
+    ) -> Result<Vec<MrDiffFile>, MegaError> {
+        let old_files: HashMap<PathBuf, SHA1> = old_files.into_iter().collect();
+        let new_files: HashMap<PathBuf, SHA1> = new_files.into_iter().collect();
+        let unions: HashSet<PathBuf> = old_files.keys().chain(new_files.keys()).cloned().collect();
+        let mut res = vec![];
+        for path in unions {
+            let old_hash = old_files.get(&path);
+            let new_hash = new_files.get(&path);
+            match (old_hash, new_hash) {
+                (None, None) => {}
+                (None, Some(new)) => res.push(MrDiffFile::New(path, *new)),
+                (Some(old), None) => res.push(MrDiffFile::Deleted(path, *old)),
+                (Some(old), Some(new)) => {
+                    if old == new {
+                        continue;
+                    } else {
+                        res.push(MrDiffFile::Modified(path, *old, *new));
+                    }
+                }
+            }
+        }
+        Ok(res)
+    }
+
+    pub async fn get_commit_blobs(
+        &self,
+        commit_hash: &str,
+    ) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+        let mut res = vec![];
+        let mono_storage = self.storage.services.mono_storage.clone();
+        let commit = mono_storage.get_commit_by_hash(commit_hash).await?;
+        if let Some(commit) = commit {
+            let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;
+            if let Some(tree) = tree {
+                let tree: Tree = tree.into();
+                res = self.traverse_tree(tree).await?;
+            }
+        }
+        Ok(res)
+    }
+
+    async fn traverse_tree(&self, root_tree: Tree) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+        let mut result = vec![];
+        let mut stack = vec![(PathBuf::new(), root_tree)];
+
+        while let Some((base_path, tree)) = stack.pop() {
+            for item in tree.tree_items {
+                let path = base_path.join(&item.name);
+                if item.is_tree() {
+                    let child = self
+                        .storage
+                        .mono_storage()
+                        .get_tree_by_hash(&item.id.to_string())
+                        .await?
+                        .unwrap();
+                    stack.push((path.clone(), child.into()));
+                } else {
+                    result.push((path, item.id));
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
@@ -428,7 +497,7 @@ mod test {
     use std::path::PathBuf;
 
     #[test]
-    pub fn test() {
+    pub fn test_path() {
         let mut full_path = PathBuf::from("/project/rust/mega");
         for _ in 0..3 {
             let cloned_path = full_path.clone(); // Clone full_path
