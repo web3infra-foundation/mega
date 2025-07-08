@@ -289,6 +289,18 @@ pub async fn get_blob_file(
     }
 }
 
+// Get tree as file
+#[utoipa::path(
+    get,
+    path = "/file/tree",
+    params(
+        TreeQuery
+    ),
+    responses(
+        (status = 200, body = CommonResult<Vec<TreeHashItem>>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 pub async fn get_tree_file(
     state: State<MonoApiServiceState>,
     Query(query): Query<TreeQuery>,
