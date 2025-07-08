@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { Flex, Layout } from 'antd'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
@@ -8,8 +8,6 @@ import { useGetBlob } from '@/hooks/useGetBlob'
 import { useRouter } from 'next/router'
 import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
-import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
-import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
 const codeStyle = {
   borderRadius: 8,
@@ -39,23 +37,6 @@ function BlobPage() {
     hash: '5fe4235',
     date: '3 months ago'
   }
-  
-  const newPath = useMemo(() => {
-    return new_path?.split("/").slice(0, -1).join("/");
-  }, [new_path]);
-  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
-
-  
-  type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
-  const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
-
-  const newDirectory = useMemo(() => {
-    if (!directory || directory.length === 0) return [];
-    
-    const currentFileName = new_path.split('/').pop() || '';
-    
-    return directory.filter(item => item.name === currentFileName);
-  }, [directory, new_path]);
 
   return (
     <div style={{overflow: 'auto'}}>
@@ -66,7 +47,7 @@ function BlobPage() {
         {/* tree */}
         <Flex>
         <Layout style={treeStyle}>
-          <RepoTree  flag={'detail'} directory={newDirectory} />
+          <RepoTree  flag={'detail'} />
         </Layout>
 
         <Layout style={codeStyle}>
