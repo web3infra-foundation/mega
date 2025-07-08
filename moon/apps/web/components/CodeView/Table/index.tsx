@@ -38,7 +38,7 @@ const TableComponent = <T extends DirectoryType>({
           // 骨架屏行
           Array.from({ length: 5 }).map((_, rowIndex) => {
             const uniqueKey = `skeleton-row-${rowIndex}`; // 生成唯一 key
-            
+
             return (
               <Table.Row key={uniqueKey}>
                 {memoizedColumns.map((column) => (
@@ -51,9 +51,10 @@ const TableComponent = <T extends DirectoryType>({
           })
         ) : datasource.length > 0 && (
           // 实际数据行
-          datasource.map((d, index) => (
+          datasource.map((d, index) => {
+            const uniqueKey = `row-${index}`; 
 
-            <Table.Row className='hover:bg-gray-100' key={d?.id || index}>
+            return <Table.Row className='hover:bg-gray-100' key={uniqueKey}>
               {memoizedColumns.map((c) => (
                 <Table.Cell
                   onClick={(e) => {
@@ -67,7 +68,7 @@ const TableComponent = <T extends DirectoryType>({
                 </Table.Cell>
               ))}
             </Table.Row>
-          ))
+          })
         )}
       </Table.Body>
     </Table.Root>
