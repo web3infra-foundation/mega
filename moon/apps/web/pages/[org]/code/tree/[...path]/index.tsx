@@ -26,9 +26,8 @@ function TreeDetailPage() {
 
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
-  // const [newDirectory,setNewDirectory] = useState(directory)
 
-  const { data: canClone } = useGetTreePathCanClone({ path: new_path })
+  const { data: canClone } = useGetTreePathCanClone({ path: newPath })
 
   const reqPath = `${new_path}/README.md`
   const  {data: readmeContent}=useGetBlob({path:reqPath})

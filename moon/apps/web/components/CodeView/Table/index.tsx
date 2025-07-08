@@ -36,15 +36,19 @@ const TableComponent = <T extends DirectoryType>({
       <Table.Body>
         {loading ? (
           // 骨架屏行
-          Array.from({ length: 5 }).map((item, rowIndex) => (
-            <Table.Row key={item?.key || rowIndex}>
-              {memoizedColumns.map((_) => (
-                <Table.Cell key={_.key}>
-                  <Skeleton variant="rounded" height={16} width="100%" />
-                </Table.Cell>
-              ))}
-            </Table.Row>
-          ))
+          Array.from({ length: 5 }).map((_, rowIndex) => {
+            const uniqueKey = `skeleton-row-${rowIndex}`; // 生成唯一 key
+            
+            return (
+              <Table.Row key={uniqueKey}>
+                {memoizedColumns.map((column) => (
+                  <Table.Cell key={column.key}>
+                    <Skeleton variant="rounded" height={16} width="100%" />
+                  </Table.Cell>
+                ))}
+              </Table.Row>
+            );
+          })
         ) : datasource.length > 0 && (
           // 实际数据行
           datasource.map((d, index) => (

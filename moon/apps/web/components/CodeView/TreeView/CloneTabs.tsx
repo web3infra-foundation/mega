@@ -10,7 +10,7 @@ const CloneTabs = ({ endpoint }: any) => {
   const pathname = usePathname()
   const [text, setText] = useState<string>(pathname || '')
   const [copied, setCopied] = useState<boolean>(false)
-  const [active_tab, setActiveTab] = useState<string>('1')
+  const [active_tab, setActiveTab] = useState<string>('HTTP')
   const [open, setOpen] = useState(false)
   const url = new URL(LEGACY_API_URL)
 
