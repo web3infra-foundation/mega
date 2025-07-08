@@ -3,12 +3,13 @@
 import 'github-markdown-css/github-markdown-light.css'
 
 import { useMemo } from 'react'
-import { DocumentIcon, FolderIcon } from '@heroicons/react/20/solid'
+import { FolderIcon } from '@heroicons/react/20/solid'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { usePathname, useRouter } from 'next/navigation'
 import RTable from './Table'
 import { columnsType, DirectoryType } from './Table/type'
 import Markdown from 'react-markdown'
+import FileIcon from './FileIcon/FileIcon'
 
 export interface DataType {
   oid: string
@@ -18,7 +19,7 @@ export interface DataType {
   date: number
 }
 
-const CodeTable = ({ directory, loading, readmeContent}: any) => {
+const CodeTable = ({ directory, loading, readmeContent, onCommitInfoChange}: any) => {
   const router = useRouter()
   const pathname = usePathname()
   let real_path = pathname?.replace('/tree', '')
@@ -41,8 +42,9 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
           <>
             <div className='flex items-center'>
               {record.content_type === 'directory' && <FolderIcon className='size-4 text-gray-600' />}
-              {record.content_type === 'file' && <DocumentIcon className='size-4 text-gray-600' />}
+              {record.content_type === 'file' && <FileIcon filename={record.name}  style={{width:'16px', height:'16px'}}/>}
               <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff] pl-2'>{record.name}</a>
+             
             </div>
           </>
         )
@@ -52,9 +54,6 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
         dataIndex: ['commit_message'],
         key: 'commit_message',
         render: (_, {commit_message}) => (
-
-          // console.log(message, 'message')
-
           <a className='cursor-pointer transition-colors duration-300 text-gray-600 hover:text-[#69b1ff]'>{commit_message}</a>
         )
       },
@@ -97,6 +96,8 @@ const CodeTable = ({ directory, loading, readmeContent}: any) => {
       pathParts?.push(encodeURIComponent(record.name))
 
       newPath = `/${pathParts?.join('/')}`
+
+      onCommitInfoChange?.(newPath);
       router.push(newPath)
     }
   }
