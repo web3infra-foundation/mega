@@ -13,7 +13,9 @@ const OrganizationTestPage: PageWithLayout<any> = () => {
         <title>Code</title>
       </Head>
 
-      <CodeView />
+      <Theme>
+        <CodeView />
+      </Theme>
     </>
   )
 }
@@ -21,9 +23,7 @@ const OrganizationTestPage: PageWithLayout<any> = () => {
 OrganizationTestPage.getProviders = (page, pageProps) => {
   return (
     <AuthAppProviders {...pageProps}>
-      <Theme>
         <AppLayout {...pageProps}>{page}</AppLayout>
-      </Theme>
     </AuthAppProviders>
   )
 }
