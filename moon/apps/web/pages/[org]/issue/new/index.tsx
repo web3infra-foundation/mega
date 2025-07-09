@@ -11,7 +11,11 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
 
   return (
     <>
-      <IssueNewPage key={router.pathname} />
+      <ThemeProvider>
+          <BaseStyles>
+            <IssueNewPage key={router.pathname} />
+      </BaseStyles>
+    </ThemeProvider>
     </>
   )
 }
@@ -19,11 +23,7 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
 OrganizationIssueNewPage.getProviders = (page, pageProps) => {
   return (
     <AuthAppProviders {...pageProps}>
-      <ThemeProvider>
-        <BaseStyles>
-          <AppLayout {...pageProps}>{page}</AppLayout>
-        </BaseStyles>
-      </ThemeProvider>
+      <AppLayout {...pageProps}>{page}</AppLayout>
     </AuthAppProviders>
   )
 }

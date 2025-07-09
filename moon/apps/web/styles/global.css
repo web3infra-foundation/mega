@@ -113,6 +113,9 @@
     .new-issue-side-input input {
       line-height: 1 !important;
     }
+    [role="tabpanel"]:focus {
+      outline: none;
+    }
   }
 
   .dark,
