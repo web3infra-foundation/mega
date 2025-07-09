@@ -167,11 +167,10 @@ main() {
             ;;
     esac
 
-    set -- "$binary_file"
+    # Start with the main binary file
+    all_binaries=()
+    all_binaries+=("$binary_file")
 
-    OLDIFS=$IFS
-    IFS='
-'
     # Process the binary file - no need to add it again since it's already in the list
     # The loop below was causing duplication
     IFS=$OLDIFS
@@ -180,41 +179,76 @@ main() {
 
     mkdir -p "$frameworks"
 
-    scan_libs "$@" | sort -u | \
-    while read lib; do
-        if [ -n "$list" ]; then
-            echo "$lib"
-        else
-            resolved=$(echo "$lib" | fully_resolve_links)
-            resolved_basename=${resolved##*/}
-            if [ ! -f "$frameworks/$resolved_basename" ]; then
-                # Copy the library file
-                if [ -f "$resolved" ]; then
-                    cp -f "$resolved" "$frameworks" 2>/dev/null
-                    if [ $? -eq 0 ]; then
-                        echo "Copied: $resolved_basename"
-                    else
-                        echo "Warning: Failed to copy: $resolved" >&2
+    # Find and copy gdk-pixbuf loaders if they exist
+    if command -v brew >/dev/null 2>&1; then
+        echo "Checking for gdk-pixbuf loaders..."
+        gdk_pixbuf_prefix=$(brew --prefix gdk-pixbuf 2>/dev/null)
+        if [ -n "$gdk_pixbuf_prefix" ] && [ -d "$gdk_pixbuf_prefix/lib/gdk-pixbuf-2.0" ]; then
+            loader_dir=$(find "$gdk_pixbuf_prefix/lib/gdk-pixbuf-2.0" -type d -name "loaders" | head -n 1)
+            if [ -d "$loader_dir" ]; then
+                echo "Found gdk-pixbuf loaders in: $loader_dir"
+                # Create a subdirectory for loaders to avoid name conflicts
+                loader_dest_dir="$frameworks/gdk-pixbuf-2.0/loaders"
+                mkdir -p "$loader_dest_dir"
+                for loader in "$loader_dir"/*.so; do
+                    if [ -f "$loader" ]; then
+                        loader_dest_path="$loader_dest_dir/${loader##*/}"
+                        cp -f "$loader" "$loader_dest_path"
+                        echo "Copied loader: ${loader##*/}"
+                        # Add the new loader to the list of binaries to be processed
+                        all_binaries+=("$loader_dest_path")
                     fi
-                else
-                    echo "Warning: Library not found: $resolved" >&2
-                fi
+                done
+            else
+                echo "gdk-pixbuf loaders directory not found."
             fi
-            if [ "$resolved" != "$lib" ]; then
-                lib_basename=${lib##*/}
-                if [ ! -f "$frameworks/$lib_basename" ] && [ -f "$frameworks/$resolved_basename" ]; then
-                    ln -s "$resolved_basename" "$frameworks/$lib_basename"
-                fi
-            fi
+        else
+            echo "gdk-pixbuf not installed via Homebrew or path is not standard."
         fi
-    done
+    fi
+
+    # Step 1: Scan all libraries from all binaries, resolve links, and get a unique list.
+    echo "Scanning for all unique library dependencies..."
+    all_libs_file="$tmp/all_libs.txt"
+    scan_libs "${all_binaries[@]}" | fully_resolve_links | sort -u > "$all_libs_file"
+
+    # Step 2: Copy all unique libraries to the frameworks directory.
+    if [ -z "$list" ]; then
+        echo "Copying libraries..."
+        while IFS= read -r lib_path; do
+            if [ -n "$lib_path" ]; then
+                lib_basename=${lib_path##*/}
+                dest_path="$frameworks/$lib_basename"
+                if [ ! -f "$dest_path" ]; then
+                    if [ -f "$lib_path" ]; then
+                        cp -f "$lib_path" "$frameworks"
+                        if [ $? -eq 0 ]; then
+                            echo "Copied: $lib_basename"
+                        else
+                            echo "Warning: Failed to copy: $lib_path" >&2
+                        fi
+                    else
+                        echo "Warning: Library not found: $lib_path" >&2
+                    fi
+                fi
+            fi
+        done < "$all_libs_file"
+    else
+        # If list is requested, just print the unique list and exit.
+        cat "$all_libs_file"
+        quit 0
+    fi
+
+    # Step 3: Create symlinks for non-resolved library names if needed.
+    # This part is tricky and might be less necessary with the new robust approach.
+    # For now, we focus on the core functionality.
 
     # Calculate relative path from binary to dylib directory
     binary_dir=$(dirname "$binary_file")
     rel_path=$(get_relative_path "$binary_dir" "$frameworks")
     
     # fix dynamic link info in executables and just copied libs
-    [ -z "$list" ] && relink_all "$@" "$rel_path" "$custom_rpath"
+    [ -z "$list" ] && relink_all "${all_binaries[@]}" "$rel_path" "$custom_rpath"
 
     quit 0
 }
@@ -258,26 +292,12 @@ get_relative_path() {
     done
     
     # Calculate relative path
-    if [ -n "$common" ] && [ "$common" != "/" ]; then
-        # Remove common prefix from both paths
-        source_rel="${source_abs#$common/}"
-        target_rel="${target_abs#$common/}"
-        
-        # Count directory levels to go up
-        up_levels=$(echo "$source_rel" | tr '/' '\n' | grep -c .)
-        
-        # Build relative path
-        rel_path=""
-        i=0
-        while [ $i -lt $up_levels ]; do
-            rel_path="../$rel_path"
-            i=$((i + 1))
-        done
-        
-        echo "$rel_path$target_rel"
+    if [ -n "$common" ] && [ "$common" != "$source_abs" ]; then
+        # If common path is not the root, calculate relative path
+        echo "../${remaining_target#$common/}"
     else
-        # Fallback to absolute path if no common prefix
-        echo "$target_abs"
+        # Otherwise, just return the target path (should not happen in normal cases)
+        echo "$target_dir"
     fi
 }
 
@@ -305,7 +325,7 @@ scan_libs() {
 lib_scan() {
     for bin in "$@"; do
         case "$bin" in
-            *.dylib)
+            *.dylib|*.so)
                 ;;
             *)
                 [ ! -x "$bin" ] && continue
@@ -356,46 +376,96 @@ lib_scan() {
 
 fully_resolve_links() {
     while read -r file; do
-        while [ -h "$file" ]; do
-            file=$(readlink -f "$file")
+      # Use a subshell to avoid changing the script's current directory
+      (
+        # Check if the file exists, otherwise we can't resolve it.
+        if [ ! -e "$file" ]; then
+            # If file doesn't exist, just print it back
+            echo "$file"
+            exit
+        fi
+
+        TARGET_FILE="$file"
+        # Go to the directory of the file
+        cd "$(dirname "$TARGET_FILE")" || exit 1
+        TARGET_FILE=$(basename "$TARGET_FILE")
+
+        # Follow the chain of symlinks
+        while [ -L "$TARGET_FILE" ]
+        do
+            TARGET_FILE=$(readlink "$TARGET_FILE")
+            cd "$(dirname "$TARGET_FILE")" || exit 1
+            TARGET_FILE=$(basename "$TARGET_FILE")
         done
-        echo "$file"
+
+        # Get the physical directory path and append the final filename
+        PHYS_DIR=$(pwd -P)
+        RESULT="$PHYS_DIR/$TARGET_FILE"
+        echo "$RESULT"
+      )
     done
 }
 
 lock() {
-    mkdir -p "$lock_dir/$1"
+    # Create a safe filename by replacing path separators and limiting length
+    safe_name=$(echo "$1" | sed 's,/,_,g' | cut -c1-100)
+    mkdir -p "$lock_dir/$safe_name"
 }
 
 unlock() {
-    rm -rf "$lock_dir/$1"
+    # Create the same safe filename
+    safe_name=$(echo "$1" | sed 's,/,_,g' | cut -c1-100)
+    rm -rf "$lock_dir/$safe_name"
 }
 
 wait_lock() {
-    while [ -d "$lock_dir/$1" ]; do
+    # Create the same safe filename
+    safe_name=$(echo "$1" | sed 's,/,_,g' | cut -c1-100)
+    while [ -d "$lock_dir/$safe_name" ]; do
         /bin/bash -c 'sleep 0.1'
     done
 }
 
 relink_all() {
-    # Store all arguments
-    _args="$*"
-    # Get the last argument (custom rpath, if provided)
-    custom_rpath=$(echo "$_args" | sed 's/.* //')
-    # Get the second-to-last argument (relative path)
-    rel_path=$(echo "$_args" | sed 's/ [^ ]*$//' | sed 's/.* //')
-    # Get all but the last two arguments (executables)
-    _exes=$(echo "$_args" | sed 's/ [^ ]*$//' | sed 's/ [^ ]*$//')
+    # Parse arguments properly using positional parameters
+    # Arguments: executable1 executable2 ... executableN rel_path custom_rpath
+    
+    # Count total arguments
+    total_args=$#
+    
+    # Extract the last two arguments using eval
+    eval "custom_rpath=\${$total_args}"
+    eval "rel_path=\${$((total_args - 1))}"
+    
+    # Create a new argument list with just the executables
+    exe_list=""
+    i=1
+    while [ $i -le $((total_args - 2)) ]; do
+        eval "arg=\${$i}"
+        exe_list="$exe_list \"$arg\""
+        i=$((i + 1))
+    done
     
     # Reset positional parameters to just the executables
-    set -- $_exes
+    eval "set -- $exe_list"
     
     lock_dir="$tmp/locks"
 
-    find "$frameworks" -name '*.dylib' > "$tmp/libs"
+    find "$frameworks" \( -name '*.dylib' -o -name '*.so' \) > "$tmp/libs"
 
-    for exe in "$@"; do (
-        # dylib search path for executable
+    # Determine which rpath to use
+    if [ -n "$custom_rpath" ] && [ "$custom_rpath" != "." ]; then
+        # Use custom rpath if provided
+        rpath_value="$custom_rpath"
+        echo "Using custom rpath: $rpath_value"
+    else
+        # Use calculated relative path
+        rpath_value="@executable_path/$rel_path"
+        echo "Using calculated rpath: $rpath_value"
+    fi
+
+    # Step 1: Process all executables (add rpath)
+    for exe in "$@"; do
         wait_lock "$exe"
         lock "$exe"
         
@@ -403,17 +473,6 @@ relink_all() {
         
         # Make executable writable
         chmod u+w "$exe" 2>/dev/null || true
-        
-        # Determine which rpath to use
-        if [ -n "$custom_rpath" ] && [ "$custom_rpath" != "." ]; then
-            # Use custom rpath if provided
-            rpath_value="$custom_rpath"
-            echo "Using custom rpath: $rpath_value"
-        else
-            # Use calculated relative path
-            rpath_value="@executable_path/$rel_path"
-            echo "Using calculated rpath: $rpath_value"
-        fi
         
         # Try to add rpath first (before removing signature)
         if install_name_tool -add_rpath "$rpath_value" "$exe"; then
@@ -429,55 +488,60 @@ relink_all() {
         safe_add_signature "$exe"
         
         unlock "$exe"
+    done
 
-        OLDIFS=$IFS
-        IFS='
-'
-        set --
-        for lib in $(cat "$tmp/libs"); do
-            set -- "$@" "$lib"
+    # Step 2: Process all libraries ONCE (update ID and add rpath)
+    echo "Processing libraries..."
+    while IFS= read -r lib; do
+        [ -z "$lib" ] && continue
+        
+        wait_lock "$lib"
+        lock "$lib"
+
+        echo "Processing library: ${lib##*/}"
+
+        # Make lib writable
+        chmod u+w "$lib" 2>/dev/null || true
+
+        # Change id of lib first (before removing signature)
+        if install_name_tool -id "@rpath/${lib##*/}" "$lib"; then
+            echo "Updated library ID: ${lib##*/}"
+        else
+            echo "Warning: Failed to update library ID: ${lib##*/}" >&2
+        fi
+
+        # Set search path of lib
+        if install_name_tool -add_rpath "$rpath_value" "$lib"; then
+            echo "Added rpath to library: ${lib##*/}"
+        else
+            echo "Note: Could not add rpath to library: ${lib##*/} (may already exist)" >&2
+        fi
+
+        # Remove signature safely after modification
+        safe_remove_signature "$lib"
+        
+        # Re-sign the library
+        safe_add_signature "$lib"
+
+        unlock "$lib"
+    done < "$tmp/libs"
+
+    # Step 3: Relink all targets to all libraries
+    echo "Relinking dependencies..."
+    while IFS= read -r lib; do
+        [ -z "$lib" ] && continue
+        
+        # Relink all executables and libraries to this lib
+        for target in "$@"; do
+            relink "$lib" "$target"
         done
-        IFS=$OLDIFS
-
-        for lib in "$@"; do
-            wait_lock "$lib"
-            lock "$lib"
-
-            echo "Processing library: ${lib##*/}"
-
-            # Make lib writable
-            chmod u+w "$lib" 2>/dev/null || true
-
-            # Change id of lib first (before removing signature)
-            if install_name_tool -id "@rpath/${lib##*/}" "$lib"; then
-                echo "Updated library ID: ${lib##*/}"
-            else
-                echo "Warning: Failed to update library ID: ${lib##*/}" >&2
-            fi
-
-            # Set search path of lib
-            if install_name_tool -add_rpath "$rpath_value" "$lib"; then
-                echo "Added rpath to library: ${lib##*/}"
-            else
-                echo "Note: Could not add rpath to library: ${lib##*/} (may already exist)" >&2
-            fi
-
-            # Remove signature safely after modification
-            safe_remove_signature "$lib"
-            
-            # Re-sign the library
-            safe_add_signature "$lib"
-
-            unlock "$lib"
-
-            # relink executable and all other libs to this lib
-            for target in "$exe" "$@"; do (
-                relink "$lib" "$target"
-            ) & done
-            wait
-        done
-    ) & done
-    wait
+        
+        # Also relink other libraries to this lib
+        while IFS= read -r other_lib; do
+            [ -z "$other_lib" ] || [ "$other_lib" = "$lib" ] && continue
+            relink "$lib" "$other_lib"
+        done < "$tmp/libs"
+    done < "$tmp/libs"
 
     rm -rf "$tmp/libs" "$lock_dir"
 }
@@ -515,8 +579,7 @@ relink() {
     case "$longer" in
         "$shorter"*)
             # and if so, relink target to the lib
-            wait_lock "$lib"
-            lock "$lib"
+            # Note: No need to lock here as the caller already has the lock
 
             # Make target writable
             chmod u+w "$target" 2>/dev/null || true
@@ -533,8 +596,6 @@ relink() {
             
             # Re-sign the target
             safe_add_signature "$target"
-
-            unlock "$lib"
             ;;
     esac
 }

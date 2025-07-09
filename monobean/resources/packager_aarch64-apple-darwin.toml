@@ -9,8 +9,17 @@ binaries_dir = "../target/release"
 binaries = [{ path = "monobean", main = true }]
 resources = [
   "../Monobean.gresource",
-  "lib/bin/*.dll",
-  "lib/bin/gdbus.exe",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-ani.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-bmp.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-gif.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-icns.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-ico.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-pnm.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-qtif.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-tga.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-tiff.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-xbm.so",
+  "patched_dylibs/gdk-pixbuf-2.0/loaders/libpixbufloader-xpm.so",
 ]
 icons = [
   "icons/scalable/apps/mono-white-logo.ico",
@@ -38,14 +47,12 @@ frameworks = [
   "patched_dylibs/libgobject-2.0.0.dylib",
   "patched_dylibs/libgraphene-1.0.0.dylib",
   "patched_dylibs/libgraphite2.3.2.1.dylib",
-  "patched_dylibs/libgraphite2.3.dylib",
   "patched_dylibs/libgtk-4.1.dylib",
   "patched_dylibs/libgtksourceview-5.0.dylib",
   "patched_dylibs/libharfbuzz-subset.0.dylib",
   "patched_dylibs/libharfbuzz.0.dylib",
   "patched_dylibs/libintl.8.dylib",
   "patched_dylibs/libjpeg.8.3.2.dylib",
-  "patched_dylibs/libjpeg.8.dylib",
   "patched_dylibs/liblzma.5.dylib",
   "patched_dylibs/liblzo2.2.dylib",
   "patched_dylibs/libpango-1.0.0.dylib",
@@ -59,18 +66,14 @@ frameworks = [
   "patched_dylibs/libX11.6.dylib",
   "patched_dylibs/libXau.6.dylib",
   "patched_dylibs/libxcb-render.0.0.0.dylib",
-  "patched_dylibs/libxcb-render.0.dylib",
   "patched_dylibs/libxcb-shm.0.0.0.dylib",
-  "patched_dylibs/libxcb-shm.0.dylib",
   "patched_dylibs/libxcb.1.1.0.dylib",
-  "patched_dylibs/libxcb.1.dylib",
   "patched_dylibs/libXdmcp.6.dylib",
   "patched_dylibs/libXext.6.dylib",
   "patched_dylibs/libxmlb.2.dylib",
   "patched_dylibs/libXrender.1.dylib",
   "patched_dylibs/libyaml-0.2.dylib",
-  "patched_dylibs/libzstd.1.5.7.dylib",
-  "patched_dylibs/libzstd.1.dylib"
+  "patched_dylibs/libzstd.1.5.7.dylib"
 ]
 
 [dmg]

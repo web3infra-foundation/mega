@@ -33,6 +33,7 @@ buck-out
 # Gtk4 resource files
 **/*.gresource
 monobean/resources/lib
+**/*.so
 
 # Temporary test cache dir
 /tests/.cache_tmp
