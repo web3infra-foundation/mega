@@ -55,13 +55,9 @@ const cardList = [
 const CratesproPage: PageWithLayout<any> = () => {
   const router = useRouter()
 
-  // 临时使用 router，避免未使用报错
-  console.log('router:', router)
-  
-  // 跳转函数占位
   const handleCardClick = (key: string) => {
     // 这里可以根据key跳转到不同页面
-    // router.push(`/目标路径`)
+    router.push(`/cratespro/${key}`) 
     alert(`点击了 ${key}`)
   }
 
