@@ -199,6 +199,7 @@ export default function IssueNewPage() {
               </div>
               <FormControl>
                 <FormControl.Label>Add a description</FormControl.Label>
+                <input {...dropzone.getInputProps()} />
                 <div className='h-[550px] w-full rounded-lg border p-6'>
                   <SimpleNoteContent
                     commentId='temp' //  Temporary filling, replacement later
