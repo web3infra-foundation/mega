@@ -99,6 +99,23 @@
         --base-shadow-color: rgb(0 0 0 / 0.05);
       }
     }
+
+    .no-border-input input:focus,
+    .no-border-input input:focus-visible {
+      @apply outline-none; /* Tailwind 内置类，去除默认轮廓 */
+      border-color: transparent !important;
+      box-shadow: none !important;
+    }
+    .new-issue-input {
+      height: 24px !important;
+      line-height: 24px !important;
+    }
+    .new-issue-side-input input {
+      line-height: 1 !important;
+    }
+    [role="tabpanel"]:focus {
+      outline: none;
+    }
   }
 
   .dark,
@@ -216,7 +233,7 @@ body.grabbing * {
     }
   }
   .copyable-text {
-    @apply select-text; 
+    @apply select-text;
   }
 }
 

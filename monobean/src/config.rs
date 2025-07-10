@@ -95,7 +95,7 @@ macro_rules! get_setting {
 pub fn monobean_base() -> PathBuf {
     // Get the base directory from the environment variable or use the default
     std::env::var("MONOBEAN_BASE_DIR")
-        .map(|inner| PathBuf::from(inner))
+        .map(PathBuf::from)
         .unwrap_or_else(|_| common::config::mega_base().join("monobean"))
 }
 
@@ -119,7 +119,7 @@ pub fn monobean_base() -> PathBuf {
 pub fn monobean_cache() -> PathBuf {
     // Get the cache directory from the environment variable or use the default
     std::env::var("MONOBEAN_CACHE_DIR")
-        .map(|inner| PathBuf::from(inner))
+        .map(PathBuf::from)
         .unwrap_or_else(|_| common::config::mega_cache().join("monobean"))
 }
 

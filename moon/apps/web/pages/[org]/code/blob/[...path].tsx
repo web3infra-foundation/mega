@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { Flex, Layout } from 'antd'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
@@ -6,11 +6,8 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useRouter } from 'next/router'
-import { CommentSection } from '@/components/CodeView/BlobView/CommentSection'
 import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
-import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
-import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
 const codeStyle = {
   borderRadius: 8,
@@ -27,57 +24,10 @@ const treeStyle = {
   background: '#fff'
 }
 
-interface Comment {
-  id: string
-  content: string
-  author: {
-    id: string
-    name: string
-    avatar?: string
-  }
-  createdAt: Date
-  replies?: Comment[]
-}
-
 function BlobPage() {
   const { path = [] } = useRouter().query as { path?: string[] }
   const new_path = '/' + path.join('/')
   const fileContent = useGetBlob({ path: new_path }).data?.data?? ""
-  const mockComments: Comment[] = [
-    {
-      id: '1',
-      content: '这段代码逻辑很清晰，建议可以添加一些错误处理。',
-      author: {
-        id: '1',
-        name: '张三',
-        avatar: ''
-      },
-      createdAt: new Date('2024-12-01 10:30:00'),
-      replies: []
-    },
-    {
-      id: '2',
-      content: '同意。',
-      author: {
-        id: '2',
-        name: '李四',
-        avatar: ''
-      },
-      createdAt: new Date('2024-12-01 10:30:00'),
-      replies: [
-        {
-          id: '3',
-          content: '好的，收到。',
-          author: {
-            id: '3',
-            name: '王五',
-            avatar: ''
-          },
-          createdAt: new Date('2024-12-01 10:30:00')
-        }
-      ]
-    }
-  ]
   const commitInfo: CommitInfo = {
     user: {
       avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
@@ -87,33 +37,6 @@ function BlobPage() {
     hash: '5fe4235',
     date: '3 months ago'
   }
-  
-  const newPath = useMemo(() => {
-    return new_path?.split("/").slice(0, -1).join("/");
-  }, [new_path]);
-  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
-
-  
-  type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
-  const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
-
-  const newDirectory = useMemo(() => {
-    if (!directory || directory.length === 0) return [];
-    
-    const currentFileName = new_path.split('/').pop() || '';
-    
-    return directory.filter(item => item.name === currentFileName);
-  }, [directory, new_path]);
-
-
-  const handleAddComment = (__content: string, __lineNumber?: number) => {
-    //wait for complete
-  }
-
-  const handleReplyComment = (__commentId: string, __content: string) => {
-    //wait for complete
-  }
-
 
   return (
     <div style={{overflow: 'auto'}}>
@@ -124,7 +47,7 @@ function BlobPage() {
         {/* tree */}
         <Flex>
         <Layout style={treeStyle}>
-          <RepoTree  flag={'detail'} directory={newDirectory} />
+          <RepoTree  flag={'detail'} />
         </Layout>
 
         <Layout style={codeStyle}>
@@ -134,10 +57,6 @@ function BlobPage() {
           <Flex gap='middle' wrap>
             <Layout style={codeStyle}>
               <CodeContent fileContent={fileContent} path={path} />
-            </Layout>
-            <Layout>
-              {/* @ts-ignore */}
-              <CommentSection comments={mockComments} onAddComment={handleAddComment} onReplyComment={handleReplyComment} />
             </Layout>
           </Flex>
         </Layout>

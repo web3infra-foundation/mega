@@ -121,7 +121,7 @@ impl ScorpioManager {
             "   [\x1b[33mDEBUG\x1b[0m] commit.parent_commit_ids = {}",
             parent_hash[0]
         );
-        println!("   [\x1b[33mDEBUG\x1b[0m] commit.message = {}", commit_msg);
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.message = {commit_msg}");
 
         let commit = Commit::new(sign.clone(), sign, main_tree_hash, parent_hash, &commit_msg);
 
@@ -166,7 +166,7 @@ impl ScorpioManager {
         let temp_store_area = TempStoreArea::new(&modified_path)?;
         println!("OK1");
         let base_url = config::base_url();
-        let url = format!("{}/{}.git/git-receive-pack", base_url, mono_path);
+        let url = format!("{base_url}/{mono_path}.git/git-receive-pack");
 
         println!("START");
         let res = push::push_core(&work_path, &url, &temp_store_area.index_db).await?;
@@ -236,7 +236,7 @@ impl ScorpioManager {
                 }
             },
             Err(e) => {
-                let e_message = format!("Failed to canonicalize path: {}", e);
+                let e_message = format!("Failed to canonicalize path: {e}");
                 Err(Box::from(e_message))
             }
         }

@@ -28,10 +28,10 @@ static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
 /// `ConfigResult<()>` - Success or error
 pub fn init_config(path: &str) -> ConfigResult<()> {
     let content = fs::read_to_string(path)
-        .map_err(|e| format!("Config file not found at '{}': {}", path, e))?;
+        .map_err(|e| format!("Config file not found at '{path}': {e}"))?;
 
     let mut config: HashMap<String, String> =
-        toml::from_str(&content).map_err(|e| format!("Invalid config format: {}", e))?;
+        toml::from_str(&content).map_err(|e| format!("Invalid config format: {e}"))?;
 
     // Set default values and validate configuration
     set_defaults(&mut config, path)?;
@@ -53,7 +53,7 @@ pub fn init_config(path: &str) -> ConfigResult<()> {
 /// `ConfigResult<()>` - Success or error
 fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResult<()> {
     let username = whoami::username();
-    let base_path = format!("/home/{}/megadir", username);
+    let base_path = format!("/home/{username}/megadir");
 
     // Check if critical fields are empty (first run scenario)
     let is_first_run = config
@@ -72,10 +72,10 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
             entry
                 .and_modify(|v| {
                     if v.is_empty() {
-                        *v = format!("{}/mount", base_path)
+                        *v = format!("{base_path}/mount")
                     }
                 })
-                .or_insert_with(|| format!("{}/mount", base_path))
+                .or_insert_with(|| format!("{base_path}/mount"))
                 .to_owned()
         };
 
@@ -85,10 +85,10 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
             entry
                 .and_modify(|v| {
                     if v.is_empty() {
-                        *v = format!("{}/store", base_path)
+                        *v = format!("{base_path}/store")
                     }
                 })
-                .or_insert_with(|| format!("{}/store", base_path))
+                .or_insert_with(|| format!("{base_path}/store"))
                 .to_owned()
         };
 
@@ -108,7 +108,7 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
 
         // Save updated configuration
         let toml = toml::to_string(&config).expect("Failed to serialize config");
-        fs::write(path, toml).unwrap_or_else(|e| panic!("Failed to save config: {}", e));
+        fs::write(path, toml).unwrap_or_else(|e| panic!("Failed to save config: {e}"));
 
         // Create the config.toml
         let config_file = config
@@ -139,11 +139,11 @@ fn get_config() -> &'static ScorpioConfig {
     SCORPIO_CONFIG.get_or_init(|| {
         // Generate sensible defaults
         let username = whoami::username();
-        let base_path = format!("/home/{}/megadir", username);
+        let base_path = format!("/home/{username}/megadir");
         let mut config = HashMap::new();
         config.insert("base_url".to_string(), "http://localhost:8000".to_string());
-        config.insert("workspace".to_string(), format!("{}/mount", base_path));
-        config.insert("store_path".to_string(), format!("{}/store", base_path));
+        config.insert("workspace".to_string(), format!("{base_path}/mount"));
+        config.insert("store_path".to_string(), format!("{base_path}/store"));
         config.insert("git_author".to_string(), "MEGA".to_string());
         config.insert("git_email".to_string(), "admin@mega.org".to_string());
         config.insert("config_file".to_string(), "config.toml".to_string());
@@ -171,7 +171,7 @@ fn get_config() -> &'static ScorpioConfig {
         let config_file = config.get("config_file").unwrap();
         if !Path::new(config_file).exists() {
             fs::write(config_file, "works=[]")
-                .unwrap_or_else(|e| panic!("Failed to create {}: {}", config_file, e));
+                .unwrap_or_else(|e| panic!("Failed to create {config_file}: {e}"));
         }
 
         ScorpioConfig { config }
@@ -204,7 +204,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
                 continue;
             }
         }
-        return Err(format!("Missing or empty required config: {}", key));
+        return Err(format!("Missing or empty required config: {key}"));
     }
     Ok(())
 }

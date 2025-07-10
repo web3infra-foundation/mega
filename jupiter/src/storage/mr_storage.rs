@@ -1,15 +1,20 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use common::model::Pagination;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
+    JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
 };
 
 use callisto::sea_orm_active_enums::MergeStatusEnum;
-use callisto::{label, mega_mr};
+use callisto::{item_assignees, label, mega_conversation, mega_mr};
 use common::errors::MegaError;
 use common::utils::generate_id;
+
+use crate::storage::stg_common::combine_item_list;
+use crate::storage::stg_common::model::{ItemDetails, ListParams};
+use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]
 pub struct MrStorage {
@@ -44,15 +49,47 @@ impl MrStorage {
         Ok(model)
     }
 
-    pub async fn get_mr_by_status(
+    pub async fn get_mr_list(
         &self,
-        status: Vec<MergeStatusEnum>,
+        params: ListParams,
         page: Pagination,
-    ) -> Result<(Vec<(mega_mr::Model, Vec<label::Model>)>, u64), MegaError> {
-        let paginator = mega_mr::Entity::find()
+    ) -> Result<(Vec<ItemDetails>, u64), MegaError> {
+        let cond = Condition::all();
+        let cond = filter_by_labels(cond, params.labels);
+        // let cond = filter_by_author(cond, params.author);
+        let cond = filter_by_assignees(cond, params.assignees);
+
+        let status = if params.status == "open" {
+            vec![MergeStatusEnum::Open]
+        } else if params.status == "closed" {
+            vec![MergeStatusEnum::Closed, MergeStatusEnum::Merged]
+        } else {
+            vec![
+                MergeStatusEnum::Open,
+                MergeStatusEnum::Closed,
+                MergeStatusEnum::Merged,
+            ]
+        };
+
+        let query = mega_mr::Entity::find()
+            .join(
+                JoinType::LeftJoin,
+                callisto::entity_ext::mega_mr::Relation::ItemLabels.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                callisto::entity_ext::mega_mr::Relation::ItemAssignees.def(),
+            )
             .filter(mega_mr::Column::Status.is_in(status))
-            .order_by_desc(mega_mr::Column::CreatedAt)
-            .paginate(self.get_connection(), page.per_page);
+            .filter(cond)
+            .distinct();
+
+        let mut sort_map = HashMap::new();
+        sort_map.insert("created_at", mega_mr::Column::CreatedAt);
+        sort_map.insert("updated_at", mega_mr::Column::UpdatedAt);
+
+        let query = apply_sort(query, params.sort_by.as_deref(), params.asc, &sort_map);
+        let paginator = query.paginate(self.get_connection(), page.per_page);
         let num_pages = paginator.num_items().await?;
 
         let (mr_list, page) = paginator
@@ -60,13 +97,36 @@ impl MrStorage {
             .await
             .map(|m| (m, num_pages))?;
 
-        let mr_with_label: Vec<(mega_mr::Model, Vec<label::Model>)> = mega_mr::Entity::find()
-            .filter(mega_mr::Column::Id.is_in(mr_list.iter().map(|i| i.id).collect::<Vec<_>>()))
-            .order_by_desc(mega_mr::Column::CreatedAt)
+        let ids = mr_list.iter().map(|m| m.id).collect::<Vec<_>>();
+
+        let label_query = mega_mr::Entity::find().filter(mega_mr::Column::Id.is_in(ids.clone()));
+        let label_query = apply_sort(
+            label_query,
+            params.sort_by.as_deref(),
+            params.asc,
+            &sort_map,
+        );
+        let labels: Vec<(mega_mr::Model, Vec<label::Model>)> = label_query
             .find_with_related(label::Entity)
             .all(self.get_connection())
             .await?;
-        Ok((mr_with_label, page))
+
+        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Id.is_in(ids.clone()))
+            .find_with_related(item_assignees::Entity)
+            .all(self.get_connection())
+            .await?;
+
+        let conversations: Vec<(mega_mr::Model, Vec<mega_conversation::Model>)> =
+            mega_mr::Entity::find()
+                .filter(mega_mr::Column::Id.is_in(ids))
+                .find_with_related(mega_conversation::Entity)
+                .all(self.get_connection())
+                .await?;
+
+        let res = combine_item_list::<mega_mr::Entity>(labels, assignees, conversations);
+
+        Ok((res, page))
     }
 
     pub async fn get_mr(&self, link: &str) -> Result<Option<mega_mr::Model>, MegaError> {

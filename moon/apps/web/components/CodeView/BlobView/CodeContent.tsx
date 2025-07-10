@@ -9,6 +9,7 @@ import 'github-markdown-css/github-markdown-light.css';
 import styles from './CodeContent.module.css';
 
 const suffixToLangMap: Record<string, string> = {
+  '.js': 'jsx',
   '.jsx': 'jsx',
   '.tsx': 'tsx',
   '.kt': 'kotlin',
@@ -186,7 +187,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-      {/*todo: Dynamic support for language types*/}
       <Highlight theme={themes.github} code={fileContent} language={getLangFromFileName(filename)}>
         {({ style, tokens, getLineProps, getTokenProps }) => (
           <pre

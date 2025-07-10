@@ -50,7 +50,7 @@ impl ScorpioLFS for LFSClient {
         for (oid, _) in &lfs_oids {
             let path = lfs::lfs_object_path(oid);
             if !path.exists() {
-                eprintln!("fatal: LFS object not found: {}", oid);
+                eprintln!("fatal: LFS object not found: {oid}");
                 continue;
             }
             let size = path.metadata().unwrap().len() as i64;
@@ -84,7 +84,7 @@ impl ScorpioLFS for LFSClient {
                 // By default, an LFS server that doesn't implement any locking endpoints should return 404.
                 // This response will not halt any Git pushes.
             } else if !code.is_success() {
-                eprintln!("fatal: LFS verify locks failed. Status: {}", code);
+                eprintln!("fatal: LFS verify locks failed. Status: {code}");
                 return Err(());
             } else {
                 // success
@@ -139,7 +139,7 @@ impl ScorpioLFS for LFSClient {
         .unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.map_err(|e| {
-            eprintln!("fatal: LFS batch request failed. Error: {}", e);
+            eprintln!("fatal: LFS batch request failed. Error: {e}");
         })?;
         println!(
             "LFS push response:\n {:#?}",

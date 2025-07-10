@@ -1,4 +1,5 @@
-use callisto::{label, mega_issue};
+use callisto::mega_issue;
+use jupiter::storage::stg_common::model::{ItemDetails, ItemKind};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -7,28 +8,52 @@ use crate::api::{label::LabelItem, mr::MegaConversation};
 pub mod issue_router;
 
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct IssueItem {
+pub struct ItemRes {
+    pub id: i64,
     pub link: String,
     pub title: String,
     pub status: String,
-    pub user_id: String,
-    pub labels: Vec<LabelItem>,
+    pub author: String,
     pub open_timestamp: i64,
     pub closed_at: Option<i64>,
+    pub merge_timestamp: Option<i64>,
     pub updated_at: i64,
+    pub labels: Vec<LabelItem>,
+    pub assignees: Vec<String>,
+    pub comment_num: usize,
 }
 
-impl From<(mega_issue::Model, Vec<label::Model>)> for IssueItem {
-    fn from(value: (mega_issue::Model, Vec<label::Model>)) -> Self {
-        Self {
-            link: value.0.link,
-            title: value.0.title,
-            status: value.0.status.to_string(),
-            user_id: value.0.user_id,
-            open_timestamp: value.0.created_at.and_utc().timestamp(),
-            closed_at: value.0.closed_at.map(|dt| dt.and_utc().timestamp()),
-            updated_at: value.0.updated_at.and_utc().timestamp(),
-            labels: value.1.into_iter().map(|m| m.into()).collect()
+impl From<ItemDetails> for ItemRes {
+    fn from(value: ItemDetails) -> Self {
+        match value.item {
+            ItemKind::Issue(model) => Self {
+                id: model.id,
+                link: model.link,
+                title: model.title,
+                status: model.status.to_string(),
+                author: model.author,
+                open_timestamp: model.created_at.and_utc().timestamp(),
+                merge_timestamp: None,
+                closed_at: model.closed_at.map(|dt| dt.and_utc().timestamp()),
+                updated_at: model.updated_at.and_utc().timestamp(),
+                labels: value.labels.into_iter().map(|m| m.into()).collect(),
+                assignees: value.assignees,
+                comment_num: value.comment_num,
+            },
+            ItemKind::Mr(model) => Self {
+                id: model.id,
+                link: model.link,
+                title: model.title,
+                status: format!("{:?}", model.status),
+                author: String::new(),
+                open_timestamp: model.created_at.and_utc().timestamp(),
+                merge_timestamp: model.merge_date.map(|dt| dt.and_utc().timestamp()),
+                closed_at: None,
+                updated_at: model.updated_at.and_utc().timestamp(),
+                labels: value.labels.into_iter().map(|m| m.into()).collect(),
+                assignees: value.assignees,
+                comment_num: value.comment_num,
+            },
         }
     }
 }
@@ -60,11 +85,4 @@ impl From<mega_issue::Model> for IssueDetail {
             conversations: vec![],
         }
     }
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct LabelUpdatePayload {
-    label_ids: Vec<i64>,
-    item_id: i64,
-    link: String,
 }

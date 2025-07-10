@@ -1,3 +1,4 @@
+import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useRouter } from 'next/router'
 
 import IssueNewPage from '@/components/Issues/IssueNewPage'
@@ -10,7 +11,11 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
 
   return (
     <>
-      <IssueNewPage key={router.pathname} />
+      <ThemeProvider>
+          <BaseStyles>
+            <IssueNewPage key={router.pathname} />
+      </BaseStyles>
+    </ThemeProvider>
     </>
   )
 }

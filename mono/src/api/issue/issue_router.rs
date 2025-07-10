@@ -1,20 +1,22 @@
-use std::collections::HashSet;
-
 use axum::{
     extract::{Path, State},
     Json,
 };
-use serde::Deserialize;
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::model::{CommonPage, CommonResult, PageParams};
 
-use crate::api::MonoApiServiceState;
-use crate::api::{issue::LabelUpdatePayload, mr::SaveCommentRequest};
 use crate::api::{
-    issue::{IssueDetail, IssueItem, NewIssue},
+    api_common::model::{LabelUpdatePayload, ListPayload},
+    mr::SaveCommentRequest,
+};
+use crate::api::{
+    api_common::{self, model::AssigneeUpdatePayload},
+    MonoApiServiceState,
+};
+use crate::api::{
+    issue::{IssueDetail, ItemRes, NewIssue},
     oauth::model::LoginUser,
 };
 use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
@@ -30,32 +32,28 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(issue_detail))
             .routes(routes!(save_comment))
             .routes(routes!(delete_comment))
-            .routes(routes!(labels)),
+            .routes(routes!(labels))
+            .routes(routes!(assignees)),
     )
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct StatusParams {
-    pub status: String,
 }
 
 /// Fetch Issue list
 #[utoipa::path(
     post,
     path = "/list",
-    request_body = PageParams<StatusParams>,
+    request_body = PageParams<ListPayload>,
     responses(
-        (status = 200, body = CommonResult<CommonPage<IssueItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<CommonPage<ItemRes>>, content_type = "application/json")
     ),
     tag = ISSUE_TAG
 )]
 async fn fetch_issue_list(
     state: State<MonoApiServiceState>,
-    Json(json): Json<PageParams<StatusParams>>,
-) -> Result<Json<CommonResult<CommonPage<IssueItem>>>, ApiError> {
+    Json(json): Json<PageParams<ListPayload>>,
+) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let (items, total) = state
         .issue_stg()
-        .get_issue_by_status(&json.additional.status, json.pagination)
+        .get_issue_list(json.additional.into(), json.pagination)
         .await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
         items: items.into_iter().map(|m| m.into()).collect(),
@@ -107,10 +105,7 @@ async fn new_issue(
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let stg = state.issue_stg().clone();
-    let res = stg
-        .save_issue(&user.username, &json.title)
-        .await
-        .unwrap();
+    let res = stg.save_issue(&user.username, &json.title).await.unwrap();
     let _ = stg
         .add_conversation(
             &res.link,
@@ -135,11 +130,20 @@ async fn new_issue(
     tag = ISSUE_TAG
 )]
 async fn close_issue(
-    _: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().close_issue(&link).await?;
+    state
+        .issue_stg()
+        .add_conversation(
+            &link,
+            &user.username,
+            Some(format!("{} closed this", user.username)),
+            ConvTypeEnum::Closed,
+        )
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -156,11 +160,20 @@ async fn close_issue(
     tag = ISSUE_TAG
 )]
 async fn reopen_issue(
-    _: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().reopen_issue(&link).await?;
+    state
+        .issue_stg()
+        .add_conversation(
+            &link,
+            &user.username,
+            Some(format!("{} reopen this", user.username)),
+            ConvTypeEnum::Closed,
+        )
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -231,35 +244,23 @@ async fn labels(
     state: State<MonoApiServiceState>,
     Json(payload): Json<LabelUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    common_label_update(user, state, payload).await
+    api_common::label_assignee::label_update(user, state, payload, String::from("issue")).await
 }
 
-pub async fn common_label_update(
+/// update issue related assignees
+#[utoipa::path(
+    post,
+    path = "/assignees",
+    request_body = AssigneeUpdatePayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
+async fn assignees(
     user: LoginUser,
     state: State<MonoApiServiceState>,
-    payload: LabelUpdatePayload,
+    Json(payload): Json<AssigneeUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    let issue_storage = state.issue_stg();
-
-    let LabelUpdatePayload {
-        label_ids,
-        link,
-        item_id,
-    } = payload;
-
-    let old_labels = issue_storage
-        .find_item_exist_labels(payload.item_id)
-        .await
-        .unwrap();
-
-    let old_ids: HashSet<i64> = old_labels.iter().map(|l| l.label_id).collect();
-    let new_ids: HashSet<i64> = label_ids.iter().copied().collect();
-
-    let to_add: Vec<i64> = new_ids.difference(&old_ids).copied().collect();
-    let to_remove: Vec<i64> = old_ids.difference(&new_ids).copied().collect();
-
-    issue_storage
-        .modify_labels(&user.username, item_id, &link, to_add, to_remove)
-        .await?;
-    Ok(Json(CommonResult::success(None)))
+    api_common::label_assignee::assignees_update(user, state, payload, String::from("issue")).await
 }
