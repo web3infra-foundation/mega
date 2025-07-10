@@ -9,7 +9,7 @@ use tokio::process::Command;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
-use jupiter::storage::batch_save_model;
+use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use mercury::errors::GitError;
@@ -79,9 +79,8 @@ impl ApiHandler for MonoApiService {
             let raw_blob: raw_blob::ActiveModel =
                 Into::<raw_blob::Model>::into(blob.clone()).into();
 
-            let conn = storage.get_connection();
-            batch_save_model(conn, vec![mega_blob]).await.unwrap();
-            batch_save_model(conn, vec![raw_blob]).await.unwrap();
+            storage.batch_save_model(vec![mega_blob]).await.unwrap();
+            storage.batch_save_model(vec![raw_blob]).await.unwrap();
             TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
@@ -112,9 +111,7 @@ impl ApiHandler for MonoApiService {
                 tree_model.into()
             })
             .collect();
-        batch_save_model(storage.get_connection(), save_trees)
-            .await
-            .unwrap();
+        storage.batch_save_model(save_trees).await?;
         Ok(())
     }
 
@@ -331,7 +328,7 @@ impl MonoApiService {
             })
             .collect();
 
-        batch_save_model(storage.get_connection(), save_trees)
+        storage.batch_save_model(save_trees)
             .await
             .unwrap();
         Ok(p_commit_id)

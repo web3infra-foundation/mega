@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::fs::{self};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -9,8 +10,10 @@ use bytes::Bytes;
 use callisto::lfs_split_relations;
 use common::config::LFSLocalConfig;
 use common::errors::{GitLFSError, MegaError};
+use sea_orm::DatabaseConnection;
 
 use crate::lfs_storage::{transform_path, LfsFileStorage};
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::lfs_db_storage::LfsDbStorage;
 
 pub struct LocalStorage {
@@ -19,18 +22,22 @@ pub struct LocalStorage {
 }
 
 impl LocalStorage {
-    pub fn init(config: LFSLocalConfig, lfs_db_storage: LfsDbStorage) -> LocalStorage {
+    pub fn init(config: LFSLocalConfig, connection: Arc<DatabaseConnection>) -> LocalStorage {
         fs::create_dir_all(&config.lfs_file_path).expect("Create directory failed!");
         LocalStorage {
             config,
-            lfs_db_storage,
+            lfs_db_storage: LfsDbStorage {
+                base: BaseStorage::new(connection),
+            },
         }
     }
 
     pub fn mock() -> Self {
         Self {
             config: LFSLocalConfig::default(),
-            lfs_db_storage: LfsDbStorage::mock(),
+            lfs_db_storage: LfsDbStorage {
+                base: BaseStorage::mock(),
+            },
         }
     }
 }

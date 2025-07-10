@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::ops::Deref;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
     JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
@@ -12,29 +12,24 @@ use common::errors::MegaError;
 use common::model::Pagination;
 use common::utils::{generate_id, generate_link};
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::stg_common::combine_item_list;
 use crate::storage::stg_common::model::{ItemDetails, LabelAssigneeParams, ListParams};
 use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]
 pub struct IssueStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for IssueStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl IssueStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        IssueStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        IssueStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
 
     pub async fn get_issue_list(
         &self,

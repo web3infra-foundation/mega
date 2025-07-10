@@ -8,11 +8,11 @@ use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::{
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mq_storage::MQStorage, mr_storage::MrStorage,
-    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
-    vault_storage::VaultStorage,
+    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
+    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 use crate::storage::{Service, Storage};
 
@@ -38,20 +38,20 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
     let connection = test_db_connection(temp_dir).await;
     let connection = Arc::new(connection);
-    let lfs_db_storage = LfsDbStorage::new(connection.clone()).await;
+    // let lfs_db_storage = LfsDbStorage::new(connection.clone()).await;
     let config = CONFIG.clone();
+    let base = BaseStorage::new(connection.clone());
 
     let svc = Service {
-        mono_storage: MonoStorage::new(connection.clone()).await,
-        git_db_storage: GitDbStorage::new(connection.clone()).await,
-        raw_db_storage: RawDbStorage::new(connection.clone()).await,
-        lfs_db_storage: lfs_db_storage.clone(),
-        relay_storage: RelayStorage::new(connection.clone()).await,
-        mq_storage: MQStorage::new(connection.clone()).await,
-        user_storage: UserStorage::new(connection.clone()).await,
-        mr_storage: MrStorage::new(connection.clone()).await,
-        issue_storage: IssueStorage::new(connection.clone()).await,
-        vault_storage: VaultStorage::new(connection.clone()).await,
+        mono_storage: MonoStorage { base: base.clone() },
+        git_db_storage: GitDbStorage { base: base.clone() },
+        raw_db_storage: RawDbStorage { base: base.clone() },
+        lfs_db_storage: LfsDbStorage { base: base.clone() },
+        relay_storage: RelayStorage { base: base.clone() },
+        user_storage: UserStorage { base: base.clone() },
+        mr_storage: MrStorage { base: base.clone() },
+        issue_storage: IssueStorage { base: base.clone() },
+        vault_storage: VaultStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
     };
 
