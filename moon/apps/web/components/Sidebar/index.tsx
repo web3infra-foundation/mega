@@ -40,6 +40,7 @@ import { SidebarCode } from './SidebarCode'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
 import { SiderbarMergeRequest } from './SiderbarMergeRequest'
+import { SidebarCratespro } from './SidebarCratespro'
 
 export function SidebarContainer() {
   const { scope } = useScope()
@@ -168,6 +169,7 @@ function SidebarContent() {
           <SidebarCode />
           <SiderbarMergeRequest />
           <SidebarIssue />
+          <SidebarCratespro />
         </SidebarGroup>
 
         <SidebarFavoritesGroup />
