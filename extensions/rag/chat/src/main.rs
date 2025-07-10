@@ -1,7 +1,7 @@
 use chat::command::{Cli, Commands};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
-use chat::{GENERATION_NODE, SEARCH_NODE, vect_url, qdrant_url, llm_url};
+use chat::{llm_url, qdrant_url, vect_url, GENERATION_NODE, SEARCH_NODE};
 use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};
@@ -10,7 +10,7 @@ use std::env;
 use std::thread;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logger 
+    // Initialize logger
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 

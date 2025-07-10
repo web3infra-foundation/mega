@@ -1,28 +1,332 @@
-use axum::async_trait;
-use ceres::model::git::LatestCommitInfo;
-use mercury::hash::SHA1;
-use mercury::internal::object::tree::{Tree, TreeItemMode};
-use reqwest::Client;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::{collections::VecDeque, sync::Arc, time::Duration};
-
-use async_recursion::async_recursion;
-use mercury::internal::object::{
-    commit::Commit,
-    signature::{Signature, SignatureType},
-};
-use std::io::Write;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
-use tokio::time;
-
+use super::{ScorpioManager, WorkDir};
 use crate::manager::store::store_trees;
 use crate::scolfs;
 use crate::util::config;
 use crate::util::GPath;
+use async_recursion::async_recursion;
+use axum::async_trait;
+use ceres::model::git::LatestCommitInfo;
+use crossbeam::queue::SegQueue;
+use futures::future::join_all;
+use mercury::hash::SHA1;
+use mercury::internal::object::tree::{Tree, TreeItemMode};
+use mercury::internal::object::{
+    commit::Commit,
+    signature::{Signature, SignatureType},
+};
+use reqwest::Client;
+use std::collections::VecDeque;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::OnceLock;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
+use tokio::sync::watch;
+use tokio::sync::Mutex;
+use tokio::sync::Notify;
+use tokio::time;
+use tokio::time::Duration;
 
-use super::{ScorpioManager, WorkDir};
+///Download a file needs it's blob_id and save_path.
+#[derive(Debug, Clone)]
+pub struct DownloadTask {
+    file_id: SHA1,
+    save_path: PathBuf,
+    retry_count: u32,
+}
+
+impl DownloadTask {
+    pub fn new(file_id: SHA1, save_path: PathBuf) -> Self {
+        Self {
+            file_id,
+            save_path,
+            retry_count: 0,
+        }
+    }
+
+    /// Create a retry task with incremented retry count
+    pub fn retry(&self) -> Self {
+        Self {
+            file_id: self.file_id,
+            save_path: self.save_path.clone(),
+            retry_count: self.retry_count + 1,
+        }
+    }
+
+    /// Check if the task has exceeded maximum retry attempts
+    pub fn is_max_retries_exceeded(&self) -> bool {
+        self.retry_count >= 3
+    }
+}
+
+/// DownloadManager is responsible for managing file download operations in a concurrent manner.
+///
+/// ## File Download Flow:
+/// 1. **Directory Processing Phase**:
+///    - Directory workers traverse the file tree using BFS (Breadth-First Search)
+///    - They create directories inline and enqueue file download tasks
+///    - The `directory_processing_sender` tracks whether directory traversal is still ongoing
+///
+/// 2. **File Download Phase**:
+///    - File download tasks are processed by a fixed pool of worker threads
+///    - Each task downloads a file from the server using its SHA1 hash
+///    - Workers update the `pending_tasks` counter as they complete downloads
+///
+/// 3. **Completion Coordination**:
+///    - The system only considers the entire operation complete when:
+///      a) Directory processing is finished (directory_processing_sender = false)
+///      b) All file downloads are complete (pending_tasks = 0)
+///    - A completion coordinator monitors both conditions and notifies waiters
+///
+/// ## Key Components:
+/// - `sender`: Channel for enqueuing new download tasks
+/// - `pending_tasks`: Atomic counter tracking active download operations
+/// - `completion_notify`: Notifies when all operations are complete
+/// - `directory_processing_sender/receiver`: Tracks directory traversal state
+///
+/// This design ensures that we don't prematurely consider downloads complete
+/// while directories are still being processed and potentially creating new download tasks.
+pub struct DownloadManager {
+    sender: mpsc::UnboundedSender<DownloadTask>, // used to add new download tasks
+    #[allow(unused)]
+    worker_handles: Vec<tokio::task::JoinHandle<()>>,
+    pending_tasks: Arc<AtomicUsize>, //the number of pending download tasks
+    completion_notify: Arc<Notify>,  // used to notify when all tasks are done
+    directory_processing_sender: watch::Sender<bool>, // watch the dir processing state
+    directory_processing_receiver: watch::Receiver<bool>,
+}
+
+static DOWNLOAD_MANAGER: OnceLock<DownloadManager> = OnceLock::new();
+
+impl DownloadManager {
+    /// Creates a new DownloadManager with the specified number of worker threads.
+    ///
+    /// The manager starts with directory processing enabled (true) and spawns
+    /// worker threads to handle file download tasks concurrently.
+    pub fn new(worker_count: usize) -> Self {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let pending_tasks = Arc::new(AtomicUsize::new(0));
+        let completion_notify = Arc::new(Notify::new());
+
+        let (directory_processing_sender, directory_processing_receiver) = watch::channel(true);
+
+        let worker_handles = (0..worker_count)
+            .map(|worker_id| {
+                let receiver = receiver.clone();
+                let sender = sender.clone();
+                let pending_tasks = pending_tasks.clone();
+                let completion_notify = completion_notify.clone();
+                let directory_receiver = directory_processing_receiver.clone();
+                tokio::spawn(async move {
+                    Self::worker_loop(
+                        worker_id,
+                        receiver,
+                        sender,
+                        pending_tasks,
+                        completion_notify,
+                        directory_receiver,
+                    )
+                    .await;
+                })
+            })
+            .collect();
+
+        Self {
+            sender,
+            worker_handles,
+            pending_tasks,
+            completion_notify,
+            directory_processing_sender,
+            directory_processing_receiver,
+        }
+    }
+
+    /// Starts the completion coordinator to handle task completion notifications.
+    ///
+    /// The coordinator monitors directory processing state changes and automatically
+    /// notifies waiters when both directory processing is complete AND no files are pending.
+    pub fn start_completion_coordinator(&self) {
+        let completion_notify = self.completion_notify.clone();
+        let pending_tasks = self.pending_tasks.clone();
+        let mut directory_receiver = self.directory_processing_receiver.clone();
+
+        tokio::spawn(async move {
+            loop {
+                if directory_receiver.changed().await.is_err() {
+                    break;
+                }
+
+                let directory_processing = *directory_receiver.borrow();
+                let has_pending = pending_tasks.load(Ordering::Relaxed) > 0;
+
+                if !directory_processing && !has_pending {
+                    completion_notify.notify_waiters();
+                    break;
+                }
+            }
+        });
+    }
+
+    /// Worker loop that processes download tasks from the queue.
+    ///
+    /// Each worker continuously:
+    /// 1. Waits for download tasks from the shared queue
+    /// 2. Downloads files using fetch_and_save_file()
+    /// 3. If download fails and retries are available, re-enqueues the task
+    /// 4. Updates the pending task counter only on success or max retries exceeded
+    /// 5. Notifies completion when it's the last task AND directory processing is done
+    async fn worker_loop(
+        worker_id: usize,
+        receiver: Arc<Mutex<mpsc::UnboundedReceiver<DownloadTask>>>,
+        sender: mpsc::UnboundedSender<DownloadTask>,
+        pending_tasks: Arc<AtomicUsize>,
+        completion_notify: Arc<Notify>,
+        directory_receiver: watch::Receiver<bool>,
+    ) {
+        loop {
+            let task = {
+                let mut rx = receiver.lock().await;
+                rx.recv().await
+            };
+
+            match task {
+                Some(task) => {
+                    match fetch_and_save_file(&task.file_id, &task.save_path).await {
+                        Ok(_) => {
+                            // Download successful, proceed to decrement counter
+                        }
+                        Err(e) => {
+                            if task.is_max_retries_exceeded() {
+                                eprintln!(
+                                    "Worker {}: Failed to download file {} (path: {}) after {} retries, giving up: {}",
+                                    worker_id, task.file_id, task.save_path.display(), task.retry_count, e
+                                );
+                                // Max retries exceeded, proceed to decrement counter
+                            } else {
+                                eprintln!(
+                                    "Worker {}: Failed to download file {} (path: {}) on attempt {}, retrying: {}",
+                                    worker_id, task.file_id, task.save_path.display(), task.retry_count + 1, e
+                                );
+
+                                // Create retry task and re-enqueue
+                                let retry_task = task.retry();
+                                if let Err(retry_err) = sender.send(retry_task) {
+                                    eprintln!(
+                                        "Worker {}: Failed to re-enqueue retry task for file {} (path: {}): {}",
+                                        worker_id, task.file_id, task.save_path.display(), retry_err
+                                    );
+                                    // If we can't re-enqueue, we still need to decrement the counter
+                                } else {
+                                    // Successfully re-enqueued, don't decrement counter
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    let remaining = pending_tasks.fetch_sub(1, Ordering::Relaxed);
+
+                    if remaining == 1 {
+                        let directory_processing = *directory_receiver.borrow();
+                        if !directory_processing {
+                            completion_notify.notify_waiters();
+                        }
+                    }
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Enqueue a file download task to be processed by worker threads.
+    ///
+    /// This increments the pending task counter and sends the task to workers.
+    /// Returns an error if the channel is closed.
+    pub fn enqueue_download(&self, task: DownloadTask) -> Result<(), String> {
+        self.pending_tasks.fetch_add(1, Ordering::Relaxed);
+        self.sender
+            .send(task)
+            .map_err(|_| "Failed to enqueue download task".to_string())
+    }
+
+    pub fn has_pending_tasks(&self) -> bool {
+        self.pending_tasks.load(Ordering::Relaxed) > 0
+    }
+
+    /// Notifies that directory processing has completed.
+    ///
+    /// This is called when all directory traversal workers have finished.
+    /// If no files are pending, it immediately notifies completion.
+    pub fn notify_directory_processing_complete(&self) {
+        let _ = self.directory_processing_sender.send(false);
+
+        if !self.has_pending_tasks() {
+            self.completion_notify.notify_waiters();
+        }
+    }
+
+    /// Returns true if directory processing is still ongoing.
+    pub fn is_directory_processing(&self) -> bool {
+        *self.directory_processing_receiver.borrow()
+    }
+
+    /// Waits for all operations to complete using an efficient notification system.
+    ///
+    /// This method waits until BOTH conditions are met:
+    /// 1. Directory processing is complete (no more directories being traversed)
+    /// 2. All file downloads are complete (pending_tasks == 0)
+    ///
+    /// Uses tokio::select! to efficiently wait for state changes rather than busy polling.
+    pub async fn wait_for_completion(&self) {
+        loop {
+            let directory_processing = self.is_directory_processing();
+            let has_pending = self.has_pending_tasks();
+
+            if !directory_processing && !has_pending {
+                return;
+            }
+
+            let mut directory_receiver = self.directory_processing_receiver.clone();
+
+            tokio::select! {
+                _ = self.completion_notify.notified() => {
+                    continue;
+                }
+                _ = directory_receiver.changed() => {
+                    continue;
+                }
+                // _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                //     continue;
+                // }
+            }
+        }
+    }
+
+    pub fn get_global() -> &'static DownloadManager {
+        DOWNLOAD_MANAGER.get_or_init(|| {
+            let worker_count = config::fetch_file_thread();
+            println!("Initializing global download manager with {worker_count} workers");
+            DownloadManager::new(worker_count)
+        })
+    }
+}
+
+/// Enqueue a file download task,the common entry point for downloading files.
+pub fn enqueue_file_download(file_id: SHA1, save_path: PathBuf) {
+    let download_manager = DownloadManager::get_global();
+    let task = DownloadTask::new(file_id, save_path);
+
+    if let Err(e) = download_manager.enqueue_download(task) {
+        eprintln!("Failed to enqueue download task for file {file_id}: {e}");
+    }
+}
 
 #[allow(unused)]
 #[async_trait]
@@ -65,6 +369,7 @@ impl CheckHash for ScorpioManager {
         }
     }
 
+    #[allow(unused)]
     async fn fetch<P: AsRef<Path> + std::marker::Send>(
         &mut self,
         inode: u64,
@@ -209,6 +514,7 @@ async fn worker_thread(
 
 /// Network operations, recursively read the main Tree from the pipe, and download Blobs objects
 #[async_recursion]
+#[allow(unused)]
 async fn worker_ro_thread(
     root_path: GPath,
     target_path: Arc<PathBuf>,
@@ -251,39 +557,154 @@ async fn worker_ro_thread(
 ///
 /// Download remote data to local and store it in Overlay format
 async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Result<()> {
-    let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
+    let target_path = save_path.as_ref().to_path_buf();
+    // println!("fetch_code starting for path: {path}");
+
+    let download_manager = DownloadManager::get_global();
+    download_manager.start_completion_coordinator();
+    let _ = download_manager.directory_processing_sender.send(true);
 
     // Create the save_path directory if it doesn't exist
     tokio::fs::create_dir_all(&save_path).await?;
-    let rece;
-    let handle;
-    {
-        // Set up a pipeline with a capacity of 100
-        let (send, _rece) = tokio::sync::mpsc::channel::<(GPath, Tree)>(100);
-        rece = _rece;
 
-        let p: GPath = path.clone();
-        let sc = send.clone();
-        let ps = target_path.clone();
-        // Use child threads to operate mounted directory
-        handle = tokio::spawn(async move {
-            worker_ro_thread(p.clone(), ps, p, sc).await;
-        });
+    // Setup tree storage channel
+    let (tree_sender, tree_receiver) = mpsc::channel::<(GPath, Tree)>(1000);
+
+    // Use simple queue for directory processing, similar to load_dir_depth
+    let queue = Arc::new(SegQueue::new());
+
+    // Fetch and process the initial/root directory
+    let initial_tree = fetch_tree(path).await.map_err(std::io::Error::other)?;
+
+    // Send tree to storage
+    if let Err(e) = tree_sender.send((path.clone(), initial_tree.clone())).await {
+        eprintln!("Failed to send initial tree: {e}");
     }
 
+    let dir_count = initial_tree
+        .tree_items
+        .iter()
+        .filter(|item| item.mode == TreeItemMode::Tree)
+        .count();
+
+    let active_producers = Arc::new(AtomicUsize::new(dir_count));
+
+    for item in initial_tree.tree_items {
+        let item_name = item.name.clone();
+        let real_path = target_path.join(&item_name);
+
+        if item.mode == TreeItemMode::Tree {
+            // Create directory and add to queue for processing
+            if let Err(e) = tokio::fs::create_dir_all(&real_path).await {
+                eprintln!("Failed to create directory {real_path:?}: {e}");
+                // If we failed to create directory, reduce the producer count
+                active_producers.fetch_sub(1, Ordering::Release);
+                continue;
+            }
+
+            let mut subpath = path.clone();
+            subpath.push(item_name);
+            queue.push((subpath, real_path));
+        } else {
+            // Enqueue file for download
+            enqueue_file_download(item.id, real_path);
+        }
+    }
+
+    let worker_count = 5;
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for worker_id in 0..worker_count {
+        let queue = Arc::clone(&queue);
+        let tree_sender = tree_sender.clone();
+        let producers = Arc::clone(&active_producers);
+
+        workers.push(tokio::spawn(async move {
+            while producers.load(Ordering::Acquire) > 0 || !queue.is_empty() {
+                // println!("worker_id {:?} left {:?} {:?}", worker_id, current_count, queue_len);
+                if let Some((current_path, current_target)) = queue.pop() {
+                    // println!("Worker {} processing path: {}", worker_id, current_path);
+
+                    // Fetch tree for this directory
+                    match fetch_tree(&current_path).await {
+                        Ok(tree) => {
+                            // Send tree to storage
+                            if let Err(e) =
+                                tree_sender.send((current_path.clone(), tree.clone())).await
+                            {
+                                eprintln!("Worker {worker_id}: Failed to send tree: {e}");
+                            }
+
+                            // Process each item in the tree
+                            for item in tree.tree_items {
+                                let item_name = item.name.clone();
+                                let item_real_path = current_target.join(&item_name);
+
+                                if item.mode == TreeItemMode::Tree {
+                                    // Create directory
+                                    if let Err(_e) =
+                                        tokio::fs::create_dir_all(&item_real_path).await
+                                    {
+                                        continue;
+                                    }
+
+                                    // Add subdirectory to queue and increment producer count
+                                    let mut subpath = current_path.clone();
+                                    subpath.push(item_name);
+                                    producers.fetch_add(1, Ordering::Release);
+                                    queue.push((subpath, item_real_path));
+                                } else {
+                                    // Enqueue file for download
+                                    enqueue_file_download(item.id, item_real_path);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Worker {worker_id}: Failed to fetch tree for {current_path}: {e}",
+                            );
+                        }
+                    }
+
+                    producers.fetch_sub(1, Ordering::Release);
+                } else {
+                    if producers.load(Ordering::Acquire) == 0 {
+                        return;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            }
+            // println!("Worker {worker_id} shutting down");
+        }));
+    }
+
+    // Drop tree sender to allow storage to finish
+    drop(tree_sender);
+
     let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
-    store_trees(storepath.to_str().unwrap(), rece).await?;
+    let store_handle = tokio::spawn(async move {
+        if let Err(e) = store_trees(storepath.to_str().unwrap(), tree_receiver).await {
+            eprintln!("Failed to store trees: {e}");
+        }
+    });
 
-    // Clean up workers (depends on how you implement worker_thread termination)
-    let _ = handle.await;
+    // Wait for all workers to complete
+    join_all(workers).await;
 
-    //get lfs file
+    DownloadManager::get_global().notify_directory_processing_complete();
+    // println!("Directory processing completed for {path}");
+
+    let _ = store_handle.await;
+
+    // Wait for all downloads to complete
+    DownloadManager::get_global().wait_for_completion().await;
+
+    // Get LFS files
     scolfs::lfs::lfs_restore(&path.to_string(), save_path.as_ref().to_str().unwrap())
         .await
         .unwrap();
 
-    print!("finish code for {path}...");
-
+    println!("Finished downloading code for {path}");
     Ok(())
 }
 
@@ -379,16 +800,21 @@ async fn fetch_and_save_file(
 
 /// Network operations, extracting Tree objects from HTTP byte streams
 #[allow(unused)]
-pub async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
+pub async fn fetch_tree(path: &GPath) -> Result<Tree, String> {
     let url = format!("{}{}", config::tree_file_endpoint(), path);
-    let response = reqwest::get(&url).await?;
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
 
     if response.status().is_success() {
-        let bytes = response.bytes().await?;
-        let tree = Tree::try_from(&bytes[..])?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read response: {e}"))?;
+        let tree = Tree::try_from(&bytes[..]).map_err(|e| format!("Failed to parse tree: {e}"))?;
         Ok(tree)
     } else {
-        Err(format!("Failed to fetch tree: {}", response.status()).into())
+        Err(format!("Failed to fetch tree: {}", response.status()))
     }
 }
 

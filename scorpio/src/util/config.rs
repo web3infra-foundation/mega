@@ -15,7 +15,10 @@ pub type ConfigResult<T> = Result<T, ConfigError>;
 pub struct ScorpioConfig {
     config: HashMap<String, String>,
 }
+
 const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
+const DEFAULT_FETCH_FILE_THREAD: usize = 10;
+
 // Global configuration management
 static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
 
@@ -27,8 +30,8 @@ static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
 /// # Returns
 /// `ConfigResult<()>` - Success or error
 pub fn init_config(path: &str) -> ConfigResult<()> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Config file not found at '{path}': {e}"))?;
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Config file not found at '{path}': {e}"))?;
 
     let mut config: HashMap<String, String> =
         toml::from_str(&content).map_err(|e| format!("Invalid config format: {e}"))?;
@@ -156,6 +159,10 @@ fn get_config() -> &'static ScorpioConfig {
             "http://localhost:8000/lfs".to_string(),
         );
         config.insert("dicfuse_readable".to_string(), "true".to_string());
+        config.insert(
+            "fetch_file_thread".to_string(),
+            DEFAULT_FETCH_FILE_THREAD.to_string(),
+        );
 
         // Create required directories
         for path in [config["workspace"].as_str(), config["store_path"].as_str()] {
@@ -196,6 +203,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "lfs_url",
         "dicfuse_readable",
         "load_dir_depth",
+        "fetch_file_thread",
     ];
 
     for key in required_keys {
@@ -254,6 +262,15 @@ pub fn load_dir_depth() -> usize {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_LOAD_DIR_DEPTH)
 }
+
+///Get the number of file download threads
+pub fn fetch_file_thread() -> usize {
+    get_config()
+        .config
+        .get("fetch_file_thread")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_FETCH_FILE_THREAD)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +286,7 @@ mod tests {
         lfs_url = "http://localhost:8000/lfs"
         dicfuse_readable = "true"
         load_dir_depth = "3"
+        fetch_file_thread = "10"
         "#;
         let config_path = "/tmp/scorpio.toml";
         std::fs::write(config_path, config_content).expect("Failed to write test config file");
@@ -289,6 +307,7 @@ mod tests {
             "http://localhost:8000/api/v1/file/blob"
         );
         assert_eq!(load_dir_depth(), 3);
+        assert_eq!(fetch_file_thread(), 10);
         assert_eq!(config_file(), "config.toml");
     }
 }

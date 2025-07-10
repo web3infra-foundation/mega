@@ -1,4 +1,5 @@
 use crate::model::builds;
+use axum::Json;
 use axum::body::Bytes;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
@@ -6,7 +7,6 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Sse};
 use axum::routing::{any, get};
-use axum::{Json};
 use axum_extra::json;
 use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt, stream};
@@ -17,7 +17,7 @@ use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait,ColumnTrait,QueryFilter as _};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::io::Write;
@@ -28,19 +28,19 @@ use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
-use uuid::Uuid;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
+use uuid::Uuid;
 
 static BUILD_LOG_DIR: Lazy<String> =
     Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
 
-#[derive(Debug, Deserialize,ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct BuildRequest {
     repo: String,
     target: String,
     args: Option<Vec<String>>,
-    mr: Option<String>
+    mr: Option<String>,
 }
 
 pub struct BuildInfo {
@@ -51,7 +51,7 @@ pub struct BuildInfo {
     mr: Option<String>,
 }
 
-#[derive(Debug, Serialize, Default,ToSchema)]
+#[derive(Debug, Serialize, Default, ToSchema)]
 pub enum TaskStatusEnum {
     Building,
     Interrupted, // exit code is None
@@ -61,7 +61,7 @@ pub enum TaskStatusEnum {
     NotFound,
 }
 
-#[derive(Debug, Serialize, Default,ToSchema)]
+#[derive(Debug, Serialize, Default, ToSchema)]
 pub struct TaskStatus {
     status: TaskStatusEnum,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,8 +83,7 @@ pub fn routers() -> OpenApiRouter<AppState> {
         .routes(routes!(task_handler))
         .routes(routes!(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
-        .routes(routes!(task_query_by_mr)) 
-
+        .routes(routes!(task_query_by_mr))
 }
 
 #[utoipa::path(
@@ -472,7 +471,7 @@ async fn task_query_by_mr(
         Ok(models) if !models.is_empty() => {
             let dtos = models.into_iter().map(BuildDTO::from_model).collect();
             Ok(Json(dtos))
-        },
+        }
         Ok(_) => Err((
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "message": "No builds found for the given MR" })),
