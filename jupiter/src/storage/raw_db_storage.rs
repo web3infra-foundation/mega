@@ -1,31 +1,26 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use futures::Stream;
-use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter};
 
 use callisto::raw_blob;
 use common::errors::MegaError;
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
+
 #[derive(Clone)]
 pub struct RawDbStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for RawDbStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl RawDbStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        RawDbStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        RawDbStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn get_raw_blobs_by_hashes(
         &self,
         hashes: Vec<String>,
