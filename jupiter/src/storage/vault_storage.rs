@@ -1,30 +1,25 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use callisto::vault::*;
 use common::errors::MegaError;
 use sea_orm::*;
 use sea_orm_migration::prelude::OnConflict;
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
+
 #[derive(Clone)]
 pub struct VaultStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for VaultStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl VaultStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        VaultStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        VaultStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn list_keys(&self, prefix: impl AsRef<str>) -> Result<Vec<String>, MegaError> {
         Entity::find()
             .select_column(Column::Key)

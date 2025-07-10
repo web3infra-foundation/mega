@@ -1,34 +1,28 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
-    QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, ModelTrait, QueryFilter,
 };
 use uuid::Uuid;
 
 use callisto::{access_token, ssh_keys, user};
 use common::{errors::MegaError, utils::generate_id};
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
+
 #[derive(Clone)]
 pub struct UserStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for UserStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl UserStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        UserStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        UserStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn find_user_by_email(&self, email: &str) -> Result<Option<user::Model>, MegaError> {
         let res = user::Entity::find()
             .filter(user::Column::Email.eq(email))

@@ -1,9 +1,10 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use futures::{stream, Stream, StreamExt};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
+    ActiveModelTrait, ColumnTrait, DbBackend, DbErr, EntityTrait,
     IntoActiveModel, QueryFilter, QueryTrait, Set,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
@@ -14,11 +15,18 @@ use common::errors::MegaError;
 use mercury::internal::object::GitObjectModel;
 use mercury::internal::pack::entry::Entry;
 
-use crate::storage::batch_save_model;
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
 pub struct GitDbStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for GitDbStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 #[derive(Debug)]
@@ -31,20 +39,6 @@ struct GitObjects {
 }
 
 impl GitDbStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        GitDbStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        GitDbStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn save_ref(
         &self,
         repo_id: i64,
@@ -162,11 +156,11 @@ impl GitDbStorage {
         let git_objects = Arc::try_unwrap(git_objects)
             .expect("Failed to unwrap Arc")
             .into_inner();
-        batch_save_model(self.get_connection(), git_objects.commits).await?;
-        batch_save_model(self.get_connection(), git_objects.trees).await?;
-        batch_save_model(self.get_connection(), git_objects.blobs).await?;
-        batch_save_model(self.get_connection(), git_objects.raw_blobs).await?;
-        batch_save_model(self.get_connection(), git_objects.tags).await?;
+        self.batch_save_model(git_objects.commits).await?;
+        self.batch_save_model(git_objects.trees).await?;
+        self.batch_save_model(git_objects.blobs).await?;
+        self.batch_save_model(git_objects.raw_blobs).await?;
+        self.batch_save_model(git_objects.tags).await?;
         Ok(())
     }
 

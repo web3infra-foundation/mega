@@ -1,33 +1,27 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
-    QueryOrder, Set,
+    ColumnTrait, EntityTrait, InsertResult, IntoActiveModel, QueryFilter, QueryOrder, Set,
 };
 
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::MegaError;
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
+
 #[derive(Clone)]
 pub struct LfsDbStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for LfsDbStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl LfsDbStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        LfsDbStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        LfsDbStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn new_lfs_object(&self, object: lfs_objects::Model) -> Result<bool, MegaError> {
         let res = lfs_objects::Entity::insert(object.into_active_model())
             .exec(self.get_connection())

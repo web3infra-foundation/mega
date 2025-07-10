@@ -18,7 +18,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
-use jupiter::{storage::batch_save_model, storage::Storage};
+use jupiter::storage::{base_storage::StorageConnector, Storage};
 use mercury::{
     errors::GitError,
     internal::{
@@ -395,7 +395,7 @@ impl ImportRepo {
             })
             .collect();
 
-        batch_save_model(storage.get_connection(), save_trees)
+        storage.batch_save_model( save_trees)
             .await
             .unwrap();
 

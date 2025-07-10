@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::ops::Deref;
 
 use common::model::Pagination;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
     JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
 };
 
@@ -12,29 +12,24 @@ use callisto::{item_assignees, label, mega_conversation, mega_mr};
 use common::errors::MegaError;
 use common::utils::generate_id;
 
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::stg_common::combine_item_list;
 use crate::storage::stg_common::model::{ItemDetails, ListParams};
 use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]
 pub struct MrStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for MrStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl MrStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        MrStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        MrStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
 
     pub async fn get_open_mr_by_path(
         &self,
@@ -56,7 +51,6 @@ impl MrStorage {
     ) -> Result<(Vec<ItemDetails>, u64), MegaError> {
         let cond = Condition::all();
         let cond = filter_by_labels(cond, params.labels);
-        // let cond = filter_by_author(cond, params.author);
         let cond = filter_by_assignees(cond, params.assignees);
 
         let status = if params.status == "open" {
