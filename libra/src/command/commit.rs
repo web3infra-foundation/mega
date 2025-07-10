@@ -236,8 +236,6 @@ mod test {
 
     use super::*;
 
-    use mercury::hash::SHA1;
-    use mercury::internal::index::{Index,IndexEntry};
     #[test]
     ///Testing basic parameter parsing functionality.
     fn test_parse_args() {
