@@ -55,11 +55,17 @@ const cardList = [
 const CratesproPage: PageWithLayout<any> = () => {
   const router = useRouter()
 
-  // 跳转函数占位
+  // Navigation function
   const handleCardClick = (key: string) => {
-    // 这里可以根据key跳转到不同页面
-    // router.push(`/目标路径`)
-    alert(`点击了 ${key}`)
+    const routes: { [key: string]: string } = {
+      news: '/news', // Example route for 'news'
+      // Add more routes as needed
+    }
+    if (routes[key]) {
+      router.push(routes[key])
+    } else {
+      alert(`No route defined for ${key}`)
+    }
   }
 
   return (
