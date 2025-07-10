@@ -95,14 +95,14 @@ const CratesproPage: PageWithLayout<any> = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-5xl mx-auto mt-36">
             {cardList.map(card => (
-              <button
+              <Link
                 key={card.key}
-                onClick={() => handleCardClick(card.key)}
+                href={`/target-path/${card.key}`}
                 className={`flex flex-col items-start justify-center h-64 rounded-xl border bg-gradient-to-br ${card.bg} shadow-md p-8 transition hover:scale-105 hover:shadow-lg focus:outline-none`}
               >
                 <div className="mb-6">{card.icon}</div>
                 <span className="text-3xl font-display font-medium text-gray-800">{card.title}</span>
-              </button>
+              </Link>
             ))}
           </div>
       </div>
