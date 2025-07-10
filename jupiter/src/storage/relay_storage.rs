@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use callisto::{
     relay_lfs_info, relay_node, relay_nostr_event, relay_nostr_req, relay_path_mapping,
@@ -6,28 +6,23 @@ use callisto::{
 };
 use common::errors::MegaError;
 use sea_orm::InsertResult;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, Set};
+use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
 pub struct RelayStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for RelayStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 impl RelayStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        RelayStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        RelayStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn get_node_by_id(
         &self,
         peer_id: &str,
