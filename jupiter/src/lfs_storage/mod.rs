@@ -12,8 +12,9 @@ use common::{
     config::LFSConfig,
     errors::{GitLFSError, MegaError},
 };
+use sea_orm::DatabaseConnection;
 
-use crate::{lfs_storage::local_storage::LocalStorage, storage::lfs_db_storage::LfsDbStorage};
+use crate::lfs_storage::local_storage::LocalStorage;
 
 mod aws_s3_storage;
 pub mod local_storage;
@@ -60,9 +61,12 @@ fn transform_path(sha1: &str) -> String {
     }
 }
 
-pub async fn init(lfs_config: LFSConfig, lfs_db_storage: LfsDbStorage) -> Arc<dyn LfsFileStorage> {
+pub async fn init(
+    lfs_config: LFSConfig,
+    connection: Arc<DatabaseConnection>,
+) -> Arc<dyn LfsFileStorage> {
     match lfs_config.storage_type {
-        StorageTypeEnum::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, lfs_db_storage)),
+        StorageTypeEnum::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, connection)),
         StorageTypeEnum::AwsS3 => Arc::new(AwsS3Storage::init(lfs_config.aws).await),
         _ => unreachable!("Not supported value of config `storage_type`, support value can be 'local_fs' or 'aws_s3'"),
     }
