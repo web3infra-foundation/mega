@@ -1,10 +1,11 @@
 import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
-import router from 'next/router'
+import { useRouter } from 'next/router'
 import { useScope } from '@/contexts/scope'
 import { SidebarLink } from './SidebarLink'
 
 export function SidebarCratespro() {
   const { scope } = useScope()
+  const router = useRouter()
 
   return (
     <SidebarLink
