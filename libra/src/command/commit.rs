@@ -37,7 +37,7 @@ pub struct CommitArgs {
 
     /// add signed-off-by line at the end of the commit message
     #[arg(short = 's', long)]
-    pub signoff:bool,
+    pub signoff: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -47,9 +47,6 @@ pub async fn execute(args: CommitArgs) {
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
         panic!("fatal: no changes added to commit, use --allow-empty to override");
-    }
-    if args.conventional && !check_conventional_commits_message(&args.message) {
-        panic!("fatal: commit message does not follow conventional commits");
     }
 
     //Prepare commit message
@@ -63,8 +60,8 @@ pub async fn execute(args: CommitArgs) {
             .unwrap_or_else(|| "unknown".to_string());
         
         // get sign line
-        let signoff_line = format!("Signed-off-by: {} <{}>", user_name, user_email);
-        format!("{}\n\n{}", args.message, signoff_line)
+        let signoff_line = format!("Signed-off-by: {user_name} <{user_email}>");
+        format!("{}\n\n{signoff_line}", args.message)
     } else {
         args.message.clone()
     };
