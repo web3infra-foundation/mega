@@ -1,9 +1,11 @@
-use callisto::mega_issue;
-use jupiter::storage::stg_common::model::{ItemDetails, ItemKind};
+use jupiter::{
+    model::common::{ItemDetails, ItemKind},
+    model::issue_dto::IssueDetails,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::api::{label::LabelItem, mr::MegaConversation};
+use crate::api::{conversation::ConversationItem, label::LabelItem};
 
 pub mod issue_router;
 
@@ -65,24 +67,32 @@ pub struct NewIssue {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct IssueDetail {
+pub struct IssueDetailRes {
     pub id: i64,
     pub link: String,
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
-    pub conversations: Vec<MegaConversation>,
+    pub conversations: Vec<ConversationItem>,
+    pub labels: Vec<LabelItem>,
+    pub assignees: Vec<String>,
 }
 
-impl From<mega_issue::Model> for IssueDetail {
-    fn from(value: mega_issue::Model) -> Self {
+impl From<IssueDetails> for IssueDetailRes {
+    fn from(value: IssueDetails) -> Self {
         Self {
-            id: value.id,
-            link: value.link,
-            title: value.title,
-            status: value.status.to_string(),
-            open_timestamp: value.created_at.and_utc().timestamp(),
-            conversations: vec![],
+            id: value.issue.id,
+            link: value.issue.link,
+            title: value.issue.title,
+            status: value.issue.status.to_string(),
+            open_timestamp: value.issue.created_at.and_utc().timestamp(),
+            conversations: value.conversations.into_iter().map(|x| x.into()).collect(),
+            labels: value.labels.into_iter().map(|x| x.into()).collect(),
+            assignees: value
+                .assignees
+                .into_iter()
+                .map(|x| x.assignnee_id)
+                .collect(),
         }
     }
 }

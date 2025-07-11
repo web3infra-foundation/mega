@@ -2,13 +2,13 @@ use std::str::FromStr;
 
 use ceres::model::mr::MrDiffFile;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+use uuid::Uuid;
 
 use callisto::{
     mega_conversation, mega_mr,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum},
 };
-use utoipa::ToSchema;
-use uuid::Uuid;
 
 pub mod mr_router;
 
@@ -103,11 +103,6 @@ impl MuiTreeNode {
             children.push(new_node);
         }
     }
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct SaveCommentRequest {
-    pub content: String,
 }
 
 #[derive(Serialize, ToSchema)]
