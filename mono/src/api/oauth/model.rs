@@ -77,7 +77,7 @@ impl From<user::Model> for LoginUser {
             email: value.email,
             created_at: value.created_at,
             campsite_user_id: String::new(),
-            username: String::new()
+            username: String::new(),
         }
     }
 }

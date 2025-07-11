@@ -84,11 +84,11 @@ impl CommitStore for sled::Db {
 pub async fn store_trees(storepath: &str, mut tree_channel: Receiver<(GPath, Tree)>) -> Result<()> {
     let db = sled::open(storepath)?;
     while let Some((path, tree)) = tree_channel.recv().await {
-        println!("new tree:{}", tree.id);
+        // println!("new tree:{}", tree.id);
         db.insert_tree(path.into(), tree);
     }
 
-    println!("finish store....");
+    // println!("finish store....");
 
     Ok(())
 }

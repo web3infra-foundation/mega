@@ -395,9 +395,7 @@ impl ImportRepo {
             })
             .collect();
 
-        storage.batch_save_model( save_trees)
-            .await
-            .unwrap();
+        storage.batch_save_model(save_trees).await.unwrap();
 
         root_ref.ref_commit_hash = new_commit.id.to_string();
         root_ref.ref_tree_hash = new_commit.tree_id.to_string();
