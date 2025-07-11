@@ -1,3 +1,40 @@
+//! # Mono API Service
+//!
+//! This module provides the API service implementation for monorepo operations in the Mega system.
+//! The `MonoApiService` struct implements the `ApiHandler` trait to provide comprehensive
+//! monorepo management capabilities including file operations, merge request handling,
+//! and Git-like version control functionality.
+//!
+//! ## Key Features
+//!
+//! - **File Management**: Create files and directories within the monorepo structure
+//! - **Tree Operations**: Handle Git tree objects for version control
+//! - **Merge Requests**: Process and merge pull/merge requests with conflict resolution
+//! - **Diff Operations**: Generate content differences between commits using libra
+//! - **Commit Management**: Retrieve and manage commit objects and their relationships
+//! - **Storage Integration**: Seamless integration with the underlying storage layer
+//!
+//! ## Core Components
+//!
+//! - `MonoApiService`: Main service struct that wraps storage functionality
+//! - `ApiHandler` implementation: Provides standardized API operations
+//! - Merge request processing with automated conflict detection
+//! - Tree traversal and blob extraction utilities
+//!
+//! ## Dependencies
+//!
+//! This module relies on several core components:
+//! - `mercury`: Git object handling and version control primitives
+//! - `jupiter`: Storage layer abstraction and data persistence
+//! - `callisto`: Database models and ORM functionality
+//! - `libra`: External Git-compatible command-line tool for diff operations
+//!
+//! ## Usage
+//!
+//! The service is typically instantiated with a storage backend and used to handle
+//! API requests for monorepo operations. All operations are asynchronous and return
+//! appropriate error types for robust error handling.
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -111,7 +148,8 @@ impl ApiHandler for MonoApiService {
                 tree_model.into()
             })
             .collect();
-        storage.batch_save_model(save_trees).await?;
+        storage.batch_save_model(save_trees).await.unwrap();
+        
         Ok(())
     }
 
