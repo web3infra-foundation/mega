@@ -827,10 +827,7 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
         let producers = Arc::clone(&active_producers);
 
         workers.push(tokio::spawn(async move {
-            while {
-                // If there are active producers or the queue is not empty, continue
-                producers.load(Ordering::Acquire) > 0 || !queue.is_empty()
-            } {
+            while producers.load(Ordering::Acquire) > 0 || !queue.is_empty() {
                 if let Some(inode) = queue.pop() {
                     //get the whole path.
                     let path =

@@ -4,8 +4,8 @@ use std::sync::Arc;
 use futures::{stream, Stream, StreamExt};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbBackend, DbErr, EntityTrait,
-    IntoActiveModel, QueryFilter, QueryTrait, Set,
+    ActiveModelTrait, ColumnTrait, DbBackend, DbErr, EntityTrait, IntoActiveModel, QueryFilter,
+    QueryTrait, Set,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
 use tokio::sync::Mutex;

@@ -6,7 +6,7 @@ use index::indexer::WalkDirAction;
 use index::qdrant::QdrantNode;
 use index::vectorization::VectClient;
 use index::{broker, consumer_group, crates_path, topic};
-use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, VECT_CLIENT_NODE, qdrant_url, vect_url};
+use index::{qdrant_url, vect_url, PROCESS_ITEMS_NODE, QDRANT_NODE, VECT_CLIENT_NODE};
 use observatory::facilities::Telescope;
 use observatory::model::crates::CrateMessage;
 use std::env;
@@ -41,7 +41,7 @@ fn main() {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let telescope = Telescope::new(&broker(), &consumer_group(), &topic());
-        
+
         // 1. Clone the Arc *before* the loop's closure.
         // This clone is moved into the closure, allowing the original to remain.
         let id_counter_for_loop = Arc::clone(&shared_id_counter);

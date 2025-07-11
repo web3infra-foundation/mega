@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
-    JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
+    PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
@@ -30,7 +30,6 @@ impl Deref for IssueStorage {
 }
 
 impl IssueStorage {
-
     pub async fn get_issue_list(
         &self,
         params: ListParams,

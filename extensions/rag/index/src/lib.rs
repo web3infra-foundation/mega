@@ -24,7 +24,6 @@ pub fn llm_url() -> String {
     env::var("LLM_URL").unwrap_or_else(|_| "http://ollama:11434/api/chat".to_string())
 }
 
-
 pub fn consumer_group() -> String {
     std::env::var("CONSUMER_GROUP").unwrap_or_else(|_| "test-group".to_string())
 }
