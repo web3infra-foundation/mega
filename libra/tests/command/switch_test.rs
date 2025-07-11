@@ -41,6 +41,7 @@ async fn test_switch_function() {
             allow_empty: true,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
     }
@@ -82,6 +83,7 @@ async fn test_switch_function() {
             allow_empty: true,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
 
@@ -157,6 +159,7 @@ async fn test_detach_head_basic() {
             allow_empty: true,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
     }
@@ -195,6 +198,7 @@ async fn test_detach_head_basic() {
             allow_empty: true,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
     }
