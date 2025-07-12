@@ -192,6 +192,40 @@ export const DropdownOrder = ({
     </>
   )
 }
+export const DropdownReview = ({
+  name,
+  dropdownArr,
+  dropdownItem,
+  onOpen,
+  open
+}: {
+  name: string
+  dropdownArr: MenuItem[]
+  dropdownItem?: MenuItem[]
+  onOpen?: (open: boolean) => void
+  open?: boolean
+  inside?: React.ReactNode
+}) => {
+  return (
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={onOpen}
+        key={name}
+        align='end'
+        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+        items={[...dropdownArr, ...(dropdownItem as MenuItem[])]}
+        trigger={
+          <Button size='sm' variant={'plain'} tooltipShortcut={name}>
+            <div className='flex items-center'>
+              {name} <ChevronDownIcon />
+            </div>
+          </Button>
+        }
+      />
+    </>
+  )
+}
 
 // dropdownArr是不一样的，其他一样
 export const Dropdown = ({
