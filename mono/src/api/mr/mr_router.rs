@@ -16,10 +16,12 @@ use saturn::ActionEnum;
 use crate::api::{
     api_common::{
         self,
-        model::{AssigneeUpdatePayload, LabelUpdatePayload, ListPayload},
+        model::{AssigneeUpdatePayload, ListPayload},
     },
+    conversation::SaveCommentRequest,
     issue::ItemRes,
-    mr::{FilesChangedList, MRDetail, MrFilesRes, MuiTreeNode, SaveCommentRequest},
+    label::LabelUpdatePayload,
+    mr::{FilesChangedList, MRDetail, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
@@ -76,7 +78,7 @@ async fn reopen_mr(
         let link = model.link.clone();
         state.mr_stg().reopen_mr(model).await?;
         state
-            .issue_stg()
+            .conv_stg()
             .add_conversation(
                 &link,
                 &user.username,
@@ -121,7 +123,7 @@ async fn close_mr(
         let link = model.link.clone();
         state.mr_stg().close_mr(model).await?;
         state
-            .issue_stg()
+            .conv_stg()
             .add_conversation(
                 &link,
                 &user.username,
@@ -311,7 +313,7 @@ async fn save_comment(
     let res = state.mr_stg().get_mr(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &model.link,
             &user.username,

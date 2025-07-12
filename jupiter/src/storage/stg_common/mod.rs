@@ -4,10 +4,9 @@ use indexmap::IndexMap;
 
 use callisto::{item_assignees, label, mega_conversation, sea_orm_active_enums::ConvTypeEnum};
 
-use crate::storage::stg_common::{item::ItemEntity, model::ItemDetails};
+use crate::{model::common::ItemDetails, storage::stg_common::item::ItemEntity};
 
 pub mod item;
-pub mod model;
 pub mod query_build;
 
 /// Combine labels, assignees, and conversations into a unified list of `ItemDetails`.

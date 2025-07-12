@@ -1,6 +1,6 @@
 use callisto::{mega_issue, mega_mr};
 
-use crate::storage::stg_common::model::ItemKind;
+use crate::model::common::ItemKind;
 
 pub trait ItemEntity {
     type Model;

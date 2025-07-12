@@ -6,15 +6,14 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
-use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{item_assignees, item_labels, label, mega_conversation, mega_issue};
 use common::errors::MegaError;
 use common::model::Pagination;
 use common::utils::{generate_id, generate_link};
 
+use crate::model::common::{ItemDetails, LabelAssigneeParams, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::stg_common::combine_item_list;
-use crate::storage::stg_common::model::{ItemDetails, LabelAssigneeParams, ListParams};
 use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]
@@ -109,6 +108,31 @@ impl IssueStorage {
         Ok(model)
     }
 
+    pub async fn get_issue_labels(
+        &self,
+        link: &str,
+    ) -> Result<Option<(mega_issue::Model, Vec<label::Model>)>, MegaError> {
+        let labels: Vec<(mega_issue::Model, Vec<label::Model>)> = mega_issue::Entity::find()
+            .filter(mega_issue::Column::Link.eq(link))
+            .find_with_related(label::Entity)
+            .all(self.get_connection())
+            .await?;
+        Ok(labels.first().cloned())
+    }
+
+    pub async fn get_issue_assignees(
+        &self,
+        link: &str,
+    ) -> Result<Option<(mega_issue::Model, Vec<item_assignees::Model>)>, MegaError> {
+        let assignees: Vec<(mega_issue::Model, Vec<item_assignees::Model>)> =
+            mega_issue::Entity::find()
+                .filter(mega_issue::Column::Link.eq(link))
+                .find_with_related(item_assignees::Entity)
+                .all(self.get_connection())
+                .await?;
+        Ok(assignees.first().cloned())
+    }
+
     pub async fn get_issue_by_id(&self, id: i64) -> Result<Option<mega_issue::Model>, MegaError> {
         let model = mega_issue::Entity::find_by_id(id)
             .one(self.get_connection())
@@ -176,27 +200,6 @@ impl IssueStorage {
         Ok(())
     }
 
-    pub async fn add_conversation(
-        &self,
-        link: &str,
-        username: &str,
-        comment: Option<String>,
-        conv_type: ConvTypeEnum,
-    ) -> Result<i64, MegaError> {
-        let conversation = mega_conversation::Model {
-            id: generate_id(),
-            link: link.to_owned(),
-            conv_type,
-            comment,
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-            username: username.to_owned(),
-        };
-        let conversation = conversation.into_active_model();
-        let res = conversation.insert(self.get_connection()).await.unwrap();
-        Ok(res.id)
-    }
-
     pub async fn new_label(
         &self,
         name: &str,
@@ -260,12 +263,7 @@ impl IssueStorage {
     ) -> Result<(), MegaError> {
         let txn = self.get_connection().begin().await?;
 
-        let LabelAssigneeParams {
-            item_id,
-            link,
-            username,
-            item_type,
-        } = params;
+        let LabelAssigneeParams { item_id, item_type } = params;
 
         if !to_remove.is_empty() {
             item_labels::Entity::delete_many()
@@ -273,14 +271,6 @@ impl IssueStorage {
                 .filter(item_labels::Column::LabelId.is_in(to_remove.clone()))
                 .exec(&txn)
                 .await?;
-
-            self.add_conversation(
-                &link,
-                &username,
-                Some(format!("{username} removed {to_remove:?}")),
-                ConvTypeEnum::Label,
-            )
-            .await?;
         }
 
         if !to_add.is_empty() {
@@ -301,13 +291,6 @@ impl IssueStorage {
             item_labels::Entity::insert_many(new_item_labels)
                 .exec(&txn)
                 .await?;
-            self.add_conversation(
-                &link,
-                &username,
-                Some(format!("{username} added {to_add:?}")),
-                ConvTypeEnum::Label,
-            )
-            .await?;
         }
 
         txn.commit().await?;
@@ -323,12 +306,7 @@ impl IssueStorage {
     ) -> Result<(), MegaError> {
         let txn = self.get_connection().begin().await?;
 
-        let LabelAssigneeParams {
-            item_id,
-            link,
-            username,
-            item_type,
-        } = params;
+        let LabelAssigneeParams { item_id, item_type } = params;
 
         if !to_remove.is_empty() {
             item_assignees::Entity::delete_many()
@@ -336,14 +314,6 @@ impl IssueStorage {
                 .filter(item_assignees::Column::AssignneeId.is_in(to_remove.clone()))
                 .exec(&txn)
                 .await?;
-
-            self.add_conversation(
-                &link,
-                &username,
-                Some(format!("{username} unassigned {to_remove:?}")),
-                ConvTypeEnum::Assignee,
-            )
-            .await?;
         }
 
         if !to_add.is_empty() {
@@ -364,13 +334,6 @@ impl IssueStorage {
             item_assignees::Entity::insert_many(new_item)
                 .exec(&txn)
                 .await?;
-            self.add_conversation(
-                &link,
-                &username,
-                Some(format!("{username} assigned {to_add:?}")),
-                ConvTypeEnum::Assignee,
-            )
-            .await?;
         }
 
         txn.commit().await?;

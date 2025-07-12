@@ -8,13 +8,15 @@ use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
+use crate::service::IssueService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::{
-    git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
-    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+    conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
+    issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage,
+    mr_storage::MrStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
+    user_storage::UserStorage, vault_storage::VaultStorage,
 };
-use crate::storage::{Service, Storage};
+use crate::storage::{AppService, Storage};
 
 pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
     let db_url = format!("sqlite://{}/test.db", temp_dir.as_ref().to_string_lossy());
@@ -38,11 +40,10 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
     let connection = test_db_connection(temp_dir).await;
     let connection = Arc::new(connection);
-    // let lfs_db_storage = LfsDbStorage::new(connection.clone()).await;
     let config = CONFIG.clone();
     let base = BaseStorage::new(connection.clone());
 
-    let svc = Service {
+    let svc = AppService {
         mono_storage: MonoStorage { base: base.clone() },
         git_db_storage: GitDbStorage { base: base.clone() },
         raw_db_storage: RawDbStorage { base: base.clone() },
@@ -52,13 +53,15 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         mr_storage: MrStorage { base: base.clone() },
         issue_storage: IssueStorage { base: base.clone() },
         vault_storage: VaultStorage { base: base.clone() },
+        conversation_storage: ConversationStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
     };
 
     apply_migrations(&connection, true).await.unwrap();
 
     Storage {
-        services: Arc::new(svc),
+        app_service: Arc::new(svc),
+        issue_service: IssueService::mock(),
         config: Arc::downgrade(&config),
     }
 }

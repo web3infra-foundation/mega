@@ -39,11 +39,7 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         let context = self.get_context();
-        context
-            .services
-            .raw_db_storage
-            .get_raw_blob_by_hash(hash)
-            .await
+        context.raw_db_storage().get_raw_blob_by_hash(hash).await
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
