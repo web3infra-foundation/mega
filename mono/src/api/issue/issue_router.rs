@@ -6,17 +6,17 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::model::{CommonPage, CommonResult, PageParams};
+use jupiter::service::IssueService;
 
 use crate::api::{
-    api_common::model::{LabelUpdatePayload, ListPayload},
-    mr::SaveCommentRequest,
+    api_common::model::ListPayload, conversation::SaveCommentRequest, label::LabelUpdatePayload,
 };
 use crate::api::{
     api_common::{self, model::AssigneeUpdatePayload},
     MonoApiServiceState,
 };
 use crate::api::{
-    issue::{IssueDetail, ItemRes, NewIssue},
+    issue::{IssueDetailRes, ItemRes, NewIssue},
     oauth::model::LoginUser,
 };
 use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
@@ -76,17 +76,10 @@ async fn fetch_issue_list(
 async fn issue_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<IssueDetail>>, ApiError> {
-    let res = state.issue_stg().get_issue(&link).await?;
-    let res = if let Some(model) = res {
-        let mut detail: IssueDetail = model.into();
-        let conversations = state.issue_stg().get_conversations(&link).await.unwrap();
-        detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
-        CommonResult::success(Some(detail))
-    } else {
-        CommonResult::success(None)
-    };
-    Ok(Json(res))
+) -> Result<Json<CommonResult<IssueDetailRes>>, ApiError> {
+    let issue_service: IssueService = state.storage.issue_service.clone();
+    let issue_details = issue_service.get_issue_details(&link).await?;
+    Ok(Json(CommonResult::success(Some(issue_details.into()))))
 }
 
 /// New Issue
@@ -104,9 +97,13 @@ async fn new_issue(
     state: State<MonoApiServiceState>,
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let stg = state.issue_stg().clone();
-    let res = stg.save_issue(&user.username, &json.title).await.unwrap();
-    let _ = stg
+    let res = state
+        .issue_stg()
+        .save_issue(&user.username, &json.title)
+        .await
+        .unwrap();
+    let _ = state
+        .conv_stg()
         .add_conversation(
             &res.link,
             &user.username,
@@ -136,7 +133,7 @@ async fn close_issue(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().close_issue(&link).await?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,
@@ -166,7 +163,7 @@ async fn reopen_issue(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().reopen_issue(&link).await?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,
@@ -197,7 +194,7 @@ async fn save_comment(
     Json(payload): Json<SaveCommentRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,

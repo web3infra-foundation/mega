@@ -7,7 +7,7 @@
 
 cd mega/jupiter/src
 
-sea-orm-cli migrate generate
+sea-orm-cli migrate generate "your_migration_name"
 ```
 
 2. Generate entity files

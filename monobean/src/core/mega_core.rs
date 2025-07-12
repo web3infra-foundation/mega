@@ -297,9 +297,7 @@ impl MegaCore {
         if path.as_ref().starts_with(&import_dir) && path.as_ref() != import_dir {
             if let Some(model) = ctx
                 .storage
-                .services
-                .as_ref()
-                .git_db_storage
+                .git_db_storage()
                 .find_git_repo_like_path(path.as_ref().to_string_lossy().as_ref())
                 .await
                 .unwrap()
@@ -541,7 +539,7 @@ mod tests {
         assert!(core.ssh_options.read().await.is_none());
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
     async fn test_launch_ssh() {
         let temp_base = TempDir::new().unwrap();
         unsafe {

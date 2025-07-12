@@ -1,14 +1,7 @@
 use serde::Deserialize;
 use utoipa::ToSchema;
 
-use jupiter::storage::stg_common::model::ListParams;
-
-#[derive(Deserialize, ToSchema)]
-pub struct LabelUpdatePayload {
-    pub label_ids: Vec<i64>,
-    pub item_id: i64,
-    pub link: String,
-}
+use jupiter::model::common::ListParams;
 
 #[derive(Deserialize, ToSchema)]
 pub struct AssigneeUpdatePayload {
