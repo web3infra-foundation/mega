@@ -37,7 +37,6 @@ pub struct CommitArgs {
 
     /// add signed-off-by line at the end of the commit message
     #[arg(short = 's', long)]
-    #[clap(default_value_t = false)]
     pub signoff: bool,
 }
 
