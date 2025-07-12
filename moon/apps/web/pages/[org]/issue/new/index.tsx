@@ -12,10 +12,10 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
   return (
     <>
       <ThemeProvider>
-          <BaseStyles>
-            <IssueNewPage key={router.pathname} />
-      </BaseStyles>
-    </ThemeProvider>
+        <BaseStyles>
+          <IssueNewPage key={router.pathname} />
+        </BaseStyles>
+      </ThemeProvider>
     </>
   )
 }

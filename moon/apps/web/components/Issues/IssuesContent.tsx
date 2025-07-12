@@ -430,7 +430,7 @@ export const RightAvatar = ({ member, commentNum }: { member?: Member; commentNu
       <div className='mr-10 flex items-center justify-between gap-10'>
         <div className='flex items-center gap-2 text-sm text-gray-500'>
           <ChatBubbleIcon />
-          <span>{commentNum}</span>
+          {commentNum !== 0 && <span>{commentNum}</span>}
         </div>
         {member && (
           <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
