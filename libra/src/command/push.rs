@@ -75,9 +75,7 @@ pub async fn execute(args: PushArgs) {
         .commit
         .to_string();
 
-    println!(
-        "pushing {branch}({commit_hash}) to {repository}({repo_url})"
-    );
+    println!("pushing {branch}({commit_hash}) to {repository}({repo_url})");
 
     let url = Url::parse(&repo_url).unwrap();
     let client = HttpsClient::from_url(&url);
@@ -106,9 +104,7 @@ pub async fn execute(args: PushArgs) {
     let mut data = BytesMut::new();
     add_pkt_line_string(
         &mut data,
-        format!(
-            "{remote_hash} {commit_hash} {tracked_branch}\0report-status\n"
-        ),
+        format!("{remote_hash} {commit_hash} {tracked_branch}\0report-status\n"),
     );
     data.extend_from_slice(b"0000");
     tracing::debug!("{:?}", data);

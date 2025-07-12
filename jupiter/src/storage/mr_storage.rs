@@ -3,8 +3,8 @@ use std::ops::Deref;
 
 use common::model::Pagination;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
-    JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
+    PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
 };
 
 use callisto::sea_orm_active_enums::MergeStatusEnum;
@@ -30,7 +30,6 @@ impl Deref for MrStorage {
 }
 
 impl MrStorage {
-
     pub async fn get_open_mr_by_path(
         &self,
         path: &str,

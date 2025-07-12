@@ -174,3 +174,116 @@ Stat 操作速率: 195071.20 文件/秒
 总结：cd切换文件夹路径，如果文件夹内容没有变化，也至少有一次网络开销，但实际上，目录变化不会那么频繁，所以不用每次都要进行同步
 ```
 
+
+
+优化fetch_code之前，1000个文件拉取测试
+
+文件创建脚本：script/run_1000_files.sh
+
+```sh
+server running...ID:96cc1dd3-d9a8-453c-8976-4796e579a1d7|[init] REQRequest { unique: 2, uid: 0, gid: 0, pid: 0 }-  - Call:
+ID:96cc1dd3-d9a8-453c-8976-4796e579a1d7 [init] - Success: ReplyInit { max_write: 131072 }
+new tree:903752ee634b1708c4d046a40cc62e572bb87a32
+new tree:68dfb43f330a0990660fbe5951be4cbbe4fda88e
+new tree:29e9768f1ae1595cfc8229815a252adca1b75465
+new tree:03d5ccb9b5b209ba7d69fb5b3cc440c477847451
+new tree:15d966af87d8be73d17d0275e1e144ee1fd41e89
+new tree:352fa9971717d83086b387df815e1290ee1722a4
+new tree:49c68383b97e3ea515fd97c1badf4ddcc2d44851
+new tree:98218ce618733c6b21ae092cd2eb9c490a6f51fa
+new tree:4bf75ab6553e47a5a13beb6af0168382626e008f
+new tree:4078d08857c555366433a97f0492139751192b67
+new tree:370ce8cc1c2a1a70ed8605d16f3b2ebb2070c98d
+new tree:ef3ab426ae85fc791cc7bc73f46c2847bcbeca90
+new tree:79648eba285af8fe672abc2447591665d37ac49f
+finish store....
+finish code for third-party/t1...fetch 1000 files finished,use time: 68.8379431s
+
+new tree:903752ee634b1708c4d046a40cc62e572bb87a32
+new tree:68dfb43f330a0990660fbe5951be4cbbe4fda88e
+new tree:29e9768f1ae1595cfc8229815a252adca1b75465
+new tree:03d5ccb9b5b209ba7d69fb5b3cc440c477847451
+new tree:15d966af87d8be73d17d0275e1e144ee1fd41e89
+new tree:98218ce618733c6b21ae092cd2eb9c490a6f51fa
+new tree:352fa9971717d83086b387df815e1290ee1722a4
+new tree:4bf75ab6553e47a5a13beb6af0168382626e008f
+new tree:49c68383b97e3ea515fd97c1badf4ddcc2d44851
+new tree:370ce8cc1c2a1a70ed8605d16f3b2ebb2070c98d
+new tree:4078d08857c555366433a97f0492139751192b67
+new tree:ef3ab426ae85fc791cc7bc73f46c2847bcbeca90
+new tree:79648eba285af8fe672abc2447591665d37ac49f
+finish store....
+finish code for third-party/t1...fetch 1000 files finished,use time: 65.558764133s
+
+new tree:903752ee634b1708c4d046a40cc62e572bb87a32
+new tree:68dfb43f330a0990660fbe5951be4cbbe4fda88e
+new tree:29e9768f1ae1595cfc8229815a252adca1b75465
+new tree:03d5ccb9b5b209ba7d69fb5b3cc440c477847451
+new tree:15d966af87d8be73d17d0275e1e144ee1fd41e89
+new tree:98218ce618733c6b21ae092cd2eb9c490a6f51fa
+new tree:352fa9971717d83086b387df815e1290ee1722a4
+new tree:4bf75ab6553e47a5a13beb6af0168382626e008f
+new tree:49c68383b97e3ea515fd97c1badf4ddcc2d44851
+new tree:4078d08857c555366433a97f0492139751192b67
+new tree:370ce8cc1c2a1a70ed8605d16f3b2ebb2070c98d
+new tree:79648eba285af8fe672abc2447591665d37ac49f
+new tree:ef3ab426ae85fc791cc7bc73f46c2847bcbeca90
+finish store....
+finish code for third-party/t1...fetch 1000 files finished,use time: 66.745361716s
+```
+
+优化思路：
+
+添加一个全局的文件下载管理器，维护一个下载队列，在遍历目录的过程中，将需要下载的内容加载到队列中，此队列有10个固定协程进行下载
+
+优化结果：
+
+```sh
+Worker 4 shutting down
+new tree:79648eba285af8fe672abc2447591665d37ac49f
+Worker 0 shutting down
+Worker 2 shutting down
+Worker 3 shutting down
+Worker 1 shutting down
+finish store....
+Finished downloading code for third-party/t1
+fetch 1000 files finished,use time: 42.854706696s
+
+Worker 4 shutting down
+finish store....
+Finished downloading code for third-party/t1
+fetch 1000 files finished,use time: 41.484116077s
+
+Worker 2 shutting down
+Worker 0 shutting down
+Worker 4 shutting down
+new tree:79648eba285af8fe672abc2447591665d37ac49f
+Worker 1 shutting down
+Worker 3 shutting down
+finish store....
+Finished downloading code for third-party/t1
+fetch 1000 files finished,use time: 44.768321595s
+
+
+new tree:ef3ab426ae85fc791cc7bc73f46c2847bcbeca90
+Worker 0 shutting down
+Worker 1 shutting down
+Worker 4 shutting down
+Directory processing completed for third-party/t1
+finish store....
+Finished downloading code for third-party/t1
+fetch 1000 files finished,use time: 45.409070254s
+
+Worker 0 shutting down
+Worker 3 shutting down
+Worker 1 shutting down
+Worker 4 shutting down
+new tree:ef3ab426ae85fc791cc7bc73f46c2847bcbeca90
+Worker 2 shutting down
+Directory processing completed for third-party/t1
+finish store....
+Finished downloading code for third-party/t1
+fetch 1000 files finished,use time: 52.19500406s
+```
+
+由于系统本身性能存在波动，综合来看，大概可以实现50%的下载提速

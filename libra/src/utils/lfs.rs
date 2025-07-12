@@ -74,9 +74,7 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
 }
 
 pub fn format_pointer_string(oid: &str, size: u64) -> String {
-    format!(
-        "version {LFS_VERSION}\noid {LFS_HASH_ALGO}:{oid}\nsize {size}\n"
-    )
+    format!("version {LFS_VERSION}\noid {LFS_HASH_ALGO}:{oid}\nsize {size}\n")
 }
 
 /// Generate LFS Server Url from repo Url.

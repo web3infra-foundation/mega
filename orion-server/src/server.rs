@@ -1,15 +1,15 @@
 use crate::api;
 use crate::api::AppState;
 use crate::model::builds;
+use api::{BuildDTO, BuildRequest, TaskStatus, TaskStatusEnum};
 use axum::Router;
 use axum::routing::get;
 use dashmap::DashMap;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
-use utoipa::OpenApi;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-use api::{BuildRequest, BuildDTO, TaskStatus, TaskStatusEnum};
+use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 #[derive(OpenApi)]
 #[openapi(

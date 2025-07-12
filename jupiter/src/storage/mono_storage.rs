@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::{stream, StreamExt};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
@@ -39,7 +39,6 @@ struct GitObjects {
 }
 
 impl MonoStorage {
-
     pub async fn save_ref(
         &self,
         path: &str,

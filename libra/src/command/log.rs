@@ -66,9 +66,7 @@ pub async fn execute(args: LogArgs) {
     if let Head::Branch(branch_name) = head.to_owned() {
         let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
-            panic!(
-                "fatal: your current branch '{branch_name}' does not have any commits yet "
-            );
+            panic!("fatal: your current branch '{branch_name}' does not have any commits yet ");
         }
     }
 

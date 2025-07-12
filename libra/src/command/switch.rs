@@ -89,9 +89,7 @@ async fn switch_to_branch(branch_name: String) {
     let target_branch = Branch::find_branch(&branch_name, None).await;
     if target_branch.is_none() {
         if !Branch::search_branch(&branch_name).await.is_empty() {
-            eprintln!(
-                "fatal: a branch is expected, got remote branch {branch_name}"
-            );
+            eprintln!("fatal: a branch is expected, got remote branch {branch_name}");
         } else {
             eprintln!("fatal: branch '{}' not found", &branch_name);
         }

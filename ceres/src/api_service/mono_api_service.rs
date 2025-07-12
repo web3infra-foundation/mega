@@ -328,9 +328,7 @@ impl MonoApiService {
             })
             .collect();
 
-        storage.batch_save_model(save_trees)
-            .await
-            .unwrap();
+        storage.batch_save_model(save_trees).await.unwrap();
         Ok(p_commit_id)
     }
 
