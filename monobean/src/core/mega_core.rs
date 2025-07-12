@@ -539,7 +539,7 @@ mod tests {
         assert!(core.ssh_options.read().await.is_none());
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
     async fn test_launch_ssh() {
         let temp_base = TempDir::new().unwrap();
         unsafe {
