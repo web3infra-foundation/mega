@@ -20,7 +20,8 @@ use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    issue::issue_router, label::label_router, mr::mr_router, user::user_router, MonoApiServiceState,
+    conversation::conv_router, issue::issue_router, label::label_router, mr::mr_router,
+    user::user_router, MonoApiServiceState,
 };
 use crate::{api::error::ApiError, server::https_server::GIT_TAG};
 
@@ -41,6 +42,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(user_router::routers())
         .merge(issue_router::routers())
         .merge(label_router::routers())
+        .merge(conv_router::routers())
 }
 
 /// Get blob file as string
@@ -340,8 +342,7 @@ async fn path_can_be_cloned(
     let res = if path.starts_with(&import_dir) {
         state
             .storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .find_git_repo_exact_match(path.to_str().unwrap())
             .await
             .unwrap()

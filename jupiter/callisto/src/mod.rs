@@ -29,6 +29,7 @@ pub mod mega_tag;
 pub mod mega_tree;
 pub mod mq_storage;
 pub mod raw_blob;
+pub mod reactions;
 pub mod relay_lfs_info;
 pub mod relay_node;
 pub mod relay_nostr_event;

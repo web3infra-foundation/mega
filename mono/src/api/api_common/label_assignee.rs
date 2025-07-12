@@ -2,15 +2,14 @@ use std::collections::HashSet;
 
 use axum::{extract::State, Json};
 
+use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::model::CommonResult;
-use jupiter::storage::stg_common::model::LabelAssigneeParams;
+use jupiter::model::common::LabelAssigneeParams;
 
 use crate::api::error::ApiError;
+use crate::api::label::LabelUpdatePayload;
 use crate::api::MonoApiServiceState;
-use crate::api::{
-    api_common::model::{AssigneeUpdatePayload, LabelUpdatePayload},
-    oauth::model::LoginUser,
-};
+use crate::api::{api_common::model::AssigneeUpdatePayload, oauth::model::LoginUser};
 
 pub async fn label_update(
     user: LoginUser,
@@ -37,16 +36,35 @@ pub async fn label_update(
     let to_add: Vec<i64> = new_ids.difference(&old_ids).copied().collect();
     let to_remove: Vec<i64> = old_ids.difference(&new_ids).copied().collect();
 
-    let params = LabelAssigneeParams {
-        item_id,
-        link,
-        username: user.username,
-        item_type,
-    };
+    let params = LabelAssigneeParams { item_id, item_type };
 
     issue_storage
-        .modify_labels(to_add, to_remove, params)
+        .modify_labels(to_add.clone(), to_remove.clone(), params)
         .await?;
+    let username = user.username;
+    if !to_remove.is_empty() {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} removed {to_remove:?}")),
+                ConvTypeEnum::Label,
+            )
+            .await?;
+    }
+
+    if !to_add.is_empty() {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} added {to_add:?}")),
+                ConvTypeEnum::Label,
+            )
+            .await?;
+    }
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -75,15 +93,34 @@ pub async fn assignees_update(
     let to_add: Vec<String> = new_ids.difference(&old_ids).cloned().collect();
     let to_remove: Vec<String> = old_ids.difference(&new_ids).cloned().collect();
 
-    let params = LabelAssigneeParams {
-        item_id,
-        link,
-        username: user.username,
-        item_type,
-    };
+    let params = LabelAssigneeParams { item_id, item_type };
 
     issue_storage
-        .modify_assignees(to_add, to_remove, params)
+        .modify_assignees(to_add.clone(), to_remove.clone(), params)
         .await?;
+    let username = user.username;
+    if !to_remove.is_empty() {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} unassigned {to_remove:?}")),
+                ConvTypeEnum::Assignee,
+            )
+            .await?;
+    }
+
+    if !to_add.is_empty() {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &username,
+                Some(format!("{username} assigned {to_add:?}")),
+                ConvTypeEnum::Assignee,
+            )
+            .await?;
+    }
     Ok(Json(CommonResult::success(None)))
 }

@@ -23,7 +23,5 @@ pub struct ListParams {
 
 pub struct LabelAssigneeParams {
     pub item_id: i64,
-    pub link: String,
-    pub username: String,
     pub item_type: String,
 }

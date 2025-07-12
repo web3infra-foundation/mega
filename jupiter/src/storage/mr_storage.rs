@@ -12,9 +12,9 @@ use callisto::{item_assignees, label, mega_conversation, mega_mr};
 use common::errors::MegaError;
 use common::utils::generate_id;
 
+use crate::model::common::{ItemDetails, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::stg_common::combine_item_list;
-use crate::storage::stg_common::model::{ItemDetails, ListParams};
 use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
 
 #[derive(Clone)]

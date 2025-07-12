@@ -1,6 +1,10 @@
 use sea_orm::entity::prelude::*;
 
-use crate::{mega_conversation::Column, mega_conversation::Entity};
+use crate::{
+    entity_ext::generate_id,
+    mega_conversation::{self, Column, Entity},
+    sea_orm_active_enums::ConvTypeEnum,
+};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
@@ -32,5 +36,25 @@ impl Related<crate::mega_issue::Entity> for Entity {
 impl Related<crate::mega_mr::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::MegaMr.def()
+    }
+}
+
+impl mega_conversation::Model {
+    pub fn new(
+        link: &str,
+        conv_type: ConvTypeEnum,
+        comment: Option<String>,
+        username: &str,
+    ) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            id: generate_id(),
+            link: link.to_owned(),
+            conv_type,
+            comment,
+            created_at: now,
+            updated_at: now,
+            username: username.to_owned(),
+        }
     }
 }

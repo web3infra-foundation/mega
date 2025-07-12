@@ -36,11 +36,7 @@ impl AppContext {
         #[cfg(feature = "p2p")]
         let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
 
-        storage
-            .services
-            .mono_storage
-            .init_monorepo(&config.monorepo)
-            .await;
+        storage.mono_storage().init_monorepo(&config.monorepo).await;
 
         Self {
             storage,
