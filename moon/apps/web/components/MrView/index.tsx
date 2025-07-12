@@ -16,6 +16,7 @@ import {
   DropdownItemwithAvatar,
   DropdownItemwithLabel,
   DropdownOrder,
+  DropdownReview,
   ListBanner,
   ListItem as MrItem,
   IssueList as MrList
@@ -29,7 +30,7 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
 import { AdditionType, RightAvatar } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
-import { orderTags, tags } from '../Issues/utils/consts'
+import { orderTags, reviewTags, tags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
 import { filterAtom, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
@@ -63,11 +64,15 @@ export default function MrView() {
     [scope]
   )
 
+  const reviewAtom = useMemo(() => atomWithWebStorage(`${scope}:mr-review`, ''), [scope])
+
   const labelAtom = useMemo(() => atomWithWebStorage<string[]>(`${scope}:mr-label`, []), [scope])
 
   const [order, setOrder] = useAtom(orderAtom)
 
   const [label, setLabel] = useAtom(labelAtom)
+
+  const [review, setReview] = useAtom(reviewAtom)
 
   const additions = useCallback(
     (labels: number[]): AdditionType => {
@@ -240,6 +245,29 @@ export default function MrView() {
     }
   ]
 
+  const ReviewConfig: MenuConfig<string>[] = [
+    {
+      key: 'Review',
+      isChosen: () => true,
+
+      onSelectFactory: (item) => (e: Event) => {
+        e.preventDefault()
+        if (item === review) {
+          setReview('')
+        } else {
+          setReview(item)
+        }
+      },
+      className: 'overflow-hidden',
+      labelFactory: (item) => (
+        <div className='flex items-center gap-2'>
+          <div className='h-4 w-4'>{review === item && <CheckIcon />}</div>
+          <span className='flex-1'>{item}</span>
+        </div>
+      )
+    }
+  ]
+
   const OrderConfig: MenuConfig<string>[] = [
     {
       key: 'Order',
@@ -292,6 +320,8 @@ export default function MrView() {
 
   const orders = generateAllMenuItems(orderTags, OrderConfig)
 
+  const reviews = generateAllMenuItems(reviewTags, ReviewConfig)
+
   const ListHeaderItem = (p: string) => {
     switch (p) {
       case 'Author':
@@ -312,6 +342,15 @@ export default function MrView() {
             name={p}
             dropdownArr={member?.get('Assignees').all}
             dropdownItem={member?.get('Assignees').chosen}
+          />
+        )
+      case 'Reviews':
+        return (
+          <DropdownReview
+            key={p}
+            name={p}
+            dropdownArr={reviews?.get('Review').all}
+            dropdownItem={reviews?.get('Review').chosen}
           />
         )
       case 'Labels':
@@ -367,7 +406,16 @@ export default function MrView() {
             Issuelists={mrList}
             header={
               <ListBanner
-                pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types', `${order.sort}`]}
+                pickerTypes={[
+                  'Author',
+                  'Labels',
+                  'Projects',
+                  'Milestones',
+                  'Reviews',
+                  'Assignees',
+                  'Types',
+                  `${order.sort}`
+                ]}
                 tabfilter={<MRIndexTabFilter part='mr' />}
               >
                 {(p) => ListHeaderItem(p)}

@@ -310,7 +310,7 @@ type SelectPanelExcludedProps =
   | 'renderAnchor'
   | 'variant'
 
-const BadgeItem = ({
+export const BadgeItem = ({
   title,
   selectPannelProps,
   items,
@@ -376,7 +376,7 @@ const BadgeItem = ({
   )
 }
 
-const SideBarItem = ({ emptyState }: { emptyState: string }) => {
+export const SideBarItem = ({ emptyState }: { emptyState: string }) => {
   return (
     <>
       <div className='mx-4 text-sm text-gray-500'>
