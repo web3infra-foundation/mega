@@ -4,3 +4,4 @@ pub mod db;
 pub mod head;
 pub mod model;
 pub mod protocol;
+pub mod tag_ref;

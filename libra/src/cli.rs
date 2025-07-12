@@ -62,6 +62,9 @@ enum Commands {
     #[command(about = "Show different between files")]
     Diff(command::diff::DiffArgs),
 
+    #[command(about = "Create, list, delete or verify a tag object signed with GPG")]
+    Tag(command::tag::TagArgs),
+
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
     #[command(about = "Manage repository configurations")]
@@ -122,6 +125,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
         Commands::Diff(args) => command::diff::execute(args).await,
+        Commands::Tag(args) => command::tag::execute(args).await,
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
         Commands::Config(args) => command::config::execute(args).await,

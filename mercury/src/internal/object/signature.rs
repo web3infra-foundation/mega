@@ -204,6 +204,11 @@ impl Signature {
             timezone: offset_str, // The timezone offset (e.g., "+0800")
         }
     }
+    
+    /// Create a new Tagger signature with current time
+    pub fn new_now(name: &str, email: &str) -> Signature {
+        Self::new(SignatureType::Tagger, name.to_string(), email.to_string())
+    }
 }
 
 #[cfg(test)]

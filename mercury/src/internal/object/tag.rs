@@ -83,6 +83,37 @@ impl Tag {
     //     let meta = Meta::new_from_file(path)?;
     //     Tag::new_from_meta(meta)
     // }
+    
+    /// Create a new Tag object
+    pub fn new(tag_name: &str, object_hash: &SHA1, message: &str) -> Self {
+        // Create tagger signature
+        let tagger = Signature::new_now("libra", "libra@example.com");
+        
+        // Default to marking commit objects
+        let object_type = ObjectType::Commit;
+        
+        // Build the tag data
+        let mut tag = Tag {
+            id: SHA1::default(),
+            object_hash: *object_hash,
+            object_type,
+            tag_name: tag_name.to_string(),
+            tagger,
+            message: message.to_string(),
+        };
+        
+        // Calculate tag ID
+        let data = tag.to_data().unwrap();
+        let header = format!("tag {}", data.len());
+        let mut content = Vec::new();
+        content.extend_from_slice(header.as_bytes());
+        content.push(0);
+        content.extend_from_slice(&data);
+        
+        tag.id = SHA1::new(&content);
+        
+        tag
+    }
 }
 
 impl ObjectTrait for Tag {
