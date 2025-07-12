@@ -3,6 +3,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use crate::command::load_object;
 use crate::internal::branch::Branch;
+use crate::internal::config::Config as UserConfig;
 use crate::internal::head::Head;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
@@ -17,7 +18,7 @@ use mercury::internal::object::ObjectTrait;
 
 use super::save_object;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 pub struct CommitArgs {
     #[arg(short, long)]
     pub message: String,
@@ -33,6 +34,10 @@ pub struct CommitArgs {
     /// amend the last commit
     #[arg(long)]
     pub amend: bool,
+
+    /// add signed-off-by line at the end of the commit message
+    #[arg(short = 's', long)]
+    pub signoff: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -43,7 +48,26 @@ pub async fn execute(args: CommitArgs) {
     if tracked_entries.is_empty() && !args.allow_empty {
         panic!("fatal: no changes added to commit, use --allow-empty to override");
     }
-    if args.conventional && !check_conventional_commits_message(&args.message) {
+
+    //Prepare commit message
+    let commit_message = if args.signoff {
+        // get user
+        let user_name = UserConfig::get("user", None, "name")
+            .await
+            .unwrap_or_else(|| "unknown".to_string());
+        let user_email = UserConfig::get("user", None, "email")
+            .await
+            .unwrap_or_else(|| "unknown".to_string());
+        
+        // get sign line
+        let signoff_line = format!("Signed-off-by: {user_name} <{user_email}>");
+        format!("{}\n\n{signoff_line}", args.message)
+    } else {
+        args.message.clone()
+    };
+    
+    // check format(if needed)
+    if args.conventional && !check_conventional_commits_message(&commit_message) {
         panic!("fatal: commit message does not follow conventional commits");
     }
 
@@ -208,6 +232,7 @@ mod test {
     use crate::utils::test::*;
 
     use super::*;
+
     #[test]
     ///Testing basic parameter parsing functionality.
     fn test_parse_args() {
@@ -231,10 +256,25 @@ mod test {
 
         let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--allow-empty", "--amend"]);
         assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "-s"]);
+        assert!(args.is_ok());
+        assert!(args.unwrap().signoff);
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--signoff"]);
+        assert!(args.is_ok());
+        assert!(args.unwrap().signoff);
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--amend", "--signoff"]);
+        assert!(args.is_ok());
+        let args = args.unwrap();
+        assert!(args.amend);
+        assert!(args.signoff);
+
     }
 
     #[tokio::test]
-    #[serial]
+    #[serial] 
     /// Tests the recursive tree creation from index entries.
     /// Verifies that tree objects are correctly created, saved to storage, and properly organized in a hierarchical structure.
     async fn test_create_tree() {
