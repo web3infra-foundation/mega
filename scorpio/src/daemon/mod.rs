@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
-use crate::manager::{ScorpioManager, WorkDir};
+use crate::manager::{mr, ScorpioManager, WorkDir};
 use crate::util::{config, GPath};
 use axum::extract::State;
 use axum::routing::{get, post};
@@ -18,6 +18,7 @@ const FAIL: &str = "Fail";
 #[derive(Debug, Deserialize, Serialize)]
 struct MountRequest {
     path: String,
+    mr: Option<String>, // mr is the mount request, used for buck2 temp mount.
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -153,7 +154,7 @@ async fn mount_handler(
         };
 
         let store_path = PathBuf::from(store_path).join(&temp_hash);
-        let _ = state.fuse.overlay_mount(inode, store_path).await;
+        let _ = state.fuse.overlay_mount(inode, store_path,false).await;
         let mount_info = MountInfo {
             hash: temp_hash.clone(),
             path: mono_path.clone(),
@@ -171,12 +172,21 @@ async fn mount_handler(
             message: "Directory mounted successfully".to_string(),
         });
     }
+
+    if let Some(m) = &req.mr {
+
+        // if mr is provided, we need to fetch the mr info from mono.
+        mr::build_mr_layer(m, store_path.into()).await.unwrap();
+    
+    }
+
     // fetch the dionary node info from mono.
     let work_dir = fetch(&mut ml, inode, mono_path).await.unwrap();
+
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary.
 
-    let _ = state.fuse.overlay_mount(inode, store_path).await;
+    let _ = state.fuse.overlay_mount(inode, store_path,false).await;
 
     let mount_info = MountInfo {
         hash: work_dir.hash,
