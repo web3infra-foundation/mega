@@ -4,6 +4,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
@@ -21,7 +22,7 @@ use crate::api::{
     conversation::SaveCommentRequest,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{FilesChangedList, MRDetail, MrFilesRes, MuiTreeNode},
+    mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
@@ -203,21 +204,21 @@ async fn fetch_mr_list(
     ),
     path = "/{link}/detail",
     responses(
-        (status = 200, body = CommonResult<MRDetail>, content_type = "application/json")
+        (status = 200, body = CommonResult<MRDetailRes>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
 async fn mr_detail(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<MRDetail>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
-    let model = res.ok_or(MegaError::with_message("MR Not Found"))?;
-    let mut detail: MRDetail = model.into();
-    let conversations = state.issue_stg().get_conversations(&link).await.unwrap();
-    detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
-    let res = CommonResult::success(Some(detail));
-    Ok(Json(res))
+) -> Result<Json<CommonResult<MRDetailRes>>, ApiError> {
+    let mr_service: MRService = state.storage.mr_service.clone();
+    let mr_details: MRDetailRes = mr_service
+        .get_mr_details(&link, user.username)
+        .await?
+        .into();
+    Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
 /// Get Merge Request file changed list
@@ -340,7 +341,7 @@ async fn delete_comment(
     Path(conv_id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().remove_conversation(conv_id).await?;
+    state.conv_stg().remove_conversation(conv_id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 

@@ -66,7 +66,7 @@ pub struct NewIssue {
     pub description: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, ToSchema)]
 pub struct IssueDetailRes {
     pub id: i64,
     pub link: String,
@@ -86,7 +86,11 @@ impl From<IssueDetails> for IssueDetailRes {
             title: value.issue.title,
             status: value.issue.status.to_string(),
             open_timestamp: value.issue.created_at.and_utc().timestamp(),
-            conversations: value.conversations.into_iter().map(|x| x.into()).collect(),
+            conversations: value
+                .conversations
+                .into_iter()
+                .map(|x| ConversationItem::from_model(x.conversation, x.reactions, &value.username))
+                .collect(),
             labels: value.labels.into_iter().map(|x| x.into()).collect(),
             assignees: value
                 .assignees

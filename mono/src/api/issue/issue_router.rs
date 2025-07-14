@@ -6,7 +6,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::model::{CommonPage, CommonResult, PageParams};
-use jupiter::service::IssueService;
+use jupiter::service::issue_service::IssueService;
 
 use crate::api::{
     api_common::model::ListPayload, conversation::SaveCommentRequest, label::LabelUpdatePayload,
@@ -69,17 +69,18 @@ async fn fetch_issue_list(
     ),
     path = "/{link}/detail",
     responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
+        (status = 200, body = CommonResult<IssueDetailRes>, content_type = "application/json")
     ),
     tag = ISSUE_TAG
 )]
 async fn issue_detail(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<IssueDetailRes>>, ApiError> {
     let issue_service: IssueService = state.storage.issue_service.clone();
-    let issue_details = issue_service.get_issue_details(&link).await?;
-    Ok(Json(CommonResult::success(Some(issue_details.into()))))
+    let issue_details: IssueDetailRes = issue_service.get_issue_details(&link, user.username).await?.into();
+    Ok(Json(CommonResult::success(Some(issue_details))))
 }
 
 /// New Issue
@@ -222,7 +223,7 @@ async fn delete_comment(
     Path(id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().remove_conversation(id).await?;
+    state.conv_stg().remove_conversation(id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
