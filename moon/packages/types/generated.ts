@@ -3049,6 +3049,8 @@ export type CommonResultCommonPageItemRes = {
       closed_at?: number | null
       /** @min 0 */
       comment_num: number
+      /** @format int64 */
+      id: number
       labels: LabelItem[]
       link: string
       /** @format int64 */
@@ -3098,11 +3100,30 @@ export type CommonResultFilesChangedList = {
   req_result: boolean
 }
 
-export type CommonResultMRDetail = {
+export type CommonResultIssueDetailRes = {
   data?: {
-    conversations: MegaConversation[]
+    assignees: string[]
+    conversations: ConversationItem[]
     /** @format int64 */
     id: number
+    labels: LabelItem[]
+    link: string
+    /** @format int64 */
+    open_timestamp: number
+    status: string
+    title: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultMRDetailRes = {
+  data?: {
+    assignees: string[]
+    conversations: ConversationItem[]
+    /** @format int64 */
+    id: number
+    labels: LabelItem[]
     link: string
     /** @format int64 */
     merge_timestamp?: number | null
@@ -3126,6 +3147,16 @@ export type CommonResultTreeResponse = {
     file_tree: Record<string, FileTreeItem>
     tree_items: TreeBriefItem[]
   }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecMrFilesRes = {
+  data?: {
+    action: string
+    path: string
+    sha: string
+  }[]
   err_message: string
   req_result: boolean
 }
@@ -3174,6 +3205,19 @@ export enum ConvTypeEnum {
   Assignee = 'Assignee'
 }
 
+export type ConversationItem = {
+  comment?: string | null
+  conv_type: ConvTypeEnum
+  /** @format int64 */
+  created_at: number
+  grouped_reactions: ReactionItem[]
+  /** @format int64 */
+  id: number
+  /** @format int64 */
+  updated_at: number
+  username: string
+}
+
 export type CreateFileInfo = {
   content?: string | null
   /** can be a file or directory */
@@ -3194,6 +3238,19 @@ export type FilesChangedList = {
   mui_trees: MuiTreeNode[]
 }
 
+export type IssueDetailRes = {
+  assignees: string[]
+  conversations: ConversationItem[]
+  /** @format int64 */
+  id: number
+  labels: LabelItem[]
+  link: string
+  /** @format int64 */
+  open_timestamp: number
+  status: string
+  title: string
+}
+
 export type ItemRes = {
   assignees: string[]
   author: string
@@ -3201,6 +3258,8 @@ export type ItemRes = {
   closed_at?: number | null
   /** @min 0 */
   comment_num: number
+  /** @format int64 */
+  id: number
   labels: LabelItem[]
   link: string
   /** @format int64 */
@@ -3246,10 +3305,12 @@ export type ListPayload = {
   status: string
 }
 
-export type MRDetail = {
-  conversations: MegaConversation[]
+export type MRDetailRes = {
+  assignees: string[]
+  conversations: ConversationItem[]
   /** @format int64 */
   id: number
+  labels: LabelItem[]
   link: string
   /** @format int64 */
   merge_timestamp?: number | null
@@ -3259,22 +3320,16 @@ export type MRDetail = {
   title: string
 }
 
-export type MegaConversation = {
-  comment?: string | null
-  conv_type: ConvTypeEnum
-  /** @format int64 */
-  created_at: number
-  /** @format int64 */
-  id: number
-  /** @format int64 */
-  updated_at: number
-  username: string
-}
-
 export enum MergeStatusEnum {
   Open = 'Open',
   Merged = 'Merged',
   Closed = 'Closed'
+}
+
+export type MrFilesRes = {
+  action: string
+  path: string
+  sha: string
 }
 
 export type MuiTreeNode = {
@@ -3322,6 +3377,20 @@ export type Pagination = {
    * @min 0
    */
   per_page: number
+}
+
+export type ReactionItem = {
+  custom_content: string
+  emoji: string
+  /** @min 0 */
+  reactions_count: number
+  tooltip: string[]
+  viewer_reaction_id: string
+}
+
+export type ReactionRequest = {
+  comment_type: string
+  content: string
 }
 
 export type SaveCommentRequest = {
@@ -4497,6 +4566,10 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
+export type DeleteApiConversationReactionsByIdData = CommonResultString
+
+export type PostApiConversationReactionsData = CommonResultString
+
 export type PostApiCreateFileData = CommonResultString
 
 export type PostApiIssueAssigneesData = CommonResultString
@@ -4513,7 +4586,7 @@ export type PostApiIssueCloseData = CommonResultString
 
 export type PostApiIssueCommentData = CommonResultString
 
-export type GetApiIssueDetailData = CommonResultString
+export type GetApiIssueDetailData = CommonResultIssueDetailRes
 
 export type PostApiIssueReopenData = CommonResultString
 
@@ -4540,9 +4613,11 @@ export type PostApiMrCloseData = CommonResultString
 
 export type PostApiMrCommentData = CommonResultString
 
-export type GetApiMrDetailData = CommonResultMRDetail
+export type GetApiMrDetailData = CommonResultMRDetailRes
 
 export type GetApiMrFilesChangedData = CommonResultFilesChangedList
+
+export type GetApiMrFilesListData = CommonResultVecMrFilesRes
 
 export type PostApiMrMergeData = CommonResultString
 
@@ -12890,6 +12965,54 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags conversation
+     * @name DeleteApiConversationReactionsById
+     * @summary Delete conversation reactions
+     * @request DELETE:/api/v1/conversation/reactions/{id}
+     */
+    deleteApiConversationReactionsById: () => {
+      const base = 'DELETE:/api/v1/conversation/reactions/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<DeleteApiConversationReactionsByIdData>({
+            path: `/api/v1/conversation/reactions/${id}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags conversation
+     * @name PostApiConversationReactions
+     * @summary Add comment reactions with emoji
+     * @request POST:/api/v1/conversation/{comment_id}/reactions
+     */
+    postApiConversationReactions: () => {
+      const base = 'POST:/api/v1/conversation/{comment_id}/reactions' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiConversationReactionsData>([base]),
+        requestKey: (commentId: number) => dataTaggedQueryKey<PostApiConversationReactionsData>([base, commentId]),
+        request: (commentId: number, data: ReactionRequest, params: RequestParams = {}) =>
+          this.request<PostApiConversationReactionsData>({
+            path: `/api/v1/conversation/${commentId}/reactions`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags git
      * @name PostApiCreateFile
      * @summary Create file in web UI
@@ -13389,6 +13512,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiMrFilesChangedData>({
             path: `/api/v1/mr/${link}/files-changed`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrFilesList
+     * @summary Get Merge Request file list
+     * @request GET:/api/v1/mr/{link}/files-list
+     */
+    getApiMrFilesList: () => {
+      const base = 'GET:/api/v1/mr/{link}/files-list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrFilesListData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesListData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrFilesListData>({
+            path: `/api/v1/mr/${link}/files-list`,
             method: 'GET',
             ...params
           })

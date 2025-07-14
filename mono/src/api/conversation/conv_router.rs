@@ -14,7 +14,9 @@ use crate::{api::error::ApiError, server::https_server::CONV_TAG};
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/conversation",
-        OpenApiRouter::new().routes(routes!(comment_reactions)),
+        OpenApiRouter::new()
+            .routes(routes!(comment_reactions))
+            .routes(routes!(delete_comment_reaction)),
     )
 }
 
@@ -22,9 +24,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 #[utoipa::path(
     post,
     params(
-        ("comment_id", description = "comment conversation id"),
+        ("comment_id", description = "A numeric ID representing either a comment or a conversation. Specify the type in the request body."),
     ),
-    path = "/comments/{comment_id}/reactions",
+    path = "/{comment_id}/reactions",
     request_body = ReactionRequest,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
@@ -45,6 +47,30 @@ async fn comment_reactions(
             &payload.comment_type,
             &user.username,
         )
+        .await?;
+    Ok(Json(CommonResult::success(None)))
+}
+
+/// Delete conversation reactions
+#[utoipa::path(
+    delete,
+    params(
+        ("id", description = "viewer_reaction_id"),
+    ),
+    path = "/reactions/{id}",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = CONV_TAG
+)]
+async fn delete_comment_reaction(
+    user: LoginUser,
+    Path(id): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .conv_stg()
+        .delete_reaction(&id, &user.username)
         .await?;
     Ok(Json(CommonResult::success(None)))
 }

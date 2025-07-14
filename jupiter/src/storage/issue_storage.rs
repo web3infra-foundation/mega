@@ -181,25 +181,6 @@ impl IssueStorage {
         Ok(())
     }
 
-    pub async fn get_conversations(
-        &self,
-        link: &str,
-    ) -> Result<Vec<mega_conversation::Model>, MegaError> {
-        let model = mega_conversation::Entity::find()
-            .filter(mega_conversation::Column::Link.eq(link))
-            .all(self.get_connection())
-            .await;
-        Ok(model?)
-    }
-
-    pub async fn remove_conversation(&self, id: i64) -> Result<(), MegaError> {
-        mega_conversation::Entity::delete_by_id(id)
-            .exec(self.get_connection())
-            .await
-            .unwrap();
-        Ok(())
-    }
-
     pub async fn new_label(
         &self,
         name: &str,

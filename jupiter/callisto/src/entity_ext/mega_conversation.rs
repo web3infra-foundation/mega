@@ -10,6 +10,7 @@ use crate::{
 pub enum Relation {
     MegaIssue,
     MegaMr,
+    Reactions,
 }
 
 impl RelationTrait for Relation {
@@ -23,6 +24,7 @@ impl RelationTrait for Relation {
                 .from(Column::Link)
                 .to(crate::mega_mr::Column::Link)
                 .into(),
+            Self::Reactions => Entity::has_many(crate::reactions::Entity).into(),
         }
     }
 }
@@ -36,6 +38,15 @@ impl Related<crate::mega_issue::Entity> for Entity {
 impl Related<crate::mega_mr::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::MegaMr.def()
+    }
+}
+
+impl Related<crate::reactions::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Reactions.def()
+    }
+    fn via() -> Option<RelationDef> {
+        None
     }
 }
 

@@ -8,7 +8,8 @@ use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
-use crate::service::IssueService;
+use crate::service::issue_service::IssueService;
+use crate::service::mr_service::MRService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::{
     conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
@@ -62,6 +63,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     Storage {
         app_service: Arc::new(svc),
         issue_service: IssueService::mock(),
+        mr_service: MRService::mock(),
         config: Arc::downgrade(&config),
     }
 }

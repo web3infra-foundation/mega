@@ -17,7 +17,8 @@ use std::sync::{Arc, LazyLock, Weak};
 use common::config::Config;
 
 use crate::lfs_storage::{self, local_storage::LocalStorage, LfsFileStorage};
-use crate::service::IssueService;
+use crate::service::issue_service::IssueService;
+use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
@@ -66,6 +67,7 @@ impl AppService {
 pub struct Storage {
     pub(crate) app_service: Arc<AppService>,
     pub issue_service: IssueService,
+    pub mr_service: MRService,
     pub config: Weak<Config>,
 }
 
@@ -94,7 +96,7 @@ impl Storage {
             relay_storage,
             user_storage,
             vault_storage,
-            mr_storage,
+            mr_storage: mr_storage.clone(),
             issue_storage: issue_storage.clone(),
             conversation_storage: conversation_storage.clone(),
             lfs_file_storage,
@@ -102,7 +104,8 @@ impl Storage {
         Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
-            issue_service: IssueService::new(issue_storage, conversation_storage),
+            issue_service: IssueService::new(issue_storage, conversation_storage.clone()),
+            mr_service: MRService::new(mr_storage, conversation_storage),
         }
     }
 
@@ -162,6 +165,7 @@ impl Storage {
         Storage {
             app_service: AppService::mock(),
             issue_service: IssueService::mock(),
+            mr_service: MRService::mock(),
             config: Arc::downgrade(&*CONFIG),
         }
     }

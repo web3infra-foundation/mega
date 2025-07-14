@@ -130,6 +130,31 @@ impl MrStorage {
         Ok(model)
     }
 
+    pub async fn get_mr_labels(
+        &self,
+        link: &str,
+    ) -> Result<Option<(mega_mr::Model, Vec<label::Model>)>, MegaError> {
+        let labels: Vec<(mega_mr::Model, Vec<label::Model>)> = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Link.eq(link))
+            .find_with_related(label::Entity)
+            .all(self.get_connection())
+            .await?;
+        Ok(labels.first().cloned())
+    }
+
+    pub async fn get_mr_assignees(
+        &self,
+        link: &str,
+    ) -> Result<Option<(mega_mr::Model, Vec<item_assignees::Model>)>, MegaError> {
+        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> =
+            mega_mr::Entity::find()
+                .filter(mega_mr::Column::Link.eq(link))
+                .find_with_related(item_assignees::Entity)
+                .all(self.get_connection())
+                .await?;
+        Ok(assignees.first().cloned())
+    }
+
     pub async fn new_mr(
         &self,
         path: &str,
