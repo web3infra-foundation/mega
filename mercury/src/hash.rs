@@ -97,7 +97,12 @@ impl SHA1 {
         let h = sha1::Sha1::digest(data);
         SHA1::from_bytes(h.as_slice())
     }
-
+    /// Create a Hash from the object type and data
+    /// This function is used to create a SHA1 hash from the object type and data.
+    /// It constructs a byte vector that includes the object type, the size of the data,
+    /// and the data itself, and then computes the SHA1 hash of this byte vector.
+    ///  
+    ///  Hash compute <- {Object Type}+{ }+{Object Size（before compress）}+{\x00}+{Object Content(before compress)}
     pub fn from_type_and_data(object_type: ObjectType, data: &[u8]) -> SHA1 {
         let mut d: Vec<u8> = Vec::new();
         d.extend(object_type.to_data().unwrap());
