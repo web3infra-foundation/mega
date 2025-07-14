@@ -37,6 +37,7 @@ encoding_rs = { workspace = true }
 rayon = { workspace = true }
 reqwest = { workspace = true }
 ring = { workspace = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

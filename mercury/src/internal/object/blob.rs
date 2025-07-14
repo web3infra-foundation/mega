@@ -95,7 +95,8 @@ impl Blob {
     /// - some file content can't be represented as a string (UTF-8), so we need to use bytes.
     pub fn from_content_bytes(content: Vec<u8>) -> Self {
         Blob {
-            id: SHA1::from_type_and_data(ObjectType::Blob, &content),// Calculate the SHA1 hash from the type and content
+            // Calculate the SHA1 hash from the type and content
+            id: SHA1::from_type_and_data(ObjectType::Blob, &content),
             data: content,
         }
     }

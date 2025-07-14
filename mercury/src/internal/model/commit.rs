@@ -5,7 +5,7 @@ use common::utils::generate_id;
 
 use crate::{
     internal::{
-        object::{commit::Commit,ObjectTrait},
+        object::{commit::Commit, ObjectTrait},
         pack::entry::Entry,
     },
 };

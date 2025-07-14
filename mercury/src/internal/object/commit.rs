@@ -232,43 +232,51 @@ impl ObjectTrait for Commit {
         Ok(data)
     }
 }
-
-
+fn commit_from_model(
+    commit_id: &str,
+    tree: &str,
+    parents_id: &serde_json::Value,
+    author: Option<String>,
+    committer: Option<String>,
+    message: Option<String>,
+) -> Commit {
+    Commit {
+        id: SHA1::from_str(commit_id).unwrap(),
+        tree_id: SHA1::from_str(tree).unwrap(),
+        parent_commit_ids: parents_id
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
+            .collect(),
+        author: Signature::from_data(author.unwrap().into()).unwrap(),
+        committer: Signature::from_data(committer.unwrap().into()).unwrap(),
+        message: message.unwrap(),
+    }
+}
 
 impl From<mega_commit::Model> for Commit {
     fn from(value: mega_commit::Model) -> Self {
-        Commit {
-            id: SHA1::from_str(&value.commit_id).unwrap(),
-            tree_id: SHA1::from_str(&value.tree).unwrap(),
-            parent_commit_ids: value
-                .parents_id
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
-                .collect(),
-            author: Signature::from_data(value.author.unwrap().into()).unwrap(),
-            committer: Signature::from_data(value.committer.unwrap().into()).unwrap(),
-            message: value.content.unwrap(),
-        }
+        commit_from_model(
+            &value.commit_id,
+            &value.tree,
+            &value.parents_id,
+            value.author,
+            value.committer,
+            value.content,
+        )
     }
 }
 
 impl From<git_commit::Model> for Commit {
     fn from(value: git_commit::Model) -> Self {
-        Commit {
-            id: SHA1::from_str(&value.commit_id).unwrap(),
-            tree_id: SHA1::from_str(&value.tree).unwrap(),
-            parent_commit_ids: value
-                .parents_id
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
-                .collect(),
-            author: Signature::from_data(value.author.unwrap().into()).unwrap(),
-            committer: Signature::from_data(value.committer.unwrap().into()).unwrap(),
-            message: value.content.unwrap(),
-        }
+        commit_from_model(
+            &value.commit_id,
+            &value.tree,
+            &value.parents_id,
+            value.author,
+            value.committer,
+            value.content,
+        )
     }
 }

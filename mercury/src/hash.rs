@@ -218,7 +218,7 @@ mod tests {
             Ok(hash) => {
                 assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 
@@ -230,7 +230,7 @@ mod tests {
             Ok(hash) => {
                 assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 
@@ -248,7 +248,7 @@ mod tests {
                     ]
                 );
             }
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 }
