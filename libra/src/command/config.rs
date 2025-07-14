@@ -46,7 +46,7 @@ impl ConfigArgs {
         }
         // validate that name_only is only valid when list is set
         if self.name_only && !self.list {
-            return Err("name_only is only valid when list is set".to_string());
+            return Err("--name-only is only valid when --list is set".to_string());
         }
 
         Ok(())
