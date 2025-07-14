@@ -1,5 +1,29 @@
+use sea_orm::entity::prelude::*;
+
 use crate::entity_ext::{generate_id, generate_public_id};
-use crate::reactions;
+use crate::reactions::{self, Entity};
+
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    Conversation,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::Conversation => Entity::belongs_to(crate::mega_conversation::Entity)
+                .from(reactions::Column::SubjectId)
+                .to(crate::mega_conversation::Column::Id)
+                .into(),
+        }
+    }
+}
+
+impl Related<crate::mega_conversation::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Conversation.def()
+    }
+}
 
 impl reactions::Model {
     pub fn new(

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ops::Deref;
 
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter};
@@ -7,7 +6,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_conversation, reactions};
 use common::errors::MegaError;
 
-use crate::model::issue_dto::ConvWithReactions;
+use crate::model::conv_dto::ConvWithReactions;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
@@ -36,6 +35,14 @@ impl ConversationStorage {
         Ok(res.id)
     }
 
+    pub async fn remove_conversation(&self, id: i64) -> Result<(), MegaError> {
+        mega_conversation::Entity::delete_by_id(id)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
     pub async fn add_reactions(
         &self,
         content: Option<String>,
@@ -55,32 +62,30 @@ impl ConversationStorage {
     ) -> Result<Vec<ConvWithReactions>, MegaError> {
         let conversations = mega_conversation::Entity::find()
             .filter(mega_conversation::Column::Link.eq(link))
+            .find_with_related(reactions::Entity)
             .all(self.get_connection())
             .await?;
 
-        let conv_ids = conversations.iter().map(|c| c.id).collect::<Vec<_>>();
+        let results = conversations
+            .into_iter()
+            .map(|(conversation, reactions)| ConvWithReactions {
+                conversation,
+                reactions,
+            })
+            .collect();
+        Ok(results)
+    }
 
-        let reactions = reactions::Entity::find()
-            .filter(reactions::Column::SubjectId.is_in(conv_ids.clone()))
-            .all(self.get_connection())
+    pub async fn delete_reaction(
+        &self,
+        pub_reaction_id: &str,
+        username: &str,
+    ) -> Result<(), MegaError> {
+        let _ = reactions::Entity::delete_many()
+            .filter(reactions::Column::PublicId.eq(pub_reaction_id))
+            .filter(reactions::Column::Username.eq(username))
+            .exec(self.get_connection())
             .await?;
-
-        let mut conv_map = HashMap::new();
-        for conversation in conversations {
-            let related = reactions
-                .iter()
-                .filter(|r| r.subject_id == conversation.id)
-                .cloned()
-                .collect();
-            conv_map.insert(
-                conversation.id,
-                ConvWithReactions {
-                    conversation,
-                    reactions: related,
-                },
-            );
-        }
-
-        Ok(conv_map.into_values().collect())
+        Ok(())
     }
 }
