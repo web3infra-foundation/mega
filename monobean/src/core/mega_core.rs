@@ -469,9 +469,10 @@ mod tests {
     use common::config::LogConfig;
     use gtk::gio;
     use gtk::glib;
-    use std::net::{IpAddr, Ipv4Addr};
+    // use std::net::{IpAddr, Ipv4Addr};
     use tempfile::TempDir;
 
+    #[allow(dead_code)]
     async fn test_core(temp_base: &TempDir) -> MegaCore {
         let (tx, _) = bounded(1);
         let (_, cmd_rx) = bounded(1);
