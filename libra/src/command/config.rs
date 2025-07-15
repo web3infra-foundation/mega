@@ -27,7 +27,7 @@ pub struct ConfigArgs {
     #[clap(long("name-only"), requires = "list")]
     pub name_only: bool,
     /// The key string of the configuration entry, should be like configuration.[name].key
-    #[clap(value_name("key"), required_unless_present("list"), required_unless_present("name_only"))]
+    #[clap(value_name("key"), required_unless_present("list"))]
     pub key: Option<String>,
     /// the value or the possible value pattern of the configuration entry
     #[clap(value_name("value_pattern"), required_unless_present("mode"), required_unless_present("name_only"))]
