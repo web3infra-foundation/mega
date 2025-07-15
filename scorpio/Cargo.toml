@@ -12,10 +12,8 @@ reqwest =  { version = "0.12.7", features = ["json","blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 fuse-backend-rs = { version = "0.12.0", features = ["fusedev","async-io"]}
 tokio = { version = "1.40.0", features = ["full"] }
-vm-memory = { version = "0.15.0", features = ["backend-mmap", "backend-bitmap"] }
-axum = { version =  "0.7.7",features=["macros"]}
+axum = { version =  "0.8.4",features=["macros"]}
 rfuse3 = { version = "0.0.2" ,features = ["tokio-runtime","unprivileged"]}
-futures-util = { version = "0.3.30", features = ["sink"] }
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 clap = { version = "4.0", features = ["derive"] }
 
@@ -30,11 +28,10 @@ once_cell = "1.19.0"
 arc-swap = "1.7.1"
 env_logger = "0.11.5"
 sled = "0.34.7"
-bincode = "1.3.3"
+bincode = "2.0.1"
 async-recursion = "1.1.1"
 bytes = "1.7.2"
 futures = "0.3.31"
-vmm-sys-util = "0.11"
 quote = "1.0.38"
 proc-macro2 = "1.0.93"
 uuid = "1.14.0"

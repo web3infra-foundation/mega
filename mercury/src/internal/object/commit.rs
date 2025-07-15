@@ -166,7 +166,6 @@ impl ObjectTrait for Commit {
         // The parent commit ids are all the lines that start with "parent "
         // We can use find_iter to find all occurrences of "parent "
         // and then extract the SHA1 hashes from them.
-        // The parent commit ids are all the lines that start with "parent "
         let parent_commit_ids: Vec<SHA1> = commit[..author_begin]
             .find_iter("parent")
             .map(|parent| {

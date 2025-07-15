@@ -124,7 +124,7 @@ impl ObjectTrait for Tag {
         let tagger = Signature::from_data(tagger_data).unwrap();
         data = &data[data.find_byte(0x0a).unwrap() + 1..];
 
-        let message = unsafe { //There may be non-UTF-8 characters. so we use unsafe -> to_str_unchecked
+        let message = unsafe { // There may be non-UTF-8 characters, so we use `to_str_unchecked` for conversion.
             data[data.find_byte(0x0a).unwrap()..]
                 .to_vec()
                 .to_str_unchecked()

@@ -108,10 +108,7 @@ fn build_new_tree_map(
                         Err(_) => {
                             #[cfg(debug_assertions)]
                             color_info!("New Tree: \x1b[1;32m{}\x1b[0m", parent_path.display());
-                            Tree {
-                                id: SHA1::default(),
-                                tree_items: Vec::new(),
-                            }
+                            Tree::from_tree_items(vec![])
                         }
                     };
                     // Update the new TreeItem
