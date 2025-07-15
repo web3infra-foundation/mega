@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use common::model::Pagination;
+use sea_orm::prelude::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
@@ -146,12 +147,11 @@ impl MrStorage {
         &self,
         link: &str,
     ) -> Result<Option<(mega_mr::Model, Vec<item_assignees::Model>)>, MegaError> {
-        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> =
-            mega_mr::Entity::find()
-                .filter(mega_mr::Column::Link.eq(link))
-                .find_with_related(item_assignees::Entity)
-                .all(self.get_connection())
-                .await?;
+        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Link.eq(link))
+            .find_with_related(item_assignees::Entity)
+            .all(self.get_connection())
+            .await?;
         Ok(assignees.first().cloned())
     }
 
@@ -179,6 +179,19 @@ impl MrStorage {
 
         mr.insert(self.get_connection()).await.unwrap();
         Ok(link)
+    }
+
+    pub async fn edit_title(&self, link: &str, title: &str) -> Result<(), MegaError> {
+        mega_mr::Entity::update_many()
+            .col_expr(mega_mr::Column::Title, Expr::value(title))
+            .col_expr(
+                mega_mr::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now().naive_utc()),
+            )
+            .filter(mega_mr::Column::Link.eq(link))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
     }
 
     pub async fn close_mr(&self, model: mega_mr::Model) -> Result<(), MegaError> {

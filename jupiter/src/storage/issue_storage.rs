@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 
+use sea_orm::prelude::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
@@ -161,6 +162,19 @@ impl IssueStorage {
             .insert(self.get_connection())
             .await?;
         Ok(res)
+    }
+
+    pub async fn edit_title(&self, link: &str, title: &str) -> Result<(), MegaError> {
+        mega_issue::Entity::update_many()
+            .col_expr(mega_issue::Column::Title, Expr::value(title))
+            .col_expr(
+                mega_issue::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now().naive_utc()),
+            )
+            .filter(mega_issue::Column::Link.eq(link))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
     }
 
     pub async fn close_issue(&self, link: &str) -> Result<(), MegaError> {
