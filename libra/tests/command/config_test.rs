@@ -268,7 +268,7 @@ async fn test_config_list_name_only() {
 
 #[tokio::test]
 #[serial]
-async fn test_config_list_name_only_without_list(){
+async fn test_config_list_name_only_without_list() {
     let temp_path = tempdir().unwrap();
     // start a new libra repository in a temporary directory
     test::setup_with_new_libra_in(temp_path.path()).await;
