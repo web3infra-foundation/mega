@@ -22,6 +22,9 @@ pub struct LogArgs {
     /// Limit the number of output
     #[clap(short, long)]
     pub number: Option<usize>,
+    /// Shorthand for --pretty=oneline --abbrev-commit
+    #[clap(long)]
+    pub oneline: bool,
 }
 
 ///  Get all reachable commits from the given commit hash
@@ -83,7 +86,13 @@ pub async fn execute(args: LogArgs) {
             break;
         }
         output_number += 1;
-        let mut message = {
+        let message = if args.oneline {
+            // Oneline format: <short_hash> <commit_message_first_line>
+            let short_hash = &commit.id.to_string()[..7];
+            let (msg, _) = parse_commit_msg(&commit.message);
+            format!("{} {}", short_hash.yellow(), msg)
+        } else {
+            // Default detailed format
             let mut message = format!("{} {}", "commit".yellow(), &commit.id.to_string().yellow());
 
             // TODO other branch's head should shown branch name
@@ -96,11 +105,11 @@ pub async fn execute(args: LogArgs) {
                 }
                 message = format!("{}{}", message, ")".yellow());
             }
+            message.push_str(&format!("\nAuthor: {}", commit.author));
+            let (msg, _) = parse_commit_msg(&commit.message);
+            message.push_str(&format!("\n{msg}\n"));
             message
         };
-        message.push_str(&format!("\nAuthor: {}", commit.author));
-        let (msg, _) = parse_commit_msg(&commit.message);
-        message.push_str(&format!("\n{msg}\n"));
 
         #[cfg(unix)]
         {
@@ -112,7 +121,7 @@ pub async fn execute(args: LogArgs) {
         }
         #[cfg(not(unix))]
         {
-            println!("{}", message);
+            println!("{message}");
         }
     }
     #[cfg(unix)]
