@@ -701,7 +701,7 @@ mod tests {
     #[tokio::test]
     async fn test_pack_check_header() {
         let res = crate::test_utils::setup_lfs_file().await;
-        println!("{:?}", res);
+        println!("{res:?}");
         let source = res
             .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
             .unwrap();
@@ -733,7 +733,7 @@ mod tests {
                 assert_eq!(bytes_read, compressed_size);
                 assert_eq!(decompressed_data, data);
             }
-            Err(e) => panic!("Decompression failed: {:?}", e),
+            Err(e) => panic!("Decompression failed: {e:?}"),
         }
     }
 
@@ -803,7 +803,7 @@ mod tests {
         });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
-            panic!("Error: {:?}", e);
+            panic!("Error: {e:?}");
         }
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 

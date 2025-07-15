@@ -82,10 +82,11 @@ impl ObjectTrait for Blob {
 }
 
 impl Blob {
+
+    /// Create a new Blob object from the given content string.
+    /// - This is a convenience method for creating a Blob from a string.
+    /// - It converts the string to bytes and then calls `from_content_bytes`.
     pub fn from_content(content: &str) -> Self {
-        // let blob_content = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
-        // let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, content.len());
-        // Blob::from_buf_read(&mut buf, content.len())
         let content = content.as_bytes().to_vec();
         Blob::from_content_bytes(content)
     }
@@ -94,6 +95,7 @@ impl Blob {
     /// - some file content can't be represented as a string (UTF-8), so we need to use bytes.
     pub fn from_content_bytes(content: Vec<u8>) -> Self {
         Blob {
+            // Calculate the SHA1 hash from the type and content
             id: SHA1::from_type_and_data(ObjectType::Blob, &content),
             data: content,
         }
