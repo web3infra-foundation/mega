@@ -22,6 +22,10 @@ pub struct ConfigArgs {
     /// List all the configuration entries from database
     #[clap(long, short, group("mode"))]
     pub list: bool,
+    /// If set, only print the key string of the configuration entry instead of the key=value.
+    /// This is only valid when `list` is set.
+    #[clap(long("name-only"), requires = "list")]
+    pub name_only: bool,
     /// The key string of the configuration entry, should be like configuration.[name].key
     #[clap(value_name("key"), required_unless_present("list"))]
     pub key: Option<String>,
@@ -40,6 +44,11 @@ impl ConfigArgs {
         if self.default.is_some() && !(self.get || self.get_all) {
             return Err("default value is only valid when get (get_all) is set".to_string());
         }
+        // validate that name_only is only valid when list is set
+        if self.name_only && !self.list {
+            return Err("--name-only is only valid when --list is set".to_string());
+        }
+
         Ok(())
     }
 }
@@ -56,7 +65,7 @@ pub async fn execute(args: ConfigArgs) {
         return;
     }
     if args.list {
-        list_config().await;
+        list_config(args.name_only).await;
     } else {
         let origin_key = args.key.unwrap();
         let key: Key = parse_key(origin_key).await;
@@ -201,9 +210,15 @@ async fn unset_all_config(key: &Key, valuepattern: Option<&str>) {
 }
 
 /// List all configurations
-async fn list_config() {
+async fn list_config(name_only: bool) {
     let configurations = config::Config::list_all().await;
     for (key, value) in configurations {
-        println!("{key}={value}");
+        // If name_only is set, only print the key string
+        // Otherwise, print the key=value pair
+        if name_only {
+            println!("{key}");
+        } else {
+            println!("{key}={value}");
+        }
     }
 }
