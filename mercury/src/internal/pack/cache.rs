@@ -95,7 +95,7 @@ impl Caches {
         let hash_str = hash._to_string();
         path.push(&hash_str[..2]); // use first 2 chars as the directory
         self.path_prefixes[hash.as_ref()[0] as usize].call_once(|| {
-            // 检查目录是否存在，只有在不存在时才创建
+            // Check if the directory exists, if not, create it
             if !path.exists() {
                 fs::create_dir_all(&path).unwrap();
             }
