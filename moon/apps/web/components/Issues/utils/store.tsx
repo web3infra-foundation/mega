@@ -1,14 +1,20 @@
 import { CookieValueTypes } from 'cookies-next'
+import { atom } from 'jotai'
 import { atomFamily } from 'jotai/utils'
 
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
 export type IssueIndexFilterType = 'open' | 'closed' | 'Merged' | 'draft'
 
+// export const filterAtom = atomFamily(
+//   ({ scope, part }: { scope: CookieValueTypes; part: string }) =>
+//     atomWithWebStorage<IssueIndexFilterType>(`${scope}:${part}-index-filter`, 'open'),
+//   (a, b) => a.scope === b.scope && a.part === b.part
+// )
+
 export const filterAtom = atomFamily(
-  ({ scope, part }: { scope: CookieValueTypes; part: string }) =>
-    atomWithWebStorage<IssueIndexFilterType>(`${scope}:${part}-index-filter`, 'open'),
-  (a, b) => a.scope === b.scope && a.part === b.part
+  ({ part: _part }: { part: string }) => atom<'open' | 'closed'>('open'),
+  (a, b) => a.part === b.part
 )
 
 export interface IssueSortType {

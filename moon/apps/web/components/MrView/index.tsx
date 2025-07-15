@@ -51,9 +51,9 @@ export default function MrView() {
   const [mrList, setMrList] = useState<ItemsType>([])
   const [numTotal, setNumTotal] = useState(0)
   const [pageSize] = useState(10)
-  const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'mr' }))
+  const [status, _setStatus] = useAtom(filterAtom({ part: 'mr' }))
   // const [status, _setStatus] = useState('open')
-  const [page, _setPage] = useState(1)
+  const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const { mutate: fetchMrList } = usePostMrList()
   const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPickerMR' }))
@@ -395,6 +395,10 @@ export default function MrView() {
     }
   }
 
+  const handlePageChange = (page: number) => {
+    setPage(page)
+  }
+
   return (
     <div className='m-4'>
       <Heading>Merge Request</Heading>
@@ -425,11 +429,7 @@ export default function MrView() {
             {(issueList) => {
               return issueList.map((i) => (
                 <Link key={i.link} href={`/${scope}/mr/${i.link}`}>
-                  <MrItem
-                    title={i.title}
-                    leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar commentNum={i.comment_num} />}
-                  >
+                  <MrItem title={i.title} leftIcon={getStatusIcon(i.status)} rightIcon={<RightAvatar item={i} />}>
                     <div className='text-xs text-[#59636e]'>
                       {i.link} {i.status} {getDescription(i)}
                     </div>
@@ -438,7 +438,7 @@ export default function MrView() {
               ))
             }}
           </MrList>
-          <Pagination totalNum={numTotal} pageSize={pageSize} />
+          <Pagination totalNum={numTotal} pageSize={pageSize} onChange={(page: number) => handlePageChange(page)} />
         </IndexPageContent>
       </IndexPageContainer>
     </div>

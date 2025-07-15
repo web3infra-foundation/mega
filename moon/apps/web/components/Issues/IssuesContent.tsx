@@ -25,9 +25,10 @@ import {
   ListBanner,
   ListItem
 } from '@/components/Issues/IssueList'
-import { filterAtom, sortAtom } from '@/components/Issues/utils/store'
+import { currentPage, filterAtom, sortAtom } from '@/components/Issues/utils/store'
 import { useScope } from '@/contexts/scope'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
+import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -74,7 +75,7 @@ export function IssuesContent({ searching }: Props) {
 
   const [pageSize, _setPageSize] = useState(10)
 
-  const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'issue' }))
+  const [status, _setStatus] = useAtom(filterAtom({ part: 'issue' }))
 
   const [issueList, setIssueList] = useState<ItemsType>([])
 
@@ -94,6 +95,8 @@ export function IssuesContent({ searching }: Props) {
 
   const [label, setLabel] = useAtom(labelAtom)
 
+  const [current, setCurrent] = useAtom(currentPage)
+
   const { members } = useSyncedMembers()
 
   const MemberConfig: MenuConfig<Member>[] = [
@@ -103,6 +106,7 @@ export function IssuesContent({ searching }: Props) {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Author']) {
+          setCurrent(1)
           fetchData(1, pageSize)
           setSort({
             ...sort,
@@ -124,6 +128,7 @@ export function IssuesContent({ searching }: Props) {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Assignees']) {
+          setCurrent(1)
           fetchData(1, pageSize)
           setSort({
             ...sort,
@@ -228,6 +233,7 @@ export function IssuesContent({ searching }: Props) {
       const news = label.map((i) => Number(i))
       const addtion = additions(news)
 
+      setCurrent(1)
       fetchData(1, pageSize, addtion)
     }
   }
@@ -339,8 +345,8 @@ export function IssuesContent({ searching }: Props) {
   )
 
   useEffect(() => {
-    fetchData(1, pageSize)
-  }, [pageSize, fetchData])
+    fetchData(current, pageSize)
+  }, [pageSize, fetchData, current])
 
   // if (loading) {
   //   return <IndexPageInstantLoading />
@@ -351,6 +357,10 @@ export function IssuesContent({ searching }: Props) {
   // }
   if (!issueList.length && searching) {
     return <EmptySearchResults />
+  }
+
+  const handlePageChange = (page: number) => {
+    fetchData(page, pageSize)
   }
 
   const getStatusIcon = (status: string) => {
@@ -397,7 +407,7 @@ export function IssuesContent({ searching }: Props) {
                     key={i.link}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar commentNum={i.comment_num} member={members[0]} />}
+                    rightIcon={<RightAvatar item={i} />}
                   >
                     <div className='text-xs text-[#59636e]'>
                       {i.link} · {i.author} {i.status}{' '}
@@ -408,7 +418,7 @@ export function IssuesContent({ searching }: Props) {
               ))
             }}
           </IssueList>
-          <Pagination totalNum={numTotal} pageSize={pageSize} />
+          <Pagination totalNum={numTotal} pageSize={pageSize} onChange={(page: number) => handlePageChange(page)} />
         </>
       )}
     </>
@@ -424,17 +434,24 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
   )
 }
 
-export const RightAvatar = ({ member, commentNum }: { member?: Member; commentNum?: number }) => {
+export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
+  const shouldFetch = item.assignees.length > 0
+
+  const { data } = useGetOrganizationMember({ username: item.assignees[0], org: 'mega', enabled: shouldFetch })
+
   return (
     <>
-      <div className='mr-10 flex items-center justify-between gap-10'>
-        <div className='flex items-center gap-2 text-sm text-gray-500'>
-          <ChatBubbleIcon />
-          {commentNum !== 0 && <span>{commentNum}</span>}
-        </div>
-        {member && (
-          <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
-            <MemberAvatar size='sm' member={member} />
+      <div className='mr-10 flex w-[120px] items-center justify-between gap-10'>
+        {item.comment_num !== 0 && (
+          <div className='flex items-center gap-2 text-sm text-gray-500'>
+            <ChatBubbleIcon />
+            <span>{item.comment_num}</span>
+          </div>
+        )}
+        {data && (
+          // <div>展示头像</div>
+          <MemberHovercard username={item.assignees[0]} side='top' align='end' member={data}>
+            <MemberAvatar size='sm' member={data} />
           </MemberHovercard>
         )}
       </div>
