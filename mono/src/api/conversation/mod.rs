@@ -73,7 +73,7 @@ pub struct ReactionItem {
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct SaveCommentRequest {
+pub struct ContentPayload {
     pub content: String,
 }
 
