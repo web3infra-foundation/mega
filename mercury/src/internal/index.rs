@@ -481,7 +481,7 @@ mod tests {
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
         assert_eq!(index.size(), 760);
         for (_, entry) in index.entries.iter() {
-            println!("{}", entry);
+            println!("{entry}");
         }
     }
 
@@ -499,6 +499,6 @@ mod tests {
         let hash = SHA1::from_bytes(&[0; 20]);
         let workdir = Path::new("../");
         let entry = IndexEntry::new_from_file(file, hash, workdir).unwrap();
-        println!("{}", entry);
+        println!("{entry}");
     }
 }

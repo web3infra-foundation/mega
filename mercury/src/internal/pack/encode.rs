@@ -570,10 +570,10 @@ mod tests {
         let value = 16389;
 
         let data = encode_offset(value);
-        println!("{:?}", data);
+        println!("{data:?}");
         let mut reader = Cursor::new(data);
         let (result, _) = read_offset_encoding(&mut reader).unwrap();
-        println!("result: {}", result);
+        println!("result: {result}" );
         assert_eq!(result, value as u64);
     }
 }
