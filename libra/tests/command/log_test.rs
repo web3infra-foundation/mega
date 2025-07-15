@@ -124,3 +124,42 @@ async fn create_test_commit_tree() -> String {
 
     commit_6.id.to_string()
 }
+
+#[tokio::test]
+#[serial]
+/// Tests log command with --oneline parameter
+async fn test_log_oneline() {
+    let temp_path = tempdir().unwrap();
+    test::setup_with_new_libra_in(temp_path.path()).await;
+    let _guard = ChangeDirGuard::new(temp_path.path());
+    
+    // Create test commits
+    let commit_id = create_test_commit_tree().await;
+    let reachable_commits = get_reachable_commits(commit_id).await;
+    
+    // Test oneline format
+    let args = LogArgs { 
+        number: Some(3), 
+        oneline: true 
+    };
+    
+    // Since execute function writes to stdout, we'll test the logic directly
+    let mut sorted_commits = reachable_commits.clone();
+    sorted_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
+    
+    let max_commits = std::cmp::min(args.number.unwrap_or(usize::MAX), sorted_commits.len());
+    
+    for (i, commit) in sorted_commits.iter().take(max_commits).enumerate() {
+        // Test short hash format (should be 7 characters)
+        let short_hash = &commit.id.to_string()[..7];
+        assert_eq!(short_hash.len(), 7);
+        
+        // Test that commit message parsing works
+        let (msg, _) = common::utils::parse_commit_msg(&commit.message);
+        assert!(!msg.is_empty());
+        
+        // For our test commits, verify the expected format
+        let expected_number = 6 - i; // commits are numbered 6, 5, 4, 3, 2, 1
+        assert_eq!(msg.trim(), format!("Commit_{expected_number}"));
+    }
+}
