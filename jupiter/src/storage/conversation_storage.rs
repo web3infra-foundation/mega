@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use sea_orm::prelude::Expr;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
@@ -33,6 +34,24 @@ impl ConversationStorage {
         let conversation = conversation.into_active_model();
         let res = conversation.insert(self.get_connection()).await.unwrap();
         Ok(res.id)
+    }
+
+    pub async fn update_comment(
+        &self,
+        comment_id: i64,
+        comment: Option<String>,
+    ) -> Result<(), MegaError> {
+        mega_conversation::Entity::update_many()
+            .col_expr(mega_conversation::Column::Comment, Expr::value(comment))
+            .col_expr(
+                mega_conversation::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now().naive_utc()),
+            )
+            .filter(mega_conversation::Column::Id.eq(comment_id))
+            .filter(mega_conversation::Column::ConvType.eq(ConvTypeEnum::Comment))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
     }
 
     pub async fn remove_conversation(&self, id: i64) -> Result<(), MegaError> {

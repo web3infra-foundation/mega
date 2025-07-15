@@ -19,7 +19,7 @@ use crate::api::{
         self,
         model::{AssigneeUpdatePayload, ListPayload},
     },
-    conversation::SaveCommentRequest,
+    conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
     mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
@@ -40,9 +40,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
-            .routes(routes!(delete_comment))
             .routes(routes!(labels))
-            .routes(routes!(assignees)),
+            .routes(routes!(assignees))
+            .routes(routes!(edit_title)),
     )
 }
 
@@ -299,7 +299,7 @@ async fn mr_files_list(
         ("link", description = "MR link"),
     ),
     path = "/{link}/comment",
-    request_body = SaveCommentRequest,
+    request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
@@ -309,7 +309,7 @@ async fn save_comment(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-    Json(payload): Json<SaveCommentRequest>,
+    Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.mr_stg().get_mr(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
@@ -325,23 +325,29 @@ async fn save_comment(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Delete Comment
+/// Edit MR title
 #[utoipa::path(
-    delete,
+    post,
     params(
-        ("conv_id", description = "Conversation id"),
+        ("link", description = "A string ID representing a Merge Request"),
     ),
-    path = "/comment/{conv_id}/delete",
+    path = "/{link}/title",
+    request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
-async fn delete_comment(
-    Path(conv_id): Path<i64>,
+async fn edit_title(
+    _: LoginUser,
+    Path(link): Path<String>,
     state: State<MonoApiServiceState>,
+    Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.conv_stg().remove_conversation(conv_id).await?;
+    state
+        .mr_stg()
+        .edit_title(&link, &payload.content)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -365,7 +371,7 @@ fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
     files
 }
 
-/// update mr related labels
+/// Update mr related labels
 #[utoipa::path(
     post,
     path = "/labels",
@@ -383,7 +389,7 @@ async fn labels(
     api_common::label_assignee::label_update(user, state, payload, String::from("mr")).await
 }
 
-/// update MR related assignees
+/// Update MR related assignees
 #[utoipa::path(
     post,
     path = "/assignees",
