@@ -41,6 +41,10 @@ Manage configuration entries by adding, retrieving, listing, or deleting them in
   List all configuration entries from the database.  
   _Does not require `key` or `value_pattern`._
 
+- `--name-only`
+  Output only the names of config variables for --list
+  _Only valid with `--list`._
+
 - `-d`, `--default <value>`  
   Return the given default value if no matching key is found.  
   _Only valid with `--get` `--get-all`._
@@ -49,5 +53,6 @@ Manage configuration entries by adding, retrieving, listing, or deleting them in
   Print help information.
 
 <Note type="note" title="Note">
-  Only one of `--add`, `--get`, `--get-all`, `--unset`, `--unset-all`, or `--list` can be used at a time. Use `--default` only with `--get` and `--get-all`.
+  Only one of `--add`, `--get`, `--get-all`, `--unset`, `--unset-all`, or `--list` can be used at a time. Use `--default` only with `--get` and `--get-all`. 
+  Use `--name-only` only with `--list`.
 </Note>
