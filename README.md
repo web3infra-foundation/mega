@@ -54,7 +54,7 @@ $ docker pull genedna/mega:mono-ui-latest
 $ git clone https://github.com/web3infra-foundation/mega.git
 $ cd mega
 # Linux or MacOS
-$ ./docker/init-volume.sh /tmp/data ./docker/config.toml
+$ ./docker/init-volume.sh /tmp/data ./config/config.toml
 ```
 
 3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
