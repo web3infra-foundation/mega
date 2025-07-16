@@ -15,7 +15,7 @@
   }
 
   #__next {
-    @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-hidden;
+    @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-auto;
     -webkit-app-region: no-drag;
   }
 
