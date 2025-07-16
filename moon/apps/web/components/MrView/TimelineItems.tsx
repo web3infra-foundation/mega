@@ -6,6 +6,7 @@ import MRComment from '@/components/MrView/MRComment';
 import CloseItem from './CloseItem';
 import ReopenItem from './ReopenItem';
 import MergedItem from './MergedItem';
+import { ConversationItem } from '@gitmono/types/generated'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -55,7 +56,7 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
 
 const TimelineItems: React.FC<{ detail: any, id: string, type: string }> = ({ detail, id, type }) => {
 
-  const convItems: ConvItem[] = detail.conversations.map((conv:any) => {
+  const convItems: ConvItem[] = detail.conversations.map((conv: ConversationItem) => {
     let icon;
     let children;
     let isOver = false;
