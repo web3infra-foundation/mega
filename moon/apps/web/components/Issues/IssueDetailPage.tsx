@@ -301,7 +301,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems mrDetail={issueDetail} id={id} />
+                  <TimelineItems detail={issueDetail} id={id} type="issue"/>
                 )}
 
                 {info && info.status === 'open' && (
