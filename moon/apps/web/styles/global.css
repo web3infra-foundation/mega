@@ -235,6 +235,16 @@ body.grabbing * {
   .copyable-text {
     @apply select-text;
   }
+
+  [aria-haspopup="dialog"]::after,
+  [aria-haspopup="menu"]::after {
+    @apply opacity-0 border-0 ring-0 !important;
+  }
+  
+  button:focus-visible,
+  a:focus-visible {
+    @apply border-transparent outline-none;
+  }
 }
 
 @layer components {

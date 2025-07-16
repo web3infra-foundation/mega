@@ -25,21 +25,14 @@ import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionP
 import { useUploadHelpers } from '@/hooks/useUploadHelpers';
 import { CommentDiscussionIcon, FileDiffIcon, ChecklistIcon } from '@primer/octicons-react'
 import TimelineItems from '@/components/MrView/TimelineItems';
+import { ConversationItem } from '@gitmono/types/generated';
 
 const { UnderlinePanels } = require('@primer/react/experimental')
 
 export interface MRDetail {
     status: string,
-    conversations: Conversation[],
+    conversations: ConversationItem[],
     title: string,
-}
-export interface Conversation {
-    id: number,
-    conv_type: string,
-    comment: string,
-    created_at: number,
-    updated_at: number,
-    username: string,
 }
 
 const  MRDetailPage:PageWithLayout<any> = () =>{
@@ -132,7 +125,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                   <LoadingSpinner />
                 </div>
                 ) : (
-                  <TimelineItems mrDetail={mrDetail} id={id} />
+                  mrDetail && <TimelineItems detail={mrDetail} id={id} type="mr"/>
               )}
               <div className='prose mt-3'>
                 <div className="flex">

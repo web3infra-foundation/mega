@@ -1,8 +1,8 @@
-import { Conversation } from '@/pages/[org]/mr/[id]'
+import { ConversationItem } from '@gitmono/types/generated';
 import HandleTime from './components/HandleTime'
 
 interface MergedItemProps {
-  conv: Conversation
+  conv: ConversationItem
 }
 const MergedItem = ({ conv }: MergedItemProps) => {
 

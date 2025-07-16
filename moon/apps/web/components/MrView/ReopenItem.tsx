@@ -1,14 +1,14 @@
 import { ConditionalWrap } from '@gitmono/ui'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { Conversation } from '@/pages/[org]/mr/[id]'
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { MemberAvatar } from '../MemberAvatar'
 import { UserLinkByName } from './components/UserLinkByName'
 import HandleTime from './components/HandleTime'
+import { ConversationItem } from '@gitmono/types/generated'
 
 
 interface ReopenItemProps {
-  conv: Conversation
+  conv: ConversationItem
 }
 const ReopenItem = ({ conv }: ReopenItemProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })

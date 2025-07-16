@@ -1,6 +1,6 @@
 import { ConditionalWrap } from '@gitmono/ui'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { Conversation } from '@/pages/[org]/mr/[id]'
+import { ConversationItem } from '@gitmono/types/generated';
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { MemberAvatar } from '../MemberAvatar'
 import { UserLinkByName } from './components/UserLinkByName'
@@ -8,7 +8,7 @@ import HandleTime from './components/HandleTime'
 
 
 interface CloseItemProps {
-  conv: Conversation
+  conv: ConversationItem
 }
 const CloseItem = ({ conv }: CloseItemProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
