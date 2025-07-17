@@ -58,14 +58,14 @@ pub async fn execute(args: CommitArgs) {
         let user_email = UserConfig::get("user", None, "email")
             .await
             .unwrap_or_else(|| "unknown".to_string());
-        
+
         // get sign line
         let signoff_line = format!("Signed-off-by: {user_name} <{user_email}>");
         format!("{}\n\n{signoff_line}", args.message)
     } else {
         args.message.clone()
     };
-    
+
     // check format(if needed)
     if args.conventional && !check_conventional_commits_message(&commit_message) {
         panic!("fatal: commit message does not follow conventional commits");
@@ -270,11 +270,10 @@ mod test {
         let args = args.unwrap();
         assert!(args.amend);
         assert!(args.signoff);
-
     }
 
     #[tokio::test]
-    #[serial] 
+    #[serial]
     /// Tests the recursive tree creation from index entries.
     /// Verifies that tree objects are correctly created, saved to storage, and properly organized in a hierarchical structure.
     async fn test_create_tree() {
