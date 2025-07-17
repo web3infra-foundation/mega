@@ -10,7 +10,6 @@ use sea_orm::{
 use callisto::{item_assignees, item_labels, label, mega_conversation, mega_issue};
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::{generate_id, generate_link};
 
 use crate::model::common::{ItemDetails, LabelAssigneeParams, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -100,6 +99,23 @@ impl IssueStorage {
         Ok((res, page))
     }
 
+    pub async fn get_issue_suggestions_by_query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<mega_issue::Model>, MegaError> {
+        let keyword = format!("%{query}%");
+        let res = mega_issue::Entity::find()
+            .filter(
+                Condition::any()
+                    .add(mega_issue::Column::Link.like(&keyword))
+                    .add(mega_issue::Column::Title.like(&keyword)),
+            )
+            .limit(5)
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
     pub async fn get_issue(&self, link: &str) -> Result<Option<mega_issue::Model>, MegaError> {
         let model = mega_issue::Entity::find()
             .filter(mega_issue::Column::Link.eq(link))
@@ -147,16 +163,7 @@ impl IssueStorage {
         username: &str,
         title: &str,
     ) -> Result<mega_issue::Model, MegaError> {
-        let model = mega_issue::Model {
-            id: generate_id(),
-            link: generate_link(),
-            title: title.to_owned(),
-            author: username.to_owned(),
-            status: "open".to_owned(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-            closed_at: None,
-        };
+        let model = mega_issue::Model::new(title.to_owned(), username.to_owned());
         let res = model
             .into_active_model()
             .insert(self.get_connection())
@@ -201,14 +208,7 @@ impl IssueStorage {
         color: &str,
         description: &str,
     ) -> Result<label::Model, MegaError> {
-        let model = label::Model {
-            id: generate_id(),
-            name: name.to_owned(),
-            color: color.to_owned(),
-            description: description.to_owned(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        };
+        let model = label::Model::new(name, color, description);
         let res = model
             .into_active_model()
             .insert(self.get_connection())

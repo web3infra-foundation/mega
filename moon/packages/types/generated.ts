@@ -3151,6 +3151,18 @@ export type CommonResultTreeResponse = {
   req_result: boolean
 }
 
+export type CommonResultVecIssueSuggestions = {
+  data?: {
+    /** @format int64 */
+    id: number
+    link: string
+    title: string
+    type: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecMrFilesRes = {
   data?: {
     action: string
@@ -3253,6 +3265,14 @@ export type IssueDetailRes = {
   open_timestamp: number
   status: string
   title: string
+}
+
+export type IssueSuggestions = {
+  /** @format int64 */
+  id: number
+  link: string
+  title: string
+  type: string
 }
 
 export type ItemRes = {
@@ -4577,6 +4597,12 @@ export type PostApiConversationReactionsData = CommonResultString
 export type PostApiCreateFileData = CommonResultString
 
 export type PostApiIssueAssigneesData = CommonResultString
+
+export type GetApiIssueIssueSuggesterParams = {
+  query: string
+}
+
+export type GetApiIssueIssueSuggesterData = CommonResultVecIssueSuggestions
 
 export type PostApiIssueLabelsData = CommonResultString
 
@@ -13092,7 +13118,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags issue
      * @name PostApiIssueAssignees
-     * @summary update issue related assignees
+     * @summary Update issue related assignees
      * @request POST:/api/v1/issue/assignees
      */
     postApiIssueAssignees: () => {
@@ -13116,8 +13142,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags issue
+     * @name GetApiIssueIssueSuggester
+     * @summary Get issue suggester in comment
+     * @request GET:/api/v1/issue/issue_suggester
+     */
+    getApiIssueIssueSuggester: () => {
+      const base = 'GET:/api/v1/issue/issue_suggester' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base]),
+        requestKey: (params: GetApiIssueIssueSuggesterParams) =>
+          dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base, params]),
+        request: (query: GetApiIssueIssueSuggesterParams, params: RequestParams = {}) =>
+          this.request<GetApiIssueIssueSuggesterData>({
+            path: `/api/v1/issue/issue_suggester`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags issue
      * @name PostApiIssueLabels
-     * @summary update issue related labels
+     * @summary Update issue related labels
      * @request POST:/api/v1/issue/labels
      */
     postApiIssueLabels: () => {
@@ -13385,7 +13436,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags merge_request
      * @name PostApiMrAssignees
-     * @summary update MR related assignees
+     * @summary Update MR related assignees
      * @request POST:/api/v1/mr/assignees
      */
     postApiMrAssignees: () => {
@@ -13410,7 +13461,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags merge_request
      * @name PostApiMrLabels
-     * @summary update mr related labels
+     * @summary Update mr related labels
      * @request POST:/api/v1/mr/labels
      */
     postApiMrLabels: () => {
@@ -13623,7 +13674,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags merge_request
      * @name PostApiMrTitle
-     * @summary Edit mr title
+     * @summary Edit MR title
      * @request POST:/api/v1/mr/{link}/title
      */
     postApiMrTitle: () => {

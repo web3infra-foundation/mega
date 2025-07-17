@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -9,7 +9,10 @@ use common::model::{CommonPage, CommonResult, PageParams};
 use jupiter::service::issue_service::IssueService;
 
 use crate::api::{
-    api_common::model::ListPayload, conversation::ContentPayload, label::LabelUpdatePayload,
+    api_common::model::ListPayload,
+    conversation::ContentPayload,
+    issue::{IssueSuggestions, QueryPayload},
+    label::LabelUpdatePayload,
 };
 use crate::api::{
     api_common::{self, model::AssigneeUpdatePayload},
@@ -33,7 +36,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title)),
+            .routes(routes!(edit_title))
+            .routes(routes!(issue_suggester)),
     )
 }
 
@@ -269,4 +273,30 @@ async fn edit_title(
         .edit_title(&link, &payload.content)
         .await?;
     Ok(Json(CommonResult::success(None)))
+}
+
+/// Get issue suggester in comment
+#[utoipa::path(
+    get,
+    params(QueryPayload),
+    path = "/issue_suggester",
+    responses(
+        (status = 200, body = CommonResult<Vec<IssueSuggestions>>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
+async fn issue_suggester(
+    Query(payload): Query<QueryPayload>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<IssueSuggestions>>>, ApiError> {
+    let (issues, mrs) = state
+        .storage
+        .issue_service
+        .get_suggestions(&payload.query)
+        .await?;
+    let mut res: Vec<IssueSuggestions> = issues.into_iter().map(|m| m.into()).collect();
+    let mut mr_list: Vec<IssueSuggestions> = mrs.into_iter().map(|m| m.into()).collect();
+    res.append(&mut mr_list);
+    res.sort();
+    Ok(Json(CommonResult::success(Some(res))))
 }
