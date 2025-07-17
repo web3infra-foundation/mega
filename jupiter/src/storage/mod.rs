@@ -96,16 +96,16 @@ impl Storage {
             relay_storage,
             user_storage,
             vault_storage,
-            mr_storage: mr_storage.clone(),
-            issue_storage: issue_storage.clone(),
-            conversation_storage: conversation_storage.clone(),
+            mr_storage,
+            issue_storage,
+            conversation_storage,
             lfs_file_storage,
         };
         Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
-            issue_service: IssueService::new(issue_storage, conversation_storage.clone()),
-            mr_service: MRService::new(mr_storage, conversation_storage),
+            issue_service: IssueService::new(base.clone()),
+            mr_service: MRService::new(base.clone()),
         }
     }
 

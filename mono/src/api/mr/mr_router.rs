@@ -344,10 +344,7 @@ async fn edit_title(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state
-        .mr_stg()
-        .edit_title(&link, &payload.content)
-        .await?;
+    state.mr_stg().edit_title(&link, &payload.content).await?;
     Ok(Json(CommonResult::success(None)))
 }
 

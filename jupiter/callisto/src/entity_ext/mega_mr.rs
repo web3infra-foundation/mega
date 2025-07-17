@@ -1,6 +1,10 @@
 use sea_orm::entity::prelude::*;
 
-use crate::mega_mr::Entity;
+use crate::{
+    entity_ext::{generate_id, generate_link},
+    mega_mr::{self, Entity},
+    sea_orm_active_enums::MergeStatusEnum,
+};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
@@ -44,5 +48,23 @@ impl Related<crate::mega_conversation::Entity> for Entity {
     }
     fn via() -> Option<RelationDef> {
         None
+    }
+}
+
+impl mega_mr::Model {
+    pub fn new(path: String, title: String, from_hash: String, to_hash: String) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            id: generate_id(),
+            link: generate_link(),
+            title: title.to_owned(),
+            status: MergeStatusEnum::Open,
+            created_at: now,
+            updated_at: now,
+            merge_date: None,
+            path,
+            from_hash,
+            to_hash,
+        }
     }
 }
