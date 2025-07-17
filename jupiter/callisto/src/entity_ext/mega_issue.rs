@@ -1,6 +1,9 @@
 use sea_orm::entity::prelude::*;
 
-use crate::mega_issue::Entity;
+use crate::{
+    entity_ext::{generate_id, generate_link},
+    mega_issue::{self, Entity},
+};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
@@ -48,5 +51,21 @@ impl Related<crate::mega_conversation::Entity> for Entity {
     }
     fn via() -> Option<RelationDef> {
         None
+    }
+}
+
+impl mega_issue::Model {
+    pub fn new(title: String, author: String) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            id: generate_id(),
+            link: generate_link(),
+            title,
+            author,
+            status: "open".to_owned(),
+            created_at: now,
+            updated_at: now,
+            closed_at: None,
+        }
     }
 }

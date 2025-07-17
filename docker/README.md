@@ -13,7 +13,7 @@ docker buildx build -t mega:mono-engine-latest -f ./docker/mono-engine-dockerfil
 # docker buildx build -t mega:mono-engine-latest-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
 
 # build frontend mono ui image
-docker buildx build -t mega:mono-ui-latest-release -f ./docker/mono-ui-dockerfile .
+docker buildx build -t mega:mono-ui-latest-release -f ./moon/apps/web/Dockerfile .
 
 # build backend aries engine image (default in release mode)
 docker buildx build -t mega:aries-engine-latest -f ./docker/aries-engine-dockerfile .

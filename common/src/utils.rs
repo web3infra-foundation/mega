@@ -1,5 +1,4 @@
 use idgenerator::IdInstance;
-use rand::prelude::*;
 use regex::Regex;
 use serde_json::{json, Value};
 
@@ -11,16 +10,6 @@ pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
 pub fn generate_id() -> i64 {
     // Call `next_id` to generate a new unique id.
     IdInstance::next_id()
-}
-
-pub fn generate_link() -> String {
-    let rng = rand::rng();
-    let str: String = rng
-        .sample_iter(rand::distr::Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect();
-    str.to_uppercase()
 }
 
 pub const MEGA_BRANCH_NAME: &str = "refs/heads/main";
@@ -168,15 +157,5 @@ mod test {
 
         let msg = "()(common): add new feature"; // unssupported characters in type
         assert!(!check_conventional_commits_message(msg));
-    }
-
-    #[test]
-    fn test_link_generate() {
-        let link = generate_link();
-        println!("MR Link: '{:?}'", link);
-        assert!(
-            link.chars().count() == 8
-                && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())
-        )
     }
 }
