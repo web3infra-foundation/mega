@@ -82,7 +82,6 @@ impl ObjectTrait for Blob {
 }
 
 impl Blob {
-
     /// Create a new Blob object from the given content string.
     /// - This is a convenience method for creating a Blob from a string.
     /// - It converts the string to bytes and then calls `from_content_bytes`.
