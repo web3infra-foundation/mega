@@ -85,6 +85,10 @@
       @apply text-primary cursor-pointer font-semibold;
     }
 
+    .link-issue {
+      @apply text-blue-500 border-b border-blue-500 cursor-pointer;
+    }
+
     :where(ul, ol):not(:where([class~='not-prose']) *) {
       /* Erase margins in nested lists */
       ul,

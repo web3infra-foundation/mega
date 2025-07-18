@@ -49,6 +49,7 @@ export interface SimpleNoteContentRef {
   clearAndBlur(): void
   insertReaction: TTEditor['commands']['insertReaction']
   uploadAndAppendAttachments: (files: File[]) => Promise<void>
+  getLinkedIssues(): string[]
 }
 
 export const SimpleNoteContent = memo(
@@ -116,6 +117,17 @@ export const SimpleNoteContent = memo(
               editor.commands.focus('end')
             }
           }
+        },
+        getLinkedIssues: () => {
+          const issues: string[] = []
+          
+          editor.state.doc.descendants((node) => {
+            if (node.type.name === 'linkIssue' && node.attrs.id) {
+              issues.push(node.attrs.id)
+            }
+          })
+        
+          return Array.from(new Set(issues))
         },
         uploadAndAppendAttachments,
         ...imperativeHandlers,
