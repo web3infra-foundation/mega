@@ -8,7 +8,7 @@ use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
 use crate::config::PREFIX;
 use crate::CONTEXT;
 use adw::glib::Priority;
-use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
+use adw::prelude::{ActionMapExt, Cast, ObjectExt, SettingsExt, SettingsExtManual, StaticVariantType, ToValue, ToVariant};
 use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
@@ -16,6 +16,7 @@ use gtk::glib;
 use gtk::prelude::{GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
+use gtk::gio::{SimpleAction, SimpleActionGroup};
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -197,12 +198,37 @@ impl MonobeanWindow {
     }
 
     fn setup_widget(&self) {
+
+
         let imp = self.imp();
         let prim_btn = imp.primary_menu_button.get();
         let popover = prim_btn.popover().unwrap();
         let popover = popover.downcast::<PopoverMenu>().unwrap();
         let theme = ThemeSelector::new();
         popover.add_child(&theme, "theme");
+
+        // popoverMenu cont find win.(action) change the action group
+        let action_group = SimpleActionGroup::new();
+
+        //  style-variant action
+        let settings = self.settings().clone();
+        let action = SimpleAction::new_stateful(
+            "style-variant",
+            Some(&String::static_variant_type()),
+            &settings.string("style-variant").to_variant(),
+        );
+        action.connect_activate(move |action, parameter| {
+            if let Some(param) = parameter {
+                let value = param.get::<String>().unwrap();
+                action.set_state(&value.to_variant());
+                settings.set_string("style-variant", &value).expect("Failed to set style-variant in GSettings");
+            }
+        });
+
+       
+        action_group.add_action(&action);
+
+        popover.insert_action_group("style", Some(&action_group));
     }
 
     pub fn add_toast(&self, message: String) {
@@ -243,6 +269,8 @@ impl MonobeanWindow {
                 Some(scheme.to_value())
             })
             .build();
+
+        
     }
 }
 
