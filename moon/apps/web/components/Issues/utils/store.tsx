@@ -30,3 +30,9 @@ export const sortAtom = atomFamily(
 export const darkModeAtom = atomWithWebStorage<boolean>('darkMode', false)
 
 export const currentPage = atomWithWebStorage<number>('currentPage', 1)
+
+export const issueOpenCurrentPage = atomWithWebStorage('IssueOpencurrentPage', 1)
+export const issueCloseCurrentPage = atomWithWebStorage('IssueClosecurrentPage', 1)
+
+export const mrOpenCurrentPage = atomWithWebStorage('MROpencurrentPage', 1)
+export const mrCloseCurrentPage = atomWithWebStorage('MRClosecurrentPage', 1)
