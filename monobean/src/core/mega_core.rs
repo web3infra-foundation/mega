@@ -232,6 +232,11 @@ impl MegaCore {
 
         let config = self.config.read().await.clone();
 
+
+        #[cfg(test)]
+        let inner = MegaContext::mock(config.clone()).await;
+
+        #[cfg(not(test))]
         let inner = MegaContext::new(config.clone()).await;
 
         let http_ctx = inner.clone();
@@ -465,11 +470,14 @@ mod tests {
     use crate::config::APP_NAME;
     use crate::config::MEGA_CONFIG_PATH;
     use async_channel::bounded;
-    use common::config::DbConfig;
     use common::config::LogConfig;
+    use common::config::{AuthConfig, DbConfig, LFSConfig, MonoConfig, PackConfig};
     use gtk::gio;
     use gtk::glib;
-    // use std::net::{IpAddr, Ipv4Addr};
+
+    use std::fs;
+    use std::net::{IpAddr, Ipv4Addr};
+
     use tempfile::TempDir;
 
     #[allow(dead_code)]
@@ -488,8 +496,20 @@ mod tests {
                 db_path: temp_base.path().to_path_buf().join("test.db"),
                 ..Default::default()
             },
-            ..Default::default()
+            monorepo: MonoConfig::default(),
+            pack: PackConfig::default(),
+            authentication: AuthConfig::default(),
+            lfs: LFSConfig::default(),
+            oauth: None,
         };
+
+        // make config saved in temp dir
+        let config_dir = temp_base.path().join("etc");
+        fs::create_dir_all(&config_dir).unwrap();
+        let config_path = config_dir.join("config.toml");
+        let toml_str = toml::to_string(&config).unwrap();
+        fs::write(&config_path, toml_str).unwrap();
+        let config = Config::new(config_path.to_str().unwrap()).unwrap();
 
         let core = MegaCore::new(tx, cmd_rx, config);
         core.init().await;
@@ -515,51 +535,46 @@ mod tests {
         let _ = Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
     }
 
-    // #[tokio::test]
-    // async fn test_launch_http() {
-    //     let temp_base = TempDir::new().unwrap();
 
-    //     // 设置环境变量，让 mega_base() 返回临时目录
-    //     unsafe {
-    //         std::env::set_var("MEGA_BASE_DIR", temp_base.path());
-    //     }
+    #[tokio::test]
+    async fn test_launch_http() {
+        let temp_base = TempDir::new().unwrap();
 
-    //     let core = test_core(&temp_base).await;
+        let core = test_core(&temp_base).await;
 
-    //     core.process_command(MegaCommands::MegaStart(
-    //         Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
-    //         None,
-    //         P2pOptions::default(),
-    //     ))
-    //     .await;
-    //     assert!(core.http_options.read().await.is_some());
-    //     assert!(!core.ssh_options.read().await.is_some());
+        core.process_command(MegaCommands::MegaStart(
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
+            None,
+            P2pOptions::default(),
+        ))
+        .await;
+        assert!(core.http_options.read().await.is_some());
+        assert!(!core.ssh_options.read().await.is_some());
 
-    //     core.process_command(MegaCommands::MegaShutdown).await;
-    //     assert!(core.http_options.read().await.is_none());
-    //     assert!(core.ssh_options.read().await.is_none());
-    // }
+        core.process_command(MegaCommands::MegaShutdown).await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_none());
+    }
 
-    // #[tokio::test]
-    // async fn test_launch_ssh() {
-    //     let temp_base = TempDir::new().unwrap();
-    //     unsafe {
-    //         std::env::set_var("MEGA_BASE_DIR", temp_base.path());
-    //     }
-    //     let core = test_core(&temp_base).await;
-    //     core.process_command(MegaCommands::MegaStart(
-    //         None,
-    //         Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
-    //         P2pOptions::default(),
-    //     ))
-    //     .await;
-    //     assert!(core.http_options.read().await.is_none());
-    //     assert!(core.ssh_options.read().await.is_some());
+    #[tokio::test]
+    async fn test_launch_ssh() {
+        let temp_base = TempDir::new().unwrap();
 
-    //     core.process_command(MegaCommands::MegaShutdown).await;
-    //     assert!(core.http_options.read().await.is_none());
-    //     assert!(core.ssh_options.read().await.is_none());
-    // }
+        let core = test_core(&temp_base).await;
+        core.process_command(MegaCommands::MegaStart(
+            None,
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
+            P2pOptions::default(),
+        ))
+        .await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_some());
+
+        core.process_command(MegaCommands::MegaShutdown).await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_none());
+    }
+
 
     #[tokio::test]
     async fn test_run_with_config() {}
