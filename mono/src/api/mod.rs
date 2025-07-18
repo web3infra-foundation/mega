@@ -16,14 +16,16 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::{
-    storage::Storage,
-    storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
+use jupiter::storage::{
+    conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
+    user_storage::UserStorage, Storage,
 };
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 
+pub mod api_common;
 pub mod api_router;
+pub mod conversation;
 pub mod error;
 pub mod issue;
 pub mod label;
@@ -102,13 +104,16 @@ impl MonoApiServiceState {
         self.storage.user_storage()
     }
 
+    fn conv_stg(&self) -> ConversationStorage {
+        self.storage.conversation_storage()
+    }
+
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
         let import_dir = self.storage.config().monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
             if let Some(model) = self
                 .storage
-                .services
-                .git_db_storage
+                .git_db_storage()
                 .find_git_repo_like_path(path.to_str().unwrap())
                 .await
                 .unwrap()

@@ -1,8 +1,6 @@
 import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useRouter } from 'next/router'
 
-import '@primer/primitives/dist/css/functional/themes/light.css'
-
 import IssueNewPage from '@/components/Issues/IssueNewPage'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
@@ -13,7 +11,11 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
 
   return (
     <>
-      <IssueNewPage key={router.pathname} />
+      <ThemeProvider>
+        <BaseStyles>
+          <IssueNewPage key={router.pathname} />
+        </BaseStyles>
+      </ThemeProvider>
     </>
   )
 }
@@ -21,11 +23,7 @@ const OrganizationIssueNewPage: PageWithLayout<any> = () => {
 OrganizationIssueNewPage.getProviders = (page, pageProps) => {
   return (
     <AuthAppProviders {...pageProps}>
-      <ThemeProvider>
-        <BaseStyles>
-          <AppLayout {...pageProps}>{page}</AppLayout>
-        </BaseStyles>
-      </ThemeProvider>
+      <AppLayout {...pageProps}>{page}</AppLayout>
     </AuthAppProviders>
   )
 }

@@ -1,90 +1,50 @@
-use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
-use callisto::{
-    label, mega_conversation, mega_mr,
-    sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum},
-};
+use ceres::model::mr::MrDiffFile;
+use jupiter::model::mr_dto::MRDetails;
+use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::api::label::LabelItem;
+use callisto::sea_orm_active_enums::MergeStatusEnum;
+
+use crate::api::{conversation::ConversationItem, label::LabelItem};
 
 pub mod mr_router;
 
-#[derive(Deserialize, ToSchema)]
-pub struct MRStatusParams {
-    pub status: String,
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct MrInfoItem {
+#[derive(Serialize, ToSchema)]
+pub struct MRDetailRes {
+    pub id: i64,
     pub link: String,
     pub title: String,
     pub status: MergeStatusEnum,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
-    pub updated_at: i64,
+    pub conversations: Vec<ConversationItem>,
     pub labels: Vec<LabelItem>,
+    pub assignees: Vec<String>,
 }
 
-impl From<(mega_mr::Model, Vec<label::Model>)> for MrInfoItem {
-    fn from(value: (mega_mr::Model, Vec<label::Model>)) -> Self {
+impl From<MRDetails> for MRDetailRes {
+    fn from(value: MRDetails) -> Self {
         Self {
-            link: value.0.link,
-            title: value.0.title,
-            status: value.0.status,
-            open_timestamp: value.0.created_at.and_utc().timestamp(),
-            merge_timestamp: value.0.merge_date.map(|dt| dt.and_utc().timestamp()),
-            updated_at: value.0.updated_at.and_utc().timestamp(),
-            labels: value.1.into_iter().map(|m| m.into()).collect(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct MRDetail {
-    pub id: i64,
-    pub link: String,
-    pub title: String,
-    pub status: MergeStatusEnum,
-    pub open_timestamp: i64,
-    pub merge_timestamp: Option<i64>,
-    pub conversations: Vec<MegaConversation>,
-}
-
-impl From<mega_mr::Model> for MRDetail {
-    fn from(value: mega_mr::Model) -> Self {
-        Self {
-            id: value.id,
-            link: value.link,
-            title: value.title,
-            status: value.status,
-            open_timestamp: value.created_at.and_utc().timestamp(),
-            merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
-            conversations: vec![],
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct MegaConversation {
-    pub id: i64,
-    pub username: String,
-    pub conv_type: ConvTypeEnum,
-    pub comment: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
-}
-
-impl From<mega_conversation::Model> for MegaConversation {
-    fn from(value: mega_conversation::Model) -> Self {
-        Self {
-            id: value.id,
-            username: value.username,
-            conv_type: value.conv_type,
-            comment: value.comment,
-            created_at: value.created_at.and_utc().timestamp(),
-            updated_at: value.updated_at.and_utc().timestamp(),
+            id: value.mr.id,
+            link: value.mr.link,
+            title: value.mr.title,
+            status: value.mr.status,
+            open_timestamp: value.mr.created_at.and_utc().timestamp(),
+            merge_timestamp: value.mr.merge_date.map(|dt| dt.and_utc().timestamp()),
+            conversations: value
+                .conversations
+                .into_iter()
+                .map(|x| ConversationItem::from_model(x.conversation, x.reactions, &value.username))
+                .collect(),
+            labels: value.labels.into_iter().map(|x| x.into()).collect(),
+            assignees: value
+                .assignees
+                .into_iter()
+                .map(|x| x.assignnee_id)
+                .collect(),
         }
     }
 }
@@ -134,7 +94,31 @@ impl MuiTreeNode {
     }
 }
 
-#[derive(Deserialize, ToSchema)]
-pub struct SaveCommentRequest {
-    pub content: String,
+#[derive(Serialize, ToSchema)]
+pub struct MrFilesRes {
+    pub path: String,
+    pub sha: String,
+    pub action: String,
+}
+
+impl From<MrDiffFile> for MrFilesRes {
+    fn from(value: MrDiffFile) -> Self {
+        match value {
+            MrDiffFile::New(path, sha) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: sha.to_string(),
+                action: String::from_str("new").unwrap(),
+            },
+            MrDiffFile::Deleted(path, sha) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: sha.to_string(),
+                action: String::from_str("deleted").unwrap(),
+            },
+            MrDiffFile::Modified(path, _, new) => Self {
+                path: path.to_string_lossy().to_string(),
+                sha: new.to_string(),
+                action: String::from_str("modified").unwrap(),
+            },
+        }
+    }
 }

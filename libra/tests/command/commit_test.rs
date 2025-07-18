@@ -18,6 +18,7 @@ async fn test_execute_commit_with_empty_index_fail() {
         allow_empty: false,
         conventional: false,
         amend: false,
+        signoff: false,
     };
     commit::execute(args).await;
 }
@@ -39,6 +40,7 @@ async fn test_execute_commit() {
             allow_empty: true,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
 
@@ -63,6 +65,7 @@ async fn test_execute_commit() {
             allow_empty: true,
             conventional: false,
             amend: true,
+            signoff: false,
         };
         commit::execute(args).await;
 
@@ -103,6 +106,7 @@ async fn test_execute_commit() {
             allow_empty: false,
             conventional: false,
             amend: false,
+            signoff: false,
         };
         commit::execute(args).await;
 
@@ -130,6 +134,7 @@ async fn test_execute_commit() {
             allow_empty: true,
             conventional: false,
             amend: true,
+            signoff: false,
         };
         commit::execute(args).await;
 

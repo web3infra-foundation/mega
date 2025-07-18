@@ -15,7 +15,7 @@
   }
 
   #__next {
-    @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-hidden;
+    @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-auto;
     -webkit-app-region: no-drag;
   }
 
@@ -98,6 +98,23 @@
       .bg-primary {
         --base-shadow-color: rgb(0 0 0 / 0.05);
       }
+    }
+
+    .no-border-input input:focus,
+    .no-border-input input:focus-visible {
+      @apply outline-none; /* Tailwind 内置类，去除默认轮廓 */
+      border-color: transparent !important;
+      box-shadow: none !important;
+    }
+    .new-issue-input {
+      height: 24px !important;
+      line-height: 24px !important;
+    }
+    .new-issue-side-input input {
+      line-height: 1 !important;
+    }
+    [role="tabpanel"]:focus {
+      outline: none;
     }
   }
 
@@ -216,7 +233,17 @@ body.grabbing * {
     }
   }
   .copyable-text {
-    @apply select-text; 
+    @apply select-text;
+  }
+
+  [aria-haspopup="dialog"]::after,
+  [aria-haspopup="menu"]::after {
+    @apply opacity-0 border-0 ring-0 !important;
+  }
+  
+  button:focus-visible,
+  a:focus-visible {
+    @apply border-transparent outline-none;
   }
 }
 

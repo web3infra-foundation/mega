@@ -1,7 +1,7 @@
 import React, { forwardRef, memo, ReactNode, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 
-import { SyncOrganizationMember } from '@gitmono/types/index'
+import { LabelItem, SyncOrganizationMember } from '@gitmono/types/index'
 import {
   Button,
   ChevronDownIcon,
@@ -16,7 +16,6 @@ import {
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { MenuItem } from '@gitmono/ui/Menu'
 
-import { Label } from '@/components/Issues/IssuesContent'
 import { darkModeAtom } from '@/components/Issues/utils/store'
 import { SubjectCommand } from '@/components/Subject/SubjectCommand'
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
@@ -119,7 +118,7 @@ export const DropdownItemwithAvatar = ({
   )
 }
 
-export const DropdownItemwithLabel = ({ classname, label }: { classname?: string; label: Label }) => {
+export const DropdownItemwithLabel = ({ classname, label }: { classname?: string; label: LabelItem }) => {
   return (
     <div
       className={cn(
@@ -133,7 +132,7 @@ export const DropdownItemwithLabel = ({ classname, label }: { classname?: string
         style={{ backgroundColor: label.color, borderColor: label.color }}
       />
       <span className='text-sm font-semibold'>{label.name}</span>
-      <span className='ml-1 text-xs text-gray-500'>{label.remarks}</span>
+      <span className='ml-1 text-xs text-gray-500'>{label.description}</span>
     </div>
   )
 }
@@ -193,6 +192,40 @@ export const DropdownOrder = ({
     </>
   )
 }
+export const DropdownReview = ({
+  name,
+  dropdownArr,
+  dropdownItem,
+  onOpen,
+  open
+}: {
+  name: string
+  dropdownArr: MenuItem[]
+  dropdownItem?: MenuItem[]
+  onOpen?: (open: boolean) => void
+  open?: boolean
+  inside?: React.ReactNode
+}) => {
+  return (
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={onOpen}
+        key={name}
+        align='end'
+        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+        items={[...dropdownArr, ...(dropdownItem as MenuItem[])]}
+        trigger={
+          <Button size='sm' variant={'plain'} tooltipShortcut={name}>
+            <div className='flex items-center'>
+              {name} <ChevronDownIcon />
+            </div>
+          </Button>
+        }
+      />
+    </>
+  )
+}
 
 // dropdownArr是不一样的，其他一样
 export const Dropdown = ({
@@ -201,7 +234,7 @@ export const Dropdown = ({
   dropdownItem,
   isChosen,
   onOpen,
-  open,
+  // open,
   inside
 }: {
   name: string
@@ -217,6 +250,14 @@ export const Dropdown = ({
   // const [sort] = useAtom(sortAtom({ scope, filter: 'sortPicker' }))
   const isSearching = query.length > 0
   const ref = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState<boolean>(false)
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (onOpen) {
+      onOpen(isOpen) // 把状态变化通知给父组件
+    }
+  }
 
   const DropdownSearch = () => (
     <div className='flex flex-1 flex-row items-center gap-2'>
@@ -252,7 +293,7 @@ export const Dropdown = ({
       {isChosen ? (
         <DropdownMenu
           open={open}
-          onOpenChange={onOpen}
+          onOpenChange={(open) => handleOpenChange(open)}
           key={name}
           align='end'
           desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
@@ -265,8 +306,11 @@ export const Dropdown = ({
             },
             {
               type: 'item',
-              label: <DropdownSearch />,
-              onSelect: (e) => e.preventDefault()
+              label: <DropdownSearch />
+              // onSelect: (e) => {
+              //   e.preventDefault()
+              //   onOpen?.(false)
+              // }
               // className: 'sticky top-10 z-50 bg-white'
             },
             { type: 'separator' },
@@ -290,6 +334,8 @@ export const Dropdown = ({
         <DropdownMenu
           key={name}
           align='end'
+          open={open}
+          onOpenChange={(open) => handleOpenChange(open)}
           desktop={{ width: 'w-72' }}
           items={[
             {

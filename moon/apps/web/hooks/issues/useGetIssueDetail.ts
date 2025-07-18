@@ -4,11 +4,11 @@ import { legacyApiClient } from '@/utils/queryClient'
 
 interface conversations {
   id: number
-  user_id: number
   conv_type: string
   comment: string
   created_at: number
   updated_at: number
+  username: string
 }
 
 interface raw {
@@ -22,7 +22,7 @@ interface raw {
 
 interface issueDetail {
   status: string
-  conversations: { id: number; user_id: number; conv_type: string; comment: string; created_at: number }[]
+  conversations: conversations[]
   title: string
 }
 
@@ -35,7 +35,7 @@ const getApiIssueDetail = legacyApiClient.v1.getApiIssueDetail()
 
 export function useGetIssueDetail(id: string) {
   return useQuery<detailRes, Error>({
-    queryKey: ['issueDetail', id],
+    queryKey: legacyApiClient.v1.getApiIssueDetail().requestKey(id),
     queryFn: async () => {
       const { err_message, data, req_result } = await getApiIssueDetail.request(id)
 

@@ -25,27 +25,22 @@ impl AppContext {
     pub async fn new(config: common::config::Config) -> Self {
 
         let config = Arc::new(config);
-       
-        let storage = jupiter::storage::Storage::new(config.clone()).await;
-        
-        let storage_for_vault = storage.clone();
 
+
+        let storage = jupiter::storage::Storage::new(config.clone()).await;
+
+        let storage_for_vault = storage.clone();
         let vault = tokio::task::spawn_blocking(move || {
             vault::integration::vault_core::VaultCore::new(storage_for_vault)
-        }).await.expect("VaultCore::new panicked");
+        })
+        .await
+        .expect("VaultCore::new panicked");
 
-        
-        
-        
-        
+
         #[cfg(feature = "p2p")]
         let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
 
-        storage
-            .services
-            .mono_storage
-            .init_monorepo(&config.monorepo)
-            .await;
+        storage.mono_storage().init_monorepo(&config.monorepo).await;
 
         Self {
             storage,

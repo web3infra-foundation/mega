@@ -251,7 +251,7 @@ impl P2PClient {
     }
 
     pub async fn repo_share(&self, path: String) -> Result<String> {
-        let db = self.storage.services.git_db_storage.clone();
+        let db = self.storage.git_db_storage();
         let client = self.wrapped_client();
 
         let repo: git_repo::Model =
@@ -322,7 +322,7 @@ impl P2PClient {
     }
 
     async fn request_git_clone(&self, path: String, to_peer_id: String) -> Result<()> {
-        let db = self.storage.services.git_db_storage.clone();
+        let db = self.storage.git_db_storage();
         let model = match db.find_git_repo_exact_match(path.as_str()).await {
             Ok(model) => model,
             Err(e) => bail!(e),
@@ -458,7 +458,7 @@ impl P2PClient {
     }
 
     async fn response_git_clone(&self, path: String, to_peer_id: String) -> Result<()> {
-        let db = self.storage.services.git_db_storage.clone();
+        let db = self.storage.git_db_storage();
 
         let repo: Repo = match get_git_model_by_path(self.storage.clone(), path.clone()).await {
             None => {

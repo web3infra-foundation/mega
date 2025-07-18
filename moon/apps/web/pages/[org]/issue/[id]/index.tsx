@@ -1,3 +1,4 @@
+import { BaseStyles, ThemeProvider } from '@primer/react'
 import { GetServerSideProps } from 'next'
 
 import IssueDetailPage from '@/components/Issues/IssueDetailPage'
@@ -24,7 +25,11 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
 const OrganizationIssueDetailPage: PageWithLayout<any> = ({ id }) => {
   return (
     <>
-      <IssueDetailPage id={id} key={id} />
+      <ThemeProvider>
+        <BaseStyles>
+          <IssueDetailPage id={id} key={id} />
+        </BaseStyles>
+      </ThemeProvider>
     </>
   )
 }

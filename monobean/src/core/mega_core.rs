@@ -232,10 +232,12 @@ impl MegaCore {
 
         let config = self.config.read().await.clone();
 
+
         #[cfg(test)]
         let inner = MegaContext::mock(config.clone()).await;
 
         #[cfg(not(test))]
+
         let inner = MegaContext::new(config.clone()).await;
 
         let http_ctx = inner.clone();
@@ -301,9 +303,7 @@ impl MegaCore {
         if path.as_ref().starts_with(&import_dir) && path.as_ref() != import_dir {
             if let Some(model) = ctx
                 .storage
-                .services
-                .as_ref()
-                .git_db_storage
+                .git_db_storage()
                 .find_git_repo_like_path(path.as_ref().to_string_lossy().as_ref())
                 .await
                 .unwrap()
@@ -475,10 +475,13 @@ mod tests {
     use common::config::{AuthConfig, DbConfig, LFSConfig, MonoConfig, PackConfig};
     use gtk::gio;
     use gtk::glib;
+
     use std::fs;
     use std::net::{IpAddr, Ipv4Addr};
+
     use tempfile::TempDir;
 
+    #[allow(dead_code)]
     async fn test_core(temp_base: &TempDir) -> MegaCore {
         let (tx, _) = bounded(1);
         let (_, cmd_rx) = bounded(1);
@@ -534,6 +537,7 @@ mod tests {
         let _ = Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
     }
 
+
     #[tokio::test]
     async fn test_launch_http() {
         let temp_base = TempDir::new().unwrap();
@@ -572,6 +576,7 @@ mod tests {
         assert!(core.http_options.read().await.is_none());
         assert!(core.ssh_options.read().await.is_none());
     }
+
 
     #[tokio::test]
     async fn test_run_with_config() {}

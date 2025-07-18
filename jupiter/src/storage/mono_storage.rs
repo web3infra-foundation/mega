@@ -1,9 +1,10 @@
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
 use futures::{stream, StreamExt};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
@@ -13,12 +14,19 @@ use common::utils::{generate_id, MEGA_BRANCH_NAME};
 use mercury::internal::object::MegaObjectModel;
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
 
-use crate::storage::batch_save_model;
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::utils::converter::MegaModelConverter;
 
 #[derive(Clone)]
 pub struct MonoStorage {
-    pub connection: Arc<DatabaseConnection>,
+    pub base: BaseStorage,
+}
+
+impl Deref for MonoStorage {
+    type Target = BaseStorage;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 #[derive(Debug)]
@@ -31,20 +39,6 @@ struct GitObjects {
 }
 
 impl MonoStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        MonoStorage { connection }
-    }
-
-    pub fn mock() -> Self {
-        MonoStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-        }
-    }
-
     pub async fn save_ref(
         &self,
         path: &str,
@@ -180,21 +174,11 @@ impl MonoStorage {
             .into_inner()
             .unwrap();
 
-        batch_save_model(self.get_connection(), git_objects.commits)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.trees)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.blobs)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.raw_blobs)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.tags)
-            .await
-            .unwrap();
+        self.batch_save_model(git_objects.commits).await.unwrap();
+        self.batch_save_model(git_objects.trees).await.unwrap();
+        self.batch_save_model(git_objects.blobs).await.unwrap();
+        self.batch_save_model(git_objects.raw_blobs).await.unwrap();
+        self.batch_save_model(git_objects.tags).await.unwrap();
 
         Ok(())
     }
@@ -216,17 +200,11 @@ impl MonoStorage {
             .unwrap();
 
         let mega_trees = converter.mega_trees.borrow().values().cloned().collect();
-        batch_save_model(self.get_connection(), mega_trees)
-            .await
-            .unwrap();
+        self.batch_save_model(mega_trees).await.unwrap();
         let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
-        batch_save_model(self.get_connection(), mega_blobs)
-            .await
-            .unwrap();
+        self.batch_save_model(mega_blobs).await.unwrap();
         let raw_blobs = converter.raw_blobs.borrow().values().cloned().collect();
-        batch_save_model(self.get_connection(), raw_blobs)
-            .await
-            .unwrap();
+        self.batch_save_model(raw_blobs).await.unwrap();
     }
 
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
@@ -236,9 +214,7 @@ impl MonoStorage {
         for mega_commit in mega_commits {
             save_models.push(mega_commit.into_active_model());
         }
-        batch_save_model(self.get_connection(), save_models)
-            .await
-            .unwrap();
+        self.batch_save_model(save_models).await.unwrap();
         Ok(())
     }
 

@@ -29,3 +29,10 @@ pub struct NewLabel {
     pub color: String,
     pub description: String,
 }
+
+#[derive(Deserialize, ToSchema)]
+pub struct LabelUpdatePayload {
+    pub label_ids: Vec<i64>,
+    pub item_id: i64,
+    pub link: String,
+}

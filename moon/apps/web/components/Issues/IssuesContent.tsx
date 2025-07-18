@@ -1,17 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 
-import { SyncOrganizationMember as Member, PostApiIssueListData } from '@gitmono/types/generated'
 import {
-  Button,
-  ChatBubbleIcon,
-  CheckCircleFilledFlushIcon,
-  ChevronDownIcon,
-  CircleFilledCloseIcon,
-  OrderedListIcon
-} from '@gitmono/ui'
+  LabelItem,
+  SyncOrganizationMember as Member,
+  PageParamsListPayload,
+  PostApiIssueListData
+} from '@gitmono/types/generated'
+import { Button, ChatBubbleIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
 import { Link } from '@gitmono/ui/Link'
 
 // import { MenuItem } from '@gitmono/ui/Menu'
@@ -49,12 +48,16 @@ interface Props {
 export interface Item {
   closed_at?: number | null
   link: string
-  user_id: string
+  author: string
   title: string
   status: string
   open_timestamp: number
   updated_at: number
 }
+
+type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
+
+export type AdditionType = NonNullable<PageParamsListPayload>['additional']
 
 export interface Label {
   id: string
@@ -73,7 +76,7 @@ export function IssuesContent({ searching }: Props) {
 
   const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'issue' }))
 
-  const [issueList, setIssueList] = useState<Item[]>([])
+  const [issueList, setIssueList] = useState<ItemsType>([])
 
   const [loading, setLoading] = useState(false)
 
@@ -81,29 +84,34 @@ export function IssuesContent({ searching }: Props) {
 
   const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPicker' }))
 
-  const orderAtom = useMemo(() => atomWithWebStorage<string>(`${scope}:issue-order`, 'Newest'), [scope])
+  const orderAtom = useMemo(
+    () => atomWithWebStorage(`${scope}:issue-order`, { sort: 'Created On', time: 'Newest' }),
+    [scope]
+  )
+  const labelAtom = useMemo(() => atomWithWebStorage<string[]>(`${scope}:issue-label`, []), [scope])
 
-  const [order, _setOrder] = useAtom(orderAtom)
+  const [order, setOrder] = useAtom(orderAtom)
+
+  const [label, setLabel] = useAtom(labelAtom)
 
   const { members } = useSyncedMembers()
 
   const MemberConfig: MenuConfig<Member>[] = [
     {
       key: 'Author',
-      isChosen: (item) => item.user.id === sort['Author'],
+      isChosen: (item) => item.user.username === sort['Author'],
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
-        if (item.user.id === sort['Author']) {
+        if (item.user.username === sort['Author']) {
           fetchData(1, pageSize)
           setSort({
             ...sort,
             Author: ''
           })
         } else {
-          setIssueList(issueList.filter((i) => i.link === sort['Author']))
           setSort({
             ...sort,
-            Author: item.user.id
+            Author: item.user.username
           })
         }
       },
@@ -112,21 +120,19 @@ export function IssuesContent({ searching }: Props) {
     },
     {
       key: 'Assignees',
-      isChosen: (item: Member) => item.user.id === sort['Assignees'],
+      isChosen: (item: Member) => item.user.username === sort['Assignees'],
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
-        if (item.user.id === sort['Assignees']) {
+        if (item.user.username === sort['Assignees']) {
           fetchData(1, pageSize)
-
           setSort({
             ...sort,
             Assignees: ''
           })
         } else {
-          setIssueList(issueList.filter((i) => i.link === sort['Assignees']))
           setSort({
             ...sort,
-            Assignees: item.user.id
+            Assignees: item.user.username
           })
         }
       },
@@ -135,46 +141,81 @@ export function IssuesContent({ searching }: Props) {
     }
   ]
 
-  const LabelConfig: MenuConfig<Label>[] = [
+  const LabelConfig: MenuConfig<LabelItem>[] = [
     {
       key: 'Labels',
-      isChosen: (item) => sort['Labels']?.includes(item.id),
+      isChosen: (item) => label?.includes(String(item.id)),
 
-      onSelectFactory: (item: Label) => (e: Event) => {
+      onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
-        if (sort['Labels']?.includes(item.id)) {
-          // fetchData(1, pageSize)
-          // sort['Labels'] contains the id of each labels which are chosed
-          setSort({
-            ...sort,
-            Labels: (sort['Labels'] as string[]).filter((i) => i !== item.id)
-          })
+        if (label?.includes(String(item.id))) {
+          setLabel(label.filter((i) => i !== String(item.id)))
         } else {
-          // setIssueList(issueList.filter((i) => i.link === sort['Labels']))
-          setSort({
-            ...sort,
-            // make sure labels must be an array of string
-            Labels: [...((sort['Labels'] as string[]) ?? []), item.id]
-          })
+          setLabel([...label, String(item.id)])
         }
       },
       className: 'overflow-hidden',
-      labelFactory: (item: Label) => <DropdownItemwithLabel label={item} />
+      labelFactory: (item) => <DropdownItemwithLabel label={item} />
     }
   ]
 
   const OrderConfig: MenuConfig<string>[] = [
     {
       key: 'Order',
-      isChosen: (item) => item === 'Oldest' || item === 'Newest',
+      isChosen: (item) => item === 'Newest' || item === 'Oldest',
 
-      onSelectFactory: (_item: string) => (e: Event) => {
+      onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
+        if (item === 'Newest') {
+          setOrder({
+            ...order,
+            time: 'Newest'
+          })
+        } else if (item === 'Oldest') {
+          setOrder({
+            ...order,
+            time: 'Oldest'
+          })
+        } else {
+          setOrder({
+            ...order,
+            sort: item
+          })
+        }
       },
       className: 'overflow-hidden',
-      labelFactory: (item: string) => <div>{item}</div>
+      labelFactory: (item) => (
+        <div className='flex items-center gap-2'>
+          <div className='h-4 w-4'>
+            {order.sort === item && <CheckIcon />}
+            {order.time === item && <CheckIcon />}
+          </div>
+          <span className='flex-1'>{item}</span>
+        </div>
+      )
     }
   ]
+
+  const additions = useCallback(
+    (labels: number[]): AdditionType => {
+      const additional: AdditionType = { status, asc: false }
+
+      if (sort['Assignees']) additional.assignees = [sort['Assignees']]
+
+      if (sort['Author']) additional.author = sort['Author'] as string
+
+      if (labels.length) additional.labels = [...labels]
+
+      if (order.time === 'Newest') {
+        additional.asc = false
+      } else if (order.time === 'Oldest') {
+        additional.asc = true
+      }
+      additional.sort_by = handleSort(order['sort'])
+      return additional
+    },
+    [order, sort, status]
+  )
 
   const member = generateAllMenuItems(members, MemberConfig)
 
@@ -183,10 +224,11 @@ export function IssuesContent({ searching }: Props) {
   const orders = generateAllMenuItems(orderTags, OrderConfig)
 
   const handleOpen = (open: boolean) => {
-    if (open) {
-      // open: do nothing
-    } else {
-      // close: fetch data from labels array
+    if (!open) {
+      const news = label.map((i) => Number(i))
+      const addtion = additions(news)
+
+      fetchData(1, pageSize, addtion)
     }
   }
 
@@ -215,15 +257,15 @@ export function IssuesContent({ searching }: Props) {
       case 'Labels':
         return (
           <Dropdown
-            onOpen={(open) => handleOpen(open)}
-            isChosen={!sort['Labels']?.length}
+            onOpen={handleOpen}
+            isChosen={!label?.length}
             key={p}
             name={p}
             dropdownArr={labels?.get('Labels').all}
             dropdownItem={labels?.get('Labels').chosen}
           />
         )
-      case `${order}`:
+      case `${order.sort}`:
         return (
           <DropdownOrder
             key={p}
@@ -254,12 +296,29 @@ export function IssuesContent({ searching }: Props) {
     }
   }
 
+  const handleSort = (str: string): string => {
+    switch (str) {
+      case 'Created on':
+        return 'created_at'
+      case 'Last updated':
+        return 'updated_at'
+
+      default:
+        return 'created_at'
+    }
+  }
+
   const fetchData = useCallback(
-    (page: number, per_page: number) => {
+    (page: number, per_page: number, additional?: AdditionType) => {
       setLoading(true)
+      const addittion = additional ? additional : additions([])
+
       issueLists(
         {
-          data: { pagination: { page, per_page }, additional: { status } }
+          data: {
+            pagination: { page, per_page },
+            additional: addittion
+          }
         },
         {
           onSuccess: (response) => {
@@ -269,12 +328,14 @@ export function IssuesContent({ searching }: Props) {
             setNumTotal(data?.total ?? 0)
           },
           onError: apiErrorToast,
-          onSettled: () => setLoading(false)
+          onSettled: () => {
+            setLoading(false)
+          }
         }
       )
     },
 
-    [status, issueLists]
+    [issueLists, additions]
   )
 
   useEffect(() => {
@@ -297,11 +358,11 @@ export function IssuesContent({ searching }: Props) {
 
     switch (normalizedStatus) {
       case 'open':
-        return <CircleFilledCloseIcon color='#f44613' />
+        return <IssueOpenedIcon className='text-[#378f50]' />
       case 'closed':
-        return <CheckCircleFilledFlushIcon color='#378f50' size={16} />
+        return <IssueClosedIcon className='text-[#8250df]' />
       default:
-        return null
+        return <SkipIcon className='text-[#59636e]' />
     }
   }
 
@@ -320,7 +381,7 @@ export function IssuesContent({ searching }: Props) {
             Issuelists={issueList}
             header={
               <ListBanner
-                pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types', `${order}`]}
+                pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types', `${order.sort}`]}
                 tabfilter={
                   <IssueIndexTabFilter openTooltip='Issues that are still open and need attention' part='issue' />
                 }
@@ -336,10 +397,10 @@ export function IssuesContent({ searching }: Props) {
                     key={i.link}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar member={members[0]} />}
+                    rightIcon={<RightAvatar commentNum={i.comment_num} member={members[0]} />}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      {i.link} · {i.user_id} {i.status}{' '}
+                      {i.link} · {i.author} {i.status}{' '}
                       {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
                     </div>
                   </ListItem>
@@ -363,14 +424,19 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
   )
 }
 
-export const RightAvatar = ({ member }: { member: Member }) => {
+export const RightAvatar = ({ member, commentNum }: { member?: Member; commentNum?: number }) => {
   return (
     <>
       <div className='mr-10 flex items-center justify-between gap-10'>
-        <ChatBubbleIcon />
-        <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
-          <MemberAvatar size='sm' member={member} />
-        </MemberHovercard>
+        <div className='flex items-center gap-2 text-sm text-gray-500'>
+          <ChatBubbleIcon />
+          {commentNum !== 0 && <span>{commentNum}</span>}
+        </div>
+        {member && (
+          <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
+            <MemberAvatar size='sm' member={member} />
+          </MemberHovercard>
+        )}
       </div>
     </>
   )

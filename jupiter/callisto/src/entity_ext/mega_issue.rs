@@ -1,16 +1,23 @@
 use sea_orm::entity::prelude::*;
 
-use crate::mega_issue::Entity;
+use crate::{
+    entity_ext::{generate_id, generate_link},
+    mega_issue::{self, Entity},
+};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Label,
+    ItemLabels,
+    ItemAssignees,
+    Conversation,
 }
 
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Label => Entity::has_many(crate::item_labels::Entity).into(),
+            Self::ItemLabels => Entity::has_many(crate::item_labels::Entity).into(),
+            Self::ItemAssignees => Entity::has_many(crate::item_assignees::Entity).into(),
+            Self::Conversation => Entity::has_many(crate::mega_conversation::Entity).into(),
         }
     }
 }
@@ -21,6 +28,44 @@ impl Related<crate::label::Entity> for Entity {
     }
 
     fn via() -> Option<RelationDef> {
-        Some(crate::entity_ext::item_labels::Relation::MegaIssue.def().rev())
+        Some(
+            crate::entity_ext::item_labels::Relation::MegaIssue
+                .def()
+                .rev(),
+        )
+    }
+}
+
+impl Related<crate::item_assignees::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ItemAssignees.def()
+    }
+    fn via() -> Option<RelationDef> {
+        None
+    }
+}
+
+impl Related<crate::mega_conversation::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Conversation.def()
+    }
+    fn via() -> Option<RelationDef> {
+        None
+    }
+}
+
+impl mega_issue::Model {
+    pub fn new(title: String, author: String) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            id: generate_id(),
+            link: generate_link(),
+            title,
+            author,
+            status: "open".to_owned(),
+            created_at: now,
+            updated_at: now,
+            closed_at: None,
+        }
     }
 }

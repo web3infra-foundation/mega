@@ -270,3 +270,4 @@ catalog:
   '@mui/x-tree-view': ^8.5.0
   '@emotion/styled': ^11.14.0
   prism-react-renderer: ^2.4.1
+  material-file-icons: ^2.4.0

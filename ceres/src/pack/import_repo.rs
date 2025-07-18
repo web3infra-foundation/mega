@@ -18,7 +18,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
-use jupiter::{storage::batch_save_model, storage::Storage};
+use jupiter::storage::{base_storage::StorageConnector, Storage};
 use mercury::{
     errors::GitError,
     internal::{
@@ -48,8 +48,7 @@ impl PackHandler for ImportRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .get_ref(self.repo.repo_id)
             .await
             .unwrap();
@@ -62,7 +61,7 @@ impl PackHandler for ImportRepo {
         &self,
         mut receiver: UnboundedReceiver<Entry>,
     ) -> Result<Option<Commit>, GitError> {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let mut entry_list = vec![];
         let semaphore = Arc::new(Semaphore::new(8));
         let mut join_tasks = vec![];
@@ -105,8 +104,8 @@ impl PackHandler for ImportRepo {
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
-        let storage = self.storage.services.git_db_storage.clone();
-        let raw_storage = self.storage.services.raw_db_storage.clone();
+        let storage = self.storage.git_db_storage();
+        let raw_storage = self.storage.raw_db_storage();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
@@ -193,7 +192,7 @@ impl PackHandler for ImportRepo {
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();
         let pack_config = &self.storage.config().pack;
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let obj_num = AtomicUsize::new(0);
 
         let mut exist_objs = HashSet::new();
@@ -286,8 +285,7 @@ impl PackHandler for ImportRepo {
     async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError> {
         Ok(self
             .storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .get_trees_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap()
@@ -301,14 +299,13 @@ impl PackHandler for ImportRepo {
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
         self.storage
-            .services
-            .raw_db_storage
+            .raw_db_storage()
             .get_raw_blobs_by_hashes(hashes)
             .await
     }
 
     async fn update_refs(&self, _: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         match refs.command_type {
             CommandType::Create => {
                 storage
@@ -332,8 +329,7 @@ impl PackHandler for ImportRepo {
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
         self.storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap()
@@ -341,7 +337,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn check_default_branch(&self) -> bool {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         storage
             .default_branch_exist(self.repo.repo_id)
             .await
@@ -366,14 +362,13 @@ impl ImportRepo {
         let mono_api_service = MonoApiService {
             storage: self.storage.clone(),
         };
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
         let latest_commit: Commit = self
             .storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .get_commit_by_hash(self.repo.repo_id, &commit_id)
             .await
             .unwrap()
@@ -395,9 +390,7 @@ impl ImportRepo {
             })
             .collect();
 
-        batch_save_model(storage.get_connection(), save_trees)
-            .await
-            .unwrap();
+        storage.batch_save_model(save_trees).await.unwrap();
 
         root_ref.ref_commit_hash = new_commit.id.to_string();
         root_ref.ref_tree_hash = new_commit.tree_id.to_string();

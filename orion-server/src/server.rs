@@ -1,6 +1,7 @@
 use crate::api;
 use crate::api::AppState;
 use crate::model::builds;
+use api::{BuildDTO, BuildRequest, TaskStatus, TaskStatusEnum};
 use axum::Router;
 use axum::routing::get;
 use dashmap::DashMap;
@@ -8,7 +9,23 @@ use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, Tran
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        crate::api::task_handler,
+        crate::api::task_status_handler,
+        crate::api::task_query_by_mr,
+    ),
+    components(
+        schemas(BuildRequest, TaskStatus, TaskStatusEnum, BuildDTO)
+    ),
+    tags(
+        (name = "Build", description = "Build related endpoints")
+    )
+)]
+pub struct ApiDoc;
 pub async fn start_server(port: u16) {
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
@@ -20,6 +37,7 @@ pub async fn start_server(port: u16) {
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .with_state(AppState {
             clients: Arc::new(DashMap::new()),
             conn,

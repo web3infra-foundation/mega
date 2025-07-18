@@ -4,6 +4,7 @@ import {
   KeyboardEvent,
   memo,
   MouseEvent,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState
@@ -14,21 +15,21 @@ import { EditorContent } from '@tiptap/react'
 import { ActiveEditorComment, BlurAtTopOptions } from '@gitmono/editor'
 import { LayeredHotkeys } from '@gitmono/ui'
 
-import { AttachmentLightbox } from '@/components/AttachmentLightbox'
-import { MentionList } from '@/components/MarkdownEditor/MentionList'
-import { ReactionList } from '@/components/MarkdownEditor/ReactionList'
-import { ResourceMentionList } from '@/components/MarkdownEditor/ResourceMentionList'
-import { ADD_ATTACHMENT_SHORTCUT, SlashCommand } from '@/components/Post/Notes/SlashCommand'
-import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { EMPTY_HTML } from '@/atoms/markdown'
+import { AttachmentLightbox } from '@/components/AttachmentLightbox'
 import { CodeBlockLanguagePicker } from '@/components/CodeBlockLanguagePicker'
 import { EditorBubbleMenu } from '@/components/EditorBubbleMenu'
 import { MentionInteractivity } from '@/components/InlinePost/MemberHovercard'
+import { MentionList } from '@/components/MarkdownEditor/MentionList'
+import { ReactionList } from '@/components/MarkdownEditor/ReactionList'
+import { ResourceMentionList } from '@/components/MarkdownEditor/ResourceMentionList'
 import { DropProps, useEditorFileHandlers } from '@/components/MarkdownEditor/useEditorFileHandlers'
 import { HighlightCommentPopover } from '@/components/NoteComments/HighlightCommentPopover'
 import { useUploadNoteAttachments } from '@/components/Post/Notes/Attachments/useUploadAttachments'
 import { NoteCommentPreview } from '@/components/Post/Notes/CommentRenderer'
+import { ADD_ATTACHMENT_SHORTCUT, SlashCommand } from '@/components/Post/Notes/SlashCommand'
 import { useSimpleNoteEditor } from '@/components/SimpleNoteEditor/useSimpleNoteEditor'
+import { useAutoScroll } from '@/hooks/useAutoScroll'
 
 interface Props {
   commentId: string
@@ -37,6 +38,7 @@ interface Props {
   content: string
   onBlurAtTop?: BlurAtTopOptions['onBlur']
   onKeyDown?: (event: KeyboardEvent) => void
+  onChange?: (html: string) => void
 }
 
 export interface SimpleNoteContentRef {
@@ -51,7 +53,7 @@ export interface SimpleNoteContentRef {
 
 export const SimpleNoteContent = memo(
   forwardRef<SimpleNoteContentRef, Props>((props, ref) => {
-    const { commentId, editable = 'viewer', autofocus = false, onBlurAtTop, content } = props
+    const { commentId, editable = 'viewer', autofocus = false, onBlurAtTop, content, onChange } = props
 
     const [activeComment, setActiveComment] = useState<ActiveEditorComment | null>(null)
     const [hoverComment, setHoverComment] = useState<ActiveEditorComment | null>(null)
@@ -129,8 +131,24 @@ export const SimpleNoteContent = memo(
       enabled: true
     })
 
+    useEffect(() => {
+      if (!editor || !onChange) return
+
+      const handleUpdate = () => {
+        const html = editor.getHTML()
+
+        onChange?.(html)
+      }
+
+      editor.on('update', handleUpdate)
+
+      return () => {
+        editor.off('update', handleUpdate)
+      }
+    }, [editor, onChange])
+
     return (
-      <div ref={containerRef} className="relative min-h-[100px] mb-2">
+      <div ref={containerRef} className='relative mb-2 h-[95%] min-h-[100px] overflow-auto'>
         <LayeredHotkeys
           keys={ADD_ATTACHMENT_SHORTCUT}
           callback={() => {
@@ -191,4 +209,4 @@ export const SimpleNoteContent = memo(
   })
 )
 
-SimpleNoteContent.displayName = 'SimpleNoteContent' 
+SimpleNoteContent.displayName = 'SimpleNoteContent'

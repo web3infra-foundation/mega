@@ -1,12 +1,12 @@
 use crate::model::builds;
+use axum::Json;
 use axum::body::Bytes;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Sse};
-use axum::routing::{any, get, post};
-use axum::{Json, Router};
+use axum::routing::{any, get};
 use axum_extra::json;
 use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt, stream};
@@ -17,7 +17,7 @@ use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
-use sea_orm::{ActiveModelTrait, DatabaseConnection};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::io::Write;
@@ -28,16 +28,19 @@ use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
+use utoipa::ToSchema;
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
 static BUILD_LOG_DIR: Lazy<String> =
     Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
 
-#[derive(Debug, Deserialize)]
-struct BuildRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct BuildRequest {
     repo: String,
     target: String,
     args: Option<Vec<String>>,
+    mr: Option<String>,
 }
 
 pub struct BuildInfo {
@@ -45,10 +48,11 @@ pub struct BuildInfo {
     target: String,
     args: Option<Vec<String>>,
     start_at: DateTimeUtc,
+    mr: Option<String>,
 }
 
-#[derive(Debug, Serialize, Default)]
-enum TaskStatusEnum {
+#[derive(Debug, Serialize, Default, ToSchema)]
+pub enum TaskStatusEnum {
     Building,
     Interrupted, // exit code is None
     Failed,
@@ -57,8 +61,8 @@ enum TaskStatusEnum {
     NotFound,
 }
 
-#[derive(Debug, Serialize, Default)]
-struct TaskStatus {
+#[derive(Debug, Serialize, Default, ToSchema)]
+pub struct TaskStatus {
     status: TaskStatusEnum,
     #[serde(skip_serializing_if = "Option::is_none")]
     exit_code: Option<i32>,
@@ -73,14 +77,25 @@ pub struct AppState {
     pub building: Arc<DashMap<String, BuildInfo>>,
 }
 
-pub fn routers() -> Router<AppState> {
-    Router::new()
+pub fn routers() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/ws", any(ws_handler))
-        .route("/task", post(task_handler))
-        .route("/task-status/{id}", get(task_status_handler))
+        .routes(routes!(task_handler))
+        .routes(routes!(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
+        .routes(routes!(task_query_by_mr))
 }
 
+#[utoipa::path(
+    get,
+    path = "/task-status/{id}",
+    params(
+        ("id" = String, Path, description = "Task id")
+    ),
+    responses(
+        (status = 200, description = "Task status", body = TaskStatus)
+    )
+)]
 async fn task_status_handler(
     Path(id): Path<String>,
     State(state): State<AppState>,
@@ -190,6 +205,14 @@ async fn task_output_handler(
     Sse::new(stream.boxed()).keep_alive(KeepAlive::new()) // empty comment to keep alive
 }
 
+#[utoipa::path(
+    post,
+    path = "/task",
+    request_body = BuildRequest,
+    responses(
+        (status = 200, description = "Task created", body = inline(json::Value))
+    )
+)]
 async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<BuildRequest>,
@@ -202,6 +225,7 @@ async fn task_handler(
             target: req.target.clone(),
             args: req.args.clone(),
             start_at: chrono::Utc::now(),
+            mr: req.mr.clone(),
         },
     );
 
@@ -351,6 +375,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                         repo_name: Set(info.repo.clone()),
                         target: Set(info.target.clone()),
                         arguments: Set(info.args.clone().unwrap_or_default().join(" ")),
+                        mr: Set(info.mr.clone().unwrap_or_default()),
                     };
                     drop(info); // !!release ref or deadlock when insert
                     model.insert(&state.conn).await.unwrap();
@@ -389,6 +414,77 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
     ControlFlow::Continue(())
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BuildDTO {
+    pub build_id: String,
+    pub output_file: String,
+    pub exit_code: Option<i32>,
+    pub start_at: String,
+    pub end_at: String,
+    pub repo_name: String,
+    pub target: String,
+    pub arguments: String,
+    pub mr: String,
+}
+impl BuildDTO {
+    pub fn from_model(model: builds::Model) -> Self {
+        Self {
+            build_id: model.build_id.to_string(),
+            output_file: model.output_file,
+            exit_code: model.exit_code,
+            start_at: model.start_at.to_rfc3339(),
+            end_at: model.end_at.to_rfc3339(),
+            repo_name: model.repo_name,
+            target: model.target,
+            arguments: model.arguments,
+            mr: model.mr,
+        }
+    }
+}
+/// Query builds by merge request (MR) number
+/// This is a new endpoint to query builds by MR number.
+/// It returns a list of builds associated with the given MR number.
+/// If no builds are found, it returns an empty list.
+/// If an error occurs during the query, it returns an empty list with a 500 status code.
+#[utoipa::path(
+    get,
+    path = "/mr-task/{mr}",
+    params(
+        ("mr" = String, Path, description = "MR number")
+    ),
+    responses(
+        (status = 200, description = "Builds for MR", body = [BuildDTO]),
+        (status = 404, description = "No builds found for the given MR", body = inline(json::Value)),
+        (status = 500, description = "Internal server error", body = inline(json::Value))
+    )
+)]
+async fn task_query_by_mr(
+    State(state): State<AppState>,
+    Path(mr): Path<String>,
+) -> Result<Json<Vec<BuildDTO>>, (StatusCode, Json<serde_json::Value>)> {
+    let db = &state.conn;
+    match builds::Entity::find()
+        .filter(builds::Column::Mr.eq(mr))
+        .all(db)
+        .await
+    {
+        Ok(models) if !models.is_empty() => {
+            let dtos = models.into_iter().map(BuildDTO::from_model).collect();
+            Ok(Json(dtos))
+        }
+        Ok(_) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "message": "No builds found for the given MR" })),
+        )),
+        Err(e) => {
+            tracing::error!("Database error: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "Internal server error" })),
+            ))
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     #[test]

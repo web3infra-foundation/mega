@@ -1,10 +1,12 @@
 import React from 'react'
 import '@primer/primitives/dist/css/functional/themes/light.css'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
-import { FeedPullRequestClosedIcon, CommentIcon, FeedMergedIcon, IssueReopenedIcon } from '@primer/octicons-react'
+import { FeedPullRequestClosedIcon, CommentIcon, FeedMergedIcon, FeedPullRequestOpenIcon } from '@primer/octicons-react'
 import MRComment from '@/components/MrView/MRComment';
-import { formatDistance, fromUnixTime } from 'date-fns';
-import { MRDetail } from '@/pages/[org]/mr/[id]';
+import CloseItem from './CloseItem';
+import ReopenItem from './ReopenItem';
+import MergedItem from './MergedItem';
+import { ConversationItem } from '@gitmono/types/generated'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -52,12 +54,9 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   );
 };
 
-const TimelineItems: React.FC<{ mrDetail?: MRDetail, id: string }> = ({ mrDetail, id }) => {
-  if (!mrDetail) {
-    return null; 
-  }
+const TimelineItems: React.FC<{ detail: any, id: string, type: string }> = ({ detail, id, type }) => {
 
-  const convItems: ConvItem[] = mrDetail?.conversations.map((conv) => {
+  const convItems: ConvItem[] = detail.conversations.map((conv: ConversationItem) => {
     let icon;
     let children;
     let isOver = false;
@@ -65,23 +64,22 @@ const TimelineItems: React.FC<{ mrDetail?: MRDetail, id: string }> = ({ mrDetail
     switch (conv.conv_type) {
       case 'Comment':
         icon = <CommentIcon />;
-        children = <MRComment conv={conv} id={id} whoamI="mr" />;
+        children = <MRComment conv={conv} id={id} whoamI={type} />;
         break;
       case 'Merged':
         icon = <FeedMergedIcon size={24} className="text-purple-500" />;
-        children =
-          'Merged via the queue into main ' +
-          formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true });
+        children = <MergedItem conv={conv} />;
         isOver = true;
         break;
       case 'Closed':
-        icon = <FeedPullRequestClosedIcon size={24} className="text-red-500" />;
-        children = conv.comment;
+        icon = <FeedPullRequestClosedIcon size={24} className="text-red-600" />;
+        children = <CloseItem conv={conv}/>;
         isOver = true;
         break;
       case 'Reopen':
-        icon = <IssueReopenedIcon />;
-        children = conv.comment;
+        icon = <FeedPullRequestOpenIcon size={24} 
+        className = "text-green-500"/>
+        children = <ReopenItem conv={conv}/>;
         break;
     }
 

@@ -80,6 +80,7 @@ git_author = "MEGA"
 git_email = "admin@mega.org"
 dicfuse_readable = "true"
 load_dir_depth = "3"
+fetch_file_thread = "10"
 ```
 ### `scorpio.toml` Configuration Guide:  
 
@@ -106,6 +107,9 @@ load_dir_depth = "3"
 
 - **`load_dir_depth`**  
   Specifies how deep the file system should load and preload directories during initialization.
+
+- **`fetch_file_thread`**  
+  Sets the number of threads used for downloading files concurrently.
 
 ### How to Contribute?
 

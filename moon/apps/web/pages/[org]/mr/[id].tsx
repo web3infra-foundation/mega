@@ -23,20 +23,16 @@ import { trimHtml } from '@/utils/trimHtml'
 import { toast } from 'react-hot-toast'
 import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker';
 import { useUploadHelpers } from '@/hooks/useUploadHelpers';
-import { CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
+import { CommentDiscussionIcon, FileDiffIcon, ChecklistIcon } from '@primer/octicons-react'
 import TimelineItems from '@/components/MrView/TimelineItems';
+import { ConversationItem } from '@gitmono/types/generated';
+
+const { UnderlinePanels } = require('@primer/react/experimental')
 
 export interface MRDetail {
     status: string,
-    conversations: Conversation[],
+    conversations: ConversationItem[],
     title: string,
-}
-export interface Conversation {
-    id: number,
-    user_id: number,
-    conv_type: string,
-    comment: string,
-    created_at: number,
 }
 
 const  MRDetailPage:PageWithLayout<any> = () =>{
@@ -48,7 +44,6 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const id = typeof tempId === 'string' ? tempId : '';
     const { data: MrDetailData, isLoading: detailIsLoading } = useGetMrDetail(id)
     const mrDetail = MrDetailData?.data as MRDetail | undefined
-    const UnderlinePanels = require('@primer/react/experimental')
     
     if (mrDetail && typeof mrDetail.status === 'string') {
       mrDetail.status = mrDetail.status.toLowerCase();
@@ -121,6 +116,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
       <div>
         <UnderlinePanels aria-label='Select a tab'>
           <UnderlinePanels.Tab icon={CommentDiscussionIcon}>Conversation</UnderlinePanels.Tab>
+          <UnderlinePanels.Tab icon={ChecklistIcon}>Checks</UnderlinePanels.Tab>
           <UnderlinePanels.Tab icon={FileDiffIcon}>Files Changed</UnderlinePanels.Tab>
           <UnderlinePanels.Panel>
             <div className="flex flex-col w-full mt-3">
@@ -129,7 +125,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                   <LoadingSpinner />
                 </div>
                 ) : (
-                  <TimelineItems mrDetail={mrDetail} id={id} />
+                  mrDetail && <TimelineItems detail={mrDetail} id={id} type="mr"/>
               )}
               <div className='prose mt-3'>
                 <div className="flex">
@@ -204,6 +200,9 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 </div>
               </div>
             </div>
+          </UnderlinePanels.Panel>
+          <UnderlinePanels.Panel>
+            <div>Checks</div>
           </UnderlinePanels.Panel>
           <UnderlinePanels.Panel>
             {fileChgIsLoading ? (
