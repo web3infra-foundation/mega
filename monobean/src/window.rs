@@ -8,15 +8,18 @@ use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
 use crate::config::PREFIX;
 use crate::CONTEXT;
 use adw::glib::Priority;
-use adw::prelude::{ActionMapExt, Cast, ObjectExt, SettingsExt, SettingsExtManual, StaticVariantType, ToValue, ToVariant};
+use adw::prelude::{
+    ActionMapExt, Cast, ObjectExt, SettingsExt, SettingsExtManual, StaticVariantType, ToValue,
+    ToVariant,
+};
 use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
+use gtk::gio::{SimpleAction, SimpleActionGroup};
 use gtk::glib;
 use gtk::prelude::{GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-use gtk::gio::{SimpleAction, SimpleActionGroup};
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -198,8 +201,6 @@ impl MonobeanWindow {
     }
 
     fn setup_widget(&self) {
-
-
         let imp = self.imp();
         let prim_btn = imp.primary_menu_button.get();
         let popover = prim_btn.popover().unwrap();
@@ -221,11 +222,12 @@ impl MonobeanWindow {
             if let Some(param) = parameter {
                 let value = param.get::<String>().unwrap();
                 action.set_state(&value.to_variant());
-                settings.set_string("style-variant", &value).expect("Failed to set style-variant in GSettings");
+                settings
+                    .set_string("style-variant", &value)
+                    .expect("Failed to set style-variant in GSettings");
             }
         });
 
-       
         action_group.add_action(&action);
 
         popover.insert_action_group("style", Some(&action_group));
@@ -269,8 +271,6 @@ impl MonobeanWindow {
                 Some(scheme.to_value())
             })
             .build();
-
-        
     }
 }
 
