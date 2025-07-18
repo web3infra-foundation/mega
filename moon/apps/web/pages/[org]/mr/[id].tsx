@@ -92,22 +92,26 @@ const MRDetailPage: PageWithLayout<any> = () => {
 
   const { mutate: postMrComment, isPending: mrCommentIsPending } = usePostMrComment(id)
 
-  const send_comment = () => {
-    const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>'
+    const send_comment = () => {
+      const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>';
+      const issues = editorRef.current?.getLinkedIssues() || []
+      
+      /* eslint-disable-next-line no-console */
+      console.log('commentIssues:',issues);
 
-    if (trimHtml(currentContentHTML) === '') {
-      toast.error('Please enter the content.')
-    } else {
-      postMrComment(
-        { content: currentContentHTML },
-        {
-          onSuccess: () => {
-            editorRef.current?.clearAndBlur()
+      if (trimHtml(currentContentHTML) === '') {
+          toast.error('Please enter the content.')
+      } else {
+          postMrComment(
+          { content: currentContentHTML },
+          {
+            onSuccess: () =>{
+              editorRef.current?.clearAndBlur()
+            }
           }
-        }
-      )
+        );
+      }
     }
-  }
 
   const buttonClasses = 'cursor-pointer'
   const editorRef = useRef<SimpleNoteContentRef>(null)

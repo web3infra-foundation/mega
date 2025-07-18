@@ -1,7 +1,7 @@
 import { ComponentPropsWithoutRef } from 'react'
 import { uniqBy } from 'remeda'
 
-import { Mention } from '@gitmono/editor/extensions'
+import { Mention, LinkIssue } from '@gitmono/editor/extensions'
 import { OrganizationMember, SyncOrganizationMember } from '@gitmono/types/generated'
 import { GitCommitIcon, UIText } from '@gitmono/ui'
 
@@ -43,7 +43,7 @@ export function MentionList({ editor, defaultMentions, modal }: Props) {
         char='$'
         allow={({ state, range }) => {
           const $from = state.doc.resolve(range.from)
-          const type = state.schema.nodes[Mention.name]
+          const type = state.schema.nodes[LinkIssue.name]
           const allow = !!$from.parent.type.contentMatch.matchType(type)
 
           return allow
@@ -122,15 +122,15 @@ function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
     {
       role: 'app',
       issue: {
-        hash: '#1234',
-        name: 'This is an issue example.'
+        hash: 'OCN2RX13',
+        name: 'MR/Issue open close icon 需要替换'
       }
     },
     {
       role: 'app',
       issue: {
-        hash: '#5678',
-        name: 'Another issue example.'
+        hash: 'DVUAVF2J',
+        name: 'cccc'
       }
     }
   ]
@@ -144,12 +144,10 @@ function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
       // downrank guest members
       scoreModifier={member.role === 'guest' ? 0.3 : 1}
       onSelect={({ editor, range }) =>
-        editor.commands.insertMention({
+        editor.commands.insertIssue({
           range,
           id: member.issue.hash,
-          label: member.issue.hash,
-          username: '',
-          role: member.role === 'app' ? 'app' : 'member'
+          label: member.issue.hash
         })
       }
     >
