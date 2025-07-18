@@ -118,6 +118,7 @@ export function getNoteExtensions(options?: GetNoteExtensionsOptions) {
     E.TaskItem.configure(options?.taskItem),
     E.TaskList,
     E.Mention.configure(options?.mention),
+    E.LinkIssue,
     E.Reaction,
 
     E.Details.configure(options?.details),
