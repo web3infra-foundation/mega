@@ -237,7 +237,6 @@ impl MegaCore {
         let inner = MegaContext::mock(config.clone()).await;
 
         #[cfg(not(test))]
-
         let inner = MegaContext::new(config.clone()).await;
 
         let http_ctx = inner.clone();
