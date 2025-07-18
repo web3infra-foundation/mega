@@ -502,7 +502,6 @@ mod tests {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             oauth: None,
-            //..Default::default()
         };
 
         // make config saved in temp dir
