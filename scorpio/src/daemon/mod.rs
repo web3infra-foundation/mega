@@ -154,7 +154,7 @@ async fn mount_handler(
         };
 
         let store_path = PathBuf::from(store_path).join(&temp_hash);
-        let _ = state.fuse.overlay_mount(inode, store_path,false).await;
+        let _ = state.fuse.overlay_mount(inode, store_path, false).await;
         let mount_info = MountInfo {
             hash: temp_hash.clone(),
             path: mono_path.clone(),
@@ -174,10 +174,15 @@ async fn mount_handler(
     }
 
     if let Some(m) = &req.mr {
-
+        let mr_store_path = PathBuf::from(store_path).join("mr");
         // if mr is provided, we need to fetch the mr info from mono.
-        mr::build_mr_layer(m, store_path.into()).await.unwrap();
-    
+        if let Err(e) = mr::build_mr_layer(m, mr_store_path).await {
+            return axum::Json(MountResponse {
+                status: FAIL.into(),
+                mount: MountInfo::default(),
+                message: format!("Failed to build mr layer: {e}"),
+            });
+        }
     }
 
     // fetch the dionary node info from mono.
@@ -186,7 +191,10 @@ async fn mount_handler(
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary.
 
-    let _ = state.fuse.overlay_mount(inode, store_path,false).await;
+    let _ = state
+        .fuse
+        .overlay_mount(inode, store_path, req.mr.is_some())
+        .await;
 
     let mount_info = MountInfo {
         hash: work_dir.hash,

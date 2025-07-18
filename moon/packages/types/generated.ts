@@ -3151,6 +3151,18 @@ export type CommonResultTreeResponse = {
   req_result: boolean
 }
 
+export type CommonResultVecIssueSuggestions = {
+  data?: {
+    /** @format int64 */
+    id: number
+    link: string
+    title: string
+    type: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecMrFilesRes = {
   data?: {
     action: string
@@ -3187,6 +3199,10 @@ export type CommonResultBool = {
   data?: boolean
   err_message: string
   req_result: boolean
+}
+
+export type ContentPayload = {
+  content: string
 }
 
 export enum ConvTypeEnum {
@@ -3249,6 +3265,14 @@ export type IssueDetailRes = {
   open_timestamp: number
   status: string
   title: string
+}
+
+export type IssueSuggestions = {
+  /** @format int64 */
+  id: number
+  link: string
+  title: string
+  type: string
 }
 
 export type ItemRes = {
@@ -3390,10 +3414,6 @@ export type ReactionItem = {
 
 export type ReactionRequest = {
   comment_type: string
-  content: string
-}
-
-export type SaveCommentRequest = {
   content: string
 }
 
@@ -4568,13 +4588,21 @@ export type GetApiBlobData = CommonResultString
 
 export type DeleteApiConversationReactionsByIdData = CommonResultString
 
+export type PostApiConversationByCommentIdData = CommonResultString
+
+export type DeleteApiConversationByCommentIdData = CommonResultString
+
 export type PostApiConversationReactionsData = CommonResultString
 
 export type PostApiCreateFileData = CommonResultString
 
 export type PostApiIssueAssigneesData = CommonResultString
 
-export type DeleteApiIssueCommentDeleteData = CommonResultString
+export type GetApiIssueIssueSuggesterParams = {
+  query: string
+}
+
+export type GetApiIssueIssueSuggesterData = CommonResultVecIssueSuggestions
 
 export type PostApiIssueLabelsData = CommonResultString
 
@@ -4590,6 +4618,8 @@ export type GetApiIssueDetailData = CommonResultIssueDetailRes
 
 export type PostApiIssueReopenData = CommonResultString
 
+export type PostApiIssueTitleData = CommonResultString
+
 export type PostApiLabelListData = CommonResultCommonPageLabelItem
 
 export type PostApiLabelNewData = CommonResultString
@@ -4602,8 +4632,6 @@ export type GetApiLatestCommitParams = {
 export type GetApiLatestCommitData = LatestCommitInfo
 
 export type PostApiMrAssigneesData = CommonResultString
-
-export type DeleteApiMrCommentDeleteData = CommonResultString
 
 export type PostApiMrLabelsData = CommonResultString
 
@@ -4622,6 +4650,8 @@ export type GetApiMrFilesListData = CommonResultVecMrFilesRes
 export type PostApiMrMergeData = CommonResultString
 
 export type PostApiMrReopenData = CommonResultString
+
+export type PostApiMrTitleData = CommonResultString
 
 export type GetApiStatusData = string
 
@@ -12989,6 +13019,54 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags conversation
+     * @name PostApiConversationByCommentId
+     * @summary Edit comment
+     * @request POST:/api/v1/conversation/{comment_id}
+     */
+    postApiConversationByCommentId: () => {
+      const base = 'POST:/api/v1/conversation/{comment_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiConversationByCommentIdData>([base]),
+        requestKey: (commentId: number) => dataTaggedQueryKey<PostApiConversationByCommentIdData>([base, commentId]),
+        request: (commentId: number, data: ContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiConversationByCommentIdData>({
+            path: `/api/v1/conversation/${commentId}`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags conversation
+     * @name DeleteApiConversationByCommentId
+     * @summary Delete Comment
+     * @request DELETE:/api/v1/conversation/{comment_id}
+     */
+    deleteApiConversationByCommentId: () => {
+      const base = 'DELETE:/api/v1/conversation/{comment_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([base]),
+        requestKey: (commentId: number) => dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([base, commentId]),
+        request: (commentId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiConversationByCommentIdData>({
+            path: `/api/v1/conversation/${commentId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags conversation
      * @name PostApiConversationReactions
      * @summary Add comment reactions with emoji
      * @request POST:/api/v1/conversation/{comment_id}/reactions
@@ -13040,7 +13118,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags issue
      * @name PostApiIssueAssignees
-     * @summary update issue related assignees
+     * @summary Update issue related assignees
      * @request POST:/api/v1/issue/assignees
      */
     postApiIssueAssignees: () => {
@@ -13064,20 +13142,22 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags issue
-     * @name DeleteApiIssueCommentDelete
-     * @summary Delete Issue Comment
-     * @request DELETE:/api/v1/issue/comment/{id}/delete
+     * @name GetApiIssueIssueSuggester
+     * @summary Get issue suggester in comment
+     * @request GET:/api/v1/issue/issue_suggester
      */
-    deleteApiIssueCommentDelete: () => {
-      const base = 'DELETE:/api/v1/issue/comment/{id}/delete' as const
+    getApiIssueIssueSuggester: () => {
+      const base = 'GET:/api/v1/issue/issue_suggester' as const
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteApiIssueCommentDeleteData>([base]),
-        requestKey: (id: number) => dataTaggedQueryKey<DeleteApiIssueCommentDeleteData>([base, id]),
-        request: (id: number, params: RequestParams = {}) =>
-          this.request<DeleteApiIssueCommentDeleteData>({
-            path: `/api/v1/issue/comment/${id}/delete`,
-            method: 'DELETE',
+        baseKey: dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base]),
+        requestKey: (params: GetApiIssueIssueSuggesterParams) =>
+          dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base, params]),
+        request: (query: GetApiIssueIssueSuggesterParams, params: RequestParams = {}) =>
+          this.request<GetApiIssueIssueSuggesterData>({
+            path: `/api/v1/issue/issue_suggester`,
+            method: 'GET',
+            query: query,
             ...params
           })
       }
@@ -13088,7 +13168,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags issue
      * @name PostApiIssueLabels
-     * @summary update issue related labels
+     * @summary Update issue related labels
      * @request POST:/api/v1/issue/labels
      */
     postApiIssueLabels: () => {
@@ -13195,7 +13275,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueCommentData>([base]),
         requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueCommentData>([base, link]),
-        request: (link: string, data: SaveCommentRequest, params: RequestParams = {}) =>
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
           this.request<PostApiIssueCommentData>({
             path: `/api/v1/issue/${link}/comment`,
             method: 'POST',
@@ -13247,6 +13327,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           this.request<PostApiIssueReopenData>({
             path: `/api/v1/issue/${link}/reopen`,
             method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags issue
+     * @name PostApiIssueTitle
+     * @summary Edit issue title
+     * @request POST:/api/v1/issue/{link}/title
+     */
+    postApiIssueTitle: () => {
+      const base = 'POST:/api/v1/issue/{link}/title' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiIssueTitleData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueTitleData>([base, link]),
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiIssueTitleData>({
+            path: `/api/v1/issue/${link}/title`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
             ...params
           })
       }
@@ -13331,7 +13436,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags merge_request
      * @name PostApiMrAssignees
-     * @summary update MR related assignees
+     * @summary Update MR related assignees
      * @request POST:/api/v1/mr/assignees
      */
     postApiMrAssignees: () => {
@@ -13355,31 +13460,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags merge_request
-     * @name DeleteApiMrCommentDelete
-     * @summary Delete Comment
-     * @request DELETE:/api/v1/mr/comment/{conv_id}/delete
-     */
-    deleteApiMrCommentDelete: () => {
-      const base = 'DELETE:/api/v1/mr/comment/{conv_id}/delete' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<DeleteApiMrCommentDeleteData>([base]),
-        requestKey: (convId: number) => dataTaggedQueryKey<DeleteApiMrCommentDeleteData>([base, convId]),
-        request: (convId: number, params: RequestParams = {}) =>
-          this.request<DeleteApiMrCommentDeleteData>({
-            path: `/api/v1/mr/comment/${convId}/delete`,
-            method: 'DELETE',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
      * @name PostApiMrLabels
-     * @summary update mr related labels
+     * @summary Update mr related labels
      * @request POST:/api/v1/mr/labels
      */
     postApiMrLabels: () => {
@@ -13461,7 +13543,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       return {
         baseKey: dataTaggedQueryKey<PostApiMrCommentData>([base]),
         requestKey: (link: string) => dataTaggedQueryKey<PostApiMrCommentData>([base, link]),
-        request: (link: string, data: SaveCommentRequest, params: RequestParams = {}) =>
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
           this.request<PostApiMrCommentData>({
             path: `/api/v1/mr/${link}/comment`,
             method: 'POST',
@@ -13582,6 +13664,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           this.request<PostApiMrReopenData>({
             path: `/api/v1/mr/${link}/reopen`,
             method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrTitle
+     * @summary Edit MR title
+     * @request POST:/api/v1/mr/{link}/title
+     */
+    postApiMrTitle: () => {
+      const base = 'POST:/api/v1/mr/{link}/title' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrTitleData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrTitleData>([base, link]),
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrTitleData>({
+            path: `/api/v1/mr/${link}/title`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
             ...params
           })
       }

@@ -16,10 +16,14 @@ pub struct MRService {
 }
 
 impl MRService {
-    pub fn new(mr_storage: MrStorage, conversation_storage: ConversationStorage) -> Self {
+    pub fn new(base_storage: BaseStorage) -> Self {
         Self {
-            mr_storage,
-            conversation_storage,
+            conversation_storage: ConversationStorage {
+                base: base_storage.clone(),
+            },
+            mr_storage: MrStorage {
+                base: base_storage.clone(),
+            },
         }
     }
 

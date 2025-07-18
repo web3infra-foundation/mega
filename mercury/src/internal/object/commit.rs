@@ -51,8 +51,6 @@ impl PartialEq for Commit {
     }
 }
 
-
-
 impl Display for Commit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "tree: {}", self.tree_id)?;

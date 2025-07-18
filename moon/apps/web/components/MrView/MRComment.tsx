@@ -1,25 +1,29 @@
 import { getMarkdownExtensions } from '@gitmono/editor'
-import { Conversation } from '@/pages/[org]/mr/[id]'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { useMemo } from 'react'
-import { ConditionalWrap, UIText } from '@gitmono/ui'
+import { Button, ConditionalWrap, FaceSmilePlusIcon, UIText } from '@gitmono/ui'
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { MemberAvatar } from '../MemberAvatar'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { KebabHorizontalIcon } from '@primer/octicons-react'
 import { UserLinkByName } from './components/UserLinkByName'
 import HandleTime from './components/HandleTime'
+import { ReactionPicker } from '../Reactions/ReactionPicker'
+import { useHandleExpression } from './hook/useHandleExpression'
+import { CommentDropdownMenu } from './CommentDropdownMenu'
+import { ConversationItem } from '@gitmono/types/generated'
+import { ReactionShow } from '../Reactions/ReactionShow'
 
 interface CommentProps {
-  conv: Conversation
+  conv: ConversationItem
   id: string
   whoamI: string
 }
 
-const Comment = ({ conv }: CommentProps) => {
+const Comment = ({ conv, id, whoamI }: CommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
   
   const extensions = useMemo(() => getMarkdownExtensions({ linkUnfurl: {} }), [])
+  const handleReactionSelect = useHandleExpression({ conv, id, type: whoamI })
 
   return (
     <div className='overflow-hidden rounded-lg border border-gray-300 bg-white'>
@@ -57,13 +61,27 @@ const Comment = ({ conv }: CommentProps) => {
             <HandleTime created_at={conv.created_at}/>
           </div>
         </div>
-        <button className='hover:text-blue-700'>
-          <KebabHorizontalIcon />
-        </button>
+        <div className='flex items-center'>
+          <ReactionPicker
+            custom
+            align='end'
+            trigger={
+              <Button
+                variant='plain'
+                iconOnly={<FaceSmilePlusIcon />}
+                accessibilityLabel='Add reaction'
+                tooltip='Add reaction'
+              />
+            }
+            onReactionSelect={handleReactionSelect}
+          />
+          <CommentDropdownMenu id={id} Conversation={conv} CommentType={whoamI}/>
+        </div>
       </div>
 
       <div className='prose copyable-text p-3'>
-        <RichTextRenderer content={conv.comment} extensions={extensions} />
+        { conv.comment && <RichTextRenderer content={conv.comment} extensions={extensions} /> }
+        <ReactionShow comment={conv} id={id} type={whoamI} />
       </div>
     </div>
   )

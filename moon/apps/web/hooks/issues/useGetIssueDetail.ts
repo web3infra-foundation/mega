@@ -35,7 +35,7 @@ const getApiIssueDetail = legacyApiClient.v1.getApiIssueDetail()
 
 export function useGetIssueDetail(id: string) {
   return useQuery<detailRes, Error>({
-    queryKey: ['issueDetail', id],
+    queryKey: legacyApiClient.v1.getApiIssueDetail().requestKey(id),
     queryFn: async () => {
       const { err_message, data, req_result } = await getApiIssueDetail.request(id)
 

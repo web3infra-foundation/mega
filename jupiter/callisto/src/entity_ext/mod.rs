@@ -14,6 +14,16 @@ pub fn generate_id() -> i64 {
     IdInstance::next_id()
 }
 
+pub fn generate_link() -> String {
+    let rng = rand::rng();
+    let str: String = rng
+        .sample_iter(rand::distr::Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect();
+    str.to_uppercase()
+}
+
 pub fn generate_public_id() -> String {
     let rng = rand::rng();
     let str: String = rng
@@ -26,10 +36,10 @@ pub fn generate_public_id() -> String {
 
 #[cfg(test)]
 mod test {
-    use crate::entity_ext::generate_public_id;
+    use crate::entity_ext::{generate_link, generate_public_id};
 
     #[test]
-    fn test_link_generate() {
+    fn test_pub_id_generate() {
         let link = generate_public_id();
         println!("public id: {:?}", link);
         assert!(
@@ -37,6 +47,16 @@ mod test {
                 && link
                     .chars()
                     .all(|c| c.is_alphanumeric() || c.is_lowercase())
+        )
+    }
+
+    #[test]
+    fn test_link_generate() {
+        let link = generate_link();
+        println!("MR Link: '{:?}'", link);
+        assert!(
+            link.chars().count() == 8
+                && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())
         )
     }
 }

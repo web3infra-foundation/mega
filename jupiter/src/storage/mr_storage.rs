@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use common::model::Pagination;
+use sea_orm::prelude::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
@@ -10,7 +11,6 @@ use sea_orm::{
 use callisto::sea_orm_active_enums::MergeStatusEnum;
 use callisto::{item_assignees, label, mega_conversation, mega_mr};
 use common::errors::MegaError;
-use common::utils::generate_id;
 
 use crate::model::common::{ItemDetails, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -122,6 +122,23 @@ impl MrStorage {
         Ok((res, page))
     }
 
+    pub async fn get_mr_suggestions_by_query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<mega_mr::Model>, MegaError> {
+        let keyword = format!("%{query}%");
+        let res = mega_mr::Entity::find()
+            .filter(
+                Condition::any()
+                    .add(mega_mr::Column::Link.like(&keyword))
+                    .add(mega_mr::Column::Title.like(&keyword)),
+            )
+            .limit(5)
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
     pub async fn get_mr(&self, link: &str) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Link.eq(link))
@@ -146,12 +163,11 @@ impl MrStorage {
         &self,
         link: &str,
     ) -> Result<Option<(mega_mr::Model, Vec<item_assignees::Model>)>, MegaError> {
-        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> =
-            mega_mr::Entity::find()
-                .filter(mega_mr::Column::Link.eq(link))
-                .find_with_related(item_assignees::Entity)
-                .all(self.get_connection())
-                .await?;
+        let assignees: Vec<(mega_mr::Model, Vec<item_assignees::Model>)> = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Link.eq(link))
+            .find_with_related(item_assignees::Entity)
+            .all(self.get_connection())
+            .await?;
         Ok(assignees.first().cloned())
     }
 
@@ -162,23 +178,30 @@ impl MrStorage {
         from_hash: &str,
         to_hash: &str,
     ) -> Result<String, MegaError> {
-        let link = common::utils::generate_link();
+        let model = mega_mr::Model::new(
+            path.to_owned(),
+            title.to_owned(),
+            from_hash.to_owned(),
+            to_hash.to_owned(),
+        );
+        let res = model
+            .into_active_model()
+            .insert(self.get_connection())
+            .await?;
+        Ok(res.link)
+    }
 
-        let mr = mega_mr::ActiveModel {
-            id: Set(generate_id()),
-            link: Set(link.clone()),
-            title: Set(title.to_owned()),
-            merge_date: Set(None),
-            status: Set(MergeStatusEnum::Open),
-            path: Set(path.to_owned()),
-            from_hash: Set(from_hash.to_owned()),
-            to_hash: Set(to_hash.to_owned()),
-            created_at: Set(chrono::Utc::now().naive_utc()),
-            updated_at: Set(chrono::Utc::now().naive_utc()),
-        };
-
-        mr.insert(self.get_connection()).await.unwrap();
-        Ok(link)
+    pub async fn edit_title(&self, link: &str, title: &str) -> Result<(), MegaError> {
+        mega_mr::Entity::update_many()
+            .col_expr(mega_mr::Column::Title, Expr::value(title))
+            .col_expr(
+                mega_mr::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now().naive_utc()),
+            )
+            .filter(mega_mr::Column::Link.eq(link))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
     }
 
     pub async fn close_mr(&self, model: mega_mr::Model) -> Result<(), MegaError> {
