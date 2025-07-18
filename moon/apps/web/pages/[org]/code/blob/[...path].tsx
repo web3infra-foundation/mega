@@ -1,20 +1,21 @@
 import React from 'react'
-import { Flex, Layout } from 'antd'
-import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
+import { useRouter } from 'next/router'
+
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
+import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
+import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
+import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
-import { useRouter } from 'next/router'
-import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
-import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 
 const codeStyle = {
   borderRadius: 8,
   background: '#fff',
   border: '1px solid #d1d9e0',
   margin: '0 8px',
-  width: 'calc(80% - 8px)',
+  // width: 'calc(80% - 8px)'
+  width: '100%'
 }
 
 const treeStyle = {
@@ -27,7 +28,7 @@ const treeStyle = {
 function BlobPage() {
   const { path = [] } = useRouter().query as { path?: string[] }
   const new_path = '/' + path.join('/')
-  const fileContent = useGetBlob({ path: new_path }).data?.data?? ""
+  const fileContent = useGetBlob({ path: new_path }).data?.data ?? ''
   const commitInfo: CommitInfo = {
     user: {
       avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
@@ -39,29 +40,29 @@ function BlobPage() {
   }
 
   return (
-    <div style={{overflow: 'auto'}}>
-      <Flex vertical gap='middle'>
-        <Layout>
+    <div style={{ overflow: 'auto' }}>
+      <div className='flex flex-col gap-4'>
+        <div>
           <BreadCrumb path={path} />
-        </Layout>
+        </div>
         {/* tree */}
-        <Flex>
-        <Layout style={treeStyle}>
-          <RepoTree  flag={'detail'} />
-        </Layout>
+        <div className='flex'>
+          <div style={treeStyle}>
+            <RepoTree flag={'detail'} />
+          </div>
 
-        <Layout style={codeStyle}>
-          <Layout className='m-2'>
-            <CommitHistory flag={'details'} info={commitInfo}/>
-          </Layout>
-          <Flex gap='middle' wrap>
-            <Layout style={codeStyle}>
-              <CodeContent fileContent={fileContent} path={path} />
-            </Layout>
-          </Flex>
-        </Layout>
-        </Flex>
-      </Flex>
+          <div style={codeStyle}>
+            <div className='m-2'>
+              <CommitHistory flag={'details'} info={commitInfo} />
+            </div>
+            <div className='flex w-full flex-wrap gap-4'>
+              <div style={codeStyle}>
+                <CodeContent fileContent={fileContent} path={path} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
