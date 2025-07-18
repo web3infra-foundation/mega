@@ -1,4 +1,4 @@
-import { getMarkdownExtensions } from '@gitmono/editor'
+import { getNoteExtensions } from '@gitmono/editor'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { useMemo } from 'react'
 import { Button, ConditionalWrap, FaceSmilePlusIcon, UIText } from '@gitmono/ui'
@@ -22,7 +22,7 @@ interface CommentProps {
 const Comment = ({ conv, id, whoamI }: CommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
   
-  const extensions = useMemo(() => getMarkdownExtensions({ linkUnfurl: {} }), [])
+  const extensions = useMemo(() => getNoteExtensions({ linkUnfurl: {} }), [])
   const handleReactionSelect = useHandleExpression({ conv, id, type: whoamI })
 
   return (
