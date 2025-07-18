@@ -1,3 +1,4 @@
+
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
@@ -5,6 +6,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
 };
+
 
 use rusty_vault::{
     core::Core,
@@ -16,6 +18,8 @@ use serde_json::{Map, Value};
 use tracing::log;
 
 const CORE_KEY_FILE: &str = "core_key.json"; // where the core key is stored, like `root_token`
+
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CoreKey {
@@ -53,9 +57,10 @@ impl VaultCore {
         tracing::info!("{key_path:?}");
         std::fs::create_dir_all(&dir).expect("Failed to create vault directory");
         Self::config(ctx.clone(), key_path)
+
     }
 
-    fn config(ctx: Storage, key_path: PathBuf) -> Self {
+    pub fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
         let seal_config = rusty_vault::core::SealConfig {
@@ -70,6 +75,7 @@ impl VaultCore {
         };
         let core = Arc::new(RwLock::new(core));
 
+        
         let key = {
             let mut managed_core = core.write().unwrap();
             managed_core
@@ -77,6 +83,8 @@ impl VaultCore {
                 .expect("Failed to configure vault core");
 
             let core_key = if !key_path.exists() {
+                
+                
                 let result = managed_core
                     .init(&seal_config)
                     .expect("Failed to initialize vault");
@@ -84,10 +92,12 @@ impl VaultCore {
                     secret_shares: Vec::from(&result.secret_shares[..]),
                     root_token: result.root_token,
                 };
+
                 println!(
                     "[vault] Creating new core_key.json at: {}",
                     key_path.display()
                 );
+
                 let file = std::fs::File::create(&key_path).unwrap();
                 serde_json::to_writer_pretty(file, &core_key).unwrap();
                 core_key
@@ -201,7 +211,8 @@ mod tests {
             "Vault core should be initialized"
         );
     }
-
+    
+    
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_api() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
