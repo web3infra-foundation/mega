@@ -51,6 +51,8 @@ interface detailRes {
   req_result: boolean
 }
 
+let needComment = false
+
 export default function IssueDetailPage({ id }: { id: string }) {
   const [login, setLogin] = useState(false)
   const [info, setInfo] = useState<IssueDetail>({
@@ -169,6 +171,10 @@ export default function IssueDetailPage({ id }: { id: string }) {
   const reopen_issue = useCallback(() => {
     setLoading('reopen', true)
     set_to_loading(3)
+    if (needComment) {
+      save_comment()
+      needComment = false
+    }
     reopenIssue(
       { link: id },
       {
@@ -179,7 +185,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('reopen', false)
       }
     )
-  }, [id, router, reopenIssue])
+  }, [id, router, reopenIssue, save_comment])
 
   const editorRef = useRef<SimpleNoteContentRef>(null)
   const onKeyDownScrollHandler = useHandleBottomScrollOffset({
@@ -267,6 +273,14 @@ export default function IssueDetailPage({ id }: { id: string }) {
     }
   }
 
+  const handleCloseChange = (html: string) => {
+    if (html && html === '<p></p>') {
+      needComment = false
+    } else {
+      needComment = true
+    }
+  }
+
   return (
     <>
       <div className='h-screen overflow-auto pt-10'>
@@ -301,7 +315,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={id} type="issue"/>
+                  <TimelineItems detail={issueDetail} id={id} type='issue' />
                 )}
 
                 {info && info.status === 'open' && (
@@ -371,6 +385,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                           content={EMPTY_HTML}
                           autofocus={true}
                           onKeyDown={onKeyDownScrollHandler}
+                          onChange={(html) => handleCloseChange(html)}
                         />
                         <Button
                           variant='plain'

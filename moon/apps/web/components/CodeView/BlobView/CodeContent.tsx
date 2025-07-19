@@ -1,12 +1,13 @@
-'use client';
+'use client'
 
-import { useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, MenuProps, message } from 'antd';
-import { Highlight, themes } from 'prism-react-renderer';
-import { DotsHorizontal } from '@gitmono/ui';
+import { useEffect, useRef, useState } from 'react'
+import { Highlight, themes } from 'prism-react-renderer'
 
-import 'github-markdown-css/github-markdown-light.css';
-import styles from './CodeContent.module.css';
+import 'github-markdown-css/github-markdown-light.css'
+
+import toast from 'react-hot-toast'
+
+import styles from './CodeContent.module.css'
 
 const suffixToLangMap: Record<string, string> = {
   '.js': 'jsx',
@@ -21,42 +22,42 @@ const suffixToLangMap: Record<string, string> = {
   '.h': 'cpp',
   '.go': 'go',
   '.yml': 'yaml',
-  '.yaml': 'yaml',
+  '.yaml': 'yaml'
 }
 
 function getLangFromFileName(fileName: string): string {
-  const lastPart = fileName.toLowerCase().match(/\.[^./\\]+$/);
+  const lastPart = fileName.toLowerCase().match(/\.[^./\\]+$/)
 
-  if(lastPart) {
-    return suffixToLangMap[lastPart[0].toLowerCase()] ?? "markdown";
+  if (lastPart) {
+    return suffixToLangMap[lastPart[0].toLowerCase()] ?? 'markdown'
   }
-  return "markdown";
+  return 'markdown'
 }
 
-const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string[] }) => {
+const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string[] }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
 
-  const menuItems: MenuProps = {
-    items: [
-      {
-        label: 'Copy line',
-        key: '1'
-      },
-      {
-        label: 'Copy permalink',
-        key: '2'
-      },
-      {
-        label: 'View file in GitHub.dev',
-        key: '3'
-      },
-      {
-        label: 'View file in different branch/tag',
-        key: '4'
-      }
-    ]
-  }
+  // const menuItems: MenuProps = {
+  //   items: [
+  //     {
+  //       label: 'Copy line',
+  //       key: '1'
+  //     },
+  //     {
+  //       label: 'Copy permalink',
+  //       key: '2'
+  //     },
+  //     {
+  //       label: 'View file in GitHub.dev',
+  //       key: '3'
+  //     },
+  //     {
+  //       label: 'View file in different branch/tag',
+  //       key: '4'
+  //     }
+  //   ]
+  // }
 
   useEffect(() => {
     if (isLfsContent(fileContent)) {
@@ -72,20 +73,21 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
 
   const handleCopyLine = (line: string) => {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(line)
-        .then(() => message.success('Copied to clipboard'))
-        .catch(() => message.error('Copied failed'))
+      navigator.clipboard
+        .writeText(line)
+        .then(() => toast.success('Copied to clipboard'))
+        .catch(() => toast.error('Copied failed'))
     } else {
-      const textarea = document.createElement('textarea');
+      const textarea = document.createElement('textarea')
 
-      textarea.value = line;
-      document.body.appendChild(textarea);
-      textarea.select();
+      textarea.value = line
+      document.body.appendChild(textarea)
+      textarea.select()
       try {
-        document.execCommand('copy');
-        message.success('Copied to clipboard');
+        document.execCommand('copy')
+        toast.success('Copied to clipboard')
       } catch {
-        message.error('Copied failed');
+        toast.error('Copied failed')
       }
     }
   }
@@ -94,18 +96,17 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
     handleCopyLine(fileContent)
   }
 
-  let filename;
+  let filename
 
   if (!path || path.length === 0) {
-    message.error('Path information is missing');
-    filename = "";
-  }
-  else {
+    toast.error('Path information is missing')
+    filename = ''
+  } else {
     filename = path[path.length - 1]
   }
   const handleRawView = () => {
     // Create a new window/tab with the raw content
-    const newWindow = window.open();
+    const newWindow = window.open()
 
     if (newWindow) {
       newWindow.document.write(`
@@ -123,27 +124,27 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
           </head>
           <body>${fileContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
         </html>
-      `);
-      newWindow.document.close();
+      `)
+      newWindow.document.close()
     } else {
-      message.error('Unable to open new window. Please check your browser settings.');
+      toast.error('Unable to open new window. Please check your browser settings.')
     }
   }
   const handleDownload = () => {
-    const blob = new Blob([fileContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const blob = new Blob([fileContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
 
-    a.href = url;
-    a.download = filename;
+    a.href = url
+    a.download = filename
 
     // Append to the document, click it, and remove it
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
 
     // Release the URL object
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url)
   }
 
   function isLfsContent(content: string): boolean {
@@ -179,9 +180,15 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
         <span className='m-2 text-gray-500'>{`${fileContent.split('\n').length}   lines  .  2.79  KB`}</span>
         <div className='flex-1' />
         <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
-          <button className={styles.toolbarRightButton} onClick={handleRawView}>Raw</button>
-          <button className={styles.toolbarRightButton} onClick={handleCopy}>Copy</button>
-          <button className={styles.toolbarRightButton} onClick={handleDownload}>Download</button>
+          <button className={styles.toolbarRightButton} onClick={handleRawView}>
+            Raw
+          </button>
+          <button className={styles.toolbarRightButton} onClick={handleCopy}>
+            Copy
+          </button>
+          <button className={styles.toolbarRightButton} onClick={handleDownload}>
+            Download
+          </button>
         </div>
         <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
           <button className={styles.toolbarRightButton}>Edit</button>
@@ -199,6 +206,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
             }}
             className='overflow-x-auto whitespace-pre rounded-lg p-4 text-sm'
           >
+            {/* <Button icon={<DotsHorizontal />} size={'sm'} className='flex h-6 w-6 p-0' /> */}
             {!lfs &&
               tokens.map((line, i) => (
                 <div
@@ -214,31 +222,24 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
                   onClick={() => handleLineClick(i)}
                 >
                   <span className='inline-block w-8'>
-                    {selectedLine === i ?
-                      <Dropdown
-                        menu={{
-                          ...menuItems,
-                          onClick: (props) => {
-                            if(props.key === '1') {
-                              handleCopyLine(line.map(i=>i.content).join(''))
-                            }
-                          }
-                        }}
-                        className='bg-gray-100 border rounded border-gray-200'
-                      >
-                        <Button
-                          icon={<DotsHorizontal />}
-                          size={'small'}
-                          className='h-6 w-6 p-0 flex'
-                        />
-                      </Dropdown>
-                      :
-                      null
-                    }
+                    {selectedLine === i ? (
+                      <div></div>
+                    ) : // <Dropdown
+                    //   menu={{
+                    //     ...menuItems,
+                    //     onClick: (props) => {
+                    //       if (props.key === '1') {
+                    //         handleCopyLine(line.map((i) => i.content).join(''))
+                    //       }
+                    //     }
+                    //   }}
+                    //   className='rounded border border-gray-200 bg-gray-100'
+                    // >
+                    //   <Button size={'sm'} className='flex h-6 w-6 p-0' />
+                    // </Dropdown>
+                    null}
                   </span>
-                  <span className={styles.codeLineNumber}>
-                    {i + 1}
-                  </span>
+                  <span className={styles.codeLineNumber}>{i + 1}</span>
                   {line.map((token, key) => (
                     // eslint-disable-next-line react/no-array-index-key
                     <span key={key} {...getTokenProps({ token })} />
@@ -253,4 +254,4 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
   )
 }
 
-export default CodeContent;
+export default CodeContent

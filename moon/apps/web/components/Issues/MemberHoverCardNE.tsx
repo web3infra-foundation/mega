@@ -2,12 +2,48 @@ import React, { useState } from 'react'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { AnimatePresence, m } from 'framer-motion'
 
-import { SyncOrganizationMember as Member } from '@gitmono/types/generated'
+import { OrganizationMember as Member } from '@gitmono/types/generated'
 import { ANIMATION_CONSTANTS, Button, ChatBubbleIcon } from '@gitmono/ui'
 
 import { MemberAvatar } from '@/components/MemberAvatar'
 
 // import { useScope } from '@/contexts/scope'
+
+export interface OutPut {
+  id: string
+  role: string
+  created_at: Date
+  deactivated: boolean
+  is_organization_member: boolean
+  user: User
+  status: null
+}
+
+export interface User {
+  id: string
+  avatar_url: string
+  avatar_urls: AvatarUrls
+  cover_photo_url: null
+  email: string
+  username: string
+  display_name: string
+  system: boolean
+  integration: boolean
+  notifications_paused: boolean
+  notification_pause_expires_at: null
+  timezone: null
+  logged_in: boolean
+  type_name: string
+}
+
+export interface AvatarUrls {
+  xs: string
+  sm: string
+  base: string
+  lg: string
+  xl: string
+  xxl: string
+}
 
 export function MemberHovercard({
   member,
