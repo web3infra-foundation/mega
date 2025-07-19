@@ -153,6 +153,8 @@ impl PackEncoder {
         return self.inner_encode(entry_rx, true).await;
     }
 
+    /// Delta selection heuristics are based on:
+    ///   https://github.com/git/git/blob/master/Documentation/technical/pack-heuristics.adoc
     async fn inner_encode(
         &mut self,
         mut entry_rx: mpsc::Receiver<Entry>,
