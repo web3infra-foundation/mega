@@ -540,7 +540,7 @@ impl Default for LFSSshConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OauthConfig {
     pub github_client_id: String,
     pub github_client_secret: String,
@@ -548,6 +548,26 @@ pub struct OauthConfig {
     pub cookie_domain: String,
     pub campsite_api_domain: String,
     pub allowed_cors_origins: Vec<String>,
+}
+
+impl Default for OauthConfig {
+    fn default() -> Self {
+        Self {
+            github_client_id: String::new(),
+            github_client_secret: String::new(),
+            ui_domain: "http://local.gitmega.com".to_string(),
+            cookie_domain: "localhost".to_string(),
+            campsite_api_domain: "http://api.gitmono.test:3001".to_string(),
+            allowed_cors_origins: vec![
+                "http://local.gitmega.com",
+                "http://app.gitmega.com",
+                "http://app.gitmono.test",
+            ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect(),
+        }
+    }
 }
 
 #[cfg(test)]
