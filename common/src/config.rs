@@ -555,11 +555,11 @@ impl Default for OauthConfig {
         Self {
             github_client_id: String::new(),
             github_client_secret: String::new(),
-            ui_domain: "http://local.gitmega.com".to_string(),
+            ui_domain: "http://localhost".to_string(),
             cookie_domain: "localhost".to_string(),
             campsite_api_domain: "http://api.gitmono.test:3001".to_string(),
             allowed_cors_origins: vec![
-                "http://local.gitmega.com",
+                "http://localhost",
                 "http://app.gitmega.com",
                 "http://app.gitmono.test",
             ]
