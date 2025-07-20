@@ -90,7 +90,7 @@ fn should_check_port_first(db_url: &str) -> bool {
 fn is_port_reachable(db_url: &str) -> bool {
     if let Ok(url) = Url::parse(db_url) {
         if let (Some(host), Some(port)) = (url.host_str(), url.port()) {
-            if let Ok(addr) = format!("{}:{}", host, port).parse::<SocketAddr>() {
+            if let Ok(addr) = format!("{host}:{port}").parse::<SocketAddr>() {
                 return TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok();
             }
         }
