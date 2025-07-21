@@ -36,3 +36,6 @@ export const issueCloseCurrentPage = atomWithWebStorage('IssueClosecurrentPage',
 
 export const mrOpenCurrentPage = atomWithWebStorage('MROpencurrentPage', 1)
 export const mrCloseCurrentPage = atomWithWebStorage('MRClosecurrentPage', 1)
+
+export const labelsOpenCurrentPage = atomWithWebStorage('LabelsOpenCurrentPage', 1)
+export const labelsCloseCurrentPage = atomWithWebStorage('LabelsCloseCurrentPage', 1)

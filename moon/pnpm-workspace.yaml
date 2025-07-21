@@ -270,3 +270,4 @@ catalog:
   '@emotion/styled': ^11.14.0
   prism-react-renderer: ^2.4.1
   material-file-icons: ^2.4.0
+  colord: ^2.9.3

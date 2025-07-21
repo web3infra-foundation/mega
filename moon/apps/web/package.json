@@ -61,6 +61,7 @@
     "@vercel/og": "catalog:",
     "@vercel/speed-insights": "catalog:",
     "clsx": "catalog:",
+    "colord": "catalog:",
     "cookies-next": "catalog:",
     "copy-to-clipboard": "catalog:",
     "d3-selection": "catalog:",
