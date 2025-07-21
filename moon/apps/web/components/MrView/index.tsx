@@ -4,10 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestIcon } from '@primer/octicons-react'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
+import { useRouter } from 'next/router'
 
 import { LabelItem, SyncOrganizationMember as Member, PostApiMrListData } from '@gitmono/types/generated'
 import { Button, CheckIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
-import { Link } from '@gitmono/ui/Link'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { IssueIndexTabFilter as MRIndexTabFilter } from '@/components/Issues/IssueIndex'
@@ -32,7 +32,7 @@ import { AdditionType, RightAvatar } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
 import { orderTags, reviewTags, tags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
-import { filterAtom, sortAtom } from '../Issues/utils/store'
+import { filterAtom, mrCloseCurrentPage, mrOpenCurrentPage, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
 
 // interface MrInfoItem {
@@ -51,9 +51,9 @@ export default function MrView() {
   const [mrList, setMrList] = useState<ItemsType>([])
   const [numTotal, setNumTotal] = useState(0)
   const [pageSize] = useState(10)
-  const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'mr' }))
+  const [status, _setStatus] = useAtom(filterAtom({ part: 'mr' }))
   // const [status, _setStatus] = useState('open')
-  const [page, _setPage] = useState(1)
+  const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const { mutate: fetchMrList } = usePostMrList()
   const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPickerMR' }))
@@ -63,6 +63,9 @@ export default function MrView() {
     () => atomWithWebStorage(`${scope}:mr-order`, { sort: 'Created On', time: 'Newest' }),
     [scope]
   )
+
+  // const [openCurrent, setopenCurrent] = useAtom(mrOpenCurrentPage)
+  // const [closeCurrent, setcloseCurrent] = useAtom(mrCloseCurrentPage)
 
   const reviewAtom = useMemo(() => atomWithWebStorage(`${scope}:mr-review`, ''), [scope])
 
@@ -395,6 +398,12 @@ export default function MrView() {
     }
   }
 
+  const handlePageChange = (page: number) => {
+    setPage(page)
+  }
+
+  const router = useRouter()
+
   return (
     <div className='m-4'>
       <Heading>Merge Request</Heading>
@@ -424,21 +433,36 @@ export default function MrView() {
           >
             {(issueList) => {
               return issueList.map((i) => (
-                <Link key={i.link} href={`/${scope}/mr/${i.link}`}>
-                  <MrItem
-                    title={i.title}
-                    leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar commentNum={i.comment_num} />}
-                  >
-                    <div className='text-xs text-[#59636e]'>
-                      {i.link} {i.status} {getDescription(i)}
-                    </div>
-                  </MrItem>
-                </Link>
+                <MrItem
+                  key={i.id}
+                  onClick={() => router.push(`/${scope}/mr/${i.link}`)}
+                  title={i.title}
+                  leftIcon={getStatusIcon(i.status)}
+                  rightIcon={<RightAvatar item={i} />}
+                >
+                  <div className='text-xs text-[#59636e]'>
+                    {i.link} {i.status} {getDescription(i)}
+                  </div>
+                </MrItem>
               ))
             }}
           </MrList>
-          <Pagination totalNum={numTotal} pageSize={pageSize} />
+          {numTotal > 10 && status === 'open' && (
+            <Pagination
+              totalNum={numTotal}
+              currentPage={mrOpenCurrentPage}
+              pageSize={pageSize}
+              onChange={(page: number) => handlePageChange(page)}
+            />
+          )}
+          {numTotal > 10 && status === 'closed' && (
+            <Pagination
+              totalNum={numTotal}
+              currentPage={mrCloseCurrentPage}
+              pageSize={pageSize}
+              onChange={(page: number) => handlePageChange(page)}
+            />
+          )}
         </IndexPageContent>
       </IndexPageContainer>
     </div>

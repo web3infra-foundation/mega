@@ -5,24 +5,27 @@ import { Button, ButtonProps, ChevronLeftIcon, ChevronRightIcon } from '@gitmono
 import { cn } from '@gitmono/ui/src/utils'
 
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
+import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
 import { getPages } from './utils/getPages'
-import { currentPage } from './utils/store'
 
-interface PaginationType {
+// import { currentPage } from './utils/store'
+
+interface PaginationType<T> {
   totalNum: number
   pageSize: number
   onChange?: (page: number) => void
+  currentPage: ReturnType<typeof atomWithWebStorage<T>>
 }
 
-export const Pagination = ({ totalNum, pageSize, onChange }: PaginationType) => {
+export const Pagination = <T extends number>({ totalNum, pageSize, onChange, currentPage }: PaginationType<T>) => {
   if (totalNum < 0 || pageSize < 0) throw new Error('invalid props')
   const totalPages = Math.ceil(totalNum / pageSize)
   const [pages, setPages] = useState<(number | '...')[]>([])
   const [current, setCurrent] = useAtom(currentPage)
   const handleChange = (page: number) => {
     if (page < 1 || page > totalPages) return
-    setCurrent(page)
+    setCurrent(page as T)
     onChange?.(page)
   }
 
