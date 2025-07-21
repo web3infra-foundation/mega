@@ -53,6 +53,8 @@ mod imp {
         pub primary_menu_button: TemplateChild<gtk::MenuButton>,
         #[template_child]
         pub view_switcher: TemplateChild<adw::ViewSwitcher>,
+        #[template_child]
+        pub search_container: TemplateChild<gtk::Box>,
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
@@ -183,6 +185,8 @@ impl MonobeanWindow {
         let stack = self.imp().base_stack.clone();
         let switcher = self.imp().view_switcher.clone();
         switcher.set_visible(true);
+        let searcher = self.imp().search_container.clone();
+        searcher.set_visible(true);
         stack.set_visible_child_name("main_page");
     }
 
@@ -196,6 +200,8 @@ impl MonobeanWindow {
         let page = self.imp().hello_page.clone();
         let switcher = self.imp().view_switcher.clone();
         switcher.set_visible(false);
+        let searcher = self.imp().search_container.clone();
+        searcher.set_visible(false);
         page.fill_entries(name, email, pgp_generated);
         stack.set_visible_child_name("hello_page");
     }

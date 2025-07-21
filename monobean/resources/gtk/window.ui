@@ -6,7 +6,7 @@
     <property name="default-height">820</property>
     <property name="width-request">800</property>
     <property name="height-request">600</property>
-    <property name="title" translatable="true">Monobean</property>
+    <property name="title" translatable="true"></property>
 
     <menu id="primary_menu">
       <section>
@@ -41,20 +41,22 @@
 
               <!-- Title Bar -->
               <object class="AdwHeaderBar" id="header_bar">
-                <property name="centering-policy">strict</property>
+                <property name="centering-policy">loose</property>
+
                 <child type="start">
                   <object class="GtkBox">
                     <property name="orientation">horizontal</property>
                     <property name="margin-start">6</property>
                     <property name="spacing">4</property>
-
-                    <!-- Icon -->
+                    <property name="hexpand">true</property>
+                    <!-- 头像 -->
                     <child>
-                      <object class="GtkImage">
-                        <property name="icon-name">mono-white-logo</property>
+                      <object class="GtkImage" id="avatar_image">
+                        <property name="icon-name">avatar-default-symbolic</property>
                       </object>
                     </child>
 
+                    <!-- 返回按钮 -->
                     <child>
                       <object class="GtkButton" id="back_button">
                         <property name="visible">false</property>
@@ -62,20 +64,58 @@
                         <property name="icon-name">monobean-arrow-left-symbolic</property>
                       </object>
                     </child>
+
+                    <!-- ViewSwitcher -->
+                    <child>
+                      <object class="AdwViewSwitcher" id="view_switcher">
+                        <property name="policy">wide</property>
+                        <property name="stack">content_stack</property>
+                      </object>
+                    </child>
+
+
+                    <!-- control visable-->
+                    <child>
+                      <object class="GtkBox" id="search_container">
+                        <property name="orientation">horizontal</property>
+                        <property name="spacing">0</property>
+
+                        <!-- 搜索框，拉伸 -->
+                        <child>
+                          <object class="GtkSearchEntry" id="search_entry">
+                            <property name="hexpand">true</property>
+                            <property name="placeholder-text">请输入文本</property>
+                          </object>
+                        </child>
+
+                        <!-- 搜索按钮 -->
+                        <child>
+                          <object class="GtkButton" id="search_button">
+                            <property name="label">搜索</property>
+                          </object>
+                        </child>
+
+                      </object>
+                    </child>
+
                   </object>
                 </child>
+
+
+                <child type="title">
+                  <object class="GtkBox"/>
+                </child>
+
+
+                <!-- 右侧菜单 -->
                 <child type="end">
                   <object class="GtkMenuButton" id="primary_menu_button">
                     <property name="menu-model">primary_menu</property>
                     <property name="icon-name">monobean-menu-symbolic</property>
                   </object>
                 </child>
-                <child type="title">
-                  <object class="AdwViewSwitcher" id="view_switcher">
-                    <property name="policy">wide</property>
-                    <property name="stack">content_stack</property>
-                  </object>
-                </child>
+
+
 
               </object>
             </child>
@@ -100,50 +140,123 @@
                     <property name="name">main_page</property>
                     <property name="title" translatable="true">Main</property>
                     <property name="child">
-                      <object class="AdwViewStack" id="content_stack">
+                      <object class="GtkBox">
+                      <property name="orientation">vertical</property>
+                      <property name="spacing">0</property>
+
                         <child>
-                          <object class="AdwViewStackPage">
-                            <property name="name">mega_tab</property>
-                            <property name="title" translatable="true">Mega</property>
-                            <property name="icon-name">monobean-code-symbolic</property>
-                            <property name="child">
-                              <object class="MegaTab" id="mega_tab"></object>
-                            </property>
-                          </object>
+                            <object class="AdwViewStack" id="content_stack">
+                              <child>
+                                <object class="AdwViewStackPage">
+                                  <property name="name">mega_tab</property>
+                                  <property name="title" translatable="true">Mega</property>
+                                  <property name="icon-name">monobean-code-symbolic</property>
+                                  <property name="child">
+                                    <object class="MegaTab" id="mega_tab"></object>
+                                  </property>
+                                </object>
+                              </child>
+                              <child>
+                                <object class="AdwViewStackPage">
+                                  <property name="name">monorepo</property>
+                                  <property name="title" translatable="true">Mono Repo</property>
+                                  <property name="icon-name">monobean-package-symbolic</property>
+                                  <property name="child">
+                                    <object class="RepoTab" id="repo_tab"></object>
+                                  </property>
+                                </object>
+                              </child>
+                              <child>
+                                <object class="AdwViewStackPage">
+                                  <property name="name">code</property>
+                                  <property name="title" translatable="true">Code</property>
+                                  <property name="icon-name">monobean-package-2-symbolic</property>
+                                  <property name="child">
+                                    <object class="CodePage" id="code_page"></object>
+                                  </property>
+                                </object>
+                              </child>
+
+                              <child>
+                                <object class="AdwViewStackPage">
+                                  <property name="name">p2p</property>
+                                  <property name="title" translatable="true">P2P</property>
+                                  <property name="icon-name">monobean-crop-symbolic</property>
+                                  <property name="child">
+                                    <object class="NotImplemented" id="not_implemented"></object>
+                                  </property>
+                                </object>
+                              </child>
+                            </object>
                         </child>
+
+
                         <child>
-                          <object class="AdwViewStackPage">
-                            <property name="name">monorepo</property>
-                            <property name="title" translatable="true">Mono Repo</property>
-                            <property name="icon-name">monobean-package-symbolic</property>
-                            <property name="child">
-                              <object class="RepoTab" id="repo_tab"></object>
-                            </property>
-                          </object>
+                          <object class="GtkSeparator"/>
                         </child>
+
+                        <!-- 新增的底部工具栏 -->
                         <child>
-                          <object class="AdwViewStackPage">
-                            <property name="name">code</property>
-                            <property name="title" translatable="true">Code</property>
-                            <property name="icon-name">monobean-package-2-symbolic</property>
-                            <property name="child">
-                              <object class="CodePage" id="code_page"></object>
-                            </property>
+                          <object class="GtkBox" id="status_bar">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">6</property>
+                            <property name="margin-start">6</property>
+                            <property name="margin-end">6</property>
+                            <property name="margin-bottom">4</property>
+
+                            <!-- 左侧状态 -->
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">4</property>
+
+                                <child>
+                                  <object class="GtkImage">
+                                    <property name="icon-name">dialog-ok-symbolic</property>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkLabel" id="status_label">
+                                    <property name="label">Mega Started</property>
+                                  </object>
+                                </child>
+
+                              </object>
+                            </child>
+
+                            <!-- 中间弹性填充 -->
+                            <child>
+                              <object class="GtkBox">
+                                <property name="hexpand">true</property>
+                              </object>
+                            </child>
+
+                            <!-- 右侧统计 -->
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">4</property>
+
+                                <child>
+                                  <object class="GtkLabel" id="conn_count_label">
+                                    <property name="label">当前有 3 个链接</property>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkImage">
+                                    <property name="icon-name">network-wired-symbolic</property>
+                                  </object>
+                                </child>
+
+                              </object>
+                            </child>
+
                           </object>
                         </child>
 
-                        <child>
-                          <object class="AdwViewStackPage">
-                            <property name="name">p2p</property>
-                            <property name="title" translatable="true">P2P</property>
-                            <property name="icon-name">monobean-crop-symbolic</property>
-                            <property name="child">
-                              <object class="NotImplemented" id="not_implemented"></object>
-                            </property>
-                          </object>
-                        </child>
                       </object>
-
                     </property>
 
                   </object>
