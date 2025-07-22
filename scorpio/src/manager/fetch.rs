@@ -328,6 +328,29 @@ pub fn enqueue_file_download(file_id: SHA1, save_path: PathBuf) {
     }
 }
 
+/// Download multiple files for MR scenarios.
+pub async fn download_mr_files(
+    files: Vec<(SHA1, PathBuf)>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let download_manager = DownloadManager::get_global();
+
+    // Since this is for MR files only (no directory traversal),
+    // we mark directory processing as complete immediately
+    download_manager.notify_directory_processing_complete();
+
+    // Enqueue all file download tasks
+    for (file_id, save_path) in files {
+        let task = DownloadTask::new(file_id, save_path);
+        if let Err(e) = download_manager.enqueue_download(task) {
+            return Err(format!("Failed to enqueue download task for file {file_id}: {e}").into());
+        }
+    }
+
+    // Wait for all downloads to complete
+    download_manager.wait_for_completion().await;
+
+    Ok(())
+}
 #[allow(unused)]
 #[async_trait]
 pub trait CheckHash {

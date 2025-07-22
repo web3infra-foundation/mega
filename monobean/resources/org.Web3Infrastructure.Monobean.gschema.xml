@@ -18,7 +18,8 @@
                 <choice value='light' />
                 <choice value='dark' />
             </choices>
-            <default>'system'</default>
+            <!-- <default>'system'</default> -->
+            <default>'light'</default>
             <summary>Settings theme</summary>
         </key>
 

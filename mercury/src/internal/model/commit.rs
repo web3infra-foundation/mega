@@ -1,15 +1,10 @@
-
-
 use callisto::{git_commit, mega_commit};
 use common::utils::generate_id;
 
-use crate::{
-    internal::{
-        object::{commit::Commit, ObjectTrait},
-        pack::entry::Entry,
-    },
+use crate::internal::{
+    object::{commit::Commit, ObjectTrait},
+    pack::entry::Entry,
 };
-
 
 impl From<Commit> for mega_commit::Model {
     fn from(value: Commit) -> Self {

@@ -4,23 +4,32 @@ use crate::{
         base_storage::{BaseStorage, StorageConnector},
         conversation_storage::ConversationStorage,
         issue_storage::IssueStorage,
+        mr_storage::MrStorage,
     },
 };
 
+use callisto::{mega_issue, mega_mr};
 use common::errors::MegaError;
 
 #[derive(Clone)]
 pub struct IssueService {
     pub issue_storage: IssueStorage,
+    pub mr_storage: MrStorage,
     pub conversation_storage: ConversationStorage,
 }
 
-
 impl IssueService {
-    pub fn new(issue_storage: IssueStorage, conversation_storage: ConversationStorage) -> Self {
+    pub fn new(base_storage: BaseStorage) -> Self {
         Self {
-            issue_storage,
-            conversation_storage,
+            issue_storage: IssueStorage {
+                base: base_storage.clone(),
+            },
+            conversation_storage: ConversationStorage {
+                base: base_storage.clone(),
+            },
+            mr_storage: MrStorage {
+                base: base_storage.clone(),
+            },
         }
     }
 
@@ -29,6 +38,7 @@ impl IssueService {
         Self {
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
+            mr_storage: MrStorage { base: mock.clone() },
         }
     }
 
@@ -62,5 +72,17 @@ impl IssueService {
             username,
         };
         Ok(res)
+    }
+
+    pub async fn get_suggestions(
+        &self,
+        query: &str,
+    ) -> Result<(Vec<mega_issue::Model>, Vec<mega_mr::Model>), MegaError> {
+        let issues = self
+            .issue_storage
+            .get_issue_suggestions_by_query(query)
+            .await?;
+        let mrs = self.mr_storage.get_mr_suggestions_by_query(query).await?;
+        Ok((issues, mrs))
     }
 }

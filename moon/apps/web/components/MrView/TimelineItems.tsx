@@ -3,10 +3,10 @@ import '@primer/primitives/dist/css/functional/themes/light.css'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 import { FeedPullRequestClosedIcon, CommentIcon, FeedMergedIcon, FeedPullRequestOpenIcon } from '@primer/octicons-react'
 import MRComment from '@/components/MrView/MRComment';
-import { MRDetail } from '@/pages/[org]/mr/[id]';
 import CloseItem from './CloseItem';
 import ReopenItem from './ReopenItem';
 import MergedItem from './MergedItem';
+import { ConversationItem } from '@gitmono/types/generated'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -54,12 +54,9 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   );
 };
 
-const TimelineItems: React.FC<{ mrDetail?: MRDetail, id: string }> = ({ mrDetail, id }) => {
-  if (!mrDetail) {
-    return null; 
-  }
+const TimelineItems: React.FC<{ detail: any, id: string, type: string }> = ({ detail, id, type }) => {
 
-  const convItems: ConvItem[] = mrDetail?.conversations.map((conv) => {
+  const convItems: ConvItem[] = detail.conversations.map((conv: ConversationItem) => {
     let icon;
     let children;
     let isOver = false;
@@ -67,7 +64,7 @@ const TimelineItems: React.FC<{ mrDetail?: MRDetail, id: string }> = ({ mrDetail
     switch (conv.conv_type) {
       case 'Comment':
         icon = <CommentIcon />;
-        children = <MRComment conv={conv} id={id} whoamI="mr" />;
+        children = <MRComment conv={conv} id={id} whoamI={type} />;
         break;
       case 'Merged':
         icon = <FeedMergedIcon size={24} className="text-purple-500" />;

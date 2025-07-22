@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use jupiter::tests::test_storage;
 
 /// This is the main application context for the Mono application.
 /// It holds shared state and configuration for the application.
@@ -22,7 +23,9 @@ pub struct AppContext {
 impl AppContext {
     /// Creates a new application context with the given configuration.
     pub async fn new(config: common::config::Config) -> Self {
+
         let config = Arc::new(config);
+
 
         let storage = jupiter::storage::Storage::new(config.clone()).await;
 
@@ -32,6 +35,7 @@ impl AppContext {
         })
         .await
         .expect("VaultCore::new panicked");
+
 
         #[cfg(feature = "p2p")]
         let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
@@ -45,9 +49,42 @@ impl AppContext {
             #[cfg(feature = "p2p")]
             client,
         }
+
+      
     }
 
     pub fn wrapped_context(&self) -> Arc<Self> {
         Arc::new(self.clone())
     }
+
+    pub async fn mock(config: common::config::Config) -> Self {
+        
+        let config = Arc::new(config);
+
+        // use Existing test method
+        let storage = test_storage(config.base_dir.clone()).await;
+        
+        let storage_for_vault = storage.clone();
+        let temp_dir = config.base_dir.clone().join("vault");
+        let key_path = temp_dir.join("core_key.json");
+        std::fs::create_dir_all(&temp_dir).expect("Mock: Failed to create vault dir");
+        
+        let vault = tokio::task::spawn_blocking(move || {
+            vault::integration::vault_core::VaultCore::config(storage_for_vault, key_path)
+        })
+            .await
+            .expect("VaultCore::config panicked");
+
+        #[cfg(feature = "p2p")]
+        let client = gemini::p2p::client::P2PClient::new(storage.clone(), vault.clone());
+
+        Self {
+            storage,
+            vault,
+            config,
+            #[cfg(feature = "p2p")]
+            client,
+        }
+    }
 }
+

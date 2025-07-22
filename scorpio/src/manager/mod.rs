@@ -19,11 +19,11 @@ pub mod add;
 pub mod commit;
 pub mod diff;
 pub mod fetch;
+pub mod mr;
 pub mod push;
 pub mod reset;
 pub mod status;
 pub mod store;
-pub mod mr;
 
 #[derive(Serialize, Deserialize)]
 pub struct ScorpioManager {

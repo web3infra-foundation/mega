@@ -1,9 +1,11 @@
+use callisto::{mega_issue, mega_mr, sea_orm_active_enums::MergeStatusEnum};
+use chrono::NaiveDateTime;
 use jupiter::{
     model::common::{ItemDetails, ItemKind},
     model::issue_dto::IssueDetails,
 };
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::api::{conversation::ConversationItem, label::LabelItem};
 
@@ -99,4 +101,64 @@ impl From<IssueDetails> for IssueDetailRes {
                 .collect(),
         }
     }
+}
+
+#[derive(Serialize, ToSchema, PartialEq, Eq)]
+pub struct IssueSuggestions {
+    pub id: i64,
+    pub link: String,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub suggest_type: String,
+    #[serde(skip)]
+    pub created_at: NaiveDateTime,
+}
+
+impl PartialOrd for IssueSuggestions {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IssueSuggestions {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.created_at.cmp(&other.created_at)
+    }
+}
+
+impl From<mega_issue::Model> for IssueSuggestions {
+    fn from(value: mega_issue::Model) -> Self {
+        Self {
+            id: value.id,
+            link: value.link,
+            title: value.title,
+            suggest_type: if value.status == "open" {
+                String::from("issue_open")
+            } else {
+                String::from("issue_closed")
+            },
+            created_at: value.created_at,
+        }
+    }
+}
+
+impl From<mega_mr::Model> for IssueSuggestions {
+    fn from(value: mega_mr::Model) -> Self {
+        Self {
+            id: value.id,
+            link: value.link,
+            title: value.title,
+            suggest_type: if value.status == MergeStatusEnum::Open {
+                String::from("merge_request")
+            } else {
+                String::from("merge_request_closed")
+            },
+            created_at: value.created_at,
+        }
+    }
+}
+
+#[derive(Deserialize, ToSchema, IntoParams)]
+pub struct QueryPayload {
+    pub query: String,
 }
