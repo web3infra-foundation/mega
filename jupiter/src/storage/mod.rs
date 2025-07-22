@@ -1,4 +1,5 @@
 pub mod base_storage;
+pub mod conversation_storage;
 pub mod git_db_storage;
 pub mod init;
 pub mod issue_storage;
@@ -16,6 +17,9 @@ use std::sync::{Arc, LazyLock, Weak};
 use common::config::Config;
 
 use crate::lfs_storage::{self, local_storage::LocalStorage, LfsFileStorage};
+use crate::service::issue_service::IssueService;
+use crate::service::mr_service::MRService;
+use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
@@ -26,7 +30,7 @@ use crate::storage::{
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
-pub struct Service {
+pub struct AppService {
     pub mono_storage: MonoStorage,
     pub git_db_storage: GitDbStorage,
     pub raw_db_storage: RawDbStorage,
@@ -36,28 +40,11 @@ pub struct Service {
     pub vault_storage: VaultStorage,
     pub mr_storage: MrStorage,
     pub issue_storage: IssueStorage,
+    pub conversation_storage: ConversationStorage,
     pub lfs_file_storage: Arc<dyn LfsFileStorage>,
 }
 
-impl Service {
-    async fn new(config: &Config) -> Self {
-        let connection = Arc::new(database_connection(&config.database).await);
-        let base = BaseStorage::new(connection.clone());
-
-        Self {
-            mono_storage: MonoStorage { base: base.clone() },
-            git_db_storage: GitDbStorage { base: base.clone() },
-            raw_db_storage: RawDbStorage { base: base.clone() },
-            lfs_db_storage: LfsDbStorage { base: base.clone() },
-            relay_storage: RelayStorage { base: base.clone() },
-            user_storage: UserStorage { base: base.clone() },
-            mr_storage: MrStorage { base: base.clone() },
-            issue_storage: IssueStorage { base: base.clone() },
-            vault_storage: VaultStorage { base: base.clone() },
-            lfs_file_storage: lfs_storage::init(config.lfs.clone(), connection.clone()).await,
-        }
-    }
-
+impl AppService {
     fn mock() -> Arc<Self> {
         let mock = BaseStorage::mock();
         Arc::new(Self {
@@ -71,21 +58,54 @@ impl Service {
             lfs_file_storage: Arc::new(LocalStorage::mock()),
             mr_storage: MrStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
+            conversation_storage: ConversationStorage { base: mock.clone() },
         })
     }
 }
 
 #[derive(Clone)]
 pub struct Storage {
-    pub services: Arc<Service>,
+    pub(crate) app_service: Arc<AppService>,
+    pub issue_service: IssueService,
+    pub mr_service: MRService,
     pub config: Weak<Config>,
 }
 
 impl Storage {
     pub async fn new(config: Arc<Config>) -> Self {
+        let connection = Arc::new(database_connection(&config.database).await);
+        let base = BaseStorage::new(connection.clone());
+
+        let mono_storage = MonoStorage { base: base.clone() };
+        let git_db_storage = GitDbStorage { base: base.clone() };
+        let raw_db_storage = RawDbStorage { base: base.clone() };
+        let lfs_db_storage = LfsDbStorage { base: base.clone() };
+        let relay_storage = RelayStorage { base: base.clone() };
+        let user_storage = UserStorage { base: base.clone() };
+        let mr_storage = MrStorage { base: base.clone() };
+        let issue_storage = IssueStorage { base: base.clone() };
+        let vault_storage = VaultStorage { base: base.clone() };
+        let conversation_storage = ConversationStorage { base: base.clone() };
+        let lfs_file_storage = lfs_storage::init(config.lfs.clone(), connection.clone()).await;
+
+        let app_service = AppService {
+            mono_storage,
+            git_db_storage,
+            raw_db_storage,
+            lfs_db_storage,
+            relay_storage,
+            user_storage,
+            vault_storage,
+            mr_storage,
+            issue_storage,
+            conversation_storage,
+            lfs_file_storage,
+        };
         Storage {
-            services: Service::new(&config).await.into(),
+            app_service: app_service.into(),
             config: Arc::downgrade(&config),
+            issue_service: IssueService::new(base.clone()),
+            mr_service: MRService::new(base.clone()),
         }
     }
 
@@ -94,43 +114,47 @@ impl Storage {
     }
 
     pub fn mono_storage(&self) -> MonoStorage {
-        self.services.mono_storage.clone()
+        self.app_service.mono_storage.clone()
     }
 
     pub fn git_db_storage(&self) -> GitDbStorage {
-        self.services.git_db_storage.clone()
+        self.app_service.git_db_storage.clone()
     }
 
     pub fn raw_db_storage(&self) -> RawDbStorage {
-        self.services.raw_db_storage.clone()
+        self.app_service.raw_db_storage.clone()
     }
 
     pub fn lfs_db_storage(&self) -> LfsDbStorage {
-        self.services.lfs_db_storage.clone()
+        self.app_service.lfs_db_storage.clone()
     }
 
     pub fn relay_storage(&self) -> RelayStorage {
-        self.services.relay_storage.clone()
+        self.app_service.relay_storage.clone()
     }
 
     pub fn user_storage(&self) -> UserStorage {
-        self.services.user_storage.clone()
+        self.app_service.user_storage.clone()
     }
 
     pub fn vault_storage(&self) -> VaultStorage {
-        self.services.vault_storage.clone()
+        self.app_service.vault_storage.clone()
     }
 
     pub fn mr_storage(&self) -> MrStorage {
-        self.services.mr_storage.clone()
+        self.app_service.mr_storage.clone()
     }
 
     pub fn issue_storage(&self) -> IssueStorage {
-        self.services.issue_storage.clone()
+        self.app_service.issue_storage.clone()
+    }
+
+    pub fn conversation_storage(&self) -> ConversationStorage {
+        self.app_service.conversation_storage.clone()
     }
 
     pub fn lfs_file_storage(&self) -> Arc<dyn LfsFileStorage> {
-        self.services.lfs_file_storage.clone()
+        self.app_service.lfs_file_storage.clone()
     }
 
     pub fn mock() -> Self {
@@ -139,7 +163,9 @@ impl Storage {
         static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
 
         Storage {
-            services: Service::mock(),
+            app_service: AppService::mock(),
+            issue_service: IssueService::mock(),
+            mr_service: MRService::mock(),
             config: Arc::downgrade(&*CONFIG),
         }
     }

@@ -32,5 +32,4 @@ buck-out
 # Dockderfile
 docker/mono-engine-dockerfile
 docker/mono-pg-dockerfile
-docker/mono-ui-dockerfile
 docker/aries-engine-dockerfile

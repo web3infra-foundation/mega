@@ -80,8 +80,7 @@ pub fn get_repo_path(mut path: String) -> String {
 
 pub async fn get_git_model_by_path(storage: Storage, path: String) -> Option<git_repo::Model> {
     let git_model = storage
-        .services
-        .git_db_storage
+        .git_db_storage()
         .find_git_repo_exact_match(get_repo_path(path).as_str())
         .await;
 

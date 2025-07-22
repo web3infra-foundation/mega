@@ -8,6 +8,7 @@ import { Blockquote } from '@/components/RichTextRenderer/handlers/Blockquote'
 import { CodeBlock } from '@/components/RichTextRenderer/handlers/CodeBlock'
 import { Hardbreak } from '@/components/RichTextRenderer/handlers/Hardbreak'
 import { InlineResourceMention } from '@/components/RichTextRenderer/handlers/InlineResourceMention'
+import { LinkIssue } from '@/components/RichTextRenderer/handlers/LinkIssue'
 import { PostNoteAttachment } from '@/components/RichTextRenderer/handlers/PostNoteAttachment'
 import { RelativeTime } from '@/components/RichTextRenderer/handlers/RelativeTime'
 
@@ -103,6 +104,8 @@ function RenderBlock({
       return <LinkUnfurl {...props} />
     case 'mention':
       return <Mention {...props} />
+    case 'linkIssue':
+      return <LinkIssue {...props} />
     case 'postNoteAttachment':
       return <PostNoteAttachment {...props} {...options?.postNoteAttachment} />
     case 'reaction':

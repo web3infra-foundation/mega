@@ -1,22 +1,25 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::model::{CommonPage, CommonResult, PageParams};
+use jupiter::service::issue_service::IssueService;
 
 use crate::api::{
-    api_common::model::{LabelUpdatePayload, ListPayload},
-    mr::SaveCommentRequest,
+    api_common::model::ListPayload,
+    conversation::ContentPayload,
+    issue::{IssueSuggestions, QueryPayload},
+    label::LabelUpdatePayload,
 };
 use crate::api::{
     api_common::{self, model::AssigneeUpdatePayload},
     MonoApiServiceState,
 };
 use crate::api::{
-    issue::{IssueDetail, ItemRes, NewIssue},
+    issue::{IssueDetailRes, ItemRes, NewIssue},
     oauth::model::LoginUser,
 };
 use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
@@ -31,9 +34,10 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(reopen_issue))
             .routes(routes!(issue_detail))
             .routes(routes!(save_comment))
-            .routes(routes!(delete_comment))
             .routes(routes!(labels))
-            .routes(routes!(assignees)),
+            .routes(routes!(assignees))
+            .routes(routes!(edit_title))
+            .routes(routes!(issue_suggester)),
     )
 }
 
@@ -69,24 +73,21 @@ async fn fetch_issue_list(
     ),
     path = "/{link}/detail",
     responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
+        (status = 200, body = CommonResult<IssueDetailRes>, content_type = "application/json")
     ),
     tag = ISSUE_TAG
 )]
 async fn issue_detail(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<IssueDetail>>, ApiError> {
-    let res = state.issue_stg().get_issue(&link).await?;
-    let res = if let Some(model) = res {
-        let mut detail: IssueDetail = model.into();
-        let conversations = state.issue_stg().get_conversations(&link).await.unwrap();
-        detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
-        CommonResult::success(Some(detail))
-    } else {
-        CommonResult::success(None)
-    };
-    Ok(Json(res))
+) -> Result<Json<CommonResult<IssueDetailRes>>, ApiError> {
+    let issue_service: IssueService = state.storage.issue_service.clone();
+    let issue_details: IssueDetailRes = issue_service
+        .get_issue_details(&link, user.username)
+        .await?
+        .into();
+    Ok(Json(CommonResult::success(Some(issue_details))))
 }
 
 /// New Issue
@@ -104,9 +105,13 @@ async fn new_issue(
     state: State<MonoApiServiceState>,
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let stg = state.issue_stg().clone();
-    let res = stg.save_issue(&user.username, &json.title).await.unwrap();
-    let _ = stg
+    let res = state
+        .issue_stg()
+        .save_issue(&user.username, &json.title)
+        .await
+        .unwrap();
+    let _ = state
+        .conv_stg()
         .add_conversation(
             &res.link,
             &user.username,
@@ -136,7 +141,7 @@ async fn close_issue(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().close_issue(&link).await?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,
@@ -166,7 +171,7 @@ async fn reopen_issue(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.issue_stg().reopen_issue(&link).await?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,
@@ -184,7 +189,7 @@ async fn reopen_issue(
         ("link", description = "Issue link"),
     ),
     path = "/{link}/comment",
-    request_body = SaveCommentRequest,
+    request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
@@ -194,10 +199,10 @@ async fn save_comment(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-    Json(payload): Json<SaveCommentRequest>,
+    Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &link,
             &user.username,
@@ -208,28 +213,7 @@ async fn save_comment(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Delete Issue Comment
-#[utoipa::path(
-    delete,
-    params(
-        ("id", description = "Conversation id"),
-    ),
-    path = "/comment/{id}/delete",
-    responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
-    ),
-    tag = ISSUE_TAG
-)]
-async fn delete_comment(
-    _: LoginUser,
-    Path(id): Path<i64>,
-    state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().remove_conversation(id).await?;
-    Ok(Json(CommonResult::success(None)))
-}
-
-/// update issue related labels
+/// Update issue related labels
 #[utoipa::path(
     post,
     path = "/labels",
@@ -247,7 +231,7 @@ async fn labels(
     api_common::label_assignee::label_update(user, state, payload, String::from("issue")).await
 }
 
-/// update issue related assignees
+/// Update issue related assignees
 #[utoipa::path(
     post,
     path = "/assignees",
@@ -263,4 +247,56 @@ async fn assignees(
     Json(payload): Json<AssigneeUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     api_common::label_assignee::assignees_update(user, state, payload, String::from("issue")).await
+}
+
+/// Edit issue title
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "A string ID representing a Issue"),
+    ),
+    path = "/{link}/title",
+    request_body = ContentPayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
+async fn edit_title(
+    _: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ContentPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .issue_stg()
+        .edit_title(&link, &payload.content)
+        .await?;
+    Ok(Json(CommonResult::success(None)))
+}
+
+/// Get issue suggester in comment
+#[utoipa::path(
+    get,
+    params(QueryPayload),
+    path = "/issue_suggester",
+    responses(
+        (status = 200, body = CommonResult<Vec<IssueSuggestions>>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
+async fn issue_suggester(
+    Query(payload): Query<QueryPayload>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<IssueSuggestions>>>, ApiError> {
+    let (issues, mrs) = state
+        .storage
+        .issue_service
+        .get_suggestions(&payload.query)
+        .await?;
+    let mut res: Vec<IssueSuggestions> = issues.into_iter().map(|m| m.into()).collect();
+    let mut mr_list: Vec<IssueSuggestions> = mrs.into_iter().map(|m| m.into()).collect();
+    res.append(&mut mr_list);
+    res.sort();
+    Ok(Json(CommonResult::success(Some(res))))
 }

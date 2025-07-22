@@ -25,21 +25,14 @@ import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionP
 import { useUploadHelpers } from '@/hooks/useUploadHelpers';
 import { CommentDiscussionIcon, FileDiffIcon, ChecklistIcon } from '@primer/octicons-react'
 import TimelineItems from '@/components/MrView/TimelineItems';
+import { ConversationItem } from '@gitmono/types/generated';
 
 const { UnderlinePanels } = require('@primer/react/experimental')
 
 export interface MRDetail {
     status: string,
-    conversations: Conversation[],
+    conversations: ConversationItem[],
     title: string,
-}
-export interface Conversation {
-    id: number,
-    conv_type: string,
-    comment: string,
-    created_at: number,
-    updated_at: number,
-    username: string,
 }
 
 const  MRDetailPage:PageWithLayout<any> = () =>{
@@ -89,19 +82,23 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
 
     const send_comment = () => {
       const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>';
+      const issues = editorRef.current?.getLinkedIssues() || []
+      
+      /* eslint-disable-next-line no-console */
+      console.log('commentIssues:',issues);
 
-     if (trimHtml(currentContentHTML) === '') {
-        toast.error('Please enter the content.')
-     }else {
-        postMrComment(
-        { content: currentContentHTML },
-        {
-          onSuccess: () =>{
-            editorRef.current?.clearAndBlur()
+      if (trimHtml(currentContentHTML) === '') {
+          toast.error('Please enter the content.')
+      } else {
+          postMrComment(
+          { content: currentContentHTML },
+          {
+            onSuccess: () =>{
+              editorRef.current?.clearAndBlur()
+            }
           }
-        }
-      );
-     }
+        );
+      }
     }
 
     const buttonClasses= 'cursor-pointer';
@@ -132,7 +129,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                   <LoadingSpinner />
                 </div>
                 ) : (
-                  <TimelineItems mrDetail={mrDetail} id={id} />
+                  mrDetail && <TimelineItems detail={mrDetail} id={id} type="mr"/>
               )}
               <div className='prose mt-3'>
                 <div className="flex">

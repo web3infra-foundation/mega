@@ -1,7 +1,12 @@
-use std::{path::PathBuf, sync::{Arc, RwLock}};
+
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
+use std::{
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
+
 
 use rusty_vault::{
     core::Core,
@@ -52,9 +57,10 @@ impl VaultCore {
         tracing::info!("{key_path:?}");
         std::fs::create_dir_all(&dir).expect("Failed to create vault directory");
         Self::config(ctx.clone(), key_path)
+
     }
 
-    fn config(ctx: Storage, key_path: PathBuf) -> Self {
+    pub fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
         let seal_config = rusty_vault::core::SealConfig {
@@ -86,7 +92,12 @@ impl VaultCore {
                     secret_shares: Vec::from(&result.secret_shares[..]),
                     root_token: result.root_token,
                 };
-                println!("[vault] Creating new core_key.json at: {}", key_path.display());
+
+                println!(
+                    "[vault] Creating new core_key.json at: {}",
+                    key_path.display()
+                );
+
                 let file = std::fs::File::create(&key_path).unwrap();
                 serde_json::to_writer_pretty(file, &core_key).unwrap();
                 core_key

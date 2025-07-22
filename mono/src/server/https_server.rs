@@ -204,6 +204,7 @@ pub const GIT_TAG: &str = "git";
 pub const MR_TAG: &str = "merge_request";
 pub const ISSUE_TAG: &str = "issue";
 pub const LABEL_TAG: &str = "label";
+pub const CONV_TAG: &str = "conversation";
 #[derive(OpenApi)]
 #[openapi(
     tags(

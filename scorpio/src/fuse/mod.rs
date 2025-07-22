@@ -70,7 +70,10 @@ impl MegaFuse {
         // mount user works.
         for dir in &manager.works {
             let _lower = PathBuf::from(store_path).join(&dir.hash);
-            megafuse.overlay_mount(dir.node, &_lower).await.unwrap();
+            megafuse
+                .overlay_mount(dir.node, &_lower, false)
+                .await
+                .unwrap();
         }
 
         megafuse
@@ -92,10 +95,16 @@ impl MegaFuse {
         &self,
         inode: u64,
         store_path: P,
+        need_mr: bool, // if need mr, then create mr layer.
     ) -> std::io::Result<()> {
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
-        let lowerdir = vec![lower];
+        let mut lowerdir = vec![lower];
+        if need_mr {
+            let mr_path = store_path.as_ref().join("mr");
+            let _ = std::fs::create_dir_all(&mr_path);
+            lowerdir.push(mr_path);
+        }
         let upperdir = upper;
 
         let config = config::Config {

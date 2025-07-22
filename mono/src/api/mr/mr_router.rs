@@ -4,6 +4,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
@@ -16,10 +17,12 @@ use saturn::ActionEnum;
 use crate::api::{
     api_common::{
         self,
-        model::{AssigneeUpdatePayload, LabelUpdatePayload, ListPayload},
+        model::{AssigneeUpdatePayload, ListPayload},
     },
+    conversation::ContentPayload,
     issue::ItemRes,
-    mr::{FilesChangedList, MRDetail, MrFilesRes, MuiTreeNode, SaveCommentRequest},
+    label::LabelUpdatePayload,
+    mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{util, MonoApiServiceState};
@@ -37,9 +40,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
-            .routes(routes!(delete_comment))
             .routes(routes!(labels))
-            .routes(routes!(assignees)),
+            .routes(routes!(assignees))
+            .routes(routes!(edit_title)),
     )
 }
 
@@ -76,7 +79,7 @@ async fn reopen_mr(
         let link = model.link.clone();
         state.mr_stg().reopen_mr(model).await?;
         state
-            .issue_stg()
+            .conv_stg()
             .add_conversation(
                 &link,
                 &user.username,
@@ -121,7 +124,7 @@ async fn close_mr(
         let link = model.link.clone();
         state.mr_stg().close_mr(model).await?;
         state
-            .issue_stg()
+            .conv_stg()
             .add_conversation(
                 &link,
                 &user.username,
@@ -201,21 +204,21 @@ async fn fetch_mr_list(
     ),
     path = "/{link}/detail",
     responses(
-        (status = 200, body = CommonResult<MRDetail>, content_type = "application/json")
+        (status = 200, body = CommonResult<MRDetailRes>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
 async fn mr_detail(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<MRDetail>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
-    let model = res.ok_or(MegaError::with_message("MR Not Found"))?;
-    let mut detail: MRDetail = model.into();
-    let conversations = state.issue_stg().get_conversations(&link).await.unwrap();
-    detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
-    let res = CommonResult::success(Some(detail));
-    Ok(Json(res))
+) -> Result<Json<CommonResult<MRDetailRes>>, ApiError> {
+    let mr_service: MRService = state.storage.mr_service.clone();
+    let mr_details: MRDetailRes = mr_service
+        .get_mr_details(&link, user.username)
+        .await?
+        .into();
+    Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
 /// Get Merge Request file changed list
@@ -296,7 +299,7 @@ async fn mr_files_list(
         ("link", description = "MR link"),
     ),
     path = "/{link}/comment",
-    request_body = SaveCommentRequest,
+    request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
@@ -306,12 +309,12 @@ async fn save_comment(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-    Json(payload): Json<SaveCommentRequest>,
+    Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.mr_stg().get_mr(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
     state
-        .issue_stg()
+        .conv_stg()
         .add_conversation(
             &model.link,
             &user.username,
@@ -322,23 +325,26 @@ async fn save_comment(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Delete Comment
+/// Edit MR title
 #[utoipa::path(
-    delete,
+    post,
     params(
-        ("conv_id", description = "Conversation id"),
+        ("link", description = "A string ID representing a Merge Request"),
     ),
-    path = "/comment/{conv_id}/delete",
+    path = "/{link}/title",
+    request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
-async fn delete_comment(
-    Path(conv_id): Path<i64>,
+async fn edit_title(
+    _: LoginUser,
+    Path(link): Path<String>,
     state: State<MonoApiServiceState>,
+    Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().remove_conversation(conv_id).await?;
+    state.mr_stg().edit_title(&link, &payload.content).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -362,7 +368,7 @@ fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
     files
 }
 
-/// update mr related labels
+/// Update mr related labels
 #[utoipa::path(
     post,
     path = "/labels",
@@ -380,7 +386,7 @@ async fn labels(
     api_common::label_assignee::label_update(user, state, payload, String::from("mr")).await
 }
 
-/// update MR related assignees
+/// Update MR related assignees
 #[utoipa::path(
     post,
     path = "/assignees",

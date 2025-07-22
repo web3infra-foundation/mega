@@ -39,6 +39,8 @@ export const tags: LabelItem[] = [
 
 export const orderTags = ['Created on', 'Last updated', 'Total comments', 'Best match', 'Oldest', 'Newest']
 
+export const reviewTags = ['No reviews', 'Review required', 'Approved review', 'Changes requested']
+
 export const searchList: SearchType = [
   {
     type: 'item',

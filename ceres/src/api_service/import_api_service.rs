@@ -47,7 +47,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_root_commit(&self) -> Commit {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let refs = storage
             .get_default_ref(self.repo.repo_id)
             .await
@@ -62,7 +62,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_root_tree(&self) -> Tree {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let refs = storage
             .get_default_ref(self.repo.repo_id)
             .await
@@ -84,8 +84,7 @@ impl ApiHandler for ImportApiService {
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
         self.storage
-            .services
-            .git_db_storage
+            .git_db_storage()
             .get_tree_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap()
@@ -94,7 +93,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let commit = storage
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
@@ -103,7 +102,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let tree_info = storage
             .get_tree_by_hash(self.repo.repo_id, t_hash)
             .await
@@ -118,7 +117,7 @@ impl ApiHandler for ImportApiService {
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
-        let storage = self.storage.services.git_db_storage.clone();
+        let storage = self.storage.git_db_storage();
         let commits = storage
             .get_commits_by_hashes(self.repo.repo_id, &c_hashes)
             .await

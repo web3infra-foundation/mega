@@ -26,6 +26,7 @@ pub use super::mega_tag::Entity as MegaTag;
 pub use super::mega_tree::Entity as MegaTree;
 pub use super::mq_storage::Entity as MqStorage;
 pub use super::raw_blob::Entity as RawBlob;
+pub use super::reactions::Entity as Reactions;
 pub use super::relay_lfs_info::Entity as RelayLfsInfo;
 pub use super::relay_node::Entity as RelayNode;
 pub use super::relay_nostr_event::Entity as RelayNostrEvent;

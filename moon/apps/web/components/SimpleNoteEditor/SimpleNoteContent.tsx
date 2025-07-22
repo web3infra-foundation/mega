@@ -1,4 +1,14 @@
-import { DragEvent, forwardRef, KeyboardEvent, memo, MouseEvent, useImperativeHandle, useRef, useState } from 'react'
+import {
+  DragEvent,
+  forwardRef,
+  KeyboardEvent,
+  memo,
+  MouseEvent,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState
+} from 'react'
 import { Editor as TTEditor } from '@tiptap/core'
 import { EditorContent } from '@tiptap/react'
 
@@ -28,6 +38,7 @@ interface Props {
   content: string
   onBlurAtTop?: BlurAtTopOptions['onBlur']
   onKeyDown?: (event: KeyboardEvent) => void
+  onChange?: (html: string) => void
 }
 
 export interface SimpleNoteContentRef {
@@ -38,11 +49,12 @@ export interface SimpleNoteContentRef {
   clearAndBlur(): void
   insertReaction: TTEditor['commands']['insertReaction']
   uploadAndAppendAttachments: (files: File[]) => Promise<void>
+  getLinkedIssues(): string[]
 }
 
 export const SimpleNoteContent = memo(
   forwardRef<SimpleNoteContentRef, Props>((props, ref) => {
-    const { commentId, editable = 'viewer', autofocus = false, onBlurAtTop, content } = props
+    const { commentId, editable = 'viewer', autofocus = false, onBlurAtTop, content, onChange } = props
 
     const [activeComment, setActiveComment] = useState<ActiveEditorComment | null>(null)
     const [hoverComment, setHoverComment] = useState<ActiveEditorComment | null>(null)
@@ -106,6 +118,17 @@ export const SimpleNoteContent = memo(
             }
           }
         },
+        getLinkedIssues: () => {
+          const issues: string[] = []
+          
+          editor.state.doc.descendants((node) => {
+            if (node.type.name === 'linkIssue' && node.attrs.id) {
+              issues.push(node.attrs.id)
+            }
+          })
+        
+          return Array.from(new Set(issues))
+        },
         uploadAndAppendAttachments,
         ...imperativeHandlers,
         editor
@@ -119,6 +142,22 @@ export const SimpleNoteContent = memo(
       ref: containerRef,
       enabled: true
     })
+
+    useEffect(() => {
+      if (!editor || !onChange) return
+
+      const handleUpdate = () => {
+        const html = editor.getHTML()
+
+        onChange?.(html)
+      }
+
+      editor.on('update', handleUpdate)
+
+      return () => {
+        editor.off('update', handleUpdate)
+      }
+    }, [editor, onChange])
 
     return (
       <div ref={containerRef} className='relative mb-2 h-[95%] min-h-[100px] overflow-auto'>

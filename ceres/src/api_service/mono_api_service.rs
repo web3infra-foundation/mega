@@ -80,7 +80,7 @@ impl ApiHandler for MonoApiService {
     ///
     /// Returns `Ok(())` on success, or a `GitError` on failure.
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let path = PathBuf::from(file_info.path);
         let mut save_trees = vec![];
 
@@ -162,7 +162,7 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_root_tree(&self) -> Tree {
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
 
         storage
@@ -175,8 +175,7 @@ impl ApiHandler for MonoApiService {
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
         self.storage
-            .services
-            .mono_storage
+            .mono_storage()
             .get_tree_by_hash(hash)
             .await
             .unwrap()
@@ -185,15 +184,14 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
-        let storage = self.storage.services.mono_storage.clone();
-        match storage.get_commit_by_hash(hash).await {
+        match self.storage.mono_storage().get_commit_by_hash(hash).await {
             Ok(Some(commit)) => Some(commit.into()),
             _ => None,
         }
     }
 
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
         storage
             .get_commit_by_hash(&tree_info.commit_id)
@@ -204,8 +202,12 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
-        let storage = self.storage.services.mono_storage.clone();
-        let commits = storage.get_commits_by_hashes(&c_hashes).await.unwrap();
+        let commits = self
+            .storage
+            .mono_storage()
+            .get_commits_by_hashes(&c_hashes)
+            .await
+            .unwrap();
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
@@ -217,7 +219,7 @@ impl ApiHandler for MonoApiService {
             Some(tree) => {
                 let mut item_to_commit = HashMap::new();
 
-                let storage = self.storage.services.mono_storage.clone();
+                let storage = self.storage.mono_storage();
                 let tree_hashes = tree
                     .tree_items
                     .iter()
@@ -269,7 +271,7 @@ impl ApiHandler for MonoApiService {
 
 impl MonoApiService {
     pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
         if mr.from_hash == refs.ref_commit_hash {
@@ -296,7 +298,7 @@ impl MonoApiService {
             }
             // add conversation
             self.storage
-                .issue_storage()
+                .conversation_storage()
                 .add_conversation(&mr.link, username, None, ConvTypeEnum::Merged)
                 .await
                 .unwrap();
@@ -318,7 +320,7 @@ impl MonoApiService {
         mut tree_vec: Vec<Tree>,
         commit: Commit,
     ) -> Result<String, GitError> {
-        let storage = self.storage.services.mono_storage.clone();
+        let storage = self.storage.mono_storage();
         let mut save_trees = Vec::new();
         let mut p_commit_id = String::new();
 
@@ -366,9 +368,7 @@ impl MonoApiService {
             })
             .collect();
 
-        storage.batch_save_model(save_trees)
-            .await
-            .unwrap();
+        storage.batch_save_model(save_trees).await.unwrap();
         Ok(p_commit_id)
     }
 
@@ -491,7 +491,7 @@ impl MonoApiService {
         commit_hash: &str,
     ) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
         let mut res = vec![];
-        let mono_storage = self.storage.services.mono_storage.clone();
+        let mono_storage = self.storage.mono_storage();
         let commit = mono_storage.get_commit_by_hash(commit_hash).await?;
         if let Some(commit) = commit {
             let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;

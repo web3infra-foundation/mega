@@ -23,7 +23,7 @@ To get started, you can clone the mega repository directly from GitHub.
     git submodule update --init --recursive
     docker buildx build -t mega:mono-pg-0.1-pre-release -f ./docker/mono-pg-dockerfile .
     docker buildx build -t mega:mono-engine-0.1-pre-release -f ./docker/mono-engine-dockerfile .
-    docker buildx build -t mega:mono-ui-0.1-pre-release -f ./docker/mono-ui-dockerfile .
+    docker buildx build -t mega:mono-ui-0.1-pre-release -f ./moon/apps/web/Dockerfile .
     ```
   </StepperItem>
 
