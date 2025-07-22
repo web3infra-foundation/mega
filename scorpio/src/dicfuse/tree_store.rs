@@ -1,4 +1,5 @@
 use crate::util::{config, GPath};
+use bincode::{Decode, Encode};
 use rfuse3::raw::reply::ReplyEntry;
 use rfuse3::FileType;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,7 @@ pub struct TreeStorage {
     db: Db,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Encode,Decode)]
 pub struct StorageItem {
     inode: u64,
     parent: u64,
@@ -80,12 +81,12 @@ impl TreeStorage {
             children: Vec::new(),
             hash: item.hash,
         };
-
+        let config = bincode::config::standard();
         // Insert an item into db and update the parent item's children list.
         self.db
             .insert(
                 inode.to_be_bytes(),
-                bincode::serialize(&storage_item).map_err(Error::other)?,
+                bincode::encode_to_vec(&storage_item,config).map_err(Error::other)?,
             )
             .map_err(Error::other)?;
 
@@ -97,7 +98,7 @@ impl TreeStorage {
             self.db
                 .insert(
                     parent.to_be_bytes(),
-                    bincode::serialize(&parent_item).map_err(Error::other)?,
+                    bincode::encode_to_vec(&parent_item,config).map_err(Error::other)?,
                 )
                 .map_err(Error::other)?;
         }
@@ -122,10 +123,12 @@ impl TreeStorage {
             if storage_item.parent != 0 {
                 let mut parent_item: StorageItem = self.get_storage_item(storage_item.parent)?;
                 parent_item.children.retain(|&x| x != inode);
+                let config = bincode::config::standard();
+
                 self.db
                     .insert(
                         storage_item.parent.to_be_bytes(),
-                        bincode::serialize(&parent_item).map_err(Error::other)?,
+                       bincode::encode_to_vec(&parent_item, config).map_err(Error::other)?,
                     )
                     .map_err(Error::other)?;
             }
@@ -140,10 +143,11 @@ impl TreeStorage {
     pub fn append_child(&self, parent: u64, inode: u64) -> io::Result<()> {
         let mut st = self.get_storage_item(parent)?;
         st.children.push(inode);
+        let config = bincode::config::standard();
         self.db
             .insert(
                 parent.to_be_bytes(),
-                bincode::serialize(&st).map_err(Error::other)?,
+                bincode::encode_to_vec(&st, config).map_err(Error::other)?,
             )
             .map_err(Error::other)?;
         Ok(())
@@ -163,7 +167,8 @@ impl TreeStorage {
     pub fn get_storage_item(&self, inode: u64) -> io::Result<StorageItem> {
         match self.db.get(inode.to_be_bytes())? {
             Some(value) => {
-                let item: StorageItem = bincode::deserialize(&value).map_err(Error::other)?;
+                let config = bincode::config::standard();
+                let (item ,_) = bincode::decode_from_slice(&value,config).map_err(Error::other)?;
                 Ok(item)
             }
             None => Err(Error::new(ErrorKind::NotFound, "Item not found")),
@@ -184,10 +189,11 @@ impl TreeStorage {
     pub fn update_item_hash(&self, inode: u64, hash: String) -> io::Result<()> {
         let mut item = self.get_storage_item(inode)?;
         item.hash = hash;
+        let config = bincode::config::standard();
         self.db
             .insert(
                 inode.to_be_bytes(),
-                bincode::serialize(&item).map_err(Error::other)?,
+                bincode::encode_to_vec(&item,config).map_err(Error::other)?,
             )
             .map_err(Error::other)?;
         Ok(())

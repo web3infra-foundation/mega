@@ -36,6 +36,7 @@ use crate::internal::object::ObjectTrait;
 
 /// **The Blob Object**
 #[derive(Eq, Debug, Clone)]
+#[non_exhaustive]
 pub struct Blob {
     pub id: SHA1,
     pub data: Vec<u8>,
@@ -113,4 +114,5 @@ mod tests {
             "5dd01c177f5d7d1be5346a5bc18a569a7410c2ef"
         );
     }
+
 }
