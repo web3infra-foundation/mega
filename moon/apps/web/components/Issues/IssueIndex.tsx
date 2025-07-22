@@ -61,9 +61,8 @@ export function IssueIndexTabFilter({
   openTooltip?: string
   closeTooltip?: string
 }) {
-  const { scope } = useScope()
-
-  const [filter, setFilter] = useAtom(filterAtom({ scope, part: `${part}` }))
+  // const [filter, setFilter] = useAtom(filterAtom({ scope, part: `${part}` }))
+  const [filter, setFilter] = useAtom(filterAtom({ part }))
 
   return (
     <>

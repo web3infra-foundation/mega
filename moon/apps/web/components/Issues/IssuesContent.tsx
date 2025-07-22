@@ -3,6 +3,7 @@ import { CheckIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/o
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
+import { useRouter } from 'next/router'
 
 import {
   LabelItem,
@@ -11,7 +12,6 @@ import {
   PostApiIssueListData
 } from '@gitmono/types/generated'
 import { Button, ChatBubbleIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
-import { Link } from '@gitmono/ui/Link'
 
 // import { MenuItem } from '@gitmono/ui/Menu'
 
@@ -25,9 +25,10 @@ import {
   ListBanner,
   ListItem
 } from '@/components/Issues/IssueList'
-import { filterAtom, sortAtom } from '@/components/Issues/utils/store'
+import { filterAtom, issueCloseCurrentPage, issueOpenCurrentPage, sortAtom } from '@/components/Issues/utils/store'
 import { useScope } from '@/contexts/scope'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
+import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -74,7 +75,7 @@ export function IssuesContent({ searching }: Props) {
 
   const [pageSize, _setPageSize] = useState(10)
 
-  const [status, _setStatus] = useAtom(filterAtom({ scope, part: 'issue' }))
+  const [status, _setStatus] = useAtom(filterAtom({ part: 'issue' }))
 
   const [issueList, setIssueList] = useState<ItemsType>([])
 
@@ -96,6 +97,13 @@ export function IssuesContent({ searching }: Props) {
 
   const { members } = useSyncedMembers()
 
+  const router = useRouter()
+
+ 
+
+  const [openCurrent, setopenCurrent] = useAtom(issueOpenCurrentPage)
+  const [closeCurrent, setcloseCurrent] = useAtom(issueCloseCurrentPage)
+
   const MemberConfig: MenuConfig<Member>[] = [
     {
       key: 'Author',
@@ -103,6 +111,7 @@ export function IssuesContent({ searching }: Props) {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Author']) {
+          status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
           fetchData(1, pageSize)
           setSort({
             ...sort,
@@ -124,6 +133,7 @@ export function IssuesContent({ searching }: Props) {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Assignees']) {
+          status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
           fetchData(1, pageSize)
           setSort({
             ...sort,
@@ -228,6 +238,7 @@ export function IssuesContent({ searching }: Props) {
       const news = label.map((i) => Number(i))
       const addtion = additions(news)
 
+      status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
       fetchData(1, pageSize, addtion)
     }
   }
@@ -339,8 +350,12 @@ export function IssuesContent({ searching }: Props) {
   )
 
   useEffect(() => {
-    fetchData(1, pageSize)
-  }, [pageSize, fetchData])
+    if (status === 'open') {
+      fetchData(openCurrent, pageSize)
+    } else if (status === 'closed') {
+      fetchData(closeCurrent, pageSize)
+    }
+  }, [pageSize, fetchData, openCurrent, closeCurrent, status])
 
   // if (loading) {
   //   return <IndexPageInstantLoading />
@@ -351,6 +366,10 @@ export function IssuesContent({ searching }: Props) {
   // }
   if (!issueList.length && searching) {
     return <EmptySearchResults />
+  }
+
+  const handlePageChange = (page: number) => {
+    status === 'open' ? setopenCurrent(page) : setcloseCurrent(page)
   }
 
   const getStatusIcon = (status: string) => {
@@ -372,7 +391,7 @@ export function IssuesContent({ searching }: Props) {
       {searching ? (
         <>
           <IssueSearchList searchIssueList={issueList} />
-          <Pagination totalNum={numTotal} pageSize={pageSize} />
+          <Pagination currentPage={issueOpenCurrentPage} totalNum={numTotal} pageSize={pageSize} />
         </>
       ) : (
         <>
@@ -392,23 +411,37 @@ export function IssuesContent({ searching }: Props) {
           >
             {(issueList) => {
               return issueList.map((i) => (
-                <Link key={i.link} href={`/${scope}/issue/${i.link}`}>
-                  <ListItem
-                    key={i.link}
-                    title={i.title}
-                    leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar commentNum={i.comment_num} member={members[0]} />}
-                  >
-                    <div className='text-xs text-[#59636e]'>
-                      {i.link} · {i.author} {i.status}{' '}
-                      {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
-                    </div>
-                  </ListItem>
-                </Link>
+                <ListItem
+                  key={i.link}
+                  title={i.title}
+                  leftIcon={getStatusIcon(i.status)}
+                  rightIcon={<RightAvatar item={i} />}
+                  onClick={() => router.push(`/${scope}/issue/${i.link}`)}
+                >
+                  <div className='text-xs text-[#59636e]'>
+                    {i.link} · {i.author} {i.status}{' '}
+                    {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
+                  </div>
+                </ListItem>
               ))
             }}
           </IssueList>
-          <Pagination totalNum={numTotal} pageSize={pageSize} />
+          {numTotal > 10 && status === 'open' && (
+            <Pagination
+              currentPage={issueOpenCurrentPage}
+              totalNum={numTotal}
+              pageSize={pageSize}
+              onChange={(page: number) => handlePageChange(page)}
+            />
+          )}
+          {numTotal > 10 && status === 'closed' && (
+            <Pagination
+              currentPage={issueCloseCurrentPage}
+              totalNum={numTotal}
+              pageSize={pageSize}
+              onChange={(page: number) => handlePageChange(page)}
+            />
+          )}
         </>
       )}
     </>
@@ -424,17 +457,24 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
   )
 }
 
-export const RightAvatar = ({ member, commentNum }: { member?: Member; commentNum?: number }) => {
+export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
+  const shouldFetch = item.assignees.length > 0
+
+  const { data } = useGetOrganizationMember({ username: item.assignees[0], org: 'mega', enabled: shouldFetch })
+
   return (
     <>
-      <div className='mr-10 flex items-center justify-between gap-10'>
-        <div className='flex items-center gap-2 text-sm text-gray-500'>
-          <ChatBubbleIcon />
-          {commentNum !== 0 && <span>{commentNum}</span>}
-        </div>
-        {member && (
-          <MemberHovercard username={member.user.display_name} side='top' align='end' member={member}>
-            <MemberAvatar size='sm' member={member} />
+      <div className='mr-10 flex w-[120px] items-center justify-between gap-10'>
+        {item.comment_num !== 0 && (
+          <div className='flex items-center gap-2 text-sm text-gray-500'>
+            <ChatBubbleIcon />
+            <span>{item.comment_num}</span>
+          </div>
+        )}
+        {data && (
+          // <div>展示头像</div>
+          <MemberHovercard username={item.assignees[0]} side='top' align='end' member={data}>
+            <MemberAvatar size='sm' member={data} />
           </MemberHovercard>
         )}
       </div>

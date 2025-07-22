@@ -38,9 +38,7 @@ export default function IssueSearch() {
           }}
         />
         {/* <IndexSearchInput query={query} setQuery={setQuery} isSearchLoading={isSearchLoading} /> */}
-        <Button variant='primary' size={'base'}>
-          Labels
-        </Button>
+        <LabelsButton />
         <NewIssueButton />
       </BreadcrumbTitlebar>
     </>
@@ -54,6 +52,18 @@ export const NewIssueButton = () => {
     <Link href={`/${scope}/issue/new`}>
       <Button variant='primary' className='bg-[#1f883d]' size={'base'}>
         New Issue
+      </Button>
+    </Link>
+  )
+}
+
+const LabelsButton = () => {
+  const { scope } = useScope()
+
+  return (
+    <Link href={`/${scope}/labels`}>
+      <Button variant='primary' size={'base'}>
+        Labels
       </Button>
     </Link>
   )

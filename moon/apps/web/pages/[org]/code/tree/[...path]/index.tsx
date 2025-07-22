@@ -2,19 +2,20 @@
 
 import React, { useMemo, useState } from 'react'
 import { Theme } from '@radix-ui/themes'
-import { Flex, Layout } from 'antd'
 import { useParams } from 'next/navigation'
+
 import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
+
 import CodeTable from '@/components/CodeView/CodeTable'
+import CommitHistory from '@/components/CodeView/CommitHistory'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+import { useGetBlob } from '@/hooks/useGetBlob'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
-import CommitHistory from '@/components/CodeView/CommitHistory'
-import { useGetBlob } from '@/hooks/useGetBlob'
 
 function TreeDetailPage() {
   const params = useParams()
@@ -30,8 +31,7 @@ function TreeDetailPage() {
   const { data: canClone } = useGetTreePathCanClone({ path: newPath })
 
   const reqPath = `${new_path}/README.md`
-  const  {data: readmeContent}=useGetBlob({path:reqPath})
-
+  const { data: readmeContent } = useGetBlob({ path: reqPath })
 
   const commitInfo = {
     user: {
@@ -55,7 +55,7 @@ function TreeDetailPage() {
     borderRadius: 8,
     overflow: 'hidden',
     width: 'calc(80% - 8px)',
-    height:'100%',
+    height: '100%',
     background: '#fff'
   }
 
@@ -69,39 +69,34 @@ function TreeDetailPage() {
 
   return (
     <div className='relative m-2 h-screen overflow-auto'>
+      <div className='flex flex-wrap gap-4'>
+        <div style={breadStyle}>
+          <BreadCrumb path={path} />
+          {canClone?.data && (
+            <div className='m-1 flex justify-end'>
+              <CloneTabs />
+            </div>
+          )}
+        </div>
+        {/* tree */}
+        <div style={treeStyle}>
+          <RepoTree flag={'contents'} onCommitInfoChange={(path: string) => setNewPath(path)} />
+        </div>
 
-        <Flex gap='middle' wrap>
-          <Layout style={breadStyle}>
-            <BreadCrumb path={path} />
-            {canClone?.data && (
-              <Flex justify={'flex-end'} className='m-1'>
-                <CloneTabs/>
-              </Flex>
-            )}
-          </Layout>
-          {/* tree */}
-          <Layout style={treeStyle}>
-            <RepoTree 
-            flag={'contents'}
-            onCommitInfoChange={(path:string)=>setNewPath(path)} />
-          </Layout>
-
-          <Layout style={codeStyle}>
-            {
-             commitInfo &&  <Layout>
-                <CommitHistory flag={'contents'} info={commitInfo}/>
-              </Layout>
-            }
-          <CodeTable 
-          directory={directory} 
-          loading={!TreeCommitInfo} 
-          onCommitInfoChange={(path:string)=>setNewPath(path)}
-          readmeContent={readmeContent?.data}
+        <div style={codeStyle}>
+          {commitInfo && (
+            <div>
+              <CommitHistory flag={'contents'} info={commitInfo} />
+            </div>
+          )}
+          <CodeTable
+            directory={directory}
+            loading={!TreeCommitInfo}
+            onCommitInfoChange={(path: string) => setNewPath(path)}
+            readmeContent={readmeContent?.data}
           />
-        
-         </Layout>
-        </Flex>
-
+        </div>
+      </div>
     </div>
   )
 }
