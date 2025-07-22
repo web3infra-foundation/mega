@@ -146,26 +146,26 @@
 
                         <child>
                             <object class="AdwViewStack" id="content_stack">
-                              <child>
-                                <object class="AdwViewStackPage">
-                                  <property name="name">mega_tab</property>
-                                  <property name="title" translatable="true">Mega</property>
-                                  <property name="icon-name">monobean-code-symbolic</property>
-                                  <property name="child">
-                                    <object class="MegaTab" id="mega_tab"></object>
-                                  </property>
-                                </object>
-                              </child>
-                              <child>
-                                <object class="AdwViewStackPage">
-                                  <property name="name">monorepo</property>
-                                  <property name="title" translatable="true">Mono Repo</property>
-                                  <property name="icon-name">monobean-package-symbolic</property>
-                                  <property name="child">
-                                    <object class="RepoTab" id="repo_tab"></object>
-                                  </property>
-                                </object>
-                              </child>
+<!--                              <child>-->
+<!--                                <object class="AdwViewStackPage">-->
+<!--                                  <property name="name">mega_tab</property>-->
+<!--                                  <property name="title" translatable="true">Mega</property>-->
+<!--                                  <property name="icon-name">monobean-code-symbolic</property>-->
+<!--                                  <property name="child">-->
+<!--                                    <object class="MegaTab" id="mega_tab"></object>-->
+<!--                                  </property>-->
+<!--                                </object>-->
+<!--                              </child>-->
+<!--                              <child>-->
+<!--                                <object class="AdwViewStackPage">-->
+<!--                                  <property name="name">monorepo</property>-->
+<!--                                  <property name="title" translatable="true">Mono Repo</property>-->
+<!--                                  <property name="icon-name">monobean-package-symbolic</property>-->
+<!--                                  <property name="child">-->
+<!--                                    <object class="RepoTab" id="repo_tab"></object>-->
+<!--                                  </property>-->
+<!--                                </object>-->
+<!--                              </child>-->
                               <child>
                                 <object class="AdwViewStackPage">
                                   <property name="name">code</property>
@@ -179,7 +179,7 @@
 
                               <child>
                                 <object class="AdwViewStackPage">
-                                  <property name="name">p2p</property>
+                                  <property name="name">network</property>
                                   <property name="title" translatable="true">P2P</property>
                                   <property name="icon-name">monobean-crop-symbolic</property>
                                   <property name="child">

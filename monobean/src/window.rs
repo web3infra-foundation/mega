@@ -58,10 +58,10 @@ mod imp {
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
-        #[template_child]
-        pub mega_tab: TemplateChild<MegaTab>,
-        #[template_child]
-        pub repo_tab: TemplateChild<RepoTab>,
+        // #[template_child]
+        // pub mega_tab: TemplateChild<MegaTab>,
+        // #[template_child]
+        // pub repo_tab: TemplateChild<RepoTab>,
         #[template_child]
         pub code_page: TemplateChild<CodePage>,
 
