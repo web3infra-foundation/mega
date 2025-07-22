@@ -94,7 +94,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     };
 
     let config = storage.config();
-    let oauth_config = config.oauth.clone().unwrap();
+    let oauth_config = config.oauth.clone().unwrap_or_default();
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),

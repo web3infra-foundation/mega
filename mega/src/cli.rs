@@ -29,17 +29,20 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
         None => cli().try_get_matches().unwrap_or_else(|e| e.exit()),
     };
 
-    // Get the current directory
+    // Load configuration from the config file or default location
     let current_dir = env::current_dir()?;
-    // Get the path to the config file in the current directory
+    let base_dir = common::config::mega_base();
     let config_path = current_dir.join("config.toml");
+    let config_path_alt = base_dir.join("etc/config.toml");
 
     let config = if let Some(path) = matches.get_one::<PathBuf>("config").cloned() {
         Config::new(path.to_str().unwrap()).unwrap()
     } else if config_path.exists() {
         Config::new(config_path.to_str().unwrap()).unwrap()
+    } else if config_path_alt.exists() {
+        Config::new(config_path_alt.to_str().unwrap()).unwrap()
     } else {
-        eprintln!("can't find config.toml under {:?}, you can manually set config.toml path with --config parameter", env::current_dir().unwrap());
+        eprintln!("can't find config.toml under {:?} or {:?}, you can manually set config.toml path with --config parameter", env::current_dir().unwrap(), base_dir);
         Config::default()
     };
 
