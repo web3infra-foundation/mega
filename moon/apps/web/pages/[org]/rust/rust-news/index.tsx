@@ -2,6 +2,9 @@ import Head from 'next/head'
 import { useState } from 'react'
 import { IndexSearchInput } from '@/components/IndexPages/components'
 import Image from 'next/image'
+import { AppLayout } from '@/components/Layout/AppLayout'
+import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+
 
 const newsList = [
   {
@@ -262,7 +265,7 @@ export default function RustNewsPage() {
           }}
           style={{
             position: 'fixed',
-            right: 350,
+            right: 130,
             bottom: 40,
             zIndex: 50,
             background: 'none',
@@ -276,5 +279,13 @@ export default function RustNewsPage() {
         </button>
       </div>
     </>
+  )
+}
+
+RustNewsPage.getProviders = (page: any, pageProps: any) => {
+  return (
+    <AuthAppProviders {...pageProps}>
+      <AppLayout {...pageProps}>{page}</AppLayout>
+    </AuthAppProviders>
   )
 }
