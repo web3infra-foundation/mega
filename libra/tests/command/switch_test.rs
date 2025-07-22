@@ -42,6 +42,7 @@ async fn test_switch_function() {
             conventional: false,
             amend: false,
             signoff: false,
+            pre:true,
         };
         commit::execute(args).await;
     }
@@ -84,6 +85,7 @@ async fn test_switch_function() {
             conventional: false,
             amend: false,
             signoff: false,
+            pre:true,
         };
         commit::execute(args).await;
 
@@ -160,6 +162,7 @@ async fn test_detach_head_basic() {
             conventional: false,
             amend: false,
             signoff: false,
+            pre:true,
         };
         commit::execute(args).await;
     }
@@ -199,6 +202,7 @@ async fn test_detach_head_basic() {
             conventional: false,
             amend: false,
             signoff: false,
+            pre:true,
         };
         commit::execute(args).await;
     }

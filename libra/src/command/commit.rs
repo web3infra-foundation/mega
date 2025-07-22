@@ -1,3 +1,4 @@
+use std::process::Stdio;
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
@@ -15,6 +16,7 @@ use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
+use std::process::Command;
 
 use super::save_object;
 
@@ -38,6 +40,9 @@ pub struct CommitArgs {
     /// add signed-off-by line at the end of the commit message
     #[arg(short = 's', long)]
     pub signoff: bool,
+
+    #[arg(long)]
+    pub disable_pre: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -47,6 +52,46 @@ pub async fn execute(args: CommitArgs) {
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
         panic!("fatal: no changes added to commit, use --allow-empty to override");
+    }
+
+    // run pre commit hook
+    if !args.disable_pre {
+        let hooks_dir = path::hooks();
+
+        #[cfg(not(target_os = "windows"))]
+        let hook_path = hooks_dir.join("pre-commit.sh");
+
+        #[cfg(target_os = "windows")]
+        let hook_path = hooks_dir.join("pre-commit.ps1");
+        if hook_path.exists() {
+            let hook_display = hook_path.display();
+            #[cfg(not(target_os = "windows"))]
+            let output = Command::new("sh")
+                .arg(&hook_path)
+                .current_dir(util::working_dir())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .output()
+                .unwrap_or_else(|e| panic!("Failed to execute hook {}: {}", hook_display, e));
+
+            #[cfg(target_os = "windows")]
+            let output = Command::new("powershell")
+                .arg("-File")
+                .arg(&hook_path)
+                .current_dir(util::working_dir())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .output()
+                .unwrap_or_else(|e| panic!("Failed to execute hook {}: {}", hook_display, e));
+
+            if !output.status.success() {
+                panic!(
+                    "Hook {} failed with exit code {}",
+                    hook_display,
+                    output.status.code().unwrap_or(-1)
+                );
+            }
+        }
     }
 
     //Prepare commit message
