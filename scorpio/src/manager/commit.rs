@@ -108,7 +108,7 @@ fn build_new_tree_map(
                         Err(_) => {
                             #[cfg(debug_assertions)]
                             color_info!("New Tree: \x1b[1;32m{}\x1b[0m", parent_path.display());
-                            Tree::from_tree_items(vec![])
+                            Tree::from_tree_items(vec![]).unwrap()
                         }
                     };
                     // Update the new TreeItem
@@ -274,10 +274,11 @@ pub fn commit_core(
     // overwrite operation, we can update it
     // with confidence.
     let mut batch = sled::Batch::default();
+    let config = bincode::config::standard();
     for (path, tree) in hashmap.iter() {
         batch.insert(
             path.to_string_lossy().into_owned().as_str(),
-            bincode::serialize(tree).unwrap(),
+            bincode::encode_to_vec(tree,config).unwrap(),
         );
     }
     new_tree_db.apply_batch(batch)?;

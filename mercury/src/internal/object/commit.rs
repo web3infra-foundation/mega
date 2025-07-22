@@ -19,6 +19,7 @@ use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+use bincode::{Decode, Encode};
 use bstr::ByteSlice;
 use callisto::git_commit;
 use callisto::mega_commit;
@@ -35,7 +36,7 @@ use serde::Serialize;
 ///   history of a repository with a single commit object at its root.
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
-#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub struct Commit {
     pub id: SHA1,

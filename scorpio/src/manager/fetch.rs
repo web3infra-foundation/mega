@@ -4,7 +4,6 @@ use crate::scolfs;
 use crate::util::config;
 use crate::util::GPath;
 use async_recursion::async_recursion;
-use axum::async_trait;
 use ceres::model::git::LatestCommitInfo;
 use crossbeam::queue::SegQueue;
 use futures::future::join_all;
@@ -351,8 +350,9 @@ pub async fn download_mr_files(
 
     Ok(())
 }
-#[allow(unused)]
-#[async_trait]
+
+
+#[allow(async_fn_in_trait)]
 pub trait CheckHash {
     async fn check(&mut self);
 
@@ -363,7 +363,7 @@ pub trait CheckHash {
     ) -> WorkDir;
 }
 
-#[async_trait]
+
 impl CheckHash for ScorpioManager {
     async fn check(&mut self) {
         let mut handlers = Vec::new();
