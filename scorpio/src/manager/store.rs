@@ -17,7 +17,8 @@ pub trait TreeStore {
 
 impl TreeStore for sled::Db {
     fn insert_tree(&self, path: PathBuf, tree: Tree) {
-        let value = bincode::serialize(&tree).unwrap();
+        let config = bincode::config::standard();
+        let value = bincode::encode_to_vec(&tree,config).unwrap();
         let key = path.to_str().unwrap();
         self.insert(key, value).unwrap();
     }
@@ -26,9 +27,9 @@ impl TreeStore for sled::Db {
         let key = path.to_str().unwrap();
         match self.get(key)? {
             Some(encoded_value) => {
-                let decoded: Result<Tree> = bincode::deserialize(&encoded_value)
-                    .map_err(|_| std::io::Error::other("Deserialization error"));
-                let decoded: Tree = decoded?;
+                let config = bincode::config::standard();
+                let (decoded, _): (Tree, usize) = bincode::decode_from_slice(&encoded_value, config)
+                    .map_err(|_| std::io::Error::other("Deserialization error"))?;
                 Ok(decoded)
             }
             None => {
@@ -49,9 +50,10 @@ impl TreeStore for sled::Db {
                     // Convert the IVec to a string and then to a PathBuf
                     let path = std::str::from_utf8(&path)
                         .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF8 path"))?;
-                    let decoded_tree: Result<Tree> = bincode::deserialize(&encoded_value)
-                        .map_err(|_| Error::other("Deserialization error"));
-                    Ok((PathBuf::from(path), decoded_tree?))
+                    let config = bincode::config::standard();
+                    let (decoded_tree, _): (Tree, usize) = bincode::decode_from_slice(&encoded_value, config)
+                        .map_err(|_| Error::other("Deserialization error"))?;
+                    Ok((PathBuf::from(path), decoded_tree))
                 }
                 Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
             })
@@ -66,7 +68,9 @@ pub trait CommitStore {
 }
 impl CommitStore for sled::Db {
     fn store_commit(&self, commit: Commit) -> Result<()> {
-        let re = self.insert("COMMIT", bincode::serialize(&commit).unwrap())?;
+        let config = bincode::config::standard();
+        let encoded_commit = bincode::encode_to_vec(&commit, config).unwrap();
+        let re = self.insert("COMMIT", encoded_commit)?;
         if re.is_some() {
             Ok(())
         } else {
@@ -76,9 +80,10 @@ impl CommitStore for sled::Db {
 
     fn get_commit(&self) -> Result<Commit> {
         let encoded_value = self.get("COMMIT")?;
-        let decoded: Result<Commit> = bincode::deserialize(&encoded_value.unwrap())
-            .map_err(|_| std::io::Error::other("Deserialization error"));
-        decoded
+        let config = bincode::config::standard();
+        let (decoded, _): (Commit, usize) = bincode::decode_from_slice(&encoded_value.unwrap(), config)
+            .map_err(|_| std::io::Error::other("Deserialization error"))?;
+        Ok(decoded)
     }
 }
 pub async fn store_trees(storepath: &str, mut tree_channel: Receiver<(GPath, Tree)>) -> Result<()> {
@@ -284,287 +289,301 @@ impl TempStoreArea {
     }
 }
 
-#[allow(unused)]
-pub struct TreesStore<T: kv::KvStore<PathBuf, Tree>> {
-    db: T,
-}
+// #[allow(unused)]
+// pub struct TreesStore<T: kv::KvStore<PathBuf, Tree>> {
+//     db: T,
+// }
 
-#[allow(unused)]
-impl<T: kv::KvStore<PathBuf, Tree>> TreesStore<T> {
-    pub fn new(db: T) -> Self {
-        TreesStore { db }
-    }
-    fn insert_tree(&self, path: PathBuf, tree: Tree) -> Result<()> {
-        self.db._set(path, tree)?;
-        Ok(())
-    }
+// #[allow(unused)]
+// impl<T: kv::KvStore<PathBuf, Tree>> TreesStore<T> {
+//     pub fn new(db: T) -> Self {
+//         TreesStore { db }
+//     }
+//     fn insert_tree(&self, path: PathBuf, tree: Tree) -> Result<()> {
+//         self.db._set(path, tree)?;
+//         Ok(())
+//     }
 
-    fn get_bypath(&self, path: PathBuf) -> Result<Tree> {
-        match self.db._get(&path).map_err(std::io::Error::other)? {
-            Some(encoded_value) => Ok(encoded_value),
-            None => Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Path '{}' not found", path.to_str().unwrap()),
-            )),
-        }
-    }
-}
+//     fn get_bypath(&self, path: PathBuf) -> Result<Tree> {
+//         match self.db._get(&path).map_err(std::io::Error::other)? {
+//             Some(encoded_value) => Ok(encoded_value),
+//             None => Err(std::io::Error::new(
+//                 std::io::ErrorKind::NotFound,
+//                 format!("Path '{}' not found", path.to_str().unwrap()),
+//             )),
+//         }
+//     }
+// }
 
-mod kv {
+// mod kv {
 
-    use bincode::Error as BincodeError;
-    use fjall::{Config, PartitionCreateOptions, PersistMode};
-    use serde::{de::DeserializeOwned, Serialize};
-    use std::{marker::PhantomData, path::Path};
-    use thiserror::Error;
+//     use bincode::{config, error::EncodeError, Decode, Encode};
+//     use fjall::{Config, PartitionCreateOptions, PersistMode};
+//     use serde::{de::DeserializeOwned, Serialize};
+//     use std::{marker::PhantomData, path::Path};
+//     use thiserror::Error;
 
-    /// A generic key-value store trait with automatic serialization/deserialization.
-    ///
-    /// This trait provides a common interface for key-value storage implementations,
-    /// handling serialization and deserialization of keys and values transparently.
-    /// It is designed to work with types that implement Serde's serialization traits.
-    ///
-    /// # Type Parameters
-    /// - `K`: Key type implementing Serialize and DeserializeOwned
-    /// - `V`: Value type implementing Serialize and DeserializeOwned
-    ///
-    /// # Usage
-    /// Implement this trait for different storage backends while maintaining
-    /// a consistent interface for key-value operations.
-    pub trait KvStore<K, V>
-    where
-        K: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned,
-    {
-        /// Inserts or updates a key-value pair (automatic serialization)
-        ///
-        /// # Arguments
-        /// * `key` - Key to insert/update
-        /// * `value` - Value to associate with the key
-        ///
-        /// # Errors
-        /// Returns `KvError` for serialization failures or storage errors
-        fn _set(&self, key: K, value: V) -> Result<(), KvError>;
+//     /// A generic key-value store trait with automatic serialization/deserialization.
+//     ///
+//     /// This trait provides a common interface for key-value storage implementations,
+//     /// handling serialization and deserialization of keys and values transparently.
+//     /// It is designed to work with types that implement Serde's serialization traits.
+//     ///
+//     /// # Type Parameters
+//     /// - `K`: Key type implementing Serialize and DeserializeOwned
+//     /// - `V`: Value type implementing Serialize and DeserializeOwned
+//     ///
+//     /// # Usage
+//     /// Implement this trait for different storage backends while maintaining
+//     /// a consistent interface for key-value operations.
+//     pub trait KvStore<K, V>
+//     where
+//         K: Encode+ Decode<()>,
+//         V: Encode+ Decode<()>,
+//     {
+//         /// Inserts or updates a key-value pair (automatic serialization)
+//         ///
+//         /// # Arguments
+//         /// * `key` - Key to insert/update
+//         /// * `value` - Value to associate with the key
+//         ///
+//         /// # Errors
+//         /// Returns `KvError` for serialization failures or storage errors
+//         fn _set(&self, key: K, value: V) -> Result<(), KvError>;
 
-        /// Retrieves the value associated with the key (automatic deserialization)
-        ///
-        /// # Arguments
-        /// * `key` - Key to look up
-        ///
-        /// # Returns
-        /// `Ok(Some(V))` if key exists, `Ok(None)` if not found
-        ///
-        /// # Errors
-        /// Returns `KvError` for deserialization failures or storage errors
-        fn _get(&self, key: &K) -> Result<Option<V>, KvError>;
+//         /// Retrieves the value associated with the key (automatic deserialization)
+//         ///
+//         /// # Arguments
+//         /// * `key` - Key to look up
+//         ///
+//         /// # Returns
+//         /// `Ok(Some(V))` if key exists, `Ok(None)` if not found
+//         ///
+//         /// # Errors
+//         /// Returns `KvError` for deserialization failures or storage errors
+//         fn _get(&self, key: &K) -> Result<Option<V>, KvError>;
 
-        /// Removes a key-value pair from the store
-        ///
-        /// # Arguments
-        /// * `key` - Key to remove
-        ///
-        /// # Errors
-        /// Returns `KvError` if removal fails
-        fn _remove(&self, key: &K) -> Result<(), KvError>;
+//         /// Removes a key-value pair from the store
+//         ///
+//         /// # Arguments
+//         /// * `key` - Key to remove
+//         ///
+//         /// # Errors
+//         /// Returns `KvError` if removal fails
+//         fn _remove(&self, key: &K) -> Result<(), KvError>;
 
-        /// Checks existence of a key in the store
-        ///
-        /// # Arguments
-        /// * `key` - Key to check
-        ///
-        /// # Returns
-        /// `true` if key exists, `false` otherwise
-        ///
-        /// # Errors
-        /// Returns `KvError` for storage operation failures
-        fn _contains_key(&self, key: &K) -> Result<bool, KvError>;
+//         /// Checks existence of a key in the store
+//         ///
+//         /// # Arguments
+//         /// * `key` - Key to check
+//         ///
+//         /// # Returns
+//         /// `true` if key exists, `false` otherwise
+//         ///
+//         /// # Errors
+//         /// Returns `KvError` for storage operation failures
+//         fn _contains_key(&self, key: &K) -> Result<bool, KvError>;
 
-        /// Clears all key-value pairs from the store
-        ///
-        /// # Errors
-        /// Returns `KvError` if clear operation fails
-        fn _clear(&self) -> Result<(), KvError>;
-    }
+//         /// Clears all key-value pairs from the store
+//         ///
+//         /// # Errors
+//         /// Returns `KvError` if clear operation fails
+//         fn _clear(&self) -> Result<(), KvError>;
+//     }
 
-    #[derive(Error, Debug)]
-    pub enum KvError {
-        #[error("Deserialization error: {0}")]
-        Deserialization(String),
+//     #[derive(Error, Debug)]
+//     pub enum KvError {
+//         #[error("Deserialization error: {0}")]
+//         Deserialization(String),
 
-        #[error("I/O error: {0}")]
-        IoError(#[from] std::io::Error),
+//         #[error("I/O error: {0}")]
+//         IoError(#[from] std::io::Error),
 
-        #[error("Serialization error: {0}")]
-        Serialization(#[from] BincodeError),
+//         #[error("Serialization error: {0}")]
+//         Serialization(#[from] EncodeError),
 
-        #[error("Fjall error: {0}")]
-        FjallError(String),
+//         #[error("Fjall error: {0}")]
+//         FjallError(String),
 
-        #[error("Other error: {0}")]
-        Other(#[from] Box<dyn std::error::Error + Send + Sync>),
-    }
+//         #[error("Other error: {0}")]
+//         Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+//     }
 
-    impl From<fjall::Error> for KvError {
-        fn from(e: fjall::Error) -> Self {
-            KvError::FjallError(e.to_string())
-        }
-    }
+//     impl From<fjall::Error> for KvError {
+//         fn from(e: fjall::Error) -> Self {
+//             KvError::FjallError(e.to_string())
+//         }
+//     }
 
-    impl From<KvError> for std::io::Error {
-        fn from(e: KvError) -> Self {
-            match e {
-                KvError::IoError(e) => e,
-                _ => std::io::Error::other(e),
-            }
-        }
-    }
+//     impl From<KvError> for std::io::Error {
+//         fn from(e: KvError) -> Self {
+//             match e {
+//                 KvError::IoError(e) => e,
+//                 _ => std::io::Error::other(e),
+//             }
+//         }
+//     }
 
-    impl<K, V> KvStore<K, V> for sled::Db
-    where
-        K: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned,
-    {
-        fn _set(&self, key: K, value: V) -> Result<(), KvError> {
-            let serialized_key = bincode::serialize(&key).map_err(KvError::Serialization)?;
-            let serialized_value = bincode::serialize(&value).map_err(KvError::Serialization)?;
+//     impl<K, V> KvStore<K, V> for sled::Db
+//     where
+//         K: Encode + Decode<()>,
+//         V: Encode + Decode<()>,
+//     {
+//         fn _set(&self, key: K, value: V) -> Result<(), KvError> {
+//             let config = config::standard();
+//             let serialized_key = bincode::encode_to_vec(&key, config).map_err(KvError::Serialization)?;
+//             let serialized_value = bincode::encode_to_vec(&value, config).map_err(KvError::Serialization)?;
 
-            self.insert(serialized_key, serialized_value)
-                .map_err(|e| KvError::IoError(e.into()))?;
+//             self.insert(serialized_key, serialized_value)
+//                 .map_err(|e| KvError::IoError(e.into()))?;
 
-            Ok(())
-        }
+//             Ok(())
+//         }
+        
+//         fn _get(&self, key: &K) -> Result<Option<V>, KvError> {
+//             let config = config::standard();
+//             let serialized_key = bincode::encode_to_vec(key,config).map_err(KvError::Serialization)?;
 
-        fn _get(&self, key: &K) -> Result<Option<V>, KvError> {
-            let serialized_key = bincode::serialize(key).map_err(KvError::Serialization)?;
+//             match self
+//                 .get(&serialized_key)
+//                 .map_err(|e| KvError::IoError(e.into()))?
+//             {
+//                 Some(value) => {
+//                     let config = config::standard();
+//                     let (deserialized, _): (V, usize) = bincode::decode_from_slice(&value, config)
+//                         .map_err(|e| KvError::Deserialization(e.to_string()))?;
+//                     Ok(Some(deserialized))
+//                 }
+//                 None => Ok(None),
+//             }
+//         }
+        
 
-            match self
-                .get(&serialized_key)
-                .map_err(|e| KvError::IoError(e.into()))?
-            {
-                Some(value) => {
-                    let deserialized: V = bincode::deserialize(&value)
-                        .map_err(|e| KvError::Deserialization(e.to_string()))?;
-                    Ok(Some(deserialized))
-                }
-                None => Ok(None),
-            }
-        }
+//         fn _remove(&self, key: &K) -> Result<(), KvError> {
+//             let config = config::standard();
+//             let serialized_key = bincode::encode_to_vec(key, config).map_err(KvError::Serialization)?;
 
-        fn _remove(&self, key: &K) -> Result<(), KvError> {
-            let serialized_key = bincode::serialize(key).map_err(KvError::Serialization)?;
+//             self.remove(serialized_key)
+//                 .map_err(|e| KvError::IoError(e.into()))?;
 
-            self.remove(serialized_key)
-                .map_err(|e| KvError::IoError(e.into()))?;
+//             Ok(())
+//         }
 
-            Ok(())
-        }
+//         fn _contains_key(&self, key: &K) -> Result<bool, KvError> {
+//             let config = config::standard();
+//             let serialized_key = bincode::encode_to_vec(key, config).map_err(KvError::Serialization)?;
 
-        fn _contains_key(&self, key: &K) -> Result<bool, KvError> {
-            let serialized_key = bincode::serialize(key).map_err(KvError::Serialization)?;
+//             self.contains_key(serialized_key)
+//                 .map_err(|e| KvError::IoError(e.into()))
+//         }
 
-            self.contains_key(serialized_key)
-                .map_err(|e| KvError::IoError(e.into()))
-        }
+//         fn _clear(&self) -> Result<(), KvError> {
+//             self.clear().map_err(|e| KvError::IoError(e.into()))?;
+//             Ok(())
+//         }
+//     }
 
-        fn _clear(&self) -> Result<(), KvError> {
-            self.clear().map_err(|e| KvError::IoError(e.into()))?;
-            Ok(())
-        }
-    }
+//     pub struct FjallKvStore<K, V> {
+//         keyspace: fjall::Keyspace,
+//         partition_name: String,
+//         _key_type: PhantomData<K>,
+//         _value_type: PhantomData<V>,
+//     }
 
-    pub struct FjallKvStore<K, V> {
-        keyspace: fjall::Keyspace,
-        partition_name: String,
-        _key_type: PhantomData<K>,
-        _value_type: PhantomData<V>,
-    }
+//     #[allow(unused)]
+//     impl<K, V> FjallKvStore<K, V>
+//     where
+//         K: Serialize + DeserializeOwned  ,
+//         V: Serialize + DeserializeOwned ,
+//     {
+//         pub fn new<P: AsRef<Path>>(path: P, partition_name: &str) -> Result<Self, KvError> {
+//             let keyspace = Config::new(path).open()?;
+//             keyspace.persist(PersistMode::Buffer)?;
 
-    #[allow(unused)]
-    impl<K, V> FjallKvStore<K, V>
-    where
-        K: Serialize + DeserializeOwned + 'static,
-        V: Serialize + DeserializeOwned + 'static,
-    {
-        pub fn new<P: AsRef<Path>>(path: P, partition_name: &str) -> Result<Self, KvError> {
-            let keyspace = Config::new(path).open()?;
-            keyspace.persist(PersistMode::Buffer)?;
+//             Ok(Self {
+//                 keyspace,
+//                 partition_name: partition_name.to_string(),
+//                 _key_type: PhantomData,
+//                 _value_type: PhantomData,
+//             })
+//         }
 
-            Ok(Self {
-                keyspace,
-                partition_name: partition_name.to_string(),
-                _key_type: PhantomData,
-                _value_type: PhantomData,
-            })
-        }
+//         // pub fn new_transactional<P: AsRef<Path>>(path: P, partition_name: &str) -> Result<Self, KvError> {
+//         //     let keyspace = Config::new(path).open_transactional()?;
+//         //     Ok(Self {
+//         //         keyspace,
+//         //         partition_name: partition_name.to_string(),
+//         //         _key_type: PhantomData,
+//         //         _value_type: PhantomData,
+//         //     })
+//         // }
 
-        // pub fn new_transactional<P: AsRef<Path>>(path: P, partition_name: &str) -> Result<Self, KvError> {
-        //     let keyspace = Config::new(path).open_transactional()?;
-        //     Ok(Self {
-        //         keyspace,
-        //         partition_name: partition_name.to_string(),
-        //         _key_type: PhantomData,
-        //         _value_type: PhantomData,
-        //     })
-        // }
+//         fn open_partition(&self) -> Result<fjall::PartitionHandle, KvError> {
+//             self.keyspace
+//                 .open_partition(&self.partition_name, PartitionCreateOptions::default())
+//                 .map_err(Into::into)
+//         }
+//     }
 
-        fn open_partition(&self) -> Result<fjall::PartitionHandle, KvError> {
-            self.keyspace
-                .open_partition(&self.partition_name, PartitionCreateOptions::default())
-                .map_err(Into::into)
-        }
-    }
+//     impl<K, V> KvStore<K, V> for FjallKvStore<K, V>
+//     where
+//         K: Encode + Decode<()> + DeserializeOwned,
+//         V: Encode + Decode<()> + DeserializeOwned,
+//     {
+//         fn _set(&self, key: K, value: V) -> Result<(), KvError> {
+//             let config = bincode::config::standard();
+//             let serialized_key = bincode::encode_to_vec(&key,config)?;
+//             let serialized_value = bincode::encode_to_vec(&value,config)?;
 
-    impl<K, V> KvStore<K, V> for FjallKvStore<K, V>
-    where
-        K: Serialize + DeserializeOwned + 'static,
-        V: Serialize + DeserializeOwned + 'static,
-    {
-        fn _set(&self, key: K, value: V) -> Result<(), KvError> {
-            let serialized_key = bincode::serialize(&key)?;
-            let serialized_value = bincode::serialize(&value)?;
+//             let partition = self.open_partition()?;
+//             partition.insert(&serialized_key, &serialized_value)?;
+//             Ok(())
+//         }
 
-            let partition = self.open_partition()?;
-            partition.insert(&serialized_key, &serialized_value)?;
-            Ok(())
-        }
+//         fn _get(&self, key: &K) -> Result<Option<V>, KvError> {
+//             let config = bincode::config::standard();
+//             let serialized_key = bincode::encode_to_vec(key,config)?;
+//             let partition = self.open_partition()?;
 
-        fn _get(&self, key: &K) -> Result<Option<V>, KvError> {
-            let serialized_key = bincode::serialize(key)?;
+//             match partition.get(&serialized_key)? {
+//                 Some(v) => {
+//                     let config = bincode::config::standard();
+//                     let (deserialized, _): (V, usize) = bincode::decode_from_slice(&v, config)
+//                         .map_err(|e| KvError::Deserialization(e.to_string()))?;
+//                     Ok(Some(deserialized))
+//                 }
+//                 None => Ok(None),
+//             }
+//         }
+            
 
-            let partition = self.open_partition()?;
+//         fn _remove(&self, key: &K) -> Result<(), KvError> {
+//             let serialized_key = bincode::serialize(key)?;
 
-            match partition.get(&serialized_key)? {
-                Some(v) => Ok(Some(bincode::deserialize(&v)?)),
-                None => Ok(None),
-            }
-        }
+//             let partition = self.open_partition()?;
+//             partition.remove(&serialized_key)?;
+//             Ok(())
+//         }
 
-        fn _remove(&self, key: &K) -> Result<(), KvError> {
-            let serialized_key = bincode::serialize(key)?;
+//         fn _contains_key(&self, key: &K) -> Result<bool, KvError> {
+//             let config = config::standard();
+//             let serialized_key = bincode::encode_to_vec(key,config)?;
 
-            let partition = self.open_partition()?;
-            partition.remove(&serialized_key)?;
-            Ok(())
-        }
+//             let partition = self.open_partition()?;
+//             Ok(partition.get(&serialized_key)?.is_some())
+//         }
 
-        fn _contains_key(&self, key: &K) -> Result<bool, KvError> {
-            let serialized_key = bincode::serialize(key)?;
+//         fn _clear(&self) -> Result<(), KvError> {
+//             let partition = self.open_partition()?;
 
-            let partition = self.open_partition()?;
-            Ok(partition.get(&serialized_key)?.is_some())
-        }
-
-        fn _clear(&self) -> Result<(), KvError> {
-            let partition = self.open_partition()?;
-
-            // Attention: this may take a lot
-            let _ = partition
-                .iter()
-                .map(|res| res.map(|(k, _)| partition.remove(k)));
-            Ok(())
-        }
-    }
-}
+//             // Attention: this may take a lot
+//             let _ = partition
+//                 .iter()
+//                 .map(|res| res.map(|(k, _)| partition.remove(k)));
+//             Ok(())
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod test {
@@ -590,7 +609,8 @@ mod test {
 
         if let Some(encoded_value) = db.get(t.id.as_ref()).unwrap() {
             // use bincode to deserialize the value .
-            let decoded: Tree = bincode::deserialize(&encoded_value).unwrap();
+            let config = bincode::config::standard();
+            let decoded: Tree = bincode::decode_from_slice(&encoded_value,config).unwrap().0;
             println!(" {decoded}");
         };
     }
@@ -606,19 +626,13 @@ mod test {
             match result {
                 Ok((key, value)) => {
                     // Deserialize the value into the original tree structure using bincode
-                    let decoded: Result<Tree, _> = bincode::deserialize(&value);
+                    let config = bincode::config::standard();
+                    let tree: Tree = bincode::decode_from_slice(&value,config).unwrap().0;
                     let key_str = std::str::from_utf8(&key).unwrap();
 
                     println!("path:{key_str}");
-
-                    if let Ok(tree) = decoded {
-                        println!("{tree}");
-                    } else {
-                        println!(
-                            "Deserialization error for key: {}",
-                            String::from_utf8_lossy(&key)
-                        );
-                    }
+                    println!("{tree}");
+                    
                 }
                 Err(error) => {
                     println!("Error iterating over trees: {error}");

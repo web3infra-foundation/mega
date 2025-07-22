@@ -19,6 +19,7 @@ use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+use bincode::{Decode, Encode};
 use bstr::ByteSlice;
 use callisto::git_commit;
 use callisto::mega_commit;
@@ -35,7 +36,7 @@ use serde::Serialize;
 ///   history of a repository with a single commit object at its root.
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
-#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
 pub struct Commit {
     pub id: SHA1,
@@ -119,6 +120,8 @@ impl Commit {
         Commit::new(author, committer, tree_id, parent_commit_ids, message)
     }
 
+    /// Formats the commit message by extracting the first line of the message.
+    /// If the message contains a PGP signature, it will return the first line after the signature.
     pub fn format_message(&self) -> String {
         let mut has_signature = false;
         for line in self.message.lines() {
@@ -148,21 +151,26 @@ impl ObjectTrait for Commit {
         // Find the tree id and remove it from the data
         let tree_end = commit.find_byte(0x0a).unwrap();
         let tree_id: SHA1 = SHA1::from_str(
-            String::from_utf8(commit[5..tree_end].to_owned())
+            String::from_utf8(commit[5..tree_end].to_owned()) // 5 is the length of "tree "
                 .unwrap()
                 .as_str(),
         )
         .unwrap();
-        let binding = commit[tree_end + 1..].to_vec();
+        let binding = commit[tree_end + 1..].to_vec(); // Move past the tree id 
         commit = &binding;
 
         // Find the parent commit ids and remove them from the data
         let author_begin = commit.find("author").unwrap();
+        // Find all parent commit ids
+        // The parent commit ids are all the lines that start with "parent "
+        // We can use find_iter to find all occurrences of "parent "
+        // and then extract the SHA1 hashes from them.
         let parent_commit_ids: Vec<SHA1> = commit[..author_begin]
             .find_iter("parent")
             .map(|parent| {
                 let parent_end = commit[parent..].find_byte(0x0a).unwrap();
                 SHA1::from_str(
+                    // 7 is the length of "parent "
                     String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
                         .unwrap()
                         .as_str(),
@@ -174,8 +182,10 @@ impl ObjectTrait for Commit {
         commit = &binding;
 
         // Find the author and committer and remove them from the data
+        // 0x0a is the newline character
         let author =
-            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap(); 
+        
         let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
         commit = &binding;
         let committer =
