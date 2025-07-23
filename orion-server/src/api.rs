@@ -247,6 +247,7 @@ async fn task_handler(
         repo: req.repo,
         target: req.target,
         args: req.args,
+        mr: req.mr.clone().unwrap_or_default(),
     };
 
     state.clients.get(chosen_id).unwrap().send(msg).unwrap(); // TODO client maybe disconnected
