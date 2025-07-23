@@ -51,10 +51,15 @@ const CratesproPage: PageWithLayout<any> = () => {
 
   const handleCardClick = (key: string) => {
     if (key === 'news') {
-      // 在新标签页打开 rust-news 页面
+      // 在当前标签页跳转 rust-news 页面，保留侧边栏
       const org = router.query.org ? `/${router.query.org}` : ''
 
-      window.open(`${org}/rust/rust-news`, '_blank')
+      router.push(`${org}/rust/rust-news`)
+    } else if (key === 'ecosystem') {
+      // 跳转到 rust-ecosystem 页面
+      const org = router.query.org ? `/${router.query.org}` : ''
+      
+      router.push(`${org}/rust/rust-ecosystem`)
     } else {
       // 其它卡片逻辑
       router.push(`/cratespro/${key}`)
