@@ -33,7 +33,7 @@ async fn fetch_label_list(
 ) -> Result<Json<CommonResult<CommonPage<LabelItem>>>, ApiError> {
     let (items, total) = state
         .issue_stg()
-        .list_labels_by_page(json.pagination)
+        .list_labels_by_page(json.pagination, &json.additional)
         .await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
         items: items.into_iter().map(|m| m.into()).collect(),

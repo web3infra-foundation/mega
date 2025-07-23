@@ -219,8 +219,16 @@ impl IssueStorage {
     pub async fn list_labels_by_page(
         &self,
         page: Pagination,
+        name: &str,
     ) -> Result<(Vec<label::Model>, u64), MegaError> {
-        let paginator = label::Entity::find().paginate(self.get_connection(), page.per_page);
+        let mut condition = Condition::all();
+        if !name.is_empty() {
+            let name = format!("%{name}%");
+            condition = condition.add(label::Column::Name.like(name));
+        }
+        let paginator = label::Entity::find()
+            .filter(condition)
+            .paginate(self.get_connection(), page.per_page);
         let num_pages = paginator.num_items().await?;
         Ok(paginator
             .fetch_page(page.page - 1)
