@@ -18,6 +18,7 @@ pub enum WSMessage {
         repo: String,
         target: String,
         args: Option<Vec<String>>,
+        mr: String,
     },
     TaskAck {
         id: String,
@@ -34,6 +35,30 @@ pub enum WSMessage {
         exit_code: Option<i32>,
         message: String,
     },
+}
+
+const MAX_RETRIES: u32 = 3;
+
+/// send message and retry 
+async fn send_with_retry(sender: &mut (impl SinkExt<Message> + Unpin), msg: &WSMessage) -> Result<(), String> {
+    let msg_str = serde_json::to_string(msg)
+        .map_err(|e| format!("seriaz fail: {e}"))?;
+    let ws_msg = Message::Text(Utf8Bytes::from(msg_str));
+
+    for attempt in 0..=MAX_RETRIES {
+        match sender.send(ws_msg.clone()).await {
+            Ok(_) => return Ok(()),
+            Err(_) => {
+                if attempt == MAX_RETRIES {
+                    return Err(format!("max retry times:({MAX_RETRIES}), "));
+                }
+                println!("send fail (retry {}/{})", attempt + 1, MAX_RETRIES);
+                const RETRY_DELAY_MS: u64 = 200;
+                tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+            }
+        }
+    }
+    Err("max retry error".into())
 }
 
 pub async fn spawn_client(server: &str) {
@@ -55,8 +80,8 @@ pub async fn spawn_client(server: &str) {
 
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            let msg = serde_json::to_string(&msg).unwrap();
-            if let Err(e) = sender.send(Message::Text(Utf8Bytes::from(msg))).await {
+            //let msg = serde_json::to_string(&msg).unwrap();
+            if let Err(e) = send_with_retry(&mut sender, &msg).await {
                 println!("Error sending message: {e}");
                 break;
             }
@@ -91,11 +116,12 @@ async fn process_message(msg: Message) -> ControlFlow<(), ()> {
                     repo,
                     target,
                     args,
+                    mr,
                 } => {
-                    println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}");
+                    println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}, mr:{mr}");
                     let Json(res) = buck_build(
                         id.parse().unwrap(),
-                        BuildRequest { repo, target, args },
+                        BuildRequest { repo, target, args, mr },
                         SENDER.get().unwrap().clone(),
                     )
                     .await;
