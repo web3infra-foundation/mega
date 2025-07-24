@@ -18,7 +18,7 @@ pub trait TreeStore {
 impl TreeStore for sled::Db {
     fn insert_tree(&self, path: PathBuf, tree: Tree) {
         let config = bincode::config::standard();
-        let value = bincode::encode_to_vec(&tree,config).unwrap();
+        let value = bincode::encode_to_vec(&tree, config).unwrap();
         let key = path.to_str().unwrap();
         self.insert(key, value).unwrap();
     }
@@ -28,8 +28,9 @@ impl TreeStore for sled::Db {
         match self.get(key)? {
             Some(encoded_value) => {
                 let config = bincode::config::standard();
-                let (decoded, _): (Tree, usize) = bincode::decode_from_slice(&encoded_value, config)
-                    .map_err(|_| std::io::Error::other("Deserialization error"))?;
+                let (decoded, _): (Tree, usize) =
+                    bincode::decode_from_slice(&encoded_value, config)
+                        .map_err(|_| std::io::Error::other("Deserialization error"))?;
                 Ok(decoded)
             }
             None => {
@@ -51,8 +52,9 @@ impl TreeStore for sled::Db {
                     let path = std::str::from_utf8(&path)
                         .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF8 path"))?;
                     let config = bincode::config::standard();
-                    let (decoded_tree, _): (Tree, usize) = bincode::decode_from_slice(&encoded_value, config)
-                        .map_err(|_| Error::other("Deserialization error"))?;
+                    let (decoded_tree, _): (Tree, usize) =
+                        bincode::decode_from_slice(&encoded_value, config)
+                            .map_err(|_| Error::other("Deserialization error"))?;
                     Ok((PathBuf::from(path), decoded_tree))
                 }
                 Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
@@ -81,8 +83,9 @@ impl CommitStore for sled::Db {
     fn get_commit(&self) -> Result<Commit> {
         let encoded_value = self.get("COMMIT")?;
         let config = bincode::config::standard();
-        let (decoded, _): (Commit, usize) = bincode::decode_from_slice(&encoded_value.unwrap(), config)
-            .map_err(|_| std::io::Error::other("Deserialization error"))?;
+        let (decoded, _): (Commit, usize) =
+            bincode::decode_from_slice(&encoded_value.unwrap(), config)
+                .map_err(|_| std::io::Error::other("Deserialization error"))?;
         Ok(decoded)
     }
 }
@@ -439,7 +442,7 @@ impl TempStoreArea {
 
 //             Ok(())
 //         }
-        
+
 //         fn _get(&self, key: &K) -> Result<Option<V>, KvError> {
 //             let config = config::standard();
 //             let serialized_key = bincode::encode_to_vec(key,config).map_err(KvError::Serialization)?;
@@ -457,7 +460,6 @@ impl TempStoreArea {
 //                 None => Ok(None),
 //             }
 //         }
-        
 
 //         fn _remove(&self, key: &K) -> Result<(), KvError> {
 //             let config = config::standard();
@@ -555,7 +557,6 @@ impl TempStoreArea {
 //                 None => Ok(None),
 //             }
 //         }
-            
 
 //         fn _remove(&self, key: &K) -> Result<(), KvError> {
 //             let serialized_key = bincode::serialize(key)?;
@@ -610,7 +611,9 @@ mod test {
         if let Some(encoded_value) = db.get(t.id.as_ref()).unwrap() {
             // use bincode to deserialize the value .
             let config = bincode::config::standard();
-            let decoded: Tree = bincode::decode_from_slice(&encoded_value,config).unwrap().0;
+            let decoded: Tree = bincode::decode_from_slice(&encoded_value, config)
+                .unwrap()
+                .0;
             println!(" {decoded}");
         };
     }
@@ -627,12 +630,11 @@ mod test {
                 Ok((key, value)) => {
                     // Deserialize the value into the original tree structure using bincode
                     let config = bincode::config::standard();
-                    let tree: Tree = bincode::decode_from_slice(&value,config).unwrap().0;
+                    let tree: Tree = bincode::decode_from_slice(&value, config).unwrap().0;
                     let key_str = std::str::from_utf8(&key).unwrap();
 
                     println!("path:{key_str}");
                     println!("{tree}");
-                    
                 }
                 Err(error) => {
                     println!("Error iterating over trees: {error}");

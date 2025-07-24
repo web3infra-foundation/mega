@@ -351,7 +351,6 @@ pub async fn download_mr_files(
     Ok(())
 }
 
-
 #[allow(async_fn_in_trait)]
 pub trait CheckHash {
     async fn check(&mut self);
@@ -362,7 +361,6 @@ pub trait CheckHash {
         monopath: P,
     ) -> WorkDir;
 }
-
 
 impl CheckHash for ScorpioManager {
     async fn check(&mut self) {

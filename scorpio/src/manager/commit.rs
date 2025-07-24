@@ -278,7 +278,7 @@ pub fn commit_core(
     for (path, tree) in hashmap.iter() {
         batch.insert(
             path.to_string_lossy().into_owned().as_str(),
-            bincode::encode_to_vec(tree,config).unwrap(),
+            bincode::encode_to_vec(tree, config).unwrap(),
         );
     }
     new_tree_db.apply_batch(batch)?;
