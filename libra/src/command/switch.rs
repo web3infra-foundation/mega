@@ -29,14 +29,7 @@ pub struct SwitchArgs {
 
 pub async fn execute(args: SwitchArgs) {
     // check status
-    let unstaged = status::changes_to_be_staged();
-    if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
-        status::execute().await;
-        eprintln!("fatal: uncommitted changes, can't switch branch");
-        return;
-    } else if !status::changes_to_be_committed().await.is_empty() {
-        status::execute().await;
-        eprintln!("fatal: unstaged changes, can't switch branch");
+    if check_status().await {
         return;
     }
 
@@ -66,11 +59,11 @@ pub async fn check_status() -> bool {
     let unstaged: status::Changes = status::changes_to_be_staged();
     if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
         status::execute().await;
-        eprintln!("fatal: uncommitted changes, can't switch branch");
+        eprintln!("fatal: unstaged changes, can't switch branch");
         true
     } else if !status::changes_to_be_committed().await.is_empty() {
         status::execute().await;
-        eprintln!("fatal: unstaged changes, can't switch branch");
+        eprintln!("fatal: uncommitted changes, can't switch branch");
         true
     } else {
         false
