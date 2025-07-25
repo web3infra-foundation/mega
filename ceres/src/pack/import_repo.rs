@@ -2,18 +2,12 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     str::FromStr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use async_trait::async_trait;
-use futures::{future::join_all, StreamExt};
-use tokio::sync::{
-    mpsc::{self, UnboundedReceiver},
-    Semaphore,
-};
+use futures::StreamExt;
+use tokio::sync::mpsc::{self};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
@@ -57,46 +51,17 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(
-        &self,
-        mut receiver: UnboundedReceiver<Entry>,
-    ) -> Result<Option<Commit>, GitError> {
+    async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let storage = self.storage.git_db_storage();
-        let mut entry_list = vec![];
-        let semaphore = Arc::new(Semaphore::new(8));
-        let mut join_tasks = vec![];
-        let repo_id = self.repo.repo_id;
+        storage.save_entry(self.repo.repo_id, entry_list).await
+    }
 
-        while let Some(entry) = receiver.recv().await {
-            entry_list.push(entry);
-            if entry_list.len() >= 1000 {
-                let stg_clone = storage.clone();
-                let acquired = semaphore.clone().acquire_owned().await.unwrap();
+    async fn post_receiver_handler(&self) -> Result<(), GitError> {
+        self.attach_to_monorepo_parent().await
+    }
 
-                let handle = tokio::spawn(async move {
-                    let _acquired = acquired;
-                    stg_clone.save_entry(repo_id, entry_list).await
-                });
-                join_tasks.push(handle);
-                entry_list = vec![];
-            }
-        }
-        let results = join_all(join_tasks).await;
-        for (i, res) in results.into_iter().enumerate() {
-            match res {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    tracing::error!("Task {} save_entry Err: {:?}", i, e);
-                }
-                Err(join_err) => {
-                    tracing::error!("Task {} panic or cancle: {:?}", i, join_err);
-                }
-            }
-        }
-
-        storage.save_entry(repo_id, entry_list).await.unwrap();
-        self.attach_to_monorepo_parent().await.unwrap();
-        Ok(None)
+    async fn check_entry(&self, _: &Entry) -> Result<(), GitError> {
+        Ok(())
     }
 
     async fn full_pack(&self, _: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
@@ -304,7 +269,7 @@ impl PackHandler for ImportRepo {
             .await
     }
 
-    async fn update_refs(&self, _: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
+    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.git_db_storage();
         match refs.command_type {
             CommandType::Create => {

@@ -1,14 +1,17 @@
 use std::{
     collections::HashSet,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::Stream;
+use futures::{future::join_all, Stream};
 use sysinfo::System;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
@@ -18,7 +21,7 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use mercury::internal::{object::commit::Commit, pack::Pack};
+use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
     internal::{
@@ -34,13 +37,59 @@ pub mod import_repo;
 pub mod monorepo;
 
 #[async_trait]
-pub trait PackHandler: Send + Sync {
+pub trait PackHandler: Send + Sync + 'static {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    async fn handle_receiver(
-        &self,
+    async fn receiver_handler(
+        self: Arc<Self>,
         mut rx: UnboundedReceiver<Entry>,
-    ) -> Result<Option<Commit>, GitError>;
+    ) -> Result<(), GitError> {
+        let mut entry_list = vec![];
+        let semaphore = Arc::new(Semaphore::new(4));
+        let mut join_tasks = vec![];
+
+        while let Some(entry) = rx.recv().await {
+            self.check_entry(&entry).await?;
+            entry_list.push(entry);
+            if entry_list.len() >= 1000 {
+                let acquired = semaphore.clone().acquire_owned().await.unwrap();
+                let entries = std::mem::take(&mut entry_list);
+                let shared = self.clone();
+                let handle = tokio::spawn(async move {
+                    let _acquired = acquired;
+                    shared.save_entry(entries).await
+                });
+                join_tasks.push(handle);
+            }
+        }
+        // process left entries
+        if !entry_list.is_empty() {
+            let handler = self.clone();
+            let entries = std::mem::take(&mut entry_list);
+            let handle = tokio::spawn(async move { handler.save_entry(entries).await });
+            join_tasks.push(handle);
+        }
+
+        let results = join_all(join_tasks).await;
+        for (i, res) in results.into_iter().enumerate() {
+            match res {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!("Task {} save_entry Err: {:?}", i, e);
+                }
+                Err(join_err) => {
+                    tracing::error!("Task {} panic or cancle: {:?}", i, join_err);
+                }
+            }
+        }
+        self.post_receiver_handler().await
+    }
+
+    async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError>;
+
+    async fn post_receiver_handler(&self) -> Result<(), GitError>;
+
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
@@ -65,7 +114,7 @@ pub trait PackHandler: Send + Sync {
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
-    async fn update_refs(&self, commit: Option<Commit>, refs: &RefCommand) -> Result<(), GitError>;
+    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
 
