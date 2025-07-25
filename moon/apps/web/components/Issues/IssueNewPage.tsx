@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionList, FormControl, SelectPanel, Stack, Text, TextInput } from '@primer/react'
 import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
@@ -315,7 +315,10 @@ export const BadgeItem = ({
   selectPannelProps,
   items,
   children,
-  handleGroup
+  handleGroup,
+  open,
+  onOpenChange,
+  selected
 }: {
   title: string
   selectPannelProps?: Omit<React.ComponentProps<typeof SelectPanel>, SelectPanelExcludedProps> & {
@@ -324,12 +327,33 @@ export const BadgeItem = ({
   items: ItemInput[]
   children?: (el: React.ReactNode) => React.ReactNode
   handleGroup?: (selected: ItemInput[]) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  selected?: ItemInput[]
 }) => {
+  // const { open, onOpenChange } = selectPannelProps ?? {}
+  // open有传，则是受控组件，没传就是非受控组件(内部管理)
+  const isControl = open !== undefined
+
   const [control, setControl] = useState(false)
+
+  const currentOpen = isControl ? open : control
 
   const [chose, setChose] = useState<ItemInput[]>([])
 
   const [filter, setFilter] = React.useState('')
+
+  useEffect(() => {
+    selected && selected?.length !== 0 ? setChose([...selected]) : setChose([])
+  }, [selected])
+
+  const handleOpenChange = (nextOpen: boolean, _gesture?: any) => {
+    // 有onOpenChange就传递
+    onOpenChange?.(nextOpen)
+    if (!isControl) {
+      setControl(nextOpen)
+    }
+  }
 
   const filteredItems = items.filter(
     (item) =>
@@ -359,8 +383,8 @@ export const BadgeItem = ({
                 </div>
               )
             }}
-            open={control}
-            onOpenChange={setControl}
+            open={currentOpen}
+            onOpenChange={(open, gesture) => handleOpenChange(open, gesture)}
             items={filteredItems}
             selected={chose}
             onSelectedChange={(selected: ItemInput[]) => {

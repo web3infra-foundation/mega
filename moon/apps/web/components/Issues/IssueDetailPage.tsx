@@ -7,6 +7,7 @@ import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
+import { CommonResultIssueDetailRes } from '@gitmono/types'
 import { Button, LoadingSpinner, PicturePlusIcon } from '@gitmono/ui'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
@@ -14,6 +15,7 @@ import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBo
 import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker'
 import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent'
 import { useGetIssueDetail } from '@/hooks/issues/useGetIssueDetail'
+import { usePostIssueAssignees } from '@/hooks/issues/usePostIssueAssignees'
 import { usePostIssueClose } from '@/hooks/issues/usePostIssueClose'
 import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment'
 import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen'
@@ -31,34 +33,22 @@ import { tags } from './utils/consts'
 import { extractTextArray } from './utils/extractText'
 import { pickWithReflect } from './utils/pickWithReflectDeep'
 
-interface IssueDetail {
-  status: string
-  conversations: Conversation[]
-  title: string
-}
-interface Conversation {
-  id: number
-  conv_type: string
-  comment: string
-  created_at: number
-  updated_at: number
-  username: string
-}
-
-interface detailRes {
-  err_message: string
-  data: IssueDetail
-  req_result: boolean
-}
+// interface IssueDetail {
+//   status: string
+//   conversations: Conversation[]
+//   title: string
+//   assignees?: string[]
+// }
 
 let needComment = false
 
-export default function IssueDetailPage({ id }: { id: string }) {
+export default function IssueDetailPage({ link, id }: { link: string; id: number }) {
   const [login, setLogin] = useState(false)
-  const [info, setInfo] = useState<IssueDetail>({
+  const [info, setInfo] = useState<Partial<CommonResultIssueDetailRes['data']>>({
     status: '',
     conversations: [],
-    title: ''
+    title: '',
+    assignees: []
   })
   const [buttonLoading, setButtonLoading] = useState<{ [key: string]: boolean }>({
     comment: false,
@@ -78,17 +68,24 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
   const { mutate: saveComment } = usePostIssueComment()
 
-  const { data: issueDetailObj, error, isError, refetch, isLoading: detailIsLoading } = useGetIssueDetail(id)
+  const { mutate: issueAssignees } = usePostIssueAssignees()
 
-  const issueDetail = issueDetailObj?.data as IssueDetail | undefined
+  const { data: issueDetailObj, error, isError, refetch, isLoading: detailIsLoading } = useGetIssueDetail(link)
 
-  const applyDetailData = (detail: detailRes | undefined) => {
-    if (!detail || !detail.req_result) return
+  const issueDetail = issueDetailObj?.data as CommonResultIssueDetailRes['data'] | undefined
+
+  let selectRef = useRef<string[]>([])
+
+  const applyDetailData = (detail: CommonResultIssueDetailRes | undefined) => {
+    if (!detail || !detail.req_result || !detail.data) return
     setInfo({
       title: detail.data.title,
       status: detail.data.status,
-      conversations: detail.data.conversations
+      conversations: detail.data.conversations,
+      assignees: detail.data.assignees
     })
+
+    selectRef.current = detail.data.assignees
   }
 
   const fetchDetail = useCallback(() => {
@@ -99,7 +96,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
   useEffect(() => {
     fetchDetail()
-  }, [fetchDetail, id])
+  }, [fetchDetail, link])
 
   const [_loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
@@ -132,7 +129,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     setLoading('comment', true)
     set_to_loading(3)
     saveComment(
-      { link: id, data: { content: currentContentHTML } },
+      { link, data: { content: currentContentHTML } },
       {
         onSuccess: async () => {
           editorRef.current?.clearAndBlur()
@@ -146,7 +143,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('comment', false)
       }
     )
-  }, [id, refetch, saveComment])
+  }, [link, refetch, saveComment])
 
   const close_issue = useCallback(() => {
     if (closeHint === 'Close with comment') {
@@ -156,7 +153,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     setLoading('close', true)
     set_to_loading(3)
     closeIssue(
-      { link: id },
+      { link },
       {
         onSuccess: () => {
           router.push(`/${router.query.org}/issue`)
@@ -166,7 +163,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('close', false)
       }
     )
-  }, [id, router, closeIssue, closeHint, save_comment])
+  }, [link, router, closeIssue, closeHint, save_comment])
 
   const reopen_issue = useCallback(() => {
     setLoading('reopen', true)
@@ -176,7 +173,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
       needComment = false
     }
     reopenIssue(
-      { link: id },
+      { link },
       {
         onSuccess: () => {
           router.push(`/${router.query.org}/issue`)
@@ -185,7 +182,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('reopen', false)
       }
     )
-  }, [id, router, reopenIssue, save_comment])
+  }, [link, router, reopenIssue, save_comment])
 
   const editorRef = useRef<SimpleNoteContentRef>(null)
   const onKeyDownScrollHandler = useHandleBottomScrollOffset({
@@ -281,10 +278,65 @@ export default function IssueDetailPage({ id }: { id: string }) {
     }
   }
 
+  let selects: string[] = info?.assignees as string[]
+
+  const shouldFetch = useRef(false)
+
+  const handleAssignees = (selected: ItemInput[]) => {
+    selects = [...selected.map((i) => i.text).filter((t): t is string => typeof t === 'string')]
+  }
+
+  const [open, setOpen] = useState(false)
+
+  const handleOpneChange = (open: boolean) => {
+    if (selectRef.current.length !== selects.length) {
+      shouldFetch.current = true
+    } else {
+      const set = new Set(selects)
+
+      for (let i = 0; i < selectRef.current.length; i++) {
+        if (!set.has(selectRef.current[i])) {
+          shouldFetch.current = true
+          break
+        }
+      }
+    }
+
+    setOpen(open)
+    if (!open && shouldFetch.current) {
+      selectRef.current = selects
+      issueAssignees(
+        {
+          data: {
+            assignees: selectRef.current,
+            item_id: Number(id),
+            link
+          }
+        },
+        {
+          onSuccess: async () => {
+            editorRef.current?.clearAndBlur()
+            const { data: issueDetailObj } = await refetch({ throwOnError: true })
+
+            applyDetailData(issueDetailObj)
+          },
+          onError: apiErrorToast,
+          onSettled: () => (shouldFetch.current = false)
+        }
+      )
+    }
+  }
+
+  const fetchSelected = useMemo(() => {
+    const set = new Set(selectRef.current.length ? selectRef.current : info?.assignees)
+
+    return avatars.filter((user) => set.has(user.text as string))
+  }, [selectRef, avatars, info])
+
   return (
     <>
       <div className='h-screen overflow-auto pt-10'>
-        {info.title && (
+        {info?.title && (
           <div className='px-10 pb-4 text-xl'>
             <div className='mb-4'>{info.title}</div>
             {info.status === 'open' ? (
@@ -315,7 +367,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={id} type='issue' />
+                  <TimelineItems detail={issueDetail} id={link} type='issue' />
                 )}
 
                 {info && info.status === 'open' && (
@@ -431,6 +483,10 @@ export default function IssueDetailPage({ id }: { id: string }) {
                   selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
                   items={avatars}
                   title='Assignees'
+                  handleGroup={(selected) => handleAssignees(selected)}
+                  open={open}
+                  onOpenChange={(open) => handleOpneChange(open)}
+                  selected={fetchSelected}
                 >
                   {(el) => {
                     const names = Array.from(new Set(splitFun(el)))

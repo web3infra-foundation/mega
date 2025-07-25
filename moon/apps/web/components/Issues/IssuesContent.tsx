@@ -99,8 +99,6 @@ export function IssuesContent({ searching }: Props) {
 
   const router = useRouter()
 
- 
-
   const [openCurrent, setopenCurrent] = useAtom(issueOpenCurrentPage)
   const [closeCurrent, setcloseCurrent] = useAtom(issueCloseCurrentPage)
 
@@ -416,7 +414,7 @@ export function IssuesContent({ searching }: Props) {
                   title={i.title}
                   leftIcon={getStatusIcon(i.status)}
                   rightIcon={<RightAvatar item={i} />}
-                  onClick={() => router.push(`/${scope}/issue/${i.link}`)}
+                  onClick={() => router.push(`/${scope}/issue/${i.link}/${i.id}`)}
                 >
                   <div className='text-xs text-[#59636e]'>
                     {i.link} · {i.author} {i.status}{' '}
