@@ -18,7 +18,7 @@ use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 use colored::Colorize;
 use encoding_rs::GBK;
 use serde::Deserialize;

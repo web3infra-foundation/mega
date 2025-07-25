@@ -156,7 +156,7 @@ impl ObjectTrait for Commit {
                 .as_str(),
         )
         .unwrap();
-        let binding = commit[tree_end + 1..].to_vec(); // Move past the tree id 
+        let binding = commit[tree_end + 1..].to_vec(); // Move past the tree id
         commit = &binding;
 
         // Find the parent commit ids and remove them from the data
@@ -184,8 +184,8 @@ impl ObjectTrait for Commit {
         // Find the author and committer and remove them from the data
         // 0x0a is the newline character
         let author =
-            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap(); 
-        
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+
         let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
         commit = &binding;
         let committer =

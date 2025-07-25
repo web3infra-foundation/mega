@@ -12,7 +12,7 @@ pub struct BuildRequest {
     pub target: String,
     pub args: Option<Vec<String>>,
     pub mr: String, // merge request id
-    // pub webhook: Option<String>, // post
+                    // pub webhook: Option<String>, // post
 }
 
 #[derive(Debug, Serialize)]

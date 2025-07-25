@@ -39,10 +39,12 @@ pub enum WSMessage {
 
 const MAX_RETRIES: u32 = 3;
 
-/// send message and retry 
-async fn send_with_retry(sender: &mut (impl SinkExt<Message> + Unpin), msg: &WSMessage) -> Result<(), String> {
-    let msg_str = serde_json::to_string(msg)
-        .map_err(|e| format!("seriaz fail: {e}"))?;
+/// send message and retry
+async fn send_with_retry(
+    sender: &mut (impl SinkExt<Message> + Unpin),
+    msg: &WSMessage,
+) -> Result<(), String> {
+    let msg_str = serde_json::to_string(msg).map_err(|e| format!("seriaz fail: {e}"))?;
     let ws_msg = Message::Text(Utf8Bytes::from(msg_str));
 
     for attempt in 0..=MAX_RETRIES {
@@ -121,7 +123,12 @@ async fn process_message(msg: Message) -> ControlFlow<(), ()> {
                     println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}, mr:{mr}");
                     let Json(res) = buck_build(
                         id.parse().unwrap(),
-                        BuildRequest { repo, target, args, mr },
+                        BuildRequest {
+                            repo,
+                            target,
+                            args,
+                            mr,
+                        },
                         SENDER.get().unwrap().clone(),
                     )
                     .await;

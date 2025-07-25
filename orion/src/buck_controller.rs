@@ -10,7 +10,6 @@ use tokio::sync::mpsc::UnboundedSender;
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
-
 /// Sends a filesystem mount request to the specified API endpoint
 /// Parameters:
 /// - repo: Repository path to mount
@@ -19,7 +18,7 @@ static PROJECT_ROOT: Lazy<String> =
 pub async fn mount_fs(repo: &str, mr: &str) -> Result<String, reqwest::Error> {
     // Create HTTP client
     let client = reqwest::Client::new();
-    
+
     // Construct JSON request payload
     let payload = json!({
         "path": repo,
@@ -36,11 +35,11 @@ pub async fn mount_fs(repo: &str, mr: &str) -> Result<String, reqwest::Error> {
 
     // Print status code
     println!("Mount request status: {}", res.status());
-    
+
     // Get and return response body
     let body = res.text().await?;
     println!("Mount response body: {body}");
-    
+
     Ok(body)
 }
 
@@ -52,7 +51,6 @@ pub async fn build(
     mr: String,
     sender: UnboundedSender<WSMessage>,
 ) -> io::Result<ExitStatus> {
-
     tracing::info!("Building {} in repo {} with target {}", id, repo, target);
     // Prepare the command to run
     // Note: `args` is a list of additional arguments to pass to the `buck
