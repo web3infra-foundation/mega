@@ -198,7 +198,7 @@ async fn mount_handler(
         return axum::Json(MountResponse {
             status: FAIL.into(),
             mount: MountInfo::default(),
-            message: format!("Mount process error :{e}."),
+            message: format!("Mount process error: {e}."),
         });
     }
 
