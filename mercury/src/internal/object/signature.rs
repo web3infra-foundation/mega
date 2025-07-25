@@ -76,7 +76,7 @@ impl SignatureType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize,Decode,Encode)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
 pub struct Signature {
     pub signature_type: SignatureType,
     pub name: String,

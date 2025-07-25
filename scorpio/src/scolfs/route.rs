@@ -48,7 +48,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/lfs/attributes", post(track).delete(untrack))
         .route("/lfs/locks", get(list_locks))
-        .route("/lfs/locks/:path", post(create_lock).delete(remove_lock))
+        .route("/lfs/locks/{path}", post(create_lock).delete(remove_lock))
     //.route("/lfs/files", get(list_files))
 }
 

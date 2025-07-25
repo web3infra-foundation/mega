@@ -234,9 +234,12 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
 
     let response = match client.get(&url).send().await {
         Ok(resp) => resp,
-        Err(_) => {
-            return Err(DictionaryError {
-                message: "Failed to fetch tree".to_string(),
+        Err(e) => {
+            eprintln!("Failed to fetch tree: {e}");
+            return Ok(ApiResponseExt {
+                _req_result: false,
+                data: Vec::new(),
+                _err_message: format!("Failed to fetch tree: {e}"),
             });
         }
     };
@@ -244,15 +247,27 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     let tree_info: TreeInfoResponse = match response.json().await {
         Ok(info) => info,
         Err(e) => {
-            return Err(DictionaryError {
-                message: format!("Failed to parse commit info: {e}"),
+            eprintln!("Failed to parse commit info: {e}");
+            return Ok(ApiResponseExt {
+                _req_result: false,
+                data: Vec::new(),
+                _err_message: format!("Failed to parse commit info: {e}"),
             });
         }
     };
 
     if !tree_info.req_result {
-        return Err(DictionaryError {
-            message: tree_info.err_message,
+        eprintln!(
+            "server response fetch dir error: {:?}",
+            tree_info.err_message
+        );
+        return Ok(ApiResponseExt {
+            _req_result: false,
+            data: Vec::new(),
+            _err_message: format!(
+                "server response fetch dir error: {:?}",
+                tree_info.err_message
+            ),
         });
     }
 
