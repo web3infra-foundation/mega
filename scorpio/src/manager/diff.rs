@@ -181,10 +181,10 @@ pub fn change(
                 } else {
                     println!("change: changed file {}", item.name);
                     let content = std::fs::read(&path).unwrap();
-           
+
                     let b = Blob::from_content_bytes(content);
                     item.id = b.id; // change file hash .
-                    blobs.push(b);   
+                    blobs.push(b);
                 }
                 new = false;
                 break;
