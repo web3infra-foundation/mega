@@ -2,13 +2,18 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Component, PathBuf},
     str::FromStr,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     vec,
 };
 
 use async_trait::async_trait;
-use futures::future::join_all;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::sync::{
+    mpsc::{self},
+    RwLock,
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
@@ -37,6 +42,7 @@ pub struct MonoRepo {
     pub path: PathBuf,
     pub from_hash: String,
     pub to_hash: String,
+    pub current_commit: Arc<RwLock<Option<Commit>>>,
 }
 
 #[async_trait]
@@ -122,46 +128,34 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(
-        &self,
-        mut receiver: UnboundedReceiver<Entry>,
-    ) -> Result<Option<Commit>, GitError> {
+    async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let storage = self.storage.mono_storage();
-        let mut entry_list = Vec::new();
-        let mut join_tasks = vec![];
-        let mut current_commit_id = String::new();
-        let mut current_commit = None;
-        while let Some(entry) = receiver.recv().await {
-            if current_commit.is_none() {
-                if entry.obj_type == ObjectType::Commit {
-                    current_commit_id = entry.hash.to_string();
-                    let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
-                    current_commit = Some(commit);
-                }
-            } else {
-                if entry.obj_type == ObjectType::Commit {
-                    return Err(GitError::CustomError(
-                        "only single commit support in each push".to_string(),
-                    ));
-                }
-                if entry_list.len() >= 1000 {
-                    let stg_clone = storage.clone();
-                    let commit_id = current_commit_id.clone();
-                    let handle = tokio::spawn(async move {
-                        stg_clone.save_entry(&commit_id, entry_list).await.unwrap();
-                    });
-                    join_tasks.push(handle);
-                    entry_list = vec![];
-                }
+        let current_commit = self.current_commit.read().await;
+        let commit_id = if let Some(commit) = &*current_commit {
+            commit.id.to_string()
+        } else {
+            String::new()
+        };
+        storage.save_entry(&commit_id, entry_list).await
+    }
+
+    async fn post_receiver_handler(&self) -> Result<(), GitError> {
+        Ok(())
+    }
+
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {
+        if self.current_commit.read().await.is_none() {
+            if entry.obj_type == ObjectType::Commit {
+                let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
+                let mut current = self.current_commit.write().await;
+                *current = Some(commit);
             }
-            entry_list.push(entry);
+        } else if entry.obj_type == ObjectType::Commit {
+            return Err(GitError::CustomError(
+                "only single commit support in each push".to_string(),
+            ));
         }
-        join_all(join_tasks).await;
-        storage
-            .save_entry(&current_commit_id, entry_list)
-            .await
-            .unwrap();
-        Ok(current_commit)
+        Ok(())
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
@@ -281,10 +275,10 @@ impl PackHandler for MonoRepo {
             .await
     }
 
-    async fn update_refs(&self, commit: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
+    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-
-        if let Some(c) = commit {
+        let current_commit = self.current_commit.read().await;
+        if let Some(c) = &*current_commit {
             let mr_link = self.handle_mr(&c.format_message()).await.unwrap();
             let ref_name = utils::mr_ref_name(&mr_link);
             if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
