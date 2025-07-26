@@ -80,7 +80,7 @@ achieving unified management.
 - [x] `fetch`
 
 ### Others
-- [ ] `.gitignore`
+- [x] `.gitignore`
 - [x] `.gitattributes` (only for `lfs` now)
 - [x] `LFS` (embedded, with p2p feature)
 - [ ] `ssh`
