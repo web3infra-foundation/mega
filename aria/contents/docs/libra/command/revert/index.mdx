@@ -1,0 +1,44 @@
+---
+title: The [revert] Command
+description: Create a new commit that reverts the changes of an existing commit
+---
+
+### Usage
+
+libra revert [OPTIONS] <COMMIT>
+
+### Arguments
+
+- <COMMIT> - (Required) The commit to revert. Can be a commit hash, branch name, or a reference like HEAD.
+
+### Description
+
+Given one existing commit, this command creates a new commit that applies the inverse of the changes introduced by the specified commit. This effectively "undoes" the target commit.
+
+Unlike libra reset, which alters the existing commit history, libra revert does not change the project history. Instead, it adds a new commit at the tip of the branch with the inverted content. This makes it a safe operation for reverting changes on a public or shared branch, as it preserves the original history.
+
+By default, a new commit is created with a message indicating which commit was reverted.
+
+This implementation does not support reverting merge commits. The command must be run from a branch, not a 'detached HEAD' state.
+
+### Options
+
+- -n, --no-commit
+  Performs the revert operation by applying the inverse changes to the working directory and index, but does not create a new commit. The changes will be staged, allowing you to inspect or modify them before committing manually.
+- -h, --help
+  Print help
+### Example
+- libra revert HEAD~2
+
+  Creates a new commit that undoes the changes made two commits before the current HEAD.
+
+- libra revert -n a1b2c3d4
+
+  Applies the inverse of the changes from commit a1b2c3d4 to the index, but does not commit them, leaving them staged.
+
+
+<Note type="note" title="Note">
+    All parameters should align with Git’s behavior as closely as possible, but
+    there may be some differences. Refs https://git-scm.com/docs/git-branch for
+    more information.
+</Note>
