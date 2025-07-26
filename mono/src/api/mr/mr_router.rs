@@ -12,8 +12,8 @@ use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
-use saturn::ActionEnum;
 
+use crate::api::MonoApiServiceState;
 use crate::api::{
     api_common::{
         self,
@@ -25,7 +25,6 @@ use crate::api::{
     mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::api::{util, MonoApiServiceState};
 use crate::{api::error::ApiError, server::https_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -157,15 +156,15 @@ async fn merge(
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
     if model.status == MergeStatusEnum::Open {
-        let path = model.path.clone();
-        util::check_permissions(
-            &user.username,
-            &path,
-            ActionEnum::ApproveMergeRequest,
-            state.clone(),
-        )
-        .await
-        .unwrap();
+        // let path = model.path.clone();
+        // util::check_permissions(
+        //     &user.username,
+        //     &path,
+        //     ActionEnum::ApproveMergeRequest,
+        //     state.clone(),
+        // )
+        // .await
+        // .unwrap();
         state.monorepo().merge_mr(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))

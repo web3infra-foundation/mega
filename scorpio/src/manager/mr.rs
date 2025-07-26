@@ -38,7 +38,6 @@ pub async fn build_mr_layer(
 
     // Collect all files that need to be downloaded
     let mut download_files = Vec::new();
-
     for file in files_list.data {
         let relative_path = file.path.strip_prefix('/').unwrap_or(&file.path);
         let file_path = mr_path.join(relative_path);

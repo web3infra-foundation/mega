@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::command::load_object;
 use crate::internal::branch::Branch;
@@ -79,6 +79,8 @@ pub async fn execute(args: LogArgs) {
     // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
+    let branch_commits = create_branch_commits_map().await;
+
     let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
     for commit in reachable_commits {
@@ -86,25 +88,65 @@ pub async fn execute(args: LogArgs) {
             break;
         }
         output_number += 1;
+
+        let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
+
         let message = if args.oneline {
             // Oneline format: <short_hash> <commit_message_first_line>
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
-            format!("{} {}", short_hash.yellow(), msg)
+            if !branches.is_empty() {
+                let branch_info = format!(" ({})", branches.join(", "));
+                format!(
+                    "{} {}{}",
+                    short_hash.yellow().bold(),
+                    msg,
+                    branch_info.green()
+                )
+            } else {
+                format!("{} {}", short_hash.yellow(), msg)
+            }
         } else {
             // Default detailed format
-            let mut message = format!("{} {}", "commit".yellow(), &commit.id.to_string().yellow());
-
-            // TODO other branch's head should shown branch name
-            if output_number == 1 {
-                message = format!("{} {}{}", message, "(".yellow(), "HEAD".blue());
-                if let Head::Branch(name) = head.to_owned() {
-                    // message += &"-> ".blue();
-                    // message += &head.name.as_ref().unwrap().green();
-                    message = format!("{}{}{}", message, " -> ".blue(), name.green());
+            let mut message = format!(
+                "{} {}",
+                "commit".yellow(),
+                if !branches.is_empty() {
+                    commit.id.to_string().yellow().bold()
+                } else {
+                    commit.id.to_string().yellow()
                 }
-                message = format!("{}{}", message, ")".yellow());
+            );
+
+            // Show HEAD and branch info
+            if output_number == 1 {
+                // For the first commit (HEAD), show HEAD info and all branches
+                let mut refs = vec![];
+                let current_branch = if let Head::Branch(name) = head.to_owned() {
+                    refs.push(format!("{} -> {}", "HEAD".blue(), name.green()));
+                    Some(name)
+                } else {
+                    refs.push("HEAD".blue().to_string());
+                    None
+                };
+
+                // Add other branches pointing to this commit (excluding current branch)
+                let other_branches: Vec<String> = branches
+                    .iter()
+                    .filter(|&b| current_branch.as_ref() != Some(b))
+                    .map(|b| b.green().to_string())
+                    .collect();
+
+                refs.extend(other_branches);
+
+                let ref_info = format!(" ({})", refs.join(", "));
+                message = format!("{message}{ref_info}");
+            } else if !branches.is_empty() {
+                // Show branch info for other commits that are branch heads
+                let branch_info = format!(" ({})", branches.join(", "));
+                message = format!("{}{}", message, branch_info.green());
             }
+
             message.push_str(&format!("\nAuthor: {}", commit.author));
             let (msg, _) = parse_commit_msg(&commit.message);
             message.push_str(&format!("\n{msg}\n"));
@@ -128,6 +170,26 @@ pub async fn execute(args: LogArgs) {
     {
         let _ = process.wait().expect("failed to wait on child");
     }
+}
+
+/// Create a map of commit hashes to branch names
+async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
+    let all_branches = Branch::list_branches(None).await;
+    let mut commit_to_branches: HashMap<SHA1, Vec<String>> = HashMap::new();
+
+    for branch in all_branches {
+        let branch_name = match &branch.remote {
+            Some(remote) => format!("{}/{}", remote, branch.name),
+            None => branch.name,
+        };
+
+        commit_to_branches
+            .entry(branch.commit)
+            .or_default()
+            .push(branch_name);
+    }
+
+    commit_to_branches
 }
 
 #[cfg(test)]

@@ -93,10 +93,7 @@ pub fn diff(
                     // just compute the NEW hash first.
                     let content = std::fs::read(&node)?;
                     item.id = SHA1::from_type_and_data(ObjectType::Blob, &content);
-                    blobs.push(Blob {
-                        id: item.id,
-                        data: content,
-                    });
+                    blobs.push(Blob::from_content_bytes(content));
                 }
                 break;
             }
@@ -121,16 +118,13 @@ pub fn diff(
             } else {
                 //is a file.
                 let content = std::fs::read(&node)?;
-                let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
-                blobs.push(Blob {
-                    id: hash,
-                    data: content,
-                });
+                let b = Blob::from_content_bytes(content);
                 t.tree_items.push(TreeItem {
                     mode: TreeItemMode::Blob,
-                    id: hash,
+                    id: b.id,
                     name: new_name,
                 });
+                blobs.push(b);
             }
         }
     }
@@ -153,10 +147,7 @@ pub fn change(
     } else {
         // there is a new dictionary.
         println!("new tree:{tree_path:?}");
-        tree = Tree {
-            id: SHA1::default(),
-            tree_items: vec![],
-        };
+        tree = Tree::from_tree_items(vec![]).unwrap();
     }
 
     let entries = std::fs::read_dir(real_path).unwrap();
@@ -190,12 +181,10 @@ pub fn change(
                 } else {
                     println!("change: changed file {}", item.name);
                     let content = std::fs::read(&path).unwrap();
-                    let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
-                    blobs.push(Blob {
-                        id: hash,
-                        data: content,
-                    });
-                    item.id = hash; // change fiel hash .
+
+                    let b = Blob::from_content_bytes(content);
+                    item.id = b.id; // change file hash .
+                    blobs.push(b);
                 }
                 new = false;
                 break;
@@ -219,16 +208,13 @@ pub fn change(
             } else {
                 println!("change: new file  {name}");
                 let content = std::fs::read(&path).unwrap();
-                let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
-                blobs.push(Blob {
-                    id: hash,
-                    data: content,
-                });
+                let b = Blob::from_content_bytes(content);
                 tree.tree_items.push(TreeItem {
                     mode: TreeItemMode::Blob,
-                    id: hash,
+                    id: b.id,
                     name,
                 });
+                blobs.push(b);
             }
         }
     }

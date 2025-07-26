@@ -173,8 +173,11 @@ async fn mount_handler(
         });
     }
 
+    // fetch the dictionary node info from mono.
+    let work_dir = fetch(&mut ml, inode, mono_path).await.unwrap();
+    let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     if let Some(m) = &req.mr {
-        let mr_store_path = PathBuf::from(store_path).join("mr");
+        let mr_store_path = PathBuf::from(&store_path).join("mr");
         // if mr is provided, we need to fetch the mr info from mono.
         if let Err(e) = mr::build_mr_layer(m, mr_store_path).await {
             return axum::Json(MountResponse {
@@ -185,16 +188,18 @@ async fn mount_handler(
         }
     }
 
-    // fetch the dionary node info from mono.
-    let work_dir = fetch(&mut ml, inode, mono_path).await.unwrap();
-
-    let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary.
-
-    let _ = state
+    if let Err(e) = state
         .fuse
         .overlay_mount(inode, store_path, req.mr.is_some())
-        .await;
+        .await
+    {
+        return axum::Json(MountResponse {
+            status: FAIL.into(),
+            mount: MountInfo::default(),
+            message: format!("Mount process error: {e}."),
+        });
+    }
 
     let mount_info = MountInfo {
         hash: work_dir.hash,

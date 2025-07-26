@@ -9,6 +9,7 @@ use common::{
 use import_refs::RefCommand;
 use jupiter::storage::Storage;
 use repo::Repo;
+use tokio::sync::RwLock;
 
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, PackHandler};
 
@@ -178,6 +179,7 @@ impl SmartProtocol {
                 path: self.path.clone(),
                 from_hash: String::new(),
                 to_hash: String::new(),
+                current_commit: Arc::new(RwLock::new(None)),
             };
             if let Some(command) = self
                 .command_list

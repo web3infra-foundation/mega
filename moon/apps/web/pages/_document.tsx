@@ -13,7 +13,7 @@ class MyDocument extends Document {
 
   render() {
     return (
-      <Html lang='en' className='fixed isolate h-full w-full overflow-hidden'>
+      <Html lang='en' className='min-h-screen w-full'>
         <Head>
           <meta name='slack-app-id' content='A03CG5AP4CE' />
           <link rel='preconnect' href='https://api.campsite.com' />
@@ -23,10 +23,7 @@ class MyDocument extends Document {
 
         <body
           className={cn(
-            'bg-primary text-primary fixed isolate select-none overflow-hidden antialiased',
-            // force the body to be full width and height, so that libraries
-            // like vaul can't highjack the dimensions and screw the layout
-            '!h-full !w-full'
+            'bg-primary text-primary antialiased min-h-screen w-full'
           )}
         >
           <a href='#main' className='sr-only'>
