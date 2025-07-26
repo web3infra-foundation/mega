@@ -405,64 +405,72 @@ export default function MrView() {
   const router = useRouter()
 
   return (
-    <div className='m-4'>
+    <div className='relative m-4 flex h-screen flex-col'>
       <Heading>Merge Request</Heading>
       <br />
       <IndexPageContainer>
         <IndexPageContent id='/[org]/mr' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
-          <MrList
-            isLoading={isLoading}
-            Issuelists={mrList}
-            header={
-              <ListBanner
-                pickerTypes={[
-                  'Author',
-                  'Labels',
-                  'Projects',
-                  'Milestones',
-                  'Reviews',
-                  'Assignees',
-                  'Types',
-                  `${order.sort}`
-                ]}
-                tabfilter={<MRIndexTabFilter part='mr' />}
-              >
-                {(p) => ListHeaderItem(p)}
-              </ListBanner>
-            }
-          >
-            {(issueList) => {
-              return issueList.map((i) => (
-                <MrItem
-                  key={i.id}
-                  onClick={() => router.push(`/${scope}/mr/${i.link}`)}
-                  title={i.title}
-                  leftIcon={getStatusIcon(i.status)}
-                  rightIcon={<RightAvatar item={i} />}
+          <div className='flex h-full flex-col'>
+            <MrList
+              isLoading={isLoading}
+              Issuelists={mrList}
+              header={
+                <ListBanner
+                  pickerTypes={[
+                    'Author',
+                    'Labels',
+                    'Projects',
+                    'Milestones',
+                    'Reviews',
+                    'Assignees',
+                    'Types',
+                    `${order.sort}`
+                  ]}
+                  tabfilter={<MRIndexTabFilter part='mr' />}
                 >
-                  <div className='text-xs text-[#59636e]'>
-                    {i.link} {i.status} {getDescription(i)}
-                  </div>
-                </MrItem>
-              ))
-            }}
-          </MrList>
-          {numTotal > 10 && status === 'open' && (
-            <Pagination
-              totalNum={numTotal}
-              currentPage={mrOpenCurrentPage}
-              pageSize={pageSize}
-              onChange={(page: number) => handlePageChange(page)}
-            />
-          )}
-          {numTotal > 10 && status === 'closed' && (
-            <Pagination
-              totalNum={numTotal}
-              currentPage={mrCloseCurrentPage}
-              pageSize={pageSize}
-              onChange={(page: number) => handlePageChange(page)}
-            />
-          )}
+                  {(p) => ListHeaderItem(p)}
+                </ListBanner>
+              }
+            >
+              {(issueList) => {
+                return issueList.map((i) => (
+                  <MrItem
+                    key={i.id}
+                    onClick={() => router.push(`/${scope}/mr/${i.link}/${i.id}`)}
+                    title={i.title}
+                    leftIcon={getStatusIcon(i.status)}
+                    rightIcon={<RightAvatar item={i} />}
+                  >
+                    <div className='text-xs text-[#59636e]'>
+                      {i.link} {i.status} {getDescription(i)}
+                    </div>
+                  </MrItem>
+                ))
+              }}
+            </MrList>
+            <div className='mt-auto'>
+              {status === 'open' && (
+                <div className='mt-auto'>
+                  <Pagination
+                    totalNum={numTotal}
+                    currentPage={mrOpenCurrentPage}
+                    pageSize={pageSize}
+                    onChange={(page: number) => handlePageChange(page)}
+                  />
+                </div>
+              )}
+              {status === 'closed' && (
+                <div className='mt-auto'>
+                  <Pagination
+                    totalNum={numTotal}
+                    currentPage={mrCloseCurrentPage}
+                    pageSize={pageSize}
+                    onChange={(page: number) => handlePageChange(page)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </IndexPageContent>
       </IndexPageContainer>
     </div>
