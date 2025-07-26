@@ -128,7 +128,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     }
 
     // Create .libra & sub-dirs
-    let dirs = ["objects/pack", "objects/info", "info"];
+    let dirs = ["objects/pack", "objects/info", "info", "hooks"];
     for dir in dirs {
         fs::create_dir_all(root_dir.join(dir))?;
     }
@@ -142,6 +142,25 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     fs::write(
         root_dir.join("description"),
         include_str!("../../template/description"),
+    )?;
+    // Create .libra/hooks/pre-commit.sh
+    fs::write(
+        root_dir.join("hooks").join("pre-commit.sh"),
+        include_str!("../../template/pre-commit.sh"),
+    )?;
+
+    // Set Permission
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = fs::Permissions::from_mode(0o755);
+        fs::set_permissions(root_dir.join("hooks").join("pre-commit.sh"), perms)?;
+    }
+
+    // Create .libra/hooks/pre-commit.ps1
+    fs::write(
+        root_dir.join("hooks").join("pre-commit.ps1"),
+        include_str!("../../template/pre-commit.ps1"),
     )?;
 
     // Create database: .libra/libra.db

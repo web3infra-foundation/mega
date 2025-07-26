@@ -13,6 +13,10 @@ pub fn database() -> PathBuf {
     util::storage_path().join(util::DATABASE)
 }
 
+pub fn hooks() -> PathBuf {
+    util::storage_path().join("hooks")
+}
+
 pub fn attributes() -> PathBuf {
     util::working_dir().join(util::ATTRIBUTES)
 }
