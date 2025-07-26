@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IssueClosedIcon, IssueOpenedIcon, IssueReopenedIcon } from '@primer/octicons-react'
 import { Stack } from '@primer/react'
-import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
@@ -21,7 +20,6 @@ import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment'
 import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
@@ -29,9 +27,16 @@ import { trimHtml } from '@/utils/trimHtml'
 import { MemberAvatar } from '../MemberAvatar'
 import TimelineItems from '../MrView/TimelineItems'
 import { BadgeItem } from './IssueNewPage'
-import { tags } from './utils/consts'
-import { extractTextArray } from './utils/extractText'
 import { pickWithReflect } from './utils/pickWithReflectDeep'
+import {
+  splitFun,
+  useAssigneesSelector,
+  useAvatars,
+  useChange,
+  useLabelMap,
+  useLabels,
+  useMemberMap
+} from './utils/sideEffect'
 
 // interface IssueDetail {
 //   status: string
@@ -40,7 +45,7 @@ import { pickWithReflect } from './utils/pickWithReflectDeep'
 //   assignees?: string[]
 // }
 
-let needComment = false
+// let needComment = false
 
 export default function IssueDetailPage({ link, id }: { link: string; id: number }) {
   const [login, setLogin] = useState(false)
@@ -60,7 +65,8 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
     setButtonLoading((prev) => ({ ...prev, [key]: value }))
   }
 
-  const [closeHint, setCloseHint] = useState('Close issue')
+  const { closeHint, needComment, handleChange, handleCloseChange } = useChange({})
+  // const [closeHint, setCloseHint] = useState('Close issue')
 
   const { mutate: closeIssue } = usePostIssueClose()
 
@@ -74,8 +80,6 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
 
   const issueDetail = issueDetailObj?.data as CommonResultIssueDetailRes['data'] | undefined
 
-  let selectRef = useRef<string[]>([])
-
   const applyDetailData = (detail: CommonResultIssueDetailRes | undefined) => {
     if (!detail || !detail.req_result || !detail.data) return
     setInfo({
@@ -85,7 +89,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
       assignees: detail.data.assignees
     })
 
-    selectRef.current = detail.data.assignees
+    // selectRef.current = detail.data.assignees
   }
 
   const fetchDetail = useCallback(() => {
@@ -168,9 +172,9 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
   const reopen_issue = useCallback(() => {
     setLoading('reopen', true)
     set_to_loading(3)
-    if (needComment) {
+    if (needComment.current) {
       save_comment()
-      needComment = false
+      needComment.current = false
     }
     reopenIssue(
       { link },
@@ -182,7 +186,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
         onSettled: () => setLoading('reopen', false)
       }
     )
-  }, [link, router, reopenIssue, save_comment])
+  }, [link, router, reopenIssue, save_comment, needComment])
 
   const editorRef = useRef<SimpleNoteContentRef>(null)
   const onKeyDownScrollHandler = useHandleBottomScrollOffset({
@@ -210,105 +214,37 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
     }
   }, [user])
 
-  const splitFun = (el: React.ReactNode): string[] => {
-    return extractTextArray(el)
-      .flatMap((name) => name.split(',').map((n) => n.trim()))
-      .filter((n) => n.length > 0)
-  }
+  const avatars = useAvatars()
 
-  const { members } = useSyncedMembers()
+  const labels = useLabels()
 
-  const avatars: ItemInput[] = useMemo(
-    () =>
-      members?.map((i) => ({
-        groupId: 'end',
-        text: i.user.display_name,
-        leadingVisual: () => <MemberAvatar size='sm' member={i} />
-      })) || [],
-    [members]
-  )
-  // const [avatarTems, setAvatarItems] = useState<ItemInput[]>(avatars)
+  const memberMap = useMemberMap()
 
-  const labels: ItemInput[] = useMemo(
-    () =>
-      tags.map((i) => ({
-        text: i.description,
-        leadingVisual: () => (
-          <div
-            className='h-[14px] w-[14px] rounded-full border'
-            //eslint-disable-next-line react/forbid-dom-props
-            style={{ backgroundColor: i.color, borderColor: i.color }}
-          />
-        )
-      })),
-    []
-  )
+  const labelMap = useLabelMap()
 
-  const memberMap = useMemo(() => {
-    const map = new Map()
+  // const handleChange = (html: string) => {
+  //   if (html && html === '<p></p>') {
+  //     setCloseHint('Close issue')
+  //   } else {
+  //     setCloseHint('Close with comment')
+  //   }
+  // }
 
-    members?.forEach((i) => {
-      map.set(i.user.display_name, i)
-    })
-    return map
-  }, [members])
+  // const handleCloseChange = (html: string) => {
+  //   if (html && html === '<p></p>') {
+  //     needComment = false
+  //   } else {
+  //     needComment = true
+  //   }
+  // }
 
-  const labelMap = useMemo(() => {
-    const map = new Map()
-
-    tags.map((i) => {
-      map.set(i.description, i)
-    })
-    return map
-  }, [])
-
-  const handleChange = (html: string) => {
-    if (html && html === '<p></p>') {
-      setCloseHint('Close issue')
-    } else {
-      setCloseHint('Close with comment')
-    }
-  }
-
-  const handleCloseChange = (html: string) => {
-    if (html && html === '<p></p>') {
-      needComment = false
-    } else {
-      needComment = true
-    }
-  }
-
-  let selects: string[] = info?.assignees as string[]
-
-  const shouldFetch = useRef(false)
-
-  const handleAssignees = (selected: ItemInput[]) => {
-    selects = [...selected.map((i) => i.text).filter((t): t is string => typeof t === 'string')]
-  }
-
-  const [open, setOpen] = useState(false)
-
-  const handleOpneChange = (open: boolean) => {
-    if (selectRef.current.length !== selects.length) {
-      shouldFetch.current = true
-    } else {
-      const set = new Set(selects)
-
-      for (let i = 0; i < selectRef.current.length; i++) {
-        if (!set.has(selectRef.current[i])) {
-          shouldFetch.current = true
-          break
-        }
-      }
-    }
-
-    setOpen(open)
-    if (!open && shouldFetch.current) {
-      selectRef.current = selects
+  const { open, handleAssignees, handleOpenChange, fetchSelected } = useAssigneesSelector({
+    assignees: info?.assignees ?? [],
+    assignRequest: (selected) =>
       issueAssignees(
         {
           data: {
-            assignees: selectRef.current,
+            assignees: selected,
             item_id: Number(id),
             link
           }
@@ -320,18 +256,11 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
 
             applyDetailData(issueDetailObj)
           },
-          onError: apiErrorToast,
-          onSettled: () => (shouldFetch.current = false)
+          onError: apiErrorToast
         }
-      )
-    }
-  }
-
-  const fetchSelected = useMemo(() => {
-    const set = new Set(selectRef.current.length ? selectRef.current : info?.assignees)
-
-    return avatars.filter((user) => set.has(user.text as string))
-  }, [selectRef, avatars, info])
+      ),
+    avatars
+  })
 
   return (
     <>
@@ -360,7 +289,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
           {avatarUser && <MemberAvatar member={avatarUser} />}
 
           <Stack className='flex-1'>
-            <div className='flex h-[100vh] gap-9'>
+            <div className='flex h-[100vh] gap-20'>
               <div className='flex w-[70%] flex-col'>
                 {detailIsLoading ? (
                   <div className='flex items-center justify-center'>
@@ -375,7 +304,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                     <div className='prose mt-4 flex w-full flex-col'>
                       <h2>Add a comment</h2>
                       <input {...dropzone.getInputProps()} />
-                      <div className='rounded-lg border p-6'>
+                      <div className='relative rounded-lg border p-6 pb-12'>
                         <SimpleNoteContent
                           commentId='temp' //  Temporary filling, replacement later
                           ref={editorRef}
@@ -429,7 +358,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                     <div className='prose mt-4 flex w-full flex-col'>
                       <h2>Add a comment</h2>
                       <input {...dropzone.getInputProps()} />
-                      <div className='rounded-lg border p-6'>
+                      <div className='relative rounded-lg border p-6 pb-12'>
                         <SimpleNoteContent
                           commentId='temp' //  Temporary filling, replacement later
                           ref={editorRef}
@@ -439,18 +368,20 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                           onKeyDown={onKeyDownScrollHandler}
                           onChange={(html) => handleCloseChange(html)}
                         />
-                        <Button
-                          variant='plain'
-                          iconOnly={<PicturePlusIcon />}
-                          accessibilityLabel='Add files'
-                          onClick={dropzone.open}
-                          tooltip='Add files'
-                        />
-                        <ComposerReactionPicker
-                          editorRef={editorRef}
-                          open={isReactionPickerOpen}
-                          onOpenChange={setIsReactionPickerOpen}
-                        />
+                        <div className='absolute'>
+                          <Button
+                            variant='plain'
+                            iconOnly={<PicturePlusIcon />}
+                            accessibilityLabel='Add files'
+                            onClick={dropzone.open}
+                            tooltip='Add files'
+                          />
+                          <ComposerReactionPicker
+                            editorRef={editorRef}
+                            open={isReactionPickerOpen}
+                            onOpenChange={setIsReactionPickerOpen}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className='mt-4 flex justify-end gap-4'>
@@ -485,7 +416,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                   title='Assignees'
                   handleGroup={(selected) => handleAssignees(selected)}
                   open={open}
-                  onOpenChange={(open) => handleOpneChange(open)}
+                  onOpenChange={(open) => handleOpenChange(open)}
                   selected={fetchSelected}
                 >
                   {(el) => {
