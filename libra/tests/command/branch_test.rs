@@ -17,7 +17,7 @@ async fn test_branch() {
         conventional: false,
         amend: false,
         signoff: false,
-        pre:true,
+        disable_pre:true,
     };
     commit::execute(commit_args).await;
     let first_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -28,7 +28,7 @@ async fn test_branch() {
         conventional: false,
         amend: false,
         signoff: false,
-        pre:true,
+        disable_pre:true,
     };
     commit::execute(commit_args).await;
     let second_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -114,7 +114,7 @@ async fn test_create_branch_from_remote() {
         conventional: false,
         amend: false,
         signoff: false,
-        pre:true,
+        disable_pre:true,
     };
     commit::execute(args).await;
     let hash = Head::current_commit().await.unwrap();
@@ -153,7 +153,7 @@ async fn test_invalid_branch_name() {
         conventional: false,
         amend: false,
         signoff: false,
-        pre:true,
+        disable_pre:true,
     };
     commit::execute(args).await;
 
