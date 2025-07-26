@@ -72,7 +72,7 @@ pub async fn execute(args: CommitArgs) {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .output()
-                .unwrap_or_else(|e| panic!("Failed to execute hook {}: {}", hook_display, e));
+                .unwrap_or_else(|e| panic!("Failed to execute hook {hook_display}: {e}"));
 
             #[cfg(target_os = "windows")]
             let output = Command::new("powershell")
@@ -82,7 +82,7 @@ pub async fn execute(args: CommitArgs) {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .output()
-                .unwrap_or_else(|e| panic!("Failed to execute hook {}: {}", hook_display, e));
+                .unwrap_or_else(|e| panic!("Failed to execute hook {hook_display}: {e}"));
 
             if !output.status.success() {
                 panic!(
