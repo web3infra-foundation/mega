@@ -41,6 +41,7 @@ mod pull_test;
 mod push_test;
 mod remote_test;
 mod remove_test;
+mod reset_test;
 mod restore_test;
 mod status_test;
 mod switch_test;
