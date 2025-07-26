@@ -17,7 +17,7 @@ export function MemberAvatar({
 }: { displayStatus?: boolean; member: { deactivated?: boolean; user: MemberAvatarUser } } & ComponentProps<
   typeof Avatar
 >) {
-  const isOnline = useUserIsOnline(member.user.id)
+  const isOnline = useUserIsOnline(member?.user?.id) || true
 
   return (
     <Avatar

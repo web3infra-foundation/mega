@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionList, FormControl, SelectPanel, Stack, Text, TextInput } from '@primer/react'
 import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
@@ -18,15 +18,13 @@ import { useScope } from '@/contexts/scope'
 import { usePostIssueSubmit } from '@/hooks/issues/usePostIssueSubmit'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 
 import { MemberAvatar } from '../MemberAvatar'
-import { tags } from './utils/consts'
-import { extractTextArray } from './utils/extractText'
 import { pickWithReflect } from './utils/pickWithReflectDeep'
+import { splitFun, useAvatars, useLabelMap, useLabels, useMemberMap } from './utils/sideEffect'
 
 // import { OrganizationMember } from '@gitmono/types/generated'
 
@@ -54,39 +52,10 @@ export default function IssueNewPage() {
     }
   }, [user])
 
-  const splitFun = (el: React.ReactNode): string[] => {
-    return extractTextArray(el)
-      .flatMap((name) => name.split(',').map((n) => n.trim()))
-      .filter((n) => n.length > 0)
-  }
-
-  const { members } = useSyncedMembers()
-
-  const avatars: ItemInput[] = useMemo(
-    () =>
-      members?.map((i) => ({
-        groupId: 'end',
-        text: i.user.display_name,
-        leadingVisual: () => <MemberAvatar size='sm' member={i} />
-      })) || [],
-    [members]
-  )
+  const avatars = useAvatars()
   // const [avatarTems, setAvatarItems] = useState<ItemInput[]>(avatars)
 
-  const labels: ItemInput[] = useMemo(
-    () =>
-      tags.map((i) => ({
-        text: i.description,
-        leadingVisual: () => (
-          <div
-            className='h-[14px] w-[14px] rounded-full border'
-            //eslint-disable-next-line react/forbid-dom-props
-            style={{ backgroundColor: i.color, borderColor: i.color }}
-          />
-        )
-      })),
-    []
-  )
+  const labels = useLabels()
 
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
   const set_to_loading = (index: number) => {
@@ -137,23 +106,9 @@ export default function IssueNewPage() {
     upload: editorRef.current?.uploadAndAppendAttachments
   })
 
-  const memberMap = useMemo(() => {
-    const map = new Map()
+  const memberMap = useMemberMap()
 
-    members?.forEach((i) => {
-      map.set(i.user.display_name, i)
-    })
-    return map
-  }, [members])
-
-  const labelMap = useMemo(() => {
-    const map = new Map()
-
-    tags.map((i) => {
-      map.set(i.description, i)
-    })
-    return map
-  }, [])
+  const labelMap = useLabelMap()
 
   // const createGroup = (selected: ItemInput[]) => {
   //   setAvatarItems((prev) => {
@@ -315,7 +270,10 @@ export const BadgeItem = ({
   selectPannelProps,
   items,
   children,
-  handleGroup
+  handleGroup,
+  open,
+  onOpenChange,
+  selected
 }: {
   title: string
   selectPannelProps?: Omit<React.ComponentProps<typeof SelectPanel>, SelectPanelExcludedProps> & {
@@ -324,12 +282,33 @@ export const BadgeItem = ({
   items: ItemInput[]
   children?: (el: React.ReactNode) => React.ReactNode
   handleGroup?: (selected: ItemInput[]) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  selected?: ItemInput[]
 }) => {
+  // const { open, onOpenChange } = selectPannelProps ?? {}
+  // open有传，则是受控组件，没传就是非受控组件(内部管理)
+  const isControl = open !== undefined
+
   const [control, setControl] = useState(false)
+
+  const currentOpen = isControl ? open : control
 
   const [chose, setChose] = useState<ItemInput[]>([])
 
   const [filter, setFilter] = React.useState('')
+
+  useEffect(() => {
+    selected && selected?.length !== 0 ? setChose([...selected]) : setChose([])
+  }, [selected])
+
+  const handleOpenChange = (nextOpen: boolean, _gesture?: any) => {
+    // 有onOpenChange就传递
+    onOpenChange?.(nextOpen)
+    if (!isControl) {
+      setControl(nextOpen)
+    }
+  }
 
   const filteredItems = items.filter(
     (item) =>
@@ -359,8 +338,8 @@ export const BadgeItem = ({
                 </div>
               )
             }}
-            open={control}
-            onOpenChange={setControl}
+            open={currentOpen}
+            onOpenChange={(open, gesture) => handleOpenChange(open, gesture)}
             items={filteredItems}
             selected={chose}
             onSelectedChange={(selected: ItemInput[]) => {

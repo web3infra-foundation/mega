@@ -99,8 +99,6 @@ export function IssuesContent({ searching }: Props) {
 
   const router = useRouter()
 
- 
-
   const [openCurrent, setopenCurrent] = useAtom(issueOpenCurrentPage)
   const [closeCurrent, setcloseCurrent] = useAtom(issueCloseCurrentPage)
 
@@ -416,7 +414,7 @@ export function IssuesContent({ searching }: Props) {
                   title={i.title}
                   leftIcon={getStatusIcon(i.status)}
                   rightIcon={<RightAvatar item={i} />}
-                  onClick={() => router.push(`/${scope}/issue/${i.link}`)}
+                  onClick={() => router.push(`/${scope}/issue/${i.link}/${i.id}`)}
                 >
                   <div className='text-xs text-[#59636e]'>
                     {i.link} · {i.author} {i.status}{' '}
@@ -426,21 +424,25 @@ export function IssuesContent({ searching }: Props) {
               ))
             }}
           </IssueList>
-          {numTotal > 10 && status === 'open' && (
-            <Pagination
-              currentPage={issueOpenCurrentPage}
-              totalNum={numTotal}
-              pageSize={pageSize}
-              onChange={(page: number) => handlePageChange(page)}
-            />
+          {status === 'open' && (
+            <div className='mt-auto'>
+              <Pagination
+                currentPage={issueOpenCurrentPage}
+                totalNum={numTotal}
+                pageSize={pageSize}
+                onChange={(page: number) => handlePageChange(page)}
+              />
+            </div>
           )}
-          {numTotal > 10 && status === 'closed' && (
-            <Pagination
-              currentPage={issueCloseCurrentPage}
-              totalNum={numTotal}
-              pageSize={pageSize}
-              onChange={(page: number) => handlePageChange(page)}
-            />
+          {status === 'closed' && (
+            <div className='mt-auto'>
+              <Pagination
+                currentPage={issueCloseCurrentPage}
+                totalNum={numTotal}
+                pageSize={pageSize}
+                onChange={(page: number) => handlePageChange(page)}
+              />
+            </div>
           )}
         </>
       )}
@@ -460,17 +462,34 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
 export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
   const shouldFetch = item.assignees.length > 0
 
-  const { data } = useGetOrganizationMember({ username: item.assignees[0], org: 'mega', enabled: shouldFetch })
+  const [index, setIndex] = useState(0)
+
+  const { data, error } = useGetOrganizationMember({
+    username: item.assignees[index],
+    org: 'mega',
+    enabled: shouldFetch
+  })
+
+  useEffect(() => {
+    if (index >= item.assignees.length) return
+    if (error) {
+      setIndex((prev) => prev + 1)
+    }
+  }, [error, index, item.assignees])
 
   return (
     <>
       <div className='mr-10 flex w-[120px] items-center justify-between gap-10'>
-        {item.comment_num !== 0 && (
-          <div className='flex items-center gap-2 text-sm text-gray-500'>
-            <ChatBubbleIcon />
-            <span>{item.comment_num}</span>
-          </div>
-        )}
+        <div
+          style={{
+            visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`
+          }}
+          className='flex items-center gap-2 text-sm text-gray-500'
+        >
+          <ChatBubbleIcon />
+          <span>{item.comment_num}</span>
+        </div>
+
         {data && (
           // <div>展示头像</div>
           <MemberHovercard username={item.assignees[0]} side='top' align='end' member={data}>
