@@ -1,6 +1,6 @@
 use crate::command::status;
 use crate::utils::object_ext::BlobExt;
-use clap::Parser;
+use clap::{Parser};
 use mercury::internal::index::{Index, IndexEntry};
 use mercury::internal::object::blob::Blob;
 use std::path::{Path, PathBuf};
@@ -29,7 +29,7 @@ pub struct AddArgs {
     /// This updates only the metadata (e.g. file stat information such as
     /// timestamps, file size, etc.) of existing index entries to match
     /// the working tree, without adding new files or removing entries.
-    #[clap(long, group = "mode")]
+    #[clap(long, default_value_t = false, group = "mode")]
     pub refresh: bool,
 
     /// more detailed output
@@ -92,11 +92,12 @@ pub async fn execute(args: AddArgs) {
         let index_file = path::index();
         let mut index = Index::load(&index_file).unwrap();
         for file in &files {
-            if index.refresh(file.to_str().unwrap(), &util::working_dir())
-                .expect(&format!("error refreshing {}", file.display())) {
-                if args.verbose {
-                    println!("refreshed: {}", file.display());
-                }
+            if index
+                .refresh(file, &util::working_dir())
+                .unwrap_or_else(|_| panic!("error refreshing {}", file.display()))
+                && args.verbose
+            {
+                println!("refreshed: {}", file.display());
             }
         }
 
