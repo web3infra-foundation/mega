@@ -25,6 +25,7 @@ async fn setup_standard_repo(temp_path: &std::path::Path) -> (SHA1, SHA1, SHA1, 
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: true,
     })
     .await;
     let commit1 = Head::current_commit().await.unwrap();
@@ -56,6 +57,7 @@ async fn setup_standard_repo(temp_path: &std::path::Path) -> (SHA1, SHA1, SHA1, 
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: true,
     })
     .await;
     let commit2 = Head::current_commit().await.unwrap();
@@ -87,6 +89,7 @@ async fn setup_standard_repo(temp_path: &std::path::Path) -> (SHA1, SHA1, SHA1, 
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: true,
     })
     .await;
     let commit3 = Head::current_commit().await.unwrap();
@@ -118,6 +121,7 @@ async fn setup_standard_repo(temp_path: &std::path::Path) -> (SHA1, SHA1, SHA1, 
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: true,
     })
     .await;
     let commit4 = Head::current_commit().await.unwrap();
