@@ -21,6 +21,7 @@ async fn test_check_status() {
         verbose: true,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     };
     add::execute(add_args).await;
     assert!(check_status().await);
