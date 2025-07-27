@@ -17,6 +17,7 @@ pub mod remote;
 pub mod remove;
 pub mod reset;
 pub mod restore;
+pub mod revert;
 pub mod status;
 pub mod switch;
 
@@ -46,13 +47,13 @@ where
 }
 
 // impl save for all objects
-pub fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
+pub fn save_object<T>(object: &T, obj_id: &SHA1) -> Result<(), GitError>
 where
     T: ObjectTrait,
 {
     let storage = util::objects_storage();
     let data = object.to_data()?;
-    storage.put(ojb_id, &data, object.get_type())?;
+    storage.put(obj_id, &data, object.get_type())?;
     Ok(())
 }
 
