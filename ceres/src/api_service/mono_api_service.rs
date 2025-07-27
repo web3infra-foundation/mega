@@ -149,7 +149,7 @@ impl ApiHandler for MonoApiService {
             })
             .collect();
         storage.batch_save_model(save_trees).await.unwrap();
-        
+
         Ok(())
     }
 

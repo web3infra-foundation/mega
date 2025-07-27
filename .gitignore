@@ -15,6 +15,7 @@ Cargo.lock
 .vscode
 .zed
 .trae
+*.code-workspace
 
 # Mac
 .DS_Store

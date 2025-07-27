@@ -55,6 +55,8 @@ enum Commands {
     Merge(command::merge::MergeArgs),
     #[command(about = "Reset current HEAD to specified state")]
     Reset(command::reset::ResetArgs),
+    #[command(about = "Apply the changes introduced by some existing commits")]
+    CherryPick(command::cherry_pick::CherryPickArgs),
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
     #[command(about = "Download objects and refs from another repository")]
@@ -63,7 +65,8 @@ enum Commands {
     Pull(command::pull::PullArgs),
     #[command(about = "Show different between files")]
     Diff(command::diff::DiffArgs),
-
+    #[command(about = "Revert some existing commits")]
+    Revert(command::revert::RevertArgs),
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
     #[command(about = "Manage repository configurations")]
@@ -121,10 +124,12 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Merge(args) => command::merge::execute(args).await,
         Commands::Reset(args) => command::reset::execute(args).await,
+        Commands::CherryPick(args) => command::cherry_pick::execute(args).await,
         Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
         Commands::Diff(args) => command::diff::execute(args).await,
+        Commands::Revert(args) => command::revert::execute(args).await,
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
         Commands::Config(args) => command::config::execute(args).await,
