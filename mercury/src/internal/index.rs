@@ -349,7 +349,7 @@ impl Index {
             let abs_path = workdir.join(path);
             let meta = fs::symlink_metadata(&abs_path)?;
             let new_ctime = Time::from_system_time(meta.created().unwrap_or_else(|_| SystemTime::now()));
-            let new_mtime= Time::from_system_time(meta.modified().unwrap_or_else(|_| SystemTime::now()));
+            let new_mtime = Time::from_system_time(meta.modified().unwrap_or_else(|_| SystemTime::now()));
             let new_size = meta.len() as u32;
 
             // re-calculate SHA1
