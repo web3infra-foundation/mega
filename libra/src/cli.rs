@@ -55,6 +55,8 @@ enum Commands {
     Merge(command::merge::MergeArgs),
     #[command(about = "Reset current HEAD to specified state")]
     Reset(command::reset::ResetArgs),
+    #[command(about = "Apply the changes introduced by some existing commits")]
+    CherryPick(command::cherry_pick::CherryPickArgs),
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
     #[command(about = "Download objects and refs from another repository")]
@@ -122,6 +124,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Merge(args) => command::merge::execute(args).await,
         Commands::Reset(args) => command::reset::execute(args).await,
+        Commands::CherryPick(args) => command::cherry_pick::execute(args).await,
         Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
