@@ -29,7 +29,7 @@ pub struct AddArgs {
     /// This updates only the metadata (e.g. file stat information such as
     /// timestamps, file size, etc.) of existing index entries to match
     /// the working tree, without adding new files or removing entries.
-    #[clap(long, default_value_t = false, group = "mode")]
+    #[clap(long, group = "mode")]
     pub refresh: bool,
 
     /// more detailed output
@@ -246,8 +246,8 @@ mod test {
     #[test]
     fn test_args_conflict_with_refresh() {
         // "--refresh" cannot be combined with "-A", "--refresh" or "-u"
-        assert!(AddArgs::try_parse_from(&["test", "-A", "--refresh"]).is_err());
-        assert!(AddArgs::try_parse_from(&["test", "-u", "--refresh"]).is_err());
-        assert!(AddArgs::try_parse_from(&["test", "-A", "-u", "--refresh"]).is_err());
+        assert!(AddArgs::try_parse_from(["test", "-A", "--refresh"]).is_err());
+        assert!(AddArgs::try_parse_from(["test", "-u", "--refresh"]).is_err());
+        assert!(AddArgs::try_parse_from(["test", "-A", "-u", "--refresh"]).is_err());
     }
 }
