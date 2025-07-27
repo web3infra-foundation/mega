@@ -38,6 +38,7 @@ async fn test_basic_revert() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
     println!("C1: Added 1.txt");
@@ -59,6 +60,7 @@ async fn test_basic_revert() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
     println!("C2: Modified 1.txt");
@@ -81,6 +83,7 @@ async fn test_basic_revert() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
     println!("C3: Removed 1.txt, Added 2.txt");
@@ -177,6 +180,7 @@ async fn test_revert_no_commit() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
 
@@ -196,6 +200,7 @@ async fn test_revert_no_commit() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
 
@@ -220,6 +225,7 @@ async fn test_revert_no_commit() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
 
@@ -252,6 +258,7 @@ async fn test_revert_root_commit() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
     .await;
 

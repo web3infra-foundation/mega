@@ -27,6 +27,7 @@ use tempfile::tempdir;
 mod add_test;
 mod branch_test;
 mod checkout_test;
+mod cherry_pick_test;
 mod clone_test;
 mod commit_test;
 mod config_test;
