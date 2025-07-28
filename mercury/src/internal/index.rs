@@ -340,7 +340,7 @@ impl Index {
         Ok(())
     }
 
-    pub fn refresh(&mut self, file: impl AsRef<Path>, workdir: &Path)-> Result<bool, GitError> {
+    pub fn refresh(&mut self, file: impl AsRef<Path>, workdir: &Path) -> Result<bool, GitError> {
         let path = file.as_ref();
         let name = path.to_str()
             .ok_or(GitError::InvalidPathError(format!("{path:?}")))?;
@@ -348,8 +348,9 @@ impl Index {
         if let Some(entry) = self.entries.get_mut(&(name.to_string(), 0)) {
             let abs_path = workdir.join(path);
             let meta = fs::symlink_metadata(&abs_path)?;
-            let new_ctime = Time::from_system_time(meta.created().unwrap_or_else(|_| SystemTime::now()));
-            let new_mtime = Time::from_system_time(meta.modified().unwrap_or_else(|_| SystemTime::now()));
+            // Try creation time; on error, warn and use modification time (or now)
+            let new_ctime = Time::from_system_time(Self::time_or_now("creation time", &abs_path, meta.created()));
+            let new_mtime = Time::from_system_time(Self::time_or_now("modification time", &abs_path, meta.modified()));
             let new_size = meta.len() as u32;
 
             // re-calculate SHA1
@@ -374,6 +375,23 @@ impl Index {
         Ok(false)
     }
 
+    /// Try to get a timestamp, logging on error, and finally falling back to now.
+    fn time_or_now(
+        what: &str,
+        path: &Path,
+        res: io::Result<SystemTime>,
+    ) -> SystemTime {
+        match res {
+            Ok(ts) => ts,
+            Err(e) => {
+                eprintln!(
+                    "warning: failed to get {} for {:?}: {}; using SystemTime::now()",
+                    what, path, e
+                );
+                SystemTime::now()
+            }
+        }
+    }
 }
 
 impl Index {
