@@ -51,6 +51,8 @@ enum Commands {
     Commit(command::commit::CommitArgs),
     #[command(about = "Switch branches")]
     Switch(command::switch::SwitchArgs),
+    #[command(about = "Reapply commits on top of another base tip")]
+    Rebase(command::rebase::RebaseArgs),
     #[command(about = "Merge changes")]
     Merge(command::merge::MergeArgs),
     #[command(about = "Reset current HEAD to specified state")]
@@ -122,6 +124,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Branch(args) => command::branch::execute(args).await,
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
+        Commands::Rebase(args) => command::rebase::execute(args).await,
         Commands::Merge(args) => command::merge::execute(args).await,
         Commands::Reset(args) => command::reset::execute(args).await,
         Commands::CherryPick(args) => command::cherry_pick::execute(args).await,
