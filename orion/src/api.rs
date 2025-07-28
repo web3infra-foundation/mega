@@ -11,7 +11,8 @@ pub struct BuildRequest {
     pub repo: String,
     pub target: String,
     pub args: Option<Vec<String>>,
-    // pub webhook: Option<String>, // post
+    pub mr: String, // merge request id
+                    // pub webhook: Option<String>, // post
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +42,7 @@ pub async fn buck_build(
             req.repo.clone(),
             req.target.clone(),
             req.args.unwrap_or_default(),
+            req.mr.clone(),
             sender.clone(),
         )
         .await

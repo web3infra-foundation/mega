@@ -17,17 +17,18 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   }
   return {
     props: {
-      id: query.id
+      id: query.id,
+      link: query.link
     }
   }
 }
 
-const OrganizationIssueDetailPage: PageWithLayout<any> = ({ id }) => {
+const OrganizationIssueDetailPage: PageWithLayout<any> = ({ link, id }) => {
   return (
     <>
       <ThemeProvider>
         <BaseStyles>
-          <IssueDetailPage id={id} key={id} />
+          <IssueDetailPage link={link} id={id} key={id} />
         </BaseStyles>
       </ThemeProvider>
     </>

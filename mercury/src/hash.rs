@@ -5,6 +5,7 @@
 
 use std::{fmt::Display, io};
 
+use bincode::{Decode, Encode};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use sha1::Digest;
@@ -27,7 +28,19 @@ use crate::internal::object::types::ObjectType;
 /// understandable. - Nov 26, 2023 (by @genedna)
 ///
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Deserialize, Serialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Default,
+    Deserialize,
+    Serialize,
+    Encode,
+    Decode,
 )]
 pub struct SHA1(pub [u8; 20]);
 

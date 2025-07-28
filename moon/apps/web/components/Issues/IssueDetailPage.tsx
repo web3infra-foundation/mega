@@ -3,10 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IssueClosedIcon, IssueOpenedIcon, IssueReopenedIcon } from '@primer/octicons-react'
 import { Stack } from '@primer/react'
-import { ItemInput } from '@primer/react/lib/deprecated/ActionList'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
+import { CommonResultIssueDetailRes } from '@gitmono/types'
 import { Button, LoadingSpinner, PicturePlusIcon } from '@gitmono/ui'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
@@ -14,12 +14,12 @@ import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBo
 import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker'
 import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent'
 import { useGetIssueDetail } from '@/hooks/issues/useGetIssueDetail'
+import { usePostIssueAssignees } from '@/hooks/issues/usePostIssueAssignees'
 import { usePostIssueClose } from '@/hooks/issues/usePostIssueClose'
 import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment'
 import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
@@ -27,38 +27,33 @@ import { trimHtml } from '@/utils/trimHtml'
 import { MemberAvatar } from '../MemberAvatar'
 import TimelineItems from '../MrView/TimelineItems'
 import { BadgeItem } from './IssueNewPage'
-import { tags } from './utils/consts'
-import { extractTextArray } from './utils/extractText'
 import { pickWithReflect } from './utils/pickWithReflectDeep'
+import {
+  splitFun,
+  useAssigneesSelector,
+  useAvatars,
+  useChange,
+  useLabelMap,
+  useLabels,
+  useMemberMap
+} from './utils/sideEffect'
 
-interface IssueDetail {
-  status: string
-  conversations: Conversation[]
-  title: string
-}
-interface Conversation {
-  id: number
-  conv_type: string
-  comment: string
-  created_at: number
-  updated_at: number
-  username: string
-}
+// interface IssueDetail {
+//   status: string
+//   conversations: Conversation[]
+//   title: string
+//   assignees?: string[]
+// }
 
-interface detailRes {
-  err_message: string
-  data: IssueDetail
-  req_result: boolean
-}
+// let needComment = false
 
-let needComment = false
-
-export default function IssueDetailPage({ id }: { id: string }) {
+export default function IssueDetailPage({ link, id }: { link: string; id: number }) {
   const [login, setLogin] = useState(false)
-  const [info, setInfo] = useState<IssueDetail>({
+  const [info, setInfo] = useState<Partial<CommonResultIssueDetailRes['data']>>({
     status: '',
     conversations: [],
-    title: ''
+    title: '',
+    assignees: []
   })
   const [buttonLoading, setButtonLoading] = useState<{ [key: string]: boolean }>({
     comment: false,
@@ -70,7 +65,8 @@ export default function IssueDetailPage({ id }: { id: string }) {
     setButtonLoading((prev) => ({ ...prev, [key]: value }))
   }
 
-  const [closeHint, setCloseHint] = useState('Close issue')
+  const { closeHint, needComment, handleChange, handleCloseChange } = useChange({})
+  // const [closeHint, setCloseHint] = useState('Close issue')
 
   const { mutate: closeIssue } = usePostIssueClose()
 
@@ -78,17 +74,22 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
   const { mutate: saveComment } = usePostIssueComment()
 
-  const { data: issueDetailObj, error, isError, refetch, isLoading: detailIsLoading } = useGetIssueDetail(id)
+  const { mutate: issueAssignees } = usePostIssueAssignees()
 
-  const issueDetail = issueDetailObj?.data as IssueDetail | undefined
+  const { data: issueDetailObj, error, isError, refetch, isLoading: detailIsLoading } = useGetIssueDetail(link)
 
-  const applyDetailData = (detail: detailRes | undefined) => {
-    if (!detail || !detail.req_result) return
+  const issueDetail = issueDetailObj?.data as CommonResultIssueDetailRes['data'] | undefined
+
+  const applyDetailData = (detail: CommonResultIssueDetailRes | undefined) => {
+    if (!detail || !detail.req_result || !detail.data) return
     setInfo({
       title: detail.data.title,
       status: detail.data.status,
-      conversations: detail.data.conversations
+      conversations: detail.data.conversations,
+      assignees: detail.data.assignees
     })
+
+    // selectRef.current = detail.data.assignees
   }
 
   const fetchDetail = useCallback(() => {
@@ -99,7 +100,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
   useEffect(() => {
     fetchDetail()
-  }, [fetchDetail, id])
+  }, [fetchDetail, link])
 
   const [_loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
@@ -132,7 +133,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     setLoading('comment', true)
     set_to_loading(3)
     saveComment(
-      { link: id, data: { content: currentContentHTML } },
+      { link, data: { content: currentContentHTML } },
       {
         onSuccess: async () => {
           editorRef.current?.clearAndBlur()
@@ -146,7 +147,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('comment', false)
       }
     )
-  }, [id, refetch, saveComment])
+  }, [link, refetch, saveComment])
 
   const close_issue = useCallback(() => {
     if (closeHint === 'Close with comment') {
@@ -156,7 +157,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     setLoading('close', true)
     set_to_loading(3)
     closeIssue(
-      { link: id },
+      { link },
       {
         onSuccess: () => {
           router.push(`/${router.query.org}/issue`)
@@ -166,17 +167,17 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('close', false)
       }
     )
-  }, [id, router, closeIssue, closeHint, save_comment])
+  }, [link, router, closeIssue, closeHint, save_comment])
 
   const reopen_issue = useCallback(() => {
     setLoading('reopen', true)
     set_to_loading(3)
-    if (needComment) {
+    if (needComment.current) {
       save_comment()
-      needComment = false
+      needComment.current = false
     }
     reopenIssue(
-      { link: id },
+      { link },
       {
         onSuccess: () => {
           router.push(`/${router.query.org}/issue`)
@@ -185,7 +186,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
         onSettled: () => setLoading('reopen', false)
       }
     )
-  }, [id, router, reopenIssue, save_comment])
+  }, [link, router, reopenIssue, save_comment, needComment])
 
   const editorRef = useRef<SimpleNoteContentRef>(null)
   const onKeyDownScrollHandler = useHandleBottomScrollOffset({
@@ -213,78 +214,58 @@ export default function IssueDetailPage({ id }: { id: string }) {
     }
   }, [user])
 
-  const splitFun = (el: React.ReactNode): string[] => {
-    return extractTextArray(el)
-      .flatMap((name) => name.split(',').map((n) => n.trim()))
-      .filter((n) => n.length > 0)
-  }
+  const avatars = useAvatars()
 
-  const { members } = useSyncedMembers()
+  const labels = useLabels()
 
-  const avatars: ItemInput[] = useMemo(
-    () =>
-      members?.map((i) => ({
-        groupId: 'end',
-        text: i.user.display_name,
-        leadingVisual: () => <MemberAvatar size='sm' member={i} />
-      })) || [],
-    [members]
-  )
-  // const [avatarTems, setAvatarItems] = useState<ItemInput[]>(avatars)
+  const memberMap = useMemberMap()
 
-  const labels: ItemInput[] = useMemo(
-    () =>
-      tags.map((i) => ({
-        text: i.description,
-        leadingVisual: () => (
-          <div
-            className='h-[14px] w-[14px] rounded-full border'
-            //eslint-disable-next-line react/forbid-dom-props
-            style={{ backgroundColor: i.color, borderColor: i.color }}
-          />
-        )
-      })),
-    []
-  )
+  const labelMap = useLabelMap()
 
-  const memberMap = useMemo(() => {
-    const map = new Map()
+  // const handleChange = (html: string) => {
+  //   if (html && html === '<p></p>') {
+  //     setCloseHint('Close issue')
+  //   } else {
+  //     setCloseHint('Close with comment')
+  //   }
+  // }
 
-    members?.forEach((i) => {
-      map.set(i.user.display_name, i)
-    })
-    return map
-  }, [members])
+  // const handleCloseChange = (html: string) => {
+  //   if (html && html === '<p></p>') {
+  //     needComment = false
+  //   } else {
+  //     needComment = true
+  //   }
+  // }
 
-  const labelMap = useMemo(() => {
-    const map = new Map()
+  const { open, handleAssignees, handleOpenChange, fetchSelected } = useAssigneesSelector({
+    assignees: info?.assignees ?? [],
+    assignRequest: (selected) =>
+      issueAssignees(
+        {
+          data: {
+            assignees: selected,
+            item_id: Number(id),
+            link
+          }
+        },
+        {
+          onSuccess: async () => {
+            editorRef.current?.clearAndBlur()
+            const { data: issueDetailObj } = await refetch({ throwOnError: true })
 
-    tags.map((i) => {
-      map.set(i.description, i)
-    })
-    return map
-  }, [])
-
-  const handleChange = (html: string) => {
-    if (html && html === '<p></p>') {
-      setCloseHint('Close issue')
-    } else {
-      setCloseHint('Close with comment')
-    }
-  }
-
-  const handleCloseChange = (html: string) => {
-    if (html && html === '<p></p>') {
-      needComment = false
-    } else {
-      needComment = true
-    }
-  }
+            applyDetailData(issueDetailObj)
+          },
+          onError: apiErrorToast
+        }
+      ),
+    avatars
+  })
 
   return (
     <>
       <div className='h-screen overflow-auto pt-10'>
-        {info.title && (
+        {info?.title && (
           <div className='px-10 pb-4 text-xl'>
             <div className='mb-4'>{info.title}</div>
             {info.status === 'open' ? (
@@ -308,14 +289,14 @@ export default function IssueDetailPage({ id }: { id: string }) {
           {avatarUser && <MemberAvatar member={avatarUser} />}
 
           <Stack className='flex-1'>
-            <div className='flex h-[100vh] gap-9'>
+            <div className='flex h-[100vh] gap-20'>
               <div className='flex w-[70%] flex-col'>
                 {detailIsLoading ? (
                   <div className='flex items-center justify-center'>
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={id} type='issue' />
+                  <TimelineItems detail={issueDetail} id={link} type='issue' />
                 )}
 
                 {info && info.status === 'open' && (
@@ -323,7 +304,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                     <div className='prose mt-4 flex w-full flex-col'>
                       <h2>Add a comment</h2>
                       <input {...dropzone.getInputProps()} />
-                      <div className='rounded-lg border p-6'>
+                      <div className='relative rounded-lg border p-6 pb-12'>
                         <SimpleNoteContent
                           commentId='temp' //  Temporary filling, replacement later
                           ref={editorRef}
@@ -377,7 +358,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                     <div className='prose mt-4 flex w-full flex-col'>
                       <h2>Add a comment</h2>
                       <input {...dropzone.getInputProps()} />
-                      <div className='rounded-lg border p-6'>
+                      <div className='relative rounded-lg border p-6 pb-12'>
                         <SimpleNoteContent
                           commentId='temp' //  Temporary filling, replacement later
                           ref={editorRef}
@@ -387,18 +368,20 @@ export default function IssueDetailPage({ id }: { id: string }) {
                           onKeyDown={onKeyDownScrollHandler}
                           onChange={(html) => handleCloseChange(html)}
                         />
-                        <Button
-                          variant='plain'
-                          iconOnly={<PicturePlusIcon />}
-                          accessibilityLabel='Add files'
-                          onClick={dropzone.open}
-                          tooltip='Add files'
-                        />
-                        <ComposerReactionPicker
-                          editorRef={editorRef}
-                          open={isReactionPickerOpen}
-                          onOpenChange={setIsReactionPickerOpen}
-                        />
+                        <div className='absolute'>
+                          <Button
+                            variant='plain'
+                            iconOnly={<PicturePlusIcon />}
+                            accessibilityLabel='Add files'
+                            onClick={dropzone.open}
+                            tooltip='Add files'
+                          />
+                          <ComposerReactionPicker
+                            editorRef={editorRef}
+                            open={isReactionPickerOpen}
+                            onOpenChange={setIsReactionPickerOpen}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className='mt-4 flex justify-end gap-4'>
@@ -431,6 +414,10 @@ export default function IssueDetailPage({ id }: { id: string }) {
                   selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
                   items={avatars}
                   title='Assignees'
+                  handleGroup={(selected) => handleAssignees(selected)}
+                  open={open}
+                  onOpenChange={(open) => handleOpenChange(open)}
+                  selected={fetchSelected}
                 >
                   {(el) => {
                     const names = Array.from(new Set(splitFun(el)))

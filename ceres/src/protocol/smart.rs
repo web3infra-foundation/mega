@@ -216,14 +216,7 @@ impl SmartProtocol {
             .unpack_stream(&self.storage.config().pack, data_stream)
             .await?;
 
-        // do not block main thread here.
-        let handler_clone = pack_handler.clone();
-        let unpack_result = tokio::task::spawn_blocking(move || {
-            let handle = tokio::runtime::Handle::current();
-            handle.block_on(async { handler_clone.handle_receiver(receiver).await })
-        })
-        .await
-        .unwrap();
+        let unpack_result = pack_handler.clone().receiver_handler(receiver).await;
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
@@ -234,19 +227,19 @@ impl SmartProtocol {
         for command in &mut self.command_list {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
-                pack_handler.update_refs(None, command).await.unwrap();
+                pack_handler.update_refs(command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
                 match unpack_result {
-                    Ok(ref commit) => {
+                    Ok(_) => {
                         if !default_exist {
                             command.default_branch = true;
                             default_exist = true;
                         }
-                        if let Err(e) = pack_handler.update_refs(commit.clone(), command).await {
+                        if let Err(e) = pack_handler.update_refs(command).await {
                             command.failed(e.to_string());
                         }
                     }

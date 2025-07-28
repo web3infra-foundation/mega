@@ -49,6 +49,7 @@ use crate::internal::object::ObjectType;
 
 /// The tag object is used to Annotated tag
 #[derive(Eq, Debug, Clone)]
+#[non_exhaustive]
 pub struct Tag {
     pub id: SHA1,
     pub object_hash: SHA1,
@@ -124,6 +125,7 @@ impl ObjectTrait for Tag {
         data = &data[data.find_byte(0x0a).unwrap() + 1..];
 
         let message = unsafe {
+            // There may be non-UTF-8 characters, so we use `to_str_unchecked` for conversion.
             data[data.find_byte(0x0a).unwrap()..]
                 .to_vec()
                 .to_str_unchecked()

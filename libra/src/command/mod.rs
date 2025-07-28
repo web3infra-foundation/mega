@@ -15,6 +15,7 @@ pub mod pull;
 pub mod push;
 pub mod remote;
 pub mod remove;
+pub mod reset;
 pub mod restore;
 pub mod status;
 pub mod switch;
