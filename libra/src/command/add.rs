@@ -1,6 +1,6 @@
 use crate::command::status;
 use crate::utils::object_ext::BlobExt;
-use clap::Parser;
+use clap::{Parser};
 use mercury::internal::index::{Index, IndexEntry};
 use mercury::internal::object::blob::Blob;
 use std::path::{Path, PathBuf};
@@ -23,6 +23,14 @@ pub struct AddArgs {
     /// This removes as well as modifies index entries to match the working tree, but adds no new files.
     #[clap(short, long, group = "mode")]
     pub update: bool,
+
+    /// Refresh index entries for all files currently in the index.
+    ///
+    /// This updates only the metadata (e.g. file stat information such as
+    /// timestamps, file size, etc.) of existing index entries to match
+    /// the working tree, without adding new files or removing entries.
+    #[clap(long, group = "mode")]
+    pub refresh: bool,
 
     /// more detailed output
     #[clap(short, long)]
@@ -62,6 +70,42 @@ pub async fn execute(args: AddArgs) {
     if args.pathspec.is_empty() || !args.all {
         changes.modified = util::filter_to_fit_paths(&changes.modified, &paths);
         changes.deleted = util::filter_to_fit_paths(&changes.deleted, &paths);
+    }
+
+    if args.refresh {
+        let index_path = path::index();
+        let index = Index::load(&index_path).unwrap();
+
+        let files: Vec<PathBuf> = changes
+            .modified
+            .into_iter()
+            .filter(|p| {
+                let s = p.to_str().unwrap_or_else(|| { panic!("path {:?} is not valid UTF-8", p.display()) });
+                index.tracked(s, 0)
+            })
+            .collect();
+
+        // check for dry_run
+        if args.dry_run {
+            for file in &files {
+                println!("refresh: {}", file.display())
+            }
+        }
+
+        let index_file = path::index();
+        let mut index = Index::load(&index_file).unwrap();
+        for file in &files {
+            if index
+                .refresh(file, &util::working_dir())
+                .unwrap_or_else(|_| panic!("error refreshing {}", file.display()))
+                && args.verbose
+            {
+                println!("refreshed: {}", file.display());
+            }
+        }
+
+        index.save(&index_file).unwrap();
+        return;
     }
 
     let mut files = changes.modified;
@@ -203,9 +247,10 @@ mod test {
     use super::*;
 
     #[test]
-    #[should_panic]
-    /// Test that `-A` and `-u` cannot be used together
-    fn test_args_parse_update_conflict_with_all() {
-        AddArgs::try_parse_from(["test", "-A", "-u"]).unwrap();
+    fn test_args_conflict_with_refresh() {
+        // "--refresh" cannot be combined with "-A", "--refresh" or "-u"
+        assert!(AddArgs::try_parse_from(["test", "-A", "--refresh"]).is_err());
+        assert!(AddArgs::try_parse_from(["test", "-u", "--refresh"]).is_err());
+        assert!(AddArgs::try_parse_from(["test", "-A", "-u", "--refresh"]).is_err());
     }
 }

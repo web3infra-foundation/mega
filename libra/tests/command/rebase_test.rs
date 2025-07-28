@@ -21,6 +21,7 @@ async fn test_basic_rebase() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -41,6 +42,7 @@ async fn test_basic_rebase() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -70,6 +72,7 @@ async fn test_basic_rebase() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -90,6 +93,7 @@ async fn test_basic_rebase() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -118,6 +122,7 @@ async fn test_basic_rebase() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -187,6 +192,7 @@ async fn test_rebase_already_up_to_date() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -207,6 +213,7 @@ async fn test_rebase_already_up_to_date() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {

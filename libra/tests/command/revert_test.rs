@@ -30,6 +30,7 @@ async fn test_basic_revert() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh : false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -52,6 +53,7 @@ async fn test_basic_revert() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -75,6 +77,7 @@ async fn test_basic_revert() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -172,6 +175,7 @@ async fn test_revert_no_commit() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -192,6 +196,7 @@ async fn test_revert_no_commit() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {
@@ -250,6 +255,7 @@ async fn test_revert_root_commit() {
         verbose: false,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     })
     .await;
     commit::execute(CommitArgs {

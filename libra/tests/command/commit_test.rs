@@ -99,6 +99,7 @@ async fn test_execute_commit() {
             pathspec: vec![],
             dry_run: false,
             ignore_errors: false,
+            refresh: false,
         };
         add::execute(args).await;
     }
