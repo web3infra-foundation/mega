@@ -384,10 +384,7 @@ impl Index {
         match res {
             Ok(ts) => ts,
             Err(e) => {
-                eprintln!(
-                    "warning: failed to get {} for {:?}: {}; using SystemTime::now()",
-                    what, path, e
-                );
+                eprintln!("warning: failed to get {what} for {path:?}: {e}; using SystemTime::now()", what = what, path = path.display());
                 SystemTime::now()
             }
         }

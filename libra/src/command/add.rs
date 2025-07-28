@@ -79,7 +79,10 @@ pub async fn execute(args: AddArgs) {
         let files: Vec<PathBuf> = changes
             .modified
             .into_iter()
-            .filter(|p| index.tracked(p.to_str().unwrap(), 0))
+            .filter(|p| {
+                let s = p.to_str().unwrap_or_else(|| { panic!("path {:?} is not valid UTF-8", p.display()) });
+                index.tracked(s, 0)
+            })
             .collect();
 
         // check for dry_run
