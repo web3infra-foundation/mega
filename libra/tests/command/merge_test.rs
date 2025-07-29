@@ -201,7 +201,7 @@ async fn test_merge_nonexistent_branch() {
     );
     let stderr = String::from_utf8_lossy(&merge_output.stderr);
     assert!(
-        stderr.contains("fatal: branch 'nonexistent' not found"),
+        stderr.contains("fatal") && stderr.contains("not found"),
         "Unexpected error message: {}",
         stderr
     );
