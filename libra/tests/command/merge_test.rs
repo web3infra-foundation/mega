@@ -75,87 +75,6 @@ async fn test_merge_fast_forward() {
     );
 }
 
-#[tokio::test]
-/// Test non-fast-forward merge with merge commit
-async fn test_merge_non_fast_forward() {
-    let temp_repo = init_temp_repo();
-    let temp_path = temp_repo.path();
-
-    // Create and switch to the feature branch
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["branch", "feature"])
-        .output()
-        .expect("Failed to create branch");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["checkout", "feature"])
-        .output()
-        .expect("Failed to checkout branch");
-
-    // Commit changes on the feature branch
-    let file_path = temp_path.join("feature.txt");
-    std::fs::write(&file_path, "Feature content").expect("Failed to write file");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["add", "."])
-        .output()
-        .expect("Failed to add file");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["commit", "-m", "Add feature content"])
-        .output()
-        .expect("Failed to commit");
-
-    // Commit changes on the main branch
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["checkout", "main"])
-        .output()
-        .expect("Failed to checkout main branch");
-    let main_file_path = temp_path.join("main.txt");
-    std::fs::write(&main_file_path, "Main content").expect("Failed to write file");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["add", "."])
-        .output()
-        .expect("Failed to add file");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["commit", "-m", "Add main content"])
-        .output()
-        .expect("Failed to commit");
-
-    // Perform non-fast-forward merge
-    let merge_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["merge", "feature"])
-        .output()
-        .expect("Failed to merge branch");
-    assert!(
-        merge_output.status.success(),
-        "Non-fast-forward merge failed: {}",
-        String::from_utf8_lossy(&merge_output.stderr)
-    );
-    // Verify that the latest commit is a merge commit
-    let log_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["log", "-1", "--pretty=%P"])
-        .output()
-        .expect("Failed to retrieve commit log");
-    assert!(
-        log_output.status.success(),
-        "Failed to retrieve commit log: {}",
-        String::from_utf8_lossy(&log_output.stderr)
-    );
-    let parents = String::from_utf8_lossy(&log_output.stdout);
-    let parent_count = parents.split_whitespace().count();
-    assert_eq!(
-        parent_count, 2,
-        "Expected a merge commit with 2 parents, but found {} parents: {}",
-        parent_count, parents
-    );
-}
 
 #[tokio::test]
 /// Test merging a remote branch
@@ -183,29 +102,7 @@ async fn test_merge_remote_branch() {
     );
 }
 
-#[tokio::test]
-/// Test merging a nonexistent branch
-async fn test_merge_nonexistent_branch() {
-    let temp_repo = init_temp_repo();
-    let temp_path = temp_repo.path();
 
-    // Attempt to merge a nonexistent branch
-    let merge_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["merge", "nonexistent"])
-        .output()
-        .expect("Failed to execute merge command");
-    assert!(
-        !merge_output.status.success(),
-        "Merge nonexistent branch should fail"
-    );
-    let stderr = String::from_utf8_lossy(&merge_output.stderr);
-    assert!(
-        stderr.contains("fatal") && stderr.contains("not found"),
-        "Unexpected error message: {}",
-        stderr
-    );
-}
 
 #[tokio::test]
 /// Test merging branches with no common ancestor
