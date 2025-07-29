@@ -60,6 +60,16 @@
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-step-back-symbolic.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-trash-symbolic.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-upload-symbolic.svg</file>
-
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-url-clone-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-historybtn-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-repo-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-gitFile-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-settingFile-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-rust-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-markdown-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-picture-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-rss-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-css-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-json-symbolic.svg</file>
     </gresource>
 </gresources>

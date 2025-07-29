@@ -14,6 +14,7 @@ use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::{cell::OnceCell, path::Path};
 
+
 mod imp {
     use std::rc::Rc;
 
@@ -55,6 +56,8 @@ mod imp {
         pub icon: TemplateChild<gtk::Image>,
         #[template_child]
         pub label: TemplateChild<gtk::Label>,
+        // #[template_child]
+        // pub tree_lines: TemplateChild<gtk::DrawingArea>,
 
         pub sender: OnceCell<Sender<Action>>,
         pub bindings: RefCell<SmallVec<[glib::Binding; 4]>>,
@@ -295,6 +298,7 @@ impl FileTreeRow {
         let imp = self.imp();
         let label = imp.label.get();
         let icon = imp.icon.get();
+        //let tree_line = imp.tree_lines.get();
         let expander = imp.expander.get();
         let sender = imp.sender.get().unwrap();
         let mut bindings = imp.bindings.borrow_mut();
@@ -306,17 +310,72 @@ impl FileTreeRow {
             .sync_create()
             .bidirectional()
             .build();
+
+
         let icon_binding = data
-            .bind_property("file-type", &icon, "icon-name")
+            .bind_property("path", &icon, "icon-name")
             .sync_create()
-            .transform_to(|_, t: FileType| {
-                if t.is_dir() {
-                    Some("folder-symbolic")
-                } else {
-                    Some("text-x-generic-symbolic")
+            .transform_to(move |_, t: glib::GString| {
+
+                let path = Path::new(t.as_str());
+
+                match path.file_name().and_then(|name| name.to_str()) {
+                    Some(name) if  name.eq(".idea")||name.eq(".vscode") || !name.contains(".")
+                    => Some("folder-symbolic"),
+
+                    // .gitignore is not extension but file name
+                    Some(name) if [".gitignore", ".gitattributes", ".gitmodules"].contains(&name) => {
+                        Some("monobean-gitFile-symbolic")
+                    }
+                    _ => match path.extension().and_then(|ext| ext.to_str()) {
+                        Some("toml") => Some("monobean-settingFile-symbolic"),
+                        Some("md") => Some("monobean-markdown-symbolic"),
+                        Some("rs") => Some("monobean-rust-symbolic"),
+                        Some("png") | Some("svg") | Some("jpg") => Some("monobean-picture-symbolic"),
+                        Some("xml") | Some("ui") => Some("monobean-rss-symbolic"),
+                        Some("css") => Some("monobean-css-symbolic"),
+                        Some("json") => Some("monobean-json-symbolic"),
+                        _ => Some("text-x-generic"),
+                    },
                 }
             })
             .build();
+
+        
+        // let depth = data.depth(); 
+        // tree_line.set_draw_func(move |_area, ctx, _width, height| {
+        //     let line_spacing = 12.0; 
+        //     let line_offset = 6.0;   
+        // 
+        //     ctx.set_source_rgba(0.7, 0.7, 0.7, 1.0); 
+        //     ctx.set_line_width(1.0);
+        //     ctx.set_dash(&[2.0, 2.0], 0.0);
+        // 
+        //     for i in 0..depth {
+        //         let x = i as f64 * line_spacing + line_offset;
+        // 
+        //         // 当前层
+        //         if i == depth - 1 {
+        //             if !is_last_child {
+        //                 // 当前节点不是最后一个 → 画半根线（中间到底部）
+        //                 ctx.move_to(x, height as f64 / 2.0);
+        //                 ctx.line_to(x, height as f64);
+        //             }
+        //         } else {
+        //             // 上层：始终画整条线（贯穿）
+        //             ctx.move_to(x, 0.0);
+        //             ctx.line_to(x, height as f64);
+        //         }
+        //     }
+        // 
+        //     ctx.stroke().unwrap();
+        // });
+
+
+
+
+
+
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
             .sync_create()
@@ -354,7 +413,8 @@ impl FileTreeRow {
                     // Handle file click - could send an action to open the file
                     let hash = data.hash();
                     let name = data.label();
-                    let _ = sender.try_send(Action::OpenEditorOn { hash, name });
+                    let path = data.path();
+                    let _ = sender.try_send(Action::OpenEditorOn { hash, name ,path});
                 }
                 gesture.set_state(gtk::EventSequenceState::Claimed);
             }

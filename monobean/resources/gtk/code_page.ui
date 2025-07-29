@@ -7,79 +7,274 @@
     <property name="vexpand">true</property>
 
     <property name="child">
-      <object class="GtkPaned" id="paned">
-        <property name="position">300</property>
+      <object class="GtkBox" id="main_box">
+        <property name="orientation">horizontal</property>
 
-        <!-- Left Side: File Tree -->
-        <property name="start-child">
-          <object class="FileTreeView" id="file_tree_view" />
-        </property>
+        <child>
+          <object class="GtkPaned" id="paned">
+            <property name="position">300</property>
 
-        <!-- Right Side: Code Viewer  -->
-        <property name="end-child">
-          <object class="GtkStack" id="code_stack">
-            <property name="transition-type">crossfade</property>
-            <property name="hexpand">true</property>
-            <property name="vexpand">true</property>
+            <!-- Left Side: File Tree -->
+            <property name="start-child">
+              <object class="FileTreeView" id="file_tree_view" />
+            </property>
 
-            <!-- Empty page -->
-            <child>
-              <object class="GtkStackPage">
-                <property name="name">empty_view</property>
-                <property name="title" translatable="true">Empty View</property>
-                <property name="child">
-                  <object class="GtkBox" id="empty_view">
-                    <property name="orientation">vertical</property>
-                    <property name="valign">center</property>
-                    <property name="halign">center</property>
-                    <property name="spacing">12</property>
+            <!-- Right Side: Code Viewer  -->
+            <property name="end-child">
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">0</property>
+
+                <!-- flie path Label -->
+                <child>
+                  <object class="GtkLabel" id="file_path_label">
+                    <property name="halign">start</property>
+                    <property name="xalign">0.0</property>
+                    <property name="margin-start">6</property>
+                    <property name="margin-top">4</property>
+                    <property name="margin-bottom">4</property>
+                    <property name="label">No file opened</property>
+                    <style>
+                      <class name="path-label" />
+                    </style>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkStack" id="code_stack">
+                    <property name="transition-type">crossfade</property>
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    <!-- Empty page -->
                     <child>
-                      <object class="GtkImage">
-                        <property name="icon-name">monobean-file-text-symbolic</property>
-                        <property name="pixel-size">64</property>
+                      <object class="GtkStackPage">
+                        <property name="name">empty_view</property>
+                        <property name="title" translatable="true">Empty View</property>
+                        <property name="child">
+                          <object class="GtkBox" id="empty_view">
+                            <property name="orientation">vertical</property>
+                            <property name="valign">center</property>
+                            <property name="halign">center</property>
+                            <property name="spacing">12</property>
+                            <child>
+                              <object class="GtkImage">
+                                <property name="icon-name">monobean-file-text-symbolic</property>
+                                <property name="pixel-size">64</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">No file selected</property>
+                                <style>
+                                  <class name="title-2" />
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
                       </object>
                     </child>
+                    <!-- Source view page -->
                     <child>
-                      <object class="GtkLabel">
-                        <property name="label">No file selected</property>
-                        <style>
-                          <class name="title-2" />
-                        </style>
+                      <object class="GtkStackPage">
+                        <property name="name">source_view</property>
+                        <property name="title">Source View</property>
+                        <property name="child">
+                          <object class="GtkScrolledWindow" id="source_scroll">
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                            <child>
+                              <object class="GtkSourceView" id="source_view">
+                                <property name="monospace">true</property>
+                                <property name="show-line-numbers">true</property>
+                                <property name="highlight-current-line">true</property>
+                                <property name="tab-width">4</property>
+                                <property name="auto-indent">true</property>
+                                <property name="wrap-mode">word</property>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
                       </object>
                     </child>
                   </object>
-                </property>
+                </child>
+              </object>
+            </property>
+          </object>
+        </child>
+
+        <child>
+          <object class="GtkBox" id="sidebar">
+            <property name="orientation">vertical</property>
+            <property name="width-request">50</property>
+            <property name="spacing">10</property>
+
+            <child>
+              <object class="GtkButton" id="url_btn">
+                <property name="margin-top">15</property>
+                <property name="width-request">40</property>
+                <property name="height-request">40</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="icon-name">monobean-url-clone-symbolic</property>
+                    <property name="icon-size">large</property> <!-- 或者使用数字：1=small, 2=normal, 3=large, 4=extra-large -->
+                  </object>
+                </child>
+                <style>
+                  <class name="image-button"/>
+                  <class name="flat"/>
+                </style>
               </object>
             </child>
 
-            <!-- Source view page -->
             <child>
-              <object class="GtkStackPage">
-                <property name="name">source_view</property>
-                <property name="title">Source View</property>
-                <property name="child">
-                  <object class="GtkScrolledWindow" id="source_scroll">
-                    <property name="hexpand">true</property>
-                    <property name="vexpand">true</property>
-                    <child>
-                      <object class="GtkSourceView" id="source_view">
-                        <property name="monospace">true</property>
-                        <property name="show-line-numbers">true</property>
-                        <property name="highlight-current-line">true</property>
-                        <property name="tab-width">4</property>
-                        <property name="auto-indent">true</property>
-                        <property name="wrap-mode">word</property>
-                      </object>
-                    </child>
+              <object class="GtkButton" id="history_btn">
+                <property name="width-request">40</property>
+                <property name="height-request">40</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="icon-name">monobean-historybtn-symbolic</property>
+                    <property name="icon-size">large</property> <!-- 或者使用数字：1=small, 2=normal, 3=large, 4=extra-large -->
                   </object>
-                </property>
+                </child>
+                <style>
+                  <class name="image-button"/>
+                  <class name="flat"/>
+                </style>
               </object>
             </child>
           </object>
-        </property>
+        </child>
+
 
       </object>
     </property>
+
+    <object class="GtkPopover" id="url_popover">
+      <property name="autohide">true</property>
+      <child>
+        <object class="GtkBox">
+          <property name="orientation">vertical</property>
+          <property name="margin-start">12</property>
+          <property name="margin-end">12</property>
+          <property name="margin-top">8</property>
+          <property name="margin-bottom">8</property>
+          <property name="spacing">8</property>
+
+          <!-- 标签页 -->
+          <child>
+            <object class="GtkStackSwitcher" id="view_switcher">
+<!--              <property name="policy">wide</property>-->
+              <property name="stack">url_content_stack</property>
+              <property name="halign">center</property>
+            </object>
+          </child>
+
+          <child>
+            <object class="GtkStack" id="url_content_stack">
+              <!-- HTTP 页面 -->
+              <child>
+                <object class="GtkStackPage">
+                  <property name="name">http_page</property>
+                  <property name="title">HTTP</property>
+                  <property name="child">
+                    <object class="GtkBox">
+                      <property name="orientation">horizontal</property>
+                      <property name="spacing">4</property>
+
+                      <child>
+                        <object class="GtkEntry" id="http_entry">
+                          <property name="text">http://git.gitmegas.com/mega/code/tree/project</property>
+                          <property name="editable">false</property>
+                          <property name="hexpand">true</property>
+                        </object>
+                      </child>
+                      <child>
+                        <object class="GtkButton" id="copy_http_button">
+                          <property name="icon-name">edit-copy-symbolic</property>
+                          <property name="tooltip-text">复制链接</property>
+                        </object>
+                      </child>
+                    </object>
+                  </property>
+                </object>
+              </child>
+
+              <!-- SSH 页面 -->
+              <child>
+                <object class="GtkStackPage">
+                  <property name="name">ssh_page</property>
+                  <property name="title">SSH</property>
+                  <property name="child">
+                    <object class="GtkBox">
+                      <property name="orientation">horizontal</property>
+                      <property name="spacing">4</property>
+
+                      <child>
+                        <object class="GtkEntry" id="ssh_entry">
+                          <property name="text">git@gitmegas.com:mega/code.git</property>
+                          <property name="editable">false</property>
+                          <property name="hexpand">true</property>
+                        </object>
+                      </child>
+                      <child>
+                        <object class="GtkButton" id="copy_ssh_button">
+                          <property name="icon-name">edit-copy-symbolic</property>
+                          <property name="tooltip-text">复制链接</property>
+                        </object>
+                      </child>
+                    </object>
+                  </property>
+                </object>
+              </child>
+            </object>
+          </child>
+
+          <!-- 说明文字 -->
+          <child>
+            <object class="GtkLabel">
+              <property name="label">Clone using the web URL.</property>
+              <property name="halign">start</property>
+              <property name="margin-top">4</property>
+            </object>
+          </child>
+        </object>
+      </child>
+    </object>
+
+
+    <object class="GtkPopover" id="history_popover">
+      <property name="autohide">true</property>
+      <child>
+        <object class="GtkBox">
+          <property name="orientation">vertical</property>
+          <child>
+            <object class="GtkLabel" id="history">
+              <property name="label">History</property>
+            </object>
+          </child>
+          <child>
+            <object class="GtkScrolledWindow">
+              <property name="vexpand">True</property>
+              <property name="hexpand">True</property>
+              <property name="propagate-natural-height">False</property>
+              <property name="min-content-height">400</property>
+              <property name="max-content-height">600</property>
+              <property name="min-content-width">150</property>
+              <property name="hscrollbar-policy">automatic</property>
+              <property name="vscrollbar-policy">automatic</property>
+              
+              <child>
+                <object class="GtkListView" id="history_listview">
+                  <!-- 这里可以在 Rust 代码中设置 model 和 factory -->
+                </object>
+              </child>
+            </object>
+          </child>
+        </object>
+      </child>
+    </object>
 
   </template>
 </interface>

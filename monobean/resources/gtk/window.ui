@@ -38,8 +38,6 @@
         <property name="child">
           <object class="AdwToolbarView" id="toolbar_view">
             <child type="top">
-
-              <!-- Title Bar -->
               <object class="AdwHeaderBar" id="header_bar">
                 <property name="centering-policy">loose</property>
 
@@ -168,9 +166,9 @@
 <!--                              </child>-->
                               <child>
                                 <object class="AdwViewStackPage">
-                                  <property name="name">code</property>
-                                  <property name="title" translatable="true">Code</property>
-                                  <property name="icon-name">monobean-package-2-symbolic</property>
+                                  <property name="name">repository</property>
+                                  <property name="title" translatable="true">repository</property>
+                                  <property name="icon-name">monobean-repo-symbolic</property>
                                   <property name="child">
                                     <object class="CodePage" id="code_page"></object>
                                   </property>
@@ -180,13 +178,16 @@
                               <child>
                                 <object class="AdwViewStackPage">
                                   <property name="name">network</property>
-                                  <property name="title" translatable="true">P2P</property>
-                                  <property name="icon-name">monobean-crop-symbolic</property>
+                                  <property name="title" translatable="true">network</property>
+                                  <property name="icon-name">monobean-network-symbolic</property>
                                   <property name="child">
-                                    <object class="NotImplemented" id="not_implemented"></object>
+<!--                                    <object class="NotImplemented" id="not_implemented"></object>-->
+                                    <object class="MegaTab" id="mega_tab"></object>
                                   </property>
                                 </object>
                               </child>
+
+
                             </object>
                         </child>
 
@@ -206,22 +207,29 @@
 
                             <!-- 左侧状态 -->
                             <child>
-                              <object class="GtkBox">
-                                <property name="orientation">horizontal</property>
-                                <property name="spacing">4</property>
-
+                              <object class="GtkButton" id="mega_status_button">
+                                <property name="can-focus">false</property>
+                                <style>
+                                  <class name="flat"/>
+                                </style>
                                 <child>
-                                  <object class="GtkImage">
-                                    <property name="icon-name">dialog-ok-symbolic</property>
+                                  <object class="GtkBox">
+                                    <property name="orientation">horizontal</property>
+                                    <property name="spacing">4</property>
+
+                                    <child>
+                                      <object class="GtkImage">
+                                        <property name="icon-name">dialog-ok-symbolic</property>
+                                      </object>
+                                    </child>
+
+                                    <child>
+                                      <object class="GtkLabel" id="status_label">
+                                        <property name="label">Mega Started</property>
+                                      </object>
+                                    </child>
                                   </object>
                                 </child>
-
-                                <child>
-                                  <object class="GtkLabel" id="status_label">
-                                    <property name="label">Mega Started</property>
-                                  </object>
-                                </child>
-
                               </object>
                             </child>
 

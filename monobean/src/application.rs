@@ -23,6 +23,7 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
@@ -43,11 +44,11 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn { hash: String, name: String },
+    OpenEditorOn { hash: String, name: String ,path: PathBuf },
 }
 
 mod imp {
-
+    use adw::gdk;
     use super::*;
 
     use crate::core::delegate::MegaDelegate;
@@ -114,6 +115,9 @@ mod imp {
                 return;
             }
 
+            let theme = gtk::IconTheme::for_display(&gdk::Display::default().unwrap());
+            theme.add_resource_path("/org/Web3Infrastructure/Monobean/icons/symbolic/apps");
+            
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
 
@@ -442,11 +446,11 @@ impl MonobeanApplication {
                 window.show_main_page();
             }
             Action::MountRepo => todo!(),
-            Action::OpenEditorOn { hash, name } => {
+            Action::OpenEditorOn { hash, name, path } => {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
-                    code_page.show_editor_on(hash, name);
+                    code_page.show_editor_on(hash, name, path);
                 });
             }
         }

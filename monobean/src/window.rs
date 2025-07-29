@@ -4,7 +4,7 @@ use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
 use crate::application::{Action, MonobeanApplication};
 use crate::components::theme_selector::ThemeSelector;
-use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
+use crate::components::{mega_tab::MegaTab};
 use crate::config::PREFIX;
 use crate::CONTEXT;
 use adw::glib::Priority;
@@ -31,7 +31,7 @@ mod imp {
     use super::*;
     use crate::components::code_page::CodePage;
     use crate::components::hello_page::HelloPage;
-    use crate::components::not_implemented::NotImplemented;
+    // use crate::components::not_implemented::NotImplemented;
     use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use std::cell::RefCell;
     use std::sync::LazyLock;
@@ -58,15 +58,19 @@ mod imp {
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
-        // #[template_child]
-        // pub mega_tab: TemplateChild<MegaTab>,
+        #[template_child]
+        pub mega_tab: TemplateChild<MegaTab>,
         // #[template_child]
         // pub repo_tab: TemplateChild<RepoTab>,
         #[template_child]
         pub code_page: TemplateChild<CodePage>,
+       
+
+        // #[template_child]
+        // pub not_implemented: TemplateChild<NotImplemented>,
 
         #[template_child]
-        pub not_implemented: TemplateChild<NotImplemented>,
+        pub mega_status_button: TemplateChild<gtk::Button>,
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
@@ -188,6 +192,19 @@ impl MonobeanWindow {
         let searcher = self.imp().search_container.clone();
         searcher.set_visible(true);
         stack.set_visible_child_name("main_page");
+
+        // // 
+        // let content_stack = self.imp().content_stack.get();
+        // content_stack.set_visible_child_name("code");
+
+        // 强制刷新文件树
+        let code_page = self.imp().code_page.get();
+        let file_tree = code_page.imp().file_tree_view.get();
+        CONTEXT.spawn_local_with_priority(adw::glib::Priority::LOW, async move {
+            file_tree.refresh_root().await;
+        });
+    
+    
     }
 
     pub fn show_hello_page(

@@ -8,3 +8,4 @@ pub mod code_page;
 pub mod hello_page;
 pub mod not_implemented;
 pub mod theme_selector;
+mod history_list;
