@@ -21,6 +21,7 @@ async fn test_check_status() {
         verbose: true,
         dry_run: false,
         ignore_errors: false,
+        refresh: false,
     };
     add::execute(add_args).await;
     assert!(check_status().await);
@@ -42,6 +43,7 @@ async fn test_switch_function() {
             conventional: false,
             amend: false,
             signoff: false,
+            disable_pre: true,
         };
         commit::execute(args).await;
     }
@@ -84,6 +86,7 @@ async fn test_switch_function() {
             conventional: false,
             amend: false,
             signoff: false,
+            disable_pre: true,
         };
         commit::execute(args).await;
 
@@ -160,6 +163,7 @@ async fn test_detach_head_basic() {
             conventional: false,
             amend: false,
             signoff: false,
+            disable_pre: true,
         };
         commit::execute(args).await;
     }
@@ -199,6 +203,7 @@ async fn test_detach_head_basic() {
             conventional: false,
             amend: false,
             signoff: false,
+            disable_pre: true,
         };
         commit::execute(args).await;
     }

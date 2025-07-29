@@ -77,6 +77,7 @@ async fn test_checkout_module_functions() {
         conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: true,
     };
     commit::execute(commit_args).await;
 
