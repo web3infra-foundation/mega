@@ -205,6 +205,7 @@ pub const MR_TAG: &str = "merge_request";
 pub const ISSUE_TAG: &str = "issue";
 pub const LABEL_TAG: &str = "label";
 pub const CONV_TAG: &str = "conversation";
+pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
 #[derive(OpenApi)]
 #[openapi(
     tags(

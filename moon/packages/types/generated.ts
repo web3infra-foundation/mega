@@ -10,4851 +10,4997 @@
  */
 
 export type UserNotificationCounts = {
-  inbox: Record<string, number>
-  messages: Record<string, number>
-  activity: Record<string, number>
-  home_inbox: Record<string, number>
-}
+  inbox: Record<string, number>;
+  messages: Record<string, number>;
+  activity: Record<string, number>;
+  home_inbox: Record<string, number>;
+};
 
 export type OrganizationActivityViewsPostRequest = {
-  last_seen_at: string
-}
+  last_seen_at: string;
+};
 
 export type AvatarUrls = {
-  xs: string
-  sm: string
-  base: string
-  lg: string
-  xl: string
-  xxl: string
-}
+  xs: string;
+  sm: string;
+  base: string;
+  lg: string;
+  xl: string;
+  xxl: string;
+};
 
 export type User = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  cover_photo_url: string | null
-  email: string
-  username: string
-  display_name: string
-  system: boolean
-  integration: boolean
-  notifications_paused: boolean
-  notification_pause_expires_at: string | null
-  timezone: string | null
-  logged_in: boolean
-  type_name: string
-}
+  id: string;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  cover_photo_url: string | null;
+  email: string;
+  username: string;
+  display_name: string;
+  system: boolean;
+  integration: boolean;
+  notifications_paused: boolean;
+  notification_pause_expires_at: string | null;
+  timezone: string | null;
+  logged_in: boolean;
+  type_name: string;
+};
 
 export type OrganizationMembershipStatus = {
-  message: string
-  emoji: string
-  expiration_setting: '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom'
-  expires_at: string | null
-  pause_notifications: boolean
-  expires_in: '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom'
-}
+  message: string;
+  emoji: string;
+  expiration_setting: "30m" | "1h" | "4h" | "today" | "this_week" | "custom";
+  expires_at: string | null;
+  pause_notifications: boolean;
+  expires_in: "30m" | "1h" | "4h" | "today" | "this_week" | "custom";
+};
 
 export type OrganizationMember = {
-  id: string
-  role: 'admin' | 'member' | 'viewer' | 'guest'
-  created_at: string
-  deactivated: boolean
-  is_organization_member: boolean
-  user: User
-  status: OrganizationMembershipStatus | null
-}
+  id: string;
+  role: "admin" | "member" | "viewer" | "guest";
+  created_at: string;
+  deactivated: boolean;
+  is_organization_member: boolean;
+  user: User;
+  status: OrganizationMembershipStatus | null;
+};
 
 export type ImageUrls = {
-  original_url: string
-  thumbnail_url: string
-  feed_url: string
-  email_url: string
-  slack_url: string
-  large_url: string
-}
+  original_url: string;
+  thumbnail_url: string;
+  feed_url: string;
+  email_url: string;
+  slack_url: string;
+  large_url: string;
+};
 
 export type Attachment = {
-  id: string
-  file_type: string
-  url: string
-  app_url: string
-  download_url: string
-  preview_url: string | null
-  preview_thumbnail_url: string | null
-  image_urls: ImageUrls | null
-  link: boolean
-  image: boolean
-  video: boolean
-  audio: boolean
-  origami: boolean
-  principle: boolean
-  lottie: boolean
-  stitch: boolean
-  gif: boolean
-  duration: number
-  width: number
-  height: number
-  subject_type: string | null
-  name: string | null
-  size: number | null
-  remote_figma_url: string | null
-  no_video_track: boolean
-  gallery_id: string | null
-  type_name: string
-  subject_id: string | null
-  is_subject_comment: boolean
-  relative_url: string
-  preview_relative_url: string | null
-  comments_count: number
-  key: string | null
-  optimistic_id?: string | null
-  optimistic_file_path?: string | null
-  optimistic_preview_file_path?: string | null
-  optimistic_imgix_video_file_path?: string | null
-  optimistic_src?: string | null
-  optimistic_preview_src?: string | null
-  optimistic_ready: boolean
-  client_error?: string | null
-}
+  id: string;
+  file_type: string;
+  url: string;
+  app_url: string;
+  download_url: string;
+  preview_url: string | null;
+  preview_thumbnail_url: string | null;
+  image_urls: ImageUrls | null;
+  link: boolean;
+  image: boolean;
+  video: boolean;
+  audio: boolean;
+  origami: boolean;
+  principle: boolean;
+  lottie: boolean;
+  stitch: boolean;
+  gif: boolean;
+  duration: number;
+  width: number;
+  height: number;
+  subject_type: string | null;
+  name: string | null;
+  size: number | null;
+  remote_figma_url: string | null;
+  no_video_track: boolean;
+  gallery_id: string | null;
+  type_name: string;
+  subject_id: string | null;
+  is_subject_comment: boolean;
+  relative_url: string;
+  preview_relative_url: string | null;
+  comments_count: number;
+  key: string | null;
+  optimistic_id?: string | null;
+  optimistic_file_path?: string | null;
+  optimistic_preview_file_path?: string | null;
+  optimistic_imgix_video_file_path?: string | null;
+  optimistic_src?: string | null;
+  optimistic_preview_src?: string | null;
+  optimistic_ready: boolean;
+  client_error?: string | null;
+};
 
 export type OrganizationAttachmentsPostRequest = {
-  figma_file_id?: number | null
-  file_path: string
-  file_type: string
-  imgix_video_file_path?: string
-  name?: string | null
-  preview_file_path?: string | null
-  figma_share_url?: string
-  remote_figma_node_id?: string | null
-  remote_figma_node_name?: string | null
-  remote_figma_node_type?: string | null
-  duration?: number
-  size?: number | null
-  height?: number
-  width?: number
-  no_video_track?: boolean
-  gallery_id?: string | null
-}
+  figma_file_id?: number | null;
+  file_path: string;
+  file_type: string;
+  imgix_video_file_path?: string;
+  name?: string | null;
+  preview_file_path?: string | null;
+  figma_share_url?: string;
+  remote_figma_node_id?: string | null;
+  remote_figma_node_name?: string | null;
+  remote_figma_node_type?: string | null;
+  duration?: number;
+  size?: number | null;
+  height?: number;
+  width?: number;
+  no_video_track?: boolean;
+  gallery_id?: string | null;
+};
 
-export type BatchedPostViewsPostResponse = object
+export type BatchedPostViewsPostResponse = object;
 
 export type BatchedPostViewsPostRequest = {
   views: {
-    member_id?: string | null
-    post_id: string
-    log_ts: number
-    read: boolean
-    dwell_time: number
-  }[]
-}
+    member_id?: string | null;
+    post_id: string;
+    log_ts: number;
+    read: boolean;
+    dwell_time: number;
+  }[];
+};
 
 export type CallPeer = {
-  member: OrganizationMember
-  active: boolean
-  remote_peer_id: string
-}
+  member: OrganizationMember;
+  active: boolean;
+  remote_peer_id: string;
+};
 
 export type CallRecordingSpeaker = {
-  name: string
-  call_peer: CallPeer
-}
+  name: string;
+  call_peer: CallPeer;
+};
 
 export type CallRecordingTranscription = {
-  vtt: string | null
-  speakers: CallRecordingSpeaker[]
-}
+  vtt: string | null;
+  speakers: CallRecordingSpeaker[];
+};
 
-export type OrganizationCallRoomInvitationsPostResponse = object
+export type OrganizationCallRoomInvitationsPostResponse = object;
 
 export type OrganizationCallRoomInvitationsPostRequest = {
-  member_ids: string[]
-}
+  member_ids: string[];
+};
 
 export type CallRoom = {
-  id: string
-  channel_name: string
-  url: string
-  title: string | null
-  viewer_token: string | null
-  viewer_can_invite_participants: boolean
-  active_peers: CallPeer[]
-  peers: CallPeer[]
-}
+  id: string;
+  channel_name: string;
+  url: string;
+  title: string | null;
+  viewer_token: string | null;
+  viewer_can_invite_participants: boolean;
+  active_peers: CallPeer[];
+  peers: CallPeer[];
+};
 
 export type OrganizationCallRoomsPostRequest = {
-  source: 'subject' | 'new_call_button' | 'cal_dot_com'
-}
+  source: "subject" | "new_call_button" | "cal_dot_com";
+};
 
-export type OrganizationCallAllRecordingsDeleteResponse = object
+export type OrganizationCallAllRecordingsDeleteResponse = object;
 
 export type SlackChannel = {
-  id: string
-  name: string
-  is_private: boolean
-}
+  id: string;
+  name: string;
+  is_private: boolean;
+};
 
 export type ProjectDisplayPreference = {
-  display_reactions: boolean
-  display_attachments: boolean
-  display_comments: boolean
-  display_resolved: boolean
-}
+  display_reactions: boolean;
+  display_attachments: boolean;
+  display_comments: boolean;
+  display_resolved: boolean;
+};
 
 export type Project = {
-  id: string
-  name: string
-  description: string | null
-  created_at: string
-  archived_at: string | null
-  archived: boolean
-  last_activity_at: string
-  slack_channel_id: string | null
-  posts_count: number
-  cover_photo_url: string | null
-  url: string
-  accessory: string | null
-  private: boolean
-  personal: boolean
-  is_general: boolean
-  is_default: boolean
-  contributors_count: number
-  members_and_guests_count: number
-  members_count: number
-  guests_count: number
-  call_room_url: string | null
-  message_thread_id: string | null
-  organization_id: string
-  viewer_has_favorited: boolean
-  viewer_can_archive: boolean
-  viewer_can_destroy: boolean
-  viewer_can_unarchive: boolean
-  viewer_can_update: boolean
-  viewer_has_subscribed: boolean
-  viewer_subscription: 'posts_and_comments' | 'new_posts' | 'none'
-  viewer_is_member: boolean
-  unread_for_viewer: boolean
-  slack_channel: SlackChannel | null
-  type_name: string
-  viewer_display_preferences: ProjectDisplayPreference | null
-  display_preferences: ProjectDisplayPreference
-}
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  archived_at: string | null;
+  archived: boolean;
+  last_activity_at: string;
+  slack_channel_id: string | null;
+  posts_count: number;
+  cover_photo_url: string | null;
+  url: string;
+  accessory: string | null;
+  private: boolean;
+  personal: boolean;
+  is_general: boolean;
+  is_default: boolean;
+  contributors_count: number;
+  members_and_guests_count: number;
+  members_count: number;
+  guests_count: number;
+  call_room_url: string | null;
+  message_thread_id: string | null;
+  organization_id: string;
+  viewer_has_favorited: boolean;
+  viewer_can_archive: boolean;
+  viewer_can_destroy: boolean;
+  viewer_can_unarchive: boolean;
+  viewer_can_update: boolean;
+  viewer_has_subscribed: boolean;
+  viewer_subscription: "posts_and_comments" | "new_posts" | "none";
+  viewer_is_member: boolean;
+  unread_for_viewer: boolean;
+  slack_channel: SlackChannel | null;
+  type_name: string;
+  viewer_display_preferences: ProjectDisplayPreference | null;
+  display_preferences: ProjectDisplayPreference;
+};
 
 export type CallRecording = {
-  id: string
-  url: string | null
-  file_path: string | null
-  name: string | null
-  file_type: string | null
-  imgix_video_thumbnail_preview_url: string | null
-  size: number | null
-  duration: number | null
-  max_width: number | null
-  max_height: number | null
-  transcription_status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
-}
+  id: string;
+  url: string | null;
+  file_path: string | null;
+  name: string | null;
+  file_type: string | null;
+  imgix_video_thumbnail_preview_url: string | null;
+  size: number | null;
+  duration: number | null;
+  max_width: number | null;
+  max_height: number | null;
+  transcription_status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+};
 
 export type MessageCall = {
-  id: string
-  created_at: string
-  started_at: string
-  stopped_at: string | null
-  duration: string | null
-  active: boolean
-  title: string
-  summary_html: string | null
-  recordings: CallRecording[]
-  peers: CallPeer[]
-}
+  id: string;
+  created_at: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration: string | null;
+  active: boolean;
+  title: string;
+  summary_html: string | null;
+  recordings: CallRecording[];
+  peers: CallPeer[];
+};
 
 export type MessageThread = {
-  id: string
-  last_message_at: string | null
-  latest_message_truncated: string | null
-  image_url: string | null
-  avatar_urls: AvatarUrls | null
-  group: boolean
-  channel_name: string
-  organization_slug: string
-  path: string
-  call_room_url: string | null
-  remote_call_room_id: string | null
-  integration_dm: boolean
-  active_call: MessageCall | null
-  deactivated_members: OrganizationMember[]
-  type_name: string
-  title: string
-  project_id: string | null
-  unread_count: number
-  manually_marked_unread: boolean
-  viewer_has_favorited: boolean
-  other_members: OrganizationMember[]
-  viewer_is_thread_member: boolean
-  viewer_can_manage_integrations: boolean
-  viewer_can_delete: boolean
-  viewer_can_force_notification: boolean
-}
+  id: string;
+  last_message_at: string | null;
+  latest_message_truncated: string | null;
+  image_url: string | null;
+  avatar_urls: AvatarUrls | null;
+  group: boolean;
+  channel_name: string;
+  organization_slug: string;
+  path: string;
+  call_room_url: string | null;
+  remote_call_room_id: string | null;
+  integration_dm: boolean;
+  active_call: MessageCall | null;
+  deactivated_members: OrganizationMember[];
+  type_name: string;
+  title: string;
+  project_id: string | null;
+  unread_count: number;
+  manually_marked_unread: boolean;
+  viewer_has_favorited: boolean;
+  other_members: OrganizationMember[];
+  viewer_is_thread_member: boolean;
+  viewer_can_manage_integrations: boolean;
+  viewer_can_delete: boolean;
+  viewer_can_force_notification: boolean;
+};
 
 export type Favorite = {
-  id: string
-  position: number
-  favoritable_type: 'Project' | 'MessageThread' | 'Note' | 'Post' | 'Call'
-  favoritable_id: string
-  accessory: string | null
-  name: string
-  url: string
-  private: boolean
-  project: Project | null
-  message_thread: MessageThread | null
-}
+  id: string;
+  position: number;
+  favoritable_type: "Project" | "MessageThread" | "Note" | "Post" | "Call";
+  favoritable_id: string;
+  accessory: string | null;
+  name: string;
+  url: string;
+  private: boolean;
+  project: Project | null;
+  message_thread: MessageThread | null;
+};
 
-export type OrganizationCallFavoriteDeleteResponse = object
+export type OrganizationCallFavoriteDeleteResponse = object;
 
 export type FollowUpSubject = {
-  id: string
-  type: string
-  body_preview: string
-  member: OrganizationMember | null
-  title: string | null
-}
+  id: string;
+  type: string;
+  body_preview: string;
+  member: OrganizationMember | null;
+  title: string | null;
+};
 
 export type MiniProject = {
-  id: string
-  name: string
-  accessory: string | null
-  private: boolean
-  archived: boolean
-  message_thread_id: string | null
-}
+  id: string;
+  name: string;
+  accessory: string | null;
+  private: boolean;
+  archived: boolean;
+  message_thread_id: string | null;
+};
 
 export type NotificationTarget = {
-  id: string
-  type: string
-  title: string
-  project: MiniProject | null
-  resolved: boolean
-}
+  id: string;
+  type: string;
+  title: string;
+  project: MiniProject | null;
+  resolved: boolean;
+};
 
 export type SummaryBlock = {
   text?: {
-    content: string
-    bold?: boolean
-    nowrap?: boolean
-  }
+    content: string;
+    bold?: boolean;
+    nowrap?: boolean;
+  };
   img?: {
-    src: string
-    alt: string
-  }
-}
+    src: string;
+    alt: string;
+  };
+};
 
 export type FollowUp = {
-  id: string
-  show_at: string
-  inbox_key: string
-  organization_slug: string
-  member: OrganizationMember
-  subject: FollowUpSubject
-  target: NotificationTarget
-  summary_blocks: SummaryBlock[]
-  belongs_to_viewer: boolean
-  type_name: string
-}
+  id: string;
+  show_at: string;
+  inbox_key: string;
+  organization_slug: string;
+  member: OrganizationMember;
+  subject: FollowUpSubject;
+  target: NotificationTarget;
+  summary_blocks: SummaryBlock[];
+  belongs_to_viewer: boolean;
+  type_name: string;
+};
 
 export type OrganizationCallFollowUpPostRequest = {
-  show_at: string
-}
+  show_at: string;
+};
 
 export type PublicOrganization = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  name: string
-  slug: string
-  viewer_is_admin: boolean
-  viewer_can_leave: boolean
-}
+  id: string;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  name: string;
+  slug: string;
+  viewer_is_admin: boolean;
+  viewer_can_leave: boolean;
+};
 
 export type PostLink = {
-  id: string
-  name: string
-  url: string
-}
+  id: string;
+  name: string;
+  url: string;
+};
 
 export type Tag = {
-  id: string
-  name: string
-  posts_count: number
-  url: string
-  viewer_can_destroy: boolean
-}
+  id: string;
+  name: string;
+  posts_count: number;
+  url: string;
+  viewer_can_destroy: boolean;
+};
 
 export type PollOption = {
-  id: string
-  description: string
-  votes_count: number
-  votes_percent: number
-  viewer_voted: boolean
-}
+  id: string;
+  description: string;
+  votes_count: number;
+  votes_percent: number;
+  viewer_voted: boolean;
+};
 
 export type Poll = {
-  id: string
-  description: string
-  votes_count: number
-  options: PollOption[]
-  viewer_voted: boolean
-}
+  id: string;
+  description: string;
+  votes_count: number;
+  options: PollOption[];
+  viewer_voted: boolean;
+};
 
 export type FeedbackRequest = {
-  id: string
-  has_replied: boolean
-  member: OrganizationMember
-}
+  id: string;
+  has_replied: boolean;
+  member: OrganizationMember;
+};
 
 export type SubjectFollowUp = {
-  id: string
-  member: OrganizationMember
-  show_at: string
-  belongs_to_viewer: boolean
-}
+  id: string;
+  member: OrganizationMember;
+  show_at: string;
+  belongs_to_viewer: boolean;
+};
 
 export type ResolvedComment = {
-  id: string
-  created_at: string
-  body_html: string
-  url: string
-  viewer_is_author: boolean
-  member: OrganizationMember
-}
+  id: string;
+  created_at: string;
+  body_html: string;
+  url: string;
+  viewer_is_author: boolean;
+  member: OrganizationMember;
+};
 
 export type SyncCustomReaction = {
-  id: string
-  name: string
-  file_url: string
-  created_at: string
-}
+  id: string;
+  name: string;
+  file_url: string;
+  created_at: string;
+};
 
 export type GroupedReaction = {
-  viewer_reaction_id: string | null
-  emoji: string | null
-  tooltip: string
-  reactions_count: number
-  custom_content: SyncCustomReaction | null
-}
+  viewer_reaction_id: string | null;
+  emoji: string | null;
+  tooltip: string;
+  reactions_count: number;
+  custom_content: SyncCustomReaction | null;
+};
 
 export type Commenters = {
-  latest_commenters: OrganizationMember[]
-}
+  latest_commenters: OrganizationMember[];
+};
 
 export type PostResolution = {
-  resolved_at: string
-  resolved_by: OrganizationMember
-  resolved_html: string | null
-  resolved_comment: ResolvedComment | null
-}
+  resolved_at: string;
+  resolved_by: OrganizationMember;
+  resolved_html: string | null;
+  resolved_comment: ResolvedComment | null;
+};
 
 export type ResourceMentionPost = {
-  id: string
-  title: string
-  created_at: string
-  published_at: string | null
-  url: string
-}
+  id: string;
+  title: string;
+  created_at: string;
+  published_at: string | null;
+  url: string;
+};
 
 export type ResourceMentionCall = {
-  id: string
-  title: string
-  created_at: string
-  url: string
-}
+  id: string;
+  title: string;
+  created_at: string;
+  url: string;
+};
 
 export type ResourceMentionNote = {
-  id: string
-  title: string
-  created_at: string
-  url: string
-}
+  id: string;
+  title: string;
+  created_at: string;
+  url: string;
+};
 
 export type ResourceMention = {
-  id: string
-  post: ResourceMentionPost | null
-  call: ResourceMentionCall | null
-  note: ResourceMentionNote | null
-  type_name: string
-}
+  id: string;
+  post: ResourceMentionPost | null;
+  call: ResourceMentionCall | null;
+  note: ResourceMentionNote | null;
+  type_name: string;
+};
 
 export type Post = {
-  id: string
-  title: string
-  is_title_from_description: boolean
-  created_at: string
-  published_at: string | null
-  published: boolean
-  last_activity_at: string
-  comments_count: number
-  resolved_comments_count: number
-  version: number
-  path: string
-  channel_name: string
-  views_count: number
-  non_member_views_count: number
-  status: 'none' | 'feedback_requested'
-  visibility: 'default' | 'public'
-  open_graph_image_url: string | null
-  thumbnail_url: string | null
-  unfurled_link: string | null
-  description_html: string
-  truncated_description_html: string
-  is_text_content_truncated: boolean
-  truncated_description_text: string
-  url: string
-  type_name: string
-  organization: PublicOrganization
-  attachments: Attachment[]
-  links: PostLink[]
-  tags: Tag[]
-  poll: Poll | null
-  feedback_requests: FeedbackRequest[] | null
-  follow_ups: SubjectFollowUp[]
-  member: OrganizationMember
-  resolved_comment: ResolvedComment | null
-  grouped_reactions: GroupedReaction[]
-  project: MiniProject
-  has_parent: boolean
-  has_iterations: boolean
-  viewer_is_organization_member: boolean
-  viewer_is_author: boolean
-  viewer_has_commented: boolean
-  preview_commenters: Commenters
-  viewer_feedback_status: 'none' | 'viewer_requested' | 'open'
-  viewer_has_subscribed: boolean
-  viewer_has_viewed: boolean
-  viewer_has_favorited: boolean
-  unseen_comments_count: number
-  viewer_can_resolve: boolean
-  viewer_can_favorite: boolean
-  viewer_can_edit: boolean
-  viewer_can_delete: boolean
-  viewer_can_create_issue: boolean
-  resolution: PostResolution | null
-  latest_comment_preview: string | null
-  latest_comment_path: string | null
-  viewer_is_latest_comment_author: boolean
-  project_pin_id: string | null
-  resource_mentions: ResourceMention[]
-}
+  id: string;
+  title: string;
+  is_title_from_description: boolean;
+  created_at: string;
+  published_at: string | null;
+  published: boolean;
+  last_activity_at: string;
+  comments_count: number;
+  resolved_comments_count: number;
+  version: number;
+  path: string;
+  channel_name: string;
+  views_count: number;
+  non_member_views_count: number;
+  status: "none" | "feedback_requested";
+  visibility: "default" | "public";
+  open_graph_image_url: string | null;
+  thumbnail_url: string | null;
+  unfurled_link: string | null;
+  description_html: string;
+  truncated_description_html: string;
+  is_text_content_truncated: boolean;
+  truncated_description_text: string;
+  url: string;
+  type_name: string;
+  organization: PublicOrganization;
+  attachments: Attachment[];
+  links: PostLink[];
+  tags: Tag[];
+  poll: Poll | null;
+  feedback_requests: FeedbackRequest[] | null;
+  follow_ups: SubjectFollowUp[];
+  member: OrganizationMember;
+  resolved_comment: ResolvedComment | null;
+  grouped_reactions: GroupedReaction[];
+  project: MiniProject;
+  has_parent: boolean;
+  has_iterations: boolean;
+  viewer_is_organization_member: boolean;
+  viewer_is_author: boolean;
+  viewer_has_commented: boolean;
+  preview_commenters: Commenters;
+  viewer_feedback_status: "none" | "viewer_requested" | "open";
+  viewer_has_subscribed: boolean;
+  viewer_has_viewed: boolean;
+  viewer_has_favorited: boolean;
+  unseen_comments_count: number;
+  viewer_can_resolve: boolean;
+  viewer_can_favorite: boolean;
+  viewer_can_edit: boolean;
+  viewer_can_delete: boolean;
+  viewer_can_create_issue: boolean;
+  resolution: PostResolution | null;
+  latest_comment_preview: string | null;
+  latest_comment_path: string | null;
+  viewer_is_latest_comment_author: boolean;
+  project_pin_id: string | null;
+  resource_mentions: ResourceMention[];
+};
 
 export type Permission = {
-  id: string
-  user: User
-  action: 'view' | 'edit'
-}
+  id: string;
+  user: User;
+  action: "view" | "edit";
+};
 
 export type Note = {
-  id: string
-  title: string
-  created_at: string
-  last_activity_at: string
-  content_updated_at: string
-  comments_count: number
-  resolved_comments_count: number
-  channel_name: string
-  presence_channel_name: string
-  description_thumbnail_base_url: string | null
-  public_visibility: boolean
-  non_member_views_count: number
-  description_html: string
-  description_state: string | null
-  project: Project | null
-  follow_ups: FollowUp[]
-  type_name: string
-  url: string
-  public_share_url: string
-  project_permission: 'none' | 'view' | 'edit'
-  member: OrganizationMember
-  viewer_is_author: boolean
-  viewer_can_comment: boolean
-  viewer_can_edit: boolean
-  viewer_can_delete: boolean
-  viewer_has_favorited: boolean
-  latest_commenters: OrganizationMember[]
-  permitted_users: Permission[]
-  project_pin_id: string | null
-  resource_mentions: ResourceMention[]
-}
+  id: string;
+  title: string;
+  created_at: string;
+  last_activity_at: string;
+  content_updated_at: string;
+  comments_count: number;
+  resolved_comments_count: number;
+  channel_name: string;
+  presence_channel_name: string;
+  description_thumbnail_base_url: string | null;
+  public_visibility: boolean;
+  non_member_views_count: number;
+  description_html: string;
+  description_state: string | null;
+  project: Project | null;
+  follow_ups: FollowUp[];
+  type_name: string;
+  url: string;
+  public_share_url: string;
+  project_permission: "none" | "view" | "edit";
+  member: OrganizationMember;
+  viewer_is_author: boolean;
+  viewer_can_comment: boolean;
+  viewer_can_edit: boolean;
+  viewer_can_delete: boolean;
+  viewer_has_favorited: boolean;
+  latest_commenters: OrganizationMember[];
+  permitted_users: Permission[];
+  project_pin_id: string | null;
+  resource_mentions: ResourceMention[];
+};
 
 export type Call = {
-  id: string
-  title: string | null
-  summary_html: string | null
-  is_edited: boolean
-  created_at: string
-  started_at: string
-  stopped_at: string | null
-  duration: string | null
-  recordings_duration: string | null
-  active: boolean
-  project_permission: 'none' | 'view' | 'edit'
-  channel_name: string
-  peers: CallPeer[]
-  project: MiniProject | null
-  follow_ups: SubjectFollowUp[]
-  type_name: string
-  viewer_can_edit: boolean
-  viewer_can_destroy_all_recordings: boolean
-  viewer_has_favorited: boolean
-  processing_generated_title: boolean
-  processing_generated_summary: boolean
-  project_pin_id: string | null
-  url: string
-}
+  id: string;
+  title: string | null;
+  summary_html: string | null;
+  is_edited: boolean;
+  created_at: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration: string | null;
+  recordings_duration: string | null;
+  active: boolean;
+  project_permission: "none" | "view" | "edit";
+  channel_name: string;
+  peers: CallPeer[];
+  project: MiniProject | null;
+  follow_ups: SubjectFollowUp[];
+  type_name: string;
+  viewer_can_edit: boolean;
+  viewer_can_destroy_all_recordings: boolean;
+  viewer_has_favorited: boolean;
+  processing_generated_title: boolean;
+  processing_generated_summary: boolean;
+  project_pin_id: string | null;
+  url: string;
+};
 
 export type ProjectPin = {
-  id: string
-  post: Post | null
-  note: Note | null
-  call: Call | null
-}
+  id: string;
+  post: Post | null;
+  note: Note | null;
+  call: Call | null;
+};
 
 export type ProjectPinCreated = {
-  pin: ProjectPin
-}
+  pin: ProjectPin;
+};
 
 export type OrganizationsOrgSlugCallsCallIdProjectPermissionPutRequest = {
-  project_id: string
-  permission: 'view' | 'edit'
-}
+  project_id: string;
+  permission: "view" | "edit";
+};
 
-export type OrganizationsOrgSlugCallsCallIdProjectPermissionDeleteResponse = object
+export type OrganizationsOrgSlugCallsCallIdProjectPermissionDeleteResponse =
+  object;
 
 export type CallRecordingPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: CallRecording[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: CallRecording[];
+};
 
 export type OrganizationCallRecordingsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type CallPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Call[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Call[];
+};
 
 export type OrganizationCallsGetRequest = {
-  filter?: 'joined'
-  after?: string
-  limit?: number
-  q?: string
-}
+  filter?: "joined";
+  after?: string;
+  limit?: number;
+  q?: string;
+};
 
 export type OrganizationsOrgSlugCallsIdPutRequest = {
-  title: string
-  summary: string
-}
+  title: string;
+  summary: string;
+};
 
-export type OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutResponse = object
+export type OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutResponse =
+  object;
 
-export type OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutRequest = {
-  attachments: {
-    id: string
-    position: number
-  }[]
-}
+export type OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutRequest =
+  {
+    attachments: {
+      id: string;
+      position: number;
+    }[];
+  };
 
 export type OrganizationCommentFollowUpPostRequest = {
-  show_at: string
-}
+  show_at: string;
+};
 
 export type LinearIssueState = {
-  name: string
-  type: 'triage' | 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
-  color: string
-}
+  name: string;
+  type:
+    | "triage"
+    | "backlog"
+    | "unstarted"
+    | "started"
+    | "completed"
+    | "canceled";
+  color: string;
+};
 
 export type ExternalRecord = {
-  created_at: string
-  remote_record_id: string
-  remote_record_title: string
-  remote_record_url: string
-  service: string
-  type: string
-  linear_issue_identifier: string
-  linear_issue_state: LinearIssueState
-  linear_identifier: string
-  linear_state: LinearIssueState
-}
+  created_at: string;
+  remote_record_id: string;
+  remote_record_title: string;
+  remote_record_url: string;
+  service: string;
+  type: string;
+  linear_issue_identifier: string;
+  linear_issue_state: LinearIssueState;
+  linear_identifier: string;
+  linear_state: LinearIssueState;
+};
 
 export type CreateLinearIssue = {
-  status: 'pending' | 'failed' | 'success'
-  external_record: ExternalRecord | null
-}
+  status: "pending" | "failed" | "success";
+  external_record: ExternalRecord | null;
+};
 
 export type OrganizationCommentLinearIssuesPostRequest = {
-  team_id: string
-  title: string
-  description: string
-}
+  team_id: string;
+  title: string;
+  description: string;
+};
 
 export type Reaction = {
-  id: string
-  content: string | null
-  member: OrganizationMember
-  custom_content: SyncCustomReaction | null
-}
+  id: string;
+  content: string | null;
+  member: OrganizationMember;
+  custom_content: SyncCustomReaction | null;
+};
 
 export type OrganizationCommentReactionsPostRequest = {
-  content?: string
-  custom_content_id?: string
-}
+  content?: string;
+  custom_content_id?: string;
+};
 
 export type TimelineEvent = {
-  id: string
-  created_at: string
+  id: string;
+  created_at: string;
   action:
-    | 'post_resolved'
-    | 'post_unresolved'
-    | 'post_visibility_updated'
-    | 'post_referenced_in_external_record'
-    | 'created_linear_issue_from_post'
-    | 'comment_referenced_in_external_record'
-    | 'created_linear_issue_from_comment'
-    | 'subject_project_updated'
-    | 'subject_referenced_in_internal_record'
-    | 'subject_pinned'
-    | 'subject_unpinned'
-    | 'subject_title_updated'
-  subject_updated_from_title: string | null
-  subject_updated_to_title: string | null
-  subject_updated_from_project: MiniProject | null
-  subject_updated_to_project: MiniProject | null
-  comment_reference_subject_type: string | null
-  comment_reference_subject_title: string | null
-  member_actor: OrganizationMember | null
-  external_reference: ExternalRecord | null
-  post_reference: Post | null
-  comment_reference: Comment | null
-  note_reference: Note | null
-}
+    | "post_resolved"
+    | "post_unresolved"
+    | "post_visibility_updated"
+    | "post_referenced_in_external_record"
+    | "created_linear_issue_from_post"
+    | "comment_referenced_in_external_record"
+    | "created_linear_issue_from_comment"
+    | "subject_project_updated"
+    | "subject_referenced_in_internal_record"
+    | "subject_pinned"
+    | "subject_unpinned"
+    | "subject_title_updated";
+  subject_updated_from_title: string | null;
+  subject_updated_to_title: string | null;
+  subject_updated_from_project: MiniProject | null;
+  subject_updated_to_project: MiniProject | null;
+  comment_reference_subject_type: string | null;
+  comment_reference_subject_title: string | null;
+  member_actor: OrganizationMember | null;
+  external_reference: ExternalRecord | null;
+  post_reference: Post | null;
+  comment_reference: Comment | null;
+  note_reference: Note | null;
+};
 
 export type Comment = {
-  id: string
-  created_at: string
-  timestamp: number | null
-  x: number | null
-  y: number | null
-  body_html: string
-  note_highlight: string | null
-  resolved_at: string | null
-  resolved_by: OrganizationMember | null
-  type_name: string
-  subject_type: string
-  subject_id: string
-  url: string
-  viewer_can_resolve: boolean
-  viewer_can_create_issue: boolean
-  attachment_id: string | null
-  canvas_preview_url: string | null
-  attachment_thumbnail_url: string | null
-  viewer_is_author: boolean
-  viewer_can_edit: boolean
-  viewer_can_follow_up: boolean
-  viewer_can_react: boolean
-  viewer_can_delete: boolean
-  member: OrganizationMember
-  attachments: Attachment[]
-  grouped_reactions: GroupedReaction[]
-  replies: Comment[]
-  follow_ups: SubjectFollowUp[]
-  parent_id: string | null
-  is_optimistic: boolean
-  optimistic_id: string | null
-  timeline_events: TimelineEvent[]
-  resource_mentions: ResourceMention[]
-}
+  id: string;
+  created_at: string;
+  timestamp: number | null;
+  x: number | null;
+  y: number | null;
+  body_html: string;
+  note_highlight: string | null;
+  resolved_at: string | null;
+  resolved_by: OrganizationMember | null;
+  type_name: string;
+  subject_type: string;
+  subject_id: string;
+  url: string;
+  viewer_can_resolve: boolean;
+  viewer_can_create_issue: boolean;
+  attachment_id: string | null;
+  canvas_preview_url: string | null;
+  attachment_thumbnail_url: string | null;
+  viewer_is_author: boolean;
+  viewer_can_edit: boolean;
+  viewer_can_follow_up: boolean;
+  viewer_can_react: boolean;
+  viewer_can_delete: boolean;
+  member: OrganizationMember;
+  attachments: Attachment[];
+  grouped_reactions: GroupedReaction[];
+  replies: Comment[];
+  follow_ups: SubjectFollowUp[];
+  parent_id: string | null;
+  is_optimistic: boolean;
+  optimistic_id: string | null;
+  timeline_events: TimelineEvent[];
+  resource_mentions: ResourceMention[];
+};
 
 export type ReplyCreated = {
-  reply: Comment
-  attachment: Attachment | null
-  attachment_commenters: OrganizationMember[] | null
-}
+  reply: Comment;
+  attachment: Attachment | null;
+  attachment_commenters: OrganizationMember[] | null;
+};
 
 export type OrganizationCommentRepliesPostRequest = {
-  body_html: string | null
+  body_html: string | null;
   attachments?: {
-    file_path: string
-    file_type: string
-    preview_file_path?: string | null
-    name?: string | null
-    size?: number | null
-  }[]
-}
+    file_path: string;
+    file_type: string;
+    preview_file_path?: string | null;
+    name?: string | null;
+    size?: number | null;
+  }[];
+};
 
 export type OrganizationsOrgSlugCommentsCommentIdTasksPutRequest = {
-  index: number
-  checked: boolean
-}
+  index: number;
+  checked: boolean;
+};
 
 export type OrganizationsOrgSlugCommentsIdPutRequest = {
-  body_html: string | null
-}
+  body_html: string | null;
+};
 
 export type CustomReactionsPackItem = {
-  name: string
-  file_url: string
-}
+  name: string;
+  file_url: string;
+};
 
 export type CustomReactionsPack = {
-  name: 'blobs' | 'memes' | 'meows' | 'parrots' | 'llamas'
-  installed: boolean
-  items: CustomReactionsPackItem[]
-}
+  name: "blobs" | "memes" | "meows" | "parrots" | "llamas";
+  installed: boolean;
+  items: CustomReactionsPackItem[];
+};
 
-export type OrganizationsOrgSlugCustomReactionsPacksPostResponse = object
+export type OrganizationsOrgSlugCustomReactionsPacksPostResponse = object;
 
 export type OrganizationsOrgSlugCustomReactionsPacksPostRequest = {
-  name: 'blobs' | 'memes' | 'meows' | 'parrots' | 'llamas'
-}
+  name: "blobs" | "memes" | "meows" | "parrots" | "llamas";
+};
 
-export type OrganizationCustomReactionsPackDeleteResponse = object
+export type OrganizationCustomReactionsPackDeleteResponse = object;
 
 export type CustomReaction = {
-  id: string
-  name: string
-  file_url: string
-  created_at: string
-  creator: OrganizationMember
-}
+  id: string;
+  name: string;
+  file_url: string;
+  created_at: string;
+  creator: OrganizationMember;
+};
 
 export type CustomReactionPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: CustomReaction[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: CustomReaction[];
+  total_count: number;
+};
 
 export type OrganizationCustomReactionsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationsOrgSlugCustomReactionsPostRequest = {
-  name: string
-  file_path: string
-  file_type: string
-}
+  name: string;
+  file_path: string;
+  file_type: string;
+};
 
-export type OrganizationCustomReactionDeleteResponse = object
+export type OrganizationCustomReactionDeleteResponse = object;
 
-export type OrganizationDataExportsPostResponse = object
+export type OrganizationDataExportsPostResponse = object;
 
 export type PostDigestNoteMigration = {
-  note_url: string | null
-}
+  note_url: string | null;
+};
 
-export type ReorderOrganizationFavoritesPutResponse = object
+export type ReorderOrganizationFavoritesPutResponse = object;
 
 export type ReorderOrganizationFavoritesPutRequest = {
   favorites: {
-    id: string
-    position: number
-  }[]
-}
+    id: string;
+    position: number;
+  }[];
+};
 
-export type OrganizationFavoriteDeleteResponse = object
+export type OrganizationFavoriteDeleteResponse = object;
 
-export type OrganizationFeedbacksPostResponse = object
+export type OrganizationFeedbacksPostResponse = object;
 
 export type OrganizationFeedbacksPostRequest = {
-  description: string
-  feedback_type: 'bug' | 'feature' | 'general'
-  screenshot_path?: string
-  current_url: string
-}
+  description: string;
+  feedback_type: "bug" | "feature" | "general";
+  screenshot_path?: string;
+  current_url: string;
+};
 
 export type PresignedPostFields = {
-  acl: string | null
-  content_type: string
-  expires: string
-  key: string
-  policy: string
-  success_action_status: string
-  url: string
-  x_amz_algorithm: string
-  x_amz_credential: string
-  x_amz_date: string
-  x_amz_signature: string
-}
+  acl: string | null;
+  content_type: string;
+  expires: string;
+  key: string;
+  policy: string;
+  success_action_status: string;
+  url: string;
+  x_amz_algorithm: string;
+  x_amz_credential: string;
+  x_amz_date: string;
+  x_amz_signature: string;
+};
 
 export type OrganizationFeedbacksPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
 export type FigmaFile = {
-  id: number
-  file_key: string
-  name: string
-}
+  id: number;
+  file_key: string;
+  name: string;
+};
 
 export type OrganizationFigmaFilesPostRequest = {
-  remote_file_key: string
-  name: string
-}
+  remote_file_key: string;
+  name: string;
+};
 
 export type FigmaFileAttachmentDetails = {
-  file_path: string
-  width: number
-  height: number
-  size: number
-  file_type: string
-  figma_file_id: number
-  remote_figma_node_id: string
-  remote_figma_node_type: string
-  remote_figma_node_name: string
-  figma_share_url: string
-  image_urls: ImageUrls
-}
+  file_path: string;
+  width: number;
+  height: number;
+  size: number;
+  file_type: string;
+  figma_file_id: number;
+  remote_figma_node_id: string;
+  remote_figma_node_type: string;
+  remote_figma_node_name: string;
+  figma_share_url: string;
+  image_urls: ImageUrls;
+};
 
 export type OrganizationFigmaFileAttachmentDetailsPostRequest = {
-  figma_file_url: string
-}
+  figma_file_url: string;
+};
 
 export type FollowUpPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: FollowUp[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: FollowUp[];
+};
 
 export type OrganizationFollowUpsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationsOrgSlugFollowUpsIdPutRequest = {
-  show_at: string
-}
+  show_at: string;
+};
 
-export type OrganizationsOrgSlugFollowUpsIdDeleteResponse = object
+export type OrganizationsOrgSlugFollowUpsIdDeleteResponse = object;
 
 export type Gif = {
-  id: string
-  description: string
-  url: string
-  width: number
-  height: number
-}
+  id: string;
+  description: string;
+  url: string;
+  width: number;
+  height: number;
+};
 
 export type GifsPage = {
-  data: Gif[]
-  next_cursor: string
-}
+  data: Gif[];
+  next_cursor: string;
+};
 
 export type OrganizationGifsGetRequest = {
-  q?: string
-  limit?: number
-  after?: string
-}
+  q?: string;
+  limit?: number;
+  after?: string;
+};
 
 export type ImageUrlsPostRequest = {
-  file_path: string
-}
+  file_path: string;
+};
 
 export type CalDotComIntegration = {
-  installed: boolean
-  organization: PublicOrganization
-}
+  installed: boolean;
+  organization: PublicOrganization;
+};
 
-export type IntegrationsCalDotComOrganizationPutResponse = object
+export type IntegrationsCalDotComOrganizationPutResponse = object;
 
 export type IntegrationsCalDotComOrganizationPutRequest = {
-  organization_id: string
-}
+  organization_id: string;
+};
 
 export type FigmaIntegrationGetResponse = {
-  has_figma_integration: boolean
-}
+  has_figma_integration: boolean;
+};
 
 export type LinearIntegration = {
-  id: string
-  provider: string
-}
+  id: string;
+  provider: string;
+};
 
-export type OrganizationsOrgSlugIntegrationsLinearInstallationDeleteResponse = object
+export type OrganizationsOrgSlugIntegrationsLinearInstallationDeleteResponse =
+  object;
 
-export type OrganizationIntegrationsLinearTeamSyncsPostResponse = object
+export type OrganizationIntegrationsLinearTeamSyncsPostResponse = object;
 
 export type IntegrationTeam = {
-  id: string
-  name: string
-  private: string
-  provider_team_id: string
-  key: string
-}
+  id: string;
+  name: string;
+  private: string;
+  provider_team_id: string;
+  key: string;
+};
 
-export type OrganizationIntegrationsSlackChannelSyncsPostResponse = object
+export type OrganizationIntegrationsSlackChannelSyncsPostResponse = object;
 
 export type SlackChannelPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: SlackChannel[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: SlackChannel[];
+};
 
 export type OrganizationIntegrationsSlackChannelsGetRequest = {
-  after?: string
-  q?: string
-  limit?: number
-}
+  after?: string;
+  q?: string;
+  limit?: number;
+};
 
 export type ZapierComment = {
-  id: string
-  content: string
-  created_at: string
-  parent_id: string | null
-}
+  id: string;
+  content: string;
+  created_at: string;
+  parent_id: string | null;
+};
 
 export type ZapierIntegrationCommentsPostRequest = {
-  content: string
-  post_id?: string
-  parent_id?: string
-}
+  content: string;
+  post_id?: string;
+  parent_id?: string;
+};
 
 export type ZapierMessage = {
-  id: string
-  content: string
-  created_at: string
-  updated_at: string
-  parent_id: string | null
-}
+  id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  parent_id: string | null;
+};
 
 export type ZapierIntegrationMessagesPostRequest = {
-  content: string
-  thread_id?: string
-  parent_id?: string
-}
+  content: string;
+  thread_id?: string;
+  parent_id?: string;
+};
 
 export type ZapierPost = {
-  id: string
-  title: string
-  created_at: string
-  published_at: string | null
-  url: string
-  content: string
-  project_id: string
-}
+  id: string;
+  title: string;
+  created_at: string;
+  published_at: string | null;
+  url: string;
+  content: string;
+  project_id: string;
+};
 
 export type ZapierIntegrationPostsPostRequest = {
-  title?: string
-  content: string
-  project_id?: string
-}
+  title?: string;
+  content: string;
+  project_id?: string;
+};
 
 export type ZapierProject = {
-  id: string
-  name: string
-}
+  id: string;
+  name: string;
+};
 
 export type ZapierProjects = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: ZapierProject[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: ZapierProject[];
+};
 
 export type ZapierIntegrationProjectsGetRequest = {
-  name?: string
-}
+  name?: string;
+};
 
 export type InvitationUrl = {
-  invitation_url: string
-}
+  invitation_url: string;
+};
 
 export type MessageThreadDmResult = {
-  dm: MessageThread | null
-}
+  dm: MessageThread | null;
+};
 
-export type OrganizationThreadFavoritesDeleteResponse = object
+export type OrganizationThreadFavoritesDeleteResponse = object;
 
 export type MessageReply = {
-  id: string
-  content: string
-  has_content: boolean
-  sender_display_name: string
-  viewer_is_sender: boolean
-  last_attachment: Attachment | null
-}
+  id: string;
+  content: string;
+  has_content: boolean;
+  sender_display_name: string;
+  viewer_is_sender: boolean;
+  last_attachment: Attachment | null;
+};
 
 export type Message = {
-  id: string
-  content: string
-  unfurled_link: string | null
-  created_at: string
-  updated_at: string
-  discarded_at: string | null
-  has_content: boolean
-  sender: OrganizationMember
-  reply: MessageReply | null
-  attachments: Attachment[]
-  call: MessageCall | null
-  viewer_is_sender: boolean
-  viewer_can_delete: boolean
-  grouped_reactions: GroupedReaction[]
-  shared_post_url: string | null
-  optimistic_id: string | null
-}
+  id: string;
+  content: string;
+  unfurled_link: string | null;
+  created_at: string;
+  updated_at: string;
+  discarded_at: string | null;
+  has_content: boolean;
+  sender: OrganizationMember;
+  reply: MessageReply | null;
+  attachments: Attachment[];
+  call: MessageCall | null;
+  viewer_is_sender: boolean;
+  viewer_can_delete: boolean;
+  grouped_reactions: GroupedReaction[];
+  shared_post_url: string | null;
+  optimistic_id: string | null;
+};
 
 export type MessagePage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Message[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Message[];
+};
 
 export type OrganizationThreadMessagesGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type MessageThreadPusher = {
-  id: string
-  last_message_at: string | null
-  latest_message_truncated: string | null
-  organization_slug: string
-  path: string
-  call_room_url: string | null
-  remote_call_room_id: string | null
-  active_call: MessageCall | null
-  viewer_can_force_notification: boolean
-  type_name: string
-  title: string
-  project_id: string | null
-  unread_count: number
-}
+  id: string;
+  last_message_at: string | null;
+  latest_message_truncated: string | null;
+  organization_slug: string;
+  path: string;
+  call_room_url: string | null;
+  remote_call_room_id: string | null;
+  active_call: MessageCall | null;
+  viewer_can_force_notification: boolean;
+  type_name: string;
+  title: string;
+  project_id: string | null;
+  unread_count: number;
+};
 
 export type PusherInvalidateMessage = {
-  message: Message
-  message_thread: MessageThreadPusher
-  skip_push: boolean
-  push_body?: string | null
-}
+  message: Message;
+  message_thread: MessageThreadPusher;
+  skip_push: boolean;
+  push_body?: string | null;
+};
 
 export type OrganizationsOrgSlugThreadsThreadIdMessagesPostRequest = {
-  content: string
-  reply_to?: string
+  content: string;
+  reply_to?: string;
   attachments: {
-    figma_file_id?: number | null
-    file_path: string
-    file_type: string
-    imgix_video_file_path?: string
-    name?: string | null
-    preview_file_path?: string | null
-    figma_share_url?: string
-    remote_figma_node_id?: string | null
-    remote_figma_node_name?: string | null
-    remote_figma_node_type?: string | null
-    duration?: number
-    size?: number | null
-    height?: number
-    width?: number
-    no_video_track?: boolean
-    gallery_id?: string | null
-  }[]
-}
+    figma_file_id?: number | null;
+    file_path: string;
+    file_type: string;
+    imgix_video_file_path?: string;
+    name?: string | null;
+    preview_file_path?: string | null;
+    figma_share_url?: string;
+    remote_figma_node_id?: string | null;
+    remote_figma_node_name?: string | null;
+    remote_figma_node_type?: string | null;
+    duration?: number;
+    size?: number | null;
+    height?: number;
+    width?: number;
+    no_video_track?: boolean;
+    gallery_id?: string | null;
+  }[];
+};
 
-export type OrganizationsOrgSlugThreadsThreadIdMessagesIdPutResponse = object
+export type OrganizationsOrgSlugThreadsThreadIdMessagesIdPutResponse = object;
 
 export type OrganizationsOrgSlugThreadsThreadIdMessagesIdPutRequest = {
-  content: string
-}
+  content: string;
+};
 
-export type OrganizationsOrgSlugThreadsThreadIdMessagesIdDeleteResponse = object
+export type OrganizationsOrgSlugThreadsThreadIdMessagesIdDeleteResponse =
+  object;
 
 export type MessageThreadMembership = {
-  notification_level: 'all' | 'mentions' | 'none'
-}
+  notification_level: "all" | "mentions" | "none";
+};
 
 export type OrganizationsOrgSlugThreadsThreadIdMyMembershipPutRequest = {
-  notification_level: 'all' | 'mentions' | 'none'
-}
+  notification_level: "all" | "mentions" | "none";
+};
 
-export type OrganizationsOrgSlugThreadsThreadIdMyMembershipDeleteResponse = object
+export type OrganizationsOrgSlugThreadsThreadIdMyMembershipDeleteResponse =
+  object;
 
-export type OrganizationThreadNotificationForcesPostResponse = object
+export type OrganizationThreadNotificationForcesPostResponse = object;
 
 export type Webhook = {
-  id: string
-  url: string
-  state: string
-  secret: string
-  event_types: string[]
-}
+  id: string;
+  url: string;
+  state: string;
+  secret: string;
+  event_types: string[];
+};
 
 export type OauthApplication = {
-  id: string
-  name: string
-  redirect_uri: string | null
-  avatar_path: string | null
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  client_id: string
-  last_copied_secret_at: string | null
-  client_secret: string | null
-  mentionable: boolean
-  direct_messageable: boolean
-  webhooks: Webhook[]
-}
+  id: string;
+  name: string;
+  redirect_uri: string | null;
+  avatar_path: string | null;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  client_id: string;
+  last_copied_secret_at: string | null;
+  client_secret: string | null;
+  mentionable: boolean;
+  direct_messageable: boolean;
+  webhooks: Webhook[];
+};
 
 export type OrganizationsOrgSlugThreadsThreadIdOauthApplicationsPostRequest = {
-  oauth_application_id: string
-}
+  oauth_application_id: string;
+};
 
-export type OrganizationThreadOauthApplicationDeleteResponse = object
+export type OrganizationThreadOauthApplicationDeleteResponse = object;
 
-export type OrganizationsOrgSlugThreadsThreadIdOtherMembershipsListPutRequest = {
-  member_ids: string[]
-}
+export type OrganizationsOrgSlugThreadsThreadIdOtherMembershipsListPutRequest =
+  {
+    member_ids: string[];
+  };
 
 export type OrganizationThreadPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
 export type MessageThreadInbox = {
-  threads: MessageThread[]
-}
+  threads: MessageThread[];
+};
 
 export type OrganizationsOrgSlugThreadsPostRequest = {
-  group?: boolean
-  title?: string
-  member_ids?: string[]
-  oauth_application_ids?: string[]
-  content?: string
+  group?: boolean;
+  title?: string;
+  member_ids?: string[];
+  oauth_application_ids?: string[];
+  content?: string;
   attachments: {
-    file_path: string
-    file_type: string
-    preview_file_path: string | null
-    width?: number
-    height?: number
-    duration?: number
-    name?: string | null
-    size?: number | null
-  }[]
-}
+    file_path: string;
+    file_type: string;
+    preview_file_path: string | null;
+    width?: number;
+    height?: number;
+    duration?: number;
+    name?: string | null;
+    size?: number | null;
+  }[];
+};
 
 export type OrganizationsOrgSlugThreadsIdPutRequest = {
-  title?: string
-  image_path?: string | null
-}
+  title?: string;
+  image_path?: string | null;
+};
 
-export type OrganizationsOrgSlugThreadsIdDeleteResponse = object
+export type OrganizationsOrgSlugThreadsIdDeleteResponse = object;
 
-export type OrganizationMessageAttachmentDeleteResponse = object
+export type OrganizationMessageAttachmentDeleteResponse = object;
 
 export type OrganizationMessageReactionsPostRequest = {
-  content?: string
-  custom_content_id?: string
-}
+  content?: string;
+  custom_content_id?: string;
+};
 
 export type CommentPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Comment[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Comment[];
+  total_count: number;
+};
 
 export type OrganizationNoteAttachmentCommentsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
-export type OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutResponse = object
+export type OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutResponse =
+  object;
 
 export type OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutRequest = {
   attachments: {
-    id: string
-    position: number
-  }[]
-}
+    id: string;
+    position: number;
+  }[];
+};
 
 export type OrganizationNoteAttachmentsPostRequest = {
-  figma_file_id?: number | null
-  file_path: string
-  file_type: string
-  imgix_video_file_path?: string
-  name?: string | null
-  preview_file_path?: string | null
-  figma_share_url?: string
-  remote_figma_node_id?: string | null
-  remote_figma_node_name?: string | null
-  remote_figma_node_type?: string | null
-  duration?: number
-  size?: number | null
-  height?: number
-  width?: number
-  no_video_track?: boolean
-  gallery_id?: string | null
-}
+  figma_file_id?: number | null;
+  file_path: string;
+  file_type: string;
+  imgix_video_file_path?: string;
+  name?: string | null;
+  preview_file_path?: string | null;
+  figma_share_url?: string;
+  remote_figma_node_id?: string | null;
+  remote_figma_node_name?: string | null;
+  remote_figma_node_type?: string | null;
+  duration?: number;
+  size?: number | null;
+  height?: number;
+  width?: number;
+  no_video_track?: boolean;
+  gallery_id?: string | null;
+};
 
 export type OrganizationsOrgSlugNotesNoteIdAttachmentsIdPutRequest = {
-  preview_file_path?: string
-  width?: number
-  height?: number
-}
+  preview_file_path?: string;
+  width?: number;
+  height?: number;
+};
 
 export type OrganizationNoteCommentsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type CommentCreated = {
-  preview_commenters: Commenters
-  post_comment: Comment
-  attachment: Attachment | null
-  attachment_commenters: OrganizationMember[] | null
-}
+  preview_commenters: Commenters;
+  post_comment: Comment;
+  attachment: Attachment | null;
+  attachment_commenters: OrganizationMember[] | null;
+};
 
 export type OrganizationsOrgSlugNotesNoteIdCommentsPostRequest = {
-  body_html: string | null
+  body_html: string | null;
   attachments?: {
-    file_path: string
-    file_type: string
-    preview_file_path?: string | null
-    width?: number
-    height?: number
-    duration?: number
-    name?: string | null
-    size?: number | null
-  }[]
-  attachment_ids?: string[]
-  x?: number | null
-  y?: number | null
-  file_id?: string | null
-  timestamp?: number | null
-  note_highlight?: string | null
-}
+    file_path: string;
+    file_type: string;
+    preview_file_path?: string | null;
+    width?: number;
+    height?: number;
+    duration?: number;
+    name?: string | null;
+    size?: number | null;
+  }[];
+  attachment_ids?: string[];
+  x?: number | null;
+  y?: number | null;
+  file_id?: string | null;
+  timestamp?: number | null;
+  note_highlight?: string | null;
+};
 
-export type OrganizationNoteFavoriteDeleteResponse = object
+export type OrganizationNoteFavoriteDeleteResponse = object;
 
 export type OrganizationNoteFollowUpPostRequest = {
-  show_at: string
-}
+  show_at: string;
+};
 
 export type OrganizationsOrgSlugNotesNoteIdPermissionsPostRequest = {
-  member_ids: string[]
-  permission: 'view' | 'edit'
-}
+  member_ids: string[];
+  permission: "view" | "edit";
+};
 
 export type OrganizationsOrgSlugNotesNoteIdPermissionsIdPutRequest = {
-  permission: 'view' | 'edit'
-}
+  permission: "view" | "edit";
+};
 
-export type OrganizationsOrgSlugNotesNoteIdPermissionsIdDeleteResponse = object
+export type OrganizationsOrgSlugNotesNoteIdPermissionsIdDeleteResponse = object;
 
 export type OrganizationsOrgSlugNotesNoteIdProjectPermissionsPutRequest = {
-  project_id: string
-  permission: 'view' | 'edit'
-}
+  project_id: string;
+  permission: "view" | "edit";
+};
 
-export type OrganizationsOrgSlugNotesNoteIdProjectPermissionsDeleteResponse = object
+export type OrganizationsOrgSlugNotesNoteIdProjectPermissionsDeleteResponse =
+  object;
 
 export type PublicUser = {
-  id: string
-  avatar_urls: AvatarUrls
-  display_name: string
-  username: string
-}
+  id: string;
+  avatar_urls: AvatarUrls;
+  display_name: string;
+  username: string;
+};
 
 export type PublicOrganizationMember = {
-  user: PublicUser
-}
+  user: PublicUser;
+};
 
 export type PublicNote = {
-  id: string
-  title: string
-  description_html: string
-  created_at: string
-  url: string
-  og_user_avatar: string
-  og_org_avatar: string
-  member: PublicOrganizationMember
-  organization: PublicOrganization
-}
+  id: string;
+  title: string;
+  description_html: string;
+  created_at: string;
+  url: string;
+  og_user_avatar: string;
+  og_org_avatar: string;
+  member: PublicOrganizationMember;
+  organization: PublicOrganization;
+};
 
 export type NoteSync = {
-  id: string
-  description_schema_version: number
-  description_state: string | null
-  description_html: string
-}
+  id: string;
+  description_schema_version: number;
+  description_state: string | null;
+  description_html: string;
+};
 
-export type OrganizationsOrgSlugNotesNoteIdSyncStatePutResponse = object
+export type OrganizationsOrgSlugNotesNoteIdSyncStatePutResponse = object;
 
 export type OrganizationsOrgSlugNotesNoteIdSyncStatePutRequest = {
-  description_html: string
-  description_state: string
-  description_schema_version: number
-}
+  description_html: string;
+  description_state: string;
+  description_schema_version: number;
+};
 
 export type TimelineEventPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: TimelineEvent[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: TimelineEvent[];
+  total_count: number;
+};
 
 export type OrganizationNoteTimelineEventsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type NoteView = {
-  updated_at: string
-  member: OrganizationMember
-}
+  updated_at: string;
+  member: OrganizationMember;
+};
 
 export type NoteViewCreated = {
-  views: NoteView[]
-  notification_counts: UserNotificationCounts
-}
+  views: NoteView[];
+  notification_counts: UserNotificationCounts;
+};
 
-export type OrganizationsOrgSlugNotesNoteIdVisibilityPutResponse = object
+export type OrganizationsOrgSlugNotesNoteIdVisibilityPutResponse = object;
 
 export type OrganizationsOrgSlugNotesNoteIdVisibilityPutRequest = {
-  visibility: 'default' | 'public'
-}
+  visibility: "default" | "public";
+};
 
 export type NotePage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Note[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Note[];
+};
 
 export type OrganizationNotesGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'created_at' | 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "created_at" | "last_activity_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationsOrgSlugNotesPostRequest = {
-  title?: string
-  description_html?: string
-  project_id?: string
-}
+  title?: string;
+  description_html?: string;
+  project_id?: string;
+};
 
 export type OrganizationsOrgSlugNotesIdPutRequest = {
-  title?: string
-}
+  title?: string;
+};
 
-export type OrganizationsOrgSlugNotesIdDeleteResponse = object
+export type OrganizationsOrgSlugNotesIdDeleteResponse = object;
 
-export type OrganizationNotificationArchiveDeleteResponse = object
+export type OrganizationNotificationArchiveDeleteResponse = object;
 
-export type OrganizationNotificationDeleteAllPostResponse = object
+export type OrganizationNotificationDeleteAllPostResponse = object;
 
 export type OrganizationNotificationDeleteAllPostRequest = {
-  home_only?: boolean
-  read_only?: boolean
-}
+  home_only?: boolean;
+  read_only?: boolean;
+};
 
-export type OrganizationNotificationMarkAllReadPostResponse = object
+export type OrganizationNotificationMarkAllReadPostResponse = object;
 
 export type OrganizationNotificationMarkAllReadPostRequest = {
-  home_only?: boolean
-}
+  home_only?: boolean;
+};
 
-export type OrganizationNotificationReadPostResponse = object
+export type OrganizationNotificationReadPostResponse = object;
 
-export type OrganizationsOrgSlugMembersMeNotificationsNotificationIdReadDeleteResponse = object
+export type OrganizationsOrgSlugMembersMeNotificationsNotificationIdReadDeleteResponse =
+  object;
 
 export type NotificationActor = {
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  username: string
-  display_name: string
-  integration: boolean
-}
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  username: string;
+  display_name: string;
+  integration: boolean;
+};
 
 export type NotificationSubject = {
-  id: string
-  type: string
-}
+  id: string;
+  type: string;
+};
 
 export type NotificationSubtarget = {
-  id: string
-  type: string
-}
+  id: string;
+  type: string;
+};
 
 export type NotificationReaction = {
-  content: string | null
-  custom_content: SyncCustomReaction | null
-}
+  content: string | null;
+  custom_content: SyncCustomReaction | null;
+};
 
 export type NotificationFollowUpSubject = {
-  id: string
-  type: string
-  viewer_follow_up: SubjectFollowUp | null
-}
+  id: string;
+  type: string;
+  viewer_follow_up: SubjectFollowUp | null;
+};
 
 export type Notification = {
-  id: string
-  inbox_key: string
-  is_inbox: boolean
-  created_at: string
-  summary: string
-  read: boolean
-  archived: boolean
-  organization_slug: string
-  preview_url: string | null
-  preview_is_canvas: boolean
-  reply_to_body_preview: string | null
-  body_preview_prefix: string | null
-  body_preview_prefix_fallback: string | null
-  body_preview: string | null
-  summary_blocks: SummaryBlock[]
-  activity_seen: boolean
+  id: string;
+  inbox_key: string;
+  is_inbox: boolean;
+  created_at: string;
+  summary: string;
+  read: boolean;
+  archived: boolean;
+  organization_slug: string;
+  preview_url: string | null;
+  preview_is_canvas: boolean;
+  reply_to_body_preview: string | null;
+  body_preview_prefix: string | null;
+  body_preview_prefix_fallback: string | null;
+  body_preview: string | null;
+  summary_blocks: SummaryBlock[];
+  activity_seen: boolean;
   reason:
-    | 'mention'
-    | 'parent_subscription'
-    | 'author'
-    | 'feedback_requested'
-    | 'project_subscription'
-    | 'permission_granted'
-    | 'comment_resolved'
-    | 'added'
-    | 'subject_archived'
-    | 'follow_up'
-    | 'post_resolved'
-    | 'post_resolved_from_comment'
-    | 'processing_complete'
-  actor: NotificationActor
-  subject: NotificationSubject
-  target: NotificationTarget
-  subtarget: NotificationSubtarget | null
-  reaction: NotificationReaction | null
-  follow_up_subject: NotificationFollowUpSubject | null
-}
+    | "mention"
+    | "parent_subscription"
+    | "author"
+    | "feedback_requested"
+    | "project_subscription"
+    | "permission_granted"
+    | "comment_resolved"
+    | "added"
+    | "subject_archived"
+    | "follow_up"
+    | "post_resolved"
+    | "post_resolved_from_comment"
+    | "processing_complete";
+  actor: NotificationActor;
+  subject: NotificationSubject;
+  target: NotificationTarget;
+  subtarget: NotificationSubtarget | null;
+  reaction: NotificationReaction | null;
+  follow_up_subject: NotificationFollowUpSubject | null;
+};
 
 export type NotificationPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Notification[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Notification[];
+};
 
 export type OrganizationNotificationsGetRequest = {
-  unread?: boolean
-  filter?: 'home' | 'grouped_home' | 'activity'
-  after?: string
-  limit?: number
-}
+  unread?: boolean;
+  filter?: "home" | "grouped_home" | "activity";
+  after?: string;
+  limit?: number;
+};
 
-export type OrganizationNotificationDeleteResponse = object
+export type OrganizationNotificationDeleteResponse = object;
 
 export type OrganizationNotificationDeleteRequest = {
-  archive_by?: 'id' | 'target'
-}
+  archive_by?: "id" | "target";
+};
 
 export type OrganizationOauthApplicationPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
 export type AccessToken = {
-  token: string
-}
+  token: string;
+};
 
 export type OrganizationsOrgSlugOauthApplicationsPostRequest = {
-  name: string
-  redirect_uri?: string
-  avatar_path?: string
+  name: string;
+  redirect_uri?: string;
+  avatar_path?: string;
   webhooks?: {
-    url: string
-  }[]
-}
+    url: string;
+  }[];
+};
 
 export type OrganizationsOrgSlugOauthApplicationsIdPutRequest = {
-  name?: string
-  redirect_uri?: string
-  avatar_path?: string
+  name?: string;
+  redirect_uri?: string;
+  avatar_path?: string;
   webhooks?: {
-    id?: string
-    url: string
-    event_types?: string[]
-  }[]
-}
+    id?: string;
+    url: string;
+    event_types?: string[];
+  }[];
+};
 
-export type OrganizationsOrgSlugOauthApplicationsIdDeleteResponse = object
+export type OrganizationsOrgSlugOauthApplicationsIdDeleteResponse = object;
 
-export type OrganizationOnboardProjectsPostResponse = object
+export type OrganizationOnboardProjectsPostResponse = object;
 
 export type OrganizationOnboardProjectsPostRequest = {
-  general_name: string
-  general_accessory?: string
+  general_name: string;
+  general_accessory?: string;
   projects: {
-    name: string
-    accessory?: string
-  }[]
-}
+    name: string;
+    accessory?: string;
+  }[];
+};
 
 export type OpenGraphLink = {
-  url: string
-  title: string
-  image_url: string | null
-  favicon_url: string | null
-}
+  url: string;
+  title: string;
+  image_url: string | null;
+  favicon_url: string | null;
+};
 
 export type OpenGraphLinksGetRequest = {
-  url: string
-}
+  url: string;
+};
 
 export type OrganizationInvitationOrgPartial = {
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  name: string
-  slug: string
-}
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  name: string;
+  slug: string;
+};
 
 export type SimpleProject = {
-  id: string
-  name: string
-  description: string | null
-  created_at: string
-  archived_at: string | null
-  accessory: string | null
-  private: boolean
-  is_general: boolean
-  is_default: boolean
-}
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  archived_at: string | null;
+  accessory: string | null;
+  private: boolean;
+  is_general: boolean;
+  is_default: boolean;
+};
 
 export type OrganizationInvitation = {
-  id: string
-  email: string
-  role: string
-  expired: boolean | null
-  organization?: OrganizationInvitationOrgPartial
-  projects: SimpleProject[]
-  token?: string
-}
+  id: string;
+  email: string;
+  role: string;
+  expired: boolean | null;
+  organization?: OrganizationInvitationOrgPartial;
+  projects: SimpleProject[];
+  token?: string;
+};
 
 export type OrganizationInvitationPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: OrganizationInvitation[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: OrganizationInvitation[];
+  total_count: number;
+};
 
 export type OrganizationInvitationsGetRequest = {
-  q?: string
-  role_counted?: boolean
-  after?: string
-}
+  q?: string;
+  role_counted?: boolean;
+  after?: string;
+};
 
 export type OrganizationsOrgSlugInvitationsPostRequest = {
   invitations: {
-    email: string
-    role: string
-    project_ids?: string[]
-  }[]
-  onboarding?: boolean
-}
+    email: string;
+    role: string;
+    project_ids?: string[];
+  }[];
+  onboarding?: boolean;
+};
 
 export type AcceptInvitationByTokenPostResponse = {
-  redirect_path: string
-}
+  redirect_path: string;
+};
 
-export type OrganizationsOrgSlugInvitationsIdDeleteResponse = object
+export type OrganizationsOrgSlugInvitationsIdDeleteResponse = object;
 
 export type OrganizationMemberPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: OrganizationMember[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: OrganizationMember[];
+  total_count: number;
+};
 
 export type OrganizationMembersGetRequest = {
-  q?: string
-  status?: 'deactivated'
-  roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-  after?: string
-  limit?: number
+  q?: string;
+  status?: "deactivated";
+  roles?: ("admin" | "member" | "viewer" | "guest")[];
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'created_at' | 'last_seen_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "created_at" | "last_seen_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type PostPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Post[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Post[];
+};
 
 export type OrganizationMemberPostsGetRequest = {
-  after?: string
-  limit?: number
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationsOrgSlugMembersIdPutRequest = {
-  role: string
-}
+  role: string;
+};
 
-export type OrganizationsOrgSlugMembersIdReactivatePutResponse = object
+export type OrganizationsOrgSlugMembersIdReactivatePutResponse = object;
 
-export type OrganizationsOrgSlugMembersIdDeleteResponse = object
+export type OrganizationsOrgSlugMembersIdDeleteResponse = object;
 
 export type OrganizationMembershipRequest = {
-  id: string
-  created_at: string
-  organization_slug: string
-  user: User
-}
+  id: string;
+  created_at: string;
+  organization_slug: string;
+  user: User;
+};
 
 export type OrganizationMembershipRequestPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: OrganizationMembershipRequest[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: OrganizationMembershipRequest[];
+};
 
 export type OrganizationMembershipRequestsGetRequest = {
-  after?: string
-}
+  after?: string;
+};
 
 export type OrganizationMembershipRequestGetResponse = {
-  requested: boolean
-}
+  requested: boolean;
+};
 
-export type OrganizationApproveMembershipRequestPostResponse = object
+export type OrganizationApproveMembershipRequestPostResponse = object;
 
-export type OrganizationDeclineMembershipRequestPostResponse = object
+export type OrganizationDeclineMembershipRequestPostResponse = object;
 
 export type OrganizationMembershipArchivedNotificationsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
-export type OrganizationMembershipDataExportPostResponse = object
+export type OrganizationMembershipDataExportPostResponse = object;
 
 export type OrganizationMembershipForMeNotesGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'created_at' | 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "created_at" | "last_activity_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationMembershipForMePostsGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
-  hide_resolved?: boolean
+  after?: string;
+  limit?: number;
+  q?: string;
+  hide_resolved?: boolean;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type PublicOrganizationMembership = {
-  id: string
-  last_viewed_posts_at: string
-  organization: PublicOrganization
-}
+  id: string;
+  last_viewed_posts_at: string;
+  organization: PublicOrganization;
+};
 
 export type OrganizationsOrgSlugMembersMeIndexViewsPutRequest = {
-  last_viewed_posts_at: string
-}
+  last_viewed_posts_at: string;
+};
 
 export type OrganizationMembershipPersonalDraftPostsGetRequest = {
-  after?: string
-  limit?: number
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type ProjectMembership = {
-  id: string
-  position: number
-  project: Project
-}
+  id: string;
+  position: number;
+  project: Project;
+};
 
 export type ProjectMembershipList = {
-  data: ProjectMembership[]
-}
+  data: ProjectMembership[];
+};
 
-export type OrganizationsOrgSlugMembersMemberUsernameProjectMembershipListPutRequest = {
-  add_project_ids: string[]
-  remove_project_ids: string[]
-}
+export type OrganizationsOrgSlugMembersMemberUsernameProjectMembershipListPutRequest =
+  {
+    add_project_ids: string[];
+    remove_project_ids: string[];
+  };
 
-export type OrganizationMembershipsReorderPutResponse = object
+export type OrganizationMembershipsReorderPutResponse = object;
 
 export type OrganizationMembershipsReorderPutRequest = {
-  membership_ids: string[]
-}
+  membership_ids: string[];
+};
 
 export type OrganizationMembershipSlackNotificationPreferenceGetResponse = {
-  enabled: boolean
-}
+  enabled: boolean;
+};
 
-export type OrganizationsOrgSlugMembersMeSlackNotificationPreferencePostResponse = object
+export type OrganizationsOrgSlugMembersMeSlackNotificationPreferencePostResponse =
+  object;
 
-export type OrganizationsOrgSlugMembersMeSlackNotificationPreferenceDeleteResponse = object
+export type OrganizationsOrgSlugMembersMeSlackNotificationPreferenceDeleteResponse =
+  object;
 
 export type OrganizationsOrgSlugMembersMeStatusesPostRequest = {
-  emoji: string
-  message: string
-  expiration_setting: '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom'
-  expires_at?: string
-  pause_notifications?: boolean
-}
+  emoji: string;
+  message: string;
+  expiration_setting: "30m" | "1h" | "4h" | "today" | "this_week" | "custom";
+  expires_at?: string;
+  pause_notifications?: boolean;
+};
 
 export type OrganizationsOrgSlugMembersMeStatusesPutRequest = {
-  emoji?: string
-  message?: string
-  expiration_setting?: '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom'
-  expires_at?: string
-  pause_notifications?: boolean
-}
+  emoji?: string;
+  message?: string;
+  expiration_setting?: "30m" | "1h" | "4h" | "today" | "this_week" | "custom";
+  expires_at?: string;
+  pause_notifications?: boolean;
+};
 
-export type OrganizationsOrgSlugMembersMeStatusesDeleteResponse = object
+export type OrganizationsOrgSlugMembersMeStatusesDeleteResponse = object;
 
 export type OrganizationMembershipViewerNotesGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'created_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "created_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationMembershipViewerPostsGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationBulkInvitesPostRequest = {
-  comma_separated_emails: string
-  project_id?: string
-}
+  comma_separated_emails: string;
+  project_id?: string;
+};
 
 export type OrganizationFeaturesGetResponse = {
   features: (
-    | 'slack_auto_publish'
-    | 'sidebar_dms'
-    | 'my_work'
-    | 'max_w_chat'
-    | 'archive_notifications'
-    | 'relative_time'
-    | 'firehose'
-    | 'grouped_notifications'
-    | 'comfy_compact_layout'
-    | 'message_email_notifications'
-    | 'integration_dms'
-    | 'chat_channels'
-    | 'channel_split_view'
-    | 'no_emoji_accessories'
-    | 'export'
-    | 'api_endpoint_list_members'
-    | 'api_endpoint_list_posts'
-    | 'multi_org_apps'
-    | 'smart_digests'
-    | 'sync_members'
-    | 'true_up_annual_subscriptions'
-  )[]
-}
+    | "slack_auto_publish"
+    | "sidebar_dms"
+    | "my_work"
+    | "max_w_chat"
+    | "archive_notifications"
+    | "relative_time"
+    | "firehose"
+    | "grouped_notifications"
+    | "comfy_compact_layout"
+    | "message_email_notifications"
+    | "integration_dms"
+    | "chat_channels"
+    | "channel_split_view"
+    | "no_emoji_accessories"
+    | "export"
+    | "api_endpoint_list_members"
+    | "api_endpoint_list_posts"
+    | "multi_org_apps"
+    | "smart_digests"
+    | "sync_members"
+    | "true_up_annual_subscriptions"
+  )[];
+};
 
 export type OrganizationSettings = {
-  enforce_two_factor_authentication: boolean
-}
+  enforce_two_factor_authentication: boolean;
+};
 
 export type Organization = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  created_at: string
-  onboarded_at: string | null
-  name: string
-  slug: string
-  invitation_url: string
-  paid: boolean
-  plan_name: string
-  show_upgrade_banner: boolean
-  trial_expired: boolean
-  trial_active: boolean
-  trial_days_remaining: number | null
-  viewer_can_post: boolean
-  viewer_can_create_digest: boolean
-  viewer_can_create_project: boolean
-  viewer_can_see_new_project_button: boolean
-  viewer_can_see_projects_index: boolean
-  viewer_can_see_people_index: boolean
-  viewer_can_create_tag: boolean
-  viewer_can_create_note: boolean
-  viewer_can_create_custom_reaction: boolean
-  viewer_can_create_invitation: boolean
-  viewer_can_manage_integrations: boolean
-  viewer_is_admin: boolean
-  viewer_member_id: string | null
-  viewer_can_leave: boolean
-  settings: OrganizationSettings
-  billing_email?: string | null
-  email_domain?: string | null
+  id: string;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  created_at: string;
+  onboarded_at: string | null;
+  name: string;
+  slug: string;
+  invitation_url: string;
+  paid: boolean;
+  plan_name: string;
+  show_upgrade_banner: boolean;
+  trial_expired: boolean;
+  trial_active: boolean;
+  trial_days_remaining: number | null;
+  viewer_can_post: boolean;
+  viewer_can_create_digest: boolean;
+  viewer_can_create_project: boolean;
+  viewer_can_see_new_project_button: boolean;
+  viewer_can_see_projects_index: boolean;
+  viewer_can_see_people_index: boolean;
+  viewer_can_create_tag: boolean;
+  viewer_can_create_note: boolean;
+  viewer_can_create_custom_reaction: boolean;
+  viewer_can_create_invitation: boolean;
+  viewer_can_manage_integrations: boolean;
+  viewer_is_admin: boolean;
+  viewer_member_id: string | null;
+  viewer_can_leave: boolean;
+  settings: OrganizationSettings;
+  billing_email?: string | null;
+  email_domain?: string | null;
   features?: (
-    | 'slack_auto_publish'
-    | 'sidebar_dms'
-    | 'my_work'
-    | 'max_w_chat'
-    | 'archive_notifications'
-    | 'relative_time'
-    | 'firehose'
-    | 'grouped_notifications'
-    | 'comfy_compact_layout'
-    | 'message_email_notifications'
-    | 'integration_dms'
-    | 'chat_channels'
-    | 'channel_split_view'
-    | 'no_emoji_accessories'
-    | 'export'
-    | 'api_endpoint_list_members'
-    | 'api_endpoint_list_posts'
-    | 'multi_org_apps'
-    | 'smart_digests'
-    | 'sync_members'
-    | 'true_up_annual_subscriptions'
-  )[]
+    | "slack_auto_publish"
+    | "sidebar_dms"
+    | "my_work"
+    | "max_w_chat"
+    | "archive_notifications"
+    | "relative_time"
+    | "firehose"
+    | "grouped_notifications"
+    | "comfy_compact_layout"
+    | "message_email_notifications"
+    | "integration_dms"
+    | "chat_channels"
+    | "channel_split_view"
+    | "no_emoji_accessories"
+    | "export"
+    | "api_endpoint_list_members"
+    | "api_endpoint_list_posts"
+    | "multi_org_apps"
+    | "smart_digests"
+    | "sync_members"
+    | "true_up_annual_subscriptions"
+  )[];
   limits?: {
-    file_size_bytes: number | null
-  }
-  member_count?: number
-  channel_name: string
-  presence_channel_name: string
-}
+    file_size_bytes: number | null;
+  };
+  member_count?: number;
+  channel_name: string;
+  presence_channel_name: string;
+};
 
 export type OrganizationSsoPostRequest = {
-  domains: string[]
-}
+  domains: string[];
+};
 
 export type OrganizationsPostRequest = {
-  name: string
-  slug: string
-  avatar_path?: string | null
-  role?: string
-  org_size?: string
-  source?: string
-  why?: string
-}
+  name: string;
+  slug: string;
+  avatar_path?: string | null;
+  role?: string;
+  org_size?: string;
+  source?: string;
+  why?: string;
+};
 
 export type OrganizationsOrgSlugPutRequest = {
-  name?: string
-  slug?: string
-  avatar_path?: string | null
-  billing_email?: string
-  email_domain?: string | null
-  slack_channel_id?: string | null
-  slack_channel_is_private?: boolean | null
-}
+  name?: string;
+  slug?: string;
+  avatar_path?: string | null;
+  billing_email?: string;
+  email_domain?: string | null;
+  slack_channel_id?: string | null;
+  slack_channel_is_private?: boolean | null;
+};
 
-export type OrganizationsOrgSlugDeleteResponse = object
+export type OrganizationsOrgSlugDeleteResponse = object;
 
 export type SuggestedOrganization = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  name: string
-  slug: string
-  requested: boolean
-  joined?: boolean
-}
+  id: string;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  name: string;
+  slug: string;
+  requested: boolean;
+  joined?: boolean;
+};
 
 export type OrganizationAvatarPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
-export type OrganizationPinDeleteResponse = object
+export type OrganizationPinDeleteResponse = object;
 
 export type OrganizationPostAttachmentCommentsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
-export type OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutResponse = object
+export type OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutResponse =
+  object;
 
 export type OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutRequest = {
   attachments: {
-    id: string
-    position: number
-  }[]
-}
+    id: string;
+    position: number;
+  }[];
+};
 
 export type OrganizationPostAttachmentsPostRequest = {
-  figma_file_id?: number | null
-  file_path: string
-  file_type: string
-  imgix_video_file_path?: string
-  name?: string | null
-  preview_file_path?: string | null
-  figma_share_url?: string
-  remote_figma_node_id?: string | null
-  remote_figma_node_name?: string | null
-  remote_figma_node_type?: string | null
-  duration?: number
-  size?: number | null
-  height?: number
-  width?: number
-  no_video_track?: boolean
-  gallery_id?: string | null
-  position: number
-}
+  figma_file_id?: number | null;
+  file_path: string;
+  file_type: string;
+  imgix_video_file_path?: string;
+  name?: string | null;
+  preview_file_path?: string | null;
+  figma_share_url?: string;
+  remote_figma_node_id?: string | null;
+  remote_figma_node_name?: string | null;
+  remote_figma_node_type?: string | null;
+  duration?: number;
+  size?: number | null;
+  height?: number;
+  width?: number;
+  no_video_track?: boolean;
+  gallery_id?: string | null;
+  position: number;
+};
 
 export type OrganizationsOrgSlugPostsPostIdAttachmentsIdPutRequest = {
-  preview_file_path?: string
-  width?: number
-  height?: number
-}
+  preview_file_path?: string;
+  width?: number;
+  height?: number;
+};
 
-export type OrganizationPostFavoriteDeleteResponse = object
+export type OrganizationPostFavoriteDeleteResponse = object;
 
 export type OrganizationPostFollowUpPostRequest = {
-  show_at: string
-}
+  show_at: string;
+};
 
 export type GeneratedHtml = {
-  status: 'pending' | 'failed' | 'success'
-  html: string | null
-  response_id: string | null
-}
+  status: "pending" | "failed" | "success";
+  html: string | null;
+  response_id: string | null;
+};
 
 export type OrganizationPostGeneratedResolutionGetRequest = {
-  comment_id?: string
-}
+  comment_id?: string;
+};
 
 export type OrganizationPostLinearIssuesPostRequest = {
-  team_id: string
-  title: string
-  description: string
-}
+  team_id: string;
+  title: string;
+  description: string;
+};
 
 export type OrganizationPostLinearTimelineEventsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationsOrgSlugPostsPostIdPoll2PostRequest = {
-  description: string
+  description: string;
   options: {
-    description: string
-  }[]
-}
+    description: string;
+  }[];
+};
 
 export type OrganizationsOrgSlugPostsPostIdPoll2PutRequest = {
-  description: string
+  description: string;
   options: {
-    id?: string
-    description: string
-  }[]
-}
+    id?: string;
+    description: string;
+  }[];
+};
 
-export type OrganizationsOrgSlugPostsPostIdPoll2DeleteResponse = object
+export type OrganizationsOrgSlugPostsPostIdPoll2DeleteResponse = object;
 
 export type OrganizationPostCommentsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationPostComments2PostRequest = {
-  body_html: string | null
+  body_html: string | null;
   attachments?: {
-    file_path: string
-    file_type: string
-    preview_file_path?: string | null
-    width?: number
-    height?: number
-    duration?: number
-    name?: string | null
-    size?: number | null
-  }[]
-  attachment_ids?: string[]
-  x?: number | null
-  y?: number | null
-  file_id?: string | null
-  timestamp?: number | null
-  note_highlight?: string | null
-}
+    file_path: string;
+    file_type: string;
+    preview_file_path?: string | null;
+    width?: number;
+    height?: number;
+    duration?: number;
+    name?: string | null;
+    size?: number | null;
+  }[];
+  attachment_ids?: string[];
+  x?: number | null;
+  y?: number | null;
+  file_id?: string | null;
+  timestamp?: number | null;
+  note_highlight?: string | null;
+};
 
 export type OrganizationPostFeedbackRequestsPostRequest = {
-  member_id: string
-}
+  member_id: string;
+};
 
-export type OrganizationPostFeedbackRequestDeleteResponse = object
+export type OrganizationPostFeedbackRequestDeleteResponse = object;
 
 export type OrganizationPostLinksPostRequest = {
-  url: string
-  name: string
-}
+  url: string;
+  name: string;
+};
 
 export type OrganizationPostReactionsPostRequest = {
-  content?: string
-  custom_content_id?: string
-}
+  content?: string;
+  custom_content_id?: string;
+};
 
 export type PostVersion = {
-  id: string
-  created_at: string
-  published_at: string | null
-  comments_count: number
-  version: number
-}
+  id: string;
+  created_at: string;
+  published_at: string | null;
+  comments_count: number;
+  version: number;
+};
 
 export type PostView = {
-  id: string
-  updated_at: string
-  member: OrganizationMember
-}
+  id: string;
+  updated_at: string;
+  member: OrganizationMember;
+};
 
 export type PostViewPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: PostView[]
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: PostView[];
+};
 
 export type OrganizationPostViewsGetRequest = {
-  after?: string
-}
+  after?: string;
+};
 
 export type ProjectUnreadStatus = {
-  id: string
-  unread_for_viewer: boolean
-}
+  id: string;
+  unread_for_viewer: boolean;
+};
 
 export type PostViewCreated = {
-  view: PostView | null
-  notification_counts: UserNotificationCounts | null
-  project_unread_status: ProjectUnreadStatus | null
-}
+  view: PostView | null;
+  notification_counts: UserNotificationCounts | null;
+  project_unread_status: ProjectUnreadStatus | null;
+};
 
 export type OrganizationsOrgSlugPostsPostIdViewsPostRequest = {
-  skip_notifications?: boolean
-  read: boolean
-  dwell_time?: number
-}
+  skip_notifications?: boolean;
+  read: boolean;
+  dwell_time?: number;
+};
 
 export type OrganizationsOrgSlugPostsPostIdResolutionPostRequest = {
-  resolve_html: string | null
-  comment_id: string | null
-}
+  resolve_html: string | null;
+  comment_id: string | null;
+};
 
 export type PostSeoInfo = {
-  id: string
-  seo_title: string
-  seo_description: string
-  open_graph_image_url: string | null
-  open_graph_video_url: string | null
-}
+  id: string;
+  seo_title: string;
+  seo_description: string;
+  open_graph_image_url: string | null;
+  open_graph_video_url: string | null;
+};
 
-export type OrganizationPostSharesPostResponse = object
+export type OrganizationPostSharesPostResponse = object;
 
 export type OrganizationPostSharesPostRequest = {
-  member_ids?: string[]
-  slack_channel_id?: string
-}
+  member_ids?: string[];
+  slack_channel_id?: string;
+};
 
-export type OrganizationsOrgSlugPostsPostIdStatusPutResponse = object
+export type OrganizationsOrgSlugPostsPostIdStatusPutResponse = object;
 
 export type OrganizationsOrgSlugPostsPostIdStatusPutRequest = {
-  status: 'none' | 'feedback_requested'
-}
+  status: "none" | "feedback_requested";
+};
 
 export type OrganizationsOrgSlugPostsPostIdTasksPutRequest = {
-  index: number
-  checked: boolean
-}
+  index: number;
+  checked: boolean;
+};
 
 export type OrganizationPostTimelineEventsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationsOrgSlugPostsPostIdVisibilityPutRequest = {
-  visibility: 'default' | 'public'
-}
+  visibility: "default" | "public";
+};
 
 export type OrganizationPostPollOptionVotersGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationPostsGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+};
 
 export type OrganizationsOrgSlugPostsPostRequest = {
-  description?: string
-  description_html?: string
-  project_id?: string
-  unfurled_link?: string | null
-  parent_id?: string | null
-  note?: boolean
-  note_id?: string | null
-  from_message_id?: string | null
+  description?: string;
+  description_html?: string;
+  project_id?: string;
+  unfurled_link?: string | null;
+  parent_id?: string | null;
+  note?: boolean;
+  note_id?: string | null;
+  from_message_id?: string | null;
   links: {
-    name: string
-    url: string
-  }[]
-  attachment_ids?: string[]
-  onboarding_step?: string
-  feedback_request_member_ids?: string[]
+    name: string;
+    url: string;
+  }[];
+  attachment_ids?: string[];
+  onboarding_step?: string;
+  feedback_request_member_ids?: string[];
   poll?: {
-    description: string
+    description: string;
     options: {
-      description: string
-    }[]
-  }
-  status?: 'none' | 'feedback_requested'
-  title?: string
-  draft?: boolean
+      description: string;
+    }[];
+  };
+  status?: "none" | "feedback_requested";
+  title?: string;
+  draft?: boolean;
   attachments?: {
-    figma_file_id?: number | null
-    file_path: string
-    file_type: string
-    imgix_video_file_path?: string
-    name?: string | null
-    preview_file_path?: string | null
-    figma_share_url?: string
-    remote_figma_node_id?: string | null
-    remote_figma_node_name?: string | null
-    remote_figma_node_type?: string | null
-    duration?: number
-    size?: number | null
-    height?: number
-    width?: number
-    no_video_track?: boolean
-    gallery_id?: string | null
-  }[]
-}
+    figma_file_id?: number | null;
+    file_path: string;
+    file_type: string;
+    imgix_video_file_path?: string;
+    name?: string | null;
+    preview_file_path?: string | null;
+    figma_share_url?: string;
+    remote_figma_node_id?: string | null;
+    remote_figma_node_name?: string | null;
+    remote_figma_node_type?: string | null;
+    duration?: number;
+    size?: number | null;
+    height?: number;
+    width?: number;
+    no_video_track?: boolean;
+    gallery_id?: string | null;
+  }[];
+};
 
 export type OrganizationsOrgSlugPostsPostIdPutRequest = {
-  title?: string
-  description_html?: string
-  project_id?: string | null
-  unfurled_link?: string | null
-  note?: boolean
-  status?: 'none' | 'feedback_requested'
-  feedback_request_member_ids?: string[]
-  attachment_ids?: string[]
-}
+  title?: string;
+  description_html?: string;
+  project_id?: string | null;
+  unfurled_link?: string | null;
+  note?: boolean;
+  status?: "none" | "feedback_requested";
+  feedback_request_member_ids?: string[];
+  attachment_ids?: string[];
+};
 
-export type OrganizationsOrgSlugPostsPostIdDeleteResponse = object
+export type OrganizationsOrgSlugPostsPostIdDeleteResponse = object;
 
-export type OrganizationPostSubscribePostResponse = object
+export type OrganizationPostSubscribePostResponse = object;
 
-export type OrganizationPostUnsubscribeDeleteResponse = object
+export type OrganizationPostUnsubscribeDeleteResponse = object;
 
 export type OrganizationPostPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
-export type ProductLogsPostResponse = object
+export type ProductLogsPostResponse = object;
 
 export type ProductLogsPostRequest = {
   events: {
-    user_id?: string
-    org_slug?: string
-    name: string
-    data?: object
-    log_ts?: number
-    session_id?: string
-  }[]
-}
+    user_id?: string;
+    org_slug?: string;
+    name: string;
+    data?: object;
+    log_ts?: number;
+    session_id?: string;
+  }[];
+};
 
-export type OrganizationsOrgSlugProjectMembershipsReorderPutResponse = object
+export type OrganizationsOrgSlugProjectMembershipsReorderPutResponse = object;
 
 export type OrganizationsOrgSlugProjectMembershipsReorderPutRequest = {
   project_memberships: {
-    id: string
-    position: number
-  }[]
-}
+    id: string;
+    position: number;
+  }[];
+};
 
 export type OrganizationProjectAddableMembersGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
 export type ProjectBookmark = {
-  id: string
-  title: string
-  url: string
-}
+  id: string;
+  title: string;
+  url: string;
+};
 
 export type OrganizationsOrgSlugProjectsProjectIdBookmarksPostRequest = {
-  title: string
-  url: string
-}
+  title: string;
+  url: string;
+};
 
 export type OrganizationsOrgSlugProjectsProjectIdBookmarksIdPatchRequest = {
-  title: string
-  url: string
-}
+  title: string;
+  url: string;
+};
 
 export type OrganizationProjectBookmarksReorderPutRequest = {
   bookmarks: {
-    id: string
-    position: number
-  }[]
-}
+    id: string;
+    position: number;
+  }[];
+};
 
-export type OrganizationsOrgSlugProjectsProjectIdBookmarksIdDeleteResponse = object
+export type OrganizationsOrgSlugProjectsProjectIdBookmarksIdDeleteResponse =
+  object;
 
 export type OrganizationProjectCallsGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
-}
+  after?: string;
+  limit?: number;
+  q?: string;
+};
 
-export type OrganizationProjectDataExportsPostResponse = object
+export type OrganizationProjectDataExportsPostResponse = object;
 
-export type OrganizationsOrgSlugProjectsProjectIdDisplayPreferencesPutRequest = {
-  display_reactions: boolean
-  display_attachments: boolean
-  display_comments: boolean
-  display_resolved: boolean
-}
+export type OrganizationsOrgSlugProjectsProjectIdDisplayPreferencesPutRequest =
+  {
+    display_reactions: boolean;
+    display_attachments: boolean;
+    display_comments: boolean;
+    display_resolved: boolean;
+  };
 
-export type OrganizationProjectFavoritesDeleteResponse = object
+export type OrganizationProjectFavoritesDeleteResponse = object;
 
-export type OrganizationProjectInvitationUrlAcceptancesPostResponse = object
+export type OrganizationProjectInvitationUrlAcceptancesPostResponse = object;
 
 export type OrganizationProjectInvitationUrlAcceptancesPostRequest = {
-  token: string
-}
+  token: string;
+};
 
 export type OrganizationProjectMembersGetRequest = {
-  after?: string
-  limit?: number
-  organization_membership_id?: string
-  roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-  exclude_roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-}
+  after?: string;
+  limit?: number;
+  organization_membership_id?: string;
+  roles?: ("admin" | "member" | "viewer" | "guest")[];
+  exclude_roles?: ("admin" | "member" | "viewer" | "guest")[];
+};
 
 export type OrganizationsOrgSlugProjectsProjectIdMembershipsPostRequest = {
-  user_id: string
-}
+  user_id: string;
+};
 
 export type OrganizationProjectProjectMembershipsDeleteRequest = {
-  user_id: string
-}
+  user_id: string;
+};
 
 export type OrganizationProjectNotesGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'created_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "created_at";
+    direction: "asc" | "desc";
+  };
+};
 
-export type OrganizationsOrgSlugProjectsProjectIdOauthApplicationsPostRequest = {
-  oauth_application_id: string
-}
+export type OrganizationsOrgSlugProjectsProjectIdOauthApplicationsPostRequest =
+  {
+    oauth_application_id: string;
+  };
 
-export type OrganizationProjectOauthApplicationDeleteResponse = object
+export type OrganizationProjectOauthApplicationDeleteResponse = object;
 
 export type ProjectPinList = {
-  data: ProjectPin[]
-}
+  data: ProjectPin[];
+};
 
 export type OrganizationProjectPostsGetRequest = {
-  after?: string
-  limit?: number
-  q?: string
-  hide_resolved?: boolean
+  after?: string;
+  limit?: number;
+  q?: string;
+  hide_resolved?: boolean;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+};
 
-export type OrganizationsOrgSlugProjectsProjectIdReadsPostResponse = object
+export type OrganizationsOrgSlugProjectsProjectIdReadsPostResponse = object;
 
-export type OrganizationProjectReadsDeleteResponse = object
+export type OrganizationProjectReadsDeleteResponse = object;
 
 export type OrganizationsOrgSlugProjectsProjectIdSubscriptionPostRequest = {
-  cascade?: boolean
-}
+  cascade?: boolean;
+};
 
-export type OrganizationsOrgSlugProjectsProjectIdViewerDisplayPreferencesPutRequest = {
-  display_reactions: boolean
-  display_attachments: boolean
-  display_comments: boolean
-  display_resolved: boolean
-}
+export type OrganizationsOrgSlugProjectsProjectIdViewerDisplayPreferencesPutRequest =
+  {
+    display_reactions: boolean;
+    display_attachments: boolean;
+    display_comments: boolean;
+    display_resolved: boolean;
+  };
 
 export type ProjectPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Project[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Project[];
+  total_count: number;
+};
 
 export type OrganizationProjectsGetRequest = {
-  filter?: string
-  after?: string
-  limit?: number
-  q?: string
-}
+  filter?: string;
+  after?: string;
+  limit?: number;
+  q?: string;
+};
 
 export type OrganizationsOrgSlugProjectsPostRequest = {
-  description?: string
-  name: string
-  accessory?: string
-  cover_photo_path?: string
-  slack_channel_id?: string
-  slack_channel_is_private?: boolean
-  private?: boolean
-  member_user_ids?: string[]
-  is_default?: boolean | null
-  add_everyone?: boolean | null
-  onboarding?: boolean | null
-  chat_format?: boolean | null
-}
+  description?: string;
+  name: string;
+  accessory?: string;
+  cover_photo_path?: string;
+  slack_channel_id?: string;
+  slack_channel_is_private?: boolean;
+  private?: boolean;
+  member_user_ids?: string[];
+  is_default?: boolean | null;
+  add_everyone?: boolean | null;
+  onboarding?: boolean | null;
+  chat_format?: boolean | null;
+};
 
 export type OrganizationsOrgSlugProjectsProjectIdPutRequest = {
-  description?: string
-  name?: string
-  accessory?: string
-  cover_photo_path?: string | null
-  slack_channel_id?: string | null
-  slack_channel_is_private?: boolean | null
-  is_default?: boolean | null
-  private?: boolean
-}
+  description?: string;
+  name?: string;
+  accessory?: string;
+  cover_photo_path?: string | null;
+  slack_channel_id?: string | null;
+  slack_channel_is_private?: boolean | null;
+  is_default?: boolean | null;
+  private?: boolean;
+};
 
-export type OrganizationsOrgSlugProjectsProjectIdDeleteResponse = object
+export type OrganizationsOrgSlugProjectsProjectIdDeleteResponse = object;
 
 export type OrganizationProjectCoverPhotoPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
 export type PublicProject = {
-  id: string
-  name: string
-  accessory: string | null
-  organization: PublicOrganization
-}
+  id: string;
+  name: string;
+  accessory: string | null;
+  organization: PublicOrganization;
+};
 
 export type OrganizationReactionsDeleteRequest = {
-  id: string
-}
+  id: string;
+};
 
 export type OrganizationResourceMentionsGetRequest = {
-  url: string
-}
+  url: string;
+};
 
 export type SearchPost = {
-  id: string
-  title: string
-  description_html: string
-  truncated_description_text: string
-  created_at: string
-  published_at: string | null
-  thumbnail_url: string | null
-  member: OrganizationMember
-  project: MiniProject
-}
+  id: string;
+  title: string;
+  description_html: string;
+  truncated_description_text: string;
+  created_at: string;
+  published_at: string | null;
+  thumbnail_url: string | null;
+  member: OrganizationMember;
+  project: MiniProject;
+};
 
 export type SearchNote = {
-  id: string
-  title: string
-  created_at: string
-  member: OrganizationMember
-  project: MiniProject | null
-}
+  id: string;
+  title: string;
+  created_at: string;
+  member: OrganizationMember;
+  project: MiniProject | null;
+};
 
 export type SearchGroup = {
-  tags: Tag[]
-  projects: SimpleProject[]
-  members: OrganizationMember[]
-  posts: SearchPost[]
-  calls: Call[]
-  notes: SearchNote[]
-  posts_total_count: number
-}
+  tags: Tag[];
+  projects: SimpleProject[];
+  members: OrganizationMember[];
+  posts: SearchPost[];
+  calls: Call[];
+  notes: SearchNote[];
+  posts_total_count: number;
+};
 
 export type OrganizationSearchGroupsGetRequest = {
-  q?: string
-  focus?: 'projects' | 'people' | 'tags' | 'posts' | 'calls' | 'notes'
-}
+  q?: string;
+  focus?: "projects" | "people" | "tags" | "posts" | "calls" | "notes";
+};
 
 export type SearchMixedItem = {
-  id: string
-  type: 'post' | 'call' | 'note'
-  highlights: string[]
-  title_highlight: string | null
-}
+  id: string;
+  type: "post" | "call" | "note";
+  highlights: string[];
+  title_highlight: string | null;
+};
 
 export type SearchCall = {
-  id: string
-  title: string | null
-  created_at: string
-}
+  id: string;
+  title: string | null;
+  created_at: string;
+};
 
 export type SearchMixed = {
-  items: SearchMixedItem[]
-  posts: SearchPost[]
-  calls: SearchCall[]
-  notes: SearchNote[]
-}
+  items: SearchMixedItem[];
+  posts: SearchPost[];
+  calls: SearchCall[];
+  notes: SearchNote[];
+};
 
 export type OrganizationSearchMixedIndexGetRequest = {
-  q: string
-  focus?: 'posts' | 'calls' | 'notes'
-}
+  q: string;
+  focus?: "posts" | "calls" | "notes";
+};
 
 export type OrganizationSearchPostsGetRequest = {
-  q: string
-  project_id?: string
-  author?: string
-  tag?: string
-  limit?: number
-}
+  q: string;
+  project_id?: string;
+  author?: string;
+  tag?: string;
+  limit?: number;
+};
 
 export type ResourceMentionResult = {
-  item: ResourceMention
-  project: MiniProject | null
-}
+  item: ResourceMention;
+  project: MiniProject | null;
+};
 
 export type ResourceMentionResults = {
-  items: ResourceMentionResult[]
-}
+  items: ResourceMentionResult[];
+};
 
 export type OrganizationSearchResourceMentionsGetRequest = {
-  q: string
-}
+  q: string;
+};
 
 export type SlackIntegration = {
-  id: string
-  provider: string
-  has_link_unfurling_scopes: boolean
-  only_scoped_for_notifications: boolean
-  has_private_channel_scopes: boolean
-  current_organization_membership_is_linked?: boolean
-  token?: string
-  team_id: string | null
-}
+  id: string;
+  provider: string;
+  has_link_unfurling_scopes: boolean;
+  only_scoped_for_notifications: boolean;
+  has_private_channel_scopes: boolean;
+  current_organization_membership_is_linked?: boolean;
+  token?: string;
+  team_id: string | null;
+};
 
-export type OrganizationIntegrationsSlackDeleteResponse = object
+export type OrganizationIntegrationsSlackDeleteResponse = object;
 
 export type SyncUser = {
-  id: string
-  avatar_urls: AvatarUrls
-  display_name: string
-  username: string
-  email: string
-  integration: boolean
-  notifications_paused: boolean
-}
+  id: string;
+  avatar_urls: AvatarUrls;
+  display_name: string;
+  username: string;
+  email: string;
+  integration: boolean;
+  notifications_paused: boolean;
+};
 
 export type SyncOrganizationMember = {
-  id: string
-  role: 'admin' | 'member' | 'viewer' | 'guest'
-  deactivated: boolean
-  last_seen_at: string | null
-  user: SyncUser
-}
+  id: string;
+  role: "admin" | "member" | "viewer" | "guest";
+  deactivated: boolean;
+  last_seen_at: string | null;
+  user: SyncUser;
+};
 
 export type SyncMessageThread = {
-  id: string
-  image_url: string | null
-  avatar_urls: AvatarUrls | null
-  group: boolean
-  title: string
-  project_id: string | null
-  dm_other_member: SyncOrganizationMember | null
-}
+  id: string;
+  image_url: string | null;
+  avatar_urls: AvatarUrls | null;
+  group: boolean;
+  title: string;
+  project_id: string | null;
+  dm_other_member: SyncOrganizationMember | null;
+};
 
 export type SyncMessageThreads = {
-  threads: SyncMessageThread[]
-  new_thread_members: OrganizationMember[]
-}
+  threads: SyncMessageThread[];
+  new_thread_members: OrganizationMember[];
+};
 
 export type SyncProject = {
-  id: string
-  name: string
-  accessory: string | null
-  private: boolean
-  is_general: boolean
-  archived: boolean
-  guests_count: number
-  message_thread_id: string | null
-  recent_posts_count: number
-}
+  id: string;
+  name: string;
+  accessory: string | null;
+  private: boolean;
+  is_general: boolean;
+  archived: boolean;
+  guests_count: number;
+  message_thread_id: string | null;
+  recent_posts_count: number;
+};
 
 export type TagPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: Tag[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: Tag[];
+  total_count: number;
+};
 
 export type OrganizationTagsGetRequest = {
-  q?: string
-  after?: string
-  limit?: number
-}
+  q?: string;
+  after?: string;
+  limit?: number;
+};
 
 export type OrganizationsOrgSlugTagsPostRequest = {
-  name: string
-}
+  name: string;
+};
 
 export type OrganizationsOrgSlugTagsTagNamePatchRequest = {
-  name: string
-}
+  name: string;
+};
 
-export type OrganizationsOrgSlugTagsTagNameDeleteResponse = object
+export type OrganizationsOrgSlugTagsTagNameDeleteResponse = object;
 
 export type OrganizationTagPostsGetRequest = {
-  after?: string
-  limit?: number
-}
+  after?: string;
+  limit?: number;
+};
 
-export type InternalDesktopSessionPostResponse = object
+export type InternalDesktopSessionPostResponse = object;
 
 export type InternalDesktopSessionPostRequest = {
   user: {
-    email: string
-    token: string
-  }
-}
+    email: string;
+    token: string;
+  };
+};
 
 export type CurrentUserEditorSyncTokensPostResponse = {
-  token: string
-}
+  token: string;
+};
 
-export type UsersMeNotificationPausePostResponse = object
+export type UsersMeNotificationPausePostResponse = object;
 
 export type UsersMeNotificationPausePostRequest = {
-  expires_at: string
-}
+  expires_at: string;
+};
 
-export type UsersNotificationPauseDeleteResponse = object
+export type UsersNotificationPauseDeleteResponse = object;
 
 export type CustomNotificationSchedule = {
-  days: ('Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday')[]
-  start_time: string
-  end_time: string
-}
+  days: (
+    | "Sunday"
+    | "Monday"
+    | "Tuesday"
+    | "Wednesday"
+    | "Thursday"
+    | "Friday"
+    | "Saturday"
+  )[];
+  start_time: string;
+  end_time: string;
+};
 
 export type NotificationSchedule = {
-  type: 'none' | 'custom'
-  custom: CustomNotificationSchedule | null
-}
+  type: "none" | "custom";
+  custom: CustomNotificationSchedule | null;
+};
 
-export type UsersMeNotificationSchedulePutResponse = object
+export type UsersMeNotificationSchedulePutResponse = object;
 
 export type UsersMeNotificationSchedulePutRequest = {
-  days: ('Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday')[]
-  start_time: string
-  end_time: string
-}
+  days: (
+    | "Sunday"
+    | "Monday"
+    | "Tuesday"
+    | "Wednesday"
+    | "Thursday"
+    | "Friday"
+    | "Saturday"
+  )[];
+  start_time: string;
+  end_time: string;
+};
 
-export type UsersMeNotificationScheduleDeleteResponse = object
+export type UsersMeNotificationScheduleDeleteResponse = object;
 
 export type UsersMePreferencePutResponse = {
-  preference: string
-}
+  preference: string;
+};
 
 export type UsersMePreferencePutRequest = {
-  preference: string
-  value: string
-}
+  preference: string;
+  value: string;
+};
 
 export type ScheduledNotification = {
-  id: string
-  name: string
-  time_zone: string
-  delivery_day: string | null
-  delivery_time: string
-}
+  id: string;
+  name: string;
+  time_zone: string;
+  delivery_day: string | null;
+  delivery_time: string;
+};
 
 export type UsersMeScheduledNotificationsPostRequest = {
-  delivery_day: string | null
-  delivery_time: string
-  time_zone: string
-  name: string
-}
+  delivery_day: string | null;
+  delivery_time: string;
+  time_zone: string;
+  name: string;
+};
 
 export type CurrentUserScheduledNotificationPutRequest = {
-  delivery_day?: string | null
-  delivery_time: string
-  time_zone: string
-}
+  delivery_day?: string | null;
+  delivery_time: string;
+  time_zone: string;
+};
 
-export type UsersMeScheduledNotificationsIdDeleteResponse = object
+export type UsersMeScheduledNotificationsIdDeleteResponse = object;
 
-export type SignOutCurrentUserDeleteResponse = object
+export type SignOutCurrentUserDeleteResponse = object;
 
-export type UsersTimezonePostResponse = object
+export type UsersTimezonePostResponse = object;
 
 export type UsersTimezonePostRequest = {
-  timezone: string
-}
+  timezone: string;
+};
 
 export type CurrentUserTwoFactorAuthenticationPostResponse = {
-  two_factor_provisioning_uri: string
-}
+  two_factor_provisioning_uri: string;
+};
 
 export type UsersMeTwoFactorAuthenticationPutResponse = {
-  two_factor_backup_codes: string[]
-}
+  two_factor_backup_codes: string[];
+};
 
 export type UsersMeTwoFactorAuthenticationPutRequest = {
-  password: string
-  otp_attempt: string
-}
+  password: string;
+  otp_attempt: string;
+};
 
-export type UsersMeTwoFactorAuthenticationDeleteResponse = object
+export type UsersMeTwoFactorAuthenticationDeleteResponse = object;
 
 export type UsersMeTwoFactorAuthenticationDeleteRequest = {
-  password: string
-  otp_attempt: string
-}
+  password: string;
+  otp_attempt: string;
+};
 
 export type UserPreferences = {
-  theme?: 'system' | 'light' | 'dark' | null
-  email_notifications?: 'enabled' | 'disabled' | null
-  message_email_notifications?: 'enabled' | 'disabled' | null
-  prefers_desktop_app?: 'enabled' | 'disabled' | null
-  layout?: 'grid' | 'feed' | null
-  feature_tip_drafts?: 'true' | 'false' | null
-  feature_tip_interstitial?: 'true' | 'false' | null
-  feature_tip_note_attachment?: 'true' | 'false' | null
-  feature_tip_figma_plugin?: 'true' | 'false' | null
-  figma_file_preview_mode?: 'embed' | 'image' | null
-  notes_layout?: 'grid' | 'list' | null
-  feature_tip_onboard_install_apps?: 'true' | 'false' | null
-  posts_density?: 'compact' | 'comfortable' | null
-  cal_dot_com_organization_id?: string | null
-  feature_tip_calls_index_integrations?: 'true' | 'false' | null
-  home_display_reactions?: 'true' | 'false' | null
-  home_display_attachments?: 'true' | 'false' | null
-  home_display_comments?: 'true' | 'false' | null
-  home_display_resolved?: 'true' | 'false' | null
-  channel_composer_post_suggestions?: 'true' | 'false' | null
-}
+  theme?: "system" | "light" | "dark" | null;
+  email_notifications?: "enabled" | "disabled" | null;
+  message_email_notifications?: "enabled" | "disabled" | null;
+  prefers_desktop_app?: "enabled" | "disabled" | null;
+  layout?: "grid" | "feed" | null;
+  feature_tip_drafts?: "true" | "false" | null;
+  feature_tip_interstitial?: "true" | "false" | null;
+  feature_tip_note_attachment?: "true" | "false" | null;
+  feature_tip_figma_plugin?: "true" | "false" | null;
+  figma_file_preview_mode?: "embed" | "image" | null;
+  notes_layout?: "grid" | "list" | null;
+  feature_tip_onboard_install_apps?: "true" | "false" | null;
+  posts_density?: "compact" | "comfortable" | null;
+  cal_dot_com_organization_id?: string | null;
+  feature_tip_calls_index_integrations?: "true" | "false" | null;
+  home_display_reactions?: "true" | "false" | null;
+  home_display_attachments?: "true" | "false" | null;
+  home_display_comments?: "true" | "false" | null;
+  home_display_resolved?: "true" | "false" | null;
+  channel_composer_post_suggestions?: "true" | "false" | null;
+};
 
 export type CurrentUser = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  cover_photo_url: string | null
-  email: string
-  username: string
-  display_name: string
-  onboarded_at: string | null
-  channel_name: string
-  unconfirmed_email: string | null
-  created_at: string | null
-  timezone: string | null
-  email_confirmed: boolean
-  managed: boolean
-  two_factor_enabled: boolean | null
-  staff: boolean
-  system: boolean
-  integration: boolean
-  on_call: boolean
-  notifications_paused: boolean
-  notification_pause_expires_at: string | null
+  id: string;
+  avatar_url: string;
+  avatar_urls: AvatarUrls;
+  cover_photo_url: string | null;
+  email: string;
+  username: string;
+  display_name: string;
+  onboarded_at: string | null;
+  channel_name: string;
+  unconfirmed_email: string | null;
+  created_at: string | null;
+  timezone: string | null;
+  email_confirmed: boolean;
+  managed: boolean;
+  two_factor_enabled: boolean | null;
+  staff: boolean;
+  system: boolean;
+  integration: boolean;
+  on_call: boolean;
+  notifications_paused: boolean;
+  notification_pause_expires_at: string | null;
   features: (
-    | 'slack_auto_publish'
-    | 'sidebar_dms'
-    | 'my_work'
-    | 'max_w_chat'
-    | 'archive_notifications'
-    | 'relative_time'
-    | 'firehose'
-    | 'grouped_notifications'
-    | 'comfy_compact_layout'
-    | 'message_email_notifications'
-    | 'integration_dms'
-    | 'chat_channels'
-    | 'channel_split_view'
-    | 'no_emoji_accessories'
-    | 'export'
-    | 'force_dev_slackbot'
-  )[]
-  logged_in: boolean
-  preferences: UserPreferences
-}
+    | "slack_auto_publish"
+    | "sidebar_dms"
+    | "my_work"
+    | "max_w_chat"
+    | "archive_notifications"
+    | "relative_time"
+    | "firehose"
+    | "grouped_notifications"
+    | "comfy_compact_layout"
+    | "message_email_notifications"
+    | "integration_dms"
+    | "chat_channels"
+    | "channel_split_view"
+    | "no_emoji_accessories"
+    | "export"
+    | "force_dev_slackbot"
+  )[];
+  logged_in: boolean;
+  preferences: UserPreferences;
+};
 
 export type UsersMePatchRequest = {
-  avatar_path?: string | null
-  cover_photo_path?: string | null
-  email?: string
-  name?: string
-  username?: string
-  current_password?: string
-  password?: string
-  password_confirmation?: string
-}
+  avatar_path?: string | null;
+  cover_photo_path?: string | null;
+  email?: string;
+  name?: string;
+  username?: string;
+  current_password?: string;
+  password?: string;
+  password_confirmation?: string;
+};
 
-export type SendUserConfirmationInstructionsPostResponse = object
+export type SendUserConfirmationInstructionsPostResponse = object;
 
 export type UserAvatarPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
 export type UserCoverPhotoPresignedFieldsGetRequest = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
-export type WebPushSubscriptionsPostResponse = object
+export type WebPushSubscriptionsPostResponse = object;
 
 export type WebPushSubscriptionsPostRequest = {
-  old_endpoint?: string | null
-  new_endpoint: string
-  p256dh: string
-  auth: string
-}
+  old_endpoint?: string | null;
+  new_endpoint: string;
+  p256dh: string;
+  auth: string;
+};
 
 export type V2Author = {
-  avatar_urls: AvatarUrls
-  name: string
-  id: string
-  type: 'app' | 'member'
-}
+  avatar_urls: AvatarUrls;
+  name: string;
+  id: string;
+  type: "app" | "member";
+};
 
 export type V2Message = {
-  id: string
-  content: string
-  created_at: string
-  updated_at: string
-  parent_id: string | null
-  thread_id: string
-  author: V2Author | null
-}
+  id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  parent_id: string | null;
+  thread_id: string;
+  author: V2Author | null;
+};
 
 export type V2MemberMessagesPostRequest = {
-  content_markdown: string
-  parent_id?: string
-}
+  content_markdown: string;
+  parent_id?: string;
+};
 
 export type V2User = {
-  id: string
-  avatar_urls: AvatarUrls
-  email: string
-  display_name: string
-}
+  id: string;
+  avatar_urls: AvatarUrls;
+  email: string;
+  display_name: string;
+};
 
 export type V2OrganizationMember = {
-  id: string
-  role: 'admin' | 'member' | 'viewer' | 'guest'
-  created_at: string
-  is_deactivated: boolean
-  user: V2User
-}
+  id: string;
+  role: "admin" | "member" | "viewer" | "guest";
+  created_at: string;
+  is_deactivated: boolean;
+  user: V2User;
+};
 
 export type V2OrganizationMemberPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: V2OrganizationMember[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: V2OrganizationMember[];
+  total_count: number;
+};
 
 export type V2MembersGetRequest = {
-  q?: string
-  after?: string
-  limit?: number
-  roles?: 'admin' | 'member' | 'viewer' | 'guest'
-  sort?: 'created_at' | 'last_seen_at'
-  direction?: 'asc' | 'desc'
-}
+  q?: string;
+  after?: string;
+  limit?: number;
+  roles?: "admin" | "member" | "viewer" | "guest";
+  sort?: "created_at" | "last_seen_at";
+  direction?: "asc" | "desc";
+};
 
 export type V2Comment = {
-  id: string
-  content: string
-  created_at: string
-  replies_count: number
-  parent_id: string | null
-  subject_id: string
-  subject_type: string
-  author: V2Author
-}
+  id: string;
+  content: string;
+  created_at: string;
+  replies_count: number;
+  parent_id: string | null;
+  subject_id: string;
+  subject_type: string;
+  author: V2Author;
+};
 
 export type V2CommentPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: V2Comment[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: V2Comment[];
+  total_count: number;
+};
 
 export type V2PostCommentsGetRequest = {
-  after?: string
-  limit?: number
-  parent_id?: string
-  sort?: 'created_at'
-  direction?: 'asc' | 'desc'
-}
+  after?: string;
+  limit?: number;
+  parent_id?: string;
+  sort?: "created_at";
+  direction?: "asc" | "desc";
+};
 
 export type V2PostsPostIdCommentsPostRequest = {
   /** The comment content in Markdown format. */
-  content_markdown: string
+  content_markdown: string;
   /** The ID of an existing comment to reply to. A single level of nested comments is supported. */
-  parent_id?: string
-}
+  parent_id?: string;
+};
 
 export type V2Project = {
-  id: string
-  name: string
-}
+  id: string;
+  name: string;
+};
 
 export type V2PostResolution = {
-  resolved_at: string
-  resolved_html: string | null
-  resolved_by: V2Author
-  resolved_comment: V2Comment | null
-}
+  resolved_at: string;
+  resolved_html: string | null;
+  resolved_by: V2Author;
+  resolved_comment: V2Comment | null;
+};
 
 export type V2Post = {
-  id: string
-  title: string
-  created_at: string
-  last_activity_at: string
-  url: string
-  content: string
-  comments_count: number
-  channel: V2Project
-  author: V2Author
-  resolution: V2PostResolution | null
-}
+  id: string;
+  title: string;
+  created_at: string;
+  last_activity_at: string;
+  url: string;
+  content: string;
+  comments_count: number;
+  channel: V2Project;
+  author: V2Author;
+  resolution: V2PostResolution | null;
+};
 
 export type V2PostsPostIdResolutionPostRequest = {
-  content_markdown: string | null
-  comment_id: string | null
-}
+  content_markdown: string | null;
+  comment_id: string | null;
+};
 
 export type V2PostPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: V2Post[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: V2Post[];
+  total_count: number;
+};
 
 export type V2PostsGetRequest = {
-  after?: string
-  limit?: number
-  channel_id?: string
-  sort?: 'last_activity_at' | 'published_at'
-  direction?: 'asc' | 'desc'
-}
+  after?: string;
+  limit?: number;
+  channel_id?: string;
+  sort?: "last_activity_at" | "published_at";
+  direction?: "asc" | "desc";
+};
 
 export type V2PostsPostRequest = {
-  title?: string
+  title?: string;
   /** The post content in Markdown format. */
-  content_markdown: string
+  content_markdown: string;
   /** The ID of the channel to create the post in. */
-  channel_id: string
-}
+  channel_id: string;
+};
 
 export type V2ProjectPage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: V2Project[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: V2Project[];
+  total_count: number;
+};
 
 export type V2ChannelsGetRequest = {
-  name?: string
-  after?: string
-  limit?: number
-  sort?: 'name' | 'last_activity_at' | 'created_at'
-  direction?: 'asc' | 'desc'
-}
+  name?: string;
+  after?: string;
+  limit?: number;
+  sort?: "name" | "last_activity_at" | "created_at";
+  direction?: "asc" | "desc";
+};
 
 export type V2MessagePage = {
-  next_cursor?: string | null
-  prev_cursor?: string | null
-  data: V2Message[]
-  total_count: number
-}
+  next_cursor?: string | null;
+  prev_cursor?: string | null;
+  data: V2Message[];
+  total_count: number;
+};
 
 export type V2ThreadMessagesGetRequest = {
-  after?: string
-  limit?: number
-  sort?: 'created_at'
-  direction?: 'asc' | 'desc'
-}
+  after?: string;
+  limit?: number;
+  sort?: "created_at";
+  direction?: "asc" | "desc";
+};
 
 export type V2ThreadsThreadIdMessagesPostRequest = {
   /** The message content in Markdown format. */
-  content_markdown: string
+  content_markdown: string;
   /** The ID of the parent message. */
-  parent_id?: string
-}
+  parent_id?: string;
+};
 
 export type V2MessageThread = {
-  id: string
-  created_at: string
-  updated_at: string
-  group: boolean
-  last_message_at: string | null
-  members_count: number
-  avatar_urls: AvatarUrls | null
-  title: string
-  creator: V2Author
-}
+  id: string;
+  created_at: string;
+  updated_at: string;
+  group: boolean;
+  last_message_at: string | null;
+  members_count: number;
+  avatar_urls: AvatarUrls | null;
+  title: string;
+  creator: V2Author;
+};
 
 export type V2ThreadsPostRequest = {
-  title?: string
-  member_ids: string[]
-}
+  title?: string;
+  member_ids: string[];
+};
 
 export type FigmaKeyPair = {
-  read_key: string
-  write_key: string
-}
+  read_key: string;
+  write_key: string;
+};
 
 export type AssigneeUpdatePayload = {
-  assignees: string[]
+  assignees: string[];
   /** @format int64 */
-  item_id: number
-  link: string
-}
+  item_id: number;
+  link: string;
+};
 
 export type CommonResultCommonPageItemRes = {
   data?: {
     items: {
-      assignees: string[]
-      author: string
+      assignees: string[];
+      author: string;
       /** @format int64 */
-      closed_at?: number | null
+      closed_at?: number | null;
       /** @min 0 */
-      comment_num: number
+      comment_num: number;
       /** @format int64 */
-      id: number
-      labels: LabelItem[]
-      link: string
+      id: number;
+      labels: LabelItem[];
+      link: string;
       /** @format int64 */
-      merge_timestamp?: number | null
+      merge_timestamp?: number | null;
       /** @format int64 */
-      open_timestamp: number
-      status: string
-      title: string
+      open_timestamp: number;
+      status: string;
+      title: string;
       /** @format int64 */
-      updated_at: number
-    }[]
+      updated_at: number;
+    }[];
     /**
      * @format int64
      * @min 0
      */
-    total: number
-  }
-  err_message: string
-  req_result: boolean
-}
+    total: number;
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultCommonPageLabelItem = {
   data?: {
     items: {
-      color: string
-      description: string
+      color: string;
+      description: string;
       /** @format int64 */
-      id: number
-      name: string
-    }[]
+      id: number;
+      name: string;
+    }[];
     /**
      * @format int64
      * @min 0
      */
-    total: number
-  }
-  err_message: string
-  req_result: boolean
-}
+    total: number;
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultFilesChangedList = {
   data?: {
-    content: string
-    mui_trees: MuiTreeNode[]
-  }
-  err_message: string
-  req_result: boolean
-}
+    content: string;
+    mui_trees: MuiTreeNode[];
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultIssueDetailRes = {
   data?: {
-    assignees: string[]
-    conversations: ConversationItem[]
+    assignees: string[];
+    conversations: ConversationItem[];
     /** @format int64 */
-    id: number
-    labels: LabelItem[]
-    link: string
+    id: number;
+    labels: LabelItem[];
+    link: string;
     /** @format int64 */
-    open_timestamp: number
-    status: string
-    title: string
-  }
-  err_message: string
-  req_result: boolean
-}
+    open_timestamp: number;
+    status: string;
+    title: string;
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultMRDetailRes = {
   data?: {
-    assignees: string[]
-    conversations: ConversationItem[]
+    assignees: string[];
+    conversations: ConversationItem[];
     /** @format int64 */
-    id: number
-    labels: LabelItem[]
-    link: string
+    id: number;
+    labels: LabelItem[];
+    link: string;
     /** @format int64 */
-    merge_timestamp?: number | null
+    merge_timestamp?: number | null;
     /** @format int64 */
-    open_timestamp: number
-    status: MergeStatusEnum
-    title: string
-  }
-  err_message: string
-  req_result: boolean
-}
+    open_timestamp: number;
+    status: MergeStatusEnum;
+    title: string;
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultString = {
-  data?: string
-  err_message: string
-  req_result: boolean
-}
+  data?: string;
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultTreeResponse = {
   data?: {
-    file_tree: Record<string, FileTreeItem>
-    tree_items: TreeBriefItem[]
-  }
-  err_message: string
-  req_result: boolean
-}
+    file_tree: Record<string, FileTreeItem>;
+    tree_items: TreeBriefItem[];
+  };
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultVecIssueSuggestions = {
   data?: {
     /** @format int64 */
-    id: number
-    link: string
-    title: string
-    type: string
-  }[]
-  err_message: string
-  req_result: boolean
-}
+    id: number;
+    link: string;
+    title: string;
+    type: string;
+  }[];
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultVecMrFilesRes = {
   data?: {
-    action: string
-    path: string
-    sha: string
-  }[]
-  err_message: string
-  req_result: boolean
-}
+    action: string;
+    path: string;
+    sha: string;
+  }[];
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultVecTreeCommitItem = {
   data?: {
-    commit_id: string
-    commit_message: string
-    content_type: string
-    date: string
-    name: string
-  }[]
-  err_message: string
-  req_result: boolean
-}
+    commit_id: string;
+    commit_message: string;
+    content_type: string;
+    date: string;
+    name: string;
+  }[];
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultVecTreeHashItem = {
   data?: {
-    content_type: string
-    name: string
-    oid: string
-  }[]
-  err_message: string
-  req_result: boolean
-}
+    content_type: string;
+    name: string;
+    oid: string;
+  }[];
+  err_message: string;
+  req_result: boolean;
+};
 
 export type CommonResultBool = {
-  data?: boolean
-  err_message: string
-  req_result: boolean
-}
+  data?: boolean;
+  err_message: string;
+  req_result: boolean;
+};
 
 export type ContentPayload = {
-  content: string
-}
+  content: string;
+};
 
 export enum ConvTypeEnum {
-  Comment = 'Comment',
-  Deploy = 'Deploy',
-  Commit = 'Commit',
-  ForcePush = 'ForcePush',
-  Edit = 'Edit',
-  Review = 'Review',
-  Approve = 'Approve',
-  MergeQueue = 'MergeQueue',
-  Merged = 'Merged',
-  Closed = 'Closed',
-  Reopen = 'Reopen',
-  Label = 'Label',
-  Assignee = 'Assignee'
+  Comment = "Comment",
+  Deploy = "Deploy",
+  Commit = "Commit",
+  ForcePush = "ForcePush",
+  Edit = "Edit",
+  Review = "Review",
+  Approve = "Approve",
+  MergeQueue = "MergeQueue",
+  Merged = "Merged",
+  Closed = "Closed",
+  Reopen = "Reopen",
+  Label = "Label",
+  Assignee = "Assignee",
 }
 
 export type ConversationItem = {
-  comment?: string | null
-  conv_type: ConvTypeEnum
+  comment?: string | null;
+  conv_type: ConvTypeEnum;
   /** @format int64 */
-  created_at: number
-  grouped_reactions: ReactionItem[]
+  created_at: number;
+  grouped_reactions: ReactionItem[];
   /** @format int64 */
-  id: number
+  id: number;
   /** @format int64 */
-  updated_at: number
-  username: string
-}
+  updated_at: number;
+  username: string;
+};
 
 export type CreateFileInfo = {
-  content?: string | null
+  content?: string | null;
   /** can be a file or directory */
-  is_directory: boolean
-  name: string
+  is_directory: boolean;
+  name: string;
   /** leave empty if it's under root */
-  path: string
-}
+  path: string;
+};
 
 export type FileTreeItem = {
   /** @min 0 */
-  total_count: number
-  tree_items: TreeBriefItem[]
-}
+  total_count: number;
+  tree_items: TreeBriefItem[];
+};
 
 export type FilesChangedList = {
-  content: string
-  mui_trees: MuiTreeNode[]
-}
+  content: string;
+  mui_trees: MuiTreeNode[];
+};
 
 export type IssueDetailRes = {
-  assignees: string[]
-  conversations: ConversationItem[]
+  assignees: string[];
+  conversations: ConversationItem[];
   /** @format int64 */
-  id: number
-  labels: LabelItem[]
-  link: string
+  id: number;
+  labels: LabelItem[];
+  link: string;
   /** @format int64 */
-  open_timestamp: number
-  status: string
-  title: string
-}
+  open_timestamp: number;
+  status: string;
+  title: string;
+};
 
 export type IssueSuggestions = {
   /** @format int64 */
-  id: number
-  link: string
-  title: string
-  type: string
-}
+  id: number;
+  link: string;
+  title: string;
+  type: string;
+};
 
 export type ItemRes = {
-  assignees: string[]
-  author: string
+  assignees: string[];
+  author: string;
   /** @format int64 */
-  closed_at?: number | null
+  closed_at?: number | null;
   /** @min 0 */
-  comment_num: number
+  comment_num: number;
   /** @format int64 */
-  id: number
-  labels: LabelItem[]
-  link: string
+  id: number;
+  labels: LabelItem[];
+  link: string;
   /** @format int64 */
-  merge_timestamp?: number | null
+  merge_timestamp?: number | null;
   /** @format int64 */
-  open_timestamp: number
-  status: string
-  title: string
+  open_timestamp: number;
+  status: string;
+  title: string;
   /** @format int64 */
-  updated_at: number
-}
+  updated_at: number;
+};
 
 export type LabelItem = {
-  color: string
-  description: string
+  color: string;
+  description: string;
   /** @format int64 */
-  id: number
-  name: string
-}
+  id: number;
+  name: string;
+};
 
 export type LabelUpdatePayload = {
   /** @format int64 */
-  item_id: number
-  label_ids: number[]
-  link: string
-}
+  item_id: number;
+  label_ids: number[];
+  link: string;
+};
 
 export type LatestCommitInfo = {
-  author: UserInfo
-  committer: UserInfo
-  date: string
-  oid: string
-  short_message: string
-  status: string
-}
+  author: UserInfo;
+  committer: UserInfo;
+  date: string;
+  oid: string;
+  short_message: string;
+  status: string;
+};
 
 export type ListPayload = {
-  asc: boolean
-  assignees?: any[] | null
-  author?: string | null
-  labels?: any[] | null
-  sort_by?: string | null
-  status: string
-}
+  asc: boolean;
+  assignees?: any[] | null;
+  author?: string | null;
+  labels?: any[] | null;
+  sort_by?: string | null;
+  status: string;
+};
 
 export type MRDetailRes = {
-  assignees: string[]
-  conversations: ConversationItem[]
+  assignees: string[];
+  conversations: ConversationItem[];
   /** @format int64 */
-  id: number
-  labels: LabelItem[]
-  link: string
+  id: number;
+  labels: LabelItem[];
+  link: string;
   /** @format int64 */
-  merge_timestamp?: number | null
+  merge_timestamp?: number | null;
   /** @format int64 */
-  open_timestamp: number
-  status: MergeStatusEnum
-  title: string
-}
+  open_timestamp: number;
+  status: MergeStatusEnum;
+  title: string;
+};
 
 export enum MergeStatusEnum {
-  Open = 'Open',
-  Merged = 'Merged',
-  Closed = 'Closed'
+  Open = "Open",
+  Merged = "Merged",
+  Closed = "Closed",
 }
 
 export type MrFilesRes = {
-  action: string
-  path: string
-  sha: string
-}
+  action: string;
+  path: string;
+  sha: string;
+};
 
 export type MuiTreeNode = {
-  children?: any[] | null
-  id: string
-  label: string
-}
+  children?: any[] | null;
+  id: string;
+  label: string;
+};
 
 export type NewIssue = {
-  description: string
-  title: string
-}
+  description: string;
+  title: string;
+};
 
 export type NewLabel = {
-  color: string
-  description: string
-  name: string
-}
+  color: string;
+  description: string;
+  name: string;
+};
 
 export type PageParamsListPayload = {
   additional: {
-    asc: boolean
-    assignees?: any[] | null
-    author?: string | null
-    labels?: any[] | null
-    sort_by?: string | null
-    status: string
-  }
-  pagination: Pagination
-}
+    asc: boolean;
+    assignees?: any[] | null;
+    author?: string | null;
+    labels?: any[] | null;
+    sort_by?: string | null;
+    status: string;
+  };
+  pagination: Pagination;
+};
 
 export type PageParamsString = {
-  additional: string
-  pagination: Pagination
-}
+  additional: string;
+  pagination: Pagination;
+};
 
 export type Pagination = {
   /**
    * @format int64
    * @min 0
    */
-  page: number
+  page: number;
   /**
    * @format int64
    * @min 0
    */
-  per_page: number
-}
+  per_page: number;
+};
 
 export type ReactionItem = {
-  custom_content: string
-  emoji: string
+  custom_content: string;
+  emoji: string;
   /** @min 0 */
-  reactions_count: number
-  tooltip: string[]
-  viewer_reaction_id: string
-}
+  reactions_count: number;
+  tooltip: string[];
+  viewer_reaction_id: string;
+};
 
 export type ReactionRequest = {
-  comment_type: string
-  content: string
-}
+  comment_type: string;
+  content: string;
+};
+
+export type ShowResponse = {
+  description_html?: string;
+  /** @format int32 */
+  description_schema_version: number;
+  description_state?: string | null;
+  id: string;
+};
 
 export type TreeBriefItem = {
-  content_type: string
-  name: string
-  path: string
-}
+  content_type: string;
+  name: string;
+  path: string;
+};
 
 export type TreeCommitItem = {
-  commit_id: string
-  commit_message: string
-  content_type: string
-  date: string
-  name: string
-}
+  commit_id: string;
+  commit_message: string;
+  content_type: string;
+  date: string;
+  name: string;
+};
 
 export type TreeHashItem = {
-  content_type: string
-  name: string
-  oid: string
-}
+  content_type: string;
+  name: string;
+  oid: string;
+};
 
 export type TreeResponse = {
-  file_tree: Record<string, FileTreeItem>
-  tree_items: TreeBriefItem[]
-}
+  file_tree: Record<string, FileTreeItem>;
+  tree_items: TreeBriefItem[];
+};
+
+export type UpdateRequest = {
+  description_html: string;
+  /** @format int32 */
+  description_schema_version: number;
+  description_state: string;
+};
 
 export type UserInfo = {
-  avatar_url: string
-  display_name: string
-}
+  avatar_url: string;
+  display_name: string;
+};
 
-export type PostActivityViewsData = UserNotificationCounts
+export type PostActivityViewsData = UserNotificationCounts;
 
-export type GetAttachmentsCommentersData = OrganizationMember[]
+export type GetAttachmentsCommentersData = OrganizationMember[];
 
-export type PostAttachmentsData = Attachment
+export type PostAttachmentsData = Attachment;
 
-export type GetAttachmentsByIdData = Attachment
+export type GetAttachmentsByIdData = Attachment;
 
-export type PostBatchedPostViewsData = BatchedPostViewsPostResponse
+export type PostBatchedPostViewsData = BatchedPostViewsPostResponse;
 
-export type GetCallRecordingsTranscriptionData = CallRecordingTranscription
+export type GetCallRecordingsTranscriptionData = CallRecordingTranscription;
 
-export type PostCallRoomsInvitationsData = OrganizationCallRoomInvitationsPostResponse
+export type PostCallRoomsInvitationsData =
+  OrganizationCallRoomInvitationsPostResponse;
 
-export type GetCallRoomsByIdData = CallRoom
+export type GetCallRoomsByIdData = CallRoom;
 
-export type PostCallRoomsData = CallRoom
+export type PostCallRoomsData = CallRoom;
 
-export type DeleteCallsAllRecordingsData = OrganizationCallAllRecordingsDeleteResponse
+export type DeleteCallsAllRecordingsData =
+  OrganizationCallAllRecordingsDeleteResponse;
 
-export type PostCallsFavoriteData = Favorite
+export type PostCallsFavoriteData = Favorite;
 
-export type DeleteCallsFavoriteData = OrganizationCallFavoriteDeleteResponse
+export type DeleteCallsFavoriteData = OrganizationCallFavoriteDeleteResponse;
 
-export type PostCallsFollowUpData = FollowUp
+export type PostCallsFollowUpData = FollowUp;
 
-export type PostCallsPinData = ProjectPinCreated
+export type PostCallsPinData = ProjectPinCreated;
 
-export type PutCallsProjectPermissionData = Call
+export type PutCallsProjectPermissionData = Call;
 
-export type DeleteCallsProjectPermissionData = OrganizationsOrgSlugCallsCallIdProjectPermissionDeleteResponse
+export type DeleteCallsProjectPermissionData =
+  OrganizationsOrgSlugCallsCallIdProjectPermissionDeleteResponse;
 
 export type GetCallsRecordingsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  callId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  callId: string;
+};
 
-export type GetCallsRecordingsData = CallRecordingPage
+export type GetCallsRecordingsData = CallRecordingPage;
 
 export type GetCallsParams = {
-  filter?: 'joined'
-  after?: string
-  limit?: number
-  q?: string
-  orgSlug: string
-}
+  filter?: "joined";
+  after?: string;
+  limit?: number;
+  q?: string;
+  orgSlug: string;
+};
 
-export type GetCallsData = CallPage
+export type GetCallsData = CallPage;
 
-export type GetCallsByIdData = Call
+export type GetCallsByIdData = Call;
 
-export type PutCallsByIdData = Call
+export type PutCallsByIdData = Call;
 
-export type PutCommentsAttachmentsReorderData = OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutResponse
+export type PutCommentsAttachmentsReorderData =
+  OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutResponse;
 
-export type PostCommentsFollowUpData = FollowUp
+export type PostCommentsFollowUpData = FollowUp;
 
-export type PostCommentsLinearIssuesData = CreateLinearIssue
+export type PostCommentsLinearIssuesData = CreateLinearIssue;
 
-export type PostCommentsReactionsData = Reaction
+export type PostCommentsReactionsData = Reaction;
 
-export type PostCommentsRepliesData = ReplyCreated
+export type PostCommentsRepliesData = ReplyCreated;
 
-export type PostCommentsResolutionsData = Comment
+export type PostCommentsResolutionsData = Comment;
 
-export type DeleteCommentsResolutionsData = Comment
+export type DeleteCommentsResolutionsData = Comment;
 
-export type PutCommentsTasksData = Comment
+export type PutCommentsTasksData = Comment;
 
-export type GetCommentsByIdData = Comment
+export type GetCommentsByIdData = Comment;
 
-export type PutCommentsByIdData = Comment
+export type PutCommentsByIdData = Comment;
 
-export type DeleteCommentsByIdData = Commenters
+export type DeleteCommentsByIdData = Commenters;
 
-export type GetCustomReactionsPacksData = CustomReactionsPack[]
+export type GetCustomReactionsPacksData = CustomReactionsPack[];
 
-export type PostCustomReactionsPacksData = OrganizationsOrgSlugCustomReactionsPacksPostResponse
+export type PostCustomReactionsPacksData =
+  OrganizationsOrgSlugCustomReactionsPacksPostResponse;
 
-export type DeleteCustomReactionsPacksByNameData = OrganizationCustomReactionsPackDeleteResponse
+export type DeleteCustomReactionsPacksByNameData =
+  OrganizationCustomReactionsPackDeleteResponse;
 
 export type GetCustomReactionsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetCustomReactionsData = CustomReactionPage
+export type GetCustomReactionsData = CustomReactionPage;
 
-export type PostCustomReactionsData = CustomReaction
+export type PostCustomReactionsData = CustomReaction;
 
-export type DeleteCustomReactionsByIdData = OrganizationCustomReactionDeleteResponse
+export type DeleteCustomReactionsByIdData =
+  OrganizationCustomReactionDeleteResponse;
 
-export type PostDataExportsData = OrganizationDataExportsPostResponse
+export type PostDataExportsData = OrganizationDataExportsPostResponse;
 
-export type GetDigestsMigrationsData = PostDigestNoteMigration
+export type GetDigestsMigrationsData = PostDigestNoteMigration;
 
-export type PutFavoritesReorderData = ReorderOrganizationFavoritesPutResponse
+export type PutFavoritesReorderData = ReorderOrganizationFavoritesPutResponse;
 
-export type GetFavoritesData = Favorite[]
+export type GetFavoritesData = Favorite[];
 
-export type DeleteFavoritesByIdData = OrganizationFavoriteDeleteResponse
+export type DeleteFavoritesByIdData = OrganizationFavoriteDeleteResponse;
 
-export type PostFeedbackData = OrganizationFeedbacksPostResponse
+export type PostFeedbackData = OrganizationFeedbacksPostResponse;
 
 export type GetFeedbackPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetFeedbackPresignedFieldsData = PresignedPostFields
+export type GetFeedbackPresignedFieldsData = PresignedPostFields;
 
-export type PostFigmaFilesData = FigmaFile
+export type PostFigmaFilesData = FigmaFile;
 
-export type PostFigmaFileAttachmentDetailsData = FigmaFileAttachmentDetails
+export type PostFigmaFileAttachmentDetailsData = FigmaFileAttachmentDetails;
 
 export type GetFollowUpsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetFollowUpsData = FollowUpPage
+export type GetFollowUpsData = FollowUpPage;
 
-export type PutFollowUpsByIdData = FollowUp
+export type PutFollowUpsByIdData = FollowUp;
 
-export type DeleteFollowUpsByIdData = OrganizationsOrgSlugFollowUpsIdDeleteResponse
+export type DeleteFollowUpsByIdData =
+  OrganizationsOrgSlugFollowUpsIdDeleteResponse;
 
 export type GetGifsParams = {
-  q?: string
-  limit?: number
-  after?: string
-  orgSlug: string
-}
+  q?: string;
+  limit?: number;
+  after?: string;
+  orgSlug: string;
+};
 
-export type GetGifsData = GifsPage
+export type GetGifsData = GifsPage;
 
-export type PostImageUrlsData = ImageUrls
+export type PostImageUrlsData = ImageUrls;
 
-export type PostIntegrationsCalDotComCallRoomsData = CallRoom
+export type PostIntegrationsCalDotComCallRoomsData = CallRoom;
 
-export type GetIntegrationsCalDotComIntegrationData = CalDotComIntegration
+export type GetIntegrationsCalDotComIntegrationData = CalDotComIntegration;
 
-export type PutIntegrationsCalDotComOrganizationData = IntegrationsCalDotComOrganizationPutResponse
+export type PutIntegrationsCalDotComOrganizationData =
+  IntegrationsCalDotComOrganizationPutResponse;
 
-export type GetIntegrationsFigmaIntegrationData = FigmaIntegrationGetResponse
+export type GetIntegrationsFigmaIntegrationData = FigmaIntegrationGetResponse;
 
-export type GetIntegrationsLinearInstallationData = LinearIntegration
+export type GetIntegrationsLinearInstallationData = LinearIntegration;
 
-export type DeleteIntegrationsLinearInstallationData = OrganizationsOrgSlugIntegrationsLinearInstallationDeleteResponse
+export type DeleteIntegrationsLinearInstallationData =
+  OrganizationsOrgSlugIntegrationsLinearInstallationDeleteResponse;
 
-export type PostIntegrationsLinearTeamSyncsData = OrganizationIntegrationsLinearTeamSyncsPostResponse
+export type PostIntegrationsLinearTeamSyncsData =
+  OrganizationIntegrationsLinearTeamSyncsPostResponse;
 
-export type GetIntegrationsLinearTeamsData = IntegrationTeam[]
+export type GetIntegrationsLinearTeamsData = IntegrationTeam[];
 
-export type PostIntegrationsSlackChannelSyncsData = OrganizationIntegrationsSlackChannelSyncsPostResponse
+export type PostIntegrationsSlackChannelSyncsData =
+  OrganizationIntegrationsSlackChannelSyncsPostResponse;
 
 export type GetIntegrationsSlackChannelsParams = {
-  after?: string
-  q?: string
-  limit?: number
-  orgSlug: string
-}
+  after?: string;
+  q?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetIntegrationsSlackChannelsData = SlackChannelPage
+export type GetIntegrationsSlackChannelsData = SlackChannelPage;
 
-export type GetIntegrationsSlackChannelsByProviderChannelIdData = SlackChannel
+export type GetIntegrationsSlackChannelsByProviderChannelIdData = SlackChannel;
 
-export type PostIntegrationsZapierCommentsData = ZapierComment
+export type PostIntegrationsZapierCommentsData = ZapierComment;
 
-export type PostIntegrationsZapierMessagesData = ZapierMessage
+export type PostIntegrationsZapierMessagesData = ZapierMessage;
 
-export type PostIntegrationsZapierPostsData = ZapierPost
+export type PostIntegrationsZapierPostsData = ZapierPost;
 
 export type GetIntegrationsZapierProjectsParams = {
-  name?: string
-}
+  name?: string;
+};
 
-export type GetIntegrationsZapierProjectsData = ZapierProjects
+export type GetIntegrationsZapierProjectsData = ZapierProjects;
 
-export type GetInvitationUrlData = InvitationUrl
+export type GetInvitationUrlData = InvitationUrl;
 
-export type GetThreadsDmsByUsernameData = MessageThreadDmResult
+export type GetThreadsDmsByUsernameData = MessageThreadDmResult;
 
-export type PostThreadsFavoritesData = Favorite
+export type PostThreadsFavoritesData = Favorite;
 
-export type DeleteThreadsFavoritesData = OrganizationThreadFavoritesDeleteResponse
+export type DeleteThreadsFavoritesData =
+  OrganizationThreadFavoritesDeleteResponse;
 
-export type GetThreadsIntegrationDmsByOauthApplicationIdData = MessageThreadDmResult
+export type GetThreadsIntegrationDmsByOauthApplicationIdData =
+  MessageThreadDmResult;
 
 export type GetThreadsMessagesParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  threadId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  threadId: string;
+};
 
-export type GetThreadsMessagesData = MessagePage
+export type GetThreadsMessagesData = MessagePage;
 
-export type PostThreadsMessagesData = PusherInvalidateMessage
+export type PostThreadsMessagesData = PusherInvalidateMessage;
 
-export type PutThreadsMessagesByIdData = OrganizationsOrgSlugThreadsThreadIdMessagesIdPutResponse
+export type PutThreadsMessagesByIdData =
+  OrganizationsOrgSlugThreadsThreadIdMessagesIdPutResponse;
 
-export type DeleteThreadsMessagesByIdData = OrganizationsOrgSlugThreadsThreadIdMessagesIdDeleteResponse
+export type DeleteThreadsMessagesByIdData =
+  OrganizationsOrgSlugThreadsThreadIdMessagesIdDeleteResponse;
 
-export type GetThreadsMyMembershipData = MessageThreadMembership
+export type GetThreadsMyMembershipData = MessageThreadMembership;
 
-export type PutThreadsMyMembershipData = MessageThreadMembership
+export type PutThreadsMyMembershipData = MessageThreadMembership;
 
-export type DeleteThreadsMyMembershipData = OrganizationsOrgSlugThreadsThreadIdMyMembershipDeleteResponse
+export type DeleteThreadsMyMembershipData =
+  OrganizationsOrgSlugThreadsThreadIdMyMembershipDeleteResponse;
 
-export type PostThreadsNotificationForcesData = OrganizationThreadNotificationForcesPostResponse
+export type PostThreadsNotificationForcesData =
+  OrganizationThreadNotificationForcesPostResponse;
 
-export type GetThreadsOauthApplicationsData = OauthApplication[]
+export type GetThreadsOauthApplicationsData = OauthApplication[];
 
-export type PostThreadsOauthApplicationsData = MessageThreadMembership
+export type PostThreadsOauthApplicationsData = MessageThreadMembership;
 
-export type DeleteThreadsOauthApplicationsByIdData = OrganizationThreadOauthApplicationDeleteResponse
+export type DeleteThreadsOauthApplicationsByIdData =
+  OrganizationThreadOauthApplicationDeleteResponse;
 
-export type PutThreadsOtherMembershipsListData = MessageThread
+export type PutThreadsOtherMembershipsListData = MessageThread;
 
 export type GetThreadsPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetThreadsPresignedFieldsData = PresignedPostFields
+export type GetThreadsPresignedFieldsData = PresignedPostFields;
 
-export type PostThreadsReadsData = UserNotificationCounts
+export type PostThreadsReadsData = UserNotificationCounts;
 
-export type DeleteThreadsReadsData = UserNotificationCounts
+export type DeleteThreadsReadsData = UserNotificationCounts;
 
-export type GetThreadsData = MessageThreadInbox
+export type GetThreadsData = MessageThreadInbox;
 
-export type PostThreadsData = MessageThread
+export type PostThreadsData = MessageThread;
 
-export type GetThreadsByIdData = MessageThread
+export type GetThreadsByIdData = MessageThread;
 
-export type PutThreadsByIdData = MessageThread
+export type PutThreadsByIdData = MessageThread;
 
-export type DeleteThreadsByIdData = OrganizationsOrgSlugThreadsIdDeleteResponse
+export type DeleteThreadsByIdData = OrganizationsOrgSlugThreadsIdDeleteResponse;
 
-export type DeleteMessagesAttachmentsByIdData = OrganizationMessageAttachmentDeleteResponse
+export type DeleteMessagesAttachmentsByIdData =
+  OrganizationMessageAttachmentDeleteResponse;
 
-export type PostMessagesReactionsData = Reaction
+export type PostMessagesReactionsData = Reaction;
 
 export type GetNotesAttachmentsCommentsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  noteId: string
-  attachmentId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  noteId: string;
+  attachmentId: string;
+};
 
-export type GetNotesAttachmentsCommentsData = CommentPage
+export type GetNotesAttachmentsCommentsData = CommentPage;
 
-export type PutNotesAttachmentsReorderData = OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutResponse
+export type PutNotesAttachmentsReorderData =
+  OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutResponse;
 
-export type PostNotesAttachmentsData = Attachment
+export type PostNotesAttachmentsData = Attachment;
 
-export type PutNotesAttachmentsByIdData = Attachment
+export type PutNotesAttachmentsByIdData = Attachment;
 
-export type DeleteNotesAttachmentsByIdData = Note
+export type DeleteNotesAttachmentsByIdData = Note;
 
 export type GetNotesCommentsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  noteId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  noteId: string;
+};
 
-export type GetNotesCommentsData = CommentPage
+export type GetNotesCommentsData = CommentPage;
 
-export type PostNotesCommentsData = CommentCreated
+export type PostNotesCommentsData = CommentCreated;
 
-export type PostNotesFavoriteData = Favorite
+export type PostNotesFavoriteData = Favorite;
 
-export type DeleteNotesFavoriteData = OrganizationNoteFavoriteDeleteResponse
+export type DeleteNotesFavoriteData = OrganizationNoteFavoriteDeleteResponse;
 
-export type PostNotesFollowUpData = FollowUp
+export type PostNotesFollowUpData = FollowUp;
 
-export type GetNotesPermissionsData = Permission[]
+export type GetNotesPermissionsData = Permission[];
 
-export type PostNotesPermissionsData = Permission[]
+export type PostNotesPermissionsData = Permission[];
 
-export type PutNotesPermissionsByIdData = Permission
+export type PutNotesPermissionsByIdData = Permission;
 
-export type DeleteNotesPermissionsByIdData = OrganizationsOrgSlugNotesNoteIdPermissionsIdDeleteResponse
+export type DeleteNotesPermissionsByIdData =
+  OrganizationsOrgSlugNotesNoteIdPermissionsIdDeleteResponse;
 
-export type PostNotesPinData = ProjectPinCreated
+export type PostNotesPinData = ProjectPinCreated;
 
-export type PutNotesProjectPermissionsData = Note
+export type PutNotesProjectPermissionsData = Note;
 
-export type DeleteNotesProjectPermissionsData = OrganizationsOrgSlugNotesNoteIdProjectPermissionsDeleteResponse
+export type DeleteNotesProjectPermissionsData =
+  OrganizationsOrgSlugNotesNoteIdProjectPermissionsDeleteResponse;
 
-export type GetNotesPublicNotesData = PublicNote
+export type GetNotesPublicNotesData = PublicNote;
 
-export type GetNotesSyncStateData = NoteSync
+export type GetNotesSyncStateData = NoteSync;
 
-export type PutNotesSyncStateData = OrganizationsOrgSlugNotesNoteIdSyncStatePutResponse
+export type PutNotesSyncStateData =
+  OrganizationsOrgSlugNotesNoteIdSyncStatePutResponse;
 
 export type GetNotesTimelineEventsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  noteId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  noteId: string;
+};
 
-export type GetNotesTimelineEventsData = TimelineEventPage
+export type GetNotesTimelineEventsData = TimelineEventPage;
 
-export type GetNotesViewsData = NoteView[]
+export type GetNotesViewsData = NoteView[];
 
-export type PostNotesViewsData = NoteViewCreated
+export type PostNotesViewsData = NoteViewCreated;
 
-export type PutNotesVisibilityData = OrganizationsOrgSlugNotesNoteIdVisibilityPutResponse
+export type PutNotesVisibilityData =
+  OrganizationsOrgSlugNotesNoteIdVisibilityPutResponse;
 
 export type GetNotesParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'created_at' | 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "created_at" | "last_activity_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetNotesData = NotePage
+export type GetNotesData = NotePage;
 
-export type PostNotesData = Note
+export type PostNotesData = Note;
 
-export type GetNotesByIdData = Note
+export type GetNotesByIdData = Note;
 
-export type PutNotesByIdData = Note
+export type PutNotesByIdData = Note;
 
-export type DeleteNotesByIdData = OrganizationsOrgSlugNotesIdDeleteResponse
+export type DeleteNotesByIdData = OrganizationsOrgSlugNotesIdDeleteResponse;
 
-export type DeleteMembersMeNotificationsArchiveData = OrganizationNotificationArchiveDeleteResponse
+export type DeleteMembersMeNotificationsArchiveData =
+  OrganizationNotificationArchiveDeleteResponse;
 
-export type PostMembersMeNotificationsDeleteAllData = OrganizationNotificationDeleteAllPostResponse
+export type PostMembersMeNotificationsDeleteAllData =
+  OrganizationNotificationDeleteAllPostResponse;
 
-export type PostMembersMeNotificationsMarkAllReadData = OrganizationNotificationMarkAllReadPostResponse
+export type PostMembersMeNotificationsMarkAllReadData =
+  OrganizationNotificationMarkAllReadPostResponse;
 
-export type PostMembersMeNotificationsReadData = OrganizationNotificationReadPostResponse
+export type PostMembersMeNotificationsReadData =
+  OrganizationNotificationReadPostResponse;
 
 export type DeleteMembersMeNotificationsReadData =
-  OrganizationsOrgSlugMembersMeNotificationsNotificationIdReadDeleteResponse
+  OrganizationsOrgSlugMembersMeNotificationsNotificationIdReadDeleteResponse;
 
 export type GetMembersMeNotificationsParams = {
-  unread?: boolean
-  filter?: 'home' | 'grouped_home' | 'activity'
-  after?: string
-  limit?: number
-  orgSlug: string
-}
+  unread?: boolean;
+  filter?: "home" | "grouped_home" | "activity";
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetMembersMeNotificationsData = NotificationPage
+export type GetMembersMeNotificationsData = NotificationPage;
 
-export type DeleteMembersMeNotificationsByIdData = OrganizationNotificationDeleteResponse
+export type DeleteMembersMeNotificationsByIdData =
+  OrganizationNotificationDeleteResponse;
 
 export type GetOauthApplicationsPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetOauthApplicationsPresignedFieldsData = PresignedPostFields
+export type GetOauthApplicationsPresignedFieldsData = PresignedPostFields;
 
-export type PostOauthApplicationsSecretRenewalsData = OauthApplication
+export type PostOauthApplicationsSecretRenewalsData = OauthApplication;
 
-export type PostOauthApplicationsTokensData = AccessToken
+export type PostOauthApplicationsTokensData = AccessToken;
 
-export type GetOauthApplicationsData = OauthApplication[]
+export type GetOauthApplicationsData = OauthApplication[];
 
-export type PostOauthApplicationsData = OauthApplication
+export type PostOauthApplicationsData = OauthApplication;
 
-export type GetOauthApplicationsByIdData = OauthApplication
+export type GetOauthApplicationsByIdData = OauthApplication;
 
-export type PutOauthApplicationsByIdData = OauthApplication
+export type PutOauthApplicationsByIdData = OauthApplication;
 
-export type DeleteOauthApplicationsByIdData = OrganizationsOrgSlugOauthApplicationsIdDeleteResponse
+export type DeleteOauthApplicationsByIdData =
+  OrganizationsOrgSlugOauthApplicationsIdDeleteResponse;
 
-export type PostOnboardProjectsData = OrganizationOnboardProjectsPostResponse
+export type PostOnboardProjectsData = OrganizationOnboardProjectsPostResponse;
 
 export type GetOpenGraphLinksParams = {
-  url: string
-}
+  url: string;
+};
 
-export type GetOpenGraphLinksData = OpenGraphLink
+export type GetOpenGraphLinksData = OpenGraphLink;
 
 export type GetInvitationsParams = {
-  q?: string
-  role_counted?: boolean
-  after?: string
-  orgSlug: string
-}
+  q?: string;
+  role_counted?: boolean;
+  after?: string;
+  orgSlug: string;
+};
 
-export type GetInvitationsData = OrganizationInvitationPage
+export type GetInvitationsData = OrganizationInvitationPage;
 
-export type PostInvitationsData = OrganizationInvitation[]
+export type PostInvitationsData = OrganizationInvitation[];
 
-export type GetInvitationsByInviteTokenData = OrganizationInvitation
+export type GetInvitationsByInviteTokenData = OrganizationInvitation;
 
-export type PostInvitationsByTokenAcceptData = AcceptInvitationByTokenPostResponse
+export type PostInvitationsByTokenAcceptData =
+  AcceptInvitationByTokenPostResponse;
 
-export type DeleteInvitationsByIdData = OrganizationsOrgSlugInvitationsIdDeleteResponse
+export type DeleteInvitationsByIdData =
+  OrganizationsOrgSlugInvitationsIdDeleteResponse;
 
 export type GetMembersParams = {
-  q?: string
-  status?: 'deactivated'
-  roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-  after?: string
-  limit?: number
+  q?: string;
+  status?: "deactivated";
+  roles?: ("admin" | "member" | "viewer" | "guest")[];
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'created_at' | 'last_seen_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "created_at" | "last_seen_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersData = OrganizationMemberPage
+export type GetMembersData = OrganizationMemberPage;
 
-export type GetMembersByUsernameData = OrganizationMember
+export type GetMembersByUsernameData = OrganizationMember;
 
 export type GetMembersPostsParams = {
-  after?: string
-  limit?: number
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-  username: string
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+  username: string;
+};
 
-export type GetMembersPostsData = PostPage
+export type GetMembersPostsData = PostPage;
 
-export type PutMembersByIdData = OrganizationMember
+export type PutMembersByIdData = OrganizationMember;
 
-export type DeleteMembersByIdData = OrganizationsOrgSlugMembersIdDeleteResponse
+export type DeleteMembersByIdData = OrganizationsOrgSlugMembersIdDeleteResponse;
 
-export type PutMembersReactivateData = OrganizationsOrgSlugMembersIdReactivatePutResponse
+export type PutMembersReactivateData =
+  OrganizationsOrgSlugMembersIdReactivatePutResponse;
 
 export type GetMembershipRequestsParams = {
-  after?: string
-  orgSlug: string
-}
+  after?: string;
+  orgSlug: string;
+};
 
-export type GetMembershipRequestsData = OrganizationMembershipRequestPage
+export type GetMembershipRequestsData = OrganizationMembershipRequestPage;
 
-export type PostMembershipRequestsData = OrganizationMembershipRequest
+export type PostMembershipRequestsData = OrganizationMembershipRequest;
 
-export type GetMembershipRequestData = OrganizationMembershipRequestGetResponse
+export type GetMembershipRequestData = OrganizationMembershipRequestGetResponse;
 
-export type PostMembershipRequestsApproveData = OrganizationApproveMembershipRequestPostResponse
+export type PostMembershipRequestsApproveData =
+  OrganizationApproveMembershipRequestPostResponse;
 
-export type PostMembershipRequestsDeclineData = OrganizationDeclineMembershipRequestPostResponse
+export type PostMembershipRequestsDeclineData =
+  OrganizationDeclineMembershipRequestPostResponse;
 
 export type GetMembersMeArchivedNotificationsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetMembersMeArchivedNotificationsData = NotificationPage
+export type GetMembersMeArchivedNotificationsData = NotificationPage;
 
-export type PostMembersMeDataExportData = OrganizationMembershipDataExportPostResponse
+export type PostMembersMeDataExportData =
+  OrganizationMembershipDataExportPostResponse;
 
 export type GetMembersMeForMeNotesParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'created_at' | 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "created_at" | "last_activity_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersMeForMeNotesData = NotePage
+export type GetMembersMeForMeNotesData = NotePage;
 
 export type GetMembersMeForMePostsParams = {
-  after?: string
-  limit?: number
-  q?: string
-  hide_resolved?: boolean
+  after?: string;
+  limit?: number;
+  q?: string;
+  hide_resolved?: boolean;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersMeForMePostsData = PostPage
+export type GetMembersMeForMePostsData = PostPage;
 
-export type PutMembersMeIndexViewsData = PublicOrganizationMembership
+export type PutMembersMeIndexViewsData = PublicOrganizationMembership;
 
-export type GetMembersMePersonalCallRoomData = CallRoom
+export type GetMembersMePersonalCallRoomData = CallRoom;
 
 export type GetMembersMePersonalDraftPostsParams = {
-  after?: string
-  limit?: number
+  after?: string;
+  limit?: number;
   order?: {
-    by: 'last_activity_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "last_activity_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersMePersonalDraftPostsData = PostPage
+export type GetMembersMePersonalDraftPostsData = PostPage;
 
-export type PutMembersProjectMembershipListData = ProjectMembershipList
+export type PutMembersProjectMembershipListData = ProjectMembershipList;
 
-export type GetMembersProjectMembershipsData = ProjectMembershipList
+export type GetMembersProjectMembershipsData = ProjectMembershipList;
 
-export type PutOrganizationMembershipsReorderData = OrganizationMembershipsReorderPutResponse
+export type PutOrganizationMembershipsReorderData =
+  OrganizationMembershipsReorderPutResponse;
 
-export type GetMembersMeSlackNotificationPreferenceData = OrganizationMembershipSlackNotificationPreferenceGetResponse
+export type GetMembersMeSlackNotificationPreferenceData =
+  OrganizationMembershipSlackNotificationPreferenceGetResponse;
 
 export type PostMembersMeSlackNotificationPreferenceData =
-  OrganizationsOrgSlugMembersMeSlackNotificationPreferencePostResponse
+  OrganizationsOrgSlugMembersMeSlackNotificationPreferencePostResponse;
 
 export type DeleteMembersMeSlackNotificationPreferenceData =
-  OrganizationsOrgSlugMembersMeSlackNotificationPreferenceDeleteResponse
+  OrganizationsOrgSlugMembersMeSlackNotificationPreferenceDeleteResponse;
 
-export type GetMembersMeStatusesData = OrganizationMembershipStatus[]
+export type GetMembersMeStatusesData = OrganizationMembershipStatus[];
 
-export type PostMembersMeStatusesData = OrganizationMembershipStatus
+export type PostMembersMeStatusesData = OrganizationMembershipStatus;
 
-export type PutMembersMeStatusesData = OrganizationMembershipStatus
+export type PutMembersMeStatusesData = OrganizationMembershipStatus;
 
-export type DeleteMembersMeStatusesData = OrganizationsOrgSlugMembersMeStatusesDeleteResponse
+export type DeleteMembersMeStatusesData =
+  OrganizationsOrgSlugMembersMeStatusesDeleteResponse;
 
 export type GetMembersMeViewerNotesParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'created_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "last_activity_at" | "created_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersMeViewerNotesData = NotePage
+export type GetMembersMeViewerNotesData = NotePage;
 
 export type GetMembersMeViewerPostsParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetMembersMeViewerPostsData = PostPage
+export type GetMembersMeViewerPostsData = PostPage;
 
-export type GetOrganizationMembershipsData = PublicOrganizationMembership[]
+export type GetOrganizationMembershipsData = PublicOrganizationMembership[];
 
-export type PostBulkInvitesData = OrganizationInvitation[]
+export type PostBulkInvitesData = OrganizationInvitation[];
 
-export type GetFeaturesData = OrganizationFeaturesGetResponse
+export type GetFeaturesData = OrganizationFeaturesGetResponse;
 
-export type PostSsoData = Organization
+export type PostSsoData = Organization;
 
-export type DeleteSsoData = Organization
+export type DeleteSsoData = Organization;
 
-export type PostVerifiedDomainMembershipsData = OrganizationMember
+export type PostVerifiedDomainMembershipsData = OrganizationMember;
 
-export type GetByOrgSlugData = Organization
+export type GetByOrgSlugData = Organization;
 
-export type PutByOrgSlugData = Organization
+export type PutByOrgSlugData = Organization;
 
-export type DeleteByOrgSlugData = OrganizationsOrgSlugDeleteResponse
+export type DeleteByOrgSlugData = OrganizationsOrgSlugDeleteResponse;
 
-export type PostOrganizationsData = Organization
+export type PostOrganizationsData = Organization;
 
-export type PatchResetInviteTokenData = Organization
+export type PatchResetInviteTokenData = Organization;
 
-export type PostJoinByTokenData = SuggestedOrganization
+export type PostJoinByTokenData = SuggestedOrganization;
 
-export type PutOnboardData = Organization
+export type PutOnboardData = Organization;
 
 export type GetAvatarPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetAvatarPresignedFieldsData = PresignedPostFields
+export type GetAvatarPresignedFieldsData = PresignedPostFields;
 
-export type DeletePinsByIdData = OrganizationPinDeleteResponse
+export type DeletePinsByIdData = OrganizationPinDeleteResponse;
 
 export type GetPostsAttachmentsCommentsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  postId: string
-  attachmentId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  postId: string;
+  attachmentId: string;
+};
 
-export type GetPostsAttachmentsCommentsData = CommentPage
+export type GetPostsAttachmentsCommentsData = CommentPage;
 
-export type PutPostsAttachmentsReorderData = OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutResponse
+export type PutPostsAttachmentsReorderData =
+  OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutResponse;
 
-export type PostPostsAttachmentsData = Attachment
+export type PostPostsAttachmentsData = Attachment;
 
-export type PutPostsAttachmentsByIdData = Attachment
+export type PutPostsAttachmentsByIdData = Attachment;
 
-export type DeletePostsAttachmentsByIdData = Post
+export type DeletePostsAttachmentsByIdData = Post;
 
-export type PostPostsFavoriteData = Favorite
+export type PostPostsFavoriteData = Favorite;
 
-export type DeletePostsFavoriteData = OrganizationPostFavoriteDeleteResponse
+export type DeletePostsFavoriteData = OrganizationPostFavoriteDeleteResponse;
 
-export type PostPostsFeedbackDismissalsData = FeedbackRequest
+export type PostPostsFeedbackDismissalsData = FeedbackRequest;
 
-export type PostPostsFollowUpData = FollowUp
+export type PostPostsFollowUpData = FollowUp;
 
 export type GetPostsGeneratedResolutionParams = {
-  comment_id?: string
-  orgSlug: string
-  postId: string
-}
+  comment_id?: string;
+  orgSlug: string;
+  postId: string;
+};
 
-export type GetPostsGeneratedResolutionData = GeneratedHtml
+export type GetPostsGeneratedResolutionData = GeneratedHtml;
 
-export type GetPostsGeneratedTldrData = GeneratedHtml
+export type GetPostsGeneratedTldrData = GeneratedHtml;
 
-export type PostPostsLinearIssuesData = CreateLinearIssue
+export type PostPostsLinearIssuesData = CreateLinearIssue;
 
 export type GetPostsLinearTimelineEventsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  postId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  postId: string;
+};
 
-export type GetPostsLinearTimelineEventsData = TimelineEventPage
+export type GetPostsLinearTimelineEventsData = TimelineEventPage;
 
-export type PostPostsPinData = ProjectPinCreated
+export type PostPostsPinData = ProjectPinCreated;
 
-export type PostPostsPoll2OptionsVoteData = Post
+export type PostPostsPoll2OptionsVoteData = Post;
 
-export type PostPostsPoll2Data = Post
+export type PostPostsPoll2Data = Post;
 
-export type PutPostsPoll2Data = Post
+export type PutPostsPoll2Data = Post;
 
-export type DeletePostsPoll2Data = OrganizationsOrgSlugPostsPostIdPoll2DeleteResponse
+export type DeletePostsPoll2Data =
+  OrganizationsOrgSlugPostsPostIdPoll2DeleteResponse;
 
-export type GetPostsCanvasCommentsData = Comment[]
+export type GetPostsCanvasCommentsData = Comment[];
 
 export type GetPostsCommentsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  postId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  postId: string;
+};
 
-export type GetPostsCommentsData = CommentPage
+export type GetPostsCommentsData = CommentPage;
 
-export type PostPostsComments2Data = CommentCreated
+export type PostPostsComments2Data = CommentCreated;
 
-export type PostPostsFeedbackRequestsData = FeedbackRequest
+export type PostPostsFeedbackRequestsData = FeedbackRequest;
 
-export type DeletePostsFeedbackRequestsByIdData = OrganizationPostFeedbackRequestDeleteResponse
+export type DeletePostsFeedbackRequestsByIdData =
+  OrganizationPostFeedbackRequestDeleteResponse;
 
-export type PostPostsFeedbackRequestsDismissalData = FeedbackRequest
+export type PostPostsFeedbackRequestsDismissalData = FeedbackRequest;
 
-export type PostPostsLinksData = PostLink
+export type PostPostsLinksData = PostLink;
 
-export type PostPostsReactionsData = Reaction
+export type PostPostsReactionsData = Reaction;
 
-export type GetPostsVersionsData = PostVersion[]
+export type GetPostsVersionsData = PostVersion[];
 
-export type PostPostsVersionsData = Post
+export type PostPostsVersionsData = Post;
 
 export type GetPostsViewsParams = {
-  after?: string
-  orgSlug: string
-  postId: string
-}
+  after?: string;
+  orgSlug: string;
+  postId: string;
+};
 
-export type GetPostsViewsData = PostViewPage
+export type GetPostsViewsData = PostViewPage;
 
-export type PostPostsViewsData = PostViewCreated
+export type PostPostsViewsData = PostViewCreated;
 
-export type PostPostsPublicationData = Post
+export type PostPostsPublicationData = Post;
 
-export type PostPostsResolutionData = Post
+export type PostPostsResolutionData = Post;
 
-export type DeletePostsResolutionData = Post
+export type DeletePostsResolutionData = Post;
 
-export type GetPostsSeoInfoData = PostSeoInfo
+export type GetPostsSeoInfoData = PostSeoInfo;
 
-export type PostPostsSharesData = OrganizationPostSharesPostResponse
+export type PostPostsSharesData = OrganizationPostSharesPostResponse;
 
-export type PutPostsStatusData = OrganizationsOrgSlugPostsPostIdStatusPutResponse
+export type PutPostsStatusData =
+  OrganizationsOrgSlugPostsPostIdStatusPutResponse;
 
-export type PutPostsTasksData = Post
+export type PutPostsTasksData = Post;
 
 export type GetPostsTimelineEventsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  postId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  postId: string;
+};
 
-export type GetPostsTimelineEventsData = TimelineEventPage
+export type GetPostsTimelineEventsData = TimelineEventPage;
 
 export type GetPostsPollOptionsVotersParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  postId: string
-  pollOptionId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  postId: string;
+  pollOptionId: string;
+};
 
-export type GetPostsPollOptionsVotersData = OrganizationMemberPage
+export type GetPostsPollOptionsVotersData = OrganizationMemberPage;
 
 export type GetPostsParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+};
 
-export type GetPostsData = PostPage
+export type GetPostsData = PostPage;
 
-export type PostPostsData = Post
+export type PostPostsData = Post;
 
-export type GetPostsByPostIdData = Post
+export type GetPostsByPostIdData = Post;
 
-export type PutPostsByPostIdData = Post
+export type PutPostsByPostIdData = Post;
 
-export type DeletePostsByPostIdData = OrganizationsOrgSlugPostsPostIdDeleteResponse
+export type DeletePostsByPostIdData =
+  OrganizationsOrgSlugPostsPostIdDeleteResponse;
 
-export type PostPostsSubscribeData = OrganizationPostSubscribePostResponse
+export type PostPostsSubscribeData = OrganizationPostSubscribePostResponse;
 
-export type DeletePostsUnsubscribeData = OrganizationPostUnsubscribeDeleteResponse
+export type DeletePostsUnsubscribeData =
+  OrganizationPostUnsubscribeDeleteResponse;
 
 export type GetPostsPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetPostsPresignedFieldsData = PresignedPostFields
+export type GetPostsPresignedFieldsData = PresignedPostFields;
 
-export type PostProductLogsData = ProductLogsPostResponse
+export type PostProductLogsData = ProductLogsPostResponse;
 
-export type PutProjectMembershipsReorderData = OrganizationsOrgSlugProjectMembershipsReorderPutResponse
+export type PutProjectMembershipsReorderData =
+  OrganizationsOrgSlugProjectMembershipsReorderPutResponse;
 
-export type GetProjectMembershipsData = ProjectMembership[]
+export type GetProjectMembershipsData = ProjectMembership[];
 
 export type GetProjectsAddableMembersParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  projectId: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  projectId: string;
+};
 
-export type GetProjectsAddableMembersData = OrganizationMemberPage
+export type GetProjectsAddableMembersData = OrganizationMemberPage;
 
-export type GetProjectsBookmarksData = ProjectBookmark[]
+export type GetProjectsBookmarksData = ProjectBookmark[];
 
-export type PostProjectsBookmarksData = ProjectBookmark
+export type PostProjectsBookmarksData = ProjectBookmark;
 
-export type PatchProjectsBookmarksByIdData = ProjectBookmark
+export type PatchProjectsBookmarksByIdData = ProjectBookmark;
 
-export type DeleteProjectsBookmarksByIdData = OrganizationsOrgSlugProjectsProjectIdBookmarksIdDeleteResponse
+export type DeleteProjectsBookmarksByIdData =
+  OrganizationsOrgSlugProjectsProjectIdBookmarksIdDeleteResponse;
 
-export type PutProjectsBookmarksReorderData = ProjectBookmark[]
+export type PutProjectsBookmarksReorderData = ProjectBookmark[];
 
 export type GetProjectsCallsParams = {
-  after?: string
-  limit?: number
-  q?: string
-  orgSlug: string
-  projectId: string
-}
+  after?: string;
+  limit?: number;
+  q?: string;
+  orgSlug: string;
+  projectId: string;
+};
 
-export type GetProjectsCallsData = CallPage
+export type GetProjectsCallsData = CallPage;
 
-export type PostProjectsDataExportsData = OrganizationProjectDataExportsPostResponse
+export type PostProjectsDataExportsData =
+  OrganizationProjectDataExportsPostResponse;
 
-export type PutProjectsDisplayPreferencesData = Project
+export type PutProjectsDisplayPreferencesData = Project;
 
-export type PostProjectsFavoritesData = Favorite
+export type PostProjectsFavoritesData = Favorite;
 
-export type DeleteProjectsFavoritesData = OrganizationProjectFavoritesDeleteResponse
+export type DeleteProjectsFavoritesData =
+  OrganizationProjectFavoritesDeleteResponse;
 
-export type PostProjectsInvitationUrlAcceptancesData = OrganizationProjectInvitationUrlAcceptancesPostResponse
+export type PostProjectsInvitationUrlAcceptancesData =
+  OrganizationProjectInvitationUrlAcceptancesPostResponse;
 
-export type PostProjectsInvitationUrlData = InvitationUrl
+export type PostProjectsInvitationUrlData = InvitationUrl;
 
-export type GetProjectsInvitationUrlData = InvitationUrl
+export type GetProjectsInvitationUrlData = InvitationUrl;
 
 export type GetProjectsMembersParams = {
-  after?: string
-  limit?: number
-  organization_membership_id?: string
-  roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-  exclude_roles?: ('admin' | 'member' | 'viewer' | 'guest')[]
-  orgSlug: string
-  projectId: string
-}
+  after?: string;
+  limit?: number;
+  organization_membership_id?: string;
+  roles?: ("admin" | "member" | "viewer" | "guest")[];
+  exclude_roles?: ("admin" | "member" | "viewer" | "guest")[];
+  orgSlug: string;
+  projectId: string;
+};
 
-export type GetProjectsMembersData = OrganizationMemberPage
+export type GetProjectsMembersData = OrganizationMemberPage;
 
-export type PostProjectsMembershipsData = ProjectMembership
+export type PostProjectsMembershipsData = ProjectMembership;
 
-export type DeleteProjectsMembershipsData = Project
+export type DeleteProjectsMembershipsData = Project;
 
 export type GetProjectsNotesParams = {
-  after?: string
-  limit?: number
-  q?: string
+  after?: string;
+  limit?: number;
+  q?: string;
   order?: {
-    by: 'last_activity_at' | 'created_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-  projectId: string
-}
+    by: "last_activity_at" | "created_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+  projectId: string;
+};
 
-export type GetProjectsNotesData = NotePage
+export type GetProjectsNotesData = NotePage;
 
-export type GetProjectsOauthApplicationsData = OauthApplication[]
+export type GetProjectsOauthApplicationsData = OauthApplication[];
 
-export type PostProjectsOauthApplicationsData = ProjectMembership
+export type PostProjectsOauthApplicationsData = ProjectMembership;
 
-export type DeleteProjectsOauthApplicationsByIdData = OrganizationProjectOauthApplicationDeleteResponse
+export type DeleteProjectsOauthApplicationsByIdData =
+  OrganizationProjectOauthApplicationDeleteResponse;
 
-export type GetProjectsPinsData = ProjectPinList
+export type GetProjectsPinsData = ProjectPinList;
 
 export type GetProjectsPostsParams = {
-  after?: string
-  limit?: number
-  q?: string
-  hide_resolved?: boolean
+  after?: string;
+  limit?: number;
+  q?: string;
+  hide_resolved?: boolean;
   order?: {
-    by: 'last_activity_at' | 'published_at'
-    direction: 'asc' | 'desc'
-  }
-  orgSlug: string
-  projectId: string
-}
+    by: "last_activity_at" | "published_at";
+    direction: "asc" | "desc";
+  };
+  orgSlug: string;
+  projectId: string;
+};
 
-export type GetProjectsPostsData = PostPage
+export type GetProjectsPostsData = PostPage;
 
-export type PostProjectsReadsData = OrganizationsOrgSlugProjectsProjectIdReadsPostResponse
+export type PostProjectsReadsData =
+  OrganizationsOrgSlugProjectsProjectIdReadsPostResponse;
 
-export type DeleteProjectsReadsData = OrganizationProjectReadsDeleteResponse
+export type DeleteProjectsReadsData = OrganizationProjectReadsDeleteResponse;
 
-export type PostProjectsSubscriptionData = Project
+export type PostProjectsSubscriptionData = Project;
 
-export type DeleteProjectsSubscriptionData = Project
+export type DeleteProjectsSubscriptionData = Project;
 
-export type PutProjectsViewerDisplayPreferencesData = Project
+export type PutProjectsViewerDisplayPreferencesData = Project;
 
-export type DeleteProjectsViewerDisplayPreferencesData = Project
+export type DeleteProjectsViewerDisplayPreferencesData = Project;
 
-export type PostProjectsViewsData = Project
+export type PostProjectsViewsData = Project;
 
 export type GetProjectsParams = {
-  filter?: string
-  after?: string
-  limit?: number
-  q?: string
-  orgSlug: string
-}
+  filter?: string;
+  after?: string;
+  limit?: number;
+  q?: string;
+  orgSlug: string;
+};
 
-export type GetProjectsData = ProjectPage
+export type GetProjectsData = ProjectPage;
 
-export type PostProjectsData = Project
+export type PostProjectsData = Project;
 
-export type GetProjectsByProjectIdData = Project
+export type GetProjectsByProjectIdData = Project;
 
-export type PutProjectsByProjectIdData = Project
+export type PutProjectsByProjectIdData = Project;
 
-export type DeleteProjectsByProjectIdData = OrganizationsOrgSlugProjectsProjectIdDeleteResponse
+export type DeleteProjectsByProjectIdData =
+  OrganizationsOrgSlugProjectsProjectIdDeleteResponse;
 
-export type PatchProjectsArchiveData = Project
+export type PatchProjectsArchiveData = Project;
 
-export type PatchProjectsUnarchiveData = Project
+export type PatchProjectsUnarchiveData = Project;
 
 export type GetProjectCoverPhotoPresignedFieldsParams = {
-  mime_type: string
-  orgSlug: string
-}
+  mime_type: string;
+  orgSlug: string;
+};
 
-export type GetProjectCoverPhotoPresignedFieldsData = PresignedPostFields
+export type GetProjectCoverPhotoPresignedFieldsData = PresignedPostFields;
 
-export type GetOrganizationByTokenData = PublicOrganization
+export type GetOrganizationByTokenData = PublicOrganization;
 
-export type GetPublicProjectsByTokenData = PublicProject
+export type GetPublicProjectsByTokenData = PublicProject;
 
-export type DeleteReactionsData = CustomReaction
+export type DeleteReactionsData = CustomReaction;
 
 export type GetResourceMentionsParams = {
-  url: string
-  orgSlug: string
-}
+  url: string;
+  orgSlug: string;
+};
 
-export type GetResourceMentionsData = ResourceMention
+export type GetResourceMentionsData = ResourceMention;
 
 export type GetSearchGroupsParams = {
-  q?: string
-  focus?: 'projects' | 'people' | 'tags' | 'posts' | 'calls' | 'notes'
-  orgSlug: string
-}
+  q?: string;
+  focus?: "projects" | "people" | "tags" | "posts" | "calls" | "notes";
+  orgSlug: string;
+};
 
-export type GetSearchGroupsData = SearchGroup
+export type GetSearchGroupsData = SearchGroup;
 
 export type GetSearchMixedParams = {
-  q: string
-  focus?: 'posts' | 'calls' | 'notes'
-  orgSlug: string
-}
+  q: string;
+  focus?: "posts" | "calls" | "notes";
+  orgSlug: string;
+};
 
-export type GetSearchMixedData = SearchMixed
+export type GetSearchMixedData = SearchMixed;
 
 export type GetSearchPostsParams = {
-  q: string
-  project_id?: string
-  author?: string
-  tag?: string
-  limit?: number
-  orgSlug: string
-}
+  q: string;
+  project_id?: string;
+  author?: string;
+  tag?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetSearchPostsData = Post[]
+export type GetSearchPostsData = Post[];
 
 export type GetSearchResourceMentionsParams = {
-  q: string
-  orgSlug: string
-}
+  q: string;
+  orgSlug: string;
+};
 
-export type GetSearchResourceMentionsData = ResourceMentionResults
+export type GetSearchResourceMentionsData = ResourceMentionResults;
 
-export type GetIntegrationsSlackData = SlackIntegration
+export type GetIntegrationsSlackData = SlackIntegration;
 
-export type DeleteIntegrationsSlackData = OrganizationIntegrationsSlackDeleteResponse
+export type DeleteIntegrationsSlackData =
+  OrganizationIntegrationsSlackDeleteResponse;
 
-export type GetSyncCustomReactionsData = SyncCustomReaction[]
+export type GetSyncCustomReactionsData = SyncCustomReaction[];
 
-export type GetSyncMembersData = SyncOrganizationMember[]
+export type GetSyncMembersData = SyncOrganizationMember[];
 
-export type GetSyncMessageThreadsData = SyncMessageThreads
+export type GetSyncMessageThreadsData = SyncMessageThreads;
 
-export type GetSyncProjectsData = SyncProject[]
+export type GetSyncProjectsData = SyncProject[];
 
-export type GetSyncTagsData = Tag[]
+export type GetSyncTagsData = Tag[];
 
 export type GetTagsParams = {
-  q?: string
-  after?: string
-  limit?: number
-  orgSlug: string
-}
+  q?: string;
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+};
 
-export type GetTagsData = TagPage
+export type GetTagsData = TagPage;
 
-export type PostTagsData = Tag
+export type PostTagsData = Tag;
 
-export type GetTagsByTagNameData = Tag
+export type GetTagsByTagNameData = Tag;
 
-export type PatchTagsByTagNameData = Tag
+export type PatchTagsByTagNameData = Tag;
 
-export type DeleteTagsByTagNameData = OrganizationsOrgSlugTagsTagNameDeleteResponse
+export type DeleteTagsByTagNameData =
+  OrganizationsOrgSlugTagsTagNameDeleteResponse;
 
 export type GetTagsPostsParams = {
-  after?: string
-  limit?: number
-  orgSlug: string
-  tagName: string
-}
+  after?: string;
+  limit?: number;
+  orgSlug: string;
+  tagName: string;
+};
 
-export type GetTagsPostsData = PostPage
+export type GetTagsPostsData = PostPage;
 
-export type PostSignInDesktopData = InternalDesktopSessionPostResponse
+export type PostSignInDesktopData = InternalDesktopSessionPostResponse;
 
-export type PostMeSyncTokenData = CurrentUserEditorSyncTokensPostResponse
+export type PostMeSyncTokenData = CurrentUserEditorSyncTokensPostResponse;
 
-export type PostMeNotificationPauseData = UsersMeNotificationPausePostResponse
+export type PostMeNotificationPauseData = UsersMeNotificationPausePostResponse;
 
-export type DeleteMeNotificationPauseData = UsersNotificationPauseDeleteResponse
+export type DeleteMeNotificationPauseData =
+  UsersNotificationPauseDeleteResponse;
 
-export type GetMeNotificationScheduleData = NotificationSchedule
+export type GetMeNotificationScheduleData = NotificationSchedule;
 
-export type PutMeNotificationScheduleData = UsersMeNotificationSchedulePutResponse
+export type PutMeNotificationScheduleData =
+  UsersMeNotificationSchedulePutResponse;
 
-export type DeleteMeNotificationScheduleData = UsersMeNotificationScheduleDeleteResponse
+export type DeleteMeNotificationScheduleData =
+  UsersMeNotificationScheduleDeleteResponse;
 
-export type GetMeNotificationsUnreadAllCountData = UserNotificationCounts
+export type GetMeNotificationsUnreadAllCountData = UserNotificationCounts;
 
-export type GetMeOrganizationInvitationsData = OrganizationInvitation[]
+export type GetMeOrganizationInvitationsData = OrganizationInvitation[];
 
-export type PutMePreferenceData = UsersMePreferencePutResponse
+export type PutMePreferenceData = UsersMePreferencePutResponse;
 
-export type GetMeScheduledNotificationsData = ScheduledNotification[]
+export type GetMeScheduledNotificationsData = ScheduledNotification[];
 
-export type PostMeScheduledNotificationsData = ScheduledNotification
+export type PostMeScheduledNotificationsData = ScheduledNotification;
 
-export type PutMeScheduledNotificationsByIdData = ScheduledNotification
+export type PutMeScheduledNotificationsByIdData = ScheduledNotification;
 
-export type DeleteMeScheduledNotificationsByIdData = UsersMeScheduledNotificationsIdDeleteResponse
+export type DeleteMeScheduledNotificationsByIdData =
+  UsersMeScheduledNotificationsIdDeleteResponse;
 
-export type DeleteMeSignOutData = SignOutCurrentUserDeleteResponse
+export type DeleteMeSignOutData = SignOutCurrentUserDeleteResponse;
 
-export type GetMeSuggestedOrganizationsData = SuggestedOrganization[]
+export type GetMeSuggestedOrganizationsData = SuggestedOrganization[];
 
-export type PostMeTimezoneData = UsersTimezonePostResponse
+export type PostMeTimezoneData = UsersTimezonePostResponse;
 
-export type PostMeTwoFactorAuthenticationData = CurrentUserTwoFactorAuthenticationPostResponse
+export type PostMeTwoFactorAuthenticationData =
+  CurrentUserTwoFactorAuthenticationPostResponse;
 
-export type PutMeTwoFactorAuthenticationData = UsersMeTwoFactorAuthenticationPutResponse
+export type PutMeTwoFactorAuthenticationData =
+  UsersMeTwoFactorAuthenticationPutResponse;
 
-export type DeleteMeTwoFactorAuthenticationData = UsersMeTwoFactorAuthenticationDeleteResponse
+export type DeleteMeTwoFactorAuthenticationData =
+  UsersMeTwoFactorAuthenticationDeleteResponse;
 
-export type GetMeData = CurrentUser
+export type GetMeData = CurrentUser;
 
-export type PatchMeData = CurrentUser
+export type PatchMeData = CurrentUser;
 
-export type PutMeOnboardData = CurrentUser
+export type PutMeOnboardData = CurrentUser;
 
-export type PostMeSendEmailConfirmationData = SendUserConfirmationInstructionsPostResponse
+export type PostMeSendEmailConfirmationData =
+  SendUserConfirmationInstructionsPostResponse;
 
 export type GetMeAvatarPresignedFieldsParams = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
-export type GetMeAvatarPresignedFieldsData = PresignedPostFields
+export type GetMeAvatarPresignedFieldsData = PresignedPostFields;
 
 export type GetMeCoverPhotoPresignedFieldsParams = {
-  mime_type: string
-}
+  mime_type: string;
+};
 
-export type GetMeCoverPhotoPresignedFieldsData = PresignedPostFields
+export type GetMeCoverPhotoPresignedFieldsData = PresignedPostFields;
 
-export type PostPushSubscriptionsData = WebPushSubscriptionsPostResponse
+export type PostPushSubscriptionsData = WebPushSubscriptionsPostResponse;
 
-export type PostMembersMessagesV2Data = V2Message
+export type PostMembersMessagesV2Data = V2Message;
 
 export type GetMembersV2Params = {
   /** Search by name or email. */
-  q?: string
+  q?: string;
   /** Use with `next_cursor` and `prev_cursor` in the response to paginate through results. */
-  after?: string
+  after?: string;
   /** Specifies how many records to return. The default and maximum is 50. */
-  limit?: number
+  limit?: number;
   /** Filter by role. Separate multiple roles with commas. */
-  roles?: 'admin' | 'member' | 'viewer' | 'guest'
-  sort?: 'created_at' | 'last_seen_at'
-  direction?: 'asc' | 'desc'
-}
+  roles?: "admin" | "member" | "viewer" | "guest";
+  sort?: "created_at" | "last_seen_at";
+  direction?: "asc" | "desc";
+};
 
-export type GetMembersV2Data = V2OrganizationMemberPage
+export type GetMembersV2Data = V2OrganizationMemberPage;
 
 export type GetPostsCommentsV2Params = {
   /** Use with `next_cursor` and `prev_cursor` in the response to paginate through results. */
-  after?: string
+  after?: string;
   /** Specifies how many records to return. The default and maximum is 50. */
-  limit?: number
+  limit?: number;
   /** The ID of the parent comment. */
-  parent_id?: string
-  sort?: 'created_at'
-  direction?: 'asc' | 'desc'
-  postId: string
-}
+  parent_id?: string;
+  sort?: "created_at";
+  direction?: "asc" | "desc";
+  postId: string;
+};
 
-export type GetPostsCommentsV2Data = V2CommentPage
+export type GetPostsCommentsV2Data = V2CommentPage;
 
-export type PostPostsCommentsV2Data = V2Comment
+export type PostPostsCommentsV2Data = V2Comment;
 
-export type PostPostsResolutionV2Data = V2Post
+export type PostPostsResolutionV2Data = V2Post;
 
-export type DeletePostsResolutionV2Data = V2Post
+export type DeletePostsResolutionV2Data = V2Post;
 
 export type GetPostsV2Params = {
   /** Use with `next_cursor` and `prev_cursor` in the response to paginate through results. */
-  after?: string
+  after?: string;
   /** Specifies how many records to return. The default and maximum is 50. */
-  limit?: number
+  limit?: number;
   /** Filters the posts to only include those from a specific channel. */
-  channel_id?: string
-  sort?: 'last_activity_at' | 'published_at'
-  direction?: 'asc' | 'desc'
-}
+  channel_id?: string;
+  sort?: "last_activity_at" | "published_at";
+  direction?: "asc" | "desc";
+};
 
-export type GetPostsV2Data = V2PostPage
+export type GetPostsV2Data = V2PostPage;
 
-export type PostPostsV2Data = V2Post
+export type PostPostsV2Data = V2Post;
 
-export type GetPostsByIdV2Data = V2Post
+export type GetPostsByIdV2Data = V2Post;
 
 export type GetChannelsV2Params = {
   /** When included, filters channels by name. */
-  name?: string
+  name?: string;
   /** Use with `next_cursor` and `prev_cursor` in the response to paginate through results. */
-  after?: string
+  after?: string;
   /** Specifies how many records to return. The default and maximum is 50. */
-  limit?: number
-  sort?: 'name' | 'last_activity_at' | 'created_at'
-  direction?: 'asc' | 'desc'
-}
+  limit?: number;
+  sort?: "name" | "last_activity_at" | "created_at";
+  direction?: "asc" | "desc";
+};
 
-export type GetChannelsV2Data = V2ProjectPage
+export type GetChannelsV2Data = V2ProjectPage;
 
 export type GetThreadsMessagesV2Params = {
   /** Use with `next_cursor` and `prev_cursor` in the response to paginate through results. */
-  after?: string
+  after?: string;
   /** Specifies how many records to return. The default and maximum is 50. */
-  limit?: number
-  sort?: 'created_at'
-  direction?: 'asc' | 'desc'
-  threadId: string
-}
+  limit?: number;
+  sort?: "created_at";
+  direction?: "asc" | "desc";
+  threadId: string;
+};
 
-export type GetThreadsMessagesV2Data = V2MessagePage
+export type GetThreadsMessagesV2Data = V2MessagePage;
 
-export type PostThreadsMessagesV2Data = V2Message
+export type PostThreadsMessagesV2Data = V2Message;
 
-export type PostThreadsV2Data = V2MessageThread
+export type PostThreadsV2Data = V2MessageThread;
 
-export type PostSignInFigmaData = FigmaKeyPair
+export type PostSignInFigmaData = FigmaKeyPair;
 
 export type GetApiBlobParams = {
-  path?: string
-}
+  path?: string;
+};
 
-export type GetApiBlobData = CommonResultString
+export type GetApiBlobData = CommonResultString;
 
-export type DeleteApiConversationReactionsByIdData = CommonResultString
+export type DeleteApiConversationReactionsByIdData = CommonResultString;
 
-export type PostApiConversationByCommentIdData = CommonResultString
+export type PostApiConversationByCommentIdData = CommonResultString;
 
-export type DeleteApiConversationByCommentIdData = CommonResultString
+export type DeleteApiConversationByCommentIdData = CommonResultString;
 
-export type PostApiConversationReactionsData = CommonResultString
+export type PostApiConversationReactionsData = CommonResultString;
 
-export type PostApiCreateFileData = CommonResultString
+export type PostApiCreateFileData = CommonResultString;
 
-export type PostApiIssueAssigneesData = CommonResultString
+export type PostApiIssueAssigneesData = CommonResultString;
 
 export type GetApiIssueIssueSuggesterParams = {
-  query: string
-}
+  query: string;
+};
 
-export type GetApiIssueIssueSuggesterData = CommonResultVecIssueSuggestions
+export type GetApiIssueIssueSuggesterData = CommonResultVecIssueSuggestions;
 
-export type PostApiIssueLabelsData = CommonResultString
+export type PostApiIssueLabelsData = CommonResultString;
 
-export type PostApiIssueListData = CommonResultCommonPageItemRes
+export type PostApiIssueListData = CommonResultCommonPageItemRes;
 
-export type PostApiIssueNewData = CommonResultString
+export type PostApiIssueNewData = CommonResultString;
 
-export type PostApiIssueCloseData = CommonResultString
+export type PostApiIssueCloseData = CommonResultString;
 
-export type PostApiIssueCommentData = CommonResultString
+export type PostApiIssueCommentData = CommonResultString;
 
-export type GetApiIssueDetailData = CommonResultIssueDetailRes
+export type GetApiIssueDetailData = CommonResultIssueDetailRes;
 
-export type PostApiIssueReopenData = CommonResultString
+export type PostApiIssueReopenData = CommonResultString;
 
-export type PostApiIssueTitleData = CommonResultString
+export type PostApiIssueTitleData = CommonResultString;
 
-export type PostApiLabelListData = CommonResultCommonPageLabelItem
+export type PostApiLabelListData = CommonResultCommonPageLabelItem;
 
-export type PostApiLabelNewData = CommonResultString
+export type PostApiLabelNewData = CommonResultString;
 
 export type GetApiLatestCommitParams = {
-  refs?: string
-  path?: string
-}
+  refs?: string;
+  path?: string;
+};
 
-export type GetApiLatestCommitData = LatestCommitInfo
+export type GetApiLatestCommitData = LatestCommitInfo;
 
-export type PostApiMrAssigneesData = CommonResultString
+export type PostApiMrAssigneesData = CommonResultString;
 
-export type PostApiMrLabelsData = CommonResultString
+export type PostApiMrLabelsData = CommonResultString;
 
-export type PostApiMrListData = CommonResultCommonPageItemRes
+export type PostApiMrListData = CommonResultCommonPageItemRes;
 
-export type PostApiMrCloseData = CommonResultString
+export type PostApiMrCloseData = CommonResultString;
 
-export type PostApiMrCommentData = CommonResultString
+export type PostApiMrCommentData = CommonResultString;
 
-export type GetApiMrDetailData = CommonResultMRDetailRes
+export type GetApiMrDetailData = CommonResultMRDetailRes;
 
-export type GetApiMrFilesChangedData = CommonResultFilesChangedList
+export type GetApiMrFilesChangedData = CommonResultFilesChangedList;
 
-export type GetApiMrFilesListData = CommonResultVecMrFilesRes
+export type GetApiMrFilesListData = CommonResultVecMrFilesRes;
 
-export type PostApiMrMergeData = CommonResultString
+export type PostApiMrMergeData = CommonResultString;
 
-export type PostApiMrReopenData = CommonResultString
+export type PostApiMrReopenData = CommonResultString;
 
-export type PostApiMrTitleData = CommonResultString
+export type PostApiMrTitleData = CommonResultString;
 
-export type GetApiStatusData = string
+export type GetApiStatusData = string;
 
 export type GetApiTreeParams = {
-  refs?: string
-  path?: string
-}
+  refs?: string;
+  path?: string;
+};
 
-export type GetApiTreeData = CommonResultTreeResponse
+export type GetApiTreeData = CommonResultTreeResponse;
 
 export type GetApiTreeCommitInfoParams = {
-  refs?: string
-  path?: string
-}
+  refs?: string;
+  path?: string;
+};
 
-export type GetApiTreeCommitInfoData = CommonResultVecTreeCommitItem
+export type GetApiTreeCommitInfoData = CommonResultVecTreeCommitItem;
 
 export type GetApiTreeContentHashParams = {
-  refs?: string
-  path?: string
-}
+  refs?: string;
+  path?: string;
+};
 
-export type GetApiTreeContentHashData = CommonResultVecTreeHashItem
+export type GetApiTreeContentHashData = CommonResultVecTreeHashItem;
 
 export type GetApiTreeDirHashParams = {
-  refs?: string
-  path?: string
-}
+  refs?: string;
+  path?: string;
+};
 
-export type GetApiTreeDirHashData = CommonResultVecTreeHashItem
+export type GetApiTreeDirHashData = CommonResultVecTreeHashItem;
 
 export type GetApiTreePathCanCloneParams = {
-  path?: string
-}
+  path?: string;
+};
 
-export type GetApiTreePathCanCloneData = CommonResultBool
+export type GetApiTreePathCanCloneData = CommonResultBool;
 
-export type QueryParamsType = Record<string | number, any>
-export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
+export type GetApiV1OrganizationsNotesSyncStateData = ShowResponse;
+
+export type PatchApiV1OrganizationsNotesSyncStateData = any;
+
+export type QueryParamsType = Record<string | number, any>;
+export type ResponseFormat = keyof Omit<Body, "body" | "bodyUsed">;
 
 export enum ApiErrorTypes {
-  AuthenticationError = 'AuthenticationError',
-  ForbiddenError = 'ForbiddenError',
-  NotFoundError = 'NotFoundError',
-  UnprocessableError = 'UnprocessableError',
-  InternalError = 'InternalError',
-  ConnectionError = 'ConnectionError'
+  AuthenticationError = "AuthenticationError",
+  ForbiddenError = "ForbiddenError",
+  NotFoundError = "NotFoundError",
+  UnprocessableError = "UnprocessableError",
+  InternalError = "InternalError",
+  ConnectionError = "ConnectionError",
 }
 
 export class ApiError extends Error {
-  status: number
-  code: string
-  constructor(status: number, message: string, code: string, isConnectionError = false) {
-    super(message)
-    this.status = status
-    this.code = code
+  status: number;
+  code: string;
+  constructor(
+    status: number,
+    message: string,
+    code: string,
+    isConnectionError = false,
+  ) {
+    super(message);
+    this.status = status;
+    this.code = code;
 
     if (isConnectionError) {
-      this.name = ApiErrorTypes.ConnectionError
+      this.name = ApiErrorTypes.ConnectionError;
     } else {
       switch (status) {
         case 401:
-          this.name = ApiErrorTypes.AuthenticationError
-          break
+          this.name = ApiErrorTypes.AuthenticationError;
+          break;
         case 403:
-          this.name = ApiErrorTypes.ForbiddenError
-          break
+          this.name = ApiErrorTypes.ForbiddenError;
+          break;
         case 404:
-          this.name = ApiErrorTypes.NotFoundError
-          break
+          this.name = ApiErrorTypes.NotFoundError;
+          break;
         case 422:
-          this.name = ApiErrorTypes.UnprocessableError
-          break
+          this.name = ApiErrorTypes.UnprocessableError;
+          break;
         default:
-          this.name = ApiErrorTypes.InternalError
+          this.name = ApiErrorTypes.InternalError;
       }
     }
   }
 }
 
-export interface FullRequestParams extends Omit<RequestInit, 'body'> {
+export interface FullRequestParams extends Omit<RequestInit, "body"> {
   /** set parameter to `true` for call `securityWorker` for this request */
-  secure?: boolean
+  secure?: boolean;
   /** request path */
-  path: string
+  path: string;
   /** content type of request body */
-  type?: ContentType
+  type?: ContentType;
   /** query params */
-  query?: QueryParamsType
+  query?: QueryParamsType;
   /** format of response (i.e. response.json() -> format: "json") */
-  format?: ResponseFormat
+  format?: ResponseFormat;
   /** request body */
-  body?: unknown
+  body?: unknown;
   /** base url */
-  baseUrl?: string
+  baseUrl?: string;
   /** request cancellation token */
-  cancelToken?: CancelToken
+  cancelToken?: CancelToken;
 }
 
-export type RequestParams = Omit<FullRequestParams, 'body' | 'method' | 'query' | 'path'>
+export type RequestParams = Omit<
+  FullRequestParams,
+  "body" | "method" | "query" | "path"
+>;
 
 export interface ApiConfig<SecurityDataType = unknown> {
-  baseUrl?: string
-  baseApiParams?: Omit<RequestParams, 'baseUrl' | 'cancelToken' | 'signal'>
-  securityWorker?: (securityData: SecurityDataType | null) => Promise<RequestParams | void> | RequestParams | void
-  customFetch?: typeof fetch
+  baseUrl?: string;
+  baseApiParams?: Omit<RequestParams, "baseUrl" | "cancelToken" | "signal">;
+  securityWorker?: (
+    securityData: SecurityDataType | null,
+  ) => Promise<RequestParams | void> | RequestParams | void;
+  customFetch?: typeof fetch;
 }
 
-type CancelToken = Symbol | string | number
+type CancelToken = Symbol | string | number;
 
 export enum ContentType {
-  Json = 'application/json',
-  FormData = 'multipart/form-data',
-  UrlEncoded = 'application/x-www-form-urlencoded',
-  Text = 'text/plain'
+  Json = "application/json",
+  FormData = "multipart/form-data",
+  UrlEncoded = "application/x-www-form-urlencoded",
+  Text = "text/plain",
 }
 
 export class HttpClient<SecurityDataType = unknown> {
-  public baseUrl: string = ''
-  private securityData: SecurityDataType | null = null
-  private securityWorker?: ApiConfig<SecurityDataType>['securityWorker']
-  private abortControllers = new Map<CancelToken, AbortController>()
-  private customFetch = (...fetchParams: Parameters<typeof fetch>) => fetch(...fetchParams)
+  public baseUrl: string = "";
+  private securityData: SecurityDataType | null = null;
+  private securityWorker?: ApiConfig<SecurityDataType>["securityWorker"];
+  private abortControllers = new Map<CancelToken, AbortController>();
+  private customFetch = (...fetchParams: Parameters<typeof fetch>) =>
+    fetch(...fetchParams);
 
   private baseApiParams: RequestParams = {
-    credentials: 'same-origin',
+    credentials: "same-origin",
     headers: {},
-    redirect: 'follow',
-    referrerPolicy: 'no-referrer'
-  }
+    redirect: "follow",
+    referrerPolicy: "no-referrer",
+  };
 
   constructor(apiConfig: ApiConfig<SecurityDataType> = {}) {
-    Object.assign(this, apiConfig)
+    Object.assign(this, apiConfig);
   }
 
   public setSecurityData = (data: SecurityDataType | null) => {
-    this.securityData = data
-  }
+    this.securityData = data;
+  };
 
   protected encodeQueryParam(key: string, value: any) {
-    const encodedKey = encodeURIComponent(key)
-    return `${encodedKey}=${encodeURIComponent(typeof value === 'number' ? value : `${value}`)}`
+    const encodedKey = encodeURIComponent(key);
+    return `${encodedKey}=${encodeURIComponent(typeof value === "number" ? value : `${value}`)}`;
   }
 
   protected addQueryParam(query: QueryParamsType, key: string) {
-    return this.encodeQueryParam(key, query[key])
+    return this.encodeQueryParam(key, query[key]);
   }
 
   protected addArrayQueryParam(query: QueryParamsType, key: string) {
-    const value = query[key]
-    return value.map((v: any) => this.encodeQueryParam(`${key}[]`, v)).join('&')
+    const value = query[key];
+    return value
+      .map((v: any) => this.encodeQueryParam(`${key}[]`, v))
+      .join("&");
   }
 
   protected addObjectQueryParam(query: QueryParamsType, key: string) {
-    const value = query[key]
+    const value = query[key];
     return Object.keys(value)
       .map((subKey) => {
-        const subValue = value[subKey]
-        return this.encodeQueryParam(`${key}[${subKey}]`, subValue)
+        const subValue = value[subKey];
+        return this.encodeQueryParam(`${key}[${subKey}]`, subValue);
       })
-      .join('&')
+      .join("&");
   }
 
   protected toQueryString(rawQuery?: QueryParamsType): string {
-    const query = rawQuery || {}
-    const keys = Object.keys(query).filter((key) => 'undefined' !== typeof query[key])
+    const query = rawQuery || {};
+    const keys = Object.keys(query).filter(
+      (key) => "undefined" !== typeof query[key],
+    );
     return keys
       .map((key) =>
         Array.isArray(query[key])
           ? this.addArrayQueryParam(query, key)
           : query[key] === Object(query[key])
             ? this.addObjectQueryParam(query, key)
-            : this.addQueryParam(query, key)
+            : this.addQueryParam(query, key),
       )
-      .join('&')
+      .join("&");
   }
 
   protected addQueryParams(rawQuery?: QueryParamsType): string {
-    const queryString = this.toQueryString(rawQuery)
-    return queryString ? `?${queryString}` : ''
+    const queryString = this.toQueryString(rawQuery);
+    return queryString ? `?${queryString}` : "";
   }
 
   private contentFormatters: Record<ContentType, (input: any) => any> = {
     [ContentType.Json]: (input: any) =>
-      input !== null && (typeof input === 'object' || typeof input === 'string') ? JSON.stringify(input) : input,
-    [ContentType.Text]: (input: any) => (input !== null && typeof input !== 'string' ? JSON.stringify(input) : input),
+      input !== null && (typeof input === "object" || typeof input === "string")
+        ? JSON.stringify(input)
+        : input,
+    [ContentType.Text]: (input: any) =>
+      input !== null && typeof input !== "string"
+        ? JSON.stringify(input)
+        : input,
     [ContentType.FormData]: (input: any) =>
       Object.keys(input || {}).reduce((formData, key) => {
-        const property = input[key]
+        const property = input[key];
         formData.append(
           key,
           property instanceof Blob
             ? property
-            : typeof property === 'object' && property !== null
+            : typeof property === "object" && property !== null
               ? JSON.stringify(property)
-              : `${property}`
-        )
-        return formData
+              : `${property}`,
+        );
+        return formData;
       }, new FormData()),
-    [ContentType.UrlEncoded]: (input: any) => this.toQueryString(input)
-  }
+    [ContentType.UrlEncoded]: (input: any) => this.toQueryString(input),
+  };
 
-  protected mergeRequestParams(params1: RequestParams, params2?: RequestParams): RequestParams {
+  protected mergeRequestParams(
+    params1: RequestParams,
+    params2?: RequestParams,
+  ): RequestParams {
     return {
       ...this.baseApiParams,
       ...params1,
@@ -4862,33 +5008,35 @@ export class HttpClient<SecurityDataType = unknown> {
       headers: {
         ...(this.baseApiParams.headers || {}),
         ...(params1.headers || {}),
-        ...((params2 && params2.headers) || {})
-      }
-    }
+        ...((params2 && params2.headers) || {}),
+      },
+    };
   }
 
-  protected createAbortSignal = (cancelToken: CancelToken): AbortSignal | undefined => {
+  protected createAbortSignal = (
+    cancelToken: CancelToken,
+  ): AbortSignal | undefined => {
     if (this.abortControllers.has(cancelToken)) {
-      const abortController = this.abortControllers.get(cancelToken)
+      const abortController = this.abortControllers.get(cancelToken);
       if (abortController) {
-        return abortController.signal
+        return abortController.signal;
       }
-      return void 0
+      return void 0;
     }
 
-    const abortController = new AbortController()
-    this.abortControllers.set(cancelToken, abortController)
-    return abortController.signal
-  }
+    const abortController = new AbortController();
+    this.abortControllers.set(cancelToken, abortController);
+    return abortController.signal;
+  };
 
   public abortRequest = (cancelToken: CancelToken) => {
-    const abortController = this.abortControllers.get(cancelToken)
+    const abortController = this.abortControllers.get(cancelToken);
 
     if (abortController) {
-      abortController.abort()
-      this.abortControllers.delete(cancelToken)
+      abortController.abort();
+      this.abortControllers.delete(cancelToken);
     }
-  }
+  };
 
   public async request<T>({
     body,
@@ -4902,26 +5050,36 @@ export class HttpClient<SecurityDataType = unknown> {
     ...params
   }: FullRequestParams): Promise<T> {
     const secureParams =
-      ((typeof secure === 'boolean' ? secure : this.baseApiParams.secure) &&
+      ((typeof secure === "boolean" ? secure : this.baseApiParams.secure) &&
         this.securityWorker &&
         (await this.securityWorker(this.securityData))) ||
-      {}
-    const requestParams = this.mergeRequestParams(params, secureParams)
-    const queryString = query && this.toQueryString(query)
-    const payloadFormatter = this.contentFormatters[type || ContentType.Json]
-    const responseFormat = format || requestParams.format
+      {};
+    const requestParams = this.mergeRequestParams(params, secureParams);
+    const queryString = query && this.toQueryString(query);
+    const payloadFormatter = this.contentFormatters[type || ContentType.Json];
+    const responseFormat = format || requestParams.format;
 
-    return this.customFetch(`${baseUrl || this.baseUrl || ''}${path}${queryString ? `?${queryString}` : ''}`, {
-      ...requestParams,
-      headers: {
-        ...(requestParams.headers || {}),
-        ...(type && type !== ContentType.FormData ? { 'Content-Type': type } : {})
+    return this.customFetch(
+      `${baseUrl || this.baseUrl || ""}${path}${queryString ? `?${queryString}` : ""}`,
+      {
+        ...requestParams,
+        headers: {
+          ...(requestParams.headers || {}),
+          ...(type && type !== ContentType.FormData
+            ? { "Content-Type": type }
+            : {}),
+        },
+        signal: cancelToken
+          ? this.createAbortSignal(cancelToken)
+          : requestParams.signal,
+        body:
+          typeof body === "undefined" || body === null
+            ? null
+            : payloadFormatter(body),
       },
-      signal: cancelToken ? this.createAbortSignal(cancelToken) : requestParams.signal,
-      body: typeof body === 'undefined' || body === null ? null : payloadFormatter(body)
-    })
+    )
       .then(async (response) => {
-        let responseApiError: ApiError | null = null
+        let responseApiError: ApiError | null = null;
 
         const data =
           !responseFormat || response.status == 204
@@ -4929,49 +5087,61 @@ export class HttpClient<SecurityDataType = unknown> {
             : await response[responseFormat]()
                 .then((data) => {
                   if (!response.ok) {
-                    responseApiError = new ApiError(response.status, data?.message, data?.code)
+                    responseApiError = new ApiError(
+                      response.status,
+                      data?.message,
+                      data?.code,
+                    );
                   }
-                  return data
+                  return data;
                 })
                 .catch((e) => {
-                  responseApiError = new ApiError(response.status, 'Something went wrong', e?.code ?? '')
-                })
+                  responseApiError = new ApiError(
+                    response.status,
+                    "Something went wrong",
+                    e?.code ?? "",
+                  );
+                });
 
         if (cancelToken) {
-          this.abortControllers.delete(cancelToken)
+          this.abortControllers.delete(cancelToken);
         }
 
         if (responseApiError != null) {
-          throw responseApiError
+          throw responseApiError;
         }
-        return data
+        return data;
       })
       .catch((e) => {
-        if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
-          throw new ApiError(0, 'Failed to fetch', 'TypeError', true)
+        if (e.name === "TypeError" && e.message === "Failed to fetch") {
+          throw new ApiError(0, "Failed to fetch", "TypeError", true);
         }
 
-        throw e
-      })
+        throw e;
+      });
   }
 }
 
-declare const dataTagSymbol: unique symbol
+declare const dataTagSymbol: unique symbol;
 
 export type DataTag<Type, Value> = Type & {
-  [dataTagSymbol]: Value
-}
+  [dataTagSymbol]: Value;
+};
 
-function dataTaggedQueryKey<TData, TKey extends readonly unknown[] = unknown[]>(key: TKey): TKey & DataTag<TKey, TData>
+function dataTaggedQueryKey<TData, TKey extends readonly unknown[] = unknown[]>(
+  key: TKey,
+): TKey & DataTag<TKey, TData>;
 function dataTaggedQueryKey(key: unknown) {
-  return key
+  return key;
 }
 
 /**
  * @title Gitmono API
  * @version 2.0.0
  */
-export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
+export class Api<
+  SecurityDataType extends unknown,
+> extends HttpClient<SecurityDataType> {
   organizations = {
     /**
      * No description
@@ -4980,20 +5150,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/activity_views
      */
     postActivityViews: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/activity_views' as const
+      const base = "POST:/v1/organizations/{org_slug}/activity_views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostActivityViewsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostActivityViewsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationActivityViewsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostActivityViewsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationActivityViewsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostActivityViewsData>({
             path: `/v1/organizations/${orgSlug}/activity_views`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5003,19 +5178,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/attachments/{attachment_id}/commenters
      */
     getAttachmentsCommenters: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/attachments/{attachment_id}/commenters' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/attachments/{attachment_id}/commenters" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetAttachmentsCommentersData>([base]),
         requestKey: (orgSlug: string, attachmentId: string) =>
-          dataTaggedQueryKey<GetAttachmentsCommentersData>([base, orgSlug, attachmentId]),
-        request: (orgSlug: string, attachmentId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetAttachmentsCommentersData>([
+            base,
+            orgSlug,
+            attachmentId,
+          ]),
+        request: (
+          orgSlug: string,
+          attachmentId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetAttachmentsCommentersData>({
             path: `/v1/organizations/${orgSlug}/attachments/${attachmentId}/commenters`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5025,20 +5209,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/attachments
      */
     postAttachments: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/attachments' as const
+      const base = "POST:/v1/organizations/{org_slug}/attachments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostAttachmentsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostAttachmentsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationAttachmentsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostAttachmentsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationAttachmentsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostAttachmentsData>({
             path: `/v1/organizations/${orgSlug}/attachments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5048,18 +5237,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/attachments/{id}
      */
     getAttachmentsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/attachments/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetAttachmentsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetAttachmentsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetAttachmentsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/attachments/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5069,19 +5259,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/call_recordings/{call_recording_id}/transcription
      */
     getCallRecordingsTranscription: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/call_recordings/{call_recording_id}/transcription' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/call_recordings/{call_recording_id}/transcription" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCallRecordingsTranscriptionData>([base]),
         requestKey: (orgSlug: string, callRecordingId: string) =>
-          dataTaggedQueryKey<GetCallRecordingsTranscriptionData>([base, orgSlug, callRecordingId]),
-        request: (orgSlug: string, callRecordingId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetCallRecordingsTranscriptionData>([
+            base,
+            orgSlug,
+            callRecordingId,
+          ]),
+        request: (
+          orgSlug: string,
+          callRecordingId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetCallRecordingsTranscriptionData>({
             path: `/v1/organizations/${orgSlug}/call_recordings/${callRecordingId}/transcription`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5091,26 +5290,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/call_rooms/{call_room_id}/invitations
      */
     postCallRoomsInvitations: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/call_rooms/{call_room_id}/invitations' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/call_rooms/{call_room_id}/invitations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCallRoomsInvitationsData>([base]),
         requestKey: (orgSlug: string, callRoomId: string) =>
-          dataTaggedQueryKey<PostCallRoomsInvitationsData>([base, orgSlug, callRoomId]),
+          dataTaggedQueryKey<PostCallRoomsInvitationsData>([
+            base,
+            orgSlug,
+            callRoomId,
+          ]),
         request: (
           orgSlug: string,
           callRoomId: string,
           data: OrganizationCallRoomInvitationsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCallRoomsInvitationsData>({
             path: `/v1/organizations/${orgSlug}/call_rooms/${callRoomId}/invitations`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5120,18 +5324,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/call_rooms/{id}
      */
     getCallRoomsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/call_rooms/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/call_rooms/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCallRoomsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetCallRoomsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetCallRoomsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetCallRoomsByIdData>({
             path: `/v1/organizations/${orgSlug}/call_rooms/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5141,20 +5346,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/call_rooms
      */
     postCallRooms: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/call_rooms' as const
+      const base = "POST:/v1/organizations/{org_slug}/call_rooms" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCallRoomsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostCallRoomsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationCallRoomsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostCallRoomsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationCallRoomsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostCallRoomsData>({
             path: `/v1/organizations/${orgSlug}/call_rooms`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5164,19 +5374,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/calls/{call_id}/all_recordings
      */
     deleteCallsAllRecordings: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/calls/{call_id}/all_recordings' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/calls/{call_id}/all_recordings" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCallsAllRecordingsData>([base]),
         requestKey: (orgSlug: string, callId: string) =>
-          dataTaggedQueryKey<DeleteCallsAllRecordingsData>([base, orgSlug, callId]),
-        request: (orgSlug: string, callId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteCallsAllRecordingsData>([
+            base,
+            orgSlug,
+            callId,
+          ]),
+        request: (
+          orgSlug: string,
+          callId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteCallsAllRecordingsData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/all_recordings`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5186,19 +5405,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/calls/{call_id}/favorite
      */
     postCallsFavorite: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/calls/{call_id}/favorite' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/calls/{call_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCallsFavoriteData>([base]),
         requestKey: (orgSlug: string, callId: string) =>
           dataTaggedQueryKey<PostCallsFavoriteData>([base, orgSlug, callId]),
-        request: (orgSlug: string, callId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          callId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostCallsFavoriteData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/favorite`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5208,19 +5432,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/calls/{call_id}/favorite
      */
     deleteCallsFavorite: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/calls/{call_id}/favorite' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/calls/{call_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCallsFavoriteData>([base]),
         requestKey: (orgSlug: string, callId: string) =>
           dataTaggedQueryKey<DeleteCallsFavoriteData>([base, orgSlug, callId]),
-        request: (orgSlug: string, callId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          callId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteCallsFavoriteData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/favorite`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5230,7 +5459,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/calls/{call_id}/follow_up
      */
     postCallsFollowUp: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/calls/{call_id}/follow_up' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/calls/{call_id}/follow_up" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCallsFollowUpData>([base]),
@@ -5240,16 +5470,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           callId: string,
           data: OrganizationCallFollowUpPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCallsFollowUpData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/follow_up`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5259,18 +5489,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/calls/{call_id}/pin
      */
     postCallsPin: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/calls/{call_id}/pin' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/calls/{call_id}/pin" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCallsPinData>([base]),
-        requestKey: (orgSlug: string, callId: string) => dataTaggedQueryKey<PostCallsPinData>([base, orgSlug, callId]),
-        request: (orgSlug: string, callId: string, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string, callId: string) =>
+          dataTaggedQueryKey<PostCallsPinData>([base, orgSlug, callId]),
+        request: (
+          orgSlug: string,
+          callId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostCallsPinData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/pin`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5280,26 +5516,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/calls/{call_id}/project_permission
      */
     putCallsProjectPermission: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/calls/{call_id}/project_permission' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/calls/{call_id}/project_permission" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutCallsProjectPermissionData>([base]),
         requestKey: (orgSlug: string, callId: string) =>
-          dataTaggedQueryKey<PutCallsProjectPermissionData>([base, orgSlug, callId]),
+          dataTaggedQueryKey<PutCallsProjectPermissionData>([
+            base,
+            orgSlug,
+            callId,
+          ]),
         request: (
           orgSlug: string,
           callId: string,
           data: OrganizationsOrgSlugCallsCallIdProjectPermissionPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutCallsProjectPermissionData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/project_permission`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5309,19 +5550,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/calls/{call_id}/project_permission
      */
     deleteCallsProjectPermission: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/calls/{call_id}/project_permission' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/calls/{call_id}/project_permission" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCallsProjectPermissionData>([base]),
         requestKey: (orgSlug: string, callId: string) =>
-          dataTaggedQueryKey<DeleteCallsProjectPermissionData>([base, orgSlug, callId]),
-        request: (orgSlug: string, callId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteCallsProjectPermissionData>([
+            base,
+            orgSlug,
+            callId,
+          ]),
+        request: (
+          orgSlug: string,
+          callId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteCallsProjectPermissionData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/project_permission`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5331,19 +5581,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/calls/{call_id}/recordings
      */
     getCallsRecordings: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/calls/{call_id}/recordings' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/calls/{call_id}/recordings" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCallsRecordingsData>([base]),
-        requestKey: (params: GetCallsRecordingsParams) => dataTaggedQueryKey<GetCallsRecordingsData>([base, params]),
-        request: ({ orgSlug, callId, ...query }: GetCallsRecordingsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetCallsRecordingsParams) =>
+          dataTaggedQueryKey<GetCallsRecordingsData>([base, params]),
+        request: (
+          { orgSlug, callId, ...query }: GetCallsRecordingsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetCallsRecordingsData>({
             path: `/v1/organizations/${orgSlug}/calls/${callId}/recordings`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5353,19 +5608,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/calls
      */
     getCalls: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/calls' as const
+      const base = "GET:/v1/organizations/{org_slug}/calls" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCallsData>([base]),
-        requestKey: (params: GetCallsParams) => dataTaggedQueryKey<GetCallsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetCallsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetCallsParams) =>
+          dataTaggedQueryKey<GetCallsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetCallsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetCallsData>({
             path: `/v1/organizations/${orgSlug}/calls`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5375,18 +5634,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/calls/{id}
      */
     getCallsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/calls/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/calls/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCallsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetCallsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetCallsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetCallsByIdData>({
             path: `/v1/organizations/${orgSlug}/calls/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5396,25 +5656,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/calls/{id}
      */
     putCallsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/calls/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/calls/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutCallsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutCallsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutCallsByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugCallsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutCallsByIdData>({
             path: `/v1/organizations/${orgSlug}/calls/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5424,26 +5685,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/comments/{comment_id}/attachments/reorder
      */
     putCommentsAttachmentsReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/comments/{comment_id}/attachments/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/comments/{comment_id}/attachments/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutCommentsAttachmentsReorderData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PutCommentsAttachmentsReorderData>([base, orgSlug, commentId]),
+          dataTaggedQueryKey<PutCommentsAttachmentsReorderData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
         request: (
           orgSlug: string,
           commentId: string,
           data: OrganizationsOrgSlugCommentsCommentIdAttachmentsReorderPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutCommentsAttachmentsReorderData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/attachments/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5453,26 +5719,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/comments/{comment_id}/follow_up
      */
     postCommentsFollowUp: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/comments/{comment_id}/follow_up' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/comments/{comment_id}/follow_up" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCommentsFollowUpData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PostCommentsFollowUpData>([base, orgSlug, commentId]),
+          dataTaggedQueryKey<PostCommentsFollowUpData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
         request: (
           orgSlug: string,
           commentId: string,
           data: OrganizationCommentFollowUpPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCommentsFollowUpData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/follow_up`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5482,26 +5753,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/comments/{comment_id}/linear_issues
      */
     postCommentsLinearIssues: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/comments/{comment_id}/linear_issues' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/comments/{comment_id}/linear_issues" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCommentsLinearIssuesData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PostCommentsLinearIssuesData>([base, orgSlug, commentId]),
+          dataTaggedQueryKey<PostCommentsLinearIssuesData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
         request: (
           orgSlug: string,
           commentId: string,
           data: OrganizationCommentLinearIssuesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCommentsLinearIssuesData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/linear_issues`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5511,26 +5787,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/comments/{comment_id}/reactions
      */
     postCommentsReactions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/comments/{comment_id}/reactions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/comments/{comment_id}/reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCommentsReactionsData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PostCommentsReactionsData>([base, orgSlug, commentId]),
+          dataTaggedQueryKey<PostCommentsReactionsData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
         request: (
           orgSlug: string,
           commentId: string,
           data: OrganizationCommentReactionsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCommentsReactionsData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/reactions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5540,26 +5821,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/comments/{comment_id}/replies
      */
     postCommentsReplies: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/comments/{comment_id}/replies' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/comments/{comment_id}/replies" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCommentsRepliesData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PostCommentsRepliesData>([base, orgSlug, commentId]),
+          dataTaggedQueryKey<PostCommentsRepliesData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
         request: (
           orgSlug: string,
           commentId: string,
           data: OrganizationCommentRepliesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCommentsRepliesData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/replies`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5569,19 +5855,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions
      */
     postCommentsResolutions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCommentsResolutionsData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<PostCommentsResolutionsData>([base, orgSlug, commentId]),
-        request: (orgSlug: string, commentId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostCommentsResolutionsData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
+        request: (
+          orgSlug: string,
+          commentId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostCommentsResolutionsData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/resolutions`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5591,19 +5886,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions
      */
     deleteCommentsResolutions: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/comments/{comment_id}/resolutions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCommentsResolutionsData>([base]),
         requestKey: (orgSlug: string, commentId: string) =>
-          dataTaggedQueryKey<DeleteCommentsResolutionsData>([base, orgSlug, commentId]),
-        request: (orgSlug: string, commentId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteCommentsResolutionsData>([
+            base,
+            orgSlug,
+            commentId,
+          ]),
+        request: (
+          orgSlug: string,
+          commentId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteCommentsResolutionsData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/resolutions`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5613,7 +5917,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/comments/{comment_id}/tasks
      */
     putCommentsTasks: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/comments/{comment_id}/tasks' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/comments/{comment_id}/tasks" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutCommentsTasksData>([base]),
@@ -5623,16 +5928,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           commentId: string,
           data: OrganizationsOrgSlugCommentsCommentIdTasksPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutCommentsTasksData>({
             path: `/v1/organizations/${orgSlug}/comments/${commentId}/tasks`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5642,18 +5947,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/comments/{id}
      */
     getCommentsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/comments/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/comments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCommentsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetCommentsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetCommentsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetCommentsByIdData>({
             path: `/v1/organizations/${orgSlug}/comments/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5663,25 +5969,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/comments/{id}
      */
     putCommentsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/comments/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/comments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutCommentsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutCommentsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutCommentsByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugCommentsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutCommentsByIdData>({
             path: `/v1/organizations/${orgSlug}/comments/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5691,18 +5998,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/comments/{id}
      */
     deleteCommentsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/comments/{id}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/comments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCommentsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteCommentsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteCommentsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteCommentsByIdData>({
             path: `/v1/organizations/${orgSlug}/comments/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5712,18 +6020,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/custom_reactions/packs
      */
     getCustomReactionsPacks: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/custom_reactions/packs' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/custom_reactions/packs" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCustomReactionsPacksData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetCustomReactionsPacksData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetCustomReactionsPacksData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetCustomReactionsPacksData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions/packs`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5733,24 +6043,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/custom_reactions/packs
      */
     postCustomReactionsPacks: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/custom_reactions/packs' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/custom_reactions/packs" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCustomReactionsPacksData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostCustomReactionsPacksData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostCustomReactionsPacksData>([base, orgSlug]),
         request: (
           orgSlug: string,
           data: OrganizationsOrgSlugCustomReactionsPacksPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostCustomReactionsPacksData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions/packs`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5760,19 +6072,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/custom_reactions/packs/{name}
      */
     deleteCustomReactionsPacksByName: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/custom_reactions/packs/{name}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/custom_reactions/packs/{name}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteCustomReactionsPacksByNameData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteCustomReactionsPacksByNameData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, name: string) =>
-          dataTaggedQueryKey<DeleteCustomReactionsPacksByNameData>([base, orgSlug, name]),
+          dataTaggedQueryKey<DeleteCustomReactionsPacksByNameData>([
+            base,
+            orgSlug,
+            name,
+          ]),
         request: (orgSlug: string, name: string, params: RequestParams = {}) =>
           this.request<DeleteCustomReactionsPacksByNameData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions/packs/${name}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5782,19 +6101,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/custom_reactions
      */
     getCustomReactions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/custom_reactions' as const
+      const base = "GET:/v1/organizations/{org_slug}/custom_reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetCustomReactionsData>([base]),
-        requestKey: (params: GetCustomReactionsParams) => dataTaggedQueryKey<GetCustomReactionsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetCustomReactionsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetCustomReactionsParams) =>
+          dataTaggedQueryKey<GetCustomReactionsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetCustomReactionsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetCustomReactionsData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5804,20 +6127,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/custom_reactions
      */
     postCustomReactions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/custom_reactions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/custom_reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostCustomReactionsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostCustomReactionsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugCustomReactionsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostCustomReactionsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugCustomReactionsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostCustomReactionsData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5827,19 +6156,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/custom_reactions/{id}
      */
     deleteCustomReactionsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/custom_reactions/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/custom_reactions/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteCustomReactionsByIdData>([base]),
         requestKey: (orgSlug: string, id: string) =>
-          dataTaggedQueryKey<DeleteCustomReactionsByIdData>([base, orgSlug, id]),
+          dataTaggedQueryKey<DeleteCustomReactionsByIdData>([
+            base,
+            orgSlug,
+            id,
+          ]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteCustomReactionsByIdData>({
             path: `/v1/organizations/${orgSlug}/custom_reactions/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5849,18 +6183,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/data_exports
      */
     postDataExports: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/data_exports' as const
+      const base = "POST:/v1/organizations/{org_slug}/data_exports" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostDataExportsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostDataExportsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostDataExportsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostDataExportsData>({
             path: `/v1/organizations/${orgSlug}/data_exports`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5870,19 +6205,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/digests/{digest_id}/migrations
      */
     getDigestsMigrations: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/digests/{digest_id}/migrations' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/digests/{digest_id}/migrations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetDigestsMigrationsData>([base]),
         requestKey: (orgSlug: string, digestId: string) =>
-          dataTaggedQueryKey<GetDigestsMigrationsData>([base, orgSlug, digestId]),
-        request: (orgSlug: string, digestId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetDigestsMigrationsData>([
+            base,
+            orgSlug,
+            digestId,
+          ]),
+        request: (
+          orgSlug: string,
+          digestId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetDigestsMigrationsData>({
             path: `/v1/organizations/${orgSlug}/digests/${digestId}/migrations`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5892,20 +6236,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/favorites/reorder
      */
     putFavoritesReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/favorites/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/favorites/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutFavoritesReorderData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutFavoritesReorderData>([base, orgSlug]),
-        request: (orgSlug: string, data: ReorderOrganizationFavoritesPutRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutFavoritesReorderData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: ReorderOrganizationFavoritesPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutFavoritesReorderData>({
             path: `/v1/organizations/${orgSlug}/favorites/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5915,18 +6265,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/favorites
      */
     getFavorites: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/favorites' as const
+      const base = "GET:/v1/organizations/{org_slug}/favorites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetFavoritesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetFavoritesData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetFavoritesData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetFavoritesData>({
             path: `/v1/organizations/${orgSlug}/favorites`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5936,18 +6287,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/favorites/{id}
      */
     deleteFavoritesById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/favorites/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/favorites/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteFavoritesByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteFavoritesByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteFavoritesByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteFavoritesByIdData>({
             path: `/v1/organizations/${orgSlug}/favorites/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5957,20 +6310,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/feedback
      */
     postFeedback: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/feedback' as const
+      const base = "POST:/v1/organizations/{org_slug}/feedback" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostFeedbackData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostFeedbackData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationFeedbacksPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostFeedbackData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationFeedbacksPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostFeedbackData>({
             path: `/v1/organizations/${orgSlug}/feedback`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -5980,20 +6338,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/feedback/presigned-fields
      */
     getFeedbackPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/feedback/presigned-fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/feedback/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetFeedbackPresignedFieldsData>([base]),
         requestKey: (params: GetFeedbackPresignedFieldsParams) =>
           dataTaggedQueryKey<GetFeedbackPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetFeedbackPresignedFieldsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetFeedbackPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetFeedbackPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/feedback/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6003,20 +6365,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/figma/files
      */
     postFigmaFiles: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/figma/files' as const
+      const base = "POST:/v1/organizations/{org_slug}/figma/files" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostFigmaFilesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostFigmaFilesData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationFigmaFilesPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostFigmaFilesData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationFigmaFilesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostFigmaFilesData>({
             path: `/v1/organizations/${orgSlug}/figma/files`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6026,24 +6393,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/figma_file_attachment_details
      */
     postFigmaFileAttachmentDetails: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/figma_file_attachment_details' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/figma_file_attachment_details" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostFigmaFileAttachmentDetailsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostFigmaFileAttachmentDetailsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostFigmaFileAttachmentDetailsData>([
+            base,
+            orgSlug,
+          ]),
         request: (
           orgSlug: string,
           data: OrganizationFigmaFileAttachmentDetailsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostFigmaFileAttachmentDetailsData>({
             path: `/v1/organizations/${orgSlug}/figma_file_attachment_details`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6053,19 +6425,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/follow_ups
      */
     getFollowUps: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/follow_ups' as const
+      const base = "GET:/v1/organizations/{org_slug}/follow_ups" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetFollowUpsData>([base]),
-        requestKey: (params: GetFollowUpsParams) => dataTaggedQueryKey<GetFollowUpsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetFollowUpsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetFollowUpsParams) =>
+          dataTaggedQueryKey<GetFollowUpsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetFollowUpsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetFollowUpsData>({
             path: `/v1/organizations/${orgSlug}/follow_ups`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6075,25 +6451,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/follow_ups/{id}
      */
     putFollowUpsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/follow_ups/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/follow_ups/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutFollowUpsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutFollowUpsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutFollowUpsByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugFollowUpsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutFollowUpsByIdData>({
             path: `/v1/organizations/${orgSlug}/follow_ups/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6103,18 +6480,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/follow_ups/{id}
      */
     deleteFollowUpsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/follow_ups/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/follow_ups/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteFollowUpsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteFollowUpsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteFollowUpsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteFollowUpsByIdData>({
             path: `/v1/organizations/${orgSlug}/follow_ups/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6124,19 +6503,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/gifs
      */
     getGifs: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/gifs' as const
+      const base = "GET:/v1/organizations/{org_slug}/gifs" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetGifsData>([base]),
-        requestKey: (params: GetGifsParams) => dataTaggedQueryKey<GetGifsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetGifsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetGifsParams) =>
+          dataTaggedQueryKey<GetGifsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetGifsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetGifsData>({
             path: `/v1/organizations/${orgSlug}/gifs`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6146,18 +6529,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/integrations/linear/installation
      */
     getIntegrationsLinearInstallation: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/integrations/linear/installation' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/integrations/linear/installation" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetIntegrationsLinearInstallationData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetIntegrationsLinearInstallationData>([base, orgSlug]),
+        baseKey: dataTaggedQueryKey<GetIntegrationsLinearInstallationData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetIntegrationsLinearInstallationData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetIntegrationsLinearInstallationData>({
             path: `/v1/organizations/${orgSlug}/integrations/linear/installation`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6167,18 +6557,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/integrations/linear/installation
      */
     deleteIntegrationsLinearInstallation: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/integrations/linear/installation' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/integrations/linear/installation" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteIntegrationsLinearInstallationData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteIntegrationsLinearInstallationData>([base, orgSlug]),
+        baseKey: dataTaggedQueryKey<DeleteIntegrationsLinearInstallationData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteIntegrationsLinearInstallationData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteIntegrationsLinearInstallationData>({
             path: `/v1/organizations/${orgSlug}/integrations/linear/installation`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6188,18 +6585,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/integrations/linear/team_syncs
      */
     postIntegrationsLinearTeamSyncs: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/integrations/linear/team_syncs' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/integrations/linear/team_syncs" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostIntegrationsLinearTeamSyncsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostIntegrationsLinearTeamSyncsData>([base, orgSlug]),
+        baseKey: dataTaggedQueryKey<PostIntegrationsLinearTeamSyncsData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostIntegrationsLinearTeamSyncsData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostIntegrationsLinearTeamSyncsData>({
             path: `/v1/organizations/${orgSlug}/integrations/linear/team_syncs`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6209,18 +6613,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/integrations/linear/teams
      */
     getIntegrationsLinearTeams: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/integrations/linear/teams' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/integrations/linear/teams" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetIntegrationsLinearTeamsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetIntegrationsLinearTeamsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetIntegrationsLinearTeamsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetIntegrationsLinearTeamsData>({
             path: `/v1/organizations/${orgSlug}/integrations/linear/teams`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6230,18 +6636,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/integrations/slack/channel_syncs
      */
     postIntegrationsSlackChannelSyncs: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/integrations/slack/channel_syncs' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/integrations/slack/channel_syncs" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostIntegrationsSlackChannelSyncsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostIntegrationsSlackChannelSyncsData>([base, orgSlug]),
+        baseKey: dataTaggedQueryKey<PostIntegrationsSlackChannelSyncsData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostIntegrationsSlackChannelSyncsData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostIntegrationsSlackChannelSyncsData>({
             path: `/v1/organizations/${orgSlug}/integrations/slack/channel_syncs`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6251,20 +6664,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/integrations/slack/channels
      */
     getIntegrationsSlackChannels: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/integrations/slack/channels' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/integrations/slack/channels" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetIntegrationsSlackChannelsData>([base]),
         requestKey: (params: GetIntegrationsSlackChannelsParams) =>
           dataTaggedQueryKey<GetIntegrationsSlackChannelsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetIntegrationsSlackChannelsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetIntegrationsSlackChannelsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetIntegrationsSlackChannelsData>({
             path: `/v1/organizations/${orgSlug}/integrations/slack/channels`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6274,19 +6691,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/integrations/slack/channels/{provider_channel_id}
      */
     getIntegrationsSlackChannelsByProviderChannelId: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/integrations/slack/channels/{provider_channel_id}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/integrations/slack/channels/{provider_channel_id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetIntegrationsSlackChannelsByProviderChannelIdData>([base]),
+        baseKey:
+          dataTaggedQueryKey<GetIntegrationsSlackChannelsByProviderChannelIdData>(
+            [base],
+          ),
         requestKey: (orgSlug: string, providerChannelId: string) =>
-          dataTaggedQueryKey<GetIntegrationsSlackChannelsByProviderChannelIdData>([base, orgSlug, providerChannelId]),
-        request: (orgSlug: string, providerChannelId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetIntegrationsSlackChannelsByProviderChannelIdData>(
+            [base, orgSlug, providerChannelId],
+          ),
+        request: (
+          orgSlug: string,
+          providerChannelId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetIntegrationsSlackChannelsByProviderChannelIdData>({
             path: `/v1/organizations/${orgSlug}/integrations/slack/channels/${providerChannelId}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6296,18 +6723,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/invitation_url
      */
     getInvitationUrl: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/invitation_url' as const
+      const base = "GET:/v1/organizations/{org_slug}/invitation_url" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetInvitationUrlData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetInvitationUrlData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetInvitationUrlData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetInvitationUrlData>({
             path: `/v1/organizations/${orgSlug}/invitation_url`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6317,19 +6745,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/dms/{username}
      */
     getThreadsDmsByUsername: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/dms/{username}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/dms/{username}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsDmsByUsernameData>([base]),
         requestKey: (orgSlug: string, username: string) =>
-          dataTaggedQueryKey<GetThreadsDmsByUsernameData>([base, orgSlug, username]),
-        request: (orgSlug: string, username: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetThreadsDmsByUsernameData>([
+            base,
+            orgSlug,
+            username,
+          ]),
+        request: (
+          orgSlug: string,
+          username: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsDmsByUsernameData>({
             path: `/v1/organizations/${orgSlug}/threads/dms/${username}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6339,19 +6776,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads/{thread_id}/favorites
      */
     postThreadsFavorites: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads/{thread_id}/favorites' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/threads/{thread_id}/favorites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsFavoritesData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PostThreadsFavoritesData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostThreadsFavoritesData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostThreadsFavoritesData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/favorites`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6361,19 +6807,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/favorites
      */
     deleteThreadsFavorites: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/favorites' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/favorites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteThreadsFavoritesData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<DeleteThreadsFavoritesData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteThreadsFavoritesData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteThreadsFavoritesData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/favorites`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6383,19 +6838,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/integration_dms/{oauth_application_id}
      */
     getThreadsIntegrationDmsByOauthApplicationId: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/integration_dms/{oauth_application_id}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/integration_dms/{oauth_application_id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetThreadsIntegrationDmsByOauthApplicationIdData>([base]),
+        baseKey:
+          dataTaggedQueryKey<GetThreadsIntegrationDmsByOauthApplicationIdData>([
+            base,
+          ]),
         requestKey: (orgSlug: string, oauthApplicationId: string) =>
-          dataTaggedQueryKey<GetThreadsIntegrationDmsByOauthApplicationIdData>([base, orgSlug, oauthApplicationId]),
-        request: (orgSlug: string, oauthApplicationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetThreadsIntegrationDmsByOauthApplicationIdData>([
+            base,
+            orgSlug,
+            oauthApplicationId,
+          ]),
+        request: (
+          orgSlug: string,
+          oauthApplicationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsIntegrationDmsByOauthApplicationIdData>({
             path: `/v1/organizations/${orgSlug}/threads/integration_dms/${oauthApplicationId}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6405,19 +6872,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/{thread_id}/messages
      */
     getThreadsMessages: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/{thread_id}/messages' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/{thread_id}/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsMessagesData>([base]),
-        requestKey: (params: GetThreadsMessagesParams) => dataTaggedQueryKey<GetThreadsMessagesData>([base, params]),
-        request: ({ orgSlug, threadId, ...query }: GetThreadsMessagesParams, params: RequestParams = {}) =>
+        requestKey: (params: GetThreadsMessagesParams) =>
+          dataTaggedQueryKey<GetThreadsMessagesData>([base, params]),
+        request: (
+          { orgSlug, threadId, ...query }: GetThreadsMessagesParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsMessagesData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/messages`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6427,26 +6899,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads/{thread_id}/messages
      */
     postThreadsMessages: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads/{thread_id}/messages' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/threads/{thread_id}/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsMessagesData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PostThreadsMessagesData>([base, orgSlug, threadId]),
+          dataTaggedQueryKey<PostThreadsMessagesData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
         request: (
           orgSlug: string,
           threadId: string,
           data: OrganizationsOrgSlugThreadsThreadIdMessagesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostThreadsMessagesData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/messages`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6456,27 +6933,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}
      */
     putThreadsMessagesById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutThreadsMessagesByIdData>([base]),
         requestKey: (orgSlug: string, threadId: string, id: string) =>
-          dataTaggedQueryKey<PutThreadsMessagesByIdData>([base, orgSlug, threadId, id]),
+          dataTaggedQueryKey<PutThreadsMessagesByIdData>([
+            base,
+            orgSlug,
+            threadId,
+            id,
+          ]),
         request: (
           orgSlug: string,
           threadId: string,
           id: string,
           data: OrganizationsOrgSlugThreadsThreadIdMessagesIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutThreadsMessagesByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/messages/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6486,19 +6969,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}
      */
     deleteThreadsMessagesById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/messages/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteThreadsMessagesByIdData>([base]),
         requestKey: (orgSlug: string, threadId: string, id: string) =>
-          dataTaggedQueryKey<DeleteThreadsMessagesByIdData>([base, orgSlug, threadId, id]),
-        request: (orgSlug: string, threadId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteThreadsMessagesByIdData>([
+            base,
+            orgSlug,
+            threadId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteThreadsMessagesByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/messages/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6508,19 +7002,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership
      */
     getThreadsMyMembership: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsMyMembershipData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<GetThreadsMyMembershipData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetThreadsMyMembershipData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsMyMembershipData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/my_membership`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6530,26 +7033,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership
      */
     putThreadsMyMembership: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutThreadsMyMembershipData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PutThreadsMyMembershipData>([base, orgSlug, threadId]),
+          dataTaggedQueryKey<PutThreadsMyMembershipData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
         request: (
           orgSlug: string,
           threadId: string,
           data: OrganizationsOrgSlugThreadsThreadIdMyMembershipPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutThreadsMyMembershipData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/my_membership`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6559,19 +7067,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership
      */
     deleteThreadsMyMembership: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/my_membership" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteThreadsMyMembershipData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<DeleteThreadsMyMembershipData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteThreadsMyMembershipData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteThreadsMyMembershipData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/my_membership`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6581,19 +7098,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads/{thread_id}/notification_forces
      */
     postThreadsNotificationForces: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads/{thread_id}/notification_forces' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/threads/{thread_id}/notification_forces" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsNotificationForcesData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PostThreadsNotificationForcesData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostThreadsNotificationForcesData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostThreadsNotificationForcesData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/notification_forces`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6603,19 +7129,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications
      */
     getThreadsOauthApplications: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsOauthApplicationsData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<GetThreadsOauthApplicationsData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetThreadsOauthApplicationsData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/oauth_applications`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6625,26 +7160,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications
      */
     postThreadsOauthApplications: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsOauthApplicationsData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PostThreadsOauthApplicationsData>([base, orgSlug, threadId]),
+          dataTaggedQueryKey<PostThreadsOauthApplicationsData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
         request: (
           orgSlug: string,
           threadId: string,
           data: OrganizationsOrgSlugThreadsThreadIdOauthApplicationsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostThreadsOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/oauth_applications`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6654,19 +7194,32 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications/{id}
      */
     deleteThreadsOauthApplicationsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/oauth_applications/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteThreadsOauthApplicationsByIdData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteThreadsOauthApplicationsByIdData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, threadId: string, id: string) =>
-          dataTaggedQueryKey<DeleteThreadsOauthApplicationsByIdData>([base, orgSlug, threadId, id]),
-        request: (orgSlug: string, threadId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteThreadsOauthApplicationsByIdData>([
+            base,
+            orgSlug,
+            threadId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          threadId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteThreadsOauthApplicationsByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/oauth_applications/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6676,26 +7229,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/threads/{thread_id}/other_memberships_list
      */
     putThreadsOtherMembershipsList: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/threads/{thread_id}/other_memberships_list' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/threads/{thread_id}/other_memberships_list" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutThreadsOtherMembershipsListData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
-          dataTaggedQueryKey<PutThreadsOtherMembershipsListData>([base, orgSlug, threadId]),
+          dataTaggedQueryKey<PutThreadsOtherMembershipsListData>([
+            base,
+            orgSlug,
+            threadId,
+          ]),
         request: (
           orgSlug: string,
           threadId: string,
           data: OrganizationsOrgSlugThreadsThreadIdOtherMembershipsListPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutThreadsOtherMembershipsListData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/other_memberships_list`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6705,20 +7263,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/presigned-fields
      */
     getThreadsPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/presigned-fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/threads/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsPresignedFieldsData>([base]),
         requestKey: (params: GetThreadsPresignedFieldsParams) =>
           dataTaggedQueryKey<GetThreadsPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetThreadsPresignedFieldsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetThreadsPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/threads/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6728,19 +7290,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads/{thread_id}/reads
      */
     postThreadsReads: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads/{thread_id}/reads' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/threads/{thread_id}/reads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsReadsData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
           dataTaggedQueryKey<PostThreadsReadsData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostThreadsReadsData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/reads`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6750,19 +7317,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/reads
      */
     deleteThreadsReads: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/reads' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/threads/{thread_id}/reads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteThreadsReadsData>([base]),
         requestKey: (orgSlug: string, threadId: string) =>
           dataTaggedQueryKey<DeleteThreadsReadsData>([base, orgSlug, threadId]),
-        request: (orgSlug: string, threadId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          threadId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteThreadsReadsData>({
             path: `/v1/organizations/${orgSlug}/threads/${threadId}/reads`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6772,18 +7344,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads
      */
     getThreads: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads' as const
+      const base = "GET:/v1/organizations/{org_slug}/threads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetThreadsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetThreadsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetThreadsData>({
             path: `/v1/organizations/${orgSlug}/threads`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6793,20 +7366,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/threads
      */
     postThreads: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/threads' as const
+      const base = "POST:/v1/organizations/{org_slug}/threads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostThreadsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugThreadsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostThreadsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugThreadsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostThreadsData>({
             path: `/v1/organizations/${orgSlug}/threads`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6816,18 +7394,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/threads/{id}
      */
     getThreadsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/threads/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/threads/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetThreadsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetThreadsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetThreadsByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6837,25 +7416,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/threads/{id}
      */
     putThreadsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/threads/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/threads/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutThreadsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutThreadsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutThreadsByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugThreadsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutThreadsByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6865,18 +7445,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/threads/{id}
      */
     deleteThreadsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/threads/{id}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/threads/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteThreadsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteThreadsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteThreadsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteThreadsByIdData>({
             path: `/v1/organizations/${orgSlug}/threads/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6886,19 +7467,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/messages/{message_id}/attachments/{id}
      */
     deleteMessagesAttachmentsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/messages/{message_id}/attachments/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/messages/{message_id}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMessagesAttachmentsByIdData>([base]),
         requestKey: (orgSlug: string, messageId: string, id: string) =>
-          dataTaggedQueryKey<DeleteMessagesAttachmentsByIdData>([base, orgSlug, messageId, id]),
-        request: (orgSlug: string, messageId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteMessagesAttachmentsByIdData>([
+            base,
+            orgSlug,
+            messageId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          messageId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteMessagesAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/messages/${messageId}/attachments/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6908,26 +7500,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/messages/{message_id}/reactions
      */
     postMessagesReactions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/messages/{message_id}/reactions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/messages/{message_id}/reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMessagesReactionsData>([base]),
         requestKey: (orgSlug: string, messageId: string) =>
-          dataTaggedQueryKey<PostMessagesReactionsData>([base, orgSlug, messageId]),
+          dataTaggedQueryKey<PostMessagesReactionsData>([
+            base,
+            orgSlug,
+            messageId,
+          ]),
         request: (
           orgSlug: string,
           messageId: string,
           data: OrganizationMessageReactionsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostMessagesReactionsData>({
             path: `/v1/organizations/${orgSlug}/messages/${messageId}/reactions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6937,23 +7534,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{attachment_id}/comments
      */
     getNotesAttachmentsComments: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{attachment_id}/comments' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{attachment_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesAttachmentsCommentsData>([base]),
         requestKey: (params: GetNotesAttachmentsCommentsParams) =>
           dataTaggedQueryKey<GetNotesAttachmentsCommentsData>([base, params]),
         request: (
-          { orgSlug, noteId, attachmentId, ...query }: GetNotesAttachmentsCommentsParams,
-          params: RequestParams = {}
+          {
+            orgSlug,
+            noteId,
+            attachmentId,
+            ...query
+          }: GetNotesAttachmentsCommentsParams,
+          params: RequestParams = {},
         ) =>
           this.request<GetNotesAttachmentsCommentsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/attachments/${attachmentId}/comments`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6963,26 +7566,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/reorder
      */
     putNotesAttachmentsReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesAttachmentsReorderData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
-          dataTaggedQueryKey<PutNotesAttachmentsReorderData>([base, orgSlug, noteId]),
+          dataTaggedQueryKey<PutNotesAttachmentsReorderData>([
+            base,
+            orgSlug,
+            noteId,
+          ]),
         request: (
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdAttachmentsReorderPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesAttachmentsReorderData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/attachments/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -6992,7 +7600,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/attachments
      */
     postNotesAttachments: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/attachments' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/attachments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesAttachmentsData>([base]),
@@ -7002,16 +7611,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationNoteAttachmentsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostNotesAttachmentsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/attachments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7021,27 +7630,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}
      */
     putNotesAttachmentsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesAttachmentsByIdData>([base]),
         requestKey: (orgSlug: string, noteId: string, id: string) =>
-          dataTaggedQueryKey<PutNotesAttachmentsByIdData>([base, orgSlug, noteId, id]),
+          dataTaggedQueryKey<PutNotesAttachmentsByIdData>([
+            base,
+            orgSlug,
+            noteId,
+            id,
+          ]),
         request: (
           orgSlug: string,
           noteId: string,
           id: string,
           data: OrganizationsOrgSlugNotesNoteIdAttachmentsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/attachments/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7051,19 +7666,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}
      */
     deleteNotesAttachmentsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/notes/{note_id}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteNotesAttachmentsByIdData>([base]),
         requestKey: (orgSlug: string, noteId: string, id: string) =>
-          dataTaggedQueryKey<DeleteNotesAttachmentsByIdData>([base, orgSlug, noteId, id]),
-        request: (orgSlug: string, noteId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteNotesAttachmentsByIdData>([
+            base,
+            orgSlug,
+            noteId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          noteId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteNotesAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/attachments/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7073,19 +7699,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/comments
      */
     getNotesComments: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/comments' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesCommentsData>([base]),
-        requestKey: (params: GetNotesCommentsParams) => dataTaggedQueryKey<GetNotesCommentsData>([base, params]),
-        request: ({ orgSlug, noteId, ...query }: GetNotesCommentsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetNotesCommentsParams) =>
+          dataTaggedQueryKey<GetNotesCommentsData>([base, params]),
+        request: (
+          { orgSlug, noteId, ...query }: GetNotesCommentsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesCommentsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/comments`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7095,7 +7726,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/comments
      */
     postNotesComments: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/comments' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesCommentsData>([base]),
@@ -7105,16 +7737,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdCommentsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostNotesCommentsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/comments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7124,19 +7756,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/favorite
      */
     postNotesFavorite: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/favorite' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesFavoriteData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<PostNotesFavoriteData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostNotesFavoriteData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/favorite`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7146,19 +7783,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/notes/{note_id}/favorite
      */
     deleteNotesFavorite: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/notes/{note_id}/favorite' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/notes/{note_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteNotesFavoriteData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<DeleteNotesFavoriteData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteNotesFavoriteData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/favorite`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7168,7 +7810,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/follow_up
      */
     postNotesFollowUp: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/follow_up' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/follow_up" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesFollowUpData>([base]),
@@ -7178,16 +7821,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationNoteFollowUpPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostNotesFollowUpData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/follow_up`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7197,19 +7840,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/permissions
      */
     getNotesPermissions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/permissions' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/permissions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesPermissionsData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<GetNotesPermissionsData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesPermissionsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/permissions`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7219,7 +7867,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/permissions
      */
     postNotesPermissions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/permissions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/permissions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesPermissionsData>([base]),
@@ -7229,16 +7878,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdPermissionsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostNotesPermissionsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/permissions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7248,27 +7897,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}
      */
     putNotesPermissionsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesPermissionsByIdData>([base]),
         requestKey: (orgSlug: string, noteId: string, id: string) =>
-          dataTaggedQueryKey<PutNotesPermissionsByIdData>([base, orgSlug, noteId, id]),
+          dataTaggedQueryKey<PutNotesPermissionsByIdData>([
+            base,
+            orgSlug,
+            noteId,
+            id,
+          ]),
         request: (
           orgSlug: string,
           noteId: string,
           id: string,
           data: OrganizationsOrgSlugNotesNoteIdPermissionsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesPermissionsByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/permissions/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7278,19 +7933,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}
      */
     deleteNotesPermissionsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/notes/{note_id}/permissions/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteNotesPermissionsByIdData>([base]),
         requestKey: (orgSlug: string, noteId: string, id: string) =>
-          dataTaggedQueryKey<DeleteNotesPermissionsByIdData>([base, orgSlug, noteId, id]),
-        request: (orgSlug: string, noteId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteNotesPermissionsByIdData>([
+            base,
+            orgSlug,
+            noteId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          noteId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteNotesPermissionsByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/permissions/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7300,18 +7966,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/pin
      */
     postNotesPin: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/pin' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/pin" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesPinData>([base]),
-        requestKey: (orgSlug: string, noteId: string) => dataTaggedQueryKey<PostNotesPinData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string, noteId: string) =>
+          dataTaggedQueryKey<PostNotesPinData>([base, orgSlug, noteId]),
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostNotesPinData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/pin`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7321,26 +7993,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions
      */
     putNotesProjectPermissions: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesProjectPermissionsData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
-          dataTaggedQueryKey<PutNotesProjectPermissionsData>([base, orgSlug, noteId]),
+          dataTaggedQueryKey<PutNotesProjectPermissionsData>([
+            base,
+            orgSlug,
+            noteId,
+          ]),
         request: (
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdProjectPermissionsPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesProjectPermissionsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/project_permissions`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7350,19 +8027,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions
      */
     deleteNotesProjectPermissions: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/notes/{note_id}/project_permissions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteNotesProjectPermissionsData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
-          dataTaggedQueryKey<DeleteNotesProjectPermissionsData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteNotesProjectPermissionsData>([
+            base,
+            orgSlug,
+            noteId,
+          ]),
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteNotesProjectPermissionsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/project_permissions`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7372,19 +8058,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/public_notes
      */
     getNotesPublicNotes: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/public_notes' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/public_notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesPublicNotesData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<GetNotesPublicNotesData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesPublicNotesData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/public_notes`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7394,19 +8085,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/sync_state
      */
     getNotesSyncState: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/sync_state' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/sync_state" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesSyncStateData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<GetNotesSyncStateData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesSyncStateData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/sync_state`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7416,7 +8112,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/sync_state
      */
     putNotesSyncState: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/sync_state' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/sync_state" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesSyncStateData>([base]),
@@ -7426,16 +8123,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdSyncStatePutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesSyncStateData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/sync_state`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7445,20 +8142,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/timeline_events
      */
     getNotesTimelineEvents: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/timeline_events' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/timeline_events" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesTimelineEventsData>([base]),
         requestKey: (params: GetNotesTimelineEventsParams) =>
           dataTaggedQueryKey<GetNotesTimelineEventsData>([base, params]),
-        request: ({ orgSlug, noteId, ...query }: GetNotesTimelineEventsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, noteId, ...query }: GetNotesTimelineEventsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesTimelineEventsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/timeline_events`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7468,18 +8169,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{note_id}/views
      */
     getNotesViews: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{note_id}/views' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/notes/{note_id}/views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesViewsData>([base]),
-        requestKey: (orgSlug: string, noteId: string) => dataTaggedQueryKey<GetNotesViewsData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string, noteId: string) =>
+          dataTaggedQueryKey<GetNotesViewsData>([base, orgSlug, noteId]),
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesViewsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/views`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7489,19 +8196,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes/{note_id}/views
      */
     postNotesViews: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes/{note_id}/views' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/notes/{note_id}/views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesViewsData>([base]),
         requestKey: (orgSlug: string, noteId: string) =>
           dataTaggedQueryKey<PostNotesViewsData>([base, orgSlug, noteId]),
-        request: (orgSlug: string, noteId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          noteId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostNotesViewsData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/views`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7511,7 +8223,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{note_id}/visibility
      */
     putNotesVisibility: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{note_id}/visibility' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/notes/{note_id}/visibility" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesVisibilityData>([base]),
@@ -7521,16 +8234,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           noteId: string,
           data: OrganizationsOrgSlugNotesNoteIdVisibilityPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesVisibilityData>({
             path: `/v1/organizations/${orgSlug}/notes/${noteId}/visibility`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7540,19 +8253,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes
      */
     getNotes: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes' as const
+      const base = "GET:/v1/organizations/{org_slug}/notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesData>([base]),
-        requestKey: (params: GetNotesParams) => dataTaggedQueryKey<GetNotesData>([base, params]),
-        request: ({ orgSlug, ...query }: GetNotesParams, params: RequestParams = {}) =>
+        requestKey: (params: GetNotesParams) =>
+          dataTaggedQueryKey<GetNotesData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetNotesParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetNotesData>({
             path: `/v1/organizations/${orgSlug}/notes`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7562,20 +8279,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/notes
      */
     postNotes: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/notes' as const
+      const base = "POST:/v1/organizations/{org_slug}/notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostNotesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostNotesData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugNotesPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostNotesData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugNotesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostNotesData>({
             path: `/v1/organizations/${orgSlug}/notes`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7585,18 +8307,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/notes/{id}
      */
     getNotesById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/notes/{id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/notes/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetNotesByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<GetNotesByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<GetNotesByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetNotesByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7606,25 +8329,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/notes/{id}
      */
     putNotesById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/notes/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/notes/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutNotesByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutNotesByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutNotesByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugNotesIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutNotesByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7634,18 +8358,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/notes/{id}
      */
     deleteNotesById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/notes/{id}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/notes/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteNotesByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteNotesByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteNotesByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteNotesByIdData>({
             path: `/v1/organizations/${orgSlug}/notes/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7655,19 +8380,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/archive
      */
     deleteMembersMeNotificationsArchive: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/archive' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/archive" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsArchiveData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsArchiveData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, notificationId: string) =>
-          dataTaggedQueryKey<DeleteMembersMeNotificationsArchiveData>([base, orgSlug, notificationId]),
-        request: (orgSlug: string, notificationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteMembersMeNotificationsArchiveData>([
+            base,
+            orgSlug,
+            notificationId,
+          ]),
+        request: (
+          orgSlug: string,
+          notificationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteMembersMeNotificationsArchiveData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/${notificationId}/archive`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7677,20 +8413,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/notifications/delete_all
      */
     postMembersMeNotificationsDeleteAll: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/notifications/delete_all' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/notifications/delete_all" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostMembersMeNotificationsDeleteAllData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostMembersMeNotificationsDeleteAllData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationNotificationDeleteAllPostRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PostMembersMeNotificationsDeleteAllData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostMembersMeNotificationsDeleteAllData>([
+            base,
+            orgSlug,
+          ]),
+        request: (
+          orgSlug: string,
+          data: OrganizationNotificationDeleteAllPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMembersMeNotificationsDeleteAllData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/delete_all`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7700,20 +8447,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/notifications/mark_all_read
      */
     postMembersMeNotificationsMarkAllRead: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/notifications/mark_all_read' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/notifications/mark_all_read" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostMembersMeNotificationsMarkAllReadData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostMembersMeNotificationsMarkAllReadData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationNotificationMarkAllReadPostRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PostMembersMeNotificationsMarkAllReadData>([
+          base,
+        ]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostMembersMeNotificationsMarkAllReadData>([
+            base,
+            orgSlug,
+          ]),
+        request: (
+          orgSlug: string,
+          data: OrganizationNotificationMarkAllReadPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMembersMeNotificationsMarkAllReadData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/mark_all_read`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7723,19 +8481,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read
      */
     postMembersMeNotificationsRead: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembersMeNotificationsReadData>([base]),
         requestKey: (orgSlug: string, notificationId: string) =>
-          dataTaggedQueryKey<PostMembersMeNotificationsReadData>([base, orgSlug, notificationId]),
-        request: (orgSlug: string, notificationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostMembersMeNotificationsReadData>([
+            base,
+            orgSlug,
+            notificationId,
+          ]),
+        request: (
+          orgSlug: string,
+          notificationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMembersMeNotificationsReadData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/${notificationId}/read`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7745,19 +8512,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read
      */
     deleteMembersMeNotificationsRead: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/members/me/notifications/{notification_id}/read" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsReadData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsReadData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, notificationId: string) =>
-          dataTaggedQueryKey<DeleteMembersMeNotificationsReadData>([base, orgSlug, notificationId]),
-        request: (orgSlug: string, notificationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteMembersMeNotificationsReadData>([
+            base,
+            orgSlug,
+            notificationId,
+          ]),
+        request: (
+          orgSlug: string,
+          notificationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteMembersMeNotificationsReadData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/${notificationId}/read`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7767,20 +8545,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/notifications
      */
     getMembersMeNotifications: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/notifications' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/notifications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeNotificationsData>([base]),
         requestKey: (params: GetMembersMeNotificationsParams) =>
           dataTaggedQueryKey<GetMembersMeNotificationsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeNotificationsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembersMeNotificationsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeNotificationsData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7790,26 +8572,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/me/notifications/{id}
      */
     deleteMembersMeNotificationsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/me/notifications/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/members/me/notifications/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsByIdData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteMembersMeNotificationsByIdData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, id: string) =>
-          dataTaggedQueryKey<DeleteMembersMeNotificationsByIdData>([base, orgSlug, id]),
+          dataTaggedQueryKey<DeleteMembersMeNotificationsByIdData>([
+            base,
+            orgSlug,
+            id,
+          ]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationNotificationDeleteRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<DeleteMembersMeNotificationsByIdData>({
             path: `/v1/organizations/${orgSlug}/members/me/notifications/${id}`,
-            method: 'DELETE',
+            method: "DELETE",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7819,20 +8608,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/oauth_applications/presigned_fields
      */
     getOauthApplicationsPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/oauth_applications/presigned_fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/oauth_applications/presigned_fields" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetOauthApplicationsPresignedFieldsData>([base]),
+        baseKey: dataTaggedQueryKey<GetOauthApplicationsPresignedFieldsData>([
+          base,
+        ]),
         requestKey: (params: GetOauthApplicationsPresignedFieldsParams) =>
-          dataTaggedQueryKey<GetOauthApplicationsPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetOauthApplicationsPresignedFieldsParams, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetOauthApplicationsPresignedFieldsData>([
+            base,
+            params,
+          ]),
+        request: (
+          { orgSlug, ...query }: GetOauthApplicationsPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetOauthApplicationsPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/presigned_fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7843,19 +8641,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      */
     postOauthApplicationsSecretRenewals: () => {
       const base =
-        'POST:/v1/organizations/{org_slug}/oauth_applications/{oauth_application_id}/secret_renewals' as const
+        "POST:/v1/organizations/{org_slug}/oauth_applications/{oauth_application_id}/secret_renewals" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostOauthApplicationsSecretRenewalsData>([base]),
+        baseKey: dataTaggedQueryKey<PostOauthApplicationsSecretRenewalsData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, oauthApplicationId: string) =>
-          dataTaggedQueryKey<PostOauthApplicationsSecretRenewalsData>([base, orgSlug, oauthApplicationId]),
-        request: (orgSlug: string, oauthApplicationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostOauthApplicationsSecretRenewalsData>([
+            base,
+            orgSlug,
+            oauthApplicationId,
+          ]),
+        request: (
+          orgSlug: string,
+          oauthApplicationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostOauthApplicationsSecretRenewalsData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/${oauthApplicationId}/secret_renewals`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7865,19 +8673,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/oauth_applications/{oauth_application_id}/tokens
      */
     postOauthApplicationsTokens: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/oauth_applications/{oauth_application_id}/tokens' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/oauth_applications/{oauth_application_id}/tokens" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostOauthApplicationsTokensData>([base]),
         requestKey: (orgSlug: string, oauthApplicationId: string) =>
-          dataTaggedQueryKey<PostOauthApplicationsTokensData>([base, orgSlug, oauthApplicationId]),
-        request: (orgSlug: string, oauthApplicationId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostOauthApplicationsTokensData>([
+            base,
+            orgSlug,
+            oauthApplicationId,
+          ]),
+        request: (
+          orgSlug: string,
+          oauthApplicationId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostOauthApplicationsTokensData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/${oauthApplicationId}/tokens`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7887,18 +8704,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/oauth_applications
      */
     getOauthApplications: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/oauth_applications' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetOauthApplicationsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetOauthApplicationsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetOauthApplicationsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7908,24 +8727,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/oauth_applications
      */
     postOauthApplications: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/oauth_applications' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostOauthApplicationsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostOauthApplicationsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostOauthApplicationsData>([base, orgSlug]),
         request: (
           orgSlug: string,
           data: OrganizationsOrgSlugOauthApplicationsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7935,7 +8756,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/oauth_applications/{id}
      */
     getOauthApplicationsById: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/oauth_applications/{id}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/oauth_applications/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetOauthApplicationsByIdData>([base]),
@@ -7944,10 +8766,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<GetOauthApplicationsByIdData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7957,7 +8779,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/oauth_applications/{id}
      */
     putOauthApplicationsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/oauth_applications/{id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/oauth_applications/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutOauthApplicationsByIdData>([base]),
@@ -7967,16 +8790,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugOauthApplicationsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutOauthApplicationsByIdData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -7986,19 +8809,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/oauth_applications/{id}
      */
     deleteOauthApplicationsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/oauth_applications/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/oauth_applications/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteOauthApplicationsByIdData>([base]),
         requestKey: (orgSlug: string, id: string) =>
-          dataTaggedQueryKey<DeleteOauthApplicationsByIdData>([base, orgSlug, id]),
+          dataTaggedQueryKey<DeleteOauthApplicationsByIdData>([
+            base,
+            orgSlug,
+            id,
+          ]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteOauthApplicationsByIdData>({
             path: `/v1/organizations/${orgSlug}/oauth_applications/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8008,20 +8836,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/onboard_projects
      */
     postOnboardProjects: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/onboard_projects' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/onboard_projects" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostOnboardProjectsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostOnboardProjectsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationOnboardProjectsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostOnboardProjectsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationOnboardProjectsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostOnboardProjectsData>({
             path: `/v1/organizations/${orgSlug}/onboard_projects`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8031,19 +8865,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/invitations
      */
     getInvitations: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/invitations' as const
+      const base = "GET:/v1/organizations/{org_slug}/invitations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetInvitationsData>([base]),
-        requestKey: (params: GetInvitationsParams) => dataTaggedQueryKey<GetInvitationsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetInvitationsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetInvitationsParams) =>
+          dataTaggedQueryKey<GetInvitationsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetInvitationsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetInvitationsData>({
             path: `/v1/organizations/${orgSlug}/invitations`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8053,20 +8891,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/invitations
      */
     postInvitations: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/invitations' as const
+      const base = "POST:/v1/organizations/{org_slug}/invitations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostInvitationsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostInvitationsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugInvitationsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostInvitationsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugInvitationsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostInvitationsData>({
             path: `/v1/organizations/${orgSlug}/invitations`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8076,19 +8919,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/invitations/{invite_token}
      */
     getInvitationsByInviteToken: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/invitations/{invite_token}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/invitations/{invite_token}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetInvitationsByInviteTokenData>([base]),
         requestKey: (orgSlug: string, inviteToken: string) =>
-          dataTaggedQueryKey<GetInvitationsByInviteTokenData>([base, orgSlug, inviteToken]),
-        request: (orgSlug: string, inviteToken: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetInvitationsByInviteTokenData>([
+            base,
+            orgSlug,
+            inviteToken,
+          ]),
+        request: (
+          orgSlug: string,
+          inviteToken: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetInvitationsByInviteTokenData>({
             path: `/v1/organizations/${orgSlug}/invitations/${inviteToken}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8098,18 +8950,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/invitations/{id}
      */
     deleteInvitationsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/invitations/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/invitations/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteInvitationsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteInvitationsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteInvitationsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteInvitationsByIdData>({
             path: `/v1/organizations/${orgSlug}/invitations/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8119,19 +8973,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members
      */
     getMembers: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members' as const
+      const base = "GET:/v1/organizations/{org_slug}/members" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersData>([base]),
-        requestKey: (params: GetMembersParams) => dataTaggedQueryKey<GetMembersData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersParams, params: RequestParams = {}) =>
+        requestKey: (params: GetMembersParams) =>
+          dataTaggedQueryKey<GetMembersData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetMembersParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersData>({
             path: `/v1/organizations/${orgSlug}/members`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8141,19 +8999,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/{username}
      */
     getMembersByUsername: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/{username}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/{username}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersByUsernameData>([base]),
         requestKey: (orgSlug: string, username: string) =>
-          dataTaggedQueryKey<GetMembersByUsernameData>([base, orgSlug, username]),
-        request: (orgSlug: string, username: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetMembersByUsernameData>([
+            base,
+            orgSlug,
+            username,
+          ]),
+        request: (
+          orgSlug: string,
+          username: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersByUsernameData>({
             path: `/v1/organizations/${orgSlug}/members/${username}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8163,19 +9030,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/{username}/posts
      */
     getMembersPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/{username}/posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/{username}/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersPostsData>([base]),
-        requestKey: (params: GetMembersPostsParams) => dataTaggedQueryKey<GetMembersPostsData>([base, params]),
-        request: ({ orgSlug, username, ...query }: GetMembersPostsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetMembersPostsParams) =>
+          dataTaggedQueryKey<GetMembersPostsData>([base, params]),
+        request: (
+          { orgSlug, username, ...query }: GetMembersPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersPostsData>({
             path: `/v1/organizations/${orgSlug}/members/${username}/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8185,25 +9057,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/members/{id}
      */
     putMembersById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/members/{id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/members/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMembersByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutMembersByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutMembersByIdData>([base, orgSlug, id]),
         request: (
           orgSlug: string,
           id: string,
           data: OrganizationsOrgSlugMembersIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutMembersByIdData>({
             path: `/v1/organizations/${orgSlug}/members/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8213,18 +9086,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/{id}
      */
     deleteMembersById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/{id}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/members/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMembersByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeleteMembersByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeleteMembersByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeleteMembersByIdData>({
             path: `/v1/organizations/${orgSlug}/members/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8234,18 +9108,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/members/{id}/reactivate
      */
     putMembersReactivate: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/members/{id}/reactivate' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/members/{id}/reactivate" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMembersReactivateData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<PutMembersReactivateData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<PutMembersReactivateData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<PutMembersReactivateData>({
             path: `/v1/organizations/${orgSlug}/members/${id}/reactivate`,
-            method: 'PUT',
-            ...params
-          })
-      }
+            method: "PUT",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8255,20 +9131,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/membership-requests
      */
     getMembershipRequests: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/membership-requests' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/membership-requests" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembershipRequestsData>([base]),
         requestKey: (params: GetMembershipRequestsParams) =>
           dataTaggedQueryKey<GetMembershipRequestsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembershipRequestsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembershipRequestsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembershipRequestsData>({
             path: `/v1/organizations/${orgSlug}/membership-requests`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8278,18 +9158,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/membership-requests
      */
     postMembershipRequests: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/membership-requests' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/membership-requests" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembershipRequestsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostMembershipRequestsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostMembershipRequestsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostMembershipRequestsData>({
             path: `/v1/organizations/${orgSlug}/membership-requests`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8299,18 +9181,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/membership-request
      */
     getMembershipRequest: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/membership-request' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/membership-request" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembershipRequestData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetMembershipRequestData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetMembershipRequestData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetMembershipRequestData>({
             path: `/v1/organizations/${orgSlug}/membership-request`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8320,19 +9204,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/membership-requests/{id}/approve
      */
     postMembershipRequestsApprove: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/membership-requests/{id}/approve' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/membership-requests/{id}/approve" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembershipRequestsApproveData>([base]),
         requestKey: (orgSlug: string, id: string) =>
-          dataTaggedQueryKey<PostMembershipRequestsApproveData>([base, orgSlug, id]),
+          dataTaggedQueryKey<PostMembershipRequestsApproveData>([
+            base,
+            orgSlug,
+            id,
+          ]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<PostMembershipRequestsApproveData>({
             path: `/v1/organizations/${orgSlug}/membership-requests/${id}/approve`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8342,19 +9231,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/membership-requests/{id}/decline
      */
     postMembershipRequestsDecline: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/membership-requests/{id}/decline' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/membership-requests/{id}/decline" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembershipRequestsDeclineData>([base]),
         requestKey: (orgSlug: string, id: string) =>
-          dataTaggedQueryKey<PostMembershipRequestsDeclineData>([base, orgSlug, id]),
+          dataTaggedQueryKey<PostMembershipRequestsDeclineData>([
+            base,
+            orgSlug,
+            id,
+          ]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<PostMembershipRequestsDeclineData>({
             path: `/v1/organizations/${orgSlug}/membership-requests/${id}/decline`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8364,20 +9258,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/archived_notifications
      */
     getMembersMeArchivedNotifications: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/archived_notifications' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/archived_notifications" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetMembersMeArchivedNotificationsData>([base]),
+        baseKey: dataTaggedQueryKey<GetMembersMeArchivedNotificationsData>([
+          base,
+        ]),
         requestKey: (params: GetMembersMeArchivedNotificationsParams) =>
-          dataTaggedQueryKey<GetMembersMeArchivedNotificationsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeArchivedNotificationsParams, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetMembersMeArchivedNotificationsData>([
+            base,
+            params,
+          ]),
+        request: (
+          { orgSlug, ...query }: GetMembersMeArchivedNotificationsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeArchivedNotificationsData>({
             path: `/v1/organizations/${orgSlug}/members/me/archived_notifications`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8387,18 +9290,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/data_export
      */
     postMembersMeDataExport: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/data_export' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/data_export" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembersMeDataExportData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostMembersMeDataExportData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostMembersMeDataExportData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostMembersMeDataExportData>({
             path: `/v1/organizations/${orgSlug}/members/me/data_export`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8408,20 +9313,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/for_me_notes
      */
     getMembersMeForMeNotes: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/for_me_notes' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/for_me_notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeForMeNotesData>([base]),
         requestKey: (params: GetMembersMeForMeNotesParams) =>
           dataTaggedQueryKey<GetMembersMeForMeNotesData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeForMeNotesParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembersMeForMeNotesParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeForMeNotesData>({
             path: `/v1/organizations/${orgSlug}/members/me/for_me_notes`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8431,20 +9340,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/for_me_posts
      */
     getMembersMeForMePosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/for_me_posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/for_me_posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeForMePostsData>([base]),
         requestKey: (params: GetMembersMeForMePostsParams) =>
           dataTaggedQueryKey<GetMembersMeForMePostsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeForMePostsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembersMeForMePostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeForMePostsData>({
             path: `/v1/organizations/${orgSlug}/members/me/for_me_posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8454,24 +9367,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/members/me/index_views
      */
     putMembersMeIndexViews: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/members/me/index_views' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/members/me/index_views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMembersMeIndexViewsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutMembersMeIndexViewsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutMembersMeIndexViewsData>([base, orgSlug]),
         request: (
           orgSlug: string,
           data: OrganizationsOrgSlugMembersMeIndexViewsPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutMembersMeIndexViewsData>({
             path: `/v1/organizations/${orgSlug}/members/me/index_views`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8481,18 +9396,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/personal_call_room
      */
     getMembersMePersonalCallRoom: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/personal_call_room' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/personal_call_room" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMePersonalCallRoomData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetMembersMePersonalCallRoomData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetMembersMePersonalCallRoomData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetMembersMePersonalCallRoomData>({
             path: `/v1/organizations/${orgSlug}/members/me/personal_call_room`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8502,20 +9419,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/personal_draft_posts
      */
     getMembersMePersonalDraftPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/personal_draft_posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/personal_draft_posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMePersonalDraftPostsData>([base]),
         requestKey: (params: GetMembersMePersonalDraftPostsParams) =>
-          dataTaggedQueryKey<GetMembersMePersonalDraftPostsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMePersonalDraftPostsParams, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetMembersMePersonalDraftPostsData>([
+            base,
+            params,
+          ]),
+        request: (
+          { orgSlug, ...query }: GetMembersMePersonalDraftPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMePersonalDraftPostsData>({
             path: `/v1/organizations/${orgSlug}/members/me/personal_draft_posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8525,26 +9449,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/members/{member_username}/project_membership_list
      */
     putMembersProjectMembershipList: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/members/{member_username}/project_membership_list' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/members/{member_username}/project_membership_list" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PutMembersProjectMembershipListData>([base]),
+        baseKey: dataTaggedQueryKey<PutMembersProjectMembershipListData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, memberUsername: string) =>
-          dataTaggedQueryKey<PutMembersProjectMembershipListData>([base, orgSlug, memberUsername]),
+          dataTaggedQueryKey<PutMembersProjectMembershipListData>([
+            base,
+            orgSlug,
+            memberUsername,
+          ]),
         request: (
           orgSlug: string,
           memberUsername: string,
           data: OrganizationsOrgSlugMembersMemberUsernameProjectMembershipListPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutMembersProjectMembershipListData>({
             path: `/v1/organizations/${orgSlug}/members/${memberUsername}/project_membership_list`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8554,19 +9485,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/{member_username}/project_memberships
      */
     getMembersProjectMemberships: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/{member_username}/project_memberships' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/{member_username}/project_memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersProjectMembershipsData>([base]),
         requestKey: (orgSlug: string, memberUsername: string) =>
-          dataTaggedQueryKey<GetMembersProjectMembershipsData>([base, orgSlug, memberUsername]),
-        request: (orgSlug: string, memberUsername: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetMembersProjectMembershipsData>([
+            base,
+            orgSlug,
+            memberUsername,
+          ]),
+        request: (
+          orgSlug: string,
+          memberUsername: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersProjectMembershipsData>({
             path: `/v1/organizations/${orgSlug}/members/${memberUsername}/project_memberships`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8576,19 +9516,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/slack_notification_preference
      */
     getMembersMeSlackNotificationPreference: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/slack_notification_preference' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/slack_notification_preference" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetMembersMeSlackNotificationPreferenceData>([base]),
+        baseKey:
+          dataTaggedQueryKey<GetMembersMeSlackNotificationPreferenceData>([
+            base,
+          ]),
         requestKey: (orgSlug: string) =>
-          dataTaggedQueryKey<GetMembersMeSlackNotificationPreferenceData>([base, orgSlug]),
+          dataTaggedQueryKey<GetMembersMeSlackNotificationPreferenceData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetMembersMeSlackNotificationPreferenceData>({
             path: `/v1/organizations/${orgSlug}/members/me/slack_notification_preference`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8598,19 +9545,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/slack_notification_preference
      */
     postMembersMeSlackNotificationPreference: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/slack_notification_preference' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/slack_notification_preference" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostMembersMeSlackNotificationPreferenceData>([base]),
+        baseKey:
+          dataTaggedQueryKey<PostMembersMeSlackNotificationPreferenceData>([
+            base,
+          ]),
         requestKey: (orgSlug: string) =>
-          dataTaggedQueryKey<PostMembersMeSlackNotificationPreferenceData>([base, orgSlug]),
+          dataTaggedQueryKey<PostMembersMeSlackNotificationPreferenceData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostMembersMeSlackNotificationPreferenceData>({
             path: `/v1/organizations/${orgSlug}/members/me/slack_notification_preference`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8620,19 +9574,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/me/slack_notification_preference
      */
     deleteMembersMeSlackNotificationPreference: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/me/slack_notification_preference' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/members/me/slack_notification_preference" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMembersMeSlackNotificationPreferenceData>([base]),
+        baseKey:
+          dataTaggedQueryKey<DeleteMembersMeSlackNotificationPreferenceData>([
+            base,
+          ]),
         requestKey: (orgSlug: string) =>
-          dataTaggedQueryKey<DeleteMembersMeSlackNotificationPreferenceData>([base, orgSlug]),
+          dataTaggedQueryKey<DeleteMembersMeSlackNotificationPreferenceData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteMembersMeSlackNotificationPreferenceData>({
             path: `/v1/organizations/${orgSlug}/members/me/slack_notification_preference`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8642,18 +9603,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/statuses
      */
     getMembersMeStatuses: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/statuses' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/statuses" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeStatusesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetMembersMeStatusesData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetMembersMeStatusesData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetMembersMeStatusesData>({
             path: `/v1/organizations/${orgSlug}/members/me/statuses`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8663,24 +9626,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/members/me/statuses
      */
     postMembersMeStatuses: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/members/me/statuses' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/members/me/statuses" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembersMeStatusesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostMembersMeStatusesData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostMembersMeStatusesData>([base, orgSlug]),
         request: (
           orgSlug: string,
           data: OrganizationsOrgSlugMembersMeStatusesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostMembersMeStatusesData>({
             path: `/v1/organizations/${orgSlug}/members/me/statuses`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8690,20 +9655,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/members/me/statuses
      */
     putMembersMeStatuses: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/members/me/statuses' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/members/me/statuses" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMembersMeStatusesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutMembersMeStatusesData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugMembersMeStatusesPutRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutMembersMeStatusesData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugMembersMeStatusesPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutMembersMeStatusesData>({
             path: `/v1/organizations/${orgSlug}/members/me/statuses`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8713,18 +9684,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/members/me/statuses
      */
     deleteMembersMeStatuses: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/members/me/statuses' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/members/me/statuses" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMembersMeStatusesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteMembersMeStatusesData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteMembersMeStatusesData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteMembersMeStatusesData>({
             path: `/v1/organizations/${orgSlug}/members/me/statuses`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8734,20 +9707,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/viewer_notes
      */
     getMembersMeViewerNotes: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/viewer_notes' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/viewer_notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeViewerNotesData>([base]),
         requestKey: (params: GetMembersMeViewerNotesParams) =>
           dataTaggedQueryKey<GetMembersMeViewerNotesData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeViewerNotesParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembersMeViewerNotesParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeViewerNotesData>({
             path: `/v1/organizations/${orgSlug}/members/me/viewer_notes`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8757,20 +9734,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/members/me/viewer_posts
      */
     getMembersMeViewerPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/members/me/viewer_posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/members/me/viewer_posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersMeViewerPostsData>([base]),
         requestKey: (params: GetMembersMeViewerPostsParams) =>
           dataTaggedQueryKey<GetMembersMeViewerPostsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetMembersMeViewerPostsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetMembersMeViewerPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMembersMeViewerPostsData>({
             path: `/v1/organizations/${orgSlug}/members/me/viewer_posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8780,20 +9761,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/bulk_invites
      */
     postBulkInvites: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/bulk_invites' as const
+      const base = "POST:/v1/organizations/{org_slug}/bulk_invites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostBulkInvitesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostBulkInvitesData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationBulkInvitesPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostBulkInvitesData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationBulkInvitesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostBulkInvitesData>({
             path: `/v1/organizations/${orgSlug}/bulk_invites`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8803,18 +9789,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/features
      */
     getFeatures: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/features' as const
+      const base = "GET:/v1/organizations/{org_slug}/features" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetFeaturesData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetFeaturesData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetFeaturesData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetFeaturesData>({
             path: `/v1/organizations/${orgSlug}/features`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8824,20 +9811,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/sso
      */
     postSso: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/sso' as const
+      const base = "POST:/v1/organizations/{org_slug}/sso" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostSsoData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostSsoData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationSsoPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostSsoData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationSsoPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostSsoData>({
             path: `/v1/organizations/${orgSlug}/sso`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8847,18 +9839,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/sso
      */
     deleteSso: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/sso' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/sso" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteSsoData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteSsoData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteSsoData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteSsoData>({
             path: `/v1/organizations/${orgSlug}/sso`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8868,18 +9861,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/verified_domain_memberships
      */
     postVerifiedDomainMemberships: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/verified_domain_memberships' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/verified_domain_memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostVerifiedDomainMembershipsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostVerifiedDomainMembershipsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostVerifiedDomainMembershipsData>([
+            base,
+            orgSlug,
+          ]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PostVerifiedDomainMembershipsData>({
             path: `/v1/organizations/${orgSlug}/verified_domain_memberships`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8889,18 +9887,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}
      */
     getByOrgSlug: () => {
-      const base = 'GET:/v1/organizations/{org_slug}' as const
+      const base = "GET:/v1/organizations/{org_slug}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetByOrgSlugData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetByOrgSlugData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetByOrgSlugData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetByOrgSlugData>({
             path: `/v1/organizations/${orgSlug}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8910,20 +9909,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}
      */
     putByOrgSlug: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}' as const
+      const base = "PUT:/v1/organizations/{org_slug}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutByOrgSlugData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutByOrgSlugData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugPutRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutByOrgSlugData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutByOrgSlugData>({
             path: `/v1/organizations/${orgSlug}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8933,18 +9937,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}
      */
     deleteByOrgSlug: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteByOrgSlugData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteByOrgSlugData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteByOrgSlugData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteByOrgSlugData>({
             path: `/v1/organizations/${orgSlug}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8954,7 +9959,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations
      */
     postOrganizations: () => {
-      const base = 'POST:/v1/organizations' as const
+      const base = "POST:/v1/organizations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostOrganizationsData>([base]),
@@ -8962,12 +9967,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: OrganizationsPostRequest, params: RequestParams = {}) =>
           this.request<PostOrganizationsData>({
             path: `/v1/organizations`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8977,18 +9982,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/organizations/{org_slug}/reset-invite-token
      */
     patchResetInviteToken: () => {
-      const base = 'PATCH:/v1/organizations/{org_slug}/reset-invite-token' as const
+      const base =
+        "PATCH:/v1/organizations/{org_slug}/reset-invite-token" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchResetInviteTokenData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PatchResetInviteTokenData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PatchResetInviteTokenData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PatchResetInviteTokenData>({
             path: `/v1/organizations/${orgSlug}/reset-invite-token`,
-            method: 'PATCH',
-            ...params
-          })
-      }
+            method: "PATCH",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -8998,18 +10005,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/join/{token}
      */
     postJoinByToken: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/join/{token}' as const
+      const base = "POST:/v1/organizations/{org_slug}/join/{token}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostJoinByTokenData>([base]),
-        requestKey: (orgSlug: string, token: string) => dataTaggedQueryKey<PostJoinByTokenData>([base, orgSlug, token]),
+        requestKey: (orgSlug: string, token: string) =>
+          dataTaggedQueryKey<PostJoinByTokenData>([base, orgSlug, token]),
         request: (orgSlug: string, token: string, params: RequestParams = {}) =>
           this.request<PostJoinByTokenData>({
             path: `/v1/organizations/${orgSlug}/join/${token}`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9019,18 +10027,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/onboard
      */
     putOnboard: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/onboard' as const
+      const base = "PUT:/v1/organizations/{org_slug}/onboard" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutOnboardData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutOnboardData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutOnboardData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<PutOnboardData>({
             path: `/v1/organizations/${orgSlug}/onboard`,
-            method: 'PUT',
-            ...params
-          })
-      }
+            method: "PUT",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9040,20 +10049,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/avatar/presigned-fields
      */
     getAvatarPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/avatar/presigned-fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/avatar/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetAvatarPresignedFieldsData>([base]),
         requestKey: (params: GetAvatarPresignedFieldsParams) =>
           dataTaggedQueryKey<GetAvatarPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetAvatarPresignedFieldsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetAvatarPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetAvatarPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/avatar/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9063,18 +10076,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/pins/{id}
      */
     deletePinsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/pins/{id}' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/pins/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePinsByIdData>([base]),
-        requestKey: (orgSlug: string, id: string) => dataTaggedQueryKey<DeletePinsByIdData>([base, orgSlug, id]),
+        requestKey: (orgSlug: string, id: string) =>
+          dataTaggedQueryKey<DeletePinsByIdData>([base, orgSlug, id]),
         request: (orgSlug: string, id: string, params: RequestParams = {}) =>
           this.request<DeletePinsByIdData>({
             path: `/v1/organizations/${orgSlug}/pins/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9084,23 +10098,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{attachment_id}/comments
      */
     getPostsAttachmentsComments: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{attachment_id}/comments' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{attachment_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsAttachmentsCommentsData>([base]),
         requestKey: (params: GetPostsAttachmentsCommentsParams) =>
           dataTaggedQueryKey<GetPostsAttachmentsCommentsData>([base, params]),
         request: (
-          { orgSlug, postId, attachmentId, ...query }: GetPostsAttachmentsCommentsParams,
-          params: RequestParams = {}
+          {
+            orgSlug,
+            postId,
+            attachmentId,
+            ...query
+          }: GetPostsAttachmentsCommentsParams,
+          params: RequestParams = {},
         ) =>
           this.request<GetPostsAttachmentsCommentsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/attachments/${attachmentId}/comments`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9110,26 +10130,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/reorder
      */
     putPostsAttachmentsReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsAttachmentsReorderData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<PutPostsAttachmentsReorderData>([base, orgSlug, postId]),
+          dataTaggedQueryKey<PutPostsAttachmentsReorderData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdAttachmentsReorderPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsAttachmentsReorderData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/attachments/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9139,7 +10164,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/attachments
      */
     postPostsAttachments: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/attachments' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/attachments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsAttachmentsData>([base]),
@@ -9149,16 +10175,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostAttachmentsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsAttachmentsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/attachments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9168,27 +10194,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}
      */
     putPostsAttachmentsById: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsAttachmentsByIdData>([base]),
         requestKey: (orgSlug: string, postId: string, id: string) =>
-          dataTaggedQueryKey<PutPostsAttachmentsByIdData>([base, orgSlug, postId, id]),
+          dataTaggedQueryKey<PutPostsAttachmentsByIdData>([
+            base,
+            orgSlug,
+            postId,
+            id,
+          ]),
         request: (
           orgSlug: string,
           postId: string,
           id: string,
           data: OrganizationsOrgSlugPostsPostIdAttachmentsIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/attachments/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9198,19 +10230,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}
      */
     deletePostsAttachmentsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/attachments/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsAttachmentsByIdData>([base]),
         requestKey: (orgSlug: string, postId: string, id: string) =>
-          dataTaggedQueryKey<DeletePostsAttachmentsByIdData>([base, orgSlug, postId, id]),
-        request: (orgSlug: string, postId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeletePostsAttachmentsByIdData>([
+            base,
+            orgSlug,
+            postId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsAttachmentsByIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/attachments/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9220,19 +10263,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/favorite
      */
     postPostsFavorite: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/favorite' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsFavoriteData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<PostPostsFavoriteData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsFavoriteData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/favorite`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9242,19 +10290,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/favorite
      */
     deletePostsFavorite: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/favorite' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/favorite" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsFavoriteData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<DeletePostsFavoriteData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsFavoriteData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/favorite`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9264,19 +10317,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback-dismissals
      */
     postPostsFeedbackDismissals: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback-dismissals' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback-dismissals" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsFeedbackDismissalsData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<PostPostsFeedbackDismissalsData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostPostsFeedbackDismissalsData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsFeedbackDismissalsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/feedback-dismissals`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9286,7 +10348,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/follow_up
      */
     postPostsFollowUp: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/follow_up' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/follow_up" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsFollowUpData>([base]),
@@ -9296,16 +10359,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostFollowUpPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsFollowUpData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/follow_up`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9315,20 +10378,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_resolution
      */
     getPostsGeneratedResolution: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_resolution' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_resolution" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsGeneratedResolutionData>([base]),
         requestKey: (params: GetPostsGeneratedResolutionParams) =>
           dataTaggedQueryKey<GetPostsGeneratedResolutionData>([base, params]),
-        request: ({ orgSlug, postId, ...query }: GetPostsGeneratedResolutionParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, postId, ...query }: GetPostsGeneratedResolutionParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsGeneratedResolutionData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/generated_resolution`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9338,19 +10405,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_tldr
      */
     getPostsGeneratedTldr: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_tldr' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/generated_tldr" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsGeneratedTldrData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<GetPostsGeneratedTldrData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetPostsGeneratedTldrData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsGeneratedTldrData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/generated_tldr`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9360,26 +10436,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/linear_issues
      */
     postPostsLinearIssues: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/linear_issues' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/linear_issues" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsLinearIssuesData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<PostPostsLinearIssuesData>([base, orgSlug, postId]),
+          dataTaggedQueryKey<PostPostsLinearIssuesData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationPostLinearIssuesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsLinearIssuesData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/linear_issues`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9389,20 +10470,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/linear_timeline_events
      */
     getPostsLinearTimelineEvents: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/linear_timeline_events' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/linear_timeline_events" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsLinearTimelineEventsData>([base]),
         requestKey: (params: GetPostsLinearTimelineEventsParams) =>
           dataTaggedQueryKey<GetPostsLinearTimelineEventsData>([base, params]),
-        request: ({ orgSlug, postId, ...query }: GetPostsLinearTimelineEventsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, postId, ...query }: GetPostsLinearTimelineEventsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsLinearTimelineEventsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/linear_timeline_events`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9412,18 +10497,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/pin
      */
     postPostsPin: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/pin' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/pin" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsPinData>([base]),
-        requestKey: (orgSlug: string, postId: string) => dataTaggedQueryKey<PostPostsPinData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string, postId: string) =>
+          dataTaggedQueryKey<PostPostsPinData>([base, orgSlug, postId]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsPinData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/pin`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9433,19 +10524,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2/options/{option_id}/vote
      */
     postPostsPoll2OptionsVote: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2/options/{option_id}/vote' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2/options/{option_id}/vote" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsPoll2OptionsVoteData>([base]),
         requestKey: (orgSlug: string, postId: string, optionId: string) =>
-          dataTaggedQueryKey<PostPostsPoll2OptionsVoteData>([base, orgSlug, postId, optionId]),
-        request: (orgSlug: string, postId: string, optionId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostPostsPoll2OptionsVoteData>([
+            base,
+            orgSlug,
+            postId,
+            optionId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          optionId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsPoll2OptionsVoteData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/poll2/options/${optionId}/vote`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9455,7 +10557,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2
      */
     postPostsPoll2: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/poll2" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsPoll2Data>([base]),
@@ -9465,16 +10568,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdPoll2PostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsPoll2Data>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/poll2`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9484,25 +10587,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/poll2
      */
     putPostsPoll2: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/poll2' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/poll2" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsPoll2Data>([base]),
-        requestKey: (orgSlug: string, postId: string) => dataTaggedQueryKey<PutPostsPoll2Data>([base, orgSlug, postId]),
+        requestKey: (orgSlug: string, postId: string) =>
+          dataTaggedQueryKey<PutPostsPoll2Data>([base, orgSlug, postId]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdPoll2PutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsPoll2Data>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/poll2`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9512,19 +10617,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/poll2
      */
     deletePostsPoll2: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/poll2' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/poll2" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsPoll2Data>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<DeletePostsPoll2Data>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsPoll2Data>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/poll2`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9534,19 +10644,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/canvas_comments
      */
     getPostsCanvasComments: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/canvas_comments' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/canvas_comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsCanvasCommentsData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<GetPostsCanvasCommentsData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetPostsCanvasCommentsData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsCanvasCommentsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/canvas_comments`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9556,19 +10675,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/comments
      */
     getPostsComments: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/comments' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsCommentsData>([base]),
-        requestKey: (params: GetPostsCommentsParams) => dataTaggedQueryKey<GetPostsCommentsData>([base, params]),
-        request: ({ orgSlug, postId, ...query }: GetPostsCommentsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetPostsCommentsParams) =>
+          dataTaggedQueryKey<GetPostsCommentsData>([base, params]),
+        request: (
+          { orgSlug, postId, ...query }: GetPostsCommentsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsCommentsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/comments`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9578,7 +10702,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/comments2
      */
     postPostsComments2: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/comments2' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/comments2" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsComments2Data>([base]),
@@ -9588,16 +10713,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostComments2PostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsComments2Data>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/comments2`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9607,26 +10732,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests
      */
     postPostsFeedbackRequests: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsFeedbackRequestsData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<PostPostsFeedbackRequestsData>([base, orgSlug, postId]),
+          dataTaggedQueryKey<PostPostsFeedbackRequestsData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationPostFeedbackRequestsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsFeedbackRequestsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/feedback_requests`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9636,19 +10766,32 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests/{id}
      */
     deletePostsFeedbackRequestsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeletePostsFeedbackRequestsByIdData>([base]),
+        baseKey: dataTaggedQueryKey<DeletePostsFeedbackRequestsByIdData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, postId: string, id: string) =>
-          dataTaggedQueryKey<DeletePostsFeedbackRequestsByIdData>([base, orgSlug, postId, id]),
-        request: (orgSlug: string, postId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeletePostsFeedbackRequestsByIdData>([
+            base,
+            orgSlug,
+            postId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsFeedbackRequestsByIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/feedback_requests/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9659,19 +10802,35 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      */
     postPostsFeedbackRequestsDismissal: () => {
       const base =
-        'POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests/{feedback_request_id}/dismissal' as const
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/feedback_requests/{feedback_request_id}/dismissal" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostPostsFeedbackRequestsDismissalData>([base]),
-        requestKey: (orgSlug: string, postId: string, feedbackRequestId: string) =>
-          dataTaggedQueryKey<PostPostsFeedbackRequestsDismissalData>([base, orgSlug, postId, feedbackRequestId]),
-        request: (orgSlug: string, postId: string, feedbackRequestId: string, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PostPostsFeedbackRequestsDismissalData>([
+          base,
+        ]),
+        requestKey: (
+          orgSlug: string,
+          postId: string,
+          feedbackRequestId: string,
+        ) =>
+          dataTaggedQueryKey<PostPostsFeedbackRequestsDismissalData>([
+            base,
+            orgSlug,
+            postId,
+            feedbackRequestId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          feedbackRequestId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsFeedbackRequestsDismissalData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/feedback_requests/${feedbackRequestId}/dismissal`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9681,7 +10840,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/links
      */
     postPostsLinks: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/links' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/links" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsLinksData>([base]),
@@ -9691,16 +10851,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostLinksPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsLinksData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/links`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9710,7 +10870,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/reactions
      */
     postPostsReactions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/reactions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsReactionsData>([base]),
@@ -9720,16 +10881,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostReactionsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsReactionsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/reactions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9739,19 +10900,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/versions
      */
     getPostsVersions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/versions' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/versions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsVersionsData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<GetPostsVersionsData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsVersionsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/versions`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9761,19 +10927,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/versions
      */
     postPostsVersions: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/versions' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/versions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsVersionsData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<PostPostsVersionsData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsVersionsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/versions`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9783,19 +10954,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/views
      */
     getPostsViews: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/views' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsViewsData>([base]),
-        requestKey: (params: GetPostsViewsParams) => dataTaggedQueryKey<GetPostsViewsData>([base, params]),
-        request: ({ orgSlug, postId, ...query }: GetPostsViewsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetPostsViewsParams) =>
+          dataTaggedQueryKey<GetPostsViewsData>([base, params]),
+        request: (
+          { orgSlug, postId, ...query }: GetPostsViewsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsViewsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/views`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9805,7 +10981,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/views
      */
     postPostsViews: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/views' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsViewsData>([base]),
@@ -9815,16 +10992,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdViewsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsViewsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/views`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9834,19 +11011,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/publication
      */
     postPostsPublication: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/publication' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/publication" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsPublicationData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<PostPostsPublicationData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsPublicationData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/publication`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9856,7 +11038,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/resolution
      */
     postPostsResolution: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/resolution' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/resolution" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsResolutionData>([base]),
@@ -9866,16 +11049,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdResolutionPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsResolutionData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/resolution`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9885,19 +11068,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/resolution
      */
     deletePostsResolution: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/resolution' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/resolution" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsResolutionData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<DeletePostsResolutionData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeletePostsResolutionData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsResolutionData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/resolution`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9907,19 +11099,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/seo_info
      */
     getPostsSeoInfo: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/seo_info' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/seo_info" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsSeoInfoData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<GetPostsSeoInfoData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsSeoInfoData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/seo_info`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9929,7 +11126,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/shares
      */
     postPostsShares: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/shares' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/shares" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsSharesData>([base]),
@@ -9939,16 +11137,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationPostSharesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostPostsSharesData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/shares`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9958,7 +11156,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/status
      */
     putPostsStatus: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/status' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/status" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsStatusData>([base]),
@@ -9968,16 +11167,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdStatusPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsStatusData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/status`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -9987,25 +11186,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/tasks
      */
     putPostsTasks: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/tasks' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/tasks" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsTasksData>([base]),
-        requestKey: (orgSlug: string, postId: string) => dataTaggedQueryKey<PutPostsTasksData>([base, orgSlug, postId]),
+        requestKey: (orgSlug: string, postId: string) =>
+          dataTaggedQueryKey<PutPostsTasksData>([base, orgSlug, postId]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdTasksPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsTasksData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/tasks`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10015,20 +11216,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/timeline_events
      */
     getPostsTimelineEvents: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/timeline_events' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/timeline_events" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsTimelineEventsData>([base]),
         requestKey: (params: GetPostsTimelineEventsParams) =>
           dataTaggedQueryKey<GetPostsTimelineEventsData>([base, params]),
-        request: ({ orgSlug, postId, ...query }: GetPostsTimelineEventsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, postId, ...query }: GetPostsTimelineEventsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsTimelineEventsData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/timeline_events`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10038,25 +11243,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}/visibility
      */
     putPostsVisibility: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}/visibility' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/posts/{post_id}/visibility" as const;
 
       return {
         baseKey: dataTaggedQueryKey<any>([base]),
-        requestKey: (orgSlug: string, postId: string) => dataTaggedQueryKey<any>([base, orgSlug, postId]),
+        requestKey: (orgSlug: string, postId: string) =>
+          dataTaggedQueryKey<any>([base, orgSlug, postId]),
         request: (
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdVisibilityPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<any>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/visibility`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10066,23 +11273,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}/poll_options/{poll_option_id}/voters
      */
     getPostsPollOptionsVoters: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}/poll_options/{poll_option_id}/voters' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/{post_id}/poll_options/{poll_option_id}/voters" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsPollOptionsVotersData>([base]),
         requestKey: (params: GetPostsPollOptionsVotersParams) =>
           dataTaggedQueryKey<GetPostsPollOptionsVotersData>([base, params]),
         request: (
-          { orgSlug, postId, pollOptionId, ...query }: GetPostsPollOptionsVotersParams,
-          params: RequestParams = {}
+          {
+            orgSlug,
+            postId,
+            pollOptionId,
+            ...query
+          }: GetPostsPollOptionsVotersParams,
+          params: RequestParams = {},
         ) =>
           this.request<GetPostsPollOptionsVotersData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/poll_options/${pollOptionId}/voters`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10092,19 +11305,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts
      */
     getPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts' as const
+      const base = "GET:/v1/organizations/{org_slug}/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsData>([base]),
-        requestKey: (params: GetPostsParams) => dataTaggedQueryKey<GetPostsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetPostsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetPostsParams) =>
+          dataTaggedQueryKey<GetPostsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsData>({
             path: `/v1/organizations/${orgSlug}/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10114,20 +11331,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts
      */
     postPosts: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts' as const
+      const base = "POST:/v1/organizations/{org_slug}/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostPostsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugPostsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostPostsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugPostsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsData>({
             path: `/v1/organizations/${orgSlug}/posts`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10137,19 +11359,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/{post_id}
      */
     getPostsByPostId: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/{post_id}' as const
+      const base = "GET:/v1/organizations/{org_slug}/posts/{post_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsByPostIdData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<GetPostsByPostIdData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsByPostIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10159,7 +11385,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/posts/{post_id}
      */
     putPostsByPostId: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/posts/{post_id}' as const
+      const base = "PUT:/v1/organizations/{org_slug}/posts/{post_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutPostsByPostIdData>([base]),
@@ -10169,16 +11395,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           postId: string,
           data: OrganizationsOrgSlugPostsPostIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutPostsByPostIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10188,19 +11414,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}
      */
     deletePostsByPostId: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsByPostIdData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<DeletePostsByPostIdData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsByPostIdData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10210,19 +11441,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/posts/{post_id}/subscribe
      */
     postPostsSubscribe: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/posts/{post_id}/subscribe' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/posts/{post_id}/subscribe" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsSubscribeData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
           dataTaggedQueryKey<PostPostsSubscribeData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsSubscribeData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/subscribe`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10232,19 +11468,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/posts/{post_id}/unsubscribe
      */
     deletePostsUnsubscribe: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/posts/{post_id}/unsubscribe' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/posts/{post_id}/unsubscribe" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsUnsubscribeData>([base]),
         requestKey: (orgSlug: string, postId: string) =>
-          dataTaggedQueryKey<DeletePostsUnsubscribeData>([base, orgSlug, postId]),
-        request: (orgSlug: string, postId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeletePostsUnsubscribeData>([
+            base,
+            orgSlug,
+            postId,
+          ]),
+        request: (
+          orgSlug: string,
+          postId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeletePostsUnsubscribeData>({
             path: `/v1/organizations/${orgSlug}/posts/${postId}/unsubscribe`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10254,20 +11499,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/posts/presigned-fields
      */
     getPostsPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/posts/presigned-fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/posts/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsPresignedFieldsData>([base]),
         requestKey: (params: GetPostsPresignedFieldsParams) =>
           dataTaggedQueryKey<GetPostsPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetPostsPresignedFieldsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetPostsPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/posts/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10277,24 +11526,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/project_memberships/reorder
      */
     putProjectMembershipsReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/project_memberships/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/project_memberships/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutProjectMembershipsReorderData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PutProjectMembershipsReorderData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PutProjectMembershipsReorderData>([base, orgSlug]),
         request: (
           orgSlug: string,
           data: OrganizationsOrgSlugProjectMembershipsReorderPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutProjectMembershipsReorderData>({
             path: `/v1/organizations/${orgSlug}/project_memberships/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10304,18 +11555,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/project_memberships
      */
     getProjectMemberships: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/project_memberships' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/project_memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectMembershipsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetProjectMembershipsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetProjectMembershipsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetProjectMembershipsData>({
             path: `/v1/organizations/${orgSlug}/project_memberships`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10325,20 +11578,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/addable_members
      */
     getProjectsAddableMembers: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/addable_members' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/addable_members" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsAddableMembersData>([base]),
         requestKey: (params: GetProjectsAddableMembersParams) =>
           dataTaggedQueryKey<GetProjectsAddableMembersData>([base, params]),
-        request: ({ orgSlug, projectId, ...query }: GetProjectsAddableMembersParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, projectId, ...query }: GetProjectsAddableMembersParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsAddableMembersData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/addable_members`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10348,19 +11605,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks
      */
     getProjectsBookmarks: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsBookmarksData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<GetProjectsBookmarksData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetProjectsBookmarksData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsBookmarksData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/bookmarks`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10370,26 +11636,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks
      */
     postProjectsBookmarks: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsBookmarksData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsBookmarksData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PostProjectsBookmarksData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdBookmarksPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostProjectsBookmarksData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/bookmarks`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10399,27 +11670,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}
      */
     patchProjectsBookmarksById: () => {
-      const base = 'PATCH:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}' as const
+      const base =
+        "PATCH:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchProjectsBookmarksByIdData>([base]),
         requestKey: (orgSlug: string, projectId: string, id: string) =>
-          dataTaggedQueryKey<PatchProjectsBookmarksByIdData>([base, orgSlug, projectId, id]),
+          dataTaggedQueryKey<PatchProjectsBookmarksByIdData>([
+            base,
+            orgSlug,
+            projectId,
+            id,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           id: string,
           data: OrganizationsOrgSlugProjectsProjectIdBookmarksIdPatchRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PatchProjectsBookmarksByIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/bookmarks/${id}`,
-            method: 'PATCH',
+            method: "PATCH",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10429,19 +11706,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}
      */
     deleteProjectsBookmarksById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsBookmarksByIdData>([base]),
         requestKey: (orgSlug: string, projectId: string, id: string) =>
-          dataTaggedQueryKey<DeleteProjectsBookmarksByIdData>([base, orgSlug, projectId, id]),
-        request: (orgSlug: string, projectId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsBookmarksByIdData>([
+            base,
+            orgSlug,
+            projectId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsBookmarksByIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/bookmarks/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10451,26 +11739,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/reorder
      */
     putProjectsBookmarksReorder: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/reorder' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/projects/{project_id}/bookmarks/reorder" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutProjectsBookmarksReorderData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PutProjectsBookmarksReorderData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PutProjectsBookmarksReorderData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationProjectBookmarksReorderPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutProjectsBookmarksReorderData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/bookmarks/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10480,19 +11773,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/calls
      */
     getProjectsCalls: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/calls' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/calls" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsCallsData>([base]),
-        requestKey: (params: GetProjectsCallsParams) => dataTaggedQueryKey<GetProjectsCallsData>([base, params]),
-        request: ({ orgSlug, projectId, ...query }: GetProjectsCallsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetProjectsCallsParams) =>
+          dataTaggedQueryKey<GetProjectsCallsData>([base, params]),
+        request: (
+          { orgSlug, projectId, ...query }: GetProjectsCallsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsCallsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/calls`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10502,19 +11800,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/data_exports
      */
     postProjectsDataExports: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/data_exports' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/data_exports" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsDataExportsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsDataExportsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostProjectsDataExportsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsDataExportsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/data_exports`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10524,26 +11831,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/projects/{project_id}/display_preferences
      */
     putProjectsDisplayPreferences: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/projects/{project_id}/display_preferences' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/projects/{project_id}/display_preferences" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutProjectsDisplayPreferencesData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PutProjectsDisplayPreferencesData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PutProjectsDisplayPreferencesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdDisplayPreferencesPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutProjectsDisplayPreferencesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/display_preferences`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10553,19 +11865,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/favorites
      */
     postProjectsFavorites: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/favorites' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/favorites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsFavoritesData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsFavoritesData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostProjectsFavoritesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsFavoritesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/favorites`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10575,19 +11896,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/favorites
      */
     deleteProjectsFavorites: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/favorites' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/favorites" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsFavoritesData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsFavoritesData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsFavoritesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsFavoritesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/favorites`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10597,26 +11927,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url_acceptances
      */
     postProjectsInvitationUrlAcceptances: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url_acceptances' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url_acceptances" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostProjectsInvitationUrlAcceptancesData>([base]),
+        baseKey: dataTaggedQueryKey<PostProjectsInvitationUrlAcceptancesData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsInvitationUrlAcceptancesData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PostProjectsInvitationUrlAcceptancesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationProjectInvitationUrlAcceptancesPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostProjectsInvitationUrlAcceptancesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/invitation_url_acceptances`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10626,19 +11963,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url
      */
     postProjectsInvitationUrl: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsInvitationUrlData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsInvitationUrlData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PostProjectsInvitationUrlData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsInvitationUrlData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/invitation_url`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10648,19 +11994,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url
      */
     getProjectsInvitationUrl: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/invitation_url" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsInvitationUrlData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<GetProjectsInvitationUrlData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetProjectsInvitationUrlData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsInvitationUrlData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/invitation_url`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10670,19 +12025,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/members
      */
     getProjectsMembers: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/members' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/members" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsMembersData>([base]),
-        requestKey: (params: GetProjectsMembersParams) => dataTaggedQueryKey<GetProjectsMembersData>([base, params]),
-        request: ({ orgSlug, projectId, ...query }: GetProjectsMembersParams, params: RequestParams = {}) =>
+        requestKey: (params: GetProjectsMembersParams) =>
+          dataTaggedQueryKey<GetProjectsMembersData>([base, params]),
+        request: (
+          { orgSlug, projectId, ...query }: GetProjectsMembersParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsMembersData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/members`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10692,26 +12052,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/memberships
      */
     postProjectsMemberships: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/memberships' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsMembershipsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsMembershipsData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PostProjectsMembershipsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdMembershipsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostProjectsMembershipsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/memberships`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10721,26 +12086,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/memberships
      */
     deleteProjectsMemberships: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/memberships' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsMembershipsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsMembershipsData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<DeleteProjectsMembershipsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationProjectProjectMembershipsDeleteRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<DeleteProjectsMembershipsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/memberships`,
-            method: 'DELETE',
+            method: "DELETE",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10750,19 +12120,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/notes
      */
     getProjectsNotes: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/notes' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/notes" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsNotesData>([base]),
-        requestKey: (params: GetProjectsNotesParams) => dataTaggedQueryKey<GetProjectsNotesData>([base, params]),
-        request: ({ orgSlug, projectId, ...query }: GetProjectsNotesParams, params: RequestParams = {}) =>
+        requestKey: (params: GetProjectsNotesParams) =>
+          dataTaggedQueryKey<GetProjectsNotesData>([base, params]),
+        request: (
+          { orgSlug, projectId, ...query }: GetProjectsNotesParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsNotesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/notes`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10772,19 +12147,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications
      */
     getProjectsOauthApplications: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsOauthApplicationsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<GetProjectsOauthApplicationsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetProjectsOauthApplicationsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/oauth_applications`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10794,26 +12178,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications
      */
     postProjectsOauthApplications: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsOauthApplicationsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsOauthApplicationsData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PostProjectsOauthApplicationsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdOauthApplicationsPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostProjectsOauthApplicationsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/oauth_applications`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10823,19 +12212,32 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications/{id}
      */
     deleteProjectsOauthApplicationsById: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications/{id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/oauth_applications/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteProjectsOauthApplicationsByIdData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteProjectsOauthApplicationsByIdData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, projectId: string, id: string) =>
-          dataTaggedQueryKey<DeleteProjectsOauthApplicationsByIdData>([base, orgSlug, projectId, id]),
-        request: (orgSlug: string, projectId: string, id: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsOauthApplicationsByIdData>([
+            base,
+            orgSlug,
+            projectId,
+            id,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          id: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsOauthApplicationsByIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/oauth_applications/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10845,19 +12247,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/pins
      */
     getProjectsPins: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/pins' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/pins" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsPinsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
           dataTaggedQueryKey<GetProjectsPinsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsPinsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/pins`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10867,19 +12274,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}/posts
      */
     getProjectsPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}/posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsPostsData>([base]),
-        requestKey: (params: GetProjectsPostsParams) => dataTaggedQueryKey<GetProjectsPostsData>([base, params]),
-        request: ({ orgSlug, projectId, ...query }: GetProjectsPostsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetProjectsPostsParams) =>
+          dataTaggedQueryKey<GetProjectsPostsData>([base, params]),
+        request: (
+          { orgSlug, projectId, ...query }: GetProjectsPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsPostsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10889,19 +12301,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/reads
      */
     postProjectsReads: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/reads' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/reads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsReadsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
           dataTaggedQueryKey<PostProjectsReadsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsReadsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/reads`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10911,19 +12328,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/reads
      */
     deleteProjectsReads: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/reads' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/reads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsReadsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsReadsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsReadsData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsReadsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/reads`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10933,26 +12359,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/subscription
      */
     postProjectsSubscription: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/subscription' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/subscription" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsSubscriptionData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PostProjectsSubscriptionData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PostProjectsSubscriptionData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdSubscriptionPostRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PostProjectsSubscriptionData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/subscription`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10962,19 +12393,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/subscription
      */
     deleteProjectsSubscription: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/subscription' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/subscription" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsSubscriptionData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsSubscriptionData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsSubscriptionData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsSubscriptionData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/subscription`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -10984,26 +12424,33 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences
      */
     putProjectsViewerDisplayPreferences: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PutProjectsViewerDisplayPreferencesData>([base]),
+        baseKey: dataTaggedQueryKey<PutProjectsViewerDisplayPreferencesData>([
+          base,
+        ]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PutProjectsViewerDisplayPreferencesData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PutProjectsViewerDisplayPreferencesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdViewerDisplayPreferencesPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutProjectsViewerDisplayPreferencesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/viewer_display_preferences`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11013,19 +12460,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences
      */
     deleteProjectsViewerDisplayPreferences: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}/viewer_display_preferences" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteProjectsViewerDisplayPreferencesData>([base]),
+        baseKey: dataTaggedQueryKey<DeleteProjectsViewerDisplayPreferencesData>(
+          [base],
+        ),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsViewerDisplayPreferencesData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsViewerDisplayPreferencesData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsViewerDisplayPreferencesData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/viewer_display_preferences`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11035,19 +12493,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects/{project_id}/views
      */
     postProjectsViews: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects/{project_id}/views' as const
+      const base =
+        "POST:/v1/organizations/{org_slug}/projects/{project_id}/views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsViewsData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
           dataTaggedQueryKey<PostProjectsViewsData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsViewsData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/views`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11057,19 +12520,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects
      */
     getProjects: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects' as const
+      const base = "GET:/v1/organizations/{org_slug}/projects" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsData>([base]),
-        requestKey: (params: GetProjectsParams) => dataTaggedQueryKey<GetProjectsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetProjectsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetProjectsParams) =>
+          dataTaggedQueryKey<GetProjectsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetProjectsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsData>({
             path: `/v1/organizations/${orgSlug}/projects`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11079,20 +12546,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/projects
      */
     postProjects: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/projects' as const
+      const base = "POST:/v1/organizations/{org_slug}/projects" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProjectsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostProjectsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugProjectsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostProjectsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugProjectsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostProjectsData>({
             path: `/v1/organizations/${orgSlug}/projects`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11102,19 +12574,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/projects/{project_id}
      */
     getProjectsByProjectId: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/projects/{project_id}' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/projects/{project_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetProjectsByProjectIdData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<GetProjectsByProjectIdData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetProjectsByProjectIdData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectsByProjectIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11124,26 +12605,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organizations/{org_slug}/projects/{project_id}
      */
     putProjectsByProjectId: () => {
-      const base = 'PUT:/v1/organizations/{org_slug}/projects/{project_id}' as const
+      const base =
+        "PUT:/v1/organizations/{org_slug}/projects/{project_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutProjectsByProjectIdData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PutProjectsByProjectIdData>([base, orgSlug, projectId]),
+          dataTaggedQueryKey<PutProjectsByProjectIdData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
         request: (
           orgSlug: string,
           projectId: string,
           data: OrganizationsOrgSlugProjectsProjectIdPutRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PutProjectsByProjectIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11153,19 +12639,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/projects/{project_id}
      */
     deleteProjectsByProjectId: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/projects/{project_id}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/projects/{project_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteProjectsByProjectIdData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<DeleteProjectsByProjectIdData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<DeleteProjectsByProjectIdData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteProjectsByProjectIdData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11175,19 +12670,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/organizations/{org_slug}/projects/{project_id}/archive
      */
     patchProjectsArchive: () => {
-      const base = 'PATCH:/v1/organizations/{org_slug}/projects/{project_id}/archive' as const
+      const base =
+        "PATCH:/v1/organizations/{org_slug}/projects/{project_id}/archive" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchProjectsArchiveData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PatchProjectsArchiveData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PatchProjectsArchiveData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PatchProjectsArchiveData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/archive`,
-            method: 'PATCH',
-            ...params
-          })
-      }
+            method: "PATCH",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11197,19 +12701,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/organizations/{org_slug}/projects/{project_id}/unarchive
      */
     patchProjectsUnarchive: () => {
-      const base = 'PATCH:/v1/organizations/{org_slug}/projects/{project_id}/unarchive' as const
+      const base =
+        "PATCH:/v1/organizations/{org_slug}/projects/{project_id}/unarchive" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchProjectsUnarchiveData>([base]),
         requestKey: (orgSlug: string, projectId: string) =>
-          dataTaggedQueryKey<PatchProjectsUnarchiveData>([base, orgSlug, projectId]),
-        request: (orgSlug: string, projectId: string, params: RequestParams = {}) =>
+          dataTaggedQueryKey<PatchProjectsUnarchiveData>([
+            base,
+            orgSlug,
+            projectId,
+          ]),
+        request: (
+          orgSlug: string,
+          projectId: string,
+          params: RequestParams = {},
+        ) =>
           this.request<PatchProjectsUnarchiveData>({
             path: `/v1/organizations/${orgSlug}/projects/${projectId}/unarchive`,
-            method: 'PATCH',
-            ...params
-          })
-      }
+            method: "PATCH",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11219,20 +12732,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/project/cover-photo/presigned-fields
      */
     getProjectCoverPhotoPresignedFields: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/project/cover-photo/presigned-fields' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/project/cover-photo/presigned-fields" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetProjectCoverPhotoPresignedFieldsData>([base]),
+        baseKey: dataTaggedQueryKey<GetProjectCoverPhotoPresignedFieldsData>([
+          base,
+        ]),
         requestKey: (params: GetProjectCoverPhotoPresignedFieldsParams) =>
-          dataTaggedQueryKey<GetProjectCoverPhotoPresignedFieldsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetProjectCoverPhotoPresignedFieldsParams, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetProjectCoverPhotoPresignedFieldsData>([
+            base,
+            params,
+          ]),
+        request: (
+          { orgSlug, ...query }: GetProjectCoverPhotoPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetProjectCoverPhotoPresignedFieldsData>({
             path: `/v1/organizations/${orgSlug}/project/cover-photo/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11242,20 +12764,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/reactions
      */
     deleteReactions: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/reactions' as const
+      const base = "DELETE:/v1/organizations/{org_slug}/reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteReactionsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteReactionsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationReactionsDeleteRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteReactionsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationReactionsDeleteRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteReactionsData>({
             path: `/v1/organizations/${orgSlug}/reactions`,
-            method: 'DELETE',
+            method: "DELETE",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11265,19 +12792,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/resource_mentions
      */
     getResourceMentions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/resource_mentions' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/resource_mentions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetResourceMentionsData>([base]),
-        requestKey: (params: GetResourceMentionsParams) => dataTaggedQueryKey<GetResourceMentionsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetResourceMentionsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetResourceMentionsParams) =>
+          dataTaggedQueryKey<GetResourceMentionsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetResourceMentionsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetResourceMentionsData>({
             path: `/v1/organizations/${orgSlug}/resource_mentions`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11287,19 +12819,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/search/groups
      */
     getSearchGroups: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/search/groups' as const
+      const base = "GET:/v1/organizations/{org_slug}/search/groups" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSearchGroupsData>([base]),
-        requestKey: (params: GetSearchGroupsParams) => dataTaggedQueryKey<GetSearchGroupsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetSearchGroupsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetSearchGroupsParams) =>
+          dataTaggedQueryKey<GetSearchGroupsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetSearchGroupsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetSearchGroupsData>({
             path: `/v1/organizations/${orgSlug}/search/groups`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11309,19 +12845,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/search/mixed
      */
     getSearchMixed: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/search/mixed' as const
+      const base = "GET:/v1/organizations/{org_slug}/search/mixed" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSearchMixedData>([base]),
-        requestKey: (params: GetSearchMixedParams) => dataTaggedQueryKey<GetSearchMixedData>([base, params]),
-        request: ({ orgSlug, ...query }: GetSearchMixedParams, params: RequestParams = {}) =>
+        requestKey: (params: GetSearchMixedParams) =>
+          dataTaggedQueryKey<GetSearchMixedData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetSearchMixedParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetSearchMixedData>({
             path: `/v1/organizations/${orgSlug}/search/mixed`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11331,19 +12871,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/search/posts
      */
     getSearchPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/search/posts' as const
+      const base = "GET:/v1/organizations/{org_slug}/search/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSearchPostsData>([base]),
-        requestKey: (params: GetSearchPostsParams) => dataTaggedQueryKey<GetSearchPostsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetSearchPostsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetSearchPostsParams) =>
+          dataTaggedQueryKey<GetSearchPostsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetSearchPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetSearchPostsData>({
             path: `/v1/organizations/${orgSlug}/search/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11353,20 +12897,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/search/resource_mentions
      */
     getSearchResourceMentions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/search/resource_mentions' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/search/resource_mentions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSearchResourceMentionsData>([base]),
         requestKey: (params: GetSearchResourceMentionsParams) =>
           dataTaggedQueryKey<GetSearchResourceMentionsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetSearchResourceMentionsParams, params: RequestParams = {}) =>
+        request: (
+          { orgSlug, ...query }: GetSearchResourceMentionsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetSearchResourceMentionsData>({
             path: `/v1/organizations/${orgSlug}/search/resource_mentions`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11376,18 +12924,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/integrations/slack
      */
     getIntegrationsSlack: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/integrations/slack' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/integrations/slack" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetIntegrationsSlackData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetIntegrationsSlackData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetIntegrationsSlackData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetIntegrationsSlackData>({
             path: `/v1/organizations/${orgSlug}/integrations/slack`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11397,18 +12947,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/integrations/slack
      */
     deleteIntegrationsSlack: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/integrations/slack' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/integrations/slack" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteIntegrationsSlackData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<DeleteIntegrationsSlackData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<DeleteIntegrationsSlackData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<DeleteIntegrationsSlackData>({
             path: `/v1/organizations/${orgSlug}/integrations/slack`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11418,18 +12970,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/sync/custom_reactions
      */
     getSyncCustomReactions: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/sync/custom_reactions' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/sync/custom_reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSyncCustomReactionsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetSyncCustomReactionsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetSyncCustomReactionsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetSyncCustomReactionsData>({
             path: `/v1/organizations/${orgSlug}/sync/custom_reactions`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11439,18 +12993,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/sync/members
      */
     getSyncMembers: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/sync/members' as const
+      const base = "GET:/v1/organizations/{org_slug}/sync/members" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSyncMembersData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetSyncMembersData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetSyncMembersData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetSyncMembersData>({
             path: `/v1/organizations/${orgSlug}/sync/members`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11460,18 +13015,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/sync/message_threads
      */
     getSyncMessageThreads: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/sync/message_threads' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/sync/message_threads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSyncMessageThreadsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetSyncMessageThreadsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetSyncMessageThreadsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetSyncMessageThreadsData>({
             path: `/v1/organizations/${orgSlug}/sync/message_threads`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11481,18 +13038,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/sync/projects
      */
     getSyncProjects: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/sync/projects' as const
+      const base = "GET:/v1/organizations/{org_slug}/sync/projects" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSyncProjectsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetSyncProjectsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetSyncProjectsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetSyncProjectsData>({
             path: `/v1/organizations/${orgSlug}/sync/projects`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11502,18 +13060,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/sync/tags
      */
     getSyncTags: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/sync/tags' as const
+      const base = "GET:/v1/organizations/{org_slug}/sync/tags" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetSyncTagsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<GetSyncTagsData>([base, orgSlug]),
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<GetSyncTagsData>([base, orgSlug]),
         request: (orgSlug: string, params: RequestParams = {}) =>
           this.request<GetSyncTagsData>({
             path: `/v1/organizations/${orgSlug}/sync/tags`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11523,19 +13082,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/tags
      */
     getTags: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/tags' as const
+      const base = "GET:/v1/organizations/{org_slug}/tags" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetTagsData>([base]),
-        requestKey: (params: GetTagsParams) => dataTaggedQueryKey<GetTagsData>([base, params]),
-        request: ({ orgSlug, ...query }: GetTagsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetTagsParams) =>
+          dataTaggedQueryKey<GetTagsData>([base, params]),
+        request: (
+          { orgSlug, ...query }: GetTagsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetTagsData>({
             path: `/v1/organizations/${orgSlug}/tags`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11545,20 +13108,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/organizations/{org_slug}/tags
      */
     postTags: () => {
-      const base = 'POST:/v1/organizations/{org_slug}/tags' as const
+      const base = "POST:/v1/organizations/{org_slug}/tags" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostTagsData>([base]),
-        requestKey: (orgSlug: string) => dataTaggedQueryKey<PostTagsData>([base, orgSlug]),
-        request: (orgSlug: string, data: OrganizationsOrgSlugTagsPostRequest, params: RequestParams = {}) =>
+        requestKey: (orgSlug: string) =>
+          dataTaggedQueryKey<PostTagsData>([base, orgSlug]),
+        request: (
+          orgSlug: string,
+          data: OrganizationsOrgSlugTagsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostTagsData>({
             path: `/v1/organizations/${orgSlug}/tags`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11568,19 +13136,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/tags/{tag_name}
      */
     getTagsByTagName: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/tags/{tag_name}' as const
+      const base = "GET:/v1/organizations/{org_slug}/tags/{tag_name}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetTagsByTagNameData>([base]),
         requestKey: (orgSlug: string, tagName: string) =>
           dataTaggedQueryKey<GetTagsByTagNameData>([base, orgSlug, tagName]),
-        request: (orgSlug: string, tagName: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          tagName: string,
+          params: RequestParams = {},
+        ) =>
           this.request<GetTagsByTagNameData>({
             path: `/v1/organizations/${orgSlug}/tags/${tagName}`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11590,7 +13162,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/organizations/{org_slug}/tags/{tag_name}
      */
     patchTagsByTagName: () => {
-      const base = 'PATCH:/v1/organizations/{org_slug}/tags/{tag_name}' as const
+      const base =
+        "PATCH:/v1/organizations/{org_slug}/tags/{tag_name}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchTagsByTagNameData>([base]),
@@ -11600,16 +13173,16 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           orgSlug: string,
           tagName: string,
           data: OrganizationsOrgSlugTagsTagNamePatchRequest,
-          params: RequestParams = {}
+          params: RequestParams = {},
         ) =>
           this.request<PatchTagsByTagNameData>({
             path: `/v1/organizations/${orgSlug}/tags/${tagName}`,
-            method: 'PATCH',
+            method: "PATCH",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11619,19 +13192,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/organizations/{org_slug}/tags/{tag_name}
      */
     deleteTagsByTagName: () => {
-      const base = 'DELETE:/v1/organizations/{org_slug}/tags/{tag_name}' as const
+      const base =
+        "DELETE:/v1/organizations/{org_slug}/tags/{tag_name}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteTagsByTagNameData>([base]),
         requestKey: (orgSlug: string, tagName: string) =>
           dataTaggedQueryKey<DeleteTagsByTagNameData>([base, orgSlug, tagName]),
-        request: (orgSlug: string, tagName: string, params: RequestParams = {}) =>
+        request: (
+          orgSlug: string,
+          tagName: string,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteTagsByTagNameData>({
             path: `/v1/organizations/${orgSlug}/tags/${tagName}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11641,21 +13219,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organizations/{org_slug}/tags/{tag_name}/posts
      */
     getTagsPosts: () => {
-      const base = 'GET:/v1/organizations/{org_slug}/tags/{tag_name}/posts' as const
+      const base =
+        "GET:/v1/organizations/{org_slug}/tags/{tag_name}/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetTagsPostsData>([base]),
-        requestKey: (params: GetTagsPostsParams) => dataTaggedQueryKey<GetTagsPostsData>([base, params]),
-        request: ({ orgSlug, tagName, ...query }: GetTagsPostsParams, params: RequestParams = {}) =>
+        requestKey: (params: GetTagsPostsParams) =>
+          dataTaggedQueryKey<GetTagsPostsData>([base, params]),
+        request: (
+          { orgSlug, tagName, ...query }: GetTagsPostsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetTagsPostsData>({
             path: `/v1/organizations/${orgSlug}/tags/${tagName}/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   batchedPostViews = {
     /**
      * No description
@@ -11664,22 +13247,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/batched_post_views
      */
     postBatchedPostViews: () => {
-      const base = 'POST:/v1/batched_post_views' as const
+      const base = "POST:/v1/batched_post_views" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostBatchedPostViewsData>([base]),
         requestKey: () => dataTaggedQueryKey<PostBatchedPostViewsData>([base]),
-        request: (data: BatchedPostViewsPostRequest, params: RequestParams = {}) =>
+        request: (
+          data: BatchedPostViewsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostBatchedPostViewsData>({
             path: `/v1/batched_post_views`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   imageUrls = {
     /**
      * No description
@@ -11688,7 +13274,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/image_urls
      */
     postImageUrls: () => {
-      const base = 'POST:/v1/image_urls' as const
+      const base = "POST:/v1/image_urls" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostImageUrlsData>([base]),
@@ -11696,14 +13282,14 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: ImageUrlsPostRequest, params: RequestParams = {}) =>
           this.request<PostImageUrlsData>({
             path: `/v1/image_urls`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   integrations = {
     /**
      * No description
@@ -11712,18 +13298,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/integrations/cal_dot_com/call_rooms
      */
     postIntegrationsCalDotComCallRooms: () => {
-      const base = 'POST:/v1/integrations/cal_dot_com/call_rooms' as const
+      const base = "POST:/v1/integrations/cal_dot_com/call_rooms" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PostIntegrationsCalDotComCallRoomsData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostIntegrationsCalDotComCallRoomsData>([base]),
+        baseKey: dataTaggedQueryKey<PostIntegrationsCalDotComCallRoomsData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<PostIntegrationsCalDotComCallRoomsData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<PostIntegrationsCalDotComCallRoomsData>({
             path: `/v1/integrations/cal_dot_com/call_rooms`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11733,18 +13322,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/integrations/cal_dot_com/integration
      */
     getIntegrationsCalDotComIntegration: () => {
-      const base = 'GET:/v1/integrations/cal_dot_com/integration' as const
+      const base = "GET:/v1/integrations/cal_dot_com/integration" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetIntegrationsCalDotComIntegrationData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetIntegrationsCalDotComIntegrationData>([base]),
+        baseKey: dataTaggedQueryKey<GetIntegrationsCalDotComIntegrationData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetIntegrationsCalDotComIntegrationData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetIntegrationsCalDotComIntegrationData>({
             path: `/v1/integrations/cal_dot_com/integration`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11754,20 +13346,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/integrations/cal_dot_com/organization
      */
     putIntegrationsCalDotComOrganization: () => {
-      const base = 'PUT:/v1/integrations/cal_dot_com/organization' as const
+      const base = "PUT:/v1/integrations/cal_dot_com/organization" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PutIntegrationsCalDotComOrganizationData>([base]),
-        requestKey: () => dataTaggedQueryKey<PutIntegrationsCalDotComOrganizationData>([base]),
-        request: (data: IntegrationsCalDotComOrganizationPutRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PutIntegrationsCalDotComOrganizationData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<PutIntegrationsCalDotComOrganizationData>([base]),
+        request: (
+          data: IntegrationsCalDotComOrganizationPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutIntegrationsCalDotComOrganizationData>({
             path: `/v1/integrations/cal_dot_com/organization`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11777,18 +13375,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/integrations/figma_integration
      */
     getIntegrationsFigmaIntegration: () => {
-      const base = 'GET:/v1/integrations/figma_integration' as const
+      const base = "GET:/v1/integrations/figma_integration" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetIntegrationsFigmaIntegrationData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetIntegrationsFigmaIntegrationData>([base]),
+        baseKey: dataTaggedQueryKey<GetIntegrationsFigmaIntegrationData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetIntegrationsFigmaIntegrationData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetIntegrationsFigmaIntegrationData>({
             path: `/v1/integrations/figma_integration`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11798,20 +13399,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/integrations/zapier/comments
      */
     postIntegrationsZapierComments: () => {
-      const base = 'POST:/v1/integrations/zapier/comments' as const
+      const base = "POST:/v1/integrations/zapier/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostIntegrationsZapierCommentsData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostIntegrationsZapierCommentsData>([base]),
-        request: (data: ZapierIntegrationCommentsPostRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PostIntegrationsZapierCommentsData>([base]),
+        request: (
+          data: ZapierIntegrationCommentsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostIntegrationsZapierCommentsData>({
             path: `/v1/integrations/zapier/comments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11821,20 +13426,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/integrations/zapier/messages
      */
     postIntegrationsZapierMessages: () => {
-      const base = 'POST:/v1/integrations/zapier/messages' as const
+      const base = "POST:/v1/integrations/zapier/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostIntegrationsZapierMessagesData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostIntegrationsZapierMessagesData>([base]),
-        request: (data: ZapierIntegrationMessagesPostRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PostIntegrationsZapierMessagesData>([base]),
+        request: (
+          data: ZapierIntegrationMessagesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostIntegrationsZapierMessagesData>({
             path: `/v1/integrations/zapier/messages`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11844,20 +13453,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/integrations/zapier/posts
      */
     postIntegrationsZapierPosts: () => {
-      const base = 'POST:/v1/integrations/zapier/posts' as const
+      const base = "POST:/v1/integrations/zapier/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostIntegrationsZapierPostsData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostIntegrationsZapierPostsData>([base]),
-        request: (data: ZapierIntegrationPostsPostRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PostIntegrationsZapierPostsData>([base]),
+        request: (
+          data: ZapierIntegrationPostsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostIntegrationsZapierPostsData>({
             path: `/v1/integrations/zapier/posts`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11867,22 +13480,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/integrations/zapier/projects
      */
     getIntegrationsZapierProjects: () => {
-      const base = 'GET:/v1/integrations/zapier/projects' as const
+      const base = "GET:/v1/integrations/zapier/projects" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetIntegrationsZapierProjectsData>([base]),
         requestKey: (params: GetIntegrationsZapierProjectsParams) =>
           dataTaggedQueryKey<GetIntegrationsZapierProjectsData>([base, params]),
-        request: (query: GetIntegrationsZapierProjectsParams, params: RequestParams = {}) =>
+        request: (
+          query: GetIntegrationsZapierProjectsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetIntegrationsZapierProjectsData>({
             path: `/v1/integrations/zapier/projects`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   openGraphLinks = {
     /**
      * No description
@@ -11891,21 +13507,22 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/open_graph_links
      */
     getOpenGraphLinks: () => {
-      const base = 'GET:/v1/open_graph_links' as const
+      const base = "GET:/v1/open_graph_links" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetOpenGraphLinksData>([base]),
-        requestKey: (params: GetOpenGraphLinksParams) => dataTaggedQueryKey<GetOpenGraphLinksData>([base, params]),
+        requestKey: (params: GetOpenGraphLinksParams) =>
+          dataTaggedQueryKey<GetOpenGraphLinksData>([base, params]),
         request: (query: GetOpenGraphLinksParams, params: RequestParams = {}) =>
           this.request<GetOpenGraphLinksData>({
             path: `/v1/open_graph_links`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   invitationsByToken = {
     /**
      * No description
@@ -11914,20 +13531,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/invitations_by_token/{invite_token}/accept
      */
     postInvitationsByTokenAccept: () => {
-      const base = 'POST:/v1/invitations_by_token/{invite_token}/accept' as const
+      const base =
+        "POST:/v1/invitations_by_token/{invite_token}/accept" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostInvitationsByTokenAcceptData>([base]),
-        requestKey: (inviteToken: string) => dataTaggedQueryKey<PostInvitationsByTokenAcceptData>([base, inviteToken]),
+        requestKey: (inviteToken: string) =>
+          dataTaggedQueryKey<PostInvitationsByTokenAcceptData>([
+            base,
+            inviteToken,
+          ]),
         request: (inviteToken: string, params: RequestParams = {}) =>
           this.request<PostInvitationsByTokenAcceptData>({
             path: `/v1/invitations_by_token/${inviteToken}/accept`,
-            method: 'POST',
-            ...params
-          })
-      }
-    }
-  }
+            method: "POST",
+            ...params,
+          }),
+      };
+    },
+  };
   organizationMemberships = {
     /**
      * No description
@@ -11936,20 +13558,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/organization_memberships/reorder
      */
     putOrganizationMembershipsReorder: () => {
-      const base = 'PUT:/v1/organization_memberships/reorder' as const
+      const base = "PUT:/v1/organization_memberships/reorder" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PutOrganizationMembershipsReorderData>([base]),
-        requestKey: () => dataTaggedQueryKey<PutOrganizationMembershipsReorderData>([base]),
-        request: (data: OrganizationMembershipsReorderPutRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PutOrganizationMembershipsReorderData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<PutOrganizationMembershipsReorderData>([base]),
+        request: (
+          data: OrganizationMembershipsReorderPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutOrganizationMembershipsReorderData>({
             path: `/v1/organization_memberships/reorder`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -11959,20 +13587,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organization_memberships
      */
     getOrganizationMemberships: () => {
-      const base = 'GET:/v1/organization_memberships' as const
+      const base = "GET:/v1/organization_memberships" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetOrganizationMembershipsData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetOrganizationMembershipsData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetOrganizationMembershipsData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetOrganizationMembershipsData>({
             path: `/v1/organization_memberships`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
+            method: "GET",
+            ...params,
+          }),
+      };
+    },
+  };
   productLogs = {
     /**
      * No description
@@ -11981,7 +13610,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/product_logs
      */
     postProductLogs: () => {
-      const base = 'POST:/v1/product_logs' as const
+      const base = "POST:/v1/product_logs" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostProductLogsData>([base]),
@@ -11989,14 +13618,14 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: ProductLogsPostRequest, params: RequestParams = {}) =>
           this.request<PostProductLogsData>({
             path: `/v1/product_logs`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   organizationByToken = {
     /**
      * No description
@@ -12005,20 +13634,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/organization-by-token/{token}
      */
     getOrganizationByToken: () => {
-      const base = 'GET:/v1/organization-by-token/{token}' as const
+      const base = "GET:/v1/organization-by-token/{token}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetOrganizationByTokenData>([base]),
-        requestKey: (token: string) => dataTaggedQueryKey<GetOrganizationByTokenData>([base, token]),
+        requestKey: (token: string) =>
+          dataTaggedQueryKey<GetOrganizationByTokenData>([base, token]),
         request: (token: string, params: RequestParams = {}) =>
           this.request<GetOrganizationByTokenData>({
             path: `/v1/organization-by-token/${token}`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
+            method: "GET",
+            ...params,
+          }),
+      };
+    },
+  };
   publicProjects = {
     /**
      * No description
@@ -12027,20 +13657,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/public_projects/{token}
      */
     getPublicProjectsByToken: () => {
-      const base = 'GET:/v1/public_projects/{token}' as const
+      const base = "GET:/v1/public_projects/{token}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPublicProjectsByTokenData>([base]),
-        requestKey: (token: string) => dataTaggedQueryKey<GetPublicProjectsByTokenData>([base, token]),
+        requestKey: (token: string) =>
+          dataTaggedQueryKey<GetPublicProjectsByTokenData>([base, token]),
         request: (token: string, params: RequestParams = {}) =>
           this.request<GetPublicProjectsByTokenData>({
             path: `/v1/public_projects/${token}`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
+            method: "GET",
+            ...params,
+          }),
+      };
+    },
+  };
   signIn = {
     /**
      * No description
@@ -12049,22 +13680,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/sign-in/desktop
      */
     postSignInDesktop: () => {
-      const base = 'POST:/v1/sign-in/desktop' as const
+      const base = "POST:/v1/sign-in/desktop" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostSignInDesktopData>([base]),
         requestKey: () => dataTaggedQueryKey<PostSignInDesktopData>([base]),
-        request: (data: InternalDesktopSessionPostRequest, params: RequestParams = {}) =>
+        request: (
+          data: InternalDesktopSessionPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostSignInDesktopData>({
             path: `/v1/sign-in/desktop`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   users = {
     /**
      * No description
@@ -12073,7 +13707,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/sync-token
      */
     postMeSyncToken: () => {
-      const base = 'POST:/v1/users/me/sync-token' as const
+      const base = "POST:/v1/users/me/sync-token" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeSyncTokenData>([base]),
@@ -12081,10 +13715,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<PostMeSyncTokenData>({
             path: `/v1/users/me/sync-token`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12094,20 +13728,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/notification_pause
      */
     postMeNotificationPause: () => {
-      const base = 'POST:/v1/users/me/notification_pause' as const
+      const base = "POST:/v1/users/me/notification_pause" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeNotificationPauseData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostMeNotificationPauseData>([base]),
-        request: (data: UsersMeNotificationPausePostRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PostMeNotificationPauseData>([base]),
+        request: (
+          data: UsersMeNotificationPausePostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMeNotificationPauseData>({
             path: `/v1/users/me/notification_pause`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12117,18 +13755,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/users/me/notification_pause
      */
     deleteMeNotificationPause: () => {
-      const base = 'DELETE:/v1/users/me/notification_pause' as const
+      const base = "DELETE:/v1/users/me/notification_pause" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMeNotificationPauseData>([base]),
-        requestKey: () => dataTaggedQueryKey<DeleteMeNotificationPauseData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<DeleteMeNotificationPauseData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<DeleteMeNotificationPauseData>({
             path: `/v1/users/me/notification_pause`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12138,18 +13777,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/notification_schedule
      */
     getMeNotificationSchedule: () => {
-      const base = 'GET:/v1/users/me/notification_schedule' as const
+      const base = "GET:/v1/users/me/notification_schedule" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeNotificationScheduleData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetMeNotificationScheduleData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetMeNotificationScheduleData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetMeNotificationScheduleData>({
             path: `/v1/users/me/notification_schedule`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12159,20 +13799,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/users/me/notification_schedule
      */
     putMeNotificationSchedule: () => {
-      const base = 'PUT:/v1/users/me/notification_schedule' as const
+      const base = "PUT:/v1/users/me/notification_schedule" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMeNotificationScheduleData>([base]),
-        requestKey: () => dataTaggedQueryKey<PutMeNotificationScheduleData>([base]),
-        request: (data: UsersMeNotificationSchedulePutRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PutMeNotificationScheduleData>([base]),
+        request: (
+          data: UsersMeNotificationSchedulePutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutMeNotificationScheduleData>({
             path: `/v1/users/me/notification_schedule`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12182,18 +13826,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/users/me/notification_schedule
      */
     deleteMeNotificationSchedule: () => {
-      const base = 'DELETE:/v1/users/me/notification_schedule' as const
+      const base = "DELETE:/v1/users/me/notification_schedule" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMeNotificationScheduleData>([base]),
-        requestKey: () => dataTaggedQueryKey<DeleteMeNotificationScheduleData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<DeleteMeNotificationScheduleData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<DeleteMeNotificationScheduleData>({
             path: `/v1/users/me/notification_schedule`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12203,18 +13848,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/notifications/unread/all_count
      */
     getMeNotificationsUnreadAllCount: () => {
-      const base = 'GET:/v1/users/me/notifications/unread/all_count' as const
+      const base = "GET:/v1/users/me/notifications/unread/all_count" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<GetMeNotificationsUnreadAllCountData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetMeNotificationsUnreadAllCountData>([base]),
+        baseKey: dataTaggedQueryKey<GetMeNotificationsUnreadAllCountData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetMeNotificationsUnreadAllCountData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetMeNotificationsUnreadAllCountData>({
             path: `/v1/users/me/notifications/unread/all_count`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12224,18 +13872,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/organization-invitations
      */
     getMeOrganizationInvitations: () => {
-      const base = 'GET:/v1/users/me/organization-invitations' as const
+      const base = "GET:/v1/users/me/organization-invitations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeOrganizationInvitationsData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetMeOrganizationInvitationsData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetMeOrganizationInvitationsData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetMeOrganizationInvitationsData>({
             path: `/v1/users/me/organization-invitations`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12245,20 +13894,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/users/me/preference
      */
     putMePreference: () => {
-      const base = 'PUT:/v1/users/me/preference' as const
+      const base = "PUT:/v1/users/me/preference" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMePreferenceData>([base]),
         requestKey: () => dataTaggedQueryKey<PutMePreferenceData>([base]),
-        request: (data: UsersMePreferencePutRequest, params: RequestParams = {}) =>
+        request: (
+          data: UsersMePreferencePutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutMePreferenceData>({
             path: `/v1/users/me/preference`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12268,18 +13920,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/scheduled-notifications
      */
     getMeScheduledNotifications: () => {
-      const base = 'GET:/v1/users/me/scheduled-notifications' as const
+      const base = "GET:/v1/users/me/scheduled-notifications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeScheduledNotificationsData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetMeScheduledNotificationsData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetMeScheduledNotificationsData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetMeScheduledNotificationsData>({
             path: `/v1/users/me/scheduled-notifications`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12289,20 +13942,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/scheduled-notifications
      */
     postMeScheduledNotifications: () => {
-      const base = 'POST:/v1/users/me/scheduled-notifications' as const
+      const base = "POST:/v1/users/me/scheduled-notifications" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeScheduledNotificationsData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostMeScheduledNotificationsData>([base]),
-        request: (data: UsersMeScheduledNotificationsPostRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PostMeScheduledNotificationsData>([base]),
+        request: (
+          data: UsersMeScheduledNotificationsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMeScheduledNotificationsData>({
             path: `/v1/users/me/scheduled-notifications`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12312,20 +13969,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/users/me/scheduled-notifications/{id}
      */
     putMeScheduledNotificationsById: () => {
-      const base = 'PUT:/v1/users/me/scheduled-notifications/{id}' as const
+      const base = "PUT:/v1/users/me/scheduled-notifications/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<PutMeScheduledNotificationsByIdData>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<PutMeScheduledNotificationsByIdData>([base, id]),
-        request: (id: string, data: CurrentUserScheduledNotificationPutRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<PutMeScheduledNotificationsByIdData>([
+          base,
+        ]),
+        requestKey: (id: string) =>
+          dataTaggedQueryKey<PutMeScheduledNotificationsByIdData>([base, id]),
+        request: (
+          id: string,
+          data: CurrentUserScheduledNotificationPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutMeScheduledNotificationsByIdData>({
             path: `/v1/users/me/scheduled-notifications/${id}`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12335,18 +13999,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/users/me/scheduled-notifications/{id}
      */
     deleteMeScheduledNotificationsById: () => {
-      const base = 'DELETE:/v1/users/me/scheduled-notifications/{id}' as const
+      const base = "DELETE:/v1/users/me/scheduled-notifications/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMeScheduledNotificationsByIdData>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<DeleteMeScheduledNotificationsByIdData>([base, id]),
+        baseKey: dataTaggedQueryKey<DeleteMeScheduledNotificationsByIdData>([
+          base,
+        ]),
+        requestKey: (id: string) =>
+          dataTaggedQueryKey<DeleteMeScheduledNotificationsByIdData>([
+            base,
+            id,
+          ]),
         request: (id: string, params: RequestParams = {}) =>
           this.request<DeleteMeScheduledNotificationsByIdData>({
             path: `/v1/users/me/scheduled-notifications/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12356,7 +14026,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/users/me/sign-out
      */
     deleteMeSignOut: () => {
-      const base = 'DELETE:/v1/users/me/sign-out' as const
+      const base = "DELETE:/v1/users/me/sign-out" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeleteMeSignOutData>([base]),
@@ -12364,10 +14034,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<DeleteMeSignOutData>({
             path: `/v1/users/me/sign-out`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12377,18 +14047,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/suggested-organizations
      */
     getMeSuggestedOrganizations: () => {
-      const base = 'GET:/v1/users/me/suggested-organizations' as const
+      const base = "GET:/v1/users/me/suggested-organizations" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeSuggestedOrganizationsData>([base]),
-        requestKey: () => dataTaggedQueryKey<GetMeSuggestedOrganizationsData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<GetMeSuggestedOrganizationsData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<GetMeSuggestedOrganizationsData>({
             path: `/v1/users/me/suggested-organizations`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12398,7 +14069,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/timezone
      */
     postMeTimezone: () => {
-      const base = 'POST:/v1/users/me/timezone' as const
+      const base = "POST:/v1/users/me/timezone" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeTimezoneData>([base]),
@@ -12406,12 +14077,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: UsersTimezonePostRequest, params: RequestParams = {}) =>
           this.request<PostMeTimezoneData>({
             path: `/v1/users/me/timezone`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12421,18 +14092,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/two-factor-authentication
      */
     postMeTwoFactorAuthentication: () => {
-      const base = 'POST:/v1/users/me/two-factor-authentication' as const
+      const base = "POST:/v1/users/me/two-factor-authentication" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeTwoFactorAuthenticationData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostMeTwoFactorAuthenticationData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<PostMeTwoFactorAuthenticationData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<PostMeTwoFactorAuthenticationData>({
             path: `/v1/users/me/two-factor-authentication`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12442,20 +14114,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/users/me/two-factor-authentication
      */
     putMeTwoFactorAuthentication: () => {
-      const base = 'PUT:/v1/users/me/two-factor-authentication' as const
+      const base = "PUT:/v1/users/me/two-factor-authentication" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMeTwoFactorAuthenticationData>([base]),
-        requestKey: () => dataTaggedQueryKey<PutMeTwoFactorAuthenticationData>([base]),
-        request: (data: UsersMeTwoFactorAuthenticationPutRequest, params: RequestParams = {}) =>
+        requestKey: () =>
+          dataTaggedQueryKey<PutMeTwoFactorAuthenticationData>([base]),
+        request: (
+          data: UsersMeTwoFactorAuthenticationPutRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PutMeTwoFactorAuthenticationData>({
             path: `/v1/users/me/two-factor-authentication`,
-            method: 'PUT',
+            method: "PUT",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12465,20 +14141,26 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v1/users/me/two-factor-authentication
      */
     deleteMeTwoFactorAuthentication: () => {
-      const base = 'DELETE:/v1/users/me/two-factor-authentication' as const
+      const base = "DELETE:/v1/users/me/two-factor-authentication" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteMeTwoFactorAuthenticationData>([base]),
-        requestKey: () => dataTaggedQueryKey<DeleteMeTwoFactorAuthenticationData>([base]),
-        request: (data: UsersMeTwoFactorAuthenticationDeleteRequest, params: RequestParams = {}) =>
+        baseKey: dataTaggedQueryKey<DeleteMeTwoFactorAuthenticationData>([
+          base,
+        ]),
+        requestKey: () =>
+          dataTaggedQueryKey<DeleteMeTwoFactorAuthenticationData>([base]),
+        request: (
+          data: UsersMeTwoFactorAuthenticationDeleteRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<DeleteMeTwoFactorAuthenticationData>({
             path: `/v1/users/me/two-factor-authentication`,
-            method: 'DELETE',
+            method: "DELETE",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12488,7 +14170,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me
      */
     getMe: () => {
-      const base = 'GET:/v1/users/me' as const
+      const base = "GET:/v1/users/me" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeData>([base]),
@@ -12496,10 +14178,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<GetMeData>({
             path: `/v1/users/me`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12509,7 +14191,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PATCH:/v1/users/me
      */
     patchMe: () => {
-      const base = 'PATCH:/v1/users/me' as const
+      const base = "PATCH:/v1/users/me" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PatchMeData>([base]),
@@ -12517,12 +14199,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: UsersMePatchRequest, params: RequestParams = {}) =>
           this.request<PatchMeData>({
             path: `/v1/users/me`,
-            method: 'PATCH',
+            method: "PATCH",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12532,7 +14214,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/v1/users/me/onboard
      */
     putMeOnboard: () => {
-      const base = 'PUT:/v1/users/me/onboard' as const
+      const base = "PUT:/v1/users/me/onboard" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PutMeOnboardData>([base]),
@@ -12540,10 +14222,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<PutMeOnboardData>({
             path: `/v1/users/me/onboard`,
-            method: 'PUT',
-            ...params
-          })
-      }
+            method: "PUT",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12553,18 +14235,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/users/me/send-email-confirmation
      */
     postMeSendEmailConfirmation: () => {
-      const base = 'POST:/v1/users/me/send-email-confirmation' as const
+      const base = "POST:/v1/users/me/send-email-confirmation" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMeSendEmailConfirmationData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostMeSendEmailConfirmationData>([base]),
+        requestKey: () =>
+          dataTaggedQueryKey<PostMeSendEmailConfirmationData>([base]),
         request: (params: RequestParams = {}) =>
           this.request<PostMeSendEmailConfirmationData>({
             path: `/v1/users/me/send-email-confirmation`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12574,20 +14257,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/avatar/presigned-fields
      */
     getMeAvatarPresignedFields: () => {
-      const base = 'GET:/v1/users/me/avatar/presigned-fields' as const
+      const base = "GET:/v1/users/me/avatar/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeAvatarPresignedFieldsData>([base]),
         requestKey: (params: GetMeAvatarPresignedFieldsParams) =>
           dataTaggedQueryKey<GetMeAvatarPresignedFieldsData>([base, params]),
-        request: (query: GetMeAvatarPresignedFieldsParams, params: RequestParams = {}) =>
+        request: (
+          query: GetMeAvatarPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMeAvatarPresignedFieldsData>({
             path: `/v1/users/me/avatar/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12597,22 +14283,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v1/users/me/cover-photo/presigned-fields
      */
     getMeCoverPhotoPresignedFields: () => {
-      const base = 'GET:/v1/users/me/cover-photo/presigned-fields' as const
+      const base = "GET:/v1/users/me/cover-photo/presigned-fields" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMeCoverPhotoPresignedFieldsData>([base]),
         requestKey: (params: GetMeCoverPhotoPresignedFieldsParams) =>
-          dataTaggedQueryKey<GetMeCoverPhotoPresignedFieldsData>([base, params]),
-        request: (query: GetMeCoverPhotoPresignedFieldsParams, params: RequestParams = {}) =>
+          dataTaggedQueryKey<GetMeCoverPhotoPresignedFieldsData>([
+            base,
+            params,
+          ]),
+        request: (
+          query: GetMeCoverPhotoPresignedFieldsParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetMeCoverPhotoPresignedFieldsData>({
             path: `/v1/users/me/cover-photo/presigned-fields`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   pushSubscriptions = {
     /**
      * No description
@@ -12621,22 +14313,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v1/push_subscriptions
      */
     postPushSubscriptions: () => {
-      const base = 'POST:/v1/push_subscriptions' as const
+      const base = "POST:/v1/push_subscriptions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPushSubscriptionsData>([base]),
         requestKey: () => dataTaggedQueryKey<PostPushSubscriptionsData>([base]),
-        request: (data: WebPushSubscriptionsPostRequest, params: RequestParams = {}) =>
+        request: (
+          data: WebPushSubscriptionsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPushSubscriptionsData>({
             path: `/v1/push_subscriptions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   members = {
     /**
      * @description Creates a new chat message in a direct message thread with a user.
@@ -12646,20 +14341,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/members/{member_id}/messages
      */
     postMembersMessagesV2: () => {
-      const base = 'POST:/v2/members/{member_id}/messages' as const
+      const base = "POST:/v2/members/{member_id}/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostMembersMessagesV2Data>([base]),
-        requestKey: (memberId: string) => dataTaggedQueryKey<PostMembersMessagesV2Data>([base, memberId]),
-        request: (memberId: string, data: V2MemberMessagesPostRequest, params: RequestParams = {}) =>
+        requestKey: (memberId: string) =>
+          dataTaggedQueryKey<PostMembersMessagesV2Data>([base, memberId]),
+        request: (
+          memberId: string,
+          data: V2MemberMessagesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostMembersMessagesV2Data>({
             path: `/v2/members/${memberId}/messages`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12670,21 +14370,22 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/members
      */
     getMembersV2: () => {
-      const base = 'GET:/v2/members' as const
+      const base = "GET:/v2/members" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetMembersV2Data>([base]),
-        requestKey: (params: GetMembersV2Params) => dataTaggedQueryKey<GetMembersV2Data>([base, params]),
+        requestKey: (params: GetMembersV2Params) =>
+          dataTaggedQueryKey<GetMembersV2Data>([base, params]),
         request: (query: GetMembersV2Params, params: RequestParams = {}) =>
           this.request<GetMembersV2Data>({
             path: `/v2/members`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   posts = {
     /**
      * @description Lists all comments on a post.
@@ -12694,19 +14395,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/posts/{post_id}/comments
      */
     getPostsCommentsV2: () => {
-      const base = 'GET:/v2/posts/{post_id}/comments' as const
+      const base = "GET:/v2/posts/{post_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsCommentsV2Data>([base]),
-        requestKey: (params: GetPostsCommentsV2Params) => dataTaggedQueryKey<GetPostsCommentsV2Data>([base, params]),
-        request: ({ postId, ...query }: GetPostsCommentsV2Params, params: RequestParams = {}) =>
+        requestKey: (params: GetPostsCommentsV2Params) =>
+          dataTaggedQueryKey<GetPostsCommentsV2Data>([base, params]),
+        request: (
+          { postId, ...query }: GetPostsCommentsV2Params,
+          params: RequestParams = {},
+        ) =>
           this.request<GetPostsCommentsV2Data>({
             path: `/v2/posts/${postId}/comments`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12717,20 +14422,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/posts/{post_id}/comments
      */
     postPostsCommentsV2: () => {
-      const base = 'POST:/v2/posts/{post_id}/comments' as const
+      const base = "POST:/v2/posts/{post_id}/comments" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsCommentsV2Data>([base]),
-        requestKey: (postId: string) => dataTaggedQueryKey<PostPostsCommentsV2Data>([base, postId]),
-        request: (postId: string, data: V2PostsPostIdCommentsPostRequest, params: RequestParams = {}) =>
+        requestKey: (postId: string) =>
+          dataTaggedQueryKey<PostPostsCommentsV2Data>([base, postId]),
+        request: (
+          postId: string,
+          data: V2PostsPostIdCommentsPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsCommentsV2Data>({
             path: `/v2/posts/${postId}/comments`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12741,20 +14451,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/posts/{post_id}/resolution
      */
     postPostsResolutionV2: () => {
-      const base = 'POST:/v2/posts/{post_id}/resolution' as const
+      const base = "POST:/v2/posts/{post_id}/resolution" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsResolutionV2Data>([base]),
-        requestKey: (postId: string) => dataTaggedQueryKey<PostPostsResolutionV2Data>([base, postId]),
-        request: (postId: string, data: V2PostsPostIdResolutionPostRequest, params: RequestParams = {}) =>
+        requestKey: (postId: string) =>
+          dataTaggedQueryKey<PostPostsResolutionV2Data>([base, postId]),
+        request: (
+          postId: string,
+          data: V2PostsPostIdResolutionPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostPostsResolutionV2Data>({
             path: `/v2/posts/${postId}/resolution`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12765,18 +14480,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/v2/posts/{post_id}/resolution
      */
     deletePostsResolutionV2: () => {
-      const base = 'DELETE:/v2/posts/{post_id}/resolution' as const
+      const base = "DELETE:/v2/posts/{post_id}/resolution" as const;
 
       return {
         baseKey: dataTaggedQueryKey<DeletePostsResolutionV2Data>([base]),
-        requestKey: (postId: string) => dataTaggedQueryKey<DeletePostsResolutionV2Data>([base, postId]),
+        requestKey: (postId: string) =>
+          dataTaggedQueryKey<DeletePostsResolutionV2Data>([base, postId]),
         request: (postId: string, params: RequestParams = {}) =>
           this.request<DeletePostsResolutionV2Data>({
             path: `/v2/posts/${postId}/resolution`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12787,19 +14503,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/posts
      */
     getPostsV2: () => {
-      const base = 'GET:/v2/posts' as const
+      const base = "GET:/v2/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsV2Data>([base]),
-        requestKey: (params: GetPostsV2Params) => dataTaggedQueryKey<GetPostsV2Data>([base, params]),
+        requestKey: (params: GetPostsV2Params) =>
+          dataTaggedQueryKey<GetPostsV2Data>([base, params]),
         request: (query: GetPostsV2Params, params: RequestParams = {}) =>
           this.request<GetPostsV2Data>({
             path: `/v2/posts`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12810,7 +14527,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/posts
      */
     postPostsV2: () => {
-      const base = 'POST:/v2/posts' as const
+      const base = "POST:/v2/posts" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostPostsV2Data>([base]),
@@ -12818,12 +14535,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: V2PostsPostRequest, params: RequestParams = {}) =>
           this.request<PostPostsV2Data>({
             path: `/v2/posts`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12834,20 +14551,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/posts/{id}
      */
     getPostsByIdV2: () => {
-      const base = 'GET:/v2/posts/{id}' as const
+      const base = "GET:/v2/posts/{id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetPostsByIdV2Data>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<GetPostsByIdV2Data>([base, id]),
+        requestKey: (id: string) =>
+          dataTaggedQueryKey<GetPostsByIdV2Data>([base, id]),
         request: (id: string, params: RequestParams = {}) =>
           this.request<GetPostsByIdV2Data>({
             path: `/v2/posts/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
+            method: "GET",
+            ...params,
+          }),
+      };
+    },
+  };
   channels = {
     /**
      * @description Lists all channels in your organization.
@@ -12857,21 +14575,22 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/channels
      */
     getChannelsV2: () => {
-      const base = 'GET:/v2/channels' as const
+      const base = "GET:/v2/channels" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetChannelsV2Data>([base]),
-        requestKey: (params: GetChannelsV2Params) => dataTaggedQueryKey<GetChannelsV2Data>([base, params]),
+        requestKey: (params: GetChannelsV2Params) =>
+          dataTaggedQueryKey<GetChannelsV2Data>([base, params]),
         request: (query: GetChannelsV2Params, params: RequestParams = {}) =>
           this.request<GetChannelsV2Data>({
             path: `/v2/channels`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   threads = {
     /**
      * @description Lists all messages in a thread.
@@ -12881,20 +14600,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/v2/threads/{thread_id}/messages
      */
     getThreadsMessagesV2: () => {
-      const base = 'GET:/v2/threads/{thread_id}/messages' as const
+      const base = "GET:/v2/threads/{thread_id}/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetThreadsMessagesV2Data>([base]),
         requestKey: (params: GetThreadsMessagesV2Params) =>
           dataTaggedQueryKey<GetThreadsMessagesV2Data>([base, params]),
-        request: ({ threadId, ...query }: GetThreadsMessagesV2Params, params: RequestParams = {}) =>
+        request: (
+          { threadId, ...query }: GetThreadsMessagesV2Params,
+          params: RequestParams = {},
+        ) =>
           this.request<GetThreadsMessagesV2Data>({
             path: `/v2/threads/${threadId}/messages`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12905,20 +14627,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/threads/{thread_id}/messages
      */
     postThreadsMessagesV2: () => {
-      const base = 'POST:/v2/threads/{thread_id}/messages' as const
+      const base = "POST:/v2/threads/{thread_id}/messages" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsMessagesV2Data>([base]),
-        requestKey: (threadId: string) => dataTaggedQueryKey<PostThreadsMessagesV2Data>([base, threadId]),
-        request: (threadId: string, data: V2ThreadsThreadIdMessagesPostRequest, params: RequestParams = {}) =>
+        requestKey: (threadId: string) =>
+          dataTaggedQueryKey<PostThreadsMessagesV2Data>([base, threadId]),
+        request: (
+          threadId: string,
+          data: V2ThreadsThreadIdMessagesPostRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostThreadsMessagesV2Data>({
             path: `/v2/threads/${threadId}/messages`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -12929,7 +14656,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/v2/threads
      */
     postThreadsV2: () => {
-      const base = 'POST:/v2/threads' as const
+      const base = "POST:/v2/threads" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostThreadsV2Data>([base]),
@@ -12937,14 +14664,14 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: V2ThreadsPostRequest, params: RequestParams = {}) =>
           this.request<PostThreadsV2Data>({
             path: `/v2/threads`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+  };
   figma = {
     /**
      * No description
@@ -12953,7 +14680,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/sign-in/figma
      */
     postSignInFigma: () => {
-      const base = 'POST:/sign-in/figma' as const
+      const base = "POST:/sign-in/figma" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostSignInFigmaData>([base]),
@@ -12961,12 +14688,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<PostSignInFigmaData>({
             path: `/sign-in/figma`,
-            method: 'POST',
-            ...params
-          })
-      }
-    }
-  }
+            method: "POST",
+            ...params,
+          }),
+      };
+    },
+  };
   v1 = {
     /**
      * No description
@@ -12977,19 +14704,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/blob
      */
     getApiBlob: () => {
-      const base = 'GET:/api/v1/blob' as const
+      const base = "GET:/api/v1/blob" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiBlobData>([base]),
-        requestKey: (params: GetApiBlobParams) => dataTaggedQueryKey<GetApiBlobData>([base, params]),
+        requestKey: (params: GetApiBlobParams) =>
+          dataTaggedQueryKey<GetApiBlobData>([base, params]),
         request: (query: GetApiBlobParams, params: RequestParams = {}) =>
           this.request<GetApiBlobData>({
             path: `/api/v1/blob`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13001,18 +14729,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/api/v1/conversation/reactions/{id}
      */
     deleteApiConversationReactionsById: () => {
-      const base = 'DELETE:/api/v1/conversation/reactions/{id}' as const
+      const base = "DELETE:/api/v1/conversation/reactions/{id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([base, id]),
+        baseKey: dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([
+          base,
+        ]),
+        requestKey: (id: string) =>
+          dataTaggedQueryKey<DeleteApiConversationReactionsByIdData>([
+            base,
+            id,
+          ]),
         request: (id: string, params: RequestParams = {}) =>
           this.request<DeleteApiConversationReactionsByIdData>({
             path: `/api/v1/conversation/reactions/${id}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13024,20 +14758,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/conversation/{comment_id}
      */
     postApiConversationByCommentId: () => {
-      const base = 'POST:/api/v1/conversation/{comment_id}' as const
+      const base = "POST:/api/v1/conversation/{comment_id}" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiConversationByCommentIdData>([base]),
-        requestKey: (commentId: number) => dataTaggedQueryKey<PostApiConversationByCommentIdData>([base, commentId]),
-        request: (commentId: number, data: ContentPayload, params: RequestParams = {}) =>
+        requestKey: (commentId: number) =>
+          dataTaggedQueryKey<PostApiConversationByCommentIdData>([
+            base,
+            commentId,
+          ]),
+        request: (
+          commentId: number,
+          data: ContentPayload,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiConversationByCommentIdData>({
             path: `/api/v1/conversation/${commentId}`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13049,18 +14791,24 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request DELETE:/api/v1/conversation/{comment_id}
      */
     deleteApiConversationByCommentId: () => {
-      const base = 'DELETE:/api/v1/conversation/{comment_id}' as const
+      const base = "DELETE:/api/v1/conversation/{comment_id}" as const;
 
       return {
-        baseKey: dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([base]),
-        requestKey: (commentId: number) => dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([base, commentId]),
+        baseKey: dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([
+          base,
+        ]),
+        requestKey: (commentId: number) =>
+          dataTaggedQueryKey<DeleteApiConversationByCommentIdData>([
+            base,
+            commentId,
+          ]),
         request: (commentId: number, params: RequestParams = {}) =>
           this.request<DeleteApiConversationByCommentIdData>({
             path: `/api/v1/conversation/${commentId}`,
-            method: 'DELETE',
-            ...params
-          })
-      }
+            method: "DELETE",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13072,20 +14820,28 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/conversation/{comment_id}/reactions
      */
     postApiConversationReactions: () => {
-      const base = 'POST:/api/v1/conversation/{comment_id}/reactions' as const
+      const base = "POST:/api/v1/conversation/{comment_id}/reactions" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiConversationReactionsData>([base]),
-        requestKey: (commentId: number) => dataTaggedQueryKey<PostApiConversationReactionsData>([base, commentId]),
-        request: (commentId: number, data: ReactionRequest, params: RequestParams = {}) =>
+        requestKey: (commentId: number) =>
+          dataTaggedQueryKey<PostApiConversationReactionsData>([
+            base,
+            commentId,
+          ]),
+        request: (
+          commentId: number,
+          data: ReactionRequest,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiConversationReactionsData>({
             path: `/api/v1/conversation/${commentId}/reactions`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13097,7 +14853,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/create-file
      */
     postApiCreateFile: () => {
-      const base = 'POST:/api/v1/create-file' as const
+      const base = "POST:/api/v1/create-file" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiCreateFileData>([base]),
@@ -13105,12 +14861,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: CreateFileInfo, params: RequestParams = {}) =>
           this.request<PostApiCreateFileData>({
             path: `/api/v1/create-file`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13122,7 +14878,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/assignees
      */
     postApiIssueAssignees: () => {
-      const base = 'POST:/api/v1/issue/assignees' as const
+      const base = "POST:/api/v1/issue/assignees" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueAssigneesData>([base]),
@@ -13130,12 +14886,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
           this.request<PostApiIssueAssigneesData>({
             path: `/api/v1/issue/assignees`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13147,20 +14903,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/issue/issue_suggester
      */
     getApiIssueIssueSuggester: () => {
-      const base = 'GET:/api/v1/issue/issue_suggester' as const
+      const base = "GET:/api/v1/issue/issue_suggester" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base]),
         requestKey: (params: GetApiIssueIssueSuggesterParams) =>
           dataTaggedQueryKey<GetApiIssueIssueSuggesterData>([base, params]),
-        request: (query: GetApiIssueIssueSuggesterParams, params: RequestParams = {}) =>
+        request: (
+          query: GetApiIssueIssueSuggesterParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetApiIssueIssueSuggesterData>({
             path: `/api/v1/issue/issue_suggester`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13172,7 +14931,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/labels
      */
     postApiIssueLabels: () => {
-      const base = 'POST:/api/v1/issue/labels' as const
+      const base = "POST:/api/v1/issue/labels" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueLabelsData>([base]),
@@ -13180,12 +14939,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
           this.request<PostApiIssueLabelsData>({
             path: `/api/v1/issue/labels`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13197,7 +14956,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/list
      */
     postApiIssueList: () => {
-      const base = 'POST:/api/v1/issue/list' as const
+      const base = "POST:/api/v1/issue/list" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueListData>([base]),
@@ -13205,12 +14964,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: PageParamsListPayload, params: RequestParams = {}) =>
           this.request<PostApiIssueListData>({
             path: `/api/v1/issue/list`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13222,7 +14981,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/new
      */
     postApiIssueNew: () => {
-      const base = 'POST:/api/v1/issue/new' as const
+      const base = "POST:/api/v1/issue/new" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueNewData>([base]),
@@ -13230,12 +14989,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: NewIssue, params: RequestParams = {}) =>
           this.request<PostApiIssueNewData>({
             path: `/api/v1/issue/new`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13247,18 +15006,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/{link}/close
      */
     postApiIssueClose: () => {
-      const base = 'POST:/api/v1/issue/{link}/close' as const
+      const base = "POST:/api/v1/issue/{link}/close" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueCloseData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueCloseData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiIssueCloseData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiIssueCloseData>({
             path: `/api/v1/issue/${link}/close`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13270,20 +15030,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/{link}/comment
      */
     postApiIssueComment: () => {
-      const base = 'POST:/api/v1/issue/{link}/comment' as const
+      const base = "POST:/api/v1/issue/{link}/comment" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueCommentData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueCommentData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiIssueCommentData>([base, link]),
+        request: (
+          link: string,
+          data: ContentPayload,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiIssueCommentData>({
             path: `/api/v1/issue/${link}/comment`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13295,18 +15060,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/issue/{link}/detail
      */
     getApiIssueDetail: () => {
-      const base = 'GET:/api/v1/issue/{link}/detail' as const
+      const base = "GET:/api/v1/issue/{link}/detail" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiIssueDetailData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiIssueDetailData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<GetApiIssueDetailData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiIssueDetailData>({
             path: `/api/v1/issue/${link}/detail`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13318,18 +15084,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/{link}/reopen
      */
     postApiIssueReopen: () => {
-      const base = 'POST:/api/v1/issue/{link}/reopen' as const
+      const base = "POST:/api/v1/issue/{link}/reopen" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueReopenData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueReopenData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiIssueReopenData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiIssueReopenData>({
             path: `/api/v1/issue/${link}/reopen`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13341,20 +15108,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/issue/{link}/title
      */
     postApiIssueTitle: () => {
-      const base = 'POST:/api/v1/issue/{link}/title' as const
+      const base = "POST:/api/v1/issue/{link}/title" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiIssueTitleData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiIssueTitleData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiIssueTitleData>([base, link]),
+        request: (
+          link: string,
+          data: ContentPayload,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiIssueTitleData>({
             path: `/api/v1/issue/${link}/title`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13366,7 +15138,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/label/list
      */
     postApiLabelList: () => {
-      const base = 'POST:/api/v1/label/list' as const
+      const base = "POST:/api/v1/label/list" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiLabelListData>([base]),
@@ -13374,12 +15146,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: PageParamsString, params: RequestParams = {}) =>
           this.request<PostApiLabelListData>({
             path: `/api/v1/label/list`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13391,7 +15163,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/label/new
      */
     postApiLabelNew: () => {
-      const base = 'POST:/api/v1/label/new' as const
+      const base = "POST:/api/v1/label/new" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiLabelNewData>([base]),
@@ -13399,12 +15171,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: NewLabel, params: RequestParams = {}) =>
           this.request<PostApiLabelNewData>({
             path: `/api/v1/label/new`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13416,19 +15188,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/latest-commit
      */
     getApiLatestCommit: () => {
-      const base = 'GET:/api/v1/latest-commit' as const
+      const base = "GET:/api/v1/latest-commit" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiLatestCommitData>([base]),
-        requestKey: (params: GetApiLatestCommitParams) => dataTaggedQueryKey<GetApiLatestCommitData>([base, params]),
-        request: (query: GetApiLatestCommitParams, params: RequestParams = {}) =>
+        requestKey: (params: GetApiLatestCommitParams) =>
+          dataTaggedQueryKey<GetApiLatestCommitData>([base, params]),
+        request: (
+          query: GetApiLatestCommitParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetApiLatestCommitData>({
             path: `/api/v1/latest-commit`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13440,7 +15216,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/assignees
      */
     postApiMrAssignees: () => {
-      const base = 'POST:/api/v1/mr/assignees' as const
+      const base = "POST:/api/v1/mr/assignees" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrAssigneesData>([base]),
@@ -13448,12 +15224,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
           this.request<PostApiMrAssigneesData>({
             path: `/api/v1/mr/assignees`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13465,7 +15241,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/labels
      */
     postApiMrLabels: () => {
-      const base = 'POST:/api/v1/mr/labels' as const
+      const base = "POST:/api/v1/mr/labels" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrLabelsData>([base]),
@@ -13473,12 +15249,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
           this.request<PostApiMrLabelsData>({
             path: `/api/v1/mr/labels`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13490,7 +15266,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/list
      */
     postApiMrList: () => {
-      const base = 'POST:/api/v1/mr/list' as const
+      const base = "POST:/api/v1/mr/list" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrListData>([base]),
@@ -13498,12 +15274,12 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (data: PageParamsListPayload, params: RequestParams = {}) =>
           this.request<PostApiMrListData>({
             path: `/api/v1/mr/list`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13515,18 +15291,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/{link}/close
      */
     postApiMrClose: () => {
-      const base = 'POST:/api/v1/mr/{link}/close' as const
+      const base = "POST:/api/v1/mr/{link}/close" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrCloseData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrCloseData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiMrCloseData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiMrCloseData>({
             path: `/api/v1/mr/${link}/close`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13538,20 +15315,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/{link}/comment
      */
     postApiMrComment: () => {
-      const base = 'POST:/api/v1/mr/{link}/comment' as const
+      const base = "POST:/api/v1/mr/{link}/comment" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrCommentData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrCommentData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiMrCommentData>([base, link]),
+        request: (
+          link: string,
+          data: ContentPayload,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiMrCommentData>({
             path: `/api/v1/mr/${link}/comment`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13563,18 +15345,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/mr/{link}/detail
      */
     getApiMrDetail: () => {
-      const base = 'GET:/api/v1/mr/{link}/detail' as const
+      const base = "GET:/api/v1/mr/{link}/detail" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiMrDetailData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrDetailData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<GetApiMrDetailData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiMrDetailData>({
             path: `/api/v1/mr/${link}/detail`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13586,18 +15369,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/mr/{link}/files-changed
      */
     getApiMrFilesChanged: () => {
-      const base = 'GET:/api/v1/mr/{link}/files-changed' as const
+      const base = "GET:/api/v1/mr/{link}/files-changed" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiMrFilesChangedData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesChangedData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<GetApiMrFilesChangedData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiMrFilesChangedData>({
             path: `/api/v1/mr/${link}/files-changed`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13609,18 +15393,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/mr/{link}/files-list
      */
     getApiMrFilesList: () => {
-      const base = 'GET:/api/v1/mr/{link}/files-list' as const
+      const base = "GET:/api/v1/mr/{link}/files-list" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiMrFilesListData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesListData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<GetApiMrFilesListData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiMrFilesListData>({
             path: `/api/v1/mr/${link}/files-list`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13632,18 +15417,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/{link}/merge
      */
     postApiMrMerge: () => {
-      const base = 'POST:/api/v1/mr/{link}/merge' as const
+      const base = "POST:/api/v1/mr/{link}/merge" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrMergeData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrMergeData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiMrMergeData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiMrMergeData>({
             path: `/api/v1/mr/${link}/merge`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13655,18 +15441,19 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/{link}/reopen
      */
     postApiMrReopen: () => {
-      const base = 'POST:/api/v1/mr/{link}/reopen' as const
+      const base = "POST:/api/v1/mr/{link}/reopen" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrReopenData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReopenData>([base, link]),
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiMrReopenData>([base, link]),
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiMrReopenData>({
             path: `/api/v1/mr/${link}/reopen`,
-            method: 'POST',
-            ...params
-          })
-      }
+            method: "POST",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13678,20 +15465,25 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/v1/mr/{link}/title
      */
     postApiMrTitle: () => {
-      const base = 'POST:/api/v1/mr/{link}/title' as const
+      const base = "POST:/api/v1/mr/{link}/title" as const;
 
       return {
         baseKey: dataTaggedQueryKey<PostApiMrTitleData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrTitleData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+        requestKey: (link: string) =>
+          dataTaggedQueryKey<PostApiMrTitleData>([base, link]),
+        request: (
+          link: string,
+          data: ContentPayload,
+          params: RequestParams = {},
+        ) =>
           this.request<PostApiMrTitleData>({
             path: `/api/v1/mr/${link}/title`,
-            method: 'POST',
+            method: "POST",
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13703,7 +15495,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/status
      */
     getApiStatus: () => {
-      const base = 'GET:/api/v1/status' as const
+      const base = "GET:/api/v1/status" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiStatusData>([base]),
@@ -13711,10 +15503,10 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (params: RequestParams = {}) =>
           this.request<GetApiStatusData>({
             path: `/api/v1/status`,
-            method: 'GET',
-            ...params
-          })
-      }
+            method: "GET",
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13726,19 +15518,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/tree
      */
     getApiTree: () => {
-      const base = 'GET:/api/v1/tree' as const
+      const base = "GET:/api/v1/tree" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreeData>([base]),
-        requestKey: (params: GetApiTreeParams) => dataTaggedQueryKey<GetApiTreeData>([base, params]),
+        requestKey: (params: GetApiTreeParams) =>
+          dataTaggedQueryKey<GetApiTreeData>([base, params]),
         request: (query: GetApiTreeParams, params: RequestParams = {}) =>
           this.request<GetApiTreeData>({
             path: `/api/v1/tree`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13750,20 +15543,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/tree/commit-info
      */
     getApiTreeCommitInfo: () => {
-      const base = 'GET:/api/v1/tree/commit-info' as const
+      const base = "GET:/api/v1/tree/commit-info" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreeCommitInfoData>([base]),
         requestKey: (params: GetApiTreeCommitInfoParams) =>
           dataTaggedQueryKey<GetApiTreeCommitInfoData>([base, params]),
-        request: (query: GetApiTreeCommitInfoParams, params: RequestParams = {}) =>
+        request: (
+          query: GetApiTreeCommitInfoParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetApiTreeCommitInfoData>({
             path: `/api/v1/tree/commit-info`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13775,20 +15571,23 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/tree/content-hash
      */
     getApiTreeContentHash: () => {
-      const base = 'GET:/api/v1/tree/content-hash' as const
+      const base = "GET:/api/v1/tree/content-hash" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreeContentHashData>([base]),
         requestKey: (params: GetApiTreeContentHashParams) =>
           dataTaggedQueryKey<GetApiTreeContentHashData>([base, params]),
-        request: (query: GetApiTreeContentHashParams, params: RequestParams = {}) =>
+        request: (
+          query: GetApiTreeContentHashParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetApiTreeContentHashData>({
             path: `/api/v1/tree/content-hash`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13800,19 +15599,20 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/tree/dir-hash
      */
     getApiTreeDirHash: () => {
-      const base = 'GET:/api/v1/tree/dir-hash' as const
+      const base = "GET:/api/v1/tree/dir-hash" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreeDirHashData>([base]),
-        requestKey: (params: GetApiTreeDirHashParams) => dataTaggedQueryKey<GetApiTreeDirHashData>([base, params]),
+        requestKey: (params: GetApiTreeDirHashParams) =>
+          dataTaggedQueryKey<GetApiTreeDirHashData>([base, params]),
         request: (query: GetApiTreeDirHashParams, params: RequestParams = {}) =>
           this.request<GetApiTreeDirHashData>({
             path: `/api/v1/tree/dir-hash`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
+            ...params,
+          }),
+      };
     },
 
     /**
@@ -13824,20 +15624,90 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request GET:/api/v1/tree/path-can-clone
      */
     getApiTreePathCanClone: () => {
-      const base = 'GET:/api/v1/tree/path-can-clone' as const
+      const base = "GET:/api/v1/tree/path-can-clone" as const;
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreePathCanCloneData>([base]),
         requestKey: (params: GetApiTreePathCanCloneParams) =>
           dataTaggedQueryKey<GetApiTreePathCanCloneData>([base, params]),
-        request: (query: GetApiTreePathCanCloneParams, params: RequestParams = {}) =>
+        request: (
+          query: GetApiTreePathCanCloneParams,
+          params: RequestParams = {},
+        ) =>
           this.request<GetApiTreePathCanCloneData>({
             path: `/api/v1/tree/path-can-clone`,
-            method: 'GET',
+            method: "GET",
             query: query,
-            ...params
-          })
-      }
-    }
-  }
+            ...params,
+          }),
+      };
+    },
+
+    /**
+     * No description
+     *
+     * @tags sync-notes-state
+     * @name GetApiV1OrganizationsNotesSyncState
+     * @request GET:/api/v1/v1/organizations/{org_slug}/notes/{id}/sync_state
+     */
+    getApiV1OrganizationsNotesSyncState: () => {
+      const base =
+        "GET:/api/v1/v1/organizations/{org_slug}/notes/{id}/sync_state" as const;
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiV1OrganizationsNotesSyncStateData>([
+          base,
+        ]),
+        requestKey: (orgSlug: number, id: string) =>
+          dataTaggedQueryKey<GetApiV1OrganizationsNotesSyncStateData>([
+            base,
+            orgSlug,
+            id,
+          ]),
+        request: (orgSlug: number, id: string, params: RequestParams = {}) =>
+          this.request<GetApiV1OrganizationsNotesSyncStateData>({
+            path: `/api/v1/v1/organizations/${orgSlug}/notes/${id}/sync_state`,
+            method: "GET",
+            ...params,
+          }),
+      };
+    },
+
+    /**
+     * No description
+     *
+     * @tags sync-notes-state
+     * @name PatchApiV1OrganizationsNotesSyncState
+     * @request PATCH:/api/v1/v1/organizations/{org_slug}/notes/{id}/sync_state
+     */
+    patchApiV1OrganizationsNotesSyncState: () => {
+      const base =
+        "PATCH:/api/v1/v1/organizations/{org_slug}/notes/{id}/sync_state" as const;
+
+      return {
+        baseKey: dataTaggedQueryKey<PatchApiV1OrganizationsNotesSyncStateData>([
+          base,
+        ]),
+        requestKey: (orgSlug: number, id: string) =>
+          dataTaggedQueryKey<PatchApiV1OrganizationsNotesSyncStateData>([
+            base,
+            orgSlug,
+            id,
+          ]),
+        request: (
+          orgSlug: number,
+          id: string,
+          data: UpdateRequest,
+          params: RequestParams = {},
+        ) =>
+          this.request<PatchApiV1OrganizationsNotesSyncStateData>({
+            path: `/api/v1/v1/organizations/${orgSlug}/notes/${id}/sync_state`,
+            method: "PATCH",
+            body: data,
+            type: ContentType.Json,
+            ...params,
+          }),
+      };
+    },
+  };
 }
