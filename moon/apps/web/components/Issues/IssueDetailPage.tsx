@@ -328,7 +328,12 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                         />
                       </div>
                     </div>
-                    <div className='mt-4 flex justify-end gap-4'>
+                    <div
+                      style={{
+                        marginTop: `16px`
+                      }}
+                      className='mt-4 flex justify-end gap-4'
+                    >
                       <Button
                         className='!mb-32'
                         // loading={motivation === 'close' ? loadings[3] : undefined}
@@ -384,7 +389,12 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                         </div>
                       </div>
                     </div>
-                    <div className='mt-4 flex justify-end gap-4'>
+                    <div
+                      style={{
+                        marginTop: `16px`
+                      }}
+                      className='mt-4 flex justify-end gap-4'
+                    >
                       <Button
                         className='!mb-32'
                         loading={buttonLoading.reopen}
