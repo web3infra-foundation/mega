@@ -78,9 +78,7 @@ export function MemberHovercard({
 
   return (
     <HoverCard.Root open={open} onOpenChange={setOpen} openDelay={200} closeDelay={200}>
-      <HoverCard.Trigger asChild>
-        <span>{children}</span>
-      </HoverCard.Trigger>
+      <HoverCard.Trigger asChild>{children}</HoverCard.Trigger>
 
       <AnimatePresence>
         {open && (
@@ -102,12 +100,12 @@ export function MemberHovercard({
                 {member && (
                   <div>
                     <div className='flex h-6 items-center gap-4 border border-b-gray-300 px-4 py-4 text-sm text-gray-500'>
-                      {/* these are fixed, we need fetch the data from backend in this cmp */}
+                      {/* these are fixed, we need fetch the member from backend in this cmp */}
                       <ChatBubbleIcon />
-                      <span>I may be slow to respond</span>
+                      <span>{member?.user.email}</span>
                     </div>
                     <div className='flex items-center justify-between px-6 py-6'>
-                      <MemberAvatar member={member} size='xl' />
+                      {member && <MemberAvatar member={member} size='xl' />}
                       <Button
                         onClick={(e: React.SyntheticEvent) => {
                           e.stopPropagation()
@@ -123,9 +121,9 @@ export function MemberHovercard({
                         <span className='text-black'>{member.user.username} </span>
                         <span>{member.user.display_name}</span>
                       </div>
-                      <span>Stay foolish</span>
-                      <span>China</span>
-                      <span>Commit timeline</span>
+                      {/* <span>Stay foolish</span> */}
+                      {/* <span>China</span> */}
+                      {/* <span>Commit timeline</span> */}
                     </div>
                   </div>
                 )}
