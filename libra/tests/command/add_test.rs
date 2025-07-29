@@ -204,10 +204,10 @@ async fn test_add_with_ignore_patterns() {
 
     // Verify only non-ignored files were added
     let changes = changes_to_be_staged();
-    // Ignored files should still show as new (not added)
-    assert!(changes.new.iter().any(|x| x.to_str().unwrap() == ignored_file));
-    // Directory files should be ignored
-    assert!(changes.new.iter().any(|x| x.to_str().unwrap() == ignored_dir_file));
+    // Ignored files should not appear in changes.new
+    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == ignored_file));
+    // Directory files should not appear in changes.new
+    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == ignored_dir_file));
     // Non-ignored file should not show as new (was added)
     assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == tracked_file));
 }
