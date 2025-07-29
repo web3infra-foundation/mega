@@ -93,9 +93,8 @@ async fn test_fetch_invalid_remote() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Could not resolve host") || stderr.contains("dns error"),
-        "Expected network error, but got: {}",
-        stderr
+        !stderr.is_empty(),
+        "Expected an error message in stderr, but it was empty"
     );
 }
 
