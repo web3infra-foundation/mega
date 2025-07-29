@@ -10,13 +10,11 @@ on:
   workflow_dispatch:
   pull_request:
     paths-ignore:
-      - 'alfs/**'
       - 'aries/**'
       - 'config/**'
       - 'docker/**'
       - 'docs/**'
       - 'moon/**'
-      - 'rust/**'
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
@@ -105,7 +103,7 @@ jobs:
           cargo test --manifest-path ceres/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path saturn/Cargo.toml --all-features --no-fail-fast -- --nocapture
-
+          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
