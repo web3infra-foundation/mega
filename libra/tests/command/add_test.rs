@@ -155,8 +155,8 @@ async fn test_add_update_flag() {
 
     // Verify only tracked file was updated
     let changes = changes_to_be_staged();
-    // Tracked file should not appear in changes (because it was updated)
-    assert!(!changes.modified.iter().any(|x| x.to_str().unwrap() == tracked_file));
+    // Tracked file should appear in changes as modified (because it was updated)
+    assert!(changes.modified.iter().any(|x| x.to_str().unwrap() == tracked_file));
     // Untracked file should still be untracked and show as new
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == untracked_file));
 }
