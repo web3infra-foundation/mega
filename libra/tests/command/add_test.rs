@@ -100,9 +100,9 @@ async fn test_add_all_flag() {
 
     // Verify all files were added to index
     let changes = changes_to_be_staged();
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_1.txt"));
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_2.txt"));
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_3.txt"));
+    assert!(changes.staged.iter().any(|x| x.to_str().unwrap() == "test_file_1.txt"));
+    assert!(changes.staged.iter().any(|x| x.to_str().unwrap() == "test_file_2.txt"));
+    assert!(changes.staged.iter().any(|x| x.to_str().unwrap() == "test_file_3.txt"));
 }
 
 #[tokio::test]
