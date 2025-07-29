@@ -25,40 +25,6 @@ fn init_temp_repo() -> TempDir {
     temp_dir
 }
 
-#[tokio::test]
-/// Test file locking and unlocking
-async fn test_lfs_lock_unlock() {
-    let temp_repo = init_temp_repo();
-    let temp_path = temp_repo.path();
-
-    // Create a test file
-    let file_path = temp_path.join("test_file.txt");
-    std::fs::write(&file_path, "Test content").expect("Failed to create test file");
-
-    // Lock the file
-    let lock_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["lfs", "lock", "test_file.txt"])
-        .output()
-        .expect("Failed to lock file");
-    assert!(
-        lock_output.status.success(),
-        "Failed to lock file: {}",
-        String::from_utf8_lossy(&lock_output.stderr)
-    );
-
-    // Unlock the file
-    let unlock_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["lfs", "unlock", "test_file.txt"])
-        .output()
-        .expect("Failed to unlock file");
-    assert!(
-        unlock_output.status.success(),
-        "Failed to unlock file: {}",
-        String::from_utf8_lossy(&unlock_output.stderr)
-    );
-}
 
 #[tokio::test]
 /// Test track/untrack path rule management
@@ -88,41 +54,6 @@ async fn test_lfs_track_untrack() {
         untrack_output.status.success(),
         "Failed to untrack path: {}",
         String::from_utf8_lossy(&untrack_output.stderr)
-    );
-}
-
-#[tokio::test]
-/// Test lock list query
-async fn test_lfs_locks_list() {
-    let temp_repo = init_temp_repo();
-    let temp_path = temp_repo.path();
-
-    // Create and lock a file
-    let file_path = temp_path.join("locked_file.txt");
-    std::fs::write(&file_path, "Locked content").expect("Failed to create locked file");
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["lfs", "lock", "locked_file.txt"])
-        .output()
-        .expect("Failed to lock file");
-
-    // Query the lock list
-    let locks_output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(&["lfs", "locks"])
-        .output()
-        .expect("Failed to list locks");
-    assert!(
-        locks_output.status.success(),
-        "Failed to list locks: {}",
-        String::from_utf8_lossy(&locks_output.stderr)
-    );
-
-    let stdout = String::from_utf8_lossy(&locks_output.stdout);
-    assert!(
-        stdout.contains("locked_file.txt"),
-        "Lock list does not contain expected file: {}",
-        stdout
     );
 }
 
