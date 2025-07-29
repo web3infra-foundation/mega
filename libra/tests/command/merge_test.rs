@@ -137,11 +137,23 @@ async fn test_merge_non_fast_forward() {
         "Non-fast-forward merge failed: {}",
         String::from_utf8_lossy(&merge_output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&merge_output.stdout);
+    // Verify that the latest commit is a merge commit
+    let log_output = Command::new("libra")
+        .current_dir(temp_path)
+        .args(&["log", "-1", "--pretty=%P"])
+        .output()
+        .expect("Failed to retrieve commit log");
     assert!(
-        stdout.contains("Merge made by the 'recursive' strategy"),
-        "Expected merge commit, but got: {}",
-        stdout
+        log_output.status.success(),
+        "Failed to retrieve commit log: {}",
+        String::from_utf8_lossy(&log_output.stderr)
+    );
+    let parents = String::from_utf8_lossy(&log_output.stdout);
+    let parent_count = parents.split_whitespace().count();
+    assert_eq!(
+        parent_count, 2,
+        "Expected a merge commit with 2 parents, but found {} parents: {}",
+        parent_count, parents
     );
 }
 
