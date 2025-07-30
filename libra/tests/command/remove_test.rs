@@ -297,7 +297,7 @@ async fn test_remove_command() {
     };
     commit::execute(commit_args).await;
 
-    Run all tests
+    // Run all tests
     test_remove_file().await;
     test_remove_cached_file().await;
     test_remove_directory().await;
