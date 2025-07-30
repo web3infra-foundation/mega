@@ -85,7 +85,8 @@ async fn test_fetch_invalid_remote() {
         }
         // Command completed within timeout
         Ok(Ok(output)) => {
-            eprintln!("Fetch completed (status: {})", output.status);
+
+            eprintln!("Fetch completed (status: {:?})", output.status);
             assert!(
                 !output.status.success(),
                 "Fetch should fail when remote is unreachable"
@@ -95,11 +96,13 @@ async fn test_fetch_invalid_remote() {
                 !stderr.trim().is_empty(),
                 "Expected error message in stderr, but was empty"
             );
-            eprintln!("Fetch failed as expected: {}", stderr);
+
+            eprintln!("Fetch failed as expected: {stderr}");
         }
         // Failed to start the command
         Ok(Err(e)) => {
-            panic!("Failed to run 'libra fetch' command: {}", e);
+
+            panic!("Failed to run 'libra fetch' command: {e}");
         }
     }
 
