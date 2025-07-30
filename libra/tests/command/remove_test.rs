@@ -2,7 +2,6 @@ use libra::command::{add, commit, init, remove};
 use libra::utils::test;
 use serial_test::serial;
 use tempfile::tempdir;
-use std::fs;
 use std::path::Path;
 
 async fn test_remove_file() {
