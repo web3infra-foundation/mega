@@ -1,7 +1,6 @@
 use sea_orm_migration::prelude::*;
 
-// 步骤 1: 定义一个枚举 (enum) 来表示表名和所有列名
-#[derive(Iden)]
+// Step 1: Define an enum to represent table names and all column names#[derive(Iden)]
 enum Notes {
     Table,
     Id,
@@ -33,7 +32,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 1. 创建表（不包含索引）
+        // Step 1: Create the table (excluding indexes)
         manager
             .create_table(
                 Table::create()
@@ -94,7 +93,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 2. 单独创建索引
+        // Step 2: Create indexes separately
         manager
             .create_index(
                 Index::create()

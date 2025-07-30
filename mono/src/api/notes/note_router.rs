@@ -2,7 +2,7 @@ use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
 use crate::server::https_server::SYNC_NOTES_STATE_TAG;
 
-use crate::api::notes::model::{UpdateRequest, ShowResponse};
+use crate::api::notes::model::{ShowResponse, UpdateRequest};
 
 use axum::{
     extract::{Path, State},
@@ -12,11 +12,9 @@ use serde_json::Value;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-
-
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
-        "/v1/organizations",
+        "/organizations",
         OpenApiRouter::new()
             .routes(routes!(show_note))
             .routes(routes!(update_note)),
@@ -40,9 +38,9 @@ async fn show_note(
         return Err(ApiError::from(anyhow::anyhow!("Note not found")));
     }
     let note = note.unwrap();
-    
+
     // TODO: authorize(note, :show?)
-    
+
     let response = ShowResponse {
         public_id: note.public_id,
         description_schema_version: note.description_schema_version,
@@ -57,7 +55,6 @@ async fn show_note(
     };
     Ok(Json(response))
 }
-
 
 #[utoipa::path(
     patch,
@@ -76,26 +73,34 @@ async fn update_note(
     // Get the note first
     let note = state.note_stg().get_note_by_id(id.into()).await?;
     if note.is_none() {
-        return Err(ApiError::from(anyhow::anyhow!("Note not found")));
+        return Err(ApiError::from(anyhow::anyhow!(format!(
+            "Note with ID {} not found",
+            id
+        ))));
     }
     let note = note.unwrap();
-    
+
     // TODO: authorize note access (like in show_note)
-    
+
     // Check schema version compatibility
     if json.description_schema_version < note.description_schema_version {
-        return Err(ApiError::from(anyhow::anyhow!("Invalid schema version - older than current")));
+        return Err(ApiError::from(anyhow::anyhow!(
+            "Invalid schema version: provided ({}) is older than current ({})",
+            json.description_schema_version,
+            note.description_schema_version
+        )));
     }
-    
+
     // Update the note
-    let _res_id = state.note_stg().update_note(
-        id,
-        json.description_html.as_str(),
-        json.description_state.as_str(),
-        json.description_schema_version,
-    ).await?;
-    
+    let _res_id = state
+        .note_stg()
+        .update_note(
+            id,
+            json.description_html.as_str(),
+            json.description_state.as_str(),
+            json.description_schema_version,
+        )
+        .await?;
+
     Ok(Json(serde_json::json!({})))
 }
-
-

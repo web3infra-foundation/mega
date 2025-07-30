@@ -22,13 +22,12 @@ impl NoteStorage {
     pub async fn get_note_by_id(&self, id: i64) -> Result<Option<notes::Model>, MegaError> {
         let model = notes::Entity::find_by_id(id)
             .one(self.get_connection())
-            .await
-            .unwrap();
+            .await?;
         Ok(model)
     }
     pub async fn save_note(&self, note: notes::Model) -> Result<(), MegaError> {
         let a_model = note.into_active_model();
-        a_model.insert(self.get_connection()).await.unwrap();
+        a_model.insert(self.get_connection()).await?;
         Ok(())
     }
     pub async fn save_note_context(
@@ -65,14 +64,12 @@ impl NoteStorage {
     ) -> Result<i32, MegaError> {
         let model = notes::Entity::find_by_id(id)
             .one(self.get_connection())
-            .await
-            .unwrap()
-            .unwrap();
-        let mut active_model: notes::ActiveModel = model.into();
+            .await?
+            .ok_or_else(|| MegaError::with_message(format!("Note with ID {} not found", id)))?;        let mut active_model: notes::ActiveModel = model.into();
         active_model.description_html = Set(Some(description_html.to_string()));
         active_model.description_state = Set(Some(description_state.to_string()));
         active_model.description_schema_version = Set(description_schema_version);
-        let updated_model = active_model.update(self.get_connection()).await.unwrap();
+        let updated_model = active_model.update(self.get_connection()).await?;
         Ok(updated_model.id as i32)
     }
 }

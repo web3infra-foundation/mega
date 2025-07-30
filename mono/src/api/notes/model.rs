@@ -13,12 +13,10 @@ pub struct ShowResponse {
     #[serde(rename = "id")]
     pub public_id: String,
 
-    #[serde(rename = "description_schema_version")]
     pub description_schema_version: i32,
 
     #[serde(rename = "description_state", skip_serializing_if = "Option::is_none")]
     pub description_state: Option<String>,
 
-    #[serde(rename = "description_html", default)]
     pub description_html: String,
 }
