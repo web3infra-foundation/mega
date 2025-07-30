@@ -342,35 +342,6 @@ impl FileTreeRow {
             })
             .build();
 
-        // let depth = data.depth();
-        // tree_line.set_draw_func(move |_area, ctx, _width, height| {
-        //     let line_spacing = 12.0;
-        //     let line_offset = 6.0;
-        //
-        //     ctx.set_source_rgba(0.7, 0.7, 0.7, 1.0);
-        //     ctx.set_line_width(1.0);
-        //     ctx.set_dash(&[2.0, 2.0], 0.0);
-        //
-        //     for i in 0..depth {
-        //         let x = i as f64 * line_spacing + line_offset;
-        //
-        //         // 当前层
-        //         if i == depth - 1 {
-        //             if !is_last_child {
-        //                 // 当前节点不是最后一个 → 画半根线（中间到底部）
-        //                 ctx.move_to(x, height as f64 / 2.0);
-        //                 ctx.line_to(x, height as f64);
-        //             }
-        //         } else {
-        //             // 上层：始终画整条线（贯穿）
-        //             ctx.move_to(x, 0.0);
-        //             ctx.line_to(x, height as f64);
-        //         }
-        //     }
-        //
-        //     ctx.stroke().unwrap();
-        // });
-
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
             .sync_create()

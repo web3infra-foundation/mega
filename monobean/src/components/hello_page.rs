@@ -163,7 +163,7 @@ impl HelloPage {
         pgp_button.connect_clicked(clone!(
             #[weak(rename_to=page)]
             self,
-            move |_|  page.setup_pgp() 
+            move |_| page.setup_pgp()
         ));
 
         continue_button.connect_clicked(clone!(
@@ -219,7 +219,6 @@ impl HelloPage {
 
         let spinner = pgp_button.prev_sibling().unwrap();
 
-        // ✅ 提前计算 should_continue
         let should_continue = self.should_continue(&name, &email, pgp_button.is_sensitive());
 
         CONTEXT.spawn_local(async move {
