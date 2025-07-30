@@ -12,7 +12,7 @@
         <file compressed="true">gtk/window.ui</file>
         <file compressed="true">gtk/hello_page.ui</file>
         <file compressed="true">gtk/code_page.ui</file>
-        <file compressed="true">gtk/mega_tab.ui</file>
+        <file compressed="true">gtk/mega_tab_window.ui</file>
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
         <file compressed="true">gtk/preferences.ui</file>

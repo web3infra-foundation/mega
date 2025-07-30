@@ -3,11 +3,11 @@ use gtk::CssProvider;
 use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
 use crate::application::{Action, MonobeanApplication};
+use crate::components::mega_tab::MegaTabWindow;
 use crate::components::theme_selector::ThemeSelector;
-use crate::components::{mega_tab::MegaTab};
 use crate::config::PREFIX;
 use crate::CONTEXT;
-use adw::glib::Priority;
+use adw::glib::{clone, Priority};
 use adw::prelude::{
     ActionMapExt, Cast, ObjectExt, SettingsExt, SettingsExtManual, StaticVariantType, ToValue,
     ToVariant,
@@ -17,7 +17,7 @@ use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::gio::{SimpleAction, SimpleActionGroup};
 use gtk::glib;
-use gtk::prelude::{GtkWindowExt, WidgetExt};
+use gtk::prelude::{ButtonExt, GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 
@@ -32,6 +32,7 @@ mod imp {
     use crate::components::code_page::CodePage;
     use crate::components::hello_page::HelloPage;
     // use crate::components::not_implemented::NotImplemented;
+    use crate::components::not_implemented::NotImplemented;
     use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use std::cell::RefCell;
     use std::sync::LazyLock;
@@ -58,19 +59,20 @@ mod imp {
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
-        #[template_child]
-        pub mega_tab: TemplateChild<MegaTab>,
+        // #[template_child]
+        // pub mega_tab: TemplateChild<MegaTab>,
         // #[template_child]
         // pub repo_tab: TemplateChild<RepoTab>,
         #[template_child]
         pub code_page: TemplateChild<CodePage>,
-       
 
-        // #[template_child]
-        // pub not_implemented: TemplateChild<NotImplemented>,
+        #[template_child]
+        pub not_implemented: TemplateChild<NotImplemented>,
 
         #[template_child]
         pub mega_status_button: TemplateChild<gtk::Button>,
+
+        pub mega_popup: RefCell<Option<MegaTabWindow>>,
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
@@ -141,7 +143,8 @@ impl MonobeanWindow {
         window.set_application(Some(application));
         window.imp().sender.set(sender).unwrap();
 
-        window.setup_widget();
+        window.setup_headbar_widget();
+        window.setup_bottombar_widget();
         // window.setup_action();
         window.setup_page();
         window
@@ -193,7 +196,7 @@ impl MonobeanWindow {
         searcher.set_visible(true);
         stack.set_visible_child_name("main_page");
 
-        // // 
+        // //
         // let content_stack = self.imp().content_stack.get();
         // content_stack.set_visible_child_name("code");
 
@@ -203,8 +206,6 @@ impl MonobeanWindow {
         CONTEXT.spawn_local_with_priority(adw::glib::Priority::LOW, async move {
             file_tree.refresh_root().await;
         });
-    
-    
     }
 
     pub fn show_hello_page(
@@ -223,13 +224,13 @@ impl MonobeanWindow {
         stack.set_visible_child_name("hello_page");
     }
 
-    fn setup_widget(&self) {
+    fn setup_headbar_widget(&self) {
         let imp = self.imp();
         let prim_btn = imp.primary_menu_button.get();
         let popover = prim_btn.popover().unwrap();
-        let popover = popover.downcast::<PopoverMenu>().unwrap();
+        let popover_menu = popover.downcast::<PopoverMenu>().unwrap();
         let theme = ThemeSelector::new();
-        popover.add_child(&theme, "theme");
+        popover_menu.add_child(&theme, "theme");
 
         // popoverMenu cont find win.(action) change the action group
         let action_group = SimpleActionGroup::new();
@@ -253,7 +254,36 @@ impl MonobeanWindow {
 
         action_group.add_action(&action);
 
-        popover.insert_action_group("style", Some(&action_group));
+        popover_menu.insert_action_group("style", Some(&action_group));
+    }
+
+    fn setup_bottombar_widget(&self) {
+        let imp = self.imp();
+        let mega_status_button = imp.mega_status_button.get();
+        mega_status_button.connect_clicked(clone!(
+            #[weak(rename_to=window)]
+            self,
+            #[weak]
+            imp,
+            move |_| {
+                {
+                    let mut popup_ref = imp.mega_popup.borrow_mut();
+                    if let Some(popup) = popup_ref.as_ref() {
+                        if popup.is_visible() {
+                            popup.close();
+                            popup_ref.take();
+                            return;
+                        }
+                    }
+                }
+
+                let popup = MegaTabWindow::new();
+                popup.set_transient_for(Some(&window));
+                popup.set_modal(false);
+                popup.present();
+                imp.mega_popup.replace(Some(popup));
+            }
+        ));
     }
 
     pub fn add_toast(&self, message: String) {

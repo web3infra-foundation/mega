@@ -181,8 +181,7 @@
                                   <property name="title" translatable="true">network</property>
                                   <property name="icon-name">monobean-network-symbolic</property>
                                   <property name="child">
-<!--                                    <object class="NotImplemented" id="not_implemented"></object>-->
-                                    <object class="MegaTab" id="mega_tab"></object>
+                                    <object class="NotImplemented" id="not_implemented"></object>
                                   </property>
                                 </object>
                               </child>
@@ -219,7 +218,7 @@
 
                                     <child>
                                       <object class="GtkImage">
-                                        <property name="icon-name">dialog-ok-symbolic</property>
+                                        <property name="icon-name">dialog-warning</property>
                                       </object>
                                     </child>
 

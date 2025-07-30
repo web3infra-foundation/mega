@@ -19,8 +19,6 @@ mod window;
 pub static CONTEXT: LazyLock<glib::MainContext> = LazyLock::new(glib::MainContext::default);
 
 fn main() -> glib::ExitCode {
-    
-    
     // GTK related initialization
     if let Some(cargo_dir) = std::option_env!("CARGO_MANIFEST_DIR") {
         std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");

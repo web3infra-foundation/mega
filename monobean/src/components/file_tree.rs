@@ -14,7 +14,6 @@ use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::{cell::OnceCell, path::Path};
 
-
 mod imp {
     use std::rc::Rc;
 
@@ -58,7 +57,6 @@ mod imp {
         pub label: TemplateChild<gtk::Label>,
         // #[template_child]
         // pub tree_lines: TemplateChild<gtk::DrawingArea>,
-
         pub sender: OnceCell<Sender<Action>>,
         pub bindings: RefCell<SmallVec<[glib::Binding; 4]>>,
     }
@@ -311,27 +309,30 @@ impl FileTreeRow {
             .bidirectional()
             .build();
 
-
         let icon_binding = data
             .bind_property("path", &icon, "icon-name")
             .sync_create()
             .transform_to(move |_, t: glib::GString| {
-
                 let path = Path::new(t.as_str());
 
                 match path.file_name().and_then(|name| name.to_str()) {
-                    Some(name) if  name.eq(".idea")||name.eq(".vscode") || !name.contains(".")
-                    => Some("folder-symbolic"),
+                    Some(name) if name.eq(".idea") || name.eq(".vscode") || !name.contains(".") => {
+                        Some("folder-symbolic")
+                    }
 
                     // .gitignore is not extension but file name
-                    Some(name) if [".gitignore", ".gitattributes", ".gitmodules"].contains(&name) => {
+                    Some(name)
+                        if [".gitignore", ".gitattributes", ".gitmodules"].contains(&name) =>
+                    {
                         Some("monobean-gitFile-symbolic")
                     }
                     _ => match path.extension().and_then(|ext| ext.to_str()) {
                         Some("toml") => Some("monobean-settingFile-symbolic"),
                         Some("md") => Some("monobean-markdown-symbolic"),
                         Some("rs") => Some("monobean-rust-symbolic"),
-                        Some("png") | Some("svg") | Some("jpg") => Some("monobean-picture-symbolic"),
+                        Some("png") | Some("svg") | Some("jpg") => {
+                            Some("monobean-picture-symbolic")
+                        }
                         Some("xml") | Some("ui") => Some("monobean-rss-symbolic"),
                         Some("css") => Some("monobean-css-symbolic"),
                         Some("json") => Some("monobean-json-symbolic"),
@@ -341,19 +342,18 @@ impl FileTreeRow {
             })
             .build();
 
-        
-        // let depth = data.depth(); 
+        // let depth = data.depth();
         // tree_line.set_draw_func(move |_area, ctx, _width, height| {
-        //     let line_spacing = 12.0; 
-        //     let line_offset = 6.0;   
-        // 
-        //     ctx.set_source_rgba(0.7, 0.7, 0.7, 1.0); 
+        //     let line_spacing = 12.0;
+        //     let line_offset = 6.0;
+        //
+        //     ctx.set_source_rgba(0.7, 0.7, 0.7, 1.0);
         //     ctx.set_line_width(1.0);
         //     ctx.set_dash(&[2.0, 2.0], 0.0);
-        // 
+        //
         //     for i in 0..depth {
         //         let x = i as f64 * line_spacing + line_offset;
-        // 
+        //
         //         // 当前层
         //         if i == depth - 1 {
         //             if !is_last_child {
@@ -367,14 +367,9 @@ impl FileTreeRow {
         //             ctx.line_to(x, height as f64);
         //         }
         //     }
-        // 
+        //
         //     ctx.stroke().unwrap();
         // });
-
-
-
-
-
 
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
@@ -414,7 +409,7 @@ impl FileTreeRow {
                     let hash = data.hash();
                     let name = data.label();
                     let path = data.path();
-                    let _ = sender.try_send(Action::OpenEditorOn { hash, name ,path});
+                    let _ = sender.try_send(Action::OpenEditorOn { hash, name, path });
                 }
                 gesture.set_state(gtk::EventSequenceState::Claimed);
             }

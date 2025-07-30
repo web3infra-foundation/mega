@@ -44,12 +44,16 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn { hash: String, name: String ,path: PathBuf },
+    OpenEditorOn {
+        hash: String,
+        name: String,
+        path: PathBuf,
+    },
 }
 
 mod imp {
-    use adw::gdk;
     use super::*;
+    use adw::gdk;
 
     use crate::core::delegate::MegaDelegate;
 
@@ -117,7 +121,7 @@ mod imp {
 
             let theme = gtk::IconTheme::for_display(&gdk::Display::default().unwrap());
             theme.add_resource_path("/org/Web3Infrastructure/Monobean/icons/symbolic/apps");
-            
+
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
 

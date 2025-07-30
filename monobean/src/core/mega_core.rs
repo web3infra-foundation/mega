@@ -232,7 +232,6 @@ impl MegaCore {
 
         let config = self.config.read().await.clone();
 
-
         #[cfg(test)]
         let inner = MegaContext::mock(config.clone()).await;
 
@@ -535,7 +534,6 @@ mod tests {
         let _ = Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
     }
 
-
     #[tokio::test]
     async fn test_launch_http() {
         let temp_base = TempDir::new().unwrap();
@@ -574,7 +572,6 @@ mod tests {
         assert!(core.http_options.read().await.is_none());
         assert!(core.ssh_options.read().await.is_none());
     }
-
 
     #[tokio::test]
     async fn test_run_with_config() {}

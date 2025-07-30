@@ -1,17 +1,17 @@
-use std::path::{Path, PathBuf};
-use adw::{gdk};
+use crate::application::Action;
+use crate::components::history_list::HistoryItem;
+use crate::core::mega_core::MegaCommands;
+use crate::CONTEXT;
+use adw::gdk;
 use adw::gio::ListStore;
 use async_channel::Sender;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{glib, CompositeTemplate, Label, ListItem,  SignalListItemFactory, SingleSelection};
+use gtk::{glib, CompositeTemplate, Label, ListItem, SignalListItemFactory, SingleSelection};
 use scv::{prelude::*, Buffer};
+use std::path::{Path, PathBuf};
 use tokio::sync::oneshot;
-use crate::application::Action;
-use crate::components::history_list::HistoryItem;
-use crate::core::mega_core::MegaCommands;
-use crate::CONTEXT;
 
 mod imp {
     use adw::subclass::prelude::BinImpl;
@@ -32,7 +32,7 @@ mod imp {
         pub file_path_label: TemplateChild<Label>,
         #[template_child]
         pub paned: TemplateChild<gtk::Paned>,
-        
+
         #[template_child]
         pub file_tree_view: TemplateChild<FileTreeView>,
         #[template_child]
@@ -73,7 +73,6 @@ mod imp {
     impl ObjectImpl for CodePage {
         fn constructed(&self) {
             self.parent_constructed();
-            
         }
     }
     impl WidgetImpl for CodePage {}
@@ -94,8 +93,7 @@ impl Default for CodePage {
 
 impl CodePage {
     pub fn new() -> Self {
-         glib::object::Object::new()
-        
+        glib::object::Object::new()
     }
 
     pub fn setup_code_page(&self, sender: Sender<Action>, opened_file: Option<&Path>) {
@@ -113,13 +111,11 @@ impl CodePage {
     }
 
     fn setup_history_list(&self) {
-        
         let list_view = self.imp().history_listview.clone();
-        
 
         // 创建数据模型
         let store = ListStore::new::<HistoryItem>();
-       
+
         for i in 1..=20 {
             store.append(&HistoryItem::new(&format!("commit信息 \n 提交人:{i}, sha")));
         }
@@ -157,16 +153,11 @@ impl CodePage {
         list_view.set_factory(Some(&factory));
     }
 
-
-
     fn setup_button(&self) {
         let imp = self.imp();
 
-        
-        
         let url_btn = imp.url_btn.get();
         //url_btn.set_child(Some(&image));
-      
 
         let url_popover = imp.url_popover.get();
         url_popover.set_pointing_to(None);
@@ -175,21 +166,18 @@ impl CodePage {
         url_popover.set_autohide(true);
         url_popover.set_position(gtk::PositionType::Left);
 
-        
         // 弹出时设置一次
         url_btn.connect_clicked(clone!(
-            #[weak] 
-            url_popover, 
-            
+            #[weak]
+            url_popover,
             move |_| {
-            if url_popover.is_visible() {
-                url_popover.popdown();
-            } else {
-                
-                url_popover.popup();
+                if url_popover.is_visible() {
+                    url_popover.popdown();
+                } else {
+                    url_popover.popup();
+                }
             }
-        }));
-
+        ));
 
         let history_btn = imp.history_btn.get();
         let history_popover = imp.history_popover.get();
@@ -202,30 +190,19 @@ impl CodePage {
 
         // 按钮点击处理 - 确保位置正确
         history_btn.connect_clicked(clone!(
-            #[weak] 
-            history_popover, 
-            
+            #[weak]
+            history_popover,
             move |_| {
                 if history_popover.is_visible() {
                     history_popover.popdown();
                 } else {
-                    
-                   
-                    let rect = gdk::Rectangle::new(
-                            -5,  
-                            200,
-                            100,
-                            30
-                    );
-                    
+                    let rect = gdk::Rectangle::new(-5, 200, 100, 30);
+
                     history_popover.set_pointing_to(Some(&rect));
                     history_popover.popup();
                 }
             }
-    ));
-
-
-       
+        ));
     }
 
     fn setup_paned(&self) {
@@ -236,7 +213,6 @@ impl CodePage {
 
         paned.set_shrink_start_child(false);
         paned.set_shrink_end_child(false);
-       
 
         file_tree.set_size_request(50, -1);
         code_stack.set_size_request(50, -1);
@@ -255,8 +231,6 @@ impl CodePage {
         let source_view = imp.source_view.get();
         source_view.set_can_focus(false);
         source_view.set_editable(false);
-        
-        
 
         match opened_file {
             Some(_path) => {
@@ -268,9 +242,11 @@ impl CodePage {
         }
     }
 
-    pub fn show_editor_on(&self, hash: String, name: String,path: PathBuf) {
+    pub fn show_editor_on(&self, hash: String, name: String, path: PathBuf) {
         let imp = self.imp();
-        imp.file_path_label.set_text(&*path.to_str().unwrap().replace(['/', '\\'], " > "));
+        imp.file_path_label
+            .set_text(&path.to_str().unwrap().replace(['/', '\\'], " > "));
+
         let sender = imp.sender.get().unwrap().clone();
 
         CONTEXT.spawn_local(clone!(
@@ -304,35 +280,38 @@ impl CodePage {
                     tracing::debug!("Guessed language: {:?}", language);
                     buf.set_language(Some(language));
                 }
-                
+
                 let buf_weak = buf.downgrade();
                 let scheme_manager = scv::StyleSchemeManager::new();
                 let style_manager = adw::StyleManager::default();
                 // 连接主题变化通知
-                style_manager.connect_notify_local(Some("color-scheme"), move |style_manager, _| {
-                    if let Some(buffer) = buf_weak.upgrade() {
-                        let scheme_name = match style_manager.color_scheme() {
-                            adw::ColorScheme::ForceDark | 
-                            adw::ColorScheme::PreferDark => "Adwaita-dark",
-                            adw::ColorScheme::ForceLight | 
-                            adw::ColorScheme::PreferLight => "Adwaita",
-                            _ => {
-                                // Default 跟随系统
-                                if style_manager.is_dark() { 
-                                    "Adwaita-dark" 
-                                } else { 
-                                    "Adwaita" 
+                style_manager.connect_notify_local(
+                    Some("color-scheme"),
+                    move |style_manager, _| {
+                        if let Some(buffer) = buf_weak.upgrade() {
+                            let scheme_name = match style_manager.color_scheme() {
+                                adw::ColorScheme::ForceDark | adw::ColorScheme::PreferDark => {
+                                    "Adwaita-dark"
                                 }
+                                adw::ColorScheme::ForceLight | adw::ColorScheme::PreferLight => {
+                                    "Adwaita"
+                                }
+                                _ => {
+                                    // Default 跟随系统
+                                    if style_manager.is_dark() {
+                                        "Adwaita-dark"
+                                    } else {
+                                        "Adwaita"
+                                    }
+                                }
+                            };
+
+                            if let Some(scheme) = scheme_manager.scheme(scheme_name) {
+                                buffer.set_style_scheme(Some(&scheme));
                             }
-                        };
-                        
-                        if let Some(scheme) = scheme_manager.scheme(scheme_name) {
-                            buffer.set_style_scheme(Some(&scheme));
                         }
-                    }
-                });
-                
-              
+                    },
+                );
 
                 let imp = page.imp();
                 imp.source_view.set_buffer(Some(&buf));
@@ -345,11 +324,4 @@ impl CodePage {
         let imp = self.imp();
         imp.code_stack.set_visible_child_name("empty_view");
     }
-
-
-   
 }
-
-
-
-
