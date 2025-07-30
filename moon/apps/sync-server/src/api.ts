@@ -1,9 +1,9 @@
 import { Api } from '@gitmono/types'
 
-let baseUrl = 'http://api.gitmega.com'
+let baseUrl = 'https://api.gitmega.com'
 
 if (process.env.NODE_ENV === 'production') {
-  baseUrl = 'http://api.gitmega.com'
+  baseUrl = 'https://api.gitmega.com'
 }
 
 export const api = new Api({
