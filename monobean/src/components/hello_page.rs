@@ -1,13 +1,14 @@
 use crate::application::Action;
 use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
-use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
+use adw::glib::{clone, timeout_future, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
 use gtk::glib::random_int_range;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 mod imp {
@@ -108,7 +109,6 @@ impl HelloPage {
         let continue_button = self.imp().continue_button.clone();
         let email_entry = self.imp().email_entry.clone();
         let name_entry = self.imp().name_entry.clone();
-        let pgp_row = self.imp().pgp_row.clone();
         let pgp_button = self.imp().pgp_button.clone();
 
         email_entry.connect_changed(clone!(
@@ -131,6 +131,7 @@ impl HelloPage {
                     &email,
                     pgp_button.is_sensitive(),
                 ));
+                pgp_button.set_sensitive(true);
             }
         ));
 
@@ -154,71 +155,14 @@ impl HelloPage {
                     &email,
                     pgp_button.is_sensitive(),
                 ));
+                pgp_button.set_sensitive(true);
             }
         ));
 
         pgp_button.connect_clicked(clone!(
             #[weak(rename_to=page)]
             self,
-            #[weak]
-            pgp_row,
-            #[weak]
-            pgp_button,
-            #[weak]
-            email_entry,
-            #[weak]
-            name_entry,
-            #[weak]
-            continue_button,
-            #[strong]
-            sender,
-            move |btn| {
-                // TODO: Ask user to input a passwd for pgp key.
-                let sender = sender.clone();
-                let (tx, rx) = oneshot::channel();
-                let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp {
-                    chan: tx,
-                    user_name: name_entry.text().parse().unwrap(),
-                    user_email: email_entry.text().parse().unwrap(),
-                    passwd: None,
-                });
-                btn.set_sensitive(false);
-
-                // Adw::Spinner type does not exist, we have to find a temporary solution for this.
-                let spinner = btn.prev_sibling();
-                #[cfg(debug_assertions)]
-                {
-                    assert!(spinner.is_some());
-                    assert_eq!(
-                        spinner.clone().unwrap().widget_name(),
-                        GString::from("AdwSpinner")
-                    );
-                }
-
-                let spinner = spinner.unwrap();
-                CONTEXT.spawn_local(async move {
-                    spinner.set_visible(true);
-                    sender.send(pgp_command).await.unwrap();
-                    if rx.await.is_err() {
-                        let toast = Action::AddToast("Failed to init pgp key".to_string());
-                        sender.send(toast).await.unwrap();
-                        pgp_button.set_sensitive(true);
-                    } else {
-                        let email = email_entry.text();
-                        let name = name_entry.text();
-                        pgp_row.set_title("PGP key already generated");
-                        continue_button.set_sensitive(page.should_continue(
-                            &name,
-                            &email,
-                            pgp_button.is_sensitive(),
-                        ));
-
-                        let toast = Action::AddToast("PGP key initialized".to_string());
-                        sender.send(toast).await.unwrap();
-                    }
-                    spinner.set_visible(false);
-                });
-            }
+            move |_| page.setup_pgp()
         ));
 
         continue_button.connect_clicked(clone!(
@@ -237,6 +181,65 @@ impl HelloPage {
                 sender.send_blocking(Action::ShowMainPage).unwrap();
             }
         ));
+    }
+
+    pub fn setup_pgp(&self) {
+        let imp = self.imp();
+
+        let sender = imp.sender.get().unwrap().clone();
+        let continue_button = imp.continue_button.clone();
+        let email_entry = imp.email_entry.clone();
+        let name_entry = imp.name_entry.clone();
+        let pgp_row = imp.pgp_row.clone();
+        let pgp_button = imp.pgp_button.clone();
+
+        let email = email_entry.text();
+        let name = name_entry.text();
+
+        if name.is_empty() || email.is_empty() {
+            tracing::debug!("Empty email entry----------");
+            return;
+        }
+
+        tracing::debug!("--------name: {} and email {}-----", name, email);
+
+        let (tx, rx) = oneshot::channel();
+        let user_name = name.clone();
+        let user_email = email.clone();
+
+        let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp {
+            chan: tx,
+            user_name: user_name.parse().unwrap(),
+            user_email: user_email.parse().unwrap(),
+            passwd: None,
+        });
+
+        pgp_button.set_sensitive(false);
+
+        let spinner = pgp_button.prev_sibling().unwrap();
+
+        let should_continue = self.should_continue(&name, &email, pgp_button.is_sensitive());
+
+        CONTEXT.spawn_local(async move {
+            spinner.set_visible(true);
+            sender.send(pgp_command).await.unwrap();
+
+            if rx.await.is_err() {
+                sender
+                    .send(Action::AddToast("Failed to init pgp key".to_string()))
+                    .await
+                    .unwrap();
+                pgp_button.set_sensitive(true);
+            } else {
+                pgp_row.set_title("PGP key already generated");
+                continue_button.set_sensitive(should_continue);
+                sender
+                    .send(Action::AddToast("PGP key initialized".to_string()))
+                    .await
+                    .unwrap();
+            }
+            spinner.set_visible(false);
+        });
     }
 
     fn should_continue(&self, name: &GString, email: &GString, btn_sensitive: bool) -> bool {
@@ -279,6 +282,21 @@ impl HelloPage {
                 &self.imp().email_entry.text(),
                 self.imp().pgp_button.is_sensitive(),
             ));
+
+        tracing::debug!(
+            "--------name: {} and email {}-----",
+            self.imp().name_entry.text(),
+            self.imp().email_entry.text()
+        );
+
+        glib::MainContext::default().spawn_local(clone!(
+            #[weak(rename_to=this)]
+            self,
+            async move {
+                timeout_future(Duration::from_millis(1500)).await;
+                this.setup_pgp();
+            }
+        ));
     }
 }
 

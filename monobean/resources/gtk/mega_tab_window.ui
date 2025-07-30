@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+	<requires lib="gtk" version="4.0" />
+	<template class="MegaTabWindow" parent="GtkWindow">
+		<!-- 改为窗口浮动样式 -->
+		<property name="decorated">true</property>
+		<property name="resizable">true</property>
+		<property name="default-width">800</property>
+		<property name="default-height">500</property>
+		<property name="modal">false</property>
+		<property name="can-focus">true</property>
+
+		<child>
+			<object class="GtkBox">
+				<property name="orientation">vertical</property>
+				<property name="spacing">10</property>
+				<property name="margin-top">20</property>
+				<property name="margin-bottom">10</property>
+				<property name="margin-start">10</property>
+				<property name="margin-end">10</property>
+				<property name="vexpand">true</property>
+				<property name="hexpand">true</property>
+
+				<child>
+					<object class="GtkBox">
+						<property name="orientation">horizontal</property>
+
+						<!-- Left Side for Preferences -->
+						<child>
+							<object class="GtkScrolledWindow">
+								<property name="hscrollbar-policy">never</property>
+
+								<property name="child">
+									<object class="GtkBox">
+										<property name="orientation">vertical</property>
+										<property name="valign">center</property>
+										<property name="hexpand">true</property>
+										<property name="vexpand">true</property>
+
+										<child>
+											<object class="AdwClamp">
+												<property name="maximum-size">400</property>
+												<property name="tightening-threshold">300</property>
+												<property name="child">
+													<object class="GtkBox">
+														<property name="orientation">vertical</property>
+														<property name="valign">center</property>
+														<property name="vexpand">True</property>
+														<property name="spacing">16</property>
+
+														<child>
+															<!-- Mega Controlling Settings -->
+															<object class="AdwPreferencesGroup">
+																<property name="title" translatable="yes">Mega Settings</property>
+																<property name="description" translatable="yes">Common options for mega</property>
+
+																<child>
+																	<object class="AdwSwitchRow">
+																		<property name="title" translatable="yes">Enable HTTP(s)</property>
+																		<property name="active">True</property>
+																	</object>
+																</child>
+																<child>
+																	<object class="AdwSwitchRow">
+																		<property name="title" translatable="yes">Enable SSH</property>
+																		<property name="active">True</property>
+																	</object>
+																</child>
+
+																<child>
+																	<object class="AdwActionRow">
+																		<property name="title" translatable="yes">Export Mega Settings</property>
+																		<child>
+																			<object class="GtkButton">
+																				<property name="valign">center</property>
+																				<property name="icon-name">monobean-save-symbolic</property>
+																				<style>
+																					<class name="flat" />
+																				</style>
+																			</object>
+																		</child>
+																	</object>
+																</child>
+															</object>
+														</child>
+
+														<child>
+															<!-- Fuse Controlling Settings -->
+															<object class="AdwPreferencesGroup">
+																<property name="title" translatable="yes">Fuse Settings</property>
+																<property name="description" translatable="yes">Common options for Fuse</property>
+																<child>
+																	<object class="AdwSwitchRow">
+																		<property name="title" translatable="yes">Force Read Only</property>
+																		<property name="active">True</property>
+																	</object>
+																</child>
+																<child>
+																	<object class="AdwActionRow">
+																		<property name="title" translatable="yes">Upload File</property>
+																		<child>
+																			<object class="GtkButton">
+																				<property name="valign">center</property>
+																				<child>
+																					<object class="GtkBox">
+																						<property name="spacing">6</property>
+																						<child>
+																							<object class="GtkImage">
+																								<property name="icon-name">monobean-upload-symbolic</property>
+																							</object>
+																						</child>
+																						<child>
+																							<object class="GtkLabel">
+																								<property name="ellipsize">middle</property>
+																							</object>
+																						</child>
+																					</object>
+																				</child>
+																			</object>
+																		</child>
+																		<child>
+																			<object class="GtkButton">
+																				<property name="valign">center</property>
+																				<property name="icon-name">monobean-trash-symbolic</property>
+																				<style>
+																					<class name="flat" />
+																				</style>
+																			</object>
+																		</child>
+																	</object>
+																</child>
+
+																<child>
+																	<object class="AdwActionRow">
+																		<property name="title" translatable="yes">Export to File</property>
+																		<child>
+																			<object class="GtkButton">
+																				<property name="valign">center</property>
+																				<property name="icon-name">monobean-archive-restore-symbolic</property>
+																				<style>
+																					<class name="flat" />
+																				</style>
+																			</object>
+																		</child>
+																	</object>
+																</child>
+															</object>
+														</child>
+
+													</object>
+
+
+												</property>
+											</object>
+										</child>
+									</object>
+								</property>
+
+							</object>
+						</child>
+
+						<!-- Right Side for Information Display -->
+						<child>
+							<object class="AdwCarousel" id="carousel">
+								<property name="orientation">vertical</property>
+								<property name="vexpand">True</property>
+								<property name="hexpand">True</property>
+								<child>
+									<object class="AdwStatusPage">
+										<property name="title">Mega is Running</property>
+										<property name="description">Mega core is running in the backend.</property>
+										<property name="icon-name">monobean-info-symbolic</property>
+										<property name="vexpand">true</property>
+										<property name="hexpand">true</property>
+										<property name="child">
+											<object class="GtkButton" id="toggle_mega">
+												<property name="label" translatable="yes">_Stop Mega</property>
+												<property name="can-shrink">True</property>
+												<property name="use-underline">True</property>
+												<property name="halign">center</property>
+												<style>
+													<class name="destructive-action" />
+													<class name="pill" />
+												</style>
+											</object>
+										</property>
+									</object>
+								</child>
+								<child>
+									<object class="AdwStatusPage">
+										<property name="title">Fuse is Running</property>
+										<property name="description">3 repository mounted.</property>
+										<property name="icon-name">monobean-hard-drive-symbolic</property>
+										<property name="vexpand">true</property>
+										<property name="hexpand">true</property>
+										<property name="child">
+											<object class="GtkButton" id="toggle_fuse">
+												<property name="label" translatable="yes">_Stop Fuse</property>
+												<property name="can-shrink">True</property>
+												<property name="use-underline">True</property>
+												<property name="halign">center</property>
+												<style>
+													<class name="destructive-action" />
+													<class name="pill" />
+												</style>
+											</object>
+										</property>
+									</object>
+								</child>
+							</object>
+						</child>
+
+						<!-- Utils: Indicator for carousels -->
+						<child>
+							<object class="AdwCarouselIndicatorDots">
+								<property name="carousel">carousel</property>
+								<property name="orientation" bind-source="carousel" bind-property="orientation" bind-flags="sync-create" />
+							</object>
+						</child>
+					</object>
+				</child>
+
+			</object>
+		</child>
+	</template>
+</interface>
