@@ -83,32 +83,34 @@ function LabelsPage() {
           description,
           color
         }
+      },
+      {
+        onSuccess: () => fetchLabelList(
+          {
+            data: {
+              additional: "",
+              pagination: {
+                page: 1,
+                per_page
+              }
+            }
+          },
+          {
+            onSuccess: (response) => {
+              const data = response.data
+
+              setLabelList(data?.items ?? [])
+              setNumTotal(data?.total ?? 0)
+              setQuery("")
+            },
+            onError: apiErrorToast
+          }
+        ),
+        onError: apiErrorToast
       }
     )
 
     setIsNewLabelDialogOpen(false);
-
-    fetchLabelList(
-      {
-        data: {
-          additional: "",
-          pagination: {
-            page: 1,
-            per_page
-          }
-        }
-      },
-      {
-        onSuccess: (response) => {
-          const data = response.data
-
-          setLabelList(data?.items ?? [])
-          setNumTotal(data?.total ?? 0)
-          setQuery("")
-        },
-        onError: apiErrorToast
-      }
-    )
   };
 
   return (

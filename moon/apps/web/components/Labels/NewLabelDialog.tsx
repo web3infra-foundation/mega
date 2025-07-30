@@ -27,6 +27,9 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
   const handleCreateLabel = () => {
     if (name.trim()) {
       onCreateLabel(name, description, color);
+      setName("")
+      setDescription("")
+      generateRandomColor()
       onClose();
     }
   };
@@ -76,7 +79,7 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">颜色</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
