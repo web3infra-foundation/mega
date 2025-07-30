@@ -215,10 +215,7 @@ async fn test_diff_with_pathspec() {
     create_file("file2.txt", "File 2 content\nLine 2\nLine 3\n");
     
     add::execute(AddArgs {
-        pathspec: vec![String::from(".")]
-        .iter()
-        .map(|s| s.to_string())
-        .collect(),
+        pathspec: vec![String::from(".")],
         all: false,
         update: false,
         verbose: false,
