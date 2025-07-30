@@ -4,8 +4,8 @@ import { ItemInput } from '@primer/react/lib/SelectPanel/types'
 import { MemberAvatar } from '@/components/MemberAvatar'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 
-import { tags } from './consts'
 import { extractTextArray } from './extractText'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 
 export const useAvatars = () => {
   const { members } = useSyncedMembers()
@@ -41,9 +41,11 @@ export const useMemberMap = () => {
 }
 
 export const useLabels = () => {
+  const { labels } = useGetLabelList()
+
   return useMemo(
     () =>
-      tags.map((i) => ({
+      labels.map((i) => ({
         text: i.description,
         leadingVisual: () => (
           <div
@@ -53,19 +55,21 @@ export const useLabels = () => {
           />
         )
       })),
-    []
+    [labels]
   )
 }
 
 export const useLabelMap = () => {
+  const { labels } = useGetLabelList()
+
   return useMemo(() => {
     const map = new Map()
 
-    tags.map((i) => {
+    labels.map((i) => {
       map.set(i.description, i)
     })
     return map
-  }, [])
+  }, [labels])
 }
 
 // assignees逻辑
