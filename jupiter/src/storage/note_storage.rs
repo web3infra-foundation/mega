@@ -49,8 +49,7 @@ impl NoteStorage {
         match save_note {
             Ok(model) => Ok(Some(model)),
             Err(e) => Err(MegaError::with_message(format!(
-                "Failed to save note: {}",
-                e
+                "Failed to save note: {e}",
             ))),
         }
     }
@@ -65,7 +64,8 @@ impl NoteStorage {
         let model = notes::Entity::find_by_id(id)
             .one(self.get_connection())
             .await?
-            .ok_or_else(|| MegaError::with_message(format!("Note with ID {} not found", id)))?;        let mut active_model: notes::ActiveModel = model.into();
+            .ok_or_else(|| MegaError::with_message(format!("Note with ID {id} not found")))?;
+        let mut active_model: notes::ActiveModel = model.into();
         active_model.description_html = Set(Some(description_html.to_string()));
         active_model.description_state = Set(Some(description_state.to_string()));
         active_model.description_schema_version = Set(description_schema_version);

@@ -1,6 +1,7 @@
 use sea_orm_migration::prelude::*;
 
 // Step 1: Define an enum to represent table names and all column names#[derive(Iden)]
+#[derive(Iden)]
 enum Notes {
     Table,
     Id,
