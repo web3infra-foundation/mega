@@ -136,7 +136,7 @@ async fn test_add_update_flag() {
     .await;
 
     // Modify both files
-    let mut file1 = fs::OpenOptions::new().write(true).open(tracked_file).unwrap();
+    let mut file1 = fs::OpenOptions::new().write(true).truncate(true).open(tracked_file).unwrap();
     file1.write_all(b" - Modified").unwrap();
     
     let mut file2 = fs::OpenOptions::new().write(true).open(untracked_file).unwrap();
