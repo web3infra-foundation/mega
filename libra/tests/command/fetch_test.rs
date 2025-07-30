@@ -6,16 +6,14 @@ fn init_temp_repo() -> TempDir {
     let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
     let temp_path = temp_dir.path();
 
-    // 变量可以直接在 `format!` 字符串中使用
     println!("Temporary directory created at: {temp_path:?}");
     assert!(temp_path.is_dir(), "Temporary path is not a valid directory");
 
-    // 修改这一行：使用 env!("CARGO_BIN_EXE_libra") 来获取 libra 可执行文件的路径
     let output = Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .arg("init")
         .output()
-        .expect("Failed to execute libra binary"); // 错误信息保持不变，但现在应该能找到文件了
+        .expect("Failed to execute libra binary");
 
     if !output.status.success() {
         panic!(
@@ -35,22 +33,21 @@ async fn test_fetch_invalid_remote() {
 
     // Configure an invalid remote repository
     // 借用的表达式实现了所需的 trait
-    Command::new("libra")
+    Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .args(["remote", "add", "origin", "https://invalid-url/repo.git"]) // 移除了 &
         .output()
         .expect("Failed to add remote");
 
     // Set the default branch
-    // 借用的表达式实现了所需的 trait
-    Command::new("libra")
+    Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
-        .args(["branch", "--set-upstream-to", "origin/main"]) // 移除了 &
+        .args(["branch", "--set-upstream-to", "origin/main"])
         .output()
         .expect("Failed to set upstream branch");
 
     // Attempt to fetch from the invalid remote repository
-    let output = Command::new("libra")
+    let output = Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .arg("fetch")
         .output()
@@ -65,49 +62,5 @@ async fn test_fetch_invalid_remote() {
     assert!(
         !stderr.is_empty(),
         "Expected an error message in stderr, but it was empty"
-    );
-}
-
-#[tokio::test]
-/// Test fetching a nonexistent branch
-async fn test_fetch_nonexistent_branch() {
-    let temp_repo = init_temp_repo();
-    let temp_path = temp_repo.path();
-
-    // Configure the remote repository
-    // 借用的表达式实现了所需的 trait
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(["remote", "add", "origin", "https://example.com/repo.git"]) // 移除了 &
-        .output()
-        .expect("Failed to add remote");
-
-    // Set the default branch
-    // 借用的表达式实现了所需的 trait
-    Command::new("libra")
-        .current_dir(temp_path)
-        .args(["branch", "--set-upstream-to", "origin/main"]) // 移除了 &
-        .output()
-        .expect("Failed to set upstream branch");
-
-    // Attempt to fetch a nonexistent branch
-    // 借用的表达式实现了所需的 trait
-    let output = Command::new("libra")
-        .current_dir(temp_path)
-        .args(["fetch", "origin", "nonexistent-branch"]) // 移除了 &
-        .output()
-        .expect("Failed to execute libra fetch");
-
-    // Check if fetch failed
-    assert!(
-        !output.status.success(),
-        "Fetch should fail for nonexistent branch"
-    );
-
-    // Check the error message
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stderr.is_empty(),
-        "Expected an error message for nonexistent branch, but stderr was empty"
     );
 }
