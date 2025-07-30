@@ -249,7 +249,7 @@ async fn test_remove_modified_file() {
     .await;
 
     // Modify the file
-    let mut file = fs::OpenOptions::new().write(true).open(&file_path).unwrap();
+    let mut file = fs::OpenOptions::new().write(true).truncate(true).open(&file_path).unwrap();
     file.write_all(b" - Modified").unwrap();
 
     // Remove the file
