@@ -152,12 +152,12 @@ async fn test_force_remove_untracked_file() {
 }
 
 async fn test_no_force_remove_untracked_file() {
-    println!("\n\x1b[1mTest force remove untracked file.\x1b[0m");
+    println!("\n\x1b[1mTest remove untracked file without force.\x1b[0m");
 
     // Create an untracked file
     test::ensure_file("untracked_file.txt", Some("untracked content"));
 
-    // Force remove untracked file
+    // remove untracked file without force
     let remove_args = remove::RemoveArgs {
         pathspec: vec!["untracked_file.txt".to_string()],
         cached: false,
