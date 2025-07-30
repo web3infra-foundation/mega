@@ -137,14 +137,14 @@ impl CodePage {
                 .expect("Needs to be ListItem")
                 .item()
                 .and_downcast::<HistoryItem>()
-                .expect("模型应为 HistoryItem");
+                .expect("Model should be HistoryItem");
 
             let label = list_item
                 .downcast_ref::<ListItem>()
                 .expect("Needs to be ListItem")
                 .child()
                 .and_downcast::<Label>()
-                .expect("子控件必须是 Label");
+                .expect("Child widget must be a Label");
 
             label.set_label(&obj.text()); // 获取属性
         });

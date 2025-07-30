@@ -1,14 +1,13 @@
 use crate::application::Action;
 use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
-use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
+use adw::glib::{clone, timeout_future, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
 use gtk::glib::random_int_range;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
-use std::thread::sleep;
 use std::time::Duration;
 use tokio::sync::oneshot;
 
@@ -290,9 +289,14 @@ impl HelloPage {
             self.imp().email_entry.text()
         );
 
-        // still need sonetime to init megacore?(maybe)
-        sleep(Duration::from_millis(1500));
-        self.setup_pgp();
+        glib::MainContext::default().spawn_local(clone!(
+            #[weak(rename_to=this)]
+            self,
+            async move {
+                timeout_future(Duration::from_millis(1500)).await;
+                this.setup_pgp();
+            }
+        ));
     }
 }
 
