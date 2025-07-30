@@ -1,7 +1,6 @@
 use super::*;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
 
 use libra::command::diff::{self, DiffArgs};
 
@@ -32,6 +31,7 @@ async fn test_basic_diff() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -40,14 +40,14 @@ async fn test_basic_diff() {
 
     // Create initial commit
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Modify the file
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
@@ -81,6 +81,7 @@ async fn test_diff_staged() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -89,14 +90,14 @@ async fn test_diff_staged() {
 
     // Create initial commit
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Modify the file and stage it
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
@@ -105,6 +106,7 @@ async fn test_diff_staged() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -143,6 +145,7 @@ async fn test_diff_between_commits() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -150,14 +153,14 @@ async fn test_diff_between_commits() {
     .await;
 
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Get the first commit hash
     let first_commit = Head::current_commit().await.unwrap();
@@ -169,6 +172,7 @@ async fn test_diff_between_commits() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -176,14 +180,14 @@ async fn test_diff_between_commits() {
     .await;
 
     commit::execute(CommitArgs {
-        message: Some("Second commit".to_string()),
+        message: "Second commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Get the second commit hash
     let second_commit = Head::current_commit().await.unwrap();
@@ -218,6 +222,7 @@ async fn test_diff_with_pathspec() {
         pathspec: vec![String::from(".")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -225,14 +230,14 @@ async fn test_diff_with_pathspec() {
     .await;
 
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Modify both files
     modify_file("file1.txt", "File 1 modified\nLine 2\nLine 3 changed\n");
@@ -267,6 +272,7 @@ async fn test_diff_output_to_file() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -274,14 +280,14 @@ async fn test_diff_output_to_file() {
     .await;
 
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Modify the file
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
@@ -326,6 +332,7 @@ async fn test_diff_algorithms() {
         pathspec: vec![String::from("file1.txt")],
         all: false,
         update: false,
+        refresh: false,
         verbose: false,
         dry_run: false,
         ignore_errors: false,
@@ -333,14 +340,14 @@ async fn test_diff_algorithms() {
     .await;
 
     commit::execute(CommitArgs {
-        message: Some("Initial commit".to_string()),
+        message: "Initial commit".to_string(),
         allow_empty: false,
-        all: false,
+        conventional: false,
         amend: false,
         signoff: false,
+        disable_pre: false,
     })
-    .await
-    .unwrap();
+    .await;
 
     // Make complex changes to test different algorithms
     modify_file(
