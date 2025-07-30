@@ -10,11 +10,12 @@ fn init_temp_repo() -> TempDir {
     println!("Temporary directory created at: {temp_path:?}");
     assert!(temp_path.is_dir(), "Temporary path is not a valid directory");
 
-    let output = Command::new("libra")
+    // 修改这一行：使用 env!("CARGO_BIN_EXE_libra") 来获取 libra 可执行文件的路径
+    let output = Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .arg("init")
         .output()
-        .expect("Failed to execute libra binary");
+        .expect("Failed to execute libra binary"); // 错误信息保持不变，但现在应该能找到文件了
 
     if !output.status.success() {
         panic!(
@@ -25,7 +26,6 @@ fn init_temp_repo() -> TempDir {
 
     temp_dir
 }
-
 
 #[tokio::test]
 /// Test fetching from an invalid remote repository
