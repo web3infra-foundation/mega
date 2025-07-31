@@ -4,8 +4,9 @@ import { ItemInput } from '@primer/react/lib/SelectPanel/types'
 import { MemberAvatar } from '@/components/MemberAvatar'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 
-import { tags } from './consts'
 import { extractTextArray } from './extractText'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
+import { LabelItem } from '@gitmono/types'
 
 export const useAvatars = () => {
   const { members } = useSyncedMembers()
@@ -41,10 +42,13 @@ export const useMemberMap = () => {
 }
 
 export const useLabels = () => {
+  const { labels } = useGetLabelList()
+
   return useMemo(
     () =>
-      tags.map((i) => ({
-        text: i.description,
+      labels.map((i) => ({
+        text: `${i.name}`,
+        id: i.id,
         leadingVisual: () => (
           <div
             className='h-[14px] w-[14px] rounded-full border'
@@ -53,19 +57,21 @@ export const useLabels = () => {
           />
         )
       })),
-    []
+    [labels]
   )
 }
 
 export const useLabelMap = () => {
+  const { labels } = useGetLabelList()
+
   return useMemo(() => {
     const map = new Map()
 
-    tags.map((i) => {
-      map.set(i.description, i)
+    labels.forEach((i) => {
+      map.set(i.name, i)
     })
     return map
-  }, [])
+  }, [labels])
 }
 
 // assignees逻辑
@@ -149,5 +155,59 @@ export const useChange = ({ title = 'Close issue' }: { title?: string }) => {
     needComment,
     handleChange,
     handleCloseChange
+  }
+}
+
+export const useLabelsSelector = ({
+  labels,
+  updateLabelsRequest,
+  labelList
+}: {
+  labels: LabelItem[]
+  updateLabelsRequest: (selected_id: number[]) => void
+  labelList: ReturnType<typeof useLabels>
+}) => {
+  const selectRef = useRef<number[]>([])
+  let selects: number[] = labels.map((i) => i.id)
+  const shouldFetch = useRef(false)
+  const [open, setOpen] = useState(false)
+
+  const handleLabels = (selected: ItemInput[]) => {
+    selects = [...selected.map((i) => i.id).filter((t): t is number => typeof t === 'number')]
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (selectRef.current.length !== selects.length) {
+      shouldFetch.current = true
+    } else {
+      const set = new Set(selects)
+
+      for (let i = 0; i < selectRef.current.length; i++) {
+        if (!set.has(selectRef.current[i])) {
+          shouldFetch.current = true
+          break
+        }
+      }
+    }
+
+    setOpen(open)
+    if (!open && shouldFetch.current) {
+      selectRef.current = selects
+      updateLabelsRequest(selectRef.current)
+      setTimeout(() => (shouldFetch.current = false), 0)
+    }
+  }
+
+  const fetchSelected = useMemo(() => {
+    const set = new Set(selectRef.current.length ? selectRef.current : selects)
+
+    return labelList.filter((label) => set.has(label.id))
+  }, [selectRef, labelList, selects])
+
+  return {
+    open,
+    handleLabels,
+    handleOpenChange,
+    fetchSelected
   }
 }

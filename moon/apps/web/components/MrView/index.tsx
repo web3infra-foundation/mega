@@ -30,10 +30,11 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
 import { AdditionType, RightAvatar } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
-import { orderTags, reviewTags, tags } from '../Issues/utils/consts'
+import { orderTags, reviewTags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
 import { filterAtom, mrCloseCurrentPage, mrOpenCurrentPage, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 
 // interface MrInfoItem {
 //   link: string
@@ -58,6 +59,7 @@ export default function MrView() {
   const { mutate: fetchMrList } = usePostMrList()
   const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPickerMR' }))
   const { members } = useSyncedMembers()
+  const { labels: labelList } = useGetLabelList()
 
   const orderAtom = useMemo(
     () => atomWithWebStorage(`${scope}:mr-order`, { sort: 'Created On', time: 'Newest' }),
@@ -319,7 +321,7 @@ export default function MrView() {
 
   const member = generateAllMenuItems(members, MemberConfig)
 
-  const labels = generateAllMenuItems(tags, LabelConfig)
+  const labels = generateAllMenuItems(labelList, LabelConfig)
 
   const orders = generateAllMenuItems(orderTags, OrderConfig)
 

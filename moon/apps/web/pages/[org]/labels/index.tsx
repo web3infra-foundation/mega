@@ -1,24 +1,29 @@
-import React, { AwaitedReactNode, JSX, ReactElement, ReactNode, ReactPortal, useCallback, useEffect, useState } from 'react'
-import { colord } from 'colord'
-import { useRouter } from 'next/router'
-import { useDebounce } from 'use-debounce'
+import React, { AwaitedReactNode, JSX, ReactElement, ReactNode, ReactPortal, useCallback, useEffect, useState } from 'react';
+import { Colord, colord } from 'colord';
+import { useRouter } from 'next/router';
+import { useDebounce } from 'use-debounce';
+import { LabelItem } from '@gitmono/types'
+import { Button, cn, LazyLoadingSpinner, SearchIcon } from '@gitmono/ui';
+import { IndexPageContainer, IndexPageContent } from '@/components/IndexPages/components';
+import { IssueList as LabelList, ListItem } from '@/components/Issues/IssueList';
+import { Pagination } from '@/components/Issues/Pagenation';
+import { labelsOpenCurrentPage } from '@/components/Issues/utils/store';
+import { AppLayout } from '@/components/Layout/AppLayout';
+import { Heading } from '@/components/MrView/catalyst/heading';
+import AuthAppProviders from '@/components/Providers/AuthAppProviders';
+import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar';
+import { useScope } from '@/contexts/scope';
+import { usePostLabelList } from '@/hooks/usePostLabelList';
+import { apiErrorToast } from '@/utils/apiErrorToast';
+import { NewLabelDialog } from '@/components/Labels/NewLabelDialog'
+import { usePostLabelNew } from '@/hooks/usePostLabelNew'
+import { atomFamily } from 'jotai/utils'
+import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
+import { useAtom } from 'jotai'
 
-import { PostApiLabelListData } from '@gitmono/types'
-import {Button, cn, LazyLoadingSpinner, SearchIcon} from '@gitmono/ui'
-
-import { IndexPageContainer, IndexPageContent } from '@/components/IndexPages/components'
-import { IssueList as LabelList, ListItem } from '@/components/Issues/IssueList'
-import { Pagination } from '@/components/Issues/Pagenation'
-import { labelsOpenCurrentPage } from '@/components/Issues/utils/store'
-import { AppLayout } from '@/components/Layout/AppLayout'
-import { Heading } from '@/components/MrView/catalyst/heading'
-import AuthAppProviders from '@/components/Providers/AuthAppProviders'
-import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
-import { useScope } from '@/contexts/scope'
-import { usePostLabelList } from '@/hooks/usePostLabelList'
-import { apiErrorToast } from '@/utils/apiErrorToast'
-
-type ItemsType = NonNullable<PostApiLabelListData['data']>['items']
+const labelListAtom = atomFamily((scope: string) =>
+  atomWithWebStorage<LabelItem[]>(`${scope}:issue-label`, [])
+)
 
 function LabelsPage() {
   const router = useRouter()
@@ -28,29 +33,21 @@ function LabelsPage() {
   const [queryDebounced] = useDebounce(query, 150)
   const [isLoading, setIsLoading] = useState(false)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
-
-  const handleQuery = () => {
-    setIsSearchLoading(true)
-    setShowLabelList(
-      () =>
-        labelList.filter((i) =>
-          i.name.toLowerCase().includes(queryDebounced.toLowerCase())))
-    setIsSearchLoading(false)
-  }
-
-  const [labelList, setLabelList] = useState<ItemsType>([])
-  const [showLabelList, setShowLabelList] = useState<ItemsType>([])
+  
+  const [labelList, setLabelList] = useAtom(labelListAtom(`${scope}`))
   const [numTotal, setNumTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [per_page] = useState(20)
   const { mutate: fetchLabelList } = usePostLabelList()
+  const { mutate: postNewLabel } = usePostLabelNew()
   const fetchLabels = useCallback(() => {
     setIsLoading(true)
-
+    setIsSearchLoading(true)
+    
     fetchLabelList(
       {
         data: {
-          additional: 'string',
+          additional: queryDebounced,
           pagination: {
             page,
             per_page
@@ -62,18 +59,59 @@ function LabelsPage() {
           const data = response.data
 
           setLabelList(data?.items ?? [])
-          setShowLabelList(data?.items ?? [])
           setNumTotal(data?.total ?? 0)
         },
         onError: apiErrorToast,
-        onSettled: () => setIsLoading(false)
+        onSettled: () => {
+          setIsLoading(false)
+          setIsSearchLoading(false)
+        }
       }
     )
-  }, [page, per_page, fetchLabelList])
+  }, [fetchLabelList, queryDebounced, page, per_page, setLabelList])
 
   useEffect(() => {
     fetchLabels()
   }, [fetchLabels])
+
+  const [isNewLabelDialogOpen, setIsNewLabelDialogOpen] = useState(false);
+  const handleCreateLabel = (name: string, description: string, color: string) => {
+    postNewLabel(
+      {
+        data: {
+          name,
+          description,
+          color
+        }
+      },
+      {
+        onSuccess: () => fetchLabelList(
+          {
+            data: {
+              additional: "",
+              pagination: {
+                page: 1,
+                per_page
+              }
+            }
+          },
+          {
+            onSuccess: (response) => {
+              const data = response.data
+
+              setLabelList(data?.items ?? [])
+              setNumTotal(data?.total ?? 0)
+              setQuery("")
+            },
+            onError: apiErrorToast
+          }
+        ),
+        onError: apiErrorToast
+      }
+    )
+
+    setIsNewLabelDialogOpen(false);
+  };
 
   return (
     <>
@@ -97,13 +135,6 @@ function LabelsPage() {
                   onChange={(e) => {
                     setQuery(e.target.value)
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleQuery()
-                    }
-                  }}
                 />
                 <span className='text-tertiary flex h-5 w-5 items-center justify-center'>
                   <div className='border-l !border-l-[#d1d9e0]'>
@@ -113,10 +144,18 @@ function LabelsPage() {
                   </div>
                 </span>
               </div>
+              <Button
+                variant='primary'
+                className='bg-[#1f883d]'
+                size={'base'}
+                onClick={() => setIsNewLabelDialogOpen(true)}
+              >
+                New Label
+              </Button>
             </BreadcrumbTitlebar>
             <LabelList
               isLoading={isLoading}
-              Issuelists={showLabelList}
+              Issuelists={labelList}
               header={
                 <BreadcrumbTitlebar className='justify-between bg-gray-100 pl-3 pr-3'>
                   <span className='p-2 font-medium'>{numTotal} labels</span>
@@ -125,15 +164,23 @@ function LabelsPage() {
             >
               {(labels) => {
                 return labels.map((label) => {
-                  const fontColor = colord(label.color).lighten(0.5).toHex()
+                  const isDark = colord(label.color).isDark()
+                  let fontColor: Colord | string = colord(label.color)
+
+                  if(isDark) fontColor = fontColor.lighten(0.4).toHex()
+                  else fontColor = fontColor.darken(0.5).toHex()
 
                   return (
                     <ListItem
                       key={label.id}
                       title={''}
                       onClick={() => router.push(`/${scope}/issue?q=label:${label.name}`)}
+                      rightIcon={
+                        <div className='self-auto text-center text-gray-500 text-sm'>
+                          {label.description}
+                        </div>
+                      }
                     >
-                      <div className='flex items-center gap-2'>
                         <div
                           style={{
                             backgroundColor: label.color,
@@ -142,17 +189,13 @@ function LabelsPage() {
                             borderRadius: '16px',
                             padding: '2px 8px',
                             fontSize: '12px',
-                            fontWeight: '500',
+                            fontWeight: '700',
                             justifyContent: 'center',
                             textAlign: 'center'
                           }}
                         >
                           {label.name}
                         </div>
-                        <div className='flex-1 text-center'>
-                          <span className='text-gray-500'>description: {label.description}</span>
-                        </div>
-                      </div>
                     </ListItem>
                   )
                 })
@@ -169,6 +212,12 @@ function LabelsPage() {
           </IndexPageContent>
         </IndexPageContainer>
       </div>
+
+      <NewLabelDialog
+        isOpen={isNewLabelDialogOpen}
+        onClose={() => setIsNewLabelDialogOpen(false)}
+        onCreateLabel={handleCreateLabel}
+      />
     </>
   )
 }

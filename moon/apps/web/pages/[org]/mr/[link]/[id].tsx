@@ -20,7 +20,7 @@ import {
   useAvatars,
   useChange,
   useLabelMap,
-  useLabels,
+  useLabels, useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -42,6 +42,7 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
+import { usePostMRLabels } from '@/hooks/usePostMRLabels'
 
 const { UnderlinePanels } = require('@primer/react/experimental')
 
@@ -61,7 +62,8 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const { data: MrDetailData, isLoading: detailIsLoading, refetch } = useGetMrDetail(id)
   const mrDetail = MrDetailData?.data as MRDetail | undefined
   const { closeHint, needComment, handleChange } = useChange({ title: 'Close Merge Request' })
-  const { mutate: mrAssgnees } = usePostMRAssignees()
+  const { mutate: mrAssignees } = usePostMRAssignees()
+  const { mutate: mrLabels } = usePostMRLabels()
 
   if (mrDetail && typeof mrDetail.status === 'string') {
     mrDetail.status = mrDetail.status.toLowerCase()
@@ -146,7 +148,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const { open, handleAssignees, handleOpenChange, fetchSelected } = useAssigneesSelector({
     assignees: MrDetailData?.data?.assignees ?? [],
     assignRequest: (selected) =>
-      mrAssgnees(
+      mrAssignees(
         {
           data: {
             link: id,
@@ -163,6 +165,33 @@ const MRDetailPage: PageWithLayout<any> = () => {
         }
       ),
     avatars
+  })
+  const {
+    open: label_open,
+    handleLabels,
+    handleOpenChange: label_handleOpenChange,
+    fetchSelected: label_fetchSelected
+  } = useLabelsSelector({
+    labelList: labels,
+    labels: MrDetailData?.data?.labels ?? [],
+    updateLabelsRequest: (selected) => {
+      mrLabels(
+        {
+          data: {
+            item_id: Number(item_id),
+            label_ids: selected,
+            link: `${tempId}`
+          }
+        },
+        {
+          onSuccess: async () => {
+            editorRef.current?.clearAndBlur()
+            await refetch({ throwOnError: true })
+          },
+          onError: apiErrorToast
+        }
+      )
+    }
   })
 
   return (
@@ -289,7 +318,15 @@ const MRDetailPage: PageWithLayout<any> = () => {
                     )
                   }}
                 </BadgeItem>
-                <BadgeItem selectPannelProps={{ title: 'Apply labels to this issue' }} items={labels} title='Labels'>
+                <BadgeItem
+                  selectPannelProps={{ title: 'Apply labels to this issue' }}
+                  items={labels}
+                  title='Labels'
+                  handleGroup={(selected) => handleLabels(selected)}
+                  open={label_open}
+                  onOpenChange={(open) => label_handleOpenChange(open)}
+                  selected={label_fetchSelected}
+                >
                   {(el) => {
                     const names = splitFun(el)
 
