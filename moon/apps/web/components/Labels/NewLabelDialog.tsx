@@ -1,7 +1,8 @@
 // components/Labels/NewLabelDialog.tsx
 import React, { useState } from 'react';
 import { Button, Dialog, TextField, RefreshIcon } from '@gitmono/ui';
-import { colord, random } from 'colord';
+import { random } from 'colord';
+import { getFontColor } from '@/utils/getFontColor'
 
 interface NewLabelDialogProps {
   isOpen: boolean;
@@ -14,11 +15,7 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
-  const isDark = colord(color).isDark();
-  let fontColor = colord(color);
-
-  if(isDark) fontColor = fontColor.lighten(0.4);
-  else fontColor = fontColor.darken(0.5);
+  const fontColor = getFontColor(color)
 
   const generateRandomColor = () => {
     setColor(random().toHex());
@@ -47,11 +44,10 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
               style={{
                 backgroundColor: color,
                 color: fontColor.toHex(),
-                border: `1px solid ${fontColor.toHex()}`,
                 borderRadius: '16px',
                 padding: '2px 8px',
                 fontSize: '12px',
-                fontWeight: '700',
+                fontWeight: '600',
                 display: 'inline-block',
                 textAlign: 'center'
               }}
