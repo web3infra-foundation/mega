@@ -11,6 +11,7 @@ use crate::migration::apply_migrations;
 use crate::service::issue_service::IssueService;
 use crate::service::mr_service::MRService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::storage::note_storage::NoteStorage;
 use crate::storage::{
     conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
     issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage,
@@ -56,6 +57,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         vault_storage: VaultStorage { base: base.clone() },
         conversation_storage: ConversationStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
+        note_storage: NoteStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
