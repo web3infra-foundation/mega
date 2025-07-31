@@ -42,7 +42,7 @@ async fn test_remove_single_file() {
     assert!(file_path.exists(), "File should exist before removal");
 
     // Remove the file
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "test_file.txt"
     ]).unwrap();
     remove::execute(args).unwrap();
@@ -86,7 +86,7 @@ async fn test_remove_cached() {
     assert!(file_path.exists(), "File should exist before removal");
 
     // Remove the file with --cached flag
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "--cached", "test_file.txt"
     ]).unwrap();
     remove::execute(args).unwrap();
@@ -132,7 +132,7 @@ async fn test_remove_directory_recursive() {
     assert!(file3.exists(), "File 3 should exist");
 
     // Remove the directory recursively
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "--recursive", "test_dir"
     ]).unwrap();
     remove::execute(args).unwrap();
@@ -186,7 +186,7 @@ async fn test_remove_directory_without_recursive() {
     assert!(file2.exists(), "File 2 should exist");
 
     // Attempt to remove the directory without recursive flag
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "test_dir"
     ]).unwrap();
     remove::execute(args).unwrap(); // This should not error, but it should not remove anything either
@@ -212,7 +212,7 @@ async fn test_remove_untracked_file() {
     assert!(file_path.exists(), "File should exist");
 
     // Attempt to remove the untracked file (should fail/do nothing)
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "untracked_file.txt"
     ]).unwrap();
     remove::execute(args).unwrap(); // Should not panic but should print error
@@ -248,7 +248,7 @@ async fn test_remove_modified_file() {
     file.write_all(b" - Modified").unwrap();
 
     // Remove the file
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "test_file.txt"
     ]).unwrap();
     remove::execute(args).unwrap();
@@ -297,7 +297,7 @@ async fn test_remove_multiple_files() {
     assert!(file3.exists(), "File 3 should exist");
 
     // Remove multiple files at once
-    let args = RemoveArgs::parse_from([
+    let args = DiffArgs::try_parse_from([
         "remove", "file1.txt", "file3.txt"
     ]).unwrap();
     remove::execute(args).unwrap();
