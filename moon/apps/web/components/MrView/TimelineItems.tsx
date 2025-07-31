@@ -87,6 +87,10 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string }> = ({ de
         icon = <CommentIcon />
         children = <MRComment conv={conv} id={id} whoamI={type} />
         break
+      case 'Label':
+        icon = <CommentIcon />
+        children = <MRComment conv={conv} id={id} whoamI={type}/>
+        break
     }
 
     return { badge: icon, children, isOver, id: conv.id }
