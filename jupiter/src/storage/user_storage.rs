@@ -66,7 +66,7 @@ impl UserStorage {
     }
 
     pub async fn list_user_ssh(&self, user_id: String) -> Result<Vec<ssh_keys::Model>, MegaError> {
-        let res = ssh_keys::Entity::find()
+        let res: Vec<ssh_keys::Model> = ssh_keys::Entity::find()
             .filter(ssh_keys::Column::UserId.eq(user_id))
             .all(self.get_connection())
             .await?;
