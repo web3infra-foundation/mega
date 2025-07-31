@@ -20,7 +20,7 @@ use jupiter::storage::{
     conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
     user_storage::UserStorage, Storage,
 };
-
+use jupiter::storage::note_storage::NoteStorage;
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 
 pub mod api_common;
@@ -32,6 +32,7 @@ pub mod label;
 pub mod lfs;
 pub mod mr;
 pub mod oauth;
+pub mod notes;
 pub mod user;
 
 pub type GithubClient<
@@ -106,6 +107,10 @@ impl MonoApiServiceState {
 
     fn conv_stg(&self) -> ConversationStorage {
         self.storage.conversation_storage()
+    }
+
+    fn note_stg(&self) -> NoteStorage {
+        self.storage.note_storage()
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
