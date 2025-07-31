@@ -89,7 +89,7 @@ async fn test_merge_remote_branch() {
     let temp_path = temp_repo.path();
 
     // Simulate adding a remote branch
-    // FIX: 移除 &
+    // FIX: Remove &
     Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .args(["remote", "add", "origin", "https://example.com/repo.git"])
