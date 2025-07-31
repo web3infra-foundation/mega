@@ -53,15 +53,10 @@ async fn test_basic_diff() {
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
 
     // Run diff command
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("histogram".to_string()),
-        output: None,
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "histogram"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // We can't easily capture stdout, so we'll check that the command didn't panic
 }
@@ -117,15 +112,10 @@ async fn test_diff_staged() {
     modify_file("file1.txt", "Modified content again\nLine 2\nLine 3 changed again\n");
 
     // Run diff command with --staged flag
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: true,
-        pathspec: vec![],
-        algorithm: Some("histogram".to_string()),
-        output: None,
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--staged", "--algorithm", "histogram"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // The command should complete without panicking
 }
@@ -193,15 +183,10 @@ async fn test_diff_between_commits() {
     let second_commit = Head::current_commit().await.unwrap();
 
     // Run diff command comparing the two commits
-    diff::execute(DiffArgs {
-        old: Some(first_commit.to_string()),
-        new: Some(second_commit.to_string()),
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("histogram".to_string()),
-        output: None,
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--old", &first_commit.to_string(), "--new", &second_commit.to_string(), "--algorithm", "histogram"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // The command should complete without panicking
 }
@@ -244,15 +229,10 @@ async fn test_diff_with_pathspec() {
     modify_file("file2.txt", "File 2 modified\nLine 2\nLine 3 changed\n");
 
     // Run diff command with specific file path
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![String::from("file1.txt")],
-        algorithm: Some("histogram".to_string()),
-        output: None,
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "histogram", "file1.txt"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // The command should complete without panicking
 }
@@ -296,15 +276,10 @@ async fn test_diff_output_to_file() {
     let output_file = "diff_output.txt";
 
     // Run diff command with output to file
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("histogram".to_string()),
-        output: Some(output_file.to_string()),
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "histogram", "--output", output_file
+    ]).unwrap();
+    diff::execute(args).await;
 
     // Verify the output file exists
     assert!(fs::metadata(output_file).is_ok(), "Output file should exist");
@@ -356,37 +331,22 @@ async fn test_diff_algorithms() {
     );
 
     // Test histogram algorithm
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("histogram".to_string()),
-        output: Some("histogram_diff.txt".to_string()),
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "histogram", "--output", "histogram_diff.txt"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // Test myers algorithm
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("myers".to_string()),
-        output: Some("myers_diff.txt".to_string()),
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "myers", "--output", "myers_diff.txt"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // Test myersMinimal algorithm
-    diff::execute(DiffArgs {
-        old: None,
-        new: None,
-        staged: false,
-        pathspec: vec![],
-        algorithm: Some("myersMinimal".to_string()),
-        output: Some("myersMinimal_diff.txt".to_string()),
-    })
-    .await;
+    let args = DiffArgs::try_parse_from([
+        "diff", "--algorithm", "myersMinimal", "--output", "myersMinimal_diff.txt"
+    ]).unwrap();
+    diff::execute(args).await;
 
     // Verify all output files exist
     assert!(fs::metadata("histogram_diff.txt").is_ok(), "Histogram output file should exist");

@@ -43,8 +43,8 @@ async fn test_add_multiple_files() {
 
     // Create multiple files
     for i in 1..=3 {
-        let file_content = format!("File content {}", i);
-        let file_path = format!("test_file_{}.txt", i);
+        let file_content = format!("File content {i}");
+        let file_path = format!("test_file_{i}.txt");
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(file_content.as_bytes()).unwrap();
     }
@@ -82,8 +82,8 @@ async fn test_add_all_flag() {
 
     // Create multiple files
     for i in 1..=3 {
-        let file_content = format!("File content {}", i);
-        let file_path = format!("test_file_{}.txt", i);
+        let file_content = format!("File content {i}");
+        let file_path = format!("test_file_{i}.txt");
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(file_content.as_bytes()).unwrap();
     }

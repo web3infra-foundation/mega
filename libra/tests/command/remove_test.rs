@@ -42,12 +42,10 @@ async fn test_remove_single_file() {
     assert!(file_path.exists(), "File should exist before removal");
 
     // Remove the file
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("test_file.txt")],
-        cached: false,
-        recursive: false,
-    })
-    .unwrap();
+    let args = RemoveArgs::try_parse_from([
+        "remove", "test_file.txt"
+    ]).unwrap();
+    remove::execute(args).unwrap();
 
     // Verify the file was removed from the filesystem
     assert!(!file_path.exists(), "File should be removed from filesystem");
@@ -88,12 +86,10 @@ async fn test_remove_cached() {
     assert!(file_path.exists(), "File should exist before removal");
 
     // Remove the file with --cached flag
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("test_file.txt")],
-        cached: true,
-        recursive: false,
-    })
-    .unwrap();
+    let args = RemoveArgs::try_parse_from([
+        "remove", "--cached", "test_file.txt"
+    ]).unwrap();
+    remove::execute(args).unwrap();
 
     // Verify the file still exists in the filesystem
     assert!(file_path.exists(), "File should still exist in filesystem");
@@ -136,15 +132,13 @@ async fn test_remove_directory_recursive() {
     assert!(file3.exists(), "File 3 should exist");
 
     // Remove the directory recursively
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("test_dir")],
-        cached: false,
-        recursive: true,
-    })
-    .unwrap();
+    let args = RemoveArgs::try_parse_from([
+        "remove", "--recursive", "test_dir"
+    ]).unwrap();
+    remove::execute(args).unwrap();
 
     // Verify the directory and files were removed
-    assert!(!fs::metadata("test_dir").is_ok(), "Directory should be removed");
+    assert!(fs::metadata("test_dir").is_err(), "Directory should be removed");
     assert!(!file1.exists(), "File 1 should be removed");
     assert!(!file2.exists(), "File 2 should be removed");
     assert!(!file3.exists(), "File 3 should be removed");
@@ -192,12 +186,10 @@ async fn test_remove_directory_without_recursive() {
     assert!(file2.exists(), "File 2 should exist");
 
     // Attempt to remove the directory without recursive flag
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("test_dir")],
-        cached: false,
-        recursive: false,
-    })
-    .unwrap(); // This should not error, but it should not remove anything either
+    let args = RemoveArgs::try_parse_from([
+        "remove", "test_dir"
+    ]).unwrap();
+    remove::execute(args).unwrap(); // This should not error, but it should not remove anything either
 
     // Verify the directory and files still exist
     assert!(fs::metadata("test_dir").is_ok(), "Directory should still exist");
@@ -220,12 +212,10 @@ async fn test_remove_untracked_file() {
     assert!(file_path.exists(), "File should exist");
 
     // Attempt to remove the untracked file (should fail/do nothing)
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("untracked_file.txt")],
-        cached: false,
-        recursive: false,
-    })
-    .unwrap(); // Should not panic but should print error
+    let args = RemoveArgs::try_parse_from([
+        "remove", "untracked_file.txt"
+    ]).unwrap();
+    remove::execute(args).unwrap(); // Should not panic but should print error
 
     // Verify the file still exists
     assert!(file_path.exists(), "File should still exist");
@@ -258,12 +248,10 @@ async fn test_remove_modified_file() {
     file.write_all(b" - Modified").unwrap();
 
     // Remove the file
-    remove::execute(RemoveArgs {
-        pathspec: vec![String::from("test_file.txt")],
-        cached: false,
-        recursive: false,
-    })
-    .unwrap();
+    let args = RemoveArgs::try_parse_from([
+        "remove", "test_file.txt"
+    ]).unwrap();
+    remove::execute(args).unwrap();
 
     // Verify the file was removed
     assert!(!file_path.exists(), "File should be removed");
@@ -309,15 +297,10 @@ async fn test_remove_multiple_files() {
     assert!(file3.exists(), "File 3 should exist");
 
     // Remove multiple files at once
-    remove::execute(RemoveArgs {
-        pathspec: vec![
-            String::from("file1.txt"),
-            String::from("file3.txt"),
-        ],
-        cached: false,
-        recursive: false,
-    })
-    .unwrap();
+    let args = RemoveArgs::try_parse_from([
+        "remove", "file1.txt", "file3.txt"
+    ]).unwrap();
+    remove::execute(args).unwrap();
 
     // Verify the specified files were removed
     assert!(!file1.exists(), "File 1 should be removed");
