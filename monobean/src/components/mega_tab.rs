@@ -6,8 +6,8 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 
 glib::wrapper! {
-    pub struct MegaTab(ObjectSubclass<imp::MegaTab>)
-        @extends gtk::Widget, gtk::Box,
+    pub struct MegaTabWindow(ObjectSubclass<imp::MegaTabWindow>)
+        @extends gtk::Widget, gtk::Window,
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
@@ -17,8 +17,8 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/mega_tab.ui")]
-    pub struct MegaTab {
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/mega_tab_window.ui")]
+    pub struct MegaTabWindow {
         #[template_child]
         pub toggle_mega: TemplateChild<Button>,
         #[template_child]
@@ -26,10 +26,10 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MegaTab {
-        const NAME: &'static str = "MegaTab";
-        type Type = super::MegaTab;
-        type ParentType = gtk::Box;
+    impl ObjectSubclass for MegaTabWindow {
+        const NAME: &'static str = "MegaTabWindow";
+        type Type = super::MegaTabWindow;
+        type ParentType = gtk::Window;
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
@@ -40,7 +40,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for MegaTab {
+    impl ObjectImpl for MegaTabWindow {
         fn constructed(&self) {
             const DESTRUCTIVE: &str = "destructive-action";
             const SUGGESTED: &str = "suggested-action";
@@ -71,17 +71,17 @@ mod imp {
             });
         }
     }
-    impl WidgetImpl for MegaTab {}
-    impl BoxImpl for MegaTab {}
+    impl WidgetImpl for MegaTabWindow {}
+    impl WindowImpl for MegaTabWindow {}
 }
 
-impl MegaTab {
+impl MegaTabWindow {
     pub fn new() -> Self {
         glib::Object::new()
     }
 }
 
-impl Default for MegaTab {
+impl Default for MegaTabWindow {
     fn default() -> Self {
         Self::new()
     }
