@@ -2,7 +2,13 @@ import React from 'react'
 
 import '@primer/primitives/dist/css/functional/themes/light.css'
 
-import { CommentIcon, FeedMergedIcon, FeedPullRequestClosedIcon, FeedPullRequestOpenIcon } from '@primer/octicons-react'
+import {
+  CommentIcon,
+  FeedMergedIcon,
+  FeedPullRequestClosedIcon,
+  FeedPullRequestOpenIcon,
+  FeedTagIcon
+} from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 
 import { ConversationItem } from '@gitmono/types/generated'
@@ -12,6 +18,7 @@ import MRComment from '@/components/MrView/MRComment'
 import CloseItem from './CloseItem'
 import MergedItem from './MergedItem'
 import ReopenItem from './ReopenItem'
+import LabelItem from '@/components/MrView/LabelItem'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -88,8 +95,8 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string }> = ({ de
         children = <MRComment conv={conv} id={id} whoamI={type} />
         break
       case 'Label':
-        icon = <CommentIcon />
-        children = <MRComment conv={conv} id={id} whoamI={type}/>
+        icon = <FeedTagIcon size={24} className='text-cyan-500' />
+        children = <LabelItem conv={conv} />
         break
     }
 
