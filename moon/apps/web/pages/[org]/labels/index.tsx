@@ -1,5 +1,4 @@
 import React, { AwaitedReactNode, JSX, ReactElement, ReactNode, ReactPortal, useCallback, useEffect, useState } from 'react';
-import { Colord, colord } from 'colord';
 import { useRouter } from 'next/router';
 import { useDebounce } from 'use-debounce';
 import { LabelItem } from '@gitmono/types'
@@ -20,6 +19,7 @@ import { usePostLabelNew } from '@/hooks/usePostLabelNew'
 import { atomFamily } from 'jotai/utils'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { useAtom } from 'jotai'
+import { getFontColor } from '@/utils/getFontColor'
 
 const labelListAtom = atomFamily((scope: string) =>
   atomWithWebStorage<LabelItem[]>(`${scope}:issue-label`, [])
@@ -164,11 +164,7 @@ function LabelsPage() {
             >
               {(labels) => {
                 return labels.map((label) => {
-                  const isDark = colord(label.color).isDark()
-                  let fontColor: Colord | string = colord(label.color)
-
-                  if(isDark) fontColor = fontColor.lighten(0.4).toHex()
-                  else fontColor = fontColor.darken(0.5).toHex()
+                  const fontColor = getFontColor(label.color)
 
                   return (
                     <ListItem
@@ -184,12 +180,11 @@ function LabelsPage() {
                         <div
                           style={{
                             backgroundColor: label.color,
-                            color: fontColor,
-                            border: `1px solid ${fontColor}`,
+                            color: fontColor.toHex(),
                             borderRadius: '16px',
                             padding: '2px 8px',
                             fontSize: '12px',
-                            fontWeight: '700',
+                            fontWeight: '600',
                             justifyContent: 'center',
                             textAlign: 'center'
                           }}
