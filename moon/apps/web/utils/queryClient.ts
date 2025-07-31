@@ -1,4 +1,4 @@
-import { LEGACY_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
+import { MONO_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
 import { Api, ApiError, DataTag } from '@gitmono/types'
 import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 
@@ -146,7 +146,7 @@ export const apiClient = new Api({
 })
 
 export const legacyApiClient = new Api({
-  baseUrl: LEGACY_API_URL,
+  baseUrl: MONO_API_URL,
   baseApiParams: {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
