@@ -2,6 +2,9 @@
 
 FROM node:20-slim AS base
 
+ARG APP_ENV=staging
+ENV APP_ENV=${APP_ENV}
+
 # configure pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -40,6 +43,8 @@ RUN pnpm install
 RUN npx patch-package
 
 COPY --from=builder /app/out/full/ .
+
+RUN cp /app/apps/web/.env.${APP_ENV} /app/apps/web/.env.production
 
 RUN npx turbo run build --filter=@gitmono/web
 
