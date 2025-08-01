@@ -49,6 +49,8 @@ type SuggestionProps = React.PropsWithChildren &
     char: string
     // allow controlled query changes. providing this value will disable cmdk filtering.
     onControlledQueryChange?: (query: string) => void
+    // disable the default "No results" empty state
+    disableEmptyState?: boolean
     contentClassName?: string
     listClassName?: string
   }
@@ -76,6 +78,7 @@ export function SuggestionRoot(props: SuggestionProps) {
     modal = true,
     filter,
     onControlledQueryChange,
+    disableEmptyState,
     minScore,
     ...etc
   } = props
@@ -310,17 +313,19 @@ export function SuggestionRoot(props: SuggestionProps) {
                     <SuggestionRangeContext.Provider value={rangeRef}>{children}</SuggestionRangeContext.Provider>
                   </SuggestionEmptyContext.Provider>
                 </SuggestionQueryContext.Provider>
-                <Command.Empty
-                  className='flex items-center gap-2 p-2 text-sm'
-                  onClick={() => {
-                    close()
-                    // clicking will steal focus, so return it
-                    editor.commands.focus()
-                  }}
-                >
-                  <UIText>No results</UIText>
-                  <UIText tertiary>Dismiss</UIText>
-                </Command.Empty>
+                {!disableEmptyState && (
+                  <Command.Empty
+                    className='flex items-center gap-2 p-2 text-sm'
+                    onClick={() => {
+                      close()
+                      // clicking will steal focus, so return it
+                      editor.commands.focus()
+                    }}
+                  >
+                    <UIText>No results</UIText>
+                    <UIText tertiary>Dismiss</UIText>
+                  </Command.Empty>
+                )}
               </Command.List>
             </Command>
           </PopoverContent>
