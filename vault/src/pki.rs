@@ -166,31 +166,6 @@ impl VaultCore {
     }
 }
 
-// TODO use mock core to test
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use std::fs;
-//     use std::io::Write;
-
-//     #[tokio::test]
-//     async fn test_pki_issue() {
-//         let (cert_pem, private_key) = issue_cert(json!({
-//             "ttl": "10d",
-//             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
-//         }))
-//         .await;
-
-//         println!("cert_pem: {}", cert_pem);
-//         println!("private_key: {}", private_key);
-
-//         assert!(verify_cert(cert_pem.as_ref()).await);
-
-//         let mut file = fs::File::create("/tmp/cert.crt").unwrap();
-//         file.write_all(cert_pem.as_ref()).unwrap();
-//     }
-// }
-
 #[allow(clippy::await_holding_lock)]
 #[cfg(test)]
 mod tests_raw {
