@@ -1,15 +1,15 @@
 use libra::command::{add, commit, init, remove};
 use libra::utils::test;
 use serial_test::serial;
-use tempfile::tempdir;
 use std::path::Path;
+use tempfile::tempdir;
 
 async fn test_remove_file() {
     println!("\n\x1b[1mTest remove file functionality.\x1b[0m");
 
     // Create a test file
     test::ensure_file("test_file.txt", Some("test content"));
-    
+
     // Add file to index
     let add_args = add::AddArgs {
         all: false,
@@ -40,7 +40,7 @@ async fn test_remove_cached_file() {
 
     // Create a test file
     test::ensure_file("cached_file.txt", Some("cached content"));
-    
+
     // Add file to index
     let add_args = add::AddArgs {
         all: false,
@@ -73,7 +73,7 @@ async fn test_remove_directory() {
     test::ensure_file("test_dir/file1.txt", Some("file1 content"));
     test::ensure_file("test_dir/file2.txt", Some("file2 content"));
     test::ensure_file("test_dir/subdir/file3.txt", Some("file3 content"));
-    
+
     // Add all files to index
     let add_args = add::AddArgs {
         all: true,
@@ -105,7 +105,7 @@ async fn test_remove_directory_without_recursive() {
     // Create directory structure
     test::ensure_file("test_dir2/file1.txt", Some("file1 content"));
     test::ensure_file("test_dir2/file2.txt", Some("file2 content"));
-    
+
     // Add all files to index
     let add_args = add::AddArgs {
         all: true,
@@ -197,7 +197,7 @@ async fn test_remove_multiple_files() {
     test::ensure_file("file1.txt", Some("content1"));
     test::ensure_file("file2.txt", Some("content2"));
     test::ensure_file("file3.txt", Some("content3"));
-    
+
     // Add files to index
     let add_args = add::AddArgs {
         all: true,
@@ -212,7 +212,11 @@ async fn test_remove_multiple_files() {
 
     // Remove multiple files
     let remove_args = remove::RemoveArgs {
-        pathspec: vec!["file1.txt".to_string(), "file2.txt".to_string(), "file3.txt".to_string()],
+        pathspec: vec![
+            "file1.txt".to_string(),
+            "file2.txt".to_string(),
+            "file3.txt".to_string(),
+        ],
         cached: false,
         recursive: false,
         force: false,
@@ -283,7 +287,9 @@ async fn test_remove_command() {
         repo_directory: temp_path.path().to_str().unwrap().to_string(),
         quiet: false,
     };
-    init::init(init_args).await.expect("Error initializing repository");
+    init::init(init_args)
+        .await
+        .expect("Error initializing repository");
 
     // Create initial commit
     let commit_args = commit::CommitArgs {

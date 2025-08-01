@@ -342,15 +342,24 @@ impl Index {
 
     pub fn refresh(&mut self, file: impl AsRef<Path>, workdir: &Path) -> Result<bool, GitError> {
         let path = file.as_ref();
-        let name = path.to_str()
+        let name = path
+            .to_str()
             .ok_or(GitError::InvalidPathError(format!("{path:?}")))?;
 
         if let Some(entry) = self.entries.get_mut(&(name.to_string(), 0)) {
             let abs_path = workdir.join(path);
             let meta = fs::symlink_metadata(&abs_path)?;
             // Try creation time; on error, warn and use modification time (or now)
-            let new_ctime = Time::from_system_time(Self::time_or_now("creation time", &abs_path, meta.created()));
-            let new_mtime = Time::from_system_time(Self::time_or_now("modification time", &abs_path, meta.modified()));
+            let new_ctime = Time::from_system_time(Self::time_or_now(
+                "creation time",
+                &abs_path,
+                meta.created(),
+            ));
+            let new_mtime = Time::from_system_time(Self::time_or_now(
+                "modification time",
+                &abs_path,
+                meta.modified(),
+            ));
             let new_size = meta.len() as u32;
 
             // re-calculate SHA1
@@ -358,17 +367,17 @@ impl Index {
             let mut hasher = Sha1::new();
             io::copy(&mut file, &mut hasher)?;
             let new_hash = SHA1::from_bytes(&hasher.finalize());
-            
+
             // refresh index
             if entry.ctime != new_ctime
                 || entry.mtime != new_mtime
-                || entry.size  != new_size
-                || entry.hash  != new_hash
+                || entry.size != new_size
+                || entry.hash != new_hash
             {
                 entry.ctime = new_ctime;
                 entry.mtime = new_mtime;
-                entry.size  = new_size;
-                entry.hash  = new_hash;
+                entry.size = new_size;
+                entry.hash = new_hash;
                 return Ok(true);
             }
         }
@@ -376,15 +385,15 @@ impl Index {
     }
 
     /// Try to get a timestamp, logging on error, and finally falling back to now.
-    fn time_or_now(
-        what: &str,
-        path: &Path,
-        res: io::Result<SystemTime>,
-    ) -> SystemTime {
+    fn time_or_now(what: &str, path: &Path, res: io::Result<SystemTime>) -> SystemTime {
         match res {
             Ok(ts) => ts,
             Err(e) => {
-                eprintln!("warning: failed to get {what} for {path:?}: {e}; using SystemTime::now()", what = what, path = path.display());
+                eprintln!(
+                    "warning: failed to get {what} for {path:?}: {e}; using SystemTime::now()",
+                    what = what,
+                    path = path.display()
+                );
                 SystemTime::now()
             }
         }
