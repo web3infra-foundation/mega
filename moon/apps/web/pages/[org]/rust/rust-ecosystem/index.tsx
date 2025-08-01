@@ -4,11 +4,13 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useState } from 'react'
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { useRouter } from 'next/router'
 
 export default function RustEcosystemPage() {
   const [search, setSearch] = useState('')
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
+  const router = useRouter()
 
 
   const cveList = [
@@ -115,8 +117,17 @@ export default function RustEcosystemPage() {
         <div className="w-full flex justify-center gap-6 mt-1 mb-2 flex-wrap">
           {/* crate 卡片 */}
           <div
-            style={{ width: 290, height: 188, borderRadius: 12, background: 'linear-gradient(180deg, #F3F1FF 0%, #FFFFFF 100%)' }}
-            className="shadow border flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ 
+              width: 290, 
+              height: 188, 
+              borderRadius: 12, 
+              background: 'linear-gradient(180deg, #F3F1FF 0%, #FFFFFF 100%)',
+              backgroundClip: 'padding-box, border-box',
+              backgroundOrigin: 'padding-box, border-box',
+              backgroundImage: 'linear-gradient(to right, #F3F1FF, #FFFFFF), linear-gradient(135deg, #DCE1FE, #B8C3FF)',
+              border: '2px solid transparent',
+            }}
+            className="flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
           >
             <Image 
               src="/rust/rust-ecosystem/crate.png" 
@@ -140,8 +151,18 @@ export default function RustEcosystemPage() {
           </div>
           {/* cve 卡片 */}
           <div
-            style={{ width: 290, height: 188, borderRadius: 12, background: 'linear-gradient(180deg, #FFF8E1 0%, #FFFFFF 100%)' }}
-            className="shadow border flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ 
+              width: 290, 
+              height: 188, 
+              borderRadius: 12, 
+              background: 'linear-gradient(180deg, #FFF8E1 0%, #FFFFFF 100%)',
+              backgroundClip: 'padding-box, border-box',
+              backgroundOrigin: 'padding-box, border-box',
+              backgroundImage: 'linear-gradient(to right, #FFF8E1, #FFFFFF), linear-gradient(135deg, #FFF4DB, #FFDE94)',
+              border: '2px solid transparent',
+            }}
+            className="flex flex-col items-center justify-center flex-shrink-0 overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve`)}
           >
             <Image 
               src="/rust/rust-ecosystem/cve.png" 
@@ -165,8 +186,17 @@ export default function RustEcosystemPage() {
           </div>
           {/* rust 卡片 */}
           <div
-            style={{ width: 290, height: 188, borderRadius: 12, background: 'linear-gradient(180deg, #FFEFE7 0%, #FFFFFF 100%)' }}
-            className="shadow border flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ 
+              width: 290, 
+              height: 188, 
+              borderRadius: 12, 
+              background: 'linear-gradient(180deg, #FFEFE7 0%, #FFFFFF 100%)',
+              backgroundClip: 'padding-box, border-box',
+              backgroundOrigin: 'padding-box, border-box',
+              backgroundImage: 'linear-gradient(to right, #FFEFE7, #FFFFFF), linear-gradient(135deg, #FFF0E6, #FFC8A6)',
+              border: '2px solid transparent',
+            }}
+            className="flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
           >
             <Image 
               src="/rust/rust-ecosystem/rust.png" 
@@ -190,8 +220,17 @@ export default function RustEcosystemPage() {
           </div>
           {/* code 卡片 */}
           <div
-            style={{ width: 290, height: 188, borderRadius: 12, background: 'linear-gradient(180deg, #EAF6FF 0%, #FFFFFF 100%)' }}
-            className="shadow border flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ 
+              width: 290, 
+              height: 188, 
+              borderRadius: 12, 
+              background: 'linear-gradient(180deg, #EAF6FF 0%, #FFFFFF 100%)',
+              backgroundClip: 'padding-box, border-box',
+              backgroundOrigin: 'padding-box, border-box',
+              backgroundImage: 'linear-gradient(to right, #EAF6FF, #FFFFFF), linear-gradient(135deg, #DCF1FE, #B8E4FF)',
+              border: '2px solid transparent',
+            }}
+            className="flex flex-col items-center justify-center flex-shrink-0 overflow-hidden"
           >
             <Image 
               src="/rust/rust-ecosystem/code.png" 
@@ -216,7 +255,7 @@ export default function RustEcosystemPage() {
         </div>
 
         {/* CVE 信息区 */}
-        <div className="w-full max-w-[1260px] mx-auto px-4 flex mt-8 justify-start">
+        <div className="w-full max-w-[1260px] mx-auto px-4 flex mt-8 justify-start mb-32">
           <div style={{ width: 1260 }}>
             {/* 标题区 */}
             <div className="mb-0 ">

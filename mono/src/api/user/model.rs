@@ -1,20 +1,20 @@
 use callisto::{access_token, ssh_keys};
-use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AddSSHKey {
     pub title: String,
     pub ssh_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ListSSHKey {
     pub id: i64,
     pub title: String,
     pub ssh_key: String,
     pub finger: String,
-    pub created_at: NaiveDateTime,
+    pub created_at: i64,
 }
 
 impl From<ssh_keys::Model> for ListSSHKey {
@@ -24,16 +24,16 @@ impl From<ssh_keys::Model> for ListSSHKey {
             title: value.title,
             ssh_key: value.ssh_key,
             finger: value.finger,
-            created_at: value.created_at,
+            created_at: value.created_at.and_utc().timestamp(),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ListToken {
     pub id: i64,
     pub token: String,
-    pub created_at: NaiveDateTime,
+    pub created_at: i64,
 }
 
 impl From<access_token::Model> for ListToken {
@@ -43,7 +43,7 @@ impl From<access_token::Model> for ListToken {
         Self {
             id: value.id,
             token: mask_token,
-            created_at: value.created_at,
+            created_at: value.created_at.and_utc().timestamp(),
         }
     }
 }

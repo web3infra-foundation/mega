@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use ceres::model::mr::MrDiffFile;
 use jupiter::model::mr_dto::MRDetails;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ pub struct MRDetailRes {
     pub id: i64,
     pub link: String,
     pub title: String,
-    pub status: MergeStatusEnum,
+    pub status: MergeStatus,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
     pub conversations: Vec<ConversationItem>,
@@ -31,7 +31,7 @@ impl From<MRDetails> for MRDetailRes {
             id: value.mr.id,
             link: value.mr.link,
             title: value.mr.title,
-            status: value.mr.status,
+            status: value.mr.status.into(),
             open_timestamp: value.mr.created_at.and_utc().timestamp(),
             merge_timestamp: value.mr.merge_date.map(|dt| dt.and_utc().timestamp()),
             conversations: value
@@ -119,6 +119,33 @@ impl From<MrDiffFile> for MrFilesRes {
                 sha: new.to_string(),
                 action: String::from_str("modified").unwrap(),
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum MergeStatus {
+    Open,
+    Merged,
+    Closed,
+}
+
+impl From<MergeStatusEnum> for MergeStatus {
+    fn from(value: MergeStatusEnum) -> Self {
+        match value {
+            MergeStatusEnum::Open => MergeStatus::Open,
+            MergeStatusEnum::Merged => MergeStatus::Merged,
+            MergeStatusEnum::Closed => MergeStatus::Closed,
+        }
+    }
+}
+
+impl From<MergeStatus> for MergeStatusEnum {
+    fn from(value: MergeStatus) -> Self {
+        match value {
+            MergeStatus::Open => MergeStatusEnum::Open,
+            MergeStatus::Merged => MergeStatusEnum::Merged,
+            MergeStatus::Closed => MergeStatusEnum::Closed,
         }
     }
 }

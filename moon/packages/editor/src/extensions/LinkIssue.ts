@@ -9,6 +9,7 @@ declare module '@tiptap/core' {
       insertIssue: (props: {
         id: string
         label: string
+        suggestionType: string
         range: Range
       }) => ReturnType
     }
@@ -75,6 +76,20 @@ export const LinkIssue = Node.create<IssueOptions>({
 
           return {
             'data-label': attributes.label
+          }
+        }
+      },
+
+      suggestionType: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-suggestionType'),
+        renderHTML: (attributes) => {
+          if (!attributes.suggestionType) {
+            return {}
+          }
+
+          return {
+            'data-suggestionType': attributes.suggestionType
           }
         }
       }
