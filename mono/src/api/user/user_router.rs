@@ -2,31 +2,31 @@ use std::collections::HashMap;
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, post},
+    routing::get,
     Json,
 };
 use russh::keys::{parse_public_key_base64, HashAlg};
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::model::CommonResult;
 
-use crate::api::user::model::AddSSHKey;
 use crate::api::user::model::ListSSHKey;
 use crate::api::user::model::ListToken;
 use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
+use crate::{api::user::model::AddSSHKey, server::https_server::USER_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/user",
         OpenApiRouter::new()
             .route("/", get(user))
-            .route("/ssh", get(list_key))
-            .route("/ssh", post(add_key))
-            .route("/ssh/{key_id}/delete", post(remove_key))
-            .route("/token/generate", post(generate_token))
-            .route("/token/list", get(list_token))
-            .route("/token/{key_id}/delete", post(remove_token))
+            .routes(routes!(list_key))
+            .routes(routes!(add_key))
+            .routes(routes!(remove_key))
+            .routes(routes!(generate_token))
+            .routes(routes!(list_token))
+            .routes(routes!(remove_token))
             .route("/repo-permissions", get(repo_permissions)),
     )
 }
@@ -38,6 +38,16 @@ async fn user(
     Ok(Json(CommonResult::success(Some(user))))
 }
 
+/// Add SSH Key
+#[utoipa::path(
+    post,
+    path = "/ssh",
+    request_body = AddSSHKey,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn add_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
@@ -68,6 +78,18 @@ async fn add_key(
     Ok(Json(CommonResult::success(None)))
 }
 
+/// Delete SSH Key
+#[utoipa::path(
+    delete,
+        params(
+        ("key_id", description = "A numeric ID representing a SSH"),
+    ),
+    path = "/ssh/{key_id}",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn remove_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
@@ -80,6 +102,15 @@ async fn remove_key(
     Ok(Json(CommonResult::success(None)))
 }
 
+/// Get User's SSH key list
+#[utoipa::path(
+    get,
+    path = "/ssh/list",
+    responses(
+        (status = 200, body = CommonResult<Vec<ListSSHKey>>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
@@ -93,6 +124,15 @@ async fn list_key(
     ))))
 }
 
+/// Generate Token For http push
+#[utoipa::path(
+    post,
+    path = "/token/generate",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
@@ -104,6 +144,18 @@ async fn generate_token(
     Ok(Json(CommonResult::success(Some(res))))
 }
 
+/// Delete User's http push token
+#[utoipa::path(
+    delete,
+        params(
+        ("key_id", description = "A numeric ID representing a User Token"),
+    ),
+    path = "/token/{key_id}",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn remove_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
@@ -116,6 +168,15 @@ async fn remove_token(
     Ok(Json(CommonResult::success(None)))
 }
 
+/// Get User's push token list
+#[utoipa::path(
+    get,
+    path = "/token/list",
+    responses(
+        (status = 200, body = CommonResult<Vec<ListToken>>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
 async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
