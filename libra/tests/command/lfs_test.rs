@@ -9,7 +9,10 @@ fn init_temp_repo() -> TempDir {
     // Variables can be used directly in the `format!` string
     // FIX: Removed {:?} and added variable directly with formatting
     println!("Temporary directory created at: {temp_path:?}");
-    assert!(temp_path.is_dir(), "Temporary path is not a valid directory");
+    assert!(
+        temp_path.is_dir(),
+        "Temporary path is not a valid directory"
+    );
 
     // Using env!("CARGO_BIN_EXE_libra") to get the path to the libra executable
     let output = Command::new(env!("CARGO_BIN_EXE_libra"))
