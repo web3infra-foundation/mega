@@ -10,6 +10,7 @@ use libra::command::status::changes_to_be_staged;
 use libra::command::switch::{self, check_status, SwitchArgs};
 use libra::command::{
     add::{self, AddArgs},
+    remove::{self, RemoveArgs},
     load_object,
 };
 use libra::internal::branch::Branch;

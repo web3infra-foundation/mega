@@ -2,6 +2,7 @@ use super::*;
 use std::fs;
 use std::io::Write;
 
+use clap::Parser;
 use libra::command::diff::{self, DiffArgs};
 
 /// Helper function to create a file with content
