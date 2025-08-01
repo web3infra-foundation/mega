@@ -18,8 +18,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web-ui-deploy:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env_name: [staging, staging-nju]
     timeout-minutes: 10
     steps:
       - name: Checkout repository
@@ -44,26 +47,30 @@ jobs:
         with:
           registry-type: public
 
-      - name: Build, tag, and push docker image to Amazon ECR Public
+      - name: Build, tag, and push docker image (${{ matrix.env_name }}) to Amazon ECR Public
         working-directory: moon
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega-ui
-          IMAGE_TAG: mega-ui-0.1.0-pre-release
+          REPOSITORY: mega
+          IMAGE_TAG: mega-ui-${{ matrix.env_name }}-0.1.0-pre-release
         run: |
           docker build \
+            --build-arg APP_ENV=${{ matrix.env_name }} \
             -f apps/web/Dockerfile \
             -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
-
-      - name: Force ECS redeploy
-        run: |
-          aws ecs update-service \
-            --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
-            --service ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }} \
-            --force-new-deployment
-        env:
-          AWS_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  deploy:
+      needs: build
+      runs-on: ubuntu-latest
+      steps:
+        - name: Force ECS redeploy
+          run: |
+            aws ecs update-service \
+              --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
+              --service ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }} \
+              --force-new-deployment
+          env:
+            AWS_REGION: ap-southeast-2
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

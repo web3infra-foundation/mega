@@ -3,7 +3,7 @@ import { Box, Flex, Tabs } from '@radix-ui/themes'
 import copy from 'copy-to-clipboard'
 import { usePathname } from 'next/navigation'
 
-import { LEGACY_API_URL } from '@gitmono/config'
+import { MONO_API_URL } from '@gitmono/config'
 import { Button, cn, Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '@gitmono/ui'
 import { CheckIcon, CopyIcon, DownloadIcon } from '@gitmono/ui/Icons'
 
@@ -13,11 +13,11 @@ const CloneTabs = ({ endpoint }: any) => {
   const [copied, setCopied] = useState<boolean>(false)
   const [active_tab, setActiveTab] = useState<string>('HTTP')
   const [open, setOpen] = useState(false)
-  const url = new URL(LEGACY_API_URL)
+  const url = new URL(MONO_API_URL)
 
   useEffect(() => {
-    if (LEGACY_API_URL) {
-      const url = new URL(LEGACY_API_URL)
+    if (MONO_API_URL) {
+      const url = new URL(MONO_API_URL)
 
       if (active_tab === '1') {
         setText(`${url.href}${pathname?.replace('/myorganization/code/tree/', '')}.git`)

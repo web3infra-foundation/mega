@@ -6,6 +6,7 @@ pub mod issue_storage;
 pub mod lfs_db_storage;
 pub mod mono_storage;
 pub mod mr_storage;
+pub mod note_storage;
 pub mod raw_db_storage;
 pub mod relay_storage;
 pub mod stg_common;
@@ -28,6 +29,7 @@ use crate::storage::{
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::storage::note_storage::NoteStorage;
 
 #[derive(Clone)]
 pub struct AppService {
@@ -42,6 +44,7 @@ pub struct AppService {
     pub issue_storage: IssueStorage,
     pub conversation_storage: ConversationStorage,
     pub lfs_file_storage: Arc<dyn LfsFileStorage>,
+    pub note_storage: NoteStorage,
 }
 
 impl AppService {
@@ -59,6 +62,7 @@ impl AppService {
             mr_storage: MrStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
+            note_storage: NoteStorage { base: mock.clone() },
         })
     }
 }
@@ -87,6 +91,7 @@ impl Storage {
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
         let lfs_file_storage = lfs_storage::init(config.lfs.clone(), connection.clone()).await;
+        let note_storage = NoteStorage { base: base.clone() };
 
         let app_service = AppService {
             mono_storage,
@@ -100,6 +105,7 @@ impl Storage {
             issue_storage,
             conversation_storage,
             lfs_file_storage,
+            note_storage,
         };
         Storage {
             app_service: app_service.into(),
@@ -155,6 +161,10 @@ impl Storage {
 
     pub fn lfs_file_storage(&self) -> Arc<dyn LfsFileStorage> {
         self.app_service.lfs_file_storage.clone()
+    }
+
+    pub fn note_storage(&self) -> NoteStorage {
+        self.app_service.note_storage.clone()
     }
 
     pub fn mock() -> Self {
