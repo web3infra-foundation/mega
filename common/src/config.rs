@@ -485,16 +485,44 @@ impl PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
-    pub storage_type: StorageTypeEnum,
+    pub storage_type: StorageType,
     pub local: LFSLocalConfig,
     pub aws: LFSAwsConfig,
     pub ssh: LFSSshConfig,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageType {
+    Database,
+    LocalFs,
+    AwsS3,
+}
+
+impl From<StorageTypeEnum> for StorageType {
+    fn from(value: StorageTypeEnum) -> Self {
+        match value {
+            StorageTypeEnum::Database => StorageType::Database,
+            StorageTypeEnum::LocalFs => StorageType::LocalFs,
+            StorageTypeEnum::AwsS3 => StorageType::AwsS3,
+        }
+    }
+}
+
+impl From<StorageType> for StorageTypeEnum {
+    fn from(value: StorageType) -> Self {
+        match value {
+            StorageType::Database => StorageTypeEnum::Database,
+            StorageType::LocalFs => StorageTypeEnum::LocalFs,
+            StorageType::AwsS3 => StorageTypeEnum::AwsS3,
+        }
+    }
+}
+
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
-            storage_type: StorageTypeEnum::LocalFs,
+            storage_type: StorageType::LocalFs,
             local: LFSLocalConfig::default(),
             aws: LFSAwsConfig::default(),
             ssh: LFSSshConfig::default(),

@@ -3033,6 +3033,11 @@ export type FigmaKeyPair = {
   write_key: string
 }
 
+export type AddSSHKey = {
+  ssh_key: string
+  title: string
+}
+
 export type AssigneeUpdatePayload = {
   assignees: string[]
   /** @format int64 */
@@ -3129,7 +3134,7 @@ export type CommonResultMRDetailRes = {
     merge_timestamp?: number | null
     /** @format int64 */
     open_timestamp: number
-    status: MergeStatusEnum
+    status: MergeStatus
     title: string
   }
   err_message: string
@@ -3158,6 +3163,32 @@ export type CommonResultVecIssueSuggestions = {
     link: string
     title: string
     type: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecListSSHKey = {
+  data?: {
+    /** @format int64 */
+    created_at: number
+    finger: string
+    /** @format int64 */
+    id: number
+    ssh_key: string
+    title: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecListToken = {
+  data?: {
+    /** @format int64 */
+    created_at: number
+    /** @format int64 */
+    id: number
+    token: string
   }[]
   err_message: string
   req_result: boolean
@@ -3205,7 +3236,7 @@ export type ContentPayload = {
   content: string
 }
 
-export enum ConvTypeEnum {
+export enum ConvType {
   Comment = 'Comment',
   Deploy = 'Deploy',
   Commit = 'Commit',
@@ -3223,7 +3254,7 @@ export enum ConvTypeEnum {
 
 export type ConversationItem = {
   comment?: string | null
-  conv_type: ConvTypeEnum
+  conv_type: ConvType
   /** @format int64 */
   created_at: number
   grouped_reactions: ReactionItem[]
@@ -3329,6 +3360,24 @@ export type ListPayload = {
   status: string
 }
 
+export type ListSSHKey = {
+  /** @format int64 */
+  created_at: number
+  finger: string
+  /** @format int64 */
+  id: number
+  ssh_key: string
+  title: string
+}
+
+export type ListToken = {
+  /** @format int64 */
+  created_at: number
+  /** @format int64 */
+  id: number
+  token: string
+}
+
 export type MRDetailRes = {
   assignees: string[]
   conversations: ConversationItem[]
@@ -3340,11 +3389,11 @@ export type MRDetailRes = {
   merge_timestamp?: number | null
   /** @format int64 */
   open_timestamp: number
-  status: MergeStatusEnum
+  status: MergeStatus
   title: string
 }
 
-export enum MergeStatusEnum {
+export enum MergeStatus {
   Open = 'Open',
   Merged = 'Merged',
   Closed = 'Closed'
@@ -3417,6 +3466,14 @@ export type ReactionRequest = {
   content: string
 }
 
+export type ShowResponse = {
+  description_html: string
+  /** @format int32 */
+  description_schema_version: number
+  description_state?: string | null
+  id: string
+}
+
 export type TreeBriefItem = {
   content_type: string
   name: string
@@ -3440,6 +3497,13 @@ export type TreeHashItem = {
 export type TreeResponse = {
   file_tree: Record<string, FileTreeItem>
   tree_items: TreeBriefItem[]
+}
+
+export type UpdateRequest = {
+  description_html: string
+  /** @format int32 */
+  description_schema_version: number
+  description_state: string
 }
 
 export type UserInfo = {
@@ -4653,6 +4717,10 @@ export type PostApiMrReopenData = CommonResultString
 
 export type PostApiMrTitleData = CommonResultString
 
+export type GetApiOrganizationsNotesSyncStateData = ShowResponse
+
+export type PatchApiOrganizationsNotesSyncStateData = any
+
 export type GetApiStatusData = string
 
 export type GetApiTreeParams = {
@@ -4688,6 +4756,18 @@ export type GetApiTreePathCanCloneParams = {
 }
 
 export type GetApiTreePathCanCloneData = CommonResultBool
+
+export type PostApiUserSshData = CommonResultString
+
+export type GetApiUserSshListData = CommonResultVecListSSHKey
+
+export type DeleteApiUserSshByKeyIdData = CommonResultString
+
+export type PostApiUserTokenGenerateData = CommonResultString
+
+export type GetApiUserTokenListData = CommonResultVecListToken
+
+export type DeleteApiUserTokenByKeyIdData = CommonResultString
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -13697,6 +13777,54 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags sync-notes-state
+     * @name GetApiOrganizationsNotesSyncState
+     * @request GET:/api/v1/organizations/{org_slug}/notes/{id}/sync_state
+     */
+    getApiOrganizationsNotesSyncState: () => {
+      const base = 'GET:/api/v1/organizations/{org_slug}/notes/{id}/sync_state' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiOrganizationsNotesSyncStateData>([base]),
+        requestKey: (orgSlug: number, id: string) =>
+          dataTaggedQueryKey<GetApiOrganizationsNotesSyncStateData>([base, orgSlug, id]),
+        request: (orgSlug: number, id: string, params: RequestParams = {}) =>
+          this.request<GetApiOrganizationsNotesSyncStateData>({
+            path: `/api/v1/organizations/${orgSlug}/notes/${id}/sync_state`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags sync-notes-state
+     * @name PatchApiOrganizationsNotesSyncState
+     * @request PATCH:/api/v1/organizations/{org_slug}/notes/{id}/sync_state
+     */
+    patchApiOrganizationsNotesSyncState: () => {
+      const base = 'PATCH:/api/v1/organizations/{org_slug}/notes/{id}/sync_state' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PatchApiOrganizationsNotesSyncStateData>([base]),
+        requestKey: (orgSlug: number, id: string) =>
+          dataTaggedQueryKey<PatchApiOrganizationsNotesSyncStateData>([base, orgSlug, id]),
+        request: (orgSlug: number, id: string, data: UpdateRequest, params: RequestParams = {}) =>
+          this.request<PatchApiOrganizationsNotesSyncStateData>({
+            path: `/api/v1/organizations/${orgSlug}/notes/${id}/sync_state`,
+            method: 'PATCH',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags git
      * @name GetApiStatus
      * @summary Health Check
@@ -13835,6 +13963,146 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
             path: `/api/v1/tree/path-can-clone`,
             method: 'GET',
             query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name PostApiUserSsh
+     * @summary Add SSH Key
+     * @request POST:/api/v1/user/ssh
+     */
+    postApiUserSsh: () => {
+      const base = 'POST:/api/v1/user/ssh' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiUserSshData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiUserSshData>([base]),
+        request: (data: AddSSHKey, params: RequestParams = {}) =>
+          this.request<PostApiUserSshData>({
+            path: `/api/v1/user/ssh`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name GetApiUserSshList
+     * @summary Get User's SSH key list
+     * @request GET:/api/v1/user/ssh/list
+     */
+    getApiUserSshList: () => {
+      const base = 'GET:/api/v1/user/ssh/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserSshListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserSshListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserSshListData>({
+            path: `/api/v1/user/ssh/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name DeleteApiUserSshByKeyId
+     * @summary Delete SSH Key
+     * @request DELETE:/api/v1/user/ssh/{key_id}
+     */
+    deleteApiUserSshByKeyId: () => {
+      const base = 'DELETE:/api/v1/user/ssh/{key_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiUserSshByKeyIdData>([base]),
+        requestKey: (keyId: number) => dataTaggedQueryKey<DeleteApiUserSshByKeyIdData>([base, keyId]),
+        request: (keyId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiUserSshByKeyIdData>({
+            path: `/api/v1/user/ssh/${keyId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name PostApiUserTokenGenerate
+     * @summary Generate Token For http push
+     * @request POST:/api/v1/user/token/generate
+     */
+    postApiUserTokenGenerate: () => {
+      const base = 'POST:/api/v1/user/token/generate' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiUserTokenGenerateData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiUserTokenGenerateData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<PostApiUserTokenGenerateData>({
+            path: `/api/v1/user/token/generate`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name GetApiUserTokenList
+     * @summary Get User's push token list
+     * @request GET:/api/v1/user/token/list
+     */
+    getApiUserTokenList: () => {
+      const base = 'GET:/api/v1/user/token/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserTokenListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserTokenListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserTokenListData>({
+            path: `/api/v1/user/token/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags user
+     * @name DeleteApiUserTokenByKeyId
+     * @summary Delete User's http push token
+     * @request DELETE:/api/v1/user/token/{key_id}
+     */
+    deleteApiUserTokenByKeyId: () => {
+      const base = 'DELETE:/api/v1/user/token/{key_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiUserTokenByKeyIdData>([base]),
+        requestKey: (keyId: number) => dataTaggedQueryKey<DeleteApiUserTokenByKeyIdData>([base, keyId]),
+        request: (keyId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiUserTokenByKeyIdData>({
+            path: `/api/v1/user/token/${keyId}`,
+            method: 'DELETE',
             ...params
           })
       }
