@@ -53,7 +53,7 @@ async fn test_basic_diff() {
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
 
     // Run diff command
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram"
     ]).unwrap();
     diff::execute(args).await;
@@ -112,7 +112,7 @@ async fn test_diff_staged() {
     modify_file("file1.txt", "Modified content again\nLine 2\nLine 3 changed again\n");
 
     // Run diff command with --staged flag
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--staged", "--algorithm", "histogram"
     ]).unwrap();
     diff::execute(args).await;
@@ -183,7 +183,7 @@ async fn test_diff_between_commits() {
     let second_commit = Head::current_commit().await.unwrap();
 
     // Run diff command comparing the two commits
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--old", &first_commit.to_string(), "--new", &second_commit.to_string(), "--algorithm", "histogram"
     ]).unwrap();
     diff::execute(args).await;
@@ -229,7 +229,7 @@ async fn test_diff_with_pathspec() {
     modify_file("file2.txt", "File 2 modified\nLine 2\nLine 3 changed\n");
 
     // Run diff command with specific file path
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "file1.txt"
     ]).unwrap();
     diff::execute(args).await;
@@ -276,7 +276,7 @@ async fn test_diff_output_to_file() {
     let output_file = "diff_output.txt";
 
     // Run diff command with output to file
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "--output", output_file
     ]).unwrap();
     diff::execute(args).await;
@@ -331,19 +331,19 @@ async fn test_diff_algorithms() {
     );
 
     // Test histogram algorithm
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "--output", "histogram_diff.txt"
     ]).unwrap();
     diff::execute(args).await;
 
     // Test myers algorithm
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "myers", "--output", "myers_diff.txt"
     ]).unwrap();
     diff::execute(args).await;
 
     // Test myersMinimal algorithm
-    let args = DiffArgs::try_parse_from([
+    let args = DiffArgs::parse_from([
         "diff", "--algorithm", "myersMinimal", "--output", "myersMinimal_diff.txt"
     ]).unwrap();
     diff::execute(args).await;

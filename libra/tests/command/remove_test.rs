@@ -2,8 +2,8 @@ use super::*;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use libra::command::diff::DiffArgs;
 
-use libra::command::remove::{self, RemoveArgs};
 
 /// Helper function to create a file with content
 fn create_file(path: &str, content: &str) -> PathBuf {
