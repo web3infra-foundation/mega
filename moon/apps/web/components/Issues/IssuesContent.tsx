@@ -28,17 +28,17 @@ import {
 import { filterAtom, issueCloseCurrentPage, issueOpenCurrentPage, sortAtom } from '@/components/Issues/utils/store'
 import { useScope } from '@/contexts/scope'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
-import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
-import { MemberAvatar } from '../MemberAvatar'
 import { IssueIndexTabFilter } from './IssueIndex'
-import { MemberHovercard } from './MemberHoverCardNE'
+import { MemberHoverAvatarList } from './MemberHoverAvatarList'
 import { Pagination } from './Pagenation'
-import { orderTags, tags } from './utils/consts'
+import { orderTags } from './utils/consts'
 import { generateAllMenuItems, MenuConfig } from './utils/generateAllMenuItems'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
+import { getFontColor } from '@/utils/getFontColor'
 
 interface Props {
   getIssues?: ReturnType<typeof useInfiniteQuery<PostApiIssueListData>>
@@ -56,7 +56,7 @@ export interface Item {
   updated_at: number
 }
 
-type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
+export type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
 
 export type AdditionType = NonNullable<PageParamsListPayload>['additional']
 
@@ -96,6 +96,7 @@ export function IssuesContent({ searching }: Props) {
   const [label, setLabel] = useAtom(labelAtom)
 
   const { members } = useSyncedMembers()
+  const { labels } = useGetLabelList()
 
   const router = useRouter()
 
@@ -227,7 +228,7 @@ export function IssuesContent({ searching }: Props) {
 
   const member = generateAllMenuItems(members, MemberConfig)
 
-  const labels = generateAllMenuItems(tags, LabelConfig)
+  const labelList = generateAllMenuItems(labels, LabelConfig)
 
   const orders = generateAllMenuItems(orderTags, OrderConfig)
 
@@ -270,8 +271,8 @@ export function IssuesContent({ searching }: Props) {
             isChosen={!label?.length}
             key={p}
             name={p}
-            dropdownArr={labels?.get('Labels').all}
-            dropdownItem={labels?.get('Labels').chosen}
+            dropdownArr={labelList?.get('Labels').all}
+            dropdownItem={labelList?.get('Labels').chosen}
           />
         )
       case `${order.sort}`:
@@ -424,6 +425,7 @@ export function IssuesContent({ searching }: Props) {
               ))
             }}
           </IssueList>
+
           {status === 'open' && (
             <div className='mt-auto'>
               <Pagination
@@ -460,26 +462,36 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
 }
 
 export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
-  const shouldFetch = item.assignees.length > 0
-
-  const [index, setIndex] = useState(0)
-
-  const { data, error } = useGetOrganizationMember({
-    username: item.assignees[index],
-    org: 'mega',
-    enabled: shouldFetch
-  })
-
-  useEffect(() => {
-    if (index >= item.assignees.length) return
-    if (error) {
-      setIndex((prev) => prev + 1)
-    }
-  }, [error, index, item.assignees])
-
   return (
     <>
-      <div className='mr-10 flex w-[120px] items-center justify-between gap-10'>
+      <div className='mr-10 flex w-fit items-center justify-between gap-10'>
+        <div
+          style={{
+            visibility: `${item.labels.length === 0 ? 'hidden' : 'unset'}`
+          }}
+          className='flex items-center gap-2 text-sm'
+        >
+          {item.labels.map(label => {
+            const fontColor = getFontColor(label.color)
+
+            return <span
+              key={label.id}
+              style={{
+                backgroundColor: label.color,
+                color: fontColor.toHex(),
+                borderRadius: '16px',
+                padding: '0px 8px',
+                fontSize: '12px',
+                fontWeight: '550',
+                justifyContent: 'center',
+                textAlign: 'center'
+              }}
+            >
+              {label.name}
+            </span>
+          })}
+        </div>
+
         <div
           style={{
             visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`
@@ -490,12 +502,9 @@ export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
           <span>{item.comment_num}</span>
         </div>
 
-        {data && (
-          // <div>展示头像</div>
-          <MemberHovercard username={item.assignees[0]} side='top' align='end' member={data}>
-            <MemberAvatar size='sm' member={data} />
-          </MemberHovercard>
-        )}
+        <div className='min-w-45'>
+          <MemberHoverAvatarList users={item} />
+        </div>
       </div>
     </>
   )

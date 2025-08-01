@@ -44,6 +44,7 @@ mod m20250618_065050_add_label;
 mod m20250628_025312_add_username_in_conversation;
 mod m20250702_072055_add_item_assignees;
 mod m20250710_073119_create_reactions;
+mod m20250725_103004_add_note;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -76,6 +77,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250628_025312_add_username_in_conversation::Migration),
             Box::new(m20250702_072055_add_item_assignees::Migration),
             Box::new(m20250710_073119_create_reactions::Migration),
+            Box::new(m20250725_103004_add_note::Migration),
         ]
     }
 }

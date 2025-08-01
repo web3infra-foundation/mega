@@ -1,11 +1,5 @@
-const WEB_URL_PROD = 'https://app.gitmono.com'
-const WEB_URL_DEV = 'http://app.gitmono.test'
-
 const SITE_URL_PROD = 'https://www.gitmono.com'
 const SITE_URL_DEV = 'http://gitmono.test:3003'
-
-const SYNC_URL_PROD = 'wss://sync.gitmono.com'
-const SYNC_URL_DEV = 'wss://sync.gitmega.com'
 
 export const IS_PRODUCTION = process.env.APP_ENV === 'production'
 export const SCOPE_COOKIE_NAME = 'scope'
@@ -13,26 +7,18 @@ export const POLL_OPTION_DESCRIPTION_LENGTH = 32
 
 export const IS_NGROK = !!process.env.NEXT_PUBLIC_IS_NGROK
 
-export const WEB_URL = IS_PRODUCTION ? WEB_URL_PROD : process.env.NEXT_PUBLIC_WEB_URL || WEB_URL_DEV
+export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://app.gitmega.com'
 export const SITE_URL = IS_PRODUCTION ? SITE_URL_PROD : SITE_URL_DEV
-export const SYNC_URL = IS_PRODUCTION ? SYNC_URL_PROD : process.env.NEXT_PUBLIC_SYNC_URL || SYNC_URL_DEV
+export const SYNC_URL = process.env.NEXT_PUBLIC_SYNC_URL || 'wss://sync.gitmega.com'
 
 export const DESKTOP_APP_PROTOCOL = IS_PRODUCTION ? 'campsite://' : 'campsite-dev://'
 export const LAST_CLIENT_JS_BUILD_ID_LS_KEY = 'latest-js-time'
 
-export const RAILS_API_URL = IS_PRODUCTION
-  ? 'https://api.gitmono.com'
-  : process.env.NEXT_PUBLIC_API_URL || 'https://api.gitmega.com'
+export const RAILS_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.gitmega.com'
 
-export const LEGACY_API_URL = IS_PRODUCTION
-  ? 'https://git.gitmono.com'
-  : process.env.NEXT_PUBLIC_LEGACY_API_URL || 'https://git.gitmega.com'
+export const MONO_API_URL = process.env.NEXT_PUBLIC_MONO_API_URL || 'https://git.gitmega.com'
 
-const RAILS_AUTH_URL_PROD_COM = 'https://auth.gitmono.com'
-
-export const RAILS_AUTH_URL = IS_PRODUCTION
-  ? RAILS_AUTH_URL_PROD_COM
-  : process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.gitmega.com'
+export const RAILS_AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.gitmega.com'
 
 /*
   Not using an env variable because we use this variable in the browser, which

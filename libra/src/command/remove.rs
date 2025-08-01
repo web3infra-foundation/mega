@@ -13,13 +13,16 @@ use mercury::internal::index::Index;
 #[derive(Parser, Debug)]
 pub struct RemoveArgs {
     /// file or dir to remove
-    pathspec: Vec<String>,
+    pub pathspec: Vec<String>,
     /// whether to remove from index
     #[clap(long)]
-    cached: bool,
+    pub cached: bool,
     /// indicate recursive remove dir
     #[clap(short, long)]
-    recursive: bool,
+    pub recursive: bool,
+    /// force removal, skip validation
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
@@ -28,11 +31,13 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     }
     let idx_file = path::index();
     let mut index = Index::load(&idx_file)?;
-    // check if pathspec is all in index
-    if !validate_pathspec(&args.pathspec, &index) {
+    
+    // check if pathspec is all in index (skip if force is enabled)
+    if !args.force && !validate_pathspec(&args.pathspec, &index) {
         return Ok(());
     }
-    let dirs = get_dirs(&args.pathspec, &index);
+    
+    let dirs = get_dirs(&args.pathspec, &index, args.force);
     if !dirs.is_empty() && !args.recursive {
         println!(
             "fatal: not removing '{}' recursively without -r",
@@ -44,6 +49,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     for path_str in args.pathspec.iter() {
         let path = PathBuf::from(path_str);
         let path_wd = path.to_workdir().to_string_or_panic();
+        
         if dirs.contains(path_str) {
             // dir
             let removed = index.remove_dir_files(&path_wd);
@@ -56,8 +62,20 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             }
         } else {
             // file
-            index.remove(&path_wd, 0);
-            println!("rm '{}'", path_wd.bright_green());
+            if args.force {
+                // In force mode, remove from index if tracked, otherwise just delete from filesystem
+                if index.tracked(&path_wd, 0) {
+                    index.remove(&path_wd, 0);
+                    println!("rm '{}'", path_wd.bright_green());
+                } else {
+                    println!("rm '{}'", path_wd.bright_yellow());
+                }
+            } else {
+                // Normal mode - only remove if tracked
+                index.remove(&path_wd, 0);
+                println!("rm '{}'", path_wd.bright_green());
+            }
+            
             if !args.cached {
                 fs::remove_file(&path)?;
             }
@@ -90,14 +108,22 @@ fn validate_pathspec(pathspec: &[String], index: &Index) -> bool {
 }
 
 /// run after `validate_pathspec`
-fn get_dirs(pathspec: &[String], index: &Index) -> Vec<String> {
+fn get_dirs(pathspec: &[String], index: &Index, force: bool) -> Vec<String> {
     let mut dirs = Vec::new();
     for path_str in pathspec.iter() {
         let path = PathBuf::from(path_str);
         let path_wd = path.to_workdir().to_string_or_panic();
-        // valid but not tracked, means a dir
-        if !index.tracked(&path_wd, 0) {
-            dirs.push(path_str.clone());
+        
+        if force {
+            // In force mode, check if the path exists and is a directory
+            if path.exists() && path.is_dir() {
+                dirs.push(path_str.clone());
+            }
+        } else {
+            // valid but not tracked, means a dir
+            if !index.tracked(&path_wd, 0) {
+                dirs.push(path_str.clone());
+            }
         }
     }
     dirs
