@@ -35,8 +35,10 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { IssueIndexTabFilter } from './IssueIndex'
 import { MemberHoverAvatarList } from './MemberHoverAvatarList'
 import { Pagination } from './Pagenation'
-import { orderTags, tags } from './utils/consts'
+import { orderTags } from './utils/consts'
 import { generateAllMenuItems, MenuConfig } from './utils/generateAllMenuItems'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
+import { getFontColor } from '@/utils/getFontColor'
 
 interface Props {
   getIssues?: ReturnType<typeof useInfiniteQuery<PostApiIssueListData>>
@@ -94,6 +96,7 @@ export function IssuesContent({ searching }: Props) {
   const [label, setLabel] = useAtom(labelAtom)
 
   const { members } = useSyncedMembers()
+  const { labels } = useGetLabelList()
 
   const router = useRouter()
 
@@ -225,7 +228,7 @@ export function IssuesContent({ searching }: Props) {
 
   const member = generateAllMenuItems(members, MemberConfig)
 
-  const labels = generateAllMenuItems(tags, LabelConfig)
+  const labelList = generateAllMenuItems(labels, LabelConfig)
 
   const orders = generateAllMenuItems(orderTags, OrderConfig)
 
@@ -268,8 +271,8 @@ export function IssuesContent({ searching }: Props) {
             isChosen={!label?.length}
             key={p}
             name={p}
-            dropdownArr={labels?.get('Labels').all}
-            dropdownItem={labels?.get('Labels').chosen}
+            dropdownArr={labelList?.get('Labels').all}
+            dropdownItem={labelList?.get('Labels').chosen}
           />
         )
       case `${order.sort}`:
@@ -462,6 +465,33 @@ export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
   return (
     <>
       <div className='mr-10 flex w-fit items-center justify-between gap-10'>
+        <div
+          style={{
+            visibility: `${item.labels.length === 0 ? 'hidden' : 'unset'}`
+          }}
+          className='flex items-center gap-2 text-sm'
+        >
+          {item.labels.map(label => {
+            const fontColor = getFontColor(label.color)
+
+            return <span
+              key={label.id}
+              style={{
+                backgroundColor: label.color,
+                color: fontColor.toHex(),
+                borderRadius: '16px',
+                padding: '0px 8px',
+                fontSize: '12px',
+                fontWeight: '550',
+                justifyContent: 'center',
+                textAlign: 'center'
+              }}
+            >
+              {label.name}
+            </span>
+          })}
+        </div>
+
         <div
           style={{
             visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`

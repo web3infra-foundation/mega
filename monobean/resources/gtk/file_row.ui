@@ -10,6 +10,12 @@
             <property name="orientation">horizontal</property>
             <property name="spacing">6</property>
 
+<!--            <child>-->
+<!--              <object class="GtkDrawingArea" id="tree_lines">-->
+<!--                <property name="width-request">15</property>-->
+<!--              </object>-->
+<!--            </child>-->
+
             <child>
               <object class="GtkImage" id="icon" />
             </child>
