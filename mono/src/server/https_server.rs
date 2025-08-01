@@ -51,6 +51,8 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let server_url = format!("{host}:{port}");
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
+    tracing::info!("http server start up!");
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         .await
@@ -206,6 +208,7 @@ pub const ISSUE_TAG: &str = "issue";
 pub const LABEL_TAG: &str = "label";
 pub const CONV_TAG: &str = "conversation";
 pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
+pub const USER_TAG: &str = "user";
 #[derive(OpenApi)]
 #[openapi(
     tags(

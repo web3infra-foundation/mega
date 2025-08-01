@@ -12,6 +12,7 @@ import {
   Heading3Icon,
   HorizontalRuleIcon,
   KeyboardShortcut,
+  LinkIcon,
   OrderedListIcon,
   PlayIcon,
   PostIcon,
@@ -169,6 +170,13 @@ const COMMANDS: CommandItemProps[] = [
     icon: <AtSignIcon />,
     command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).insertContent('@').run(),
     kbd: '@'
+  },
+  {
+    title: 'Link Issues/PRs',
+    searchTerms: ['issue', 'link', 'reference'],
+    icon: <LinkIcon />,
+    command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).insertContent('$').run(),
+    kbd: '$'
   },
   {
     title: 'Reference',

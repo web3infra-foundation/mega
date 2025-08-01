@@ -7,9 +7,8 @@ use async_trait::async_trait;
 use aws_s3_storage::AwsS3Storage;
 use bytes::Bytes;
 
-use callisto::sea_orm_active_enums::StorageTypeEnum;
 use common::{
-    config::LFSConfig,
+    config::{LFSConfig, StorageType},
     errors::{GitLFSError, MegaError},
 };
 use sea_orm::DatabaseConnection;
@@ -66,8 +65,8 @@ pub async fn init(
     connection: Arc<DatabaseConnection>,
 ) -> Arc<dyn LfsFileStorage> {
     match lfs_config.storage_type {
-        StorageTypeEnum::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, connection)),
-        StorageTypeEnum::AwsS3 => Arc::new(AwsS3Storage::init(lfs_config.aws).await),
+        StorageType::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, connection)),
+        StorageType::AwsS3 => Arc::new(AwsS3Storage::init(lfs_config.aws).await),
         _ => unreachable!("Not supported value of config `storage_type`, support value can be 'local_fs' or 'aws_s3'"),
     }
 }
