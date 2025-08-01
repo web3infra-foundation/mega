@@ -1,5 +1,0 @@
-rust_binary(
-    name = "mega",
-    srcs = glob(["src/**/*.rs"]),
-    crate_root = "src/main.rs",
-)
