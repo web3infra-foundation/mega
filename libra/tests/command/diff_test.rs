@@ -56,7 +56,7 @@ async fn test_basic_diff() {
     // Run diff command
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // We can't easily capture stdout, so we'll check that the command didn't panic
@@ -115,7 +115,7 @@ async fn test_diff_staged() {
     // Run diff command with --staged flag
     let args = DiffArgs::parse_from([
         "diff", "--staged", "--algorithm", "histogram"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // The command should complete without panicking
@@ -186,7 +186,7 @@ async fn test_diff_between_commits() {
     // Run diff command comparing the two commits
     let args = DiffArgs::parse_from([
         "diff", "--old", &first_commit.to_string(), "--new", &second_commit.to_string(), "--algorithm", "histogram"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // The command should complete without panicking
@@ -232,7 +232,7 @@ async fn test_diff_with_pathspec() {
     // Run diff command with specific file path
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "file1.txt"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // The command should complete without panicking
@@ -279,7 +279,7 @@ async fn test_diff_output_to_file() {
     // Run diff command with output to file
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "--output", output_file
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // Verify the output file exists
@@ -334,19 +334,19 @@ async fn test_diff_algorithms() {
     // Test histogram algorithm
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "histogram", "--output", "histogram_diff.txt"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // Test myers algorithm
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "myers", "--output", "myers_diff.txt"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // Test myersMinimal algorithm
     let args = DiffArgs::parse_from([
         "diff", "--algorithm", "myersMinimal", "--output", "myersMinimal_diff.txt"
-    ]).unwrap();
+    ]);
     diff::execute(args).await;
 
     // Verify all output files exist
