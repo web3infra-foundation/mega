@@ -1,0 +1,12 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+imara-diff = { workspace = true }
+infer = { workspace = true }
+mercury = { workspace = true }
+path-absolutize = { workspace = true }
+tracing = { workspace = true }
+tokio = {workspace = true}
