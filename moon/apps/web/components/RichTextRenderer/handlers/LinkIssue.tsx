@@ -9,12 +9,23 @@ export const LinkIssue: NodeHandler = ({ node, children }) => {
     return <span>{children}</span>
   }
 
-  const issueId = node.attrs?.id
-  const label = node.attrs?.label || issueId
-  const issueUrl = `/${scope}/issue/${issueId}`
+  const id = node.attrs?.id
+  const label = node.attrs?.label || id
+  let url = ''
+
+  switch (node.attrs?.suggestionType) {
+    case 'issue':
+      url = `/${scope}/issue/${id}`
+      break
+    case 'merge_request':
+      url = `/${scope}/mr/${id}`
+      break
+    default:
+      break
+  }
 
   return (
-    <Link data-type='issue' href={issueUrl} className="issue-link">
+    <Link data-type='issue' href={url} className="issue-link">
       <span className='text-blue-500 border-b border-blue-500'>${label}</span>
     </Link>
   )
