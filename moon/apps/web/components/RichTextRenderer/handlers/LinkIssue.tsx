@@ -11,7 +11,7 @@ export const LinkIssue: NodeHandler = ({ node, children }) => {
 
   const id = node.attrs?.id
   const label = node.attrs?.label || id
-  let url = ''
+  let url = '/404'
 
   switch (node.attrs?.suggestionType) {
     case 'issue':
