@@ -1,6 +1,6 @@
 use crate::command::status;
 use crate::utils::object_ext::BlobExt;
-use clap::{Parser};
+use clap::Parser;
 use mercury::internal::index::{Index, IndexEntry};
 use mercury::internal::object::blob::Blob;
 use std::path::{Path, PathBuf};
@@ -80,7 +80,9 @@ pub async fn execute(args: AddArgs) {
             .modified
             .into_iter()
             .filter(|p| {
-                let s = p.to_str().unwrap_or_else(|| { panic!("path {:?} is not valid UTF-8", p.display()) });
+                let s = p
+                    .to_str()
+                    .unwrap_or_else(|| panic!("path {:?} is not valid UTF-8", p.display()));
                 index.tracked(s, 0)
             })
             .collect();

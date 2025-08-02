@@ -31,12 +31,12 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     }
     let idx_file = path::index();
     let mut index = Index::load(&idx_file)?;
-    
+
     // check if pathspec is all in index (skip if force is enabled)
     if !args.force && !validate_pathspec(&args.pathspec, &index) {
         return Ok(());
     }
-    
+
     let dirs = get_dirs(&args.pathspec, &index, args.force);
     if !dirs.is_empty() && !args.recursive {
         println!(
@@ -49,7 +49,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     for path_str in args.pathspec.iter() {
         let path = PathBuf::from(path_str);
         let path_wd = path.to_workdir().to_string_or_panic();
-        
+
         if dirs.contains(path_str) {
             // dir
             let removed = index.remove_dir_files(&path_wd);
@@ -75,7 +75,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
                 index.remove(&path_wd, 0);
                 println!("rm '{}'", path_wd.bright_green());
             }
-            
+
             if !args.cached {
                 fs::remove_file(&path)?;
             }
@@ -113,7 +113,7 @@ fn get_dirs(pathspec: &[String], index: &Index, force: bool) -> Vec<String> {
     for path_str in pathspec.iter() {
         let path = PathBuf::from(path_str);
         let path_wd = path.to_workdir().to_string_or_panic();
-        
+
         if force {
             // In force mode, check if the path exists and is a directory
             if path.exists() && path.is_dir() {
