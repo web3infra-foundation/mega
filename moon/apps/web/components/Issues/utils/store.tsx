@@ -39,3 +39,6 @@ export const mrCloseCurrentPage = atomWithWebStorage('MRClosecurrentPage', 1)
 
 export const labelsOpenCurrentPage = atomWithWebStorage('LabelsOpenCurrentPage', 1)
 export const labelsCloseCurrentPage = atomWithWebStorage('LabelsCloseCurrentPage', 1)
+
+export const idAtom = atom(0)
+export const mridAtom = atom(0)

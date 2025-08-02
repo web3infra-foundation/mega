@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react'
 import { ChecklistIcon, CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider } from '@primer/react'
+import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 import { toast } from 'react-hot-toast'
 
@@ -20,9 +21,11 @@ import {
   useAvatars,
   useChange,
   useLabelMap,
-  useLabels, useLabelsSelector,
+  useLabels,
+  useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
+import { mridAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { MemberAvatar } from '@/components/MemberAvatar'
 import TimelineItems from '@/components/MrView/TimelineItems'
@@ -36,13 +39,13 @@ import { useGetMrDetail } from '@/hooks/useGetMrDetail'
 import { useGetMrFilesChanged } from '@/hooks/useGetMrFilesChanged'
 import { usePostMrClose } from '@/hooks/usePostMrClose'
 import { usePostMrComment } from '@/hooks/usePostMrComment'
+import { usePostMRLabels } from '@/hooks/usePostMRLabels'
 import { usePostMrMerge } from '@/hooks/usePostMrMerge'
 import { usePostMrReopen } from '@/hooks/usePostMrReopen'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-import { usePostMRLabels } from '@/hooks/usePostMRLabels'
 
 const { UnderlinePanels } = require('@primer/react/experimental')
 
@@ -54,7 +57,8 @@ export interface MRDetail {
 
 const MRDetailPage: PageWithLayout<any> = () => {
   const router = useRouter()
-  const { link: tempId, id: item_id } = router.query
+  const { link: tempId } = router.query
+  const [item_id] = useAtom(mridAtom)
   const { scope } = useScope()
   const [login, _setLogin] = useState(true)
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
@@ -216,7 +220,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                 ) : (
                   mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' />
                 )}
-                <div className='prose mt-3'>
+                <div style={{ marginTop: '12px' }} className='prose'>
                   <div className='flex'>
                     {mrDetail && mrDetail.status === 'open' && (
                       <Button

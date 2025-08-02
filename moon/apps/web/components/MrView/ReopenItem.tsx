@@ -7,7 +7,7 @@ import HandleTime from './components/HandleTime'
 import { ConversationItem } from '@gitmono/types/generated'
 
 
-interface ReopenItemProps {
+export interface ReopenItemProps {
   conv: ConversationItem
 }
 const ReopenItem = ({ conv }: ReopenItemProps) => {

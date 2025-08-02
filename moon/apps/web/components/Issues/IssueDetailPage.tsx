@@ -1,39 +1,46 @@
-'use client';
+'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IssueClosedIcon, IssueOpenedIcon, IssueReopenedIcon } from '@primer/octicons-react';
-import { Stack } from '@primer/react';
-import { useRouter } from 'next/router';
-import toast from 'react-hot-toast';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IssueClosedIcon, IssueOpenedIcon, IssueReopenedIcon } from '@primer/octicons-react'
+import { Stack } from '@primer/react'
+import { useAtom } from 'jotai'
+import { useRouter } from 'next/router'
+import toast from 'react-hot-toast'
 
+import { CommonResultIssueDetailRes } from '@gitmono/types'
+import { Button, LoadingSpinner, PicturePlusIcon } from '@gitmono/ui'
 
-import { CommonResultIssueDetailRes } from '@gitmono/types';
-import { Button, LoadingSpinner, PicturePlusIcon } from '@gitmono/ui';
+import { EMPTY_HTML } from '@/atoms/markdown'
+import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
+import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker'
+import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent'
+import { useGetIssueDetail } from '@/hooks/issues/useGetIssueDetail'
+import { usePostIssueAssignees } from '@/hooks/issues/usePostIssueAssignees'
+import { usePostIssueClose } from '@/hooks/issues/usePostIssueClose'
+import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment'
+import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen'
+import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
+import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
+import { usePostIssueLabels } from '@/hooks/usePostIssueLabels'
+import { useUploadHelpers } from '@/hooks/useUploadHelpers'
+import { apiErrorToast } from '@/utils/apiErrorToast'
+import { trimHtml } from '@/utils/trimHtml'
 
-import { EMPTY_HTML } from '@/atoms/markdown';
-import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset';
-import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker';
-import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent';
-import { useGetIssueDetail } from '@/hooks/issues/useGetIssueDetail';
-import { usePostIssueAssignees } from '@/hooks/issues/usePostIssueAssignees';
-import { usePostIssueClose } from '@/hooks/issues/usePostIssueClose';
-import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment';
-import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen';
-import { useGetCurrentUser } from '@/hooks/useGetCurrentUser';
-import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember';
-import { usePostIssueLabels } from '@/hooks/usePostIssueLabels';
-import { useUploadHelpers } from '@/hooks/useUploadHelpers';
-import { apiErrorToast } from '@/utils/apiErrorToast';
-import { trimHtml } from '@/utils/trimHtml';
-
-
-
-import { MemberAvatar } from '../MemberAvatar';
-import TimelineItems from '../MrView/TimelineItems';
-import { BadgeItem } from './IssueNewPage';
-import { pickWithReflect } from './utils/pickWithReflectDeep';
-import { splitFun, useAssigneesSelector, useAvatars, useChange, useLabelMap, useLabels, useLabelsSelector, useMemberMap } from './utils/sideEffect';
-
+import { MemberAvatar } from '../MemberAvatar'
+import TimelineItems from '../MrView/TimelineItems'
+import { BadgeItem } from './IssueNewPage'
+import { pickWithReflect } from './utils/pickWithReflectDeep'
+import {
+  splitFun,
+  useAssigneesSelector,
+  useAvatars,
+  useChange,
+  useLabelMap,
+  useLabels,
+  useLabelsSelector,
+  useMemberMap
+} from './utils/sideEffect'
+import { idAtom } from './utils/store'
 
 // interface IssueDetail {
 //   status: string
@@ -44,7 +51,8 @@ import { splitFun, useAssigneesSelector, useAvatars, useChange, useLabelMap, use
 
 // let needComment = false
 
-export default function IssueDetailPage({ link, id }: { link: string; id: number }) {
+export default function IssueDetailPage({ link }: { link: string }) {
+  const [id] = useAtom(idAtom)
   const [login, setLogin] = useState(false)
   const [info, setInfo] = useState<Partial<CommonResultIssueDetailRes['data']>>({
     status: '',
@@ -222,22 +230,6 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
   const memberMap = useMemberMap()
 
   const labelMap = useLabelMap()
-
-  // const handleChange = (html: string) => {
-  //   if (html && html === '<p></p>') {
-  //     setCloseHint('Close issue')
-  //   } else {
-  //     setCloseHint('Close with comment')
-  //   }
-  // }
-
-  // const handleCloseChange = (html: string) => {
-  //   if (html && html === '<p></p>') {
-  //     needComment = false
-  //   } else {
-  //     needComment = true
-  //   }
-  // }
 
   const { open, handleAssignees, handleOpenChange, fetchSelected } = useAssigneesSelector({
     assignees: info?.assignees ?? [],
@@ -450,7 +442,7 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                 )}
               </div>
               {/* <SideBar /> */}
-              <div className='flex flex-1 flex-col flex-wrap items-center'>
+              <div className='flex flex-1 flex-col flex-nowrap items-center'>
                 <BadgeItem
                   selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
                   items={avatars}
@@ -476,9 +468,9 @@ export default function IssueDetailPage({ link, id }: { link: string; id: number
                     )
                   }}
                 </BadgeItem>
-                <BadgeItem 
-                  selectPannelProps={{ title: 'Apply labels to this issue' }} 
-                  items={labels} 
+                <BadgeItem
+                  selectPannelProps={{ title: 'Apply labels to this issue' }}
+                  items={labels}
                   title='Labels'
                   handleGroup={(selected) => handleLabels(selected)}
                   open={label_open}

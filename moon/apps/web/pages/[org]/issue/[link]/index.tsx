@@ -7,7 +7,7 @@ import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
 import { PageWithLayout } from '@/utils/types'
 
 export const getServerSideProps: GetServerSideProps = async ({ query }) => {
-  if (!query.id) {
+  if (!query.link) {
     return {
       redirect: {
         destination: `/${query.org}/issue`,
@@ -17,18 +17,17 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   }
   return {
     props: {
-      id: query.id,
       link: query.link
     }
   }
 }
 
-const OrganizationIssueDetailPage: PageWithLayout<any> = ({ link, id }) => {
+const OrganizationIssueDetailPage: PageWithLayout<any> = ({ link }) => {
   return (
     <>
       <ThemeProvider>
         <BaseStyles>
-          <IssueDetailPage link={link} id={id} key={id} />
+          <IssueDetailPage link={link} key={link} />
         </BaseStyles>
       </ThemeProvider>
     </>
