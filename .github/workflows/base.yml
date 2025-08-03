@@ -104,7 +104,7 @@ jobs:
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path saturn/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
-          
+
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
@@ -142,7 +142,7 @@ jobs:
           platform: ${{ matrix.os }}
           use-gtk: true
           self-hosted: ${{ matrix.self-hosted }}
-
+ 
       - name: Run Clippy and Test Monobean Application
         run: |
           cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
