@@ -73,14 +73,23 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Notes::OriginalProjectId).big_unsigned())
                     .col(ColumnDef::new(Notes::OriginalPostId).big_unsigned())
                     .col(ColumnDef::new(Notes::OriginalDigestId).big_unsigned())
-                    .col(ColumnDef::new(Notes::Visibility).integer().not_null().default(0))
+                    .col(
+                        ColumnDef::new(Notes::Visibility)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .col(
                         ColumnDef::new(Notes::NonMemberViewsCount)
                             .integer()
                             .not_null()
                             .default(0),
                     )
-                    .col(ColumnDef::new(Notes::ResolvedCommentsCount).integer().default(0_i32))
+                    .col(
+                        ColumnDef::new(Notes::ResolvedCommentsCount)
+                            .integer()
+                            .default(0_i32),
+                    )
                     .col(ColumnDef::new(Notes::ProjectId).big_unsigned())
                     .col(ColumnDef::new(Notes::LastActivityAt).date_time())
                     .col(ColumnDef::new(Notes::ContentUpdatedAt).date_time())
