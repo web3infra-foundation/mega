@@ -10,7 +10,10 @@ fn init_temp_repo() -> TempDir {
     let temp_path = temp_dir.path();
 
     eprintln!("Temporary directory created at: {temp_path:?}");
-    assert!(temp_path.is_dir(), "Temporary path is not a valid directory");
+    assert!(
+        temp_path.is_dir(),
+        "Temporary path is not a valid directory"
+    );
 
     let output = Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
@@ -41,7 +44,12 @@ async fn test_fetch_invalid_remote() {
     eprintln!("Adding invalid remote: https://invalid-url.example/repo.git");
     let remote_output = TokioCommand::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
-        .args(["remote", "add", "origin", "https://invalid-url.example/repo.git"])
+        .args([
+            "remote",
+            "add",
+            "origin",
+            "https://invalid-url.example/repo.git",
+        ])
         .output()
         .await
         .expect("Failed to add remote");
@@ -85,7 +93,6 @@ async fn test_fetch_invalid_remote() {
         }
         // Command completed within timeout
         Ok(Ok(output)) => {
-
             eprintln!("Fetch completed (status: {:?})", output.status);
             assert!(
                 !output.status.success(),
@@ -101,7 +108,6 @@ async fn test_fetch_invalid_remote() {
         }
         // Failed to start the command
         Ok(Err(e)) => {
-
             panic!("Failed to run 'libra fetch' command: {e}");
         }
     }

@@ -7,7 +7,10 @@ fn init_temp_repo() -> TempDir {
     let temp_path = temp_dir.path();
 
     println!("Temporary directory created at: {temp_path:?}");
-    assert!(temp_path.is_dir(), "Temporary path is not a valid directory");
+    assert!(
+        temp_path.is_dir(),
+        "Temporary path is not a valid directory"
+    );
 
     let output = Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
@@ -38,7 +41,7 @@ async fn test_merge_fast_forward() {
         .args(["branch", "feature"])
         .output()
         .expect("Failed to create branch");
-    
+
     Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .args(["checkout", "feature"])
@@ -62,7 +65,7 @@ async fn test_merge_fast_forward() {
         .expect("Failed to commit");
 
     // Switch back to the main branch and perform fast-forward merge
-  
+
     Command::new(env!("CARGO_BIN_EXE_libra"))
         .current_dir(temp_path)
         .args(["checkout", "main"])
@@ -80,7 +83,6 @@ async fn test_merge_fast_forward() {
         String::from_utf8_lossy(&merge_output.stderr)
     );
 }
-
 
 #[tokio::test]
 /// Test merging a remote branch
@@ -109,7 +111,6 @@ async fn test_merge_remote_branch() {
         String::from_utf8_lossy(&merge_output.stderr)
     );
 }
-
 
 #[tokio::test]
 /// Test merging branches with no common ancestor
@@ -184,4 +185,3 @@ async fn test_merge_no_common_ancestor() {
         String::from_utf8_lossy(&merge_output.stderr)
     );
 }
-
