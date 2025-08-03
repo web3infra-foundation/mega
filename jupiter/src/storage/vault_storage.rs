@@ -50,7 +50,7 @@ impl VaultStorage {
             key: Set(key.as_ref().to_string()),
             value: Set(value),
         };
-
+ 
         match Entity::insert(model)
             .on_conflict(
                 OnConflict::column(Column::Key)
