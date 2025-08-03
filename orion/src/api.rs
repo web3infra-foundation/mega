@@ -1,48 +1,65 @@
 use crate::buck_controller;
 use crate::ws::WSMessage;
-use axum::Json;
-use dashmap::DashSet;
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
-#[derive(Debug, Deserialize)]
+
+/// Parameters required to execute a buck build operation.
+#[derive(Debug)]
 pub struct BuildRequest {
+    /// Repository path or identifier
     pub repo: String,
+    /// Buck build target (e.g., "//path/to:target")
     pub target: String,
+    /// Additional command-line arguments for the build
     pub args: Option<Vec<String>>,
-    pub mr: String, // merge request id
-                    // pub webhook: Option<String>, // post
+    /// Merge request identifier for context
+    pub mr: String,
 }
 
+/// Result of a build operation containing status and metadata.
 #[derive(Debug, Serialize)]
 pub struct BuildResult {
+    /// Whether the build operation was successful
     pub success: bool,
+    /// Unique identifier for the build task
     pub id: String,
+    /// Process exit code (None if not yet completed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// Human-readable status or error message
     pub message: String,
 }
 
-static BUILDING: Lazy<DashSet<String>> = Lazy::new(DashSet::new);
-// TODO avoid multi-task in one repo?
-// #[debug_handler] // better error msg
-// `Json` must be last arg, because it consumes the request body
+/// Initiates an asynchronous buck build process.
+///
+/// The build executes in a background task, allowing this function to return immediately
+/// with an acknowledgment. Build progress and completion are communicated via WebSocket.
+///
+/// # Arguments
+/// * `id` - Unique identifier for tracking the build task
+/// * `req` - Build parameters including repository, target, and arguments
+/// * `sender` - Channel for sending WebSocket messages during build execution
+///
+/// # Returns
+/// Immediate acknowledgment that the build task has been queued and started
 pub async fn buck_build(
     id: Uuid,
     req: BuildRequest,
     sender: UnboundedSender<WSMessage>,
-) -> Json<BuildResult> {
-    let id_c = id;
-    BUILDING.insert(id.to_string());
-    tracing::info!("Start build task: {}", id);
+) -> BuildResult {
+    let id_str = id.to_string();
+    tracing::info!("[Task {}] Received build request.", id_str);
+
+    // Spawn background task to handle the actual build process
     tokio::spawn(async move {
-        let build_resp = match buck_controller::build(
-            id_c.to_string(),
-            req.repo.clone(),
-            req.target.clone(),
+        // Execute the build operation via buck_controller
+        let build_result = match buck_controller::build(
+            id_str.clone(),
+            req.repo,
+            req.target,
             req.args.unwrap_or_default(),
-            req.mr.clone(),
+            req.mr,
             sender.clone(),
         )
         .await
@@ -51,45 +68,57 @@ pub async fn buck_build(
                 let message = format!(
                     "Build {}",
                     if status.success() {
-                        "success"
+                        "succeeded"
                     } else {
                         "failed"
                     }
                 );
-                tracing::info!("{}; Exit code: {:?}", message, status.code());
+                tracing::info!(
+                    "[Task {}] {}; Exit code: {:?}",
+                    id_str,
+                    message,
+                    status.code()
+                );
                 BuildResult {
                     success: status.success(),
-                    id: id_c.to_string(),
+                    id: id_str.clone(),
                     exit_code: status.code(),
                     message,
                 }
             }
             Err(e) => {
-                tracing::error!("Run buck2 failed: {}", e);
+                let error_msg = format!("Build execution failed: {e}");
+                tracing::error!("[Task {}] {}", id_str, error_msg);
                 BuildResult {
                     success: false,
-                    id: id_c.to_string(),
+                    id: id_str.clone(),
                     exit_code: None,
-                    message: e.to_string(),
+                    message: error_msg,
                 }
             }
         };
-        BUILDING.remove(&id_c.to_string()); // MUST after database insert to ensure data accessible
 
-        sender
-            .send(WSMessage::BuildComplete {
-                id: id_c.to_string(),
-                success: build_resp.success,
-                exit_code: build_resp.exit_code,
-                message: build_resp.message.clone(),
-            })
-            .unwrap();
+        // Send build completion notification via WebSocket
+        let complete_msg = WSMessage::BuildComplete {
+            id: build_result.id,
+            success: build_result.success,
+            exit_code: build_result.exit_code,
+            message: build_result.message,
+        };
+
+        if sender.send(complete_msg).is_err() {
+            tracing::error!(
+                "[Task {}] Failed to send BuildComplete message. Connection likely lost.",
+                id_str
+            );
+        }
     });
 
-    Json(BuildResult {
-        success: true, // TODO
+    // Return immediate acknowledgment of task acceptance
+    BuildResult {
+        success: true,
         id: id.to_string(),
         exit_code: None,
-        message: "Build started".to_string(),
-    })
+        message: "Build task has been accepted and started.".to_string(),
+    }
 }
