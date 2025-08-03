@@ -63,7 +63,7 @@ runs:
           libwebkit2gtk-4.1-dev \
           fuse3 \
           libfuse3-dev \
-
+ 
     # ================ Platform-specific Initialization (macOS) ================
     # fuse not available on macOS
     # Newest cmake version from homebrew is 4.x, which breaks building for rdkafka-sys
