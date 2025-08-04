@@ -1,74 +1,149 @@
-use crate::api;
-use crate::api::AppState;
+use crate::api::{self, AppState};
 use crate::model::builds;
-use api::{BuildDTO, BuildRequest, TaskStatus, TaskStatusEnum};
 use axum::Router;
 use axum::routing::get;
 use dashmap::DashMap;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
+use sea_orm::{
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
+    EntityTrait, QueryFilter, Schema, TransactionTrait,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        crate::api::task_handler,
-        crate::api::task_status_handler,
-        crate::api::task_query_by_mr,
+        api::task_handler,
+        api::task_status_handler,
+        api::task_query_by_mr,
     ),
     components(
-        schemas(BuildRequest, TaskStatus, TaskStatusEnum, BuildDTO)
+        schemas(api::BuildRequest, api::TaskStatus, api::TaskStatusEnum, api::BuildDTO)
     ),
     tags(
         (name = "Build", description = "Build related endpoints")
     )
 )]
 pub struct ApiDoc;
+
+/// Starts the Orion server with the specified port
+/// Initializes database connection, sets up routes, and starts health check tasks
 pub async fn start_server(port: u16) {
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-
-    let conn = Database::connect(db_url) // TODO pool
+    let conn = Database::connect(db_url)
         .await
         .expect("Database connection failed");
     setup_tables(&conn).await.expect("Failed to setup tables");
+
+    let state = AppState {
+        workers: Arc::new(DashMap::new()),
+        conn,
+        active_builds: Arc::new(DashMap::new()),
+    };
+
+    // Start background health check task
+    tokio::spawn(start_health_check_task(state.clone()));
 
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        .with_state(AppState {
-            clients: Arc::new(DashMap::new()),
-            conn,
-            building: Arc::new(DashMap::new()),
-        })
-        // logging so we can see what's going on
+        .with_state(state)
         .layer(TraceLayer::new_for_http());
 
     tracing::info!("Listening on port {}", port);
-
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
         .await
         .unwrap();
     axum::serve(
         addr,
-        app.into_make_service_with_connect_info::<SocketAddr>(), // or `ConnectInfo<SocketAddr>` fail
+        app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
     .unwrap();
 }
 
-/// create if not exists
+/// Sets up database tables if they don't exist
 async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
     let trans = conn.begin().await?;
-
     let builder = conn.get_database_backend();
     let schema = Schema::new(builder);
-    let mut table_statement = schema.create_table_from_entity(builds::Entity);
-    table_statement.if_not_exists();
-    let statement = builder.build(&table_statement);
+    let statement = builder.build(
+        schema
+            .create_table_from_entity(builds::Entity)
+            .if_not_exists(),
+    );
     trans.execute(statement).await?;
-
     trans.commit().await
+}
+
+/// Background task that monitors worker health and handles timeouts
+/// Removes dead workers and marks their tasks as interrupted
+async fn start_health_check_task(state: AppState) {
+    let health_check_interval = Duration::from_secs(30);
+    let worker_timeout = Duration::from_secs(90);
+
+    tracing::info!(
+        "Health check task started. Interval: {:?}, Worker timeout: {:?}",
+        health_check_interval,
+        worker_timeout
+    );
+
+    loop {
+        tokio::time::sleep(health_check_interval).await;
+        tracing::debug!("Running health check...");
+
+        let mut dead_workers = Vec::new();
+        let now = chrono::Utc::now();
+
+        // Find workers that haven't sent heartbeat within timeout period
+        for entry in state.workers.iter() {
+            if now.signed_duration_since(entry.value().last_heartbeat)
+                > chrono::Duration::from_std(worker_timeout).unwrap()
+            {
+                dead_workers.push(entry.key().clone());
+            }
+        }
+
+        if dead_workers.is_empty() {
+            continue;
+        }
+
+        tracing::warn!("Found dead workers: {:?}", dead_workers);
+
+        // Remove dead workers and handle their tasks
+        for worker_id in dead_workers {
+            if let Some((_, worker_info)) = state.workers.remove(&worker_id) {
+                tracing::info!("Removed dead worker: {}", worker_id);
+
+                // If worker was busy, mark task as interrupted
+                if let api::WorkerStatus::Busy(task_id) = worker_info.status {
+                    tracing::warn!(
+                        "Worker {} was busy with task {}. Marking task as Interrupted.",
+                        worker_id,
+                        task_id
+                    );
+                    state.active_builds.remove(&task_id);
+
+                    let update_res = builds::Entity::update_many()
+                        .set(builds::ActiveModel {
+                            end_at: Set(Some(chrono::Utc::now())),
+                            ..Default::default()
+                        })
+                        .filter(builds::Column::BuildId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
+                        .exec(&state.conn)
+                        .await;
+
+                    if let Err(e) = update_res {
+                        tracing::error!("Failed to update orphaned task {} in DB: {}", task_id, e);
+                    }
+                }
+            }
+        }
+    }
 }
