@@ -29,3 +29,4 @@ dashmap = { workspace = true }
 utoipa-axum.workspace = true
 utoipa.workspace = true
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
+chrono = { version = "0.4", features = ["serde"] }
