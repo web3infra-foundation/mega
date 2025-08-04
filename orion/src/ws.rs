@@ -1,25 +1,25 @@
-use axum::Json;
+use crate::api::{buck_build, BuildRequest};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::ops::ControlFlow;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, OnceCell};
-// we will use tungstenite for websocket client impl (same library as what axum is using)
-use crate::api::{buck_build, BuildRequest};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use tungstenite::Utf8Bytes;
+use std::time::Duration;
+use tokio::net::TcpStream;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_tungstenite::{
+    connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+};
+use uuid::Uuid;
 
-static SENDER: OnceCell<UnboundedSender<WSMessage>> = OnceCell::const_new();
-
-#[derive(Debug, Serialize, Deserialize)]
+/// Message protocol for WebSocket communication between worker and server.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
 pub enum WSMessage {
-    Task {
+    // Worker -> Server messages
+    Register {
         id: String,
-        repo: String,
-        target: String,
-        args: Option<Vec<String>>,
-        mr: String,
     },
+    Heartbeat,
     TaskAck {
         id: String,
         success: bool,
@@ -35,149 +35,213 @@ pub enum WSMessage {
         exit_code: Option<i32>,
         message: String,
     },
+    // Server -> Worker messages
+    Task {
+        id: String,
+        repo: String,
+        target: String,
+        args: Option<Vec<String>>,
+        mr: String,
+    },
 }
 
-const MAX_RETRIES: u32 = 3;
+/// Manages persistent WebSocket connection with automatic reconnection.
+///
+/// Handles connection establishment, registration, heartbeat, and task processing.
+/// Implements exponential backoff for reconnection attempts.
+///
+/// # Arguments
+/// * `server_addr` - WebSocket server endpoint URL
+/// * `worker_id` - Unique identifier for this worker instance
+pub async fn run_client(server_addr: String, worker_id: String) {
+    let mut reconnect_delay = Duration::from_secs(1);
+    const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(60);
 
-/// send message and retry
-async fn send_with_retry(
-    sender: &mut (impl SinkExt<Message> + Unpin),
-    msg: &WSMessage,
-) -> Result<(), String> {
-    let msg_str = serde_json::to_string(msg).map_err(|e| format!("seriaz fail: {e}"))?;
-    let ws_msg = Message::Text(Utf8Bytes::from(msg_str));
-
-    for attempt in 0..=MAX_RETRIES {
-        match sender.send(ws_msg.clone()).await {
-            Ok(_) => return Ok(()),
-            Err(_) => {
-                if attempt == MAX_RETRIES {
-                    return Err(format!("max retry times:({MAX_RETRIES}), "));
-                }
-                println!("send fail (retry {}/{})", attempt + 1, MAX_RETRIES);
-                const RETRY_DELAY_MS: u64 = 200;
-                tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+    loop {
+        tracing::info!("Attempting to connect to server: {}", server_addr);
+        match connect_async(&server_addr).await {
+            Ok((ws_stream, response)) => {
+                tracing::info!(
+                    "WebSocket handshake successful. Server response: {:?}",
+                    response.status()
+                );
+                // Reset reconnect delay after successful connection
+                reconnect_delay = Duration::from_secs(1);
+                // Handle the active connection
+                handle_connection(ws_stream, worker_id.clone()).await;
+                tracing::warn!("Disconnected from server.");
+            }
+            Err(e) => {
+                tracing::error!(
+                    "WebSocket handshake failed: {}. Retrying in {:?}...",
+                    e,
+                    reconnect_delay
+                );
             }
         }
+        // Wait before attempting to reconnect
+        tokio::time::sleep(reconnect_delay).await;
+        reconnect_delay = (reconnect_delay * 2).min(MAX_RECONNECT_DELAY);
     }
-    Err("max retry error".into())
 }
 
-pub async fn spawn_client(server: &str) {
-    let ws_stream = match connect_async(server).await {
-        Ok((stream, response)) => {
-            println!("Server response was {response:?}");
-            stream
-        }
-        Err(e) => {
-            println!("WebSocket handshake failed with {e}!");
+/// Processes an established WebSocket connection.
+///
+/// Coordinates three concurrent tasks:
+/// - Heartbeat transmission to maintain connection
+/// - Message sending from internal channels  
+/// - Message receiving and processing from server
+///
+/// # Arguments
+/// * `ws_stream` - Established WebSocket connection
+/// * `worker_id` - Worker identifier for registration
+async fn handle_connection(
+    ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    worker_id: String,
+) {
+    let (ws_sender, mut ws_receiver) = ws_stream.split();
+    let (internal_tx, mut internal_rx): (UnboundedSender<WSMessage>, UnboundedReceiver<WSMessage>) =
+        mpsc::unbounded_channel();
+
+    let worker_id_clone = worker_id.clone();
+    let internal_tx_clone = internal_tx.clone();
+    let heartbeat_task = tokio::spawn(async move {
+        tracing::info!("Registering with worker ID: {}", worker_id_clone);
+        if internal_tx_clone
+            .send(WSMessage::Register {
+                id: worker_id_clone,
+            })
+            .is_err()
+        {
+            tracing::error!("Failed to queue register message. Internal channel closed.");
             return;
         }
-    };
-
-    let (mut sender, mut receiver) = ws_stream.split();
-
-    let (tx, mut rx) = mpsc::unbounded_channel::<WSMessage>();
-    SENDER.set(tx).unwrap();
-
-    let mut send_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            //let msg = serde_json::to_string(&msg).unwrap();
-            if let Err(e) = send_with_retry(&mut sender, &msg).await {
-                println!("Error sending message: {e}");
+        let heartbeat_interval = Duration::from_secs(30);
+        loop {
+            tokio::time::sleep(heartbeat_interval).await;
+            tracing::debug!("Sending heartbeat...");
+            if internal_tx_clone.send(WSMessage::Heartbeat).is_err() {
+                tracing::warn!("Failed to queue heartbeat message. Internal channel closed.");
                 break;
             }
         }
     });
 
-    let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = receiver.next().await {
-            if process_message(msg).await.is_break() {
+    let mut ws_sender = ws_sender;
+    let send_task = tokio::spawn(async move {
+        while let Some(msg) = internal_rx.recv().await {
+            match serde_json::to_string(&msg) {
+                Ok(msg_str) => {
+                    if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
+                        tracing::error!(
+                            "Failed to send message to server: {}. Terminating send task.",
+                            e
+                        );
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to serialize WSMessage: {}", e);
+                }
+            }
+        }
+    });
+
+    let internal_tx_clone = internal_tx.clone();
+    let recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_receiver.next().await {
+            if process_server_message(msg, internal_tx_clone.clone())
+                .await
+                .is_break()
+            {
                 break;
             }
         }
     });
 
-    //wait for either task to finish and kill the other task
+    // Wait for any task to complete
     tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
-        }
+        _ = heartbeat_task => tracing::info!("Heartbeat task finished."),
+        _ = send_task => tracing::info!("Send task finished."),
+        _ = recv_task => tracing::info!("Receive task finished."),
     }
 }
 
-async fn process_message(msg: Message) -> ControlFlow<(), ()> {
+/// Processes incoming server messages and handles task execution.
+///
+/// Handles different message types including Task assignments and connection management.
+/// For Task messages, spawns build processes and sends acknowledgments.
+///
+/// # Arguments
+/// * `msg` - WebSocket message received from server
+/// * `tx` - Channel for sending response messages
+///
+/// # Returns
+/// * `ControlFlow::Continue(())` - Continue message processing
+/// * `ControlFlow::Break(())` - Terminate connection
+async fn process_server_message(
+    msg: Message,
+    sender: UnboundedSender<WSMessage>,
+) -> ControlFlow<(), ()> {
     match msg {
-        Message::Text(t) => match serde_json::from_str::<WSMessage>(&t) {
-            Ok(msg) => match msg {
-                WSMessage::Task {
-                    id,
-                    repo,
-                    target,
-                    args,
-                    mr,
-                } => {
-                    println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}, mr:{mr}");
-                    let Json(res) = buck_build(
-                        id.parse().unwrap(),
-                        BuildRequest {
+        Message::Text(t) => {
+            match serde_json::from_str::<WSMessage>(&t) {
+                Ok(ws_msg) => {
+                    match ws_msg {
+                        WSMessage::Task {
+                            id,
                             repo,
                             target,
                             args,
                             mr,
-                        },
-                        SENDER.get().unwrap().clone(),
-                    )
-                    .await;
-                    SENDER
-                        .get()
-                        .unwrap()
-                        .send(WSMessage::TaskAck {
-                            id: id.clone(),
-                            success: res.success,
-                            message: res.message,
-                        })
-                        .unwrap();
+                        } => {
+                            tracing::info!("Received task: id={}", id);
+                            tokio::spawn(async move {
+                                let task_id_uuid = match Uuid::parse_str(&id) {
+                                    Ok(uuid) => uuid,
+                                    Err(e) => {
+                                        tracing::error!("Failed to parse task id '{}' as Uuid: {}. Aborting task.", id, e);
+                                        return;
+                                    }
+                                };
+
+                                let build_result = buck_build(
+                                    task_id_uuid,
+                                    BuildRequest {
+                                        repo,
+                                        target,
+                                        args,
+                                        mr,
+                                    },
+                                    sender.clone(),
+                                )
+                                .await;
+
+                                if let Err(e) = sender.send(WSMessage::TaskAck {
+                                    id,
+                                    success: build_result.success,
+                                    message: build_result.message.clone(),
+                                }) {
+                                    tracing::error!("Failed to send TaskAck: {}", e);
+                                }
+                            });
+                        }
+                        // Log unexpected message types
+                        _ => {
+                            tracing::warn!("Received unexpected message from server: {:?}", ws_msg);
+                        }
+                    }
                 }
-                _ => {
-                    unreachable!("Impossible msg to client {msg:?}");
+                Err(e) => {
+                    tracing::error!("Error deserializing message from server: {}", e);
                 }
-            },
-            Err(e) => {
-                println!("Error parsing message: {e}");
             }
-        },
-        Message::Binary(d) => {
-            println!(">>> got {} bytes: {:?}", d.len(), d);
         }
         Message::Close(c) => {
-            if let Some(cf) = c {
-                println!(
-                    ">>> got close with code {} and reason `{}`",
-                    cf.code, cf.reason
-                );
-            } else {
-                println!(">>> somehow got close message without CloseFrame");
-            }
+            tracing::warn!("Server sent close frame: {:?}", c);
             return ControlFlow::Break(());
         }
-
-        Message::Pong(v) => {
-            println!(">>> got pong with {v:?}");
-        }
-        // Just as with axum server, the underlying tungstenite websocket library
-        // will handle Ping for you automagically by replying with Pong and copying the
-        // v according to spec. But if you need the contents of the pings you can see them here.
-        Message::Ping(v) => {
-            println!(">>> got ping with {v:?}");
-        }
-
-        Message::Frame(_) => {
-            unreachable!("This is never supposed to happen")
-        }
+        _ => {} // Ignore Binary, Ping, Pong and other message types
     }
     ControlFlow::Continue(())
 }

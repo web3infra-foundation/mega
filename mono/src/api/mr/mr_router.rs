@@ -34,6 +34,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(fetch_mr_list))
             .routes(routes!(mr_detail))
             .routes(routes!(merge))
+            .routes(routes!(merge_no_auth))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
             .routes(routes!(mr_files_changed))
@@ -168,6 +169,42 @@ async fn merge(
         state.monorepo().merge_mr(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))
+}
+
+/// Merge Request without authentication
+/// It's for local testing purposes.
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/merge-no-auth",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn merge_no_auth(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state.mr_stg().get_mr(&link).await?;
+    let model = res.ok_or(MegaError::with_message("MR Not Found"))?;
+
+    if model.status != MergeStatusEnum::Open {
+        return Err(ApiError::from(MegaError::with_message(format!(
+            "MR is not in Open status, current status: {:?}",
+            model.status
+        ))));
+    }
+
+    // No authentication required - using default system user
+    let default_username = "system";
+    state.monorepo().merge_mr(default_username, model).await?;
+
+    Ok(Json(CommonResult::success(Some(
+        "Merge completed successfully".to_string(),
+    ))))
 }
 
 /// Fetch MR list

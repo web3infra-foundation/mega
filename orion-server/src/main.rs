@@ -2,16 +2,23 @@ mod api;
 mod model;
 mod server;
 
+/// Orion Build Server
+/// A distributed build system that manages build tasks and worker nodes
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt() // default is INFO
+    // Initialize logging with DEBUG level
+    tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    dotenvy::dotenv().ok(); // .env file is optional
+    // Load environment variables from .env file (optional)
+    dotenvy::dotenv().ok();
+
+    // Get server port from environment or use default
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8004".to_string())
         .parse()
         .expect("PORT must be a number");
+
     server::start_server(port).await;
 }
