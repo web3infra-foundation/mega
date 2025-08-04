@@ -22,6 +22,7 @@ import {
   IssueList as MrList
 } from '@/components/Issues/IssueList'
 import { useScope } from '@/contexts/scope'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { usePostMrList } from '@/hooks/usePostMrList'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
@@ -32,9 +33,8 @@ import { AdditionType, RightAvatar } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
 import { orderTags, reviewTags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
-import { filterAtom, mrCloseCurrentPage, mrOpenCurrentPage, sortAtom } from '../Issues/utils/store'
+import { filterAtom, mrCloseCurrentPage, mridAtom, mrOpenCurrentPage, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
-import { useGetLabelList } from '@/hooks/useGetLabelList'
 
 // interface MrInfoItem {
 //   link: string
@@ -60,6 +60,7 @@ export default function MrView() {
   const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPickerMR' }))
   const { members } = useSyncedMembers()
   const { labels: labelList } = useGetLabelList()
+  const [_mrid, setMrid] = useAtom(mridAtom)
 
   const orderAtom = useMemo(
     () => atomWithWebStorage(`${scope}:mr-order`, { sort: 'Created On', time: 'Newest' }),
@@ -438,7 +439,10 @@ export default function MrView() {
                 return issueList.map((i) => (
                   <MrItem
                     key={i.id}
-                    onClick={() => router.push(`/${scope}/mr/${i.link}/${i.id}`)}
+                    onClick={() => {
+                      setMrid(i.id)
+                      router.push(`/${scope}/mr/${i.link}`)
+                    }}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
                     rightIcon={<RightAvatar item={i} />}
