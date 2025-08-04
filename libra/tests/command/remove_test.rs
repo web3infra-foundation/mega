@@ -275,7 +275,7 @@ async fn test_remove_modified_file() {
     // Verify the file was removed
     assert!(!file_path.exists(), "File should be removed");
 
-    // Verify file is not in the index
+    // Verify file is not in the index.
     let changes = changes_to_be_staged();
     assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
         "File should not appear in changes as new");

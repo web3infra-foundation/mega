@@ -11,7 +11,7 @@ fn create_file(path: &str, content: &str) {
     file.write_all(content.as_bytes()).unwrap();
 }
 
-/// Helper function to modify a file with new content
+/// Helper function to modify a file with new content.
 fn modify_file(path: &str, content: &str) {
     let mut file = fs::OpenOptions::new().write(true).truncate(true).open(path).unwrap();
     file.write_all(content.as_bytes()).unwrap();

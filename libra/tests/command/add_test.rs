@@ -29,7 +29,7 @@ async fn test_add_single_file() {
     .await;
 
     // Verify the file was added to index.
-    let changes = changes_to_be_staged();
+    let changes = changes_to_be_committed().await;
 
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == file_path));
 }
@@ -67,7 +67,7 @@ async fn test_add_multiple_files() {
     .await;
 
     // Verify all files were added to index
-    let changes = changes_to_be_staged();
+    let changes = changes_to_be_committed().await;
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_1.txt"));
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_2.txt"));
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_3.txt"));
@@ -102,7 +102,7 @@ async fn test_add_all_flag() {
     .await;
 
     // Verify all files were added to index
-    let changes = changes_to_be_staged();
+    let changes = changes_to_be_committed().await;
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_1.txt"));
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_2.txt"));
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file_3.txt"));
@@ -176,7 +176,7 @@ async fn test_add_with_ignore_patterns() {
 
     // Create .libraignore file
     let mut ignore_file = fs::File::create(".libraignore").unwrap();
-    ignore_file.write_all(b"ignored_*.txt\nignore_dir/").unwrap();
+    ignore_file.write_all(b"ignored_*.txt\nignore_dir/**").unwrap();
 
     // Create files that should be ignored and not ignored
     let ignored_file = "ignored_file.txt";
@@ -209,13 +209,18 @@ async fn test_add_with_ignore_patterns() {
     .await;
 
     // Verify only non-ignored files were added
-    let changes = changes_to_be_staged();
-    // Ignored files should still show as new (not added due to ignore)
-    assert!(changes.new.iter().any(|x| x.to_str().unwrap() == ignored_file));
-    // Directory files should still show as new (not added due to ignore)
-    assert!(changes.new.iter().any(|x| x.to_str().unwrap() == ignored_dir_file));
-    // Non-ignored file should not show as new (was added)
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == tracked_file));
+    let changes_staged = changes_to_be_staged();
+    let changes_committed = changes_to_be_committed().await;
+    
+    // Ignored files should not appear in any status (they are ignored)
+    assert!(!changes_staged.new.iter().any(|x| x.to_str().unwrap() == ignored_file));
+    assert!(!changes_staged.new.iter().any(|x| x.to_str().unwrap() == ignored_dir_file));
+    assert!(!changes_committed.new.iter().any(|x| x.to_str().unwrap() == ignored_file));
+    assert!(!changes_committed.new.iter().any(|x| x.to_str().unwrap() == ignored_dir_file));
+    
+    // Non-ignored file should not show as new in staged (was added) but should show in committed
+    assert!(!changes_staged.new.iter().any(|x| x.to_str().unwrap() == tracked_file));
+    assert!(changes_committed.new.iter().any(|x| x.to_str().unwrap() == tracked_file));
 }
 
 #[tokio::test]
