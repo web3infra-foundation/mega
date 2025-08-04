@@ -1,3 +1,4 @@
+
 use super::*;
 use std::fs;
 use std::io::Write;
@@ -321,8 +322,7 @@ async fn test_remove_multiple_files() {
         recursive: false,
         force: false,
     };
-    remove::execute(args).unwrap();
-
+    remove::execute(args).unwrap(); 
     // Verify the specified files were removed
     assert!(!file1.exists(), "File 1 should be removed");
     assert!(file2.exists(), "File 2 should still exist");

@@ -48,9 +48,9 @@ impl NoteStorage {
         let save_note = note_active_model.insert(self.get_connection()).await;
         match save_note {
             Ok(model) => Ok(Some(model)),
-            Err(e) => Err(MegaError::with_message(format!(
-                "Failed to save note: {e}",
-            ))),
+            Err(e) => Err(MegaError::with_message(
+                format!("Failed to save note: {e}",),
+            )),
         }
     }
 
