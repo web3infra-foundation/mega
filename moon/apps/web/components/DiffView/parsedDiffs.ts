@@ -1,4 +1,5 @@
 const extensionToLangMap: Record<string, string> = {
+  // Note that the key here is lowercase
   '.ts': 'typescript',
   '.tsx': 'tsx',
   '.js': 'javascript',
@@ -28,6 +29,9 @@ const extensionToLangMap: Record<string, string> = {
   '.env': 'plaintext',
   'license-third-party': 'plaintext',
   'license-apache': 'plaintext',
+  'workspace': 'plaintext', 
+  '.buckroot': 'plaintext',
+  '.buckconfig': 'plaintext',
 }
 
 function getLangFromPath(path: string): string {
