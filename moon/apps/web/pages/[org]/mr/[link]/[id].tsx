@@ -210,7 +210,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
             <div className='flex gap-40'>
               <div className='mt-3 flex w-[60%] flex-col'>
                 {detailIsLoading ? (
-                  <div className='flex items-center justify-center'>
+                  <div className='flex items-center justify-center h-16'>
                     <LoadingSpinner />
                   </div>
                 ) : (
@@ -238,7 +238,6 @@ const MRDetailPage: PageWithLayout<any> = () => {
                       ref={editorRef}
                       editable='all'
                       content={EMPTY_HTML}
-                      autofocus={true}
                       onKeyDown={onKeyDownScrollHandler}
                       onChange={(html) => handleChange(html)}
                     />
@@ -365,7 +364,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
           </UnderlinePanels.Panel>
           <UnderlinePanels.Panel>
             {fileChgIsLoading ? (
-              <div className='flex items-center justify-center'>
+              <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
                 <LoadingSpinner />
               </div>
             ) : MrFilesChangedData?.data?.content ? (
