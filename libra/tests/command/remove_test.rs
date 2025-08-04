@@ -231,7 +231,8 @@ async fn test_remove_untracked_file() {
         recursive: false,
         force: false,
     };
-    remove::execute(args).unwrap(); // Should not panic but should print error
+    let result = remove::execute(args);
+    assert!(result.is_err(), "Removing an untracked file should return an error, not panic");
 
     // Verify the file still exists
     assert!(file_path.exists(), "File should still exist");
