@@ -28,7 +28,7 @@ async fn test_add_single_file() {
     })
     .await;
 
-    // Verify the file was added to index
+    // Verify the file was added to index.
     let changes = changes_to_be_staged();
 
     assert!(changes.new.iter().any(|x| x.to_str().unwrap() == file_path));

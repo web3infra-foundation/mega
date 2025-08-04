@@ -5,7 +5,7 @@ use std::io::Write;
 use clap::Parser;
 use libra::command::diff::{self, DiffArgs};
 
-/// Helper function to create a file with content
+/// Helper function to create a file with content.
 fn create_file(path: &str, content: &str) {
     let mut file = fs::File::create(path).unwrap();
     file.write_all(content.as_bytes()).unwrap();

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 
 
-/// Helper function to create a file with content
+/// Helper function to create a file with content.
 fn create_file(path: &str, content: &str) -> PathBuf {
     let path = PathBuf::from(path);
     if let Some(parent) = path.parent() {
