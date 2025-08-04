@@ -33,17 +33,17 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     let mut index = Index::load(&idx_file)?;
 
     // check if pathspec is all in index (skip if force is enabled)
-    if !args.force && !validate_pathspec(&args.pathspec, &index) {
-        return Ok(());
+    if !args.force {
+        if let Err(e) = validate_pathspec(&args.pathspec, &index) {
+            return Err(e);
+        }
     }
 
     let dirs = get_dirs(&args.pathspec, &index, args.force);
     if !dirs.is_empty() && !args.recursive {
-        println!(
-            "fatal: not removing '{}' recursively without -r",
-            dirs[0].bright_blue()
-        ); // Git print first
-        return Ok(());
+        let error_msg = format!("not removing '{}' recursively without -r", dirs[0]);
+        println!("fatal: {}", error_msg);
+        return Err(GitError::CustomError(error_msg));
     }
 
     for path_str in args.pathspec.iter() {
@@ -87,10 +87,11 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
 
 /// check if pathspec is all valid(in index)
 /// - if path is a dir, check if any file in the dir is in index
-fn validate_pathspec(pathspec: &[String], index: &Index) -> bool {
+fn validate_pathspec(pathspec: &[String], index: &Index) -> Result<(), GitError> {
     if pathspec.is_empty() {
-        println!("fatal: No pathspec was given. Which files should I remove?");
-        return false;
+        let error_msg = "No pathspec was given. Which files should I remove?".to_string();
+        println!("fatal: {}", error_msg);
+        return Err(GitError::CustomError(error_msg));
     }
     for path_str in pathspec.iter() {
         let path = PathBuf::from(path_str);
@@ -99,12 +100,13 @@ fn validate_pathspec(pathspec: &[String], index: &Index) -> bool {
             // not tracked, but path may be a directory
             // check if any tracked file in the directory
             if !index.contains_dir_file(&path_wd) {
-                println!("fatal: pathspec '{path_str}' did not match any files");
-                return false;
+                let error_msg = format!("pathspec '{}' did not match any files", path_str);
+                println!("fatal: {}", error_msg);
+                return Err(GitError::CustomError(error_msg));
             }
         }
     }
-    true
+    Ok(())
 }
 
 /// run after `validate_pathspec`
