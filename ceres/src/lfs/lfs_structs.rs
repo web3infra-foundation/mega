@@ -75,7 +75,7 @@ impl MetaObject {
             oid: req_obj.oid.to_string(),
             size: req_obj.size,
             exist: true,
-            splited: if config.storage_type == StorageTypeEnum::AwsS3 {
+            splited: if StorageTypeEnum::AwsS3 == config.storage_type.clone().into() {
                 false
             } else {
                 splited

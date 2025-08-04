@@ -2,9 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "conv_type_enum")]
 pub enum ConvTypeEnum {
     #[sea_orm(string_value = "comment")]
@@ -34,7 +33,7 @@ pub enum ConvTypeEnum {
     #[sea_orm(string_value = "assignee")]
     Assignee,
 }
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
 pub enum MergeStatusEnum {
     #[sea_orm(string_value = "open")]
@@ -53,7 +52,6 @@ pub enum RefTypeEnum {
     Tag,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "storage_type_enum")]
 pub enum StorageTypeEnum {
     #[sea_orm(string_value = "database")]
