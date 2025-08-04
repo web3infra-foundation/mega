@@ -19,7 +19,7 @@ fn modify_file(path: &str, content: &str) {
 
 #[tokio::test]
 #[serial]
-/// Tests the basic diff functionality between working directory and HEAD
+/// Tests the basic diff functionality between working directory and HEAD.
 async fn test_basic_diff() {
     let test_dir = tempdir().unwrap();
     test::setup_with_new_libra_in(test_dir.path()).await;

@@ -273,7 +273,7 @@ async fn test_remove_modified_file() {
     };
     remove::execute(args).unwrap();
 
-    // Verify the file was removed
+    // Verify the file was removed.
     assert!(!file_path.exists(), "File should be removed");
 
     // Verify file is not in the index.

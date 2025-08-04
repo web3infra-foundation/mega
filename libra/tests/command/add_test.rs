@@ -231,7 +231,7 @@ async fn test_add_dry_run() {
     test::setup_with_new_libra_in(test_dir.path()).await;
     let _guard = test::ChangeDirGuard::new(test_dir.path());
 
-    // Create a file
+    // Create a file.
     let file_path = "test_file.txt";
     let mut file = fs::File::create(file_path).unwrap();
     file.write_all(b"Test content").unwrap();
