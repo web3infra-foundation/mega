@@ -202,7 +202,7 @@ async fn test_remove_directory_without_recursive() {
         recursive: false,
         force: false,
     };
-    remove::execute(args).unwrap(); // This should not error, but it should not remove anything either
+    assert!(remove::execute(args).is_err(), "Removing a directory without recursive should fail");
 
     // Verify the directory and files still exist
     assert!(fs::metadata("test_dir").is_ok(), "Directory should still exist");
