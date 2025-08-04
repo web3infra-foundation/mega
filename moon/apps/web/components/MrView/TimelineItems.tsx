@@ -8,19 +8,20 @@ import {
   FeedPullRequestClosedIcon,
   FeedPullRequestOpenIcon,
   FeedTagIcon,
-  PersonIcon
+  PersonIcon,
+  RepoPushIcon
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 
 import { ConversationItem } from '@gitmono/types/generated'
 
-import LabelItem from '@/components/MrView/LabelItem'
 import MRComment from '@/components/MrView/MRComment'
-
 import AssigneeItem from './AssigneeItem'
 import CloseItem from './CloseItem'
 import MergedItem from './MergedItem'
 import ReopenItem from './ReopenItem'
+import LabelItem from '@/components/MrView/LabelItem'
+import ForcePushItem from './item/ForcePushItem'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -99,6 +100,10 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string }> = ({ de
       case 'Label':
         icon = <FeedTagIcon size={24} className='text-cyan-500' />
         children = <LabelItem conv={conv} />
+        break
+      case 'ForcePush':
+        icon = <RepoPushIcon />
+        children = <ForcePushItem conv={conv} />
         break
     }
 
