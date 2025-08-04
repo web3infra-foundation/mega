@@ -34,15 +34,13 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
 
     // check if pathspec is all in index (skip if force is enabled)
     if !args.force {
-        if let Err(e) = validate_pathspec(&args.pathspec, &index) {
-            return Err(e);
-        }
+        validate_pathspec(&args.pathspec, &index)?
     }
 
     let dirs = get_dirs(&args.pathspec, &index, args.force);
     if !dirs.is_empty() && !args.recursive {
         let error_msg = format!("not removing '{}' recursively without -r", dirs[0]);
-        println!("fatal: {}", error_msg);
+        println!("fatal: {error_msg}");
         return Err(GitError::CustomError(error_msg));
     }
 
@@ -90,7 +88,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
 fn validate_pathspec(pathspec: &[String], index: &Index) -> Result<(), GitError> {
     if pathspec.is_empty() {
         let error_msg = "No pathspec was given. Which files should I remove?".to_string();
-        println!("fatal: {}", error_msg);
+        println!("fatal: {error_msg}");
         return Err(GitError::CustomError(error_msg));
     }
     for path_str in pathspec.iter() {
@@ -100,8 +98,8 @@ fn validate_pathspec(pathspec: &[String], index: &Index) -> Result<(), GitError>
             // not tracked, but path may be a directory
             // check if any tracked file in the directory
             if !index.contains_dir_file(&path_wd) {
-                let error_msg = format!("pathspec '{}' did not match any files", path_str);
-                println!("fatal: {}", error_msg);
+                let error_msg = format!("pathspec '{path_str}' did not match any files");
+                println!("fatal: {error_msg}");
                 return Err(GitError::CustomError(error_msg));
             }
         }
