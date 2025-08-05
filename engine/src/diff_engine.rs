@@ -27,11 +27,11 @@ use path_absolutize::Absolutize;
 pub struct DiffEngine;
 
 impl DiffEngine {
-    /// Computes and writes unified diffs for changed files between two blob sets.
+    /// Computes and returns unified diffs for changed files between two blob sets as a single string.
     ///
-    /// This is the main entry point for the diff engine. It compares files between
-    /// old and new blob collections, applies filtering, and writes the results in
-    /// unified diff format.
+    /// This is the unified diff engine that handles all diff operations and returns a single
+    /// string containing all the diff output. Both libra and mono can use this function and
+    /// then handle the string output according to their needs.
     ///
     /// # Arguments
     ///
@@ -39,7 +39,6 @@ impl DiffEngine {
     /// * `new_blobs` - Vector of (path, hash) tuples representing the new file state
     /// * `algorithm` - Diff algorithm to use ("myers", "myersMinimal", or "histogram")
     /// * `filter` - List of paths to filter; empty means process all files
-    /// * `w` - Writer to output the diff results
     /// * `read_content` - Function to read file content given a path and hash
     ///
     /// # Algorithm Options
@@ -47,72 +46,59 @@ impl DiffEngine {
     /// - `"myers"` - Standard Myers algorithm
     /// - `"myersMinimal"` - Myers algorithm optimized for minimal diffs
     /// - `"histogram"` - Histogram algorithm (default, generally fastest)
-    pub async fn diff(
-        old_blobs: Vec<(PathBuf, SHA1)>,
-        new_blobs: Vec<(PathBuf, SHA1)>,
-        algorithm: String,
-        filter: Vec<PathBuf>,
-        w: &mut dyn io::Write,
-        read_content: &dyn Fn(&PathBuf, &SHA1) -> Vec<u8>,
-    ){
-        let old_blobs: HashMap<PathBuf, SHA1> = old_blobs.into_iter().collect();
-        let new_blobs: HashMap<PathBuf, SHA1> = new_blobs.into_iter().collect();
-
-        // union set
-        let union_files: HashSet<PathBuf> = old_blobs.keys().chain(new_blobs.keys()).cloned().collect();
-        tracing::debug!(
-            "old_blobs: {:?}, new_blobs: {:?}, union_files: {:?}",
-            old_blobs.len(),
-            new_blobs.len(),
-            union_files.len()
-        );
-
-        // filter files, cross old and new files, and pathspec
-        for file in union_files {
-            if Self::should_process(&file, &filter, &old_blobs, &new_blobs) {
-                Self::write_diff_for_file(&file, &old_blobs, &new_blobs, algorithm.as_str(), w, &read_content);
-            }
-        }
-    }
-
-    pub async fn mono_diff<F>(
+    ///
+    /// # Returns
+    ///
+    /// A single string containing all diff output. Users can then write this to a file,
+    /// display it in terminal, or process it further as needed.
+    pub async fn diff<F>(
         old_blobs: Vec<(PathBuf, SHA1)>,
         new_blobs: Vec<(PathBuf, SHA1)>,
         algorithm: String,
         filter: Vec<PathBuf>,
         read_content: F,
-    ) -> Vec<String> 
-    where
+    ) -> String
+    where 
         F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
     {
-        let old_blobs: HashMap<PathBuf, SHA1> = old_blobs.into_iter().collect();
-        let new_blobs: HashMap<PathBuf, SHA1> = new_blobs.into_iter().collect();
+        let (processed_files, old_blobs_map, new_blobs_map) = 
+            Self::prepare_diff_data(old_blobs, new_blobs, &filter);
+        
+        let mut diff_results = Vec::new();
+        for file in processed_files {
+            let diff = Self::diff_for_file_string(&file, &old_blobs_map, &new_blobs_map, algorithm.as_str(), &read_content);
+            diff_results.push(diff);
+        }
+        
+        diff_results.join("")
+    }
+
+    /// Extracts common diff preparation logic
+    fn prepare_diff_data(
+        old_blobs: Vec<(PathBuf, SHA1)>,
+        new_blobs: Vec<(PathBuf, SHA1)>,
+        filter: &[PathBuf],
+    ) -> (Vec<PathBuf>, HashMap<PathBuf, SHA1>, HashMap<PathBuf, SHA1>) {
+        let old_blobs_map: HashMap<PathBuf, SHA1> = old_blobs.into_iter().collect();
+        let new_blobs_map: HashMap<PathBuf, SHA1> = new_blobs.into_iter().collect();
 
         // union set
-        let union_files: HashSet<PathBuf> = old_blobs.keys().chain(new_blobs.keys()).cloned().collect();
+        let union_files: HashSet<PathBuf> = old_blobs_map.keys().chain(new_blobs_map.keys()).cloned().collect();
+        
         tracing::debug!(
             "old_blobs: {:?}, new_blobs: {:?}, union_files: {:?}",
-            old_blobs.len(),
-            new_blobs.len(),
+            old_blobs_map.len(),
+            new_blobs_map.len(),
             union_files.len()
         );
 
-        let mut diffs = Vec::new();
+        // filter files that should be processed
+        let processed_files: Vec<PathBuf> = union_files
+            .into_iter()
+            .filter(|file| Self::should_process(file, filter, &old_blobs_map, &new_blobs_map))
+            .collect();
 
-        for file in union_files {
-            if Self::should_process(&file, &filter, &old_blobs, &new_blobs) {
-                let diff = Self::diff_for_file_string(
-                    &file,
-                    &old_blobs,
-                    &new_blobs,
-                    algorithm.as_str(),
-                    &read_content,
-                );
-                diffs.push(diff);
-            }
-        }
-
-        diffs
+        (processed_files, old_blobs_map, new_blobs_map)
     }
 
     fn should_process(

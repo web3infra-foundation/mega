@@ -122,7 +122,6 @@ pub async fn execute(args: DiffArgs) {
     // use pathspec to filter files
     let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
-    let mut buf: Vec<u8> = Vec::new();
     let read_content = |file: &PathBuf, hash: &SHA1| {
         // read content from blob or file
         match load_object::<Blob>(hash) {
@@ -138,25 +137,24 @@ pub async fn execute(args: DiffArgs) {
         }
     };
 
-    // filter files, cross old and new files, and pathspec
-    DiffEngine::diff(
+    // Get diff output as string using the unified diff function
+    let diff_output = DiffEngine::diff(
         old_blobs,
         new_blobs,
         args.algorithm.unwrap_or_default(),
         paths.into_iter().collect(),
-        &mut buf,
-        &read_content,
+        read_content,
     )
     .await;
 
+    // Handle output - libra processes the string according to its needs
     match w {
         Some(ref mut file) => {
-            file.write_all(&buf).unwrap();
+            file.write_all(diff_output.as_bytes()).unwrap();
         }
         None => {
             #[cfg(unix)]
             {
-                #[cfg(unix)]
                 let mut child = Command::new("less")
                     .arg("-R")
                     .arg("-F")
@@ -164,12 +162,12 @@ pub async fn execute(args: DiffArgs) {
                     .spawn()
                     .expect("failed to execute process");
                 let stdin = child.stdin.as_mut().unwrap();
-                stdin.write_all(&buf).unwrap();
+                stdin.write_all(diff_output.as_bytes()).unwrap();
                 child.wait().unwrap();
             }
             #[cfg(not(unix))]
             {
-                io::stdout().write_all(&buf).unwrap();
+                io::stdout().write_all(diff_output.as_bytes()).unwrap();
             }
         }
     }

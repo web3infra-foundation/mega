@@ -395,7 +395,6 @@ impl MonoApiService {
         })?;
 
 
-        let diff_output = Vec::new();
         let algo = "histogram".to_string(); // Default diff algorithm
         let filter_paths: Vec<PathBuf> = Vec::new(); // No filtering by default
 
@@ -428,7 +427,8 @@ impl MonoApiService {
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 
-        DiffEngine::mono_diff(
+        // Use the unified diff function that returns a single string
+        let diff_output = DiffEngine::diff(
             old_blobs,
             new_blobs,
             algo,
@@ -436,10 +436,7 @@ impl MonoApiService {
             read_content,
         ).await;
 
-        //TODO: handle errors to avoid axum warning
-        String::from_utf8(diff_output).map_err(|e| {
-            GitError::CustomError(format!("Failed to convert diff output to string: {}", e))
-        })
+        Ok(diff_output)
     }
 
     // pub async fn content_diff(&self, mr_link: &str, listen_addr: &str) -> Result<String, GitError> {
