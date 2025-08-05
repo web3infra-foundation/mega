@@ -10,7 +10,6 @@ use mercury::{
 use infer;
 use path_absolutize::Absolutize;
 
-
 /// The main diff neptune responsible for computing and formatting file differences.
 ///
 /// `DiffEngine` provides static methods to compare files between two states (old and new)
@@ -19,6 +18,10 @@ use path_absolutize::Absolutize;
 pub struct Diff;
 
 impl Diff {
+    const MAX_DIFF_LINES: usize = 1000; // Limit to avoid excessive output
+    const LARGE_FILE_MARKER: &'static str = "<<<LARGE_FILE:"; // Marker for binary files
+    const LARGE_FILE_END: &'static str = ">>>"; // End marker for binary files
+
     /// Computes and returns unified diffs for changed files between two blob sets as a single string.
     ///
     /// This is the unified diff neptune that handles all diff operations and returns a single
@@ -49,7 +52,7 @@ impl Diff {
         algorithm: String,
         filter: Vec<PathBuf>,
         read_content: F,
-    ) -> String
+    ) -> String 
     where 
         F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
     {
@@ -58,12 +61,58 @@ impl Diff {
         
         let mut diff_results = Vec::new();
         for file in processed_files {
-            let diff = Self::diff_for_file_string(&file, &old_blobs_map, &new_blobs_map, algorithm.as_str(), &read_content);
-            diff_results.push(diff);
+            if let Some(large_file_marker) = Self::is_large_file(
+                &file,
+                &old_blobs_map,
+                &new_blobs_map,
+                &read_content
+            ) {
+                diff_results.push(large_file_marker);
+            } else {
+                let diff = Self::diff_for_file_string(&file, &old_blobs_map, &new_blobs_map, algorithm.as_str(), &read_content);
+                diff_results.push(diff);
+            }
         }
         
         diff_results.join("")
     }
+
+
+    /// Checks if a file is large and returns a message if it is.
+    fn is_large_file <F>(
+        file: &PathBuf,
+        old_blobs: &HashMap<PathBuf, SHA1>,
+        new_blobs: &HashMap<PathBuf, SHA1>,
+        read_content: &F
+    ) -> Option<String> 
+    where 
+        F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
+    {
+        // Check if file is large based on some criteria, e.g. number of lines
+        let old_hash = old_blobs.get(file);
+        let new_hash = new_blobs.get(file);
+
+        let old_bytes = old_hash.map_or_else(Vec::new, |h| read_content(file, h));
+        let new_bytes = new_hash.map_or_else(Vec::new, |h| read_content(file, h));
+
+        let old_lines = String::from_utf8_lossy(&old_bytes).lines().count();
+        let new_lines = String::from_utf8_lossy(&new_bytes).lines().count();
+        let total_lines = old_lines + new_lines;
+
+        if total_lines > Self::MAX_DIFF_LINES {
+            Some(format!(
+                "{}{}:{}:{}{}\n",
+                Self::LARGE_FILE_MARKER,
+                file.display(),
+                total_lines,
+                Self::MAX_DIFF_LINES,
+                Self::LARGE_FILE_END
+            ))
+        } else {
+            None
+        }
+    }
+
 
     /// Extracts common diff preparation logic
     fn prepare_diff_data(
@@ -103,6 +152,7 @@ impl Diff {
         if !filter.is_empty() && !filter.iter().any(|path| Self::sub_of(file, path).unwrap_or(false)) {
             return false;
         }
+
         // Skip if hashes are equal or both absent
         old_blobs.get(file) != new_blobs.get(file)
     }
