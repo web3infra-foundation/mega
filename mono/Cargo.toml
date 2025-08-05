@@ -23,6 +23,7 @@ ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
+engine = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -60,6 +61,7 @@ utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
+
 
 
 [target.'cfg(not(windows))'.dependencies]
