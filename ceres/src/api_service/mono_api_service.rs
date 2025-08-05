@@ -44,7 +44,7 @@ use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
-use engine::diff_engine::DiffEngine;
+use neptune::neptune_engine::Diff;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -371,7 +371,7 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
-    /// Generate diff content directly from two blob sets using the diff engine
+    /// Generate diff content directly from two blob sets using the diff neptune
     ///
     /// # Arguments
     /// * `mr_link` - Merge request link identifier
@@ -428,7 +428,7 @@ impl MonoApiService {
         };
 
         // Use the unified diff function that returns a single string
-        let diff_output = DiffEngine::diff(
+        let diff_output = Diff::diff(
             old_blobs,
             new_blobs,
             algo,

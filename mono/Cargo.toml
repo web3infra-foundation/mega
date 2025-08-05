@@ -23,7 +23,6 @@ ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
-engine = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

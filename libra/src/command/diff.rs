@@ -13,13 +13,12 @@ use mercury::{
         pack::utils::calculate_object_hash,
     },
 };
-use engine::DiffEngine;
+use neptune::Diff;
 use similar;
 
 use crate::{
     command::{
-        get_target_commit, load_object,
-        status::{self, changes_to_be_committed},
+        get_target_commit, load_object, status::{self, changes_to_be_committed}
     },
     internal::head::Head,
     utils::{object_ext::TreeExt, path, util},
@@ -138,7 +137,7 @@ pub async fn execute(args: DiffArgs) {
     };
 
     // Get diff output as string using the unified diff function
-    let diff_output = DiffEngine::diff(
+    let diff_output = Diff::diff(
         old_blobs,
         new_blobs,
         args.algorithm.unwrap_or_default(),

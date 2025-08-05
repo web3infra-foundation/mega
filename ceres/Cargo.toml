@@ -15,7 +15,7 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 mercury = { workspace = true }
-engine = { workspace = true }
+neptune = { workspace = true }
 
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net", "process"] }
@@ -24,13 +24,11 @@ axum = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 chrono = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
-sea-orm = { workspace = true }
 ring = { workspace = true }
 hex = { workspace = true }
 sysinfo = { workspace = true }
