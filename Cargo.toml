@@ -65,7 +65,7 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 go-defer = "0.1.0"
 russh = "0.52.1"
-axum = "0.8.4"
+axum = {version="0.8.4", features=["macros", "json"]}
 axum-extra = "0.10.1"
 tower-http = "0.6.4"
 tower = "0.5.2"

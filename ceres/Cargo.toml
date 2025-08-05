@@ -15,6 +15,7 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 mercury = { workspace = true }
+engine = { workspace = true }
 
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net", "process"] }

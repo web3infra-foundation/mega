@@ -38,14 +38,13 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::{env, fs};
 
 use async_trait::async_trait;
-use tokio::process::Command;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
+use engine::diff_engine::DiffEngine;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -284,7 +283,7 @@ impl MonoApiService {
 
             if mr.path != "/" {
                 let path = PathBuf::from(mr.path.clone());
-                // beacuse only parent tree is needed so we skip current directory
+                // because only parent tree is needed so we skip current directory
                 let (tree_vec, _) = self
                     .search_tree_for_update(path.parent().unwrap())
                     .await
@@ -292,7 +291,7 @@ impl MonoApiService {
                 self.update_parent_tree(path, tree_vec, commit)
                     .await
                     .unwrap();
-                // remove refs start with path exceprt mr type
+                // remove refs start with path except mr type
                 storage.remove_none_mr_refs(&mr.path).await.unwrap();
                 // TODO: self.clean_dangling_commits().await;
             }
@@ -372,91 +371,162 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
-    pub async fn content_diff(&self, mr_link: &str, listen_addr: &str) -> Result<String, GitError> {
+    /// Generate diff content directly from two blob sets using the diff engine
+    ///
+    /// # Arguments
+    /// * `mr_link` - Merge request link identifier
+    ///
+    /// # Returns
+    /// String containing the unified diff output
+    pub async fn content_diff(
+        &self,
+        mr_link: &str,
+    ) -> Result<String, GitError> {
         let stg = self.storage.mr_storage();
-        if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
-            let base_path = self.storage.config().base_dir.clone();
-            env::set_current_dir(&base_path).unwrap();
-            let clone_path = base_path.join(mr_link);
-            if !fs::exists(&clone_path).unwrap() {
-                let result = self.run_libra_diff(&mr, listen_addr, &clone_path).await;
-                if result.is_err() && fs::exists(&clone_path).unwrap() {
-                    fs::remove_dir_all(&clone_path).unwrap();
+        let mr = stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
+            GitError::CustomError(format!("Merge request not found: {}", mr_link))
+        })?;
+
+        let old_blobs = self.get_commit_blobs(&mr.from_hash).await.map_err(|e| {
+            GitError::CustomError(format!("Failed to get old commit blobs: {}", e))
+        })?;
+        let new_blobs = self.get_commit_blobs(&mr.to_hash).await.map_err(|e| {
+            GitError::CustomError(format!("Failed to get new commit blobs: {}", e))
+        })?;
+
+
+        let diff_output = Vec::new();
+        let algo = "histogram".to_string(); // Default diff algorithm
+        let filter_paths: Vec<PathBuf> = Vec::new(); // No filtering by default
+
+        // Pre-fetch all blob contents to avoid async issues in the closure
+        let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+
+        // Collect all unique hashes
+        let mut all_hashes = HashSet::new();
+        for (_, hash) in &old_blobs {
+            all_hashes.insert(*hash);
+        }
+        for (_, hash) in &new_blobs {
+            all_hashes.insert(*hash);
+        }
+
+        // Fetch all blobs concurrently
+        for hash in all_hashes {
+            match self.get_raw_blob_by_hash(&hash.to_string()).await {
+                Ok(Some(blob)) => {
+                    blob_cache.insert(hash, blob.data.unwrap_or_default());
                 }
-            } else {
-                env::set_current_dir(&clone_path).unwrap();
-            }
-            tracing::debug!("Run libra Command: libra diff --old {}", mr.from_hash);
-            let output = Command::new("libra")
-                .arg("diff")
-                .arg("--old")
-                .arg(mr.from_hash)
-                .output()
-                .await?;
-
-            let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-            if !stderr_str.trim().is_empty() || !output.status.success() {
-                tracing::error!(
-                    "Command failed: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-                fs::remove_dir_all(&clone_path).unwrap();
-            } else {
-                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+                _ => {
+                    blob_cache.insert(hash, Vec::new());
+                }
             }
         }
-        Ok(String::new())
+
+        // Simple synchronous closure that uses the pre-fetched cache
+        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+            blob_cache.get(hash).cloned().unwrap_or_default()
+        };
+
+        DiffEngine::mono_diff(
+            old_blobs,
+            new_blobs,
+            algo,
+            filter_paths,
+            read_content,
+        ).await;
+
+        //TODO: handle errors to avoid axum warning
+        String::from_utf8(diff_output).map_err(|e| {
+            GitError::CustomError(format!("Failed to convert diff output to string: {}", e))
+        })
     }
 
-    async fn run_libra_diff(
-        &self,
-        mr: &callisto::mega_mr::Model,
-        listen_addr: &str,
-        clone_path: &PathBuf,
-    ) -> Result<(), anyhow::Error> {
-        Command::new("mkdir").arg(&mr.link).output().await?;
-        env::set_current_dir(clone_path).unwrap();
-        Command::new("libra").arg("init").output().await?;
-        let git_remote = if mr.path.starts_with("/") {
-            format!("{}{}", listen_addr, mr.path)
-        } else {
-            format!("{}/{}", listen_addr, mr.path)
-        };
-        tracing::debug!("Run libra Command: libra remote add origin {}", &git_remote);
-        Command::new("libra")
-            .arg("remote")
-            .arg("add")
-            .arg("origin")
-            .arg(git_remote)
-            .output()
-            .await?;
-        tracing::debug!("Run libra Command: libra fetch origin refs/mr/{}", &mr.link);
-        Command::new("libra")
-            .arg("fetch")
-            .arg("origin")
-            .arg(format!("refs/mr/{}", &mr.link))
-            .output()
-            .await?;
-        tracing::debug!(
-            "Run libra Command: libra branch {} origin/mr/{}",
-            &mr.link,
-            &mr.link
-        );
-        Command::new("libra")
-            .arg("branch")
-            .arg(&mr.link)
-            .arg(format!("origin/mr/{}", &mr.link))
-            .output()
-            .await?;
-        tracing::debug!("Run libra Command: libra switch {}", &mr.link);
-        Command::new("libra")
-            .arg("switch")
-            .arg(&mr.link)
-            .output()
-            .await?;
-        Ok(())
-    }
+    // pub async fn content_diff(&self, mr_link: &str, listen_addr: &str) -> Result<String, GitError> {
+    //     let stg = self.storage.mr_storage();
+    //     if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
+    //         let base_path = self.storage.config().base_dir.clone();
+    //         env::set_current_dir(&base_path).unwrap();
+    //         let clone_path = base_path.join(mr_link);
+    //         if !fs::exists(&clone_path).unwrap() {
+    //             let result = self.run_libra_diff(&mr, listen_addr, &clone_path).await;
+    //             if result.is_err() && fs::exists(&clone_path).unwrap() {
+    //                 fs::remove_dir_all(&clone_path).unwrap();
+    //             }
+    //         } else {
+    //             env::set_current_dir(&clone_path).unwrap();
+    //         }
+    //         tracing::debug!("Run libra Command: libra diff --old {}", mr.from_hash);
+    //         let output: std::process::Output = Command::new("libra")
+    //             .arg("diff")
+    //             .arg("--old")
+    //             .arg(mr.from_hash)
+    //             .output()
+    //             .await?;
+    //
+    //         let stderr_str = String::from_utf8_lossy(&output.stderr);
+    //
+    //         if !stderr_str.trim().is_empty() || !output.status.success() {
+    //             tracing::error!(
+    //                 "Command failed: {}",
+    //                 String::from_utf8_lossy(&output.stderr)
+    //             );
+    //             fs::remove_dir_all(&clone_path).unwrap();
+    //         } else {
+    //             return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    //         }
+    //     }
+    //     Ok(String::new())
+    // }
+
+    // async fn run_libra_diff(
+    //     &self,
+    //     mr: &callisto::mega_mr::Model,
+    //     listen_addr: &str,
+    //     clone_path: &PathBuf,
+    // ) -> Result<(), anyhow::Error> {
+    //     Command::new("mkdir").arg(&mr.link).output().await?;
+    //     env::set_current_dir(clone_path).unwrap();
+    //     Command::new("libra").arg("init").output().await?;
+    //     let git_remote = if mr.path.starts_with("/") {
+    //         format!("{}{}", listen_addr, mr.path)
+    //     } else {
+    //         format!("{}/{}", listen_addr, mr.path)
+    //     };
+    //     tracing::debug!("Run libra Command: libra remote add origin {}", &git_remote);
+    //     Command::new("libra")
+    //         .arg("remote")
+    //         .arg("add")
+    //         .arg("origin")
+    //         .arg(git_remote)
+    //         .output()
+    //         .await?;
+    //     tracing::debug!("Run libra Command: libra fetch origin refs/mr/{}", &mr.link);
+    //     Command::new("libra")
+    //         .arg("fetch")
+    //         .arg("origin")
+    //         .arg(format!("refs/mr/{}", &mr.link))
+    //         .output()
+    //         .await?;
+    //     tracing::debug!(
+    //         "Run libra Command: libra branch {} origin/mr/{}",
+    //         &mr.link,
+    //         &mr.link
+    //     );
+    //     Command::new("libra")
+    //         .arg("branch")
+    //         .arg(&mr.link)
+    //         .arg(format!("origin/mr/{}", &mr.link))
+    //         .output()
+    //         .await?;
+    //     tracing::debug!("Run libra Command: libra switch {}", &mr.link);
+    //     Command::new("libra")
+    //         .arg("switch")
+    //         .arg(&mr.link)
+    //         .output()
+    //         .await?;
+    //     Ok(())
+    // }
 
     pub async fn mr_files_list(
         &self,

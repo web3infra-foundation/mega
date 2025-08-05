@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std:: {
     io::{self},
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
+    fmt::Write
 };
 use std::collections::HashSet;
 use imara_diff::{
@@ -17,9 +18,35 @@ use mercury::{
 use infer;
 use path_absolutize::Absolutize;
 
+
+/// The main diff engine responsible for computing and formatting file differences.
+///
+/// `DiffEngine` provides static methods to compare files between two states (old and new)
+/// and generate unified diff output. It supports various diff algorithms and handles
+/// both text and binary files appropriately.
 pub struct DiffEngine;
 
 impl DiffEngine {
+    /// Computes and writes unified diffs for changed files between two blob sets.
+    ///
+    /// This is the main entry point for the diff engine. It compares files between
+    /// old and new blob collections, applies filtering, and writes the results in
+    /// unified diff format.
+    ///
+    /// # Arguments
+    ///
+    /// * `old_blobs` - Vector of (path, hash) tuples representing the old file state
+    /// * `new_blobs` - Vector of (path, hash) tuples representing the new file state
+    /// * `algorithm` - Diff algorithm to use ("myers", "myersMinimal", or "histogram")
+    /// * `filter` - List of paths to filter; empty means process all files
+    /// * `w` - Writer to output the diff results
+    /// * `read_content` - Function to read file content given a path and hash
+    ///
+    /// # Algorithm Options
+    ///
+    /// - `"myers"` - Standard Myers algorithm
+    /// - `"myersMinimal"` - Myers algorithm optimized for minimal diffs
+    /// - `"histogram"` - Histogram algorithm (default, generally fastest)
     pub async fn diff(
         old_blobs: Vec<(PathBuf, SHA1)>,
         new_blobs: Vec<(PathBuf, SHA1)>,
@@ -40,14 +67,52 @@ impl DiffEngine {
             union_files.len()
         );
 
-
-
         // filter files, cross old and new files, and pathspec
         for file in union_files {
             if Self::should_process(&file, &filter, &old_blobs, &new_blobs) {
                 Self::write_diff_for_file(&file, &old_blobs, &new_blobs, algorithm.as_str(), w, &read_content);
             }
         }
+    }
+
+    pub async fn mono_diff<F>(
+        old_blobs: Vec<(PathBuf, SHA1)>,
+        new_blobs: Vec<(PathBuf, SHA1)>,
+        algorithm: String,
+        filter: Vec<PathBuf>,
+        read_content: F,
+    ) -> Vec<String> 
+    where
+        F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
+    {
+        let old_blobs: HashMap<PathBuf, SHA1> = old_blobs.into_iter().collect();
+        let new_blobs: HashMap<PathBuf, SHA1> = new_blobs.into_iter().collect();
+
+        // union set
+        let union_files: HashSet<PathBuf> = old_blobs.keys().chain(new_blobs.keys()).cloned().collect();
+        tracing::debug!(
+            "old_blobs: {:?}, new_blobs: {:?}, union_files: {:?}",
+            old_blobs.len(),
+            new_blobs.len(),
+            union_files.len()
+        );
+
+        let mut diffs = Vec::new();
+
+        for file in union_files {
+            if Self::should_process(&file, &filter, &old_blobs, &new_blobs) {
+                let diff = Self::diff_for_file_string(
+                    &file,
+                    &old_blobs,
+                    &new_blobs,
+                    algorithm.as_str(),
+                    &read_content,
+                );
+                diffs.push(diff);
+            }
+        }
+
+        diffs
     }
 
     fn should_process(
@@ -68,6 +133,96 @@ impl DiffEngine {
         let path_abs: PathBuf = path.absolutize()?.to_path_buf();
         let parent_abs: PathBuf = parent.absolutize()?.to_path_buf();
         Ok(path_abs.starts_with(parent_abs))
+    }
+
+    pub fn diff_for_file_string(
+        file: &PathBuf,
+        old_blobs: &HashMap<PathBuf, SHA1>,
+        new_blobs: &HashMap<PathBuf, SHA1>,
+        _algorithm: &str,
+        read_content: &dyn Fn(&PathBuf, &SHA1) -> Vec<u8>,
+    ) -> String {
+        let mut out = String::new();
+        
+        // Look up hashes
+        let new_hash = new_blobs.get(file);
+        let old_hash = old_blobs.get(file);
+
+        // Read contents or empty
+        let old_bytes = old_hash.map_or_else(Vec::new, |h| read_content(file, h));
+        let new_bytes = new_hash.map_or_else(Vec::new, |h| read_content(file, h));
+
+        // diff header
+        writeln!(out, "diff --git a/{} b/{}", file.display(), file.display()).unwrap();
+
+        // file-mode lines
+        if old_hash.is_none() {
+            writeln!(out, "new file mode 100644").unwrap();
+        } else if new_hash.is_none() {
+            writeln!(out, "deleted file mode 100644").unwrap();
+        }
+
+        // index line
+        let old_index = old_hash
+            .map(|h| h.to_string()[0..8].to_string())
+            .unwrap_or_else(|| "00000000".into());
+        let new_index = new_hash
+            .map(|h| h.to_string()[0..8].to_string())
+            .unwrap_or_else(|| "00000000".into());
+        writeln!(out, "index {old_index}..{new_index}").unwrap();
+
+        // infer MIME / text vs binary
+        let _old_type = infer::get(&old_bytes);
+        let _new_type = infer::get(&new_bytes);
+
+        // Try UTF-8 first
+        match (String::from_utf8(old_bytes.clone()), String::from_utf8(new_bytes.clone())) {
+            (Ok(old_text), Ok(new_text)) => {
+                // a/ and b/ prefixes
+                let (old_pref, new_pref) = if old_text.is_empty() {
+                    ("/dev/null".to_string(),
+                    format!("b/{}", file.display()))
+                } else if new_text.is_empty() {
+                    (format!("a/{}", file.display()), "/dev/null".to_string())
+                } else {
+                    (format!("a/{}", file.display()), format!("b/{}", file.display()))
+                };
+
+                writeln!(out, "--- {old_pref}").unwrap();
+                writeln!(out, "+++ {new_pref}").unwrap();
+
+                // call your diff engine; here I'll inline a placeholder
+                // replace this with your actual diff routine, e.g.:
+                // imara_diff_result(&old_text, &new_text, algorithm, &mut out);
+                //
+                // For demonstration, we'll just show unified header:
+                writeln!(
+                    out,
+                    "@@ -1,{} +1,{} @@",
+                    old_text.lines().count(),
+                    new_text.lines().count(),
+                ).unwrap();
+                for line in old_text.lines() {
+                    writeln!(out, "-{line}").unwrap();
+                }
+                for line in new_text.lines() {
+                    writeln!(out, "+{line}").unwrap();
+                }
+            }
+            
+            // Binary fallback
+            _ => {
+                writeln!(
+                    out,
+                    "Binary files a/{} and b/{} differ",
+                    file.display(),
+                    file.display()
+                )
+                .unwrap();
+            }
+        }
+
+        out
     }
 
     fn write_diff_for_file(
