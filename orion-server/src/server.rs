@@ -20,6 +20,7 @@ use utoipa_swagger_ui::SwaggerUi;
     paths(
         api::task_handler,
         api::task_status_handler,
+        api::task_output_handler,
         api::task_query_by_mr,
     ),
     components(
