@@ -208,18 +208,27 @@ pub async fn task_status_handler(
 
 /// Streams build output logs in real-time using Server-Sent Events (SSE)
 /// Continuously monitors the log file and streams new content as it becomes available
-async fn task_output_handler(
+#[utoipa::path(
+    get,
+    path = "/task-output/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID for which to stream output logs")
+    ),
+    responses(
+        (status = 200, description = "Server-Sent Events stream of build output logs"),
+        (status = 404, description = "Task output file not found")
+    )
+)]
+pub async fn task_output_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     let log_path_str = format!("{}/{}", *BUILD_LOG_DIR, id);
     let log_path = std::path::Path::new(&log_path_str);
 
     // Return error message if log file doesn't exist
     if !log_path.exists() {
-        return Sse::new(
-            stream::once(async { Ok(Event::default().data("Task output file not found")) }).boxed(),
-        );
+        return Err(StatusCode::NOT_FOUND);
     }
 
     let file = tokio::fs::File::open(log_path).await.unwrap();
@@ -256,7 +265,7 @@ async fn task_output_handler(
         }
     });
 
-    Sse::new(stream.boxed()).keep_alive(KeepAlive::new())
+    Ok(Sse::new(stream.boxed()).keep_alive(KeepAlive::new()))
 }
 
 #[utoipa::path(

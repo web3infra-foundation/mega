@@ -1,10 +1,7 @@
-
 use super::*;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-
-
 
 /// Helper function to create a file with content.
 fn create_file(path: &str, content: &str) -> PathBuf {
@@ -27,7 +24,7 @@ async fn test_remove_single_file() {
 
     // Create a file and add it to index
     let file_path = create_file("test_file.txt", "Test content");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("test_file.txt")],
         all: false,
@@ -52,16 +49,34 @@ async fn test_remove_single_file() {
     remove::execute(args).unwrap();
 
     // Verify the file was removed from the filesystem
-    assert!(!file_path.exists(), "File should be removed from filesystem");
+    assert!(
+        !file_path.exists(),
+        "File should be removed from filesystem"
+    );
 
     // Verify file is no longer in the index
     let changes = changes_to_be_staged();
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as new");
-    assert!(!changes.modified.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as modified");
-    assert!(!changes.deleted.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as deleted");
+    assert!(
+        !changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as new"
+    );
+    assert!(
+        !changes
+            .modified
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as modified"
+    );
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as deleted"
+    );
 }
 
 #[tokio::test]
@@ -74,7 +89,7 @@ async fn test_remove_cached() {
 
     // Create a file and add it to index
     let file_path = create_file("test_file.txt", "Test content");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("test_file.txt")],
         all: false,
@@ -103,8 +118,13 @@ async fn test_remove_cached() {
 
     // Verify file appears as new (untracked) in the index
     let changes = changes_to_be_staged();
-    assert!(changes.new.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should appear in changes as new/untracked");
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should appear in changes as new/untracked"
+    );
 }
 
 #[tokio::test]
@@ -119,7 +139,7 @@ async fn test_remove_directory_recursive() {
     let file1 = create_file("test_dir/file1.txt", "File 1 content");
     let file2 = create_file("test_dir/file2.txt", "File 2 content");
     let file3 = create_file("test_dir/subdir/file3.txt", "File 3 content");
-    
+
     // Add all files to the index
     add::execute(AddArgs {
         pathspec: vec![String::from("test_dir")],
@@ -148,7 +168,10 @@ async fn test_remove_directory_recursive() {
     remove::execute(args).unwrap();
 
     // Verify the directory and files were removed
-    assert!(fs::metadata("test_dir").is_err(), "Directory should be removed");
+    assert!(
+        fs::metadata("test_dir").is_err(),
+        "Directory should be removed"
+    );
     assert!(!file1.exists(), "File 1 should be removed");
     assert!(!file2.exists(), "File 2 should be removed");
     assert!(!file3.exists(), "File 3 should be removed");
@@ -157,12 +180,24 @@ async fn test_remove_directory_recursive() {
     let changes = changes_to_be_staged();
     for file in &[file1, file2, file3] {
         let file_str = file.to_str().unwrap();
-        assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == file_str), 
-            "File should not appear in changes as new");
-        assert!(!changes.modified.iter().any(|x| x.to_str().unwrap() == file_str), 
-            "File should not appear in changes as modified");
-        assert!(!changes.deleted.iter().any(|x| x.to_str().unwrap() == file_str), 
-            "File should not appear in changes as deleted");
+        assert!(
+            !changes.new.iter().any(|x| x.to_str().unwrap() == file_str),
+            "File should not appear in changes as new"
+        );
+        assert!(
+            !changes
+                .modified
+                .iter()
+                .any(|x| x.to_str().unwrap() == file_str),
+            "File should not appear in changes as modified"
+        );
+        assert!(
+            !changes
+                .deleted
+                .iter()
+                .any(|x| x.to_str().unwrap() == file_str),
+            "File should not appear in changes as deleted"
+        );
     }
 }
 
@@ -177,7 +212,7 @@ async fn test_remove_directory_without_recursive() {
     // Create a directory with files
     let file1 = create_file("test_dir/file1.txt", "File 1 content");
     let file2 = create_file("test_dir/file2.txt", "File 2 content");
-    
+
     // Add all files to the index
     add::execute(AddArgs {
         pathspec: vec![String::from("test_dir")],
@@ -202,10 +237,16 @@ async fn test_remove_directory_without_recursive() {
         recursive: false,
         force: false,
     };
-    assert!(remove::execute(args).is_err(), "Removing a directory without recursive should fail");
+    assert!(
+        remove::execute(args).is_err(),
+        "Removing a directory without recursive should fail"
+    );
 
     // Verify the directory and files still exist
-    assert!(fs::metadata("test_dir").is_ok(), "Directory should still exist");
+    assert!(
+        fs::metadata("test_dir").is_ok(),
+        "Directory should still exist"
+    );
     assert!(file1.exists(), "File 1 should still exist");
     assert!(file2.exists(), "File 2 should still exist");
 }
@@ -220,7 +261,7 @@ async fn test_remove_untracked_file() {
 
     // Create a file but don't add it to the index
     let file_path = create_file("untracked_file.txt", "Untracked content");
-    
+
     // Make sure the file exists
     assert!(file_path.exists(), "File should exist");
 
@@ -232,7 +273,10 @@ async fn test_remove_untracked_file() {
         force: false,
     };
     let result = remove::execute(args);
-    assert!(result.is_err(), "Removing an untracked file should return an error, not panic");
+    assert!(
+        result.is_err(),
+        "Removing an untracked file should return an error, not panic"
+    );
 
     // Verify the file still exists
     assert!(file_path.exists(), "File should still exist");
@@ -248,7 +292,7 @@ async fn test_remove_modified_file() {
 
     // Create a file and add it to index
     let file_path = create_file("test_file.txt", "Initial content");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("test_file.txt")],
         all: false,
@@ -261,7 +305,11 @@ async fn test_remove_modified_file() {
     .await;
 
     // Modify the file
-    let mut file = fs::OpenOptions::new().write(true).truncate(true).open(&file_path).unwrap();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&file_path)
+        .unwrap();
     file.write_all(b" - Modified").unwrap();
 
     // Remove the file
@@ -278,12 +326,27 @@ async fn test_remove_modified_file() {
 
     // Verify file is not in the index.
     let changes = changes_to_be_staged();
-    assert!(!changes.new.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as new");
-    assert!(!changes.modified.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as modified");
-    assert!(!changes.deleted.iter().any(|x| x.to_str().unwrap() == "test_file.txt"), 
-        "File should not appear in changes as deleted");
+    assert!(
+        !changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as new"
+    );
+    assert!(
+        !changes
+            .modified
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as modified"
+    );
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear in changes as deleted"
+    );
 }
 
 #[tokio::test]
@@ -298,7 +361,7 @@ async fn test_remove_multiple_files() {
     let file1 = create_file("file1.txt", "File 1 content");
     let file2 = create_file("file2.txt", "File 2 content");
     let file3 = create_file("file3.txt", "File 3 content");
-    
+
     // Add all files to the index
     add::execute(AddArgs {
         pathspec: vec![String::from(".")],
@@ -323,7 +386,7 @@ async fn test_remove_multiple_files() {
         recursive: false,
         force: false,
     };
-    remove::execute(args).unwrap(); 
+    remove::execute(args).unwrap();
     // Verify the specified files were removed
     assert!(!file1.exists(), "File 1 should be removed");
     assert!(file2.exists(), "File 2 should still exist");

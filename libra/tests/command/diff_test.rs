@@ -13,7 +13,11 @@ fn create_file(path: &str, content: &str) {
 
 /// Helper function to modify a file with new content.
 fn modify_file(path: &str, content: &str) {
-    let mut file = fs::OpenOptions::new().write(true).truncate(true).open(path).unwrap();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(path)
+        .unwrap();
     file.write_all(content.as_bytes()).unwrap();
 }
 
@@ -27,7 +31,7 @@ async fn test_basic_diff() {
 
     // Create a file and add it to index
     create_file("file1.txt", "Initial content\nLine 2\nLine 3\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -54,9 +58,7 @@ async fn test_basic_diff() {
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
 
     // Run diff command
-    let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "histogram"
-    ]);
+    let args = DiffArgs::parse_from(["diff", "--algorithm", "histogram"]);
     diff::execute(args).await;
 
     // We can't easily capture stdout, so we'll check that the command didn't panic
@@ -72,7 +74,7 @@ async fn test_diff_staged() {
 
     // Create a file and add it to index
     create_file("file1.txt", "Initial content\nLine 2\nLine 3\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -97,7 +99,7 @@ async fn test_diff_staged() {
 
     // Modify the file and stage it
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -110,12 +112,13 @@ async fn test_diff_staged() {
     .await;
 
     // Modify the file again (so working dir differs from staged)
-    modify_file("file1.txt", "Modified content again\nLine 2\nLine 3 changed again\n");
+    modify_file(
+        "file1.txt",
+        "Modified content again\nLine 2\nLine 3 changed again\n",
+    );
 
     // Run diff command with --staged flag
-    let args = DiffArgs::parse_from([
-        "diff", "--staged", "--algorithm", "histogram"
-    ]);
+    let args = DiffArgs::parse_from(["diff", "--staged", "--algorithm", "histogram"]);
     diff::execute(args).await;
 
     // The command should complete without panicking
@@ -131,7 +134,7 @@ async fn test_diff_between_commits() {
 
     // Create a file and make initial commit
     create_file("file1.txt", "Initial content\nLine 2\nLine 3\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -158,7 +161,7 @@ async fn test_diff_between_commits() {
 
     // Modify file and create a second commit
     modify_file("file1.txt", "Modified content\nLine 2\nLine 3 changed\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -185,7 +188,13 @@ async fn test_diff_between_commits() {
 
     // Run diff command comparing the two commits
     let args = DiffArgs::parse_from([
-        "diff", "--old", &first_commit.to_string(), "--new", &second_commit.to_string(), "--algorithm", "histogram"
+        "diff",
+        "--old",
+        &first_commit.to_string(),
+        "--new",
+        &second_commit.to_string(),
+        "--algorithm",
+        "histogram",
     ]);
     diff::execute(args).await;
 
@@ -203,7 +212,7 @@ async fn test_diff_with_pathspec() {
     // Create multiple files and commit them
     create_file("file1.txt", "File 1 content\nLine 2\nLine 3\n");
     create_file("file2.txt", "File 2 content\nLine 2\nLine 3\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from(".")],
         all: false,
@@ -230,9 +239,7 @@ async fn test_diff_with_pathspec() {
     modify_file("file2.txt", "File 2 modified\nLine 2\nLine 3 changed\n");
 
     // Run diff command with specific file path
-    let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "histogram", "file1.txt"
-    ]);
+    let args = DiffArgs::parse_from(["diff", "--algorithm", "histogram", "file1.txt"]);
     diff::execute(args).await;
 
     // The command should complete without panicking
@@ -248,7 +255,7 @@ async fn test_diff_output_to_file() {
 
     // Create a file and commit it
     create_file("file1.txt", "Initial content\nLine 2\nLine 3\n");
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -277,17 +284,21 @@ async fn test_diff_output_to_file() {
     let output_file = "diff_output.txt";
 
     // Run diff command with output to file
-    let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "histogram", "--output", output_file
-    ]);
+    let args = DiffArgs::parse_from(["diff", "--algorithm", "histogram", "--output", output_file]);
     diff::execute(args).await;
 
     // Verify the output file exists
-    assert!(fs::metadata(output_file).is_ok(), "Output file should exist");
-    
+    assert!(
+        fs::metadata(output_file).is_ok(),
+        "Output file should exist"
+    );
+
     // Read the file content to make sure it contains diff output
     let content = fs::read_to_string(output_file).unwrap();
-    assert!(content.contains("diff --git"), "Output should contain diff header");
+    assert!(
+        content.contains("diff --git"),
+        "Output should contain diff header"
+    );
 }
 
 #[tokio::test]
@@ -303,7 +314,7 @@ async fn test_diff_algorithms() {
         "file1.txt",
         "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\n",
     );
-    
+
     add::execute(AddArgs {
         pathspec: vec![String::from("file1.txt")],
         all: false,
@@ -333,24 +344,39 @@ async fn test_diff_algorithms() {
 
     // Test histogram algorithm
     let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "histogram", "--output", "histogram_diff.txt"
+        "diff",
+        "--algorithm",
+        "histogram",
+        "--output",
+        "histogram_diff.txt",
     ]);
     diff::execute(args).await;
 
     // Test myers algorithm
-    let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "myers", "--output", "myers_diff.txt"
-    ]);
+    let args = DiffArgs::parse_from(["diff", "--algorithm", "myers", "--output", "myers_diff.txt"]);
     diff::execute(args).await;
 
     // Test myersMinimal algorithm
     let args = DiffArgs::parse_from([
-        "diff", "--algorithm", "myersMinimal", "--output", "myersMinimal_diff.txt"
+        "diff",
+        "--algorithm",
+        "myersMinimal",
+        "--output",
+        "myersMinimal_diff.txt",
     ]);
     diff::execute(args).await;
 
     // Verify all output files exist
-    assert!(fs::metadata("histogram_diff.txt").is_ok(), "Histogram output file should exist");
-    assert!(fs::metadata("myers_diff.txt").is_ok(), "Myers output file should exist");
-    assert!(fs::metadata("myersMinimal_diff.txt").is_ok(), "MyersMinimal output file should exist");
+    assert!(
+        fs::metadata("histogram_diff.txt").is_ok(),
+        "Histogram output file should exist"
+    );
+    assert!(
+        fs::metadata("myers_diff.txt").is_ok(),
+        "Myers output file should exist"
+    );
+    assert!(
+        fs::metadata("myersMinimal_diff.txt").is_ok(),
+        "MyersMinimal output file should exist"
+    );
 }
