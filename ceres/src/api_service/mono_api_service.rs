@@ -384,14 +384,14 @@ impl MonoApiService {
     ) -> Result<String, GitError> {
         let stg = self.storage.mr_storage();
         let mr = stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-            GitError::CustomError(format!("Merge request not found: {}", mr_link))
+            GitError::CustomError(format!("Merge request not found: {mr_link}"))
         })?;
 
         let old_blobs = self.get_commit_blobs(&mr.from_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get old commit blobs: {}", e))
+            GitError::CustomError(format!("Failed to get old commit blobs: {e}"))
         })?;
         let new_blobs = self.get_commit_blobs(&mr.to_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get new commit blobs: {}", e))
+            GitError::CustomError(format!("Failed to get new commit blobs: {e}"))
         })?;
 
 
@@ -438,92 +438,6 @@ impl MonoApiService {
 
         Ok(diff_output)
     }
-
-    // pub async fn content_diff(&self, mr_link: &str, listen_addr: &str) -> Result<String, GitError> {
-    //     let stg = self.storage.mr_storage();
-    //     if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
-    //         let base_path = self.storage.config().base_dir.clone();
-    //         env::set_current_dir(&base_path).unwrap();
-    //         let clone_path = base_path.join(mr_link);
-    //         if !fs::exists(&clone_path).unwrap() {
-    //             let result = self.run_libra_diff(&mr, listen_addr, &clone_path).await;
-    //             if result.is_err() && fs::exists(&clone_path).unwrap() {
-    //                 fs::remove_dir_all(&clone_path).unwrap();
-    //             }
-    //         } else {
-    //             env::set_current_dir(&clone_path).unwrap();
-    //         }
-    //         tracing::debug!("Run libra Command: libra diff --old {}", mr.from_hash);
-    //         let output: std::process::Output = Command::new("libra")
-    //             .arg("diff")
-    //             .arg("--old")
-    //             .arg(mr.from_hash)
-    //             .output()
-    //             .await?;
-    //
-    //         let stderr_str = String::from_utf8_lossy(&output.stderr);
-    //
-    //         if !stderr_str.trim().is_empty() || !output.status.success() {
-    //             tracing::error!(
-    //                 "Command failed: {}",
-    //                 String::from_utf8_lossy(&output.stderr)
-    //             );
-    //             fs::remove_dir_all(&clone_path).unwrap();
-    //         } else {
-    //             return Ok(String::from_utf8_lossy(&output.stdout).to_string());
-    //         }
-    //     }
-    //     Ok(String::new())
-    // }
-
-    // async fn run_libra_diff(
-    //     &self,
-    //     mr: &callisto::mega_mr::Model,
-    //     listen_addr: &str,
-    //     clone_path: &PathBuf,
-    // ) -> Result<(), anyhow::Error> {
-    //     Command::new("mkdir").arg(&mr.link).output().await?;
-    //     env::set_current_dir(clone_path).unwrap();
-    //     Command::new("libra").arg("init").output().await?;
-    //     let git_remote = if mr.path.starts_with("/") {
-    //         format!("{}{}", listen_addr, mr.path)
-    //     } else {
-    //         format!("{}/{}", listen_addr, mr.path)
-    //     };
-    //     tracing::debug!("Run libra Command: libra remote add origin {}", &git_remote);
-    //     Command::new("libra")
-    //         .arg("remote")
-    //         .arg("add")
-    //         .arg("origin")
-    //         .arg(git_remote)
-    //         .output()
-    //         .await?;
-    //     tracing::debug!("Run libra Command: libra fetch origin refs/mr/{}", &mr.link);
-    //     Command::new("libra")
-    //         .arg("fetch")
-    //         .arg("origin")
-    //         .arg(format!("refs/mr/{}", &mr.link))
-    //         .output()
-    //         .await?;
-    //     tracing::debug!(
-    //         "Run libra Command: libra branch {} origin/mr/{}",
-    //         &mr.link,
-    //         &mr.link
-    //     );
-    //     Command::new("libra")
-    //         .arg("branch")
-    //         .arg(&mr.link)
-    //         .arg(format!("origin/mr/{}", &mr.link))
-    //         .output()
-    //         .await?;
-    //     tracing::debug!("Run libra Command: libra switch {}", &mr.link);
-    //     Command::new("libra")
-    //         .arg("switch")
-    //         .arg(&mr.link)
-    //         .output()
-    //         .await?;
-    //     Ok(())
-    // }
 
     pub async fn mr_files_list(
         &self,
