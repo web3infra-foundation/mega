@@ -24,7 +24,7 @@ impl Diff {
 
     /// Computes and returns unified diffs for changed files between two blob sets as a single string.
     ///
-    /// This is the unified diff neptune that handles all diff operations and returns a single
+    /// This is the unified diff function that handles all diff operations and returns a single
     /// string containing all the diff output. Both libra and mono can use this function and
     /// then handle the string output according to their needs.
     ///
