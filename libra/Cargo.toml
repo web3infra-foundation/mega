@@ -22,12 +22,11 @@ futures = { workspace = true }
 futures-util = { workspace = true }
 gemini = { workspace = true, optional = true }
 hex = { workspace = true }
-imara-diff = { workspace = true }
 indicatif = { workspace = true }
-infer = { workspace = true }
 lazy_static = { workspace = true }
 lru-mem = { workspace = true }
 mercury = { workspace = true }
+neptune = { workspace = true }
 once_cell = { workspace = true }
 path-absolutize = { workspace = true }
 pathdiff = { workspace = true }
