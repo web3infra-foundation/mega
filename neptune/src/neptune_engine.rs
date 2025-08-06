@@ -10,7 +10,7 @@ use mercury::{
 use infer;
 use path_absolutize::Absolutize;
 
-/// The main diff neptune responsible for computing and formatting file differences.
+/// The main diff engine responsible for computing and formatting file differences.
 ///
 /// `DiffEngine` provides static methods to compare files between two states (old and new)
 /// and generate unified diff output. It supports various diff algorithms and handles
