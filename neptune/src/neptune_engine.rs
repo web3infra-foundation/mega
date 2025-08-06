@@ -92,8 +92,8 @@ impl Diff {
         let old_hash = old_blobs.get(file);
         let new_hash = new_blobs.get(file);
 
-        let old_bytes = old_hash.map_or_else(Vec::new, |h| read_content(file, h));
-        let new_bytes = new_hash.map_or_else(Vec::new, |h| read_content(file, h));
+        let old_bytes = old_hash.map_or_else(|| Vec::new(), |h| read_content(file, h));
+        let new_bytes = new_hash.map_or_else(|| Vec::new(), |h| read_content(file, h));
 
         let old_lines = String::from_utf8_lossy(&old_bytes).lines().count();
         let new_lines = String::from_utf8_lossy(&new_bytes).lines().count();
@@ -177,8 +177,8 @@ impl Diff {
         let old_hash = old_blobs.get(file);
 
         // Read contents or empty
-        let old_bytes = old_hash.map_or_else(Vec::new, |h| read_content(file, h));
-        let new_bytes = new_hash.map_or_else(Vec::new, |h| read_content(file, h));
+        let old_bytes = old_hash.map_or_else(|| Vec::new(), |h| read_content(file, h));
+        let new_bytes = new_hash.map_or_else(|| Vec::new(), |h| read_content(file, h));
 
         // diff header
         writeln!(out, "diff --git a/{} b/{}", file.display(), file.display()).unwrap();
@@ -193,10 +193,10 @@ impl Diff {
         // index line
         let old_index = old_hash
             .map(|h| h.to_string()[0..8].to_string())
-            .unwrap_or_else(|| "00000000".into());
+            .unwrap_or_else(|| "0000000".into());
         let new_index = new_hash
             .map(|h| h.to_string()[0..8].to_string())
-            .unwrap_or_else(|| "00000000".into());
+            .unwrap_or_else(|| "0000000".into());
         writeln!(out, "index {old_index}..{new_index}").unwrap();
 
         // infer MIME / text vs binary
