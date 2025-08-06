@@ -100,11 +100,24 @@ export default function RustEcosystemPage() {
                   style={{ minWidth: 0 }}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (search.trim()) {
+                        router.push(`/${router.query.org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`)
+                      }
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   className="inline-flex items-center justify-center h-12 px-6 ml-3 gap-3 rounded-lg bg-[#1F2D5C] text-white text-base font-medium whitespace-nowrap flex-shrink-0"
                   style={{ height: '48px', padding: '0 24px', borderRadius: '8px', background: '#1F2D5C' }}
+                  onClick={() => {
+                    if (search.trim()) {
+                      router.push(`/${router.query.org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`)
+                    }
+                  }}
                 >
                   Search Crate
                 </button>
@@ -399,7 +412,7 @@ export default function RustEcosystemPage() {
                 {/* More 按钮 */}
                 <div className="flex justify-end mt-6">
                   <button
-                    className="inline-flex items-center justify-center font-semibold text-base text-white"
+                    className="inline-flex items-center justify-center text-base text-white"
                     style={{
                       height: 40,
                       padding: '0 16px',
@@ -407,6 +420,7 @@ export default function RustEcosystemPage() {
                       flexShrink: 0,
                       borderRadius: 6,
                       background: '#3E63DD',
+                      fontWeight: 500,
                     }}
                   >
                     More
