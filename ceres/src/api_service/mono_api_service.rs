@@ -371,7 +371,7 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
-    /// Generate diff content directly from two blob sets using the diff neptune
+    /// Generate diff content directly from two blob sets using the diff engine
     ///
     /// # Arguments
     /// * `mr_link` - Merge request link identifier
