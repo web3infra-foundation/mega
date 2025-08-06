@@ -214,7 +214,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
             <div className='flex gap-40'>
               <div className='mt-3 flex w-[60%] flex-col'>
                 {detailIsLoading ? (
-                  <div className='flex items-center justify-center h-16'>
+                  <div className='flex h-16 items-center justify-center'>
                     <LoadingSpinner />
                   </div>
                 ) : (
@@ -372,7 +372,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                 <LoadingSpinner />
               </div>
             ) : MrFilesChangedData?.data?.content ? (
-              <FileDiff diffs={MrFilesChangedData.data.content} />
+              <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
             ) : (
               <div>No files changed</div>
             )}
