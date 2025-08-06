@@ -219,7 +219,7 @@ impl Diff {
                 writeln!(out, "--- {old_pref}").unwrap();
                 writeln!(out, "+++ {new_pref}").unwrap();
 
-                // call your diff neptune; here I'll inline a placeholder
+                // call your diff engine; here I'll inline a placeholder
                 // replace this with your actual diff routine, e.g.:
                 // imara_diff_result(&old_text, &new_text, algorithm, &mut out);
                 //
