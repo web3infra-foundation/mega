@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std:: {
+use std::{
     path::{PathBuf},
     fmt::Write
 };
@@ -219,11 +219,6 @@ impl Diff {
                 writeln!(out, "--- {old_pref}").unwrap();
                 writeln!(out, "+++ {new_pref}").unwrap();
 
-                // call your diff engine; here I'll inline a placeholder
-                // replace this with your actual diff routine, e.g.:
-                // imara_diff_result(&old_text, &new_text, algorithm, &mut out);
-                //
-                // For demonstration, we'll just show unified header:
                 writeln!(
                     out,
                     "@@ -1,{} +1,{} @@",
