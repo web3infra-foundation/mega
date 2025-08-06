@@ -62,6 +62,7 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
 
 
+
 [target.'cfg(not(windows))'.dependencies]
 jemallocator = { workspace = true }
 
