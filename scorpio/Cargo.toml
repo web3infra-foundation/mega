@@ -13,7 +13,7 @@ serde = { version = "1.0.210", features = ["derive"] }
 fuse-backend-rs = { version = "0.12.0", features = ["fusedev","async-io"]}
 tokio = { version = "1.40.0", features = ["full"] }
 axum = { version =  "0.8.4",features=["macros"]}
-rfuse3 = { version = "0.0.2" ,features = ["tokio-runtime","unprivileged"]}
+rfuse3 = { version = "0.0.3" ,features = ["tokio-runtime","unprivileged"]}
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 clap = { version = "4.0", features = ["derive"] }
 
@@ -35,7 +35,7 @@ futures = "0.3.31"
 quote = "1.0.38"
 proc-macro2 = "1.0.93"
 uuid = "1.14.0"
-libfuse-fs = "0.1.3"
+libfuse-fs = "0.1.4"
 regex = "1.11.1"
 whoami = "1.6.0"
 wax = "0.6.0"
