@@ -23,7 +23,7 @@ use crate::api::{
     conversation::conv_router, issue::issue_router, label::label_router, mr::mr_router,
     notes::note_router, user::user_router, MonoApiServiceState,
 };
-use crate::{api::error::ApiError, server::https_server::GIT_TAG};
+use crate::{api::error::ApiError, server::http_server::GIT_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()

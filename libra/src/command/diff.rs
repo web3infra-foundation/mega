@@ -1,7 +1,7 @@
 use std::{
     fmt,
     io::{self, Write},
-    path::{PathBuf},
+    path::PathBuf,
 };
 
 use clap::Parser;
@@ -18,15 +18,16 @@ use similar;
 
 use crate::{
     command::{
-        get_target_commit, load_object, status::{self, changes_to_be_committed}
+        get_target_commit, load_object,
+        status::{self, changes_to_be_committed},
     },
     internal::head::Head,
     utils::{object_ext::TreeExt, path, util},
 };
 
+use crate::utils::util::to_workdir_path;
 #[cfg(unix)]
 use std::process::{Command, Stdio};
-use crate::utils::util::{to_workdir_path};
 
 #[derive(Parser, Debug)]
 pub struct DiffArgs {

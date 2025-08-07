@@ -10,3 +10,10 @@ pub enum MrDiffFile {
     // path, old_hash, new_hash
     Modified(PathBuf, SHA1, SHA1),
 }
+
+#[derive(Serialize)]
+pub struct BuckFile {
+    pub buck: SHA1,
+    pub buck_config: SHA1,
+    pub path: PathBuf,
+}

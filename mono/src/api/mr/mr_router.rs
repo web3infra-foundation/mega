@@ -1,7 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
-    extract::{Path, State}, Json,
+    extract::{Path, State},
+    Json,
 };
 use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -24,7 +25,7 @@ use crate::api::{
     mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::{api::error::ApiError, server::https_server::MR_TAG};
+use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -272,7 +273,6 @@ async fn mr_files_changed(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    // let listen_addr = &state.listen_addr;
     let diff_res = state.monorepo().content_diff(&link).await?;
 
     let diff_files = extract_files_with_status(&diff_res);
@@ -463,9 +463,9 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use crate::api::mr::mr_router::{build_forest, extract_files_with_status};
     use crate::api::mr::FilesChangedList;
+    use std::collections::HashMap;
 
     #[test]
     fn test_parse_diff_result_to_filelist() {
@@ -519,7 +519,7 @@ mod test {
     fn test_mr_files_changed_logic() {
         // Test the core logic of mr_files_changed function
         // This tests the data transformation logic without needing the full state
-        
+
         let sample_diff_output = r#"diff --git a/src/main.rs b/src/main.rs
             new file mode 100644
             index 0000000..abc1234
@@ -544,7 +544,7 @@ mod test {
 
         // Test extract_files_with_status
         let diff_files = extract_files_with_status(sample_diff_output);
-        
+
         assert_eq!(diff_files.len(), 3);
         assert_eq!(diff_files.get("src/main.rs"), Some(&"new".to_string()));
         assert_eq!(diff_files.get("src/lib.rs"), Some(&"modified".to_string()));
@@ -555,12 +555,12 @@ mod test {
         for (path, _) in diff_files {
             paths.push(path);
         }
-        
+
         let mui_trees = build_forest(paths);
-        
+
         // Verify the tree structure
         assert!(!mui_trees.is_empty());
-        
+
         // Check that we have the expected root nodes
         let root_labels: Vec<&str> = mui_trees.iter().map(|tree| tree.label.as_str()).collect();
         assert!(root_labels.contains(&"src"));
@@ -571,7 +571,7 @@ mod test {
             mui_trees,
             content: sample_diff_output.to_string(),
         };
-        
+
         assert!(!files_changed_list.mui_trees.is_empty());
         assert_eq!(files_changed_list.content, sample_diff_output);
     }
@@ -594,7 +594,7 @@ new file mode 100644
 index 0000000..1234567
 --- /dev/null
 +++ b/new_file.txt"#;
-        
+
         let result = extract_files_with_status(additions_only);
         assert_eq!(result.len(), 1);
         assert_eq!(result.get("new_file.txt"), Some(&"new".to_string()));
@@ -603,7 +603,7 @@ index 0000000..1234567
         let deletions_only = r#"diff --git a/old_file.txt b/old_file.txt
 deleted file mode 100644
 index 1234567..0000000"#;
-        
+
         let result = extract_files_with_status(deletions_only);
         assert_eq!(result.len(), 1);
         assert_eq!(result.get("old_file.txt"), Some(&"deleted".to_string()));
@@ -631,7 +631,7 @@ index 1234567..0000000"#;
         let result = build_forest(nested_paths);
         assert_eq!(result.len(), 1); // Should have one root "a"
         assert_eq!(result[0].label, "a");
-        
+
         // The tree should have nested structure
         let root = &result[0];
         assert!(root.children.is_some());

@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-use std::{
-    path::{PathBuf},
-    fmt::Write
-};
-use std::collections::HashSet;
-use mercury::{
-    hash::SHA1
-};
 use infer;
+use mercury::hash::SHA1;
 use path_absolutize::Absolutize;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::{fmt::Write, path::PathBuf};
 
 /// The main diff engine responsible for computing and formatting file differences.
 ///
@@ -52,40 +47,42 @@ impl Diff {
         algorithm: String,
         filter: Vec<PathBuf>,
         read_content: F,
-    ) -> String 
-    where 
+    ) -> String
+    where
         F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
     {
-        let (processed_files, old_blobs_map, new_blobs_map) = 
+        let (processed_files, old_blobs_map, new_blobs_map) =
             Self::prepare_diff_data(old_blobs, new_blobs, &filter);
-        
+
         let mut diff_results = Vec::new();
         for file in processed_files {
-            if let Some(large_file_marker) = Self::is_large_file(
-                &file,
-                &old_blobs_map,
-                &new_blobs_map,
-                &read_content
-            ) {
+            if let Some(large_file_marker) =
+                Self::is_large_file(&file, &old_blobs_map, &new_blobs_map, &read_content)
+            {
                 diff_results.push(large_file_marker);
             } else {
-                let diff = Self::diff_for_file_string(&file, &old_blobs_map, &new_blobs_map, algorithm.as_str(), &read_content);
+                let diff = Self::diff_for_file_string(
+                    &file,
+                    &old_blobs_map,
+                    &new_blobs_map,
+                    algorithm.as_str(),
+                    &read_content,
+                );
                 diff_results.push(diff);
             }
         }
-        
+
         diff_results.join("")
     }
 
-
     /// Checks if a file is large and returns a message if it is.
-    fn is_large_file <F>(
+    fn is_large_file<F>(
         file: &PathBuf,
         old_blobs: &HashMap<PathBuf, SHA1>,
         new_blobs: &HashMap<PathBuf, SHA1>,
-        read_content: &F
-    ) -> Option<String> 
-    where 
+        read_content: &F,
+    ) -> Option<String>
+    where
         F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
     {
         // Check if file is large based on some criteria, e.g. number of lines
@@ -113,7 +110,6 @@ impl Diff {
         }
     }
 
-
     /// Extracts common diff preparation logic
     fn prepare_diff_data(
         old_blobs: Vec<(PathBuf, SHA1)>,
@@ -124,8 +120,12 @@ impl Diff {
         let new_blobs_map: HashMap<PathBuf, SHA1> = new_blobs.into_iter().collect();
 
         // union set
-        let union_files: HashSet<PathBuf> = old_blobs_map.keys().chain(new_blobs_map.keys()).cloned().collect();
-        
+        let union_files: HashSet<PathBuf> = old_blobs_map
+            .keys()
+            .chain(new_blobs_map.keys())
+            .cloned()
+            .collect();
+
         tracing::debug!(
             "old_blobs: {:?}, new_blobs: {:?}, union_files: {:?}",
             old_blobs_map.len(),
@@ -149,7 +149,11 @@ impl Diff {
         new_blobs: &HashMap<PathBuf, SHA1>,
     ) -> bool {
         // Skip if not in filter paths
-        if !filter.is_empty() && !filter.iter().any(|path| Self::sub_of(file, path).unwrap_or(false)) {
+        if !filter.is_empty()
+            && !filter
+                .iter()
+                .any(|path| Self::sub_of(file, path).unwrap_or(false))
+        {
             return false;
         }
 
@@ -171,7 +175,7 @@ impl Diff {
         read_content: &dyn Fn(&PathBuf, &SHA1) -> Vec<u8>,
     ) -> String {
         let mut out = String::new();
-        
+
         // Look up hashes
         let new_hash = new_blobs.get(file);
         let old_hash = old_blobs.get(file);
@@ -204,16 +208,21 @@ impl Diff {
         let _new_type = infer::get(&new_bytes);
 
         // Try UTF-8 first
-        match (String::from_utf8(old_bytes.clone()), String::from_utf8(new_bytes.clone())) {
+        match (
+            String::from_utf8(old_bytes.clone()),
+            String::from_utf8(new_bytes.clone()),
+        ) {
             (Ok(old_text), Ok(new_text)) => {
                 // a/ and b/ prefixes
                 let (old_pref, new_pref) = if old_text.is_empty() {
-                    ("/dev/null".to_string(),
-                    format!("b/{}", file.display()))
+                    ("/dev/null".to_string(), format!("b/{}", file.display()))
                 } else if new_text.is_empty() {
                     (format!("a/{}", file.display()), "/dev/null".to_string())
                 } else {
-                    (format!("a/{}", file.display()), format!("b/{}", file.display()))
+                    (
+                        format!("a/{}", file.display()),
+                        format!("b/{}", file.display()),
+                    )
                 };
 
                 writeln!(out, "--- {old_pref}").unwrap();
@@ -224,7 +233,8 @@ impl Diff {
                     "@@ -1,{} +1,{} @@",
                     old_text.lines().count(),
                     new_text.lines().count(),
-                ).unwrap();
+                )
+                .unwrap();
                 for line in old_text.lines() {
                     writeln!(out, "-{line}").unwrap();
                 }
@@ -232,7 +242,7 @@ impl Diff {
                     writeln!(out, "+{line}").unwrap();
                 }
             }
-            
+
             // Binary fallback
             _ => {
                 writeln!(

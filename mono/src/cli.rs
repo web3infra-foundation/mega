@@ -32,7 +32,7 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     // Load configuration from the config file or default location
     let current_dir = env::current_dir()?;
     let base_dir = common::config::mega_base();
-    let config_path = current_dir.join("config.toml");
+    let config_path = current_dir.join("config/config.toml");
     let config_path_alt = base_dir.join("etc/config.toml");
 
     let config = if let Some(path) = matches.get_one::<PathBuf>("config").cloned() {

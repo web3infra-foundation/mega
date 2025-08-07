@@ -1,6 +1,6 @@
 use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
-use crate::server::https_server::SYNC_NOTES_STATE_TAG;
+use crate::server::http_server::SYNC_NOTES_STATE_TAG;
 
 use crate::api::notes::model::{ShowResponse, UpdateRequest};
 

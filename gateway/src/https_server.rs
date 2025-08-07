@@ -13,7 +13,7 @@ use common::model::{CommonHttpOptions, P2pOptions};
 use jupiter::storage::Storage;
 use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
-use mono::server::https_server::{get_method_router, post_method_router, AppState};
+use mono::server::http_server::{get_method_router, post_method_router, ProtocolApiState};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
@@ -51,16 +51,14 @@ pub async fn http_server(context: AppContext, options: HttpOptions) {
 }
 
 pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> Router {
-    let state = AppState {
-        host: host.clone(),
-        port,
+    let state = ProtocolApiState {
         storage: storage.clone(),
     };
 
     let mono_api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: None,
-        store: None,
+        session_store: None,
         listen_addr: format!("http://{host}:{port}"),
     };
 

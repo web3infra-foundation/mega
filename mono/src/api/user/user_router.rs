@@ -14,7 +14,7 @@ use crate::api::user::model::ListSSHKey;
 use crate::api::user::model::ListToken;
 use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
-use crate::{api::user::model::AddSSHKey, server::https_server::USER_TAG};
+use crate::{api::user::model::AddSSHKey, server::http_server::USER_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

@@ -13,7 +13,7 @@ use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
 use ceres::lfs::lfs_structs::RequestObject;
 use ceres::pack::import_repo::ImportRepo;
-use ceres::pack::PackHandler;
+use ceres::pack::RepoHandler;
 use ceres::protocol::repo::Repo;
 use common::utils::generate_id;
 use dashmap::DashMap;
