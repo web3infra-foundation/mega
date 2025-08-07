@@ -109,6 +109,7 @@ pub async fn download_and_get_buck2_targets(
     let last_line = get_buck2_targets_last_line(&tmp_dir_path)?;
     
     // Clean up the temporary directory after getting the result
+    //TODO: Cleanup should happen in a finally block or using RAII to ensure temporary files are removed even if buck2 command fails. Consider using a guard or defer pattern. TempDirGuard , for example.
     if Path::new(&tmp_dir_path).exists() {
         fs::remove_dir_all(&tmp_dir_path)?;
     }
@@ -141,10 +142,10 @@ mod tests {
             // Run buck2 targets command in the tmp directory
             match get_buck2_targets_last_line(tmp_test_dir.to_str().unwrap()) {
                 Ok(last_line) => {
-                    println!("Last line: {}", last_line);
+                    println!("Last line: {last_line}");
                     assert!(!last_line.is_empty());
                 },
-                Err(e) => println!("Warning: {}", e),
+                Err(e) => println!("Warning: {e}"),
             }
             
             // Clean up: remove the tmp directory after test
@@ -152,7 +153,7 @@ mod tests {
                 fs::remove_dir_all(&tmp_test_dir).expect("Failed to clean up tmp directory");
             }
         } else {
-            println!("Test directory '{}' does not exist. Skipping test.", test_dir);
+            println!("Test directory '{test_dir}' does not exist. Skipping test.");
         }
     }
 
