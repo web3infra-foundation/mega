@@ -23,6 +23,7 @@ As this module uses Gtk4 and libadwaita to construct the GUI, you should additio
 ### For Ubuntu Users
 Tested on Ubuntu 24.04 (Noble), other Ubuntu versions should work as well.
 Simply type the following commands to build:
+
 ```bash
 sudo apt update
 sudo apt install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev
@@ -46,7 +47,9 @@ $env:LIB = "C:\gtk\lib;" + $env:LIB
 $env:PKG_CONFIG_PATH = "C:\gtk\lib\pkgconfig" + $env:PKG_CONFIG_PATH
 $env:INCLUDE = "C:\gtk\include;C:\gtk\include\cairo;C:\gtk\include\glib-2.0;C:\gtk\include\gobject-introspection-1.0;C:\gtk\lib\glib-2.0\include;" + $env:INCLUDE
 ```
+
 Then build the package:
+
 ```pwsh
 cargo build --bin monobean
 ```
