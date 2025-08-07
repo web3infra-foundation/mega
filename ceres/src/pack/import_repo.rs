@@ -24,7 +24,7 @@ use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 
 use crate::{
     api_service::{mono_api_service::MonoApiService, ApiHandler},
-    pack::PackHandler,
+    pack::RepoHandler,
     protocol::{
         import_refs::{CommandType, RefCommand, Refs},
         repo::Repo,
@@ -38,7 +38,7 @@ pub struct ImportRepo {
 }
 
 #[async_trait]
-impl PackHandler for ImportRepo {
+impl RepoHandler for ImportRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage
@@ -289,6 +289,14 @@ impl PackHandler for ImportRepo {
                     .unwrap();
             }
         }
+        Ok(())
+    }
+
+    async fn save_or_update_mr(&self) -> Result<(), MegaError> {
+        Ok(())
+    }
+
+    async fn post_mr_operation(&self) -> Result<(), MegaError> {
         Ok(())
     }
 

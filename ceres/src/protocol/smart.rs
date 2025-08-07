@@ -58,12 +58,12 @@ impl SmartProtocol {
     ///
     /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&self) -> Result<BytesMut, ProtocolError> {
-        let pack_handler = self.pack_handler().await?;
+        let repo_handler = self.repo_handler().await?;
 
         let service_type = self.service_type.unwrap();
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
-        let (head_hash, git_refs) = pack_handler.head_hash().await;
+        let (head_hash, git_refs) = repo_handler.head_hash().await;
         let name = if head_hash == ZERO_ID {
             "capabilities^{}"
         } else {
@@ -89,7 +89,7 @@ impl SmartProtocol {
         &mut self,
         upload_request: &mut Bytes,
     ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut), ProtocolError> {
-        let pack_handler = self.pack_handler().await?;
+        let repo_handler = self.repo_handler().await?;
 
         let mut want: Vec<String> = Vec::new();
         let mut have: Vec<String> = Vec::new();
@@ -142,7 +142,7 @@ impl SmartProtocol {
         let mut protocol_buf = BytesMut::new();
 
         if have.is_empty() {
-            pack_data = pack_handler.full_pack(want.clone()).await.unwrap();
+            pack_data = repo_handler.full_pack(want.clone()).await.unwrap();
             add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
@@ -151,14 +151,14 @@ impl SmartProtocol {
                 // and signals the identified common commits with ACK obj-id common lines
 
                 for hash in &have {
-                    if pack_handler.check_commit_exist(hash).await {
+                    if repo_handler.check_commit_exist(hash).await {
                         add_pkt_line_string(&mut protocol_buf, format!("ACK {hash} common\n"));
                         if last_common_commit.is_empty() {
                             last_common_commit = hash.to_string();
                         }
                     }
                 }
-                pack_data = pack_handler
+                pack_data = repo_handler
                     .incremental_pack(want.clone(), have)
                     .await
                     .unwrap();
@@ -188,7 +188,7 @@ impl SmartProtocol {
         Ok((pack_data, protocol_buf))
     }
 
-    pub fn git_receive_pack_protocol(&mut self, mut protocol_bytes: Bytes) {
+    pub fn parse_receive_pack_commands(&mut self, mut protocol_bytes: Bytes) {
         while !protocol_bytes.is_empty() {
             let (bytes_take, mut pkt_line) = read_pkt_line(&mut protocol_bytes);
             if bytes_take != 0 {
@@ -210,24 +210,24 @@ impl SmartProtocol {
     ) -> Result<Bytes, ProtocolError> {
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let pack_handler = self.pack_handler().await?;
+        let repo_handler = self.repo_handler().await?;
         //1. unpack progress
-        let receiver = pack_handler
+        let receiver = repo_handler
             .unpack_stream(&self.storage.config().pack, data_stream)
             .await?;
 
-        let unpack_result = pack_handler.clone().receiver_handler(receiver).await;
+        let unpack_result = repo_handler.clone().receiver_handler(receiver).await;
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
 
-        let mut default_exist = pack_handler.check_default_branch().await;
+        let mut default_exist = repo_handler.check_default_branch().await;
 
         //2. update each refs and build report
         for command in &mut self.command_list {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
-                pack_handler.update_refs(command).await.unwrap();
+                repo_handler.update_refs(command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
@@ -239,7 +239,7 @@ impl SmartProtocol {
                             command.default_branch = true;
                             default_exist = true;
                         }
-                        if let Err(e) = pack_handler.update_refs(command).await {
+                        if let Err(e) = repo_handler.update_refs(command).await {
                             command.failed(e.to_string());
                         }
                     }
@@ -250,6 +250,11 @@ impl SmartProtocol {
             }
             add_pkt_line_string(&mut report_status, command.get_status());
         }
+        //3. update MR
+        repo_handler.save_or_update_mr().await.unwrap();
+        //4. post operation
+        repo_handler.post_mr_operation().await.unwrap();
+
         report_status.put(&PKT_LINE_END_MARKER[..]);
         let length = report_status.len();
         let mut buf = self.build_side_band_format(report_status, length);

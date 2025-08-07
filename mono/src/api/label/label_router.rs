@@ -1,3 +1,4 @@
+use axum::extract::Path;
 use axum::{extract::State, Json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -6,14 +7,15 @@ use common::model::{CommonPage, CommonResult, PageParams};
 use crate::api::label::{LabelItem, NewLabel};
 use crate::api::oauth::model::LoginUser;
 use crate::api::MonoApiServiceState;
-use crate::{api::error::ApiError, server::https_server::LABEL_TAG};
+use crate::{api::error::ApiError, server::http_server::LABEL_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/label",
         OpenApiRouter::new()
             .routes(routes!(new_label))
-            .routes(routes!(fetch_label_list)),
+            .routes(routes!(fetch_label_list))
+            .routes(routes!(fetch_label)),
     )
 }
 
@@ -61,4 +63,24 @@ async fn new_label(
         .new_label(&json.name, &json.color, &json.description)
         .await?;
     Ok(Json(CommonResult::success(Some(res.into()))))
+}
+
+/// Fetch label details
+#[utoipa::path(
+    get,
+        params(
+        ("id", description = "Label's id"),
+    ),
+    path = "/{id}",
+    responses(
+        (status = 200, body = CommonResult<CommonPage<LabelItem>>, content_type = "application/json")
+    ),
+    tag = LABEL_TAG
+)]
+async fn fetch_label(
+    state: State<MonoApiServiceState>,
+    Path(id): Path<i64>,
+) -> Result<Json<CommonResult<LabelItem>>, ApiError> {
+    let label = state.issue_stg().get_label_by_id(id).await?;
+    Ok(Json(CommonResult::success(label.map(|m| m.into()))))
 }

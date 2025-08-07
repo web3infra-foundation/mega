@@ -470,7 +470,7 @@ mod tests {
     use crate::config::MEGA_CONFIG_PATH;
     use async_channel::bounded;
     use common::config::LogConfig;
-    use common::config::{AuthConfig, DbConfig, LFSConfig, MonoConfig, PackConfig};
+    use common::config::{AuthConfig, BuildConfig,DbConfig, LFSConfig, MonoConfig, PackConfig};
     use gtk::gio;
     use gtk::glib;
 
@@ -500,6 +500,7 @@ mod tests {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             oauth: None,
+            build: BuildConfig::default(),
         };
 
         // make config saved in temp dir

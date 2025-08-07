@@ -63,6 +63,15 @@ admin = "admin"
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release"]
 
+[build]
+
+# enable build system trigger
+enable_build = true
+
+# build system url
+orion_server = "https://orion.gitmega.com"
+
+
 [pack]
 # The maximum memory used by decode
 # Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB, `%` and decimal percentages
@@ -119,4 +128,4 @@ cookie_domain = "localhost"
 campsite_api_domain = "http://api.gitmega.com"
 
 # allowed cors origins
-allowed_cors_origins = ["http://local.gitmega.com", "http://app.gitmega.com"]
+allowed_cors_origins = ["http://local.gitmega.com", "https://app.gitmega.com", "http://app.gitmono.test"]

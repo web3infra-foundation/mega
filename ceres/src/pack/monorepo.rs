@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
     str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -16,7 +16,8 @@ use tokio::sync::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
+use bellatrix::{orion_client::OrionBuildRequest, Bellatrix};
+use callisto::{entity_ext::generate_link, mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
@@ -33,7 +34,9 @@ use mercury::{
 };
 
 use crate::{
-    pack::PackHandler,
+    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    model::mr::BuckFile,
+    pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
 
@@ -42,11 +45,15 @@ pub struct MonoRepo {
     pub path: PathBuf,
     pub from_hash: String,
     pub to_hash: String,
+    // current_commit only exists when an unpack operation occurs.
+    // When only a branch is updated and the pack file is empty, this value will be null.
     pub current_commit: Arc<RwLock<Option<Commit>>>,
+    pub mr_link: Arc<RwLock<Option<String>>>,
+    pub bellatrix: Arc<Bellatrix>,
 }
 
 #[async_trait]
-impl PackHandler for MonoRepo {
+impl RepoHandler for MonoRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let storage = self.storage.mono_storage();
 
@@ -278,10 +285,10 @@ impl PackHandler for MonoRepo {
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
+        let mr_link = self.fetch_or_new_mr_link().await.unwrap();
+        let ref_name = utils::mr_ref_name(&mr_link);
         if let Some(c) = &*current_commit {
-            let mr_link = self.handle_mr(&c.format_message()).await.unwrap();
-            let ref_name = utils::mr_ref_name(&mr_link);
-            if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
+            if let Some(mut mr_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
                 mr_ref.ref_commit_hash = refs.new_id.clone();
                 mr_ref.ref_tree_hash = c.tree_id.to_string();
                 storage.update_ref(mr_ref).await.unwrap();
@@ -296,6 +303,57 @@ impl PackHandler for MonoRepo {
                     )
                     .await
                     .unwrap();
+            }
+        }
+        Ok(())
+    }
+
+    async fn save_or_update_mr(&self) -> Result<(), MegaError> {
+        let storage = self.storage.mr_storage();
+        let path_str = self.path.to_str().unwrap();
+
+        match storage.get_open_mr_by_path(path_str).await? {
+            Some(mr) => {
+                self.update_existing_mr(mr).await?;
+            }
+            None => {
+                let link_guard = self.mr_link.read().await;
+                let mr_link = link_guard.as_ref().unwrap();
+                let commit_guard = self.current_commit.read().await;
+                let title = commit_guard.as_ref().unwrap().format_message();
+                storage
+                    .new_mr(path_str, mr_link, &title, &self.from_hash, &self.to_hash)
+                    .await?;
+            }
+        };
+        Ok(())
+    }
+
+    async fn post_mr_operation(&self) -> Result<(), MegaError> {
+        if self.bellatrix.enable_build() {
+            let link_guard = self.mr_link.read().await;
+            let mr = link_guard.as_ref().unwrap();
+
+            let buck_files = self.search_buck_under_mr(&self.path).await?;
+            if buck_files.is_empty() {
+                tracing::error!(
+                    "Search BUCK file under {:?} failed, please manually check BUCK file exists!!",
+                    self.path
+                );
+            } else {
+                for buck_file in buck_files {
+                    let req = OrionBuildRequest {
+                        repo: buck_file.path.to_str().unwrap().to_string(),
+                        buck_hash: buck_file.buck.to_string(),
+                        buckconfig_hash: buck_file.buck_config.to_string(),
+                        mr: mr.to_string(),
+                        args: Some(vec![]),
+                    };
+                    let bellatrix = self.bellatrix.clone();
+                    tokio::spawn(async move {
+                        let _ = bellatrix.on_post_receive(req).await;
+                    });
+                }
             }
         }
         Ok(())
@@ -316,32 +374,26 @@ impl PackHandler for MonoRepo {
 }
 
 impl MonoRepo {
-    async fn handle_mr(&self, title: &str) -> Result<String, MegaError> {
+    async fn fetch_or_new_mr_link(&self) -> Result<String, MegaError> {
         let storage = self.storage.mr_storage();
         let path_str = self.path.to_str().unwrap();
-
-        match storage.get_open_mr_by_path(path_str).await.unwrap() {
-            Some(mr) => {
-                let link = mr.link.clone();
-                self.handle_existing_mr(mr).await?;
-                Ok(link)
-            }
+        let mr_link = match storage.get_open_mr_by_path(path_str).await.unwrap() {
+            Some(mr) => mr.link.clone(),
             None => {
                 if self.from_hash == "0".repeat(40) {
                     return Err(MegaError::with_message(
                         "Can not init directory under monorepo directory!",
                     ));
                 }
-                let link = storage
-                    .new_mr(path_str, title, &self.from_hash, &self.to_hash)
-                    .await
-                    .unwrap();
-                Ok(link)
+                generate_link()
             }
-        }
+        };
+        let mut lock = self.mr_link.write().await;
+        *lock = Some(mr_link.clone());
+        Ok(mr_link)
     }
 
-    async fn handle_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
+    async fn update_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
         let mr_stg = self.storage.mr_storage();
         let comment_stg = self.storage.conversation_storage();
         if mr.from_hash == self.from_hash {
@@ -375,5 +427,135 @@ impl MonoRepo {
             mr_stg.close_mr(mr).await?;
         }
         Ok(())
+    }
+
+    async fn search_buck_under_mr(&self, mr_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
+        let mut res = vec![];
+        let mono_stg = self.storage.mono_storage();
+        let mono_api_service = MonoApiService {
+            storage: self.storage.clone(),
+        };
+
+        let mut search_trees: Vec<(PathBuf, Tree)> = vec![];
+
+        let diff_trees = self.diff_trees_from_mr().await?;
+        for (path, new, old) in diff_trees {
+            match (new, old) {
+                (None, _) => {
+                    continue;
+                }
+                (Some(sha1), _) => {
+                    let tree = mono_stg.get_tree_by_hash(&sha1.to_string()).await?.unwrap();
+                    search_trees.push((path, tree.into()));
+                }
+            }
+        }
+
+        for (path, tree) in search_trees {
+            if let Some(buck) = self.try_extract_buck(tree, &mr_path.join(path)) {
+                res.push(buck);
+            }
+        }
+
+        // no buck file found
+        if res.is_empty() {
+            let mut path = Some(mr_path);
+            while let Some(p) = path {
+                if p.parent().is_some() {
+                    if let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
+                    {
+                        if let Some(buck) = self.try_extract_buck(tree, mr_path) {
+                            return Ok(vec![buck]);
+                        }
+                    };
+                }
+                path = p.parent();
+            }
+        }
+        Ok(res)
+    }
+
+    fn try_extract_buck(&self, tree: Tree, mr_path: &Path) -> Option<BuckFile> {
+        let mut buck = None;
+        let mut buck_config = None;
+        for item in tree.tree_items {
+            if item.is_blob() && item.name == "BUCK" {
+                buck = Some(item.id)
+            }
+            if item.is_blob() && item.name == ".buckconfig" {
+                buck_config = Some(item.id)
+            }
+        }
+        match (buck, buck_config) {
+            (Some(buck), Some(buck_config)) => Some(BuckFile {
+                buck,
+                buck_config,
+                path: mr_path.to_path_buf(),
+            }),
+            _ => None,
+        }
+    }
+
+    async fn diff_trees_from_mr(
+        &self,
+    ) -> Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError> {
+        let mono_stg = self.storage.mono_storage();
+        let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
+        let from_tree: Tree = mono_stg
+            .get_tree_by_hash(&from_c.tree)
+            .await?
+            .unwrap()
+            .into();
+        let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
+        let to_tree: Tree = mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap().into();
+        diff_trees(&to_tree, &from_tree)
+    }
+}
+
+type DiffResult = Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>;
+
+fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
+    let their_items: HashMap<_, _> = get_plain_items(theirs).into_iter().collect();
+    let base_items: HashMap<_, _> = get_plain_items(base).into_iter().collect();
+    let all_paths: HashSet<_> = their_items.keys().chain(base_items.keys()).collect();
+
+    let mut diffs = Vec::new();
+
+    for path in all_paths {
+        let their_hash = their_items.get(path).cloned();
+        let base_hash = base_items.get(path).cloned();
+        if their_hash != base_hash {
+            diffs.push((path.clone(), their_hash, base_hash));
+        }
+    }
+    Ok(diffs)
+}
+
+fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, SHA1)> {
+    let mut items = Vec::new();
+    for item in tree.tree_items.iter() {
+        if item.is_tree() {
+            items.push((PathBuf::from(item.name.clone()), item.id));
+        }
+    }
+    items
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::{Component, Path};
+
+    #[test]
+    fn get_component_reverse() {
+        let reversed: Vec<_> = Path::new("/a/b/c/d.txt")
+            .components()
+            .filter_map(|c| match c {
+                Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+                _ => None,
+            })
+            .rev()
+            .collect();
+
+        assert_eq!(vec!["d.txt", "c", "b", "a"], reversed); // ["d.txt", "c", "b", "a"]
     }
 }

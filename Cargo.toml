@@ -36,6 +36,7 @@ saturn = { path = "saturn" }
 mono = { path = "mono" }
 observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
+bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 neptune = { path = "neptune" }
 

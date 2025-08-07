@@ -1,4 +1,4 @@
-use crate::server::https_server::{self};
+use crate::server::http_server::{self};
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 use common::{errors::MegaResult, model::CommonHttpOptions};
 use context::AppContext;
@@ -13,7 +13,7 @@ pub(crate) async fn exec(ctx: AppContext, args: &ArgMatches) -> MegaResult {
         .unwrap();
 
     tracing::info!("{server_matchers:#?}");
-    https_server::start_http(ctx, server_matchers).await;
+    http_server::start_http(ctx, server_matchers).await;
     Ok(())
 }
 

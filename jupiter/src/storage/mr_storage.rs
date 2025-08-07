@@ -174,6 +174,7 @@ impl MrStorage {
     pub async fn new_mr(
         &self,
         path: &str,
+        link: &str,
         title: &str,
         from_hash: &str,
         to_hash: &str,
@@ -181,6 +182,7 @@ impl MrStorage {
         let model = mega_mr::Model::new(
             path.to_owned(),
             title.to_owned(),
+            link.to_owned(),
             from_hash.to_owned(),
             to_hash.to_owned(),
         );

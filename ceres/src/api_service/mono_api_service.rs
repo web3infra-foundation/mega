@@ -44,7 +44,6 @@ use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
-use neptune::neptune_engine::Diff;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -53,6 +52,7 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
@@ -378,22 +378,21 @@ impl MonoApiService {
     ///
     /// # Returns
     /// String containing the unified diff output
-    pub async fn content_diff(
-        &self,
-        mr_link: &str,
-    ) -> Result<String, GitError> {
+    pub async fn content_diff(&self, mr_link: &str) -> Result<String, GitError> {
         let stg = self.storage.mr_storage();
-        let mr = stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-            GitError::CustomError(format!("Merge request not found: {mr_link}"))
-        })?;
+        let mr =
+            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+            })?;
 
-        let old_blobs = self.get_commit_blobs(&mr.from_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get old commit blobs: {e}"))
-        })?;
-        let new_blobs = self.get_commit_blobs(&mr.to_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get new commit blobs: {e}"))
-        })?;
-
+        let old_blobs = self
+            .get_commit_blobs(&mr.from_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
+        let new_blobs = self
+            .get_commit_blobs(&mr.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
 
         let algo = "histogram".to_string(); // Default diff algorithm
         let filter_paths: Vec<PathBuf> = Vec::new(); // No filtering by default
@@ -428,13 +427,7 @@ impl MonoApiService {
         };
 
         // Use the unified diff function that returns a single string
-        let diff_output = Diff::diff(
-            old_blobs,
-            new_blobs,
-            algo,
-            filter_paths,
-            read_content,
-        ).await;
+        let diff_output = Diff::diff(old_blobs, new_blobs, algo, filter_paths, read_content).await;
 
         Ok(diff_output)
     }
