@@ -153,6 +153,7 @@ impl CodePage {
         list_view.set_factory(Some(&factory));
     }
 
+    // sidebar button
     fn setup_button(&self) {
         let imp = self.imp();
 
@@ -182,13 +183,13 @@ impl CodePage {
         let history_btn = imp.history_btn.get();
         let history_popover = imp.history_popover.get();
 
-        // 设置 Popover 在按钮左侧弹出
+        // set Popover 
         history_popover.set_position(gtk::PositionType::Left);
         history_popover.set_has_arrow(false);
         history_popover.set_parent(&history_btn);
         history_popover.set_autohide(false);
 
-        // 按钮点击处理 - 确保位置正确
+        // 
         history_btn.connect_clicked(clone!(
             #[weak]
             history_popover,

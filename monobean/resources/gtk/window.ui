@@ -217,7 +217,7 @@
                                     <property name="spacing">4</property>
 
                                     <child>
-                                      <object class="GtkImage">
+                                      <object class="GtkImage" id="status_icon">
                                         <property name="icon-name">dialog-warning</property>
                                       </object>
                                     </child>
