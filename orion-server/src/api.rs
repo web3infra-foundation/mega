@@ -1,3 +1,4 @@
+use crate::buck2::download_and_get_buck2_targets;
 use crate::model::builds;
 use axum::{
     Json, Router,
@@ -61,7 +62,8 @@ fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BuildRequest {
     repo: String,
-    target: String,
+    buck_hash: String,
+    buckconfig_hash: String,
     args: Option<Vec<String>>,
     mr: Option<String>,
 }
@@ -281,7 +283,19 @@ pub async fn task_output_handler(
 pub async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<BuildRequest>,
-) -> (StatusCode, Json<serde_json::Value>) {
+) -> impl IntoResponse {
+    // Download and get buck2 targets first
+    let target = match download_and_get_buck2_targets(&req.buck_hash, &req.buckconfig_hash).await {
+        Ok(target) => target,
+        Err(e) => {
+            tracing::error!("Failed to download buck2 targets: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": format!("Failed to download buck2 targets: {}", e) })),
+            ).into_response();
+        }
+    };
+
     // Find all idle workers
     let idle_workers: Vec<String> = state
         .workers
@@ -295,7 +309,7 @@ pub async fn task_handler(
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"message": "No available workers at the moment"})),
-        );
+        ).into_response();
     }
 
     // Randomly select an idle worker
@@ -314,14 +328,14 @@ pub async fn task_handler(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"message": "Failed to create log file"})),
-            );
+            ).into_response();
         }
     };
 
     // Create build information structure
     let build_info = BuildInfo {
         repo: req.repo.clone(),
-        target: req.target.clone(),
+        target: target.clone(),
         args: req.args.clone(),
         start_at: chrono::Utc::now(),
         mr: req.mr.clone(),
@@ -346,14 +360,14 @@ pub async fn task_handler(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": "Failed to create task in database"})),
-        );
+        ).into_response();
     }
 
     // Create WebSocket message for the worker
     let msg = WSMessage::Task {
         id: task_id.to_string(),
         repo: req.repo,
-        target: req.target,
+        target,
         args: req.args,
         mr: req.mr.unwrap_or_default(),
     };
@@ -367,7 +381,7 @@ pub async fn task_handler(
             (
                 StatusCode::OK,
                 Json(serde_json::json!({"task_id": task_id.to_string(), "client_id": chosen_id})),
-            )
+            ).into_response()
         } else {
             tracing::error!(
                 "Failed to send task to supposedly idle worker {}. It might have just disconnected.",
@@ -378,7 +392,7 @@ pub async fn task_handler(
                 Json(
                     serde_json::json!({"message": "Failed to dispatch task to worker. Please try again."}),
                 ),
-            )
+            ).into_response()
         }
     } else {
         tracing::error!(
@@ -388,7 +402,7 @@ pub async fn task_handler(
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": "Internal scheduler error."})),
-        )
+        ).into_response()
     }
 }
 
