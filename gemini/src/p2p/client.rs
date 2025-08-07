@@ -79,7 +79,7 @@ impl P2PClient {
         }
     }
 
-    pub fn get_bootstrap_node(&self) -> Cow<str> {
+    pub fn get_bootstrap_node(&self) -> Cow<'_, str> {
         let ref_str = self
             .bootstrap_node
             .get()
