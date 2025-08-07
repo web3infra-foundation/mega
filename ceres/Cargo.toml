@@ -16,6 +16,7 @@ jupiter = { workspace = true }
 callisto = { workspace = true }
 mercury = { workspace = true }
 neptune = { workspace = true }
+bellatrix = { workspace = true }
 
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net", "process"] }

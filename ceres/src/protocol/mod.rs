@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
+use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
     errors::{MegaError, ProtocolError},
@@ -11,7 +12,7 @@ use jupiter::storage::Storage;
 use repo::Repo;
 use tokio::sync::RwLock;
 
-use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, PackHandler};
+use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, RepoHandler};
 
 pub mod import_refs;
 pub mod repo;
@@ -137,18 +138,18 @@ impl SmartProtocol {
     }
 
     pub fn mock() -> Self {
-        let context = Storage::mock();
+        let storage = Storage::mock();
         SmartProtocol {
             transport_protocol: TransportProtocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
             command_list: Vec::new(),
             service_type: None,
-            storage: context,
+            storage,
         }
     }
 
-    pub async fn pack_handler(&self) -> Result<Arc<dyn PackHandler>, ProtocolError> {
+    pub async fn repo_handler(&self) -> Result<Arc<dyn RepoHandler>, ProtocolError> {
         let import_dir = self.storage.config().monorepo.import_dir.clone();
         if self.path.starts_with(import_dir.clone()) {
             let storage = self.storage.git_db_storage();
@@ -180,6 +181,8 @@ impl SmartProtocol {
                 from_hash: String::new(),
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
+                mr_link: Arc::new(RwLock::new(None)),
+                bellatrix: Arc::new(Bellatrix::new(self.storage.config().build.clone())),
             };
             if let Some(command) = self
                 .command_list

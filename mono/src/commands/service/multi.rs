@@ -1,7 +1,7 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
 use crate::server::{
-    https_server::{self},
+    http_server::{self},
     ssh_server::{self, SshCustom, SshOptions},
 };
 use common::{errors::MegaResult, model::CommonHttpOptions};
@@ -43,7 +43,7 @@ pub(crate) async fn exec(ctx: AppContext, args: &ArgMatches) -> MegaResult {
     let context_clone = ctx.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = server_matchers.http.clone();
-        tokio::spawn(async move { https_server::start_http(context_clone, http).await })
+        tokio::spawn(async move { http_server::start_http(context_clone, http).await })
     } else {
         panic!("start params should provide! run like 'mega service multi http ssh'")
     };

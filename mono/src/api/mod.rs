@@ -58,7 +58,7 @@ pub type GithubClient<
 pub struct MonoApiServiceState {
     pub storage: Storage,
     pub oauth_client: Option<GithubClient>,
-    pub store: Option<CampsiteApiStore>,
+    pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
 }
 
@@ -70,7 +70,7 @@ impl FromRef<MonoApiServiceState> for MemoryStore {
 
 impl FromRef<MonoApiServiceState> for CampsiteApiStore {
     fn from_ref(state: &MonoApiServiceState) -> Self {
-        state.store.clone().unwrap()
+        state.session_store.clone().unwrap()
     }
 }
 

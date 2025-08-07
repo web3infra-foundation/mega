@@ -4688,6 +4688,8 @@ export type PostApiLabelListData = CommonResultCommonPageLabelItem
 
 export type PostApiLabelNewData = CommonResultString
 
+export type GetApiLabelByIdData = CommonResultCommonPageLabelItem
+
 export type GetApiLatestCommitParams = {
   refs?: string
   path?: string
@@ -4712,6 +4714,8 @@ export type GetApiMrFilesChangedData = CommonResultFilesChangedList
 export type GetApiMrFilesListData = CommonResultVecMrFilesRes
 
 export type PostApiMrMergeData = CommonResultString
+
+export type PostApiMrMergeNoAuthData = CommonResultString
 
 export type PostApiMrReopenData = CommonResultString
 
@@ -13490,6 +13494,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags label
+     * @name GetApiLabelById
+     * @summary Fetch label details
+     * @request GET:/api/v1/label/{id}
+     */
+    getApiLabelById: () => {
+      const base = 'GET:/api/v1/label/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLabelByIdData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<GetApiLabelByIdData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<GetApiLabelByIdData>({
+            path: `/api/v1/label/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags git
      * @name GetApiLatestCommit
      * @summary Get latest commit by path
@@ -13720,6 +13747,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (link: string, params: RequestParams = {}) =>
           this.request<PostApiMrMergeData>({
             path: `/api/v1/mr/${link}/merge`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags merge_request
+ * @name PostApiMrMergeNoAuth
+ * @summary Merge Request without authentication
+It's for local testing purposes.
+ * @request POST:/api/v1/mr/{link}/merge-no-auth
+ */
+    postApiMrMergeNoAuth: () => {
+      const base = 'POST:/api/v1/mr/{link}/merge-no-auth' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrMergeNoAuthData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrMergeNoAuthData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiMrMergeNoAuthData>({
+            path: `/api/v1/mr/${link}/merge-no-auth`,
             method: 'POST',
             ...params
           })

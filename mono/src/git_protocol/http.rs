@@ -206,7 +206,7 @@ pub async fn git_receive_pack(
         // Process the data up to the "PACK" subsequence.
         if let Some(pos) = search_subsequence(&chunk, b"PACK") {
             chunk_buffer.extend_from_slice(&chunk[0..pos]);
-            pack_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk_buffer));
+            pack_protocol.parse_receive_pack_commands(Bytes::copy_from_slice(&chunk_buffer));
             // Create a new stream from the remaining bytes and the rest of the data stream.
             let left_chunk_bytes = Bytes::copy_from_slice(&chunk[pos..]);
             let pack_stream = stream::once(async { Ok(left_chunk_bytes) }).chain(data_stream);

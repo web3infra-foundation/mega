@@ -93,6 +93,7 @@ pub struct Config {
     // Not used in mega app
     #[serde(default)]
     pub oauth: Option<OauthConfig>,
+    pub build: BuildConfig,
 }
 
 impl Config {
@@ -120,6 +121,7 @@ impl Config {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             oauth: None,
+            build: BuildConfig::default(),
         }
     }
 
@@ -596,6 +598,12 @@ impl Default for OauthConfig {
             .collect(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct BuildConfig {
+    pub enable_build: bool,
+    pub orion_server: String,
 }
 
 #[cfg(test)]
