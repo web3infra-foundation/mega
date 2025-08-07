@@ -16,7 +16,6 @@ members = [
     "extensions/rag/chat",
     "extensions/rag/index",
     "extensions/observatory",
-    "scorpio",
     "context",
     "neptune",
 ]
