@@ -28,6 +28,7 @@
     "@heroicons/react": "catalog:",
     "@hocuspocus/provider": "catalog:",
     "@hookform/resolvers": "catalog:",
+    "@melloware/react-logviewer": "^6.3.2",
     "@mui/icons-material": "catalog:",
     "@mui/material": "catalog:",
     "@mui/x-tree-view": "catalog:",
