@@ -59,13 +59,13 @@ fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
 }
 
 /// Request payload for creating a new build task
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
-    repo: String,
-    buck_hash: String,
-    buckconfig_hash: String,
-    args: Option<Vec<String>>,
-    mr: Option<String>,
+    pub repo: String,
+    pub buck_hash: String,
+    pub buckconfig_hash: String,
+    pub args: Option<Vec<String>>,
+    pub mr: Option<String>,
 }
 
 /// Information about an active build task
