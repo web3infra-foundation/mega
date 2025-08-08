@@ -1,5 +1,9 @@
 use crate::buck2::download_and_get_buck2_targets;
 use crate::model::builds;
+use crate::scheduler::{
+    BuildInfo, BuildRequest, TaskScheduler, WorkerInfo, WorkerStatus,
+    create_log_file, get_build_log_dir, TaskQueueStats
+};
 use axum::{
     Json, Router,
     extract::{
@@ -12,17 +16,15 @@ use axum::{
 };
 use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt, stream};
-use once_cell::sync::Lazy;
 use orion::ws::WSMessage;
 use rand::Rng;
 use sea_orm::{
-    prelude::DateTimeUtc,
     {
         ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
         QueryFilter as _,
     },
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::convert::Infallible;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -35,65 +37,6 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use utoipa::ToSchema;
 use uuid::Uuid;
-
-// Global configuration for build log directory
-static BUILD_LOG_DIR: Lazy<String> =
-    Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
-
-/// Creates a log file for a specific task ID
-/// Ensures parent directories exist before creating the file
-fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
-    let log_path = format!("{}/{}", *BUILD_LOG_DIR, task_id);
-    let path = std::path::Path::new(&log_path);
-
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    // Create or open the log file in append mode
-    std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-}
-
-/// Request payload for creating a new build task
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct BuildRequest {
-    pub repo: String,
-    pub buck_hash: String,
-    pub buckconfig_hash: String,
-    pub args: Option<Vec<String>>,
-    pub mr: Option<String>,
-}
-
-/// Information about an active build task
-#[derive(Clone)]
-pub struct BuildInfo {
-    pub repo: String,
-    pub target: String,
-    pub args: Option<Vec<String>>,
-    pub start_at: DateTimeUtc,
-    pub mr: Option<String>,
-    pub _worker_id: String,
-    pub log_file: Arc<Mutex<std::fs::File>>,
-}
-
-/// Status of a worker node
-#[derive(Debug, Clone)]
-pub enum WorkerStatus {
-    Idle,
-    Busy(String), // Contains task ID when busy
-}
-
-/// Information about a connected worker
-#[derive(Debug)]
-pub struct WorkerInfo {
-    pub sender: UnboundedSender<WSMessage>,
-    pub status: WorkerStatus,
-    pub last_heartbeat: DateTimeUtc,
-}
 
 /// Enumeration of possible task statuses
 #[derive(Debug, Serialize, Default, ToSchema)]
@@ -119,9 +62,27 @@ pub struct TaskStatus {
 /// Shared application state containing worker connections, database, and active builds
 #[derive(Clone)]
 pub struct AppState {
-    pub workers: Arc<DashMap<String, WorkerInfo>>,
+    pub scheduler: TaskScheduler,
     pub conn: DatabaseConnection,
-    pub active_builds: Arc<DashMap<String, BuildInfo>>,
+}
+
+impl AppState {
+    /// Create new AppState instance
+    pub fn new(conn: DatabaseConnection, queue_config: Option<crate::scheduler::TaskQueueConfig>) -> Self {
+        let workers = Arc::new(DashMap::new());
+        let active_builds = Arc::new(DashMap::new());
+        let scheduler = TaskScheduler::new(
+            conn.clone(),
+            workers,
+            active_builds,
+            queue_config,
+        );
+        
+        Self {
+            scheduler,
+            conn,
+        }
+    }
 }
 
 /// Creates and configures all API routes
@@ -132,6 +93,28 @@ pub fn routers() -> Router<AppState> {
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/mr-task/{mr}", get(task_query_by_mr))
+        .route("/queue-stats", get(queue_stats_handler))
+}
+
+/// Start queue management background task (event-driven + periodic cleanup)
+pub async fn start_queue_manager(state: AppState) {
+    // Start the scheduler's queue manager
+    state.scheduler.start_queue_manager().await;
+}
+
+/// API endpoint for getting queue statistics
+#[utoipa::path(
+    get,
+    path = "/queue-stats",
+    responses(
+        (status = 200, description = "Queue statistics", body = TaskQueueStats)
+    )
+)]
+pub async fn queue_stats_handler(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let stats = state.scheduler.get_queue_stats().await;
+    (StatusCode::OK, Json(stats))
 }
 
 #[utoipa::path(
@@ -150,7 +133,7 @@ pub async fn task_status_handler(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let (code, status) = if state.active_builds.contains_key(&id) {
+    let (code, status) = if state.scheduler.active_builds.contains_key(&id) {
         // Task is currently active/building
         (
             StatusCode::OK,
@@ -225,7 +208,7 @@ pub async fn task_output_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let log_path_str = format!("{}/{}", *BUILD_LOG_DIR, id);
+    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
     let log_path = std::path::Path::new(&log_path_str);
 
     // Return error message if log file doesn't exist
@@ -239,7 +222,7 @@ pub async fn task_output_handler(
     // Create a stream that continuously reads from the log file
     let stream = stream::unfold(reader, move |mut reader| {
         let id_c = id.clone();
-        let active_builds = state.active_builds.clone();
+        let active_builds = state.scheduler.active_builds.clone();
         async move {
             let mut buf = String::new();
             let is_building = active_builds.contains_key(&id_c);
@@ -275,11 +258,12 @@ pub async fn task_output_handler(
     path = "/task",
     request_body = BuildRequest,
     responses(
-        (status = 200, description = "Task created", body = serde_json::Value)
+        (status = 200, description = "Task created", body = serde_json::Value),
+        (status = 503, description = "Queue is full", body = serde_json::Value)
     )
 )]
-/// Creates a new build task and assigns it to an available worker
-/// Returns task ID and assigned worker information upon successful creation
+/// Creates a new build task and either assigns it immediately or queues it for later processing
+/// Returns task ID and status information upon successful creation
 pub async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<BuildRequest>,
@@ -296,15 +280,65 @@ pub async fn task_handler(
         }
     };
 
-    // Find all idle workers
-    let idle_workers: Vec<String> = state
-        .workers
-        .iter()
-        .filter(|entry| matches!(entry.value().status, WorkerStatus::Idle))
-        .map(|entry| entry.key().clone())
-        .collect();
+    // Check if there are idle workers available
+    if state.scheduler.has_idle_workers() {
+        // Have idle workers, directly dispatch task (keep original logic)
+        handle_immediate_task_dispatch(state, req, target).await
+    } else {
+        // No idle workers, add task to queue
+        match state.scheduler.enqueue_task(req.clone(), target.clone()).await {
+            Ok(task_id) => {
+                tracing::info!("Task {} queued for later processing", task_id);
+                
+                // Save to database (mark as Pending status)
+                let model = builds::ActiveModel {
+                    build_id: Set(task_id),
+                    output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
+                    exit_code: Set(None),
+                    start_at: Set(chrono::Utc::now()),
+                    end_at: Set(None),
+                    repo_name: Set(req.repo.clone()),
+                    target: Set(target.clone()),
+                    arguments: Set(req.args.clone().unwrap_or_default().join(" ")),
+                    mr: Set(req.mr.clone().unwrap_or_default()),
+                };
+                
+                if let Err(e) = model.insert(&state.conn).await {
+                    tracing::error!("Failed to insert queued task into DB: {}", e);
+                }
 
-    // Return error if no workers are available
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "task_id": task_id.to_string(), 
+                        "status": "queued",
+                        "message": "Task queued for processing when workers become available"
+                    })),
+                ).into_response()
+            }
+            Err(e) => {
+                tracing::warn!("Failed to queue task: {}", e);
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "message": format!("Unable to queue task: {}", e)
+                    })),
+                ).into_response()
+            }
+        }
+    }
+}
+
+/// Handle immediate task dispatch logic (original task_handler logic)
+async fn handle_immediate_task_dispatch(
+    state: AppState,
+    req: BuildRequest,
+    target: String,
+) -> axum::response::Response {
+    // Find all idle workers
+    let idle_workers = state.scheduler.get_idle_workers();
+
+    // Return error if no workers are available (this shouldn't happen theoretically since we already checked)
     if idle_workers.is_empty() {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -346,7 +380,7 @@ pub async fn task_handler(
     // Save task to database
     let model = builds::ActiveModel {
         build_id: Set(task_id),
-        output_file: Set(format!("{}/{}", *BUILD_LOG_DIR, task_id)),
+        output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
         exit_code: Set(None),
         start_at: Set(build_info.start_at),
         end_at: Set(None),
@@ -373,14 +407,18 @@ pub async fn task_handler(
     };
 
     // Send task to the selected worker
-    if let Some(mut worker) = state.workers.get_mut(&chosen_id) {
+    if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id) {
         if worker.sender.send(msg).is_ok() {
             worker.status = WorkerStatus::Busy(task_id.to_string());
-            state.active_builds.insert(task_id.to_string(), build_info);
-            tracing::info!("Task {} dispatched to worker {}", task_id, chosen_id);
+            state.scheduler.active_builds.insert(task_id.to_string(), build_info);
+            tracing::info!("Task {} dispatched immediately to worker {}", task_id, chosen_id);
             (
                 StatusCode::OK,
-                Json(serde_json::json!({"task_id": task_id.to_string(), "client_id": chosen_id})),
+                Json(serde_json::json!({
+                    "task_id": task_id.to_string(), 
+                    "client_id": chosen_id,
+                    "status": "dispatched"
+                })),
             ).into_response()
         } else {
             tracing::error!(
@@ -469,7 +507,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: AppState) {
     // Cleanup worker connection when socket closes
     if let Some(id) = &worker_id {
         tracing::info!("Cleaning up for worker: {id} from {who}.");
-        state.workers.remove(id);
+        state.scheduler.workers.remove(id);
     } else {
         tracing::info!("Cleaning up unregistered connection from {who}.");
     }
@@ -499,7 +537,7 @@ async fn process_message(
             if worker_id.is_none() {
                 if let WSMessage::Register { id } = ws_msg {
                     tracing::info!("Worker from {who} registered as: {id}");
-                    state.workers.insert(
+                    state.scheduler.workers.insert(
                         id.clone(),
                         WorkerInfo {
                             sender: tx.clone(),
@@ -508,6 +546,9 @@ async fn process_message(
                         },
                     );
                     *worker_id = Some(id);
+                    
+                    // After new worker registration, notify to process queued tasks
+                    state.scheduler.notify_task_available();
                 } else {
                     tracing::error!(
                         "First message from {who} was not Register. Closing connection."
@@ -526,14 +567,14 @@ async fn process_message(
                     );
                 }
                 WSMessage::Heartbeat => {
-                    if let Some(mut worker) = state.workers.get_mut(current_worker_id) {
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.last_heartbeat = chrono::Utc::now();
                         tracing::debug!("Received heartbeat from {current_worker_id}");
                     }
                 }
                 WSMessage::BuildOutput { id, output } => {
                     // Write build output to the associated log file
-                    if let Some(build_info) = state.active_builds.get(&id) {
+                    if let Some(build_info) = state.scheduler.active_builds.get(&id) {
                         let log_file = build_info.log_file.clone();
                         tokio::spawn(async move {
                             let mut file = log_file.lock().await;
@@ -563,7 +604,7 @@ async fn process_message(
                     );
 
                     // Remove from active builds and update database
-                    state.active_builds.remove(&id);
+                    state.scheduler.active_builds.remove(&id);
                     let _ = builds::Entity::update_many()
                         .set(builds::ActiveModel {
                             exit_code: Set(exit_code),
@@ -575,9 +616,12 @@ async fn process_message(
                         .await;
 
                     // Mark worker as idle again
-                    if let Some(mut worker) = state.workers.get_mut(current_worker_id) {
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.status = WorkerStatus::Idle;
                     }
+
+                    // After worker becomes idle, notify to process queued tasks
+                    state.scheduler.notify_task_available();
                 }
                 _ => {}
             }
