@@ -81,25 +81,25 @@ pub async fn execute(args: RestoreArgs) {
 
     // to workdir path
     let target_blobs: Vec<(PathBuf, SHA1)> = {
-        // `source` has been pre-process before ↑
-        if source.is_none() {
-            // only this situation, restore from [Index]
-            assert!(!staged);
-            let index = Index::load(path::index()).unwrap();
-            index
-                .tracked_entries(0)
-                .into_iter()
-                .map(|entry| (PathBuf::from(&entry.name), entry.hash))
-                .collect()
-        } else {
-            // restore from commit hash
-            if let Some(commit) = target_commit {
+        match (source.as_ref(), target_commit) {
+            (None, _) => {
+                // only this situation, restore from [Index]
+                assert!(!staged);
+                let index = Index::load(path::index()).unwrap();
+                index
+                    .tracked_entries(0)
+                    .into_iter()
+                    .map(|entry| (PathBuf::from(&entry.name), entry.hash))
+                    .collect()
+            }
+            (Some(_), Some(commit)) => {
+                // restore from commit hash
                 let tree_id = Commit::load(&commit).tree_id;
                 let tree = Tree::load(&tree_id);
                 tree.get_plain_items()
-            } else {
-                let src = source.unwrap();
-                if storage.search(&src).await.len() != 1 {
+            }
+            (Some(src), None) => {
+                if storage.search(src).await.len() != 1 {
                     eprintln!("fatal: could not resolve {src}");
                 } else {
                     eprintln!("fatal: reference is not a commit: {src}");

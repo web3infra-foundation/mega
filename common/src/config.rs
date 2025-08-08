@@ -433,9 +433,7 @@ impl PackConfig {
         }
 
         let ratio_result = size_str.parse::<f64>();
-        if ratio_result.is_ok() {
-            let ratio = ratio_result.unwrap();
-
+        if let Ok(ratio) = ratio_result {
             if ratio > 0.0 && ratio < 1.0 {
                 let total_mem = fn_get_total_capacity()?;
 
