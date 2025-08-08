@@ -465,7 +465,7 @@ impl MonoApiService {
     }
 
     fn collect_page_blobs(
-        self: &Self,
+        &self,
         items: &[MrDiffFile],
         old_out: &mut Vec<(PathBuf, SHA1)>,
         new_out: &mut Vec<(PathBuf, SHA1)>,
@@ -517,7 +517,7 @@ impl MonoApiService {
 
         // Sort the results
         res.sort_by(|a, b| {
-            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(&b.kind_weight()))
+            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(b.kind_weight()))
         });
         Ok(res)
     }
