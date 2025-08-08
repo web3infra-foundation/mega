@@ -195,9 +195,9 @@ pub async fn post_method_router(
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
         crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
     } else {
-        return Err(ProtocolError::NotFound(
+        Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),
-        ));
+        ))
     }
 }
 
