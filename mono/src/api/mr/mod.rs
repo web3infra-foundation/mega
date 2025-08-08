@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use ceres::model::mr::MrDiffFile;
+use ceres::model::mr::{MrDiff, MrDiffFile};
 use jupiter::model::mr_dto::MRDetails;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -52,7 +52,7 @@ impl From<MRDetails> for MRDetailRes {
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedList {
     pub mui_trees: Vec<MuiTreeNode>,
-    pub content: String,
+    pub content: MrDiff,
 }
 
 #[derive(Serialize, Debug, ToSchema)]

@@ -44,6 +44,7 @@ use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
+use neptune::neptune_engine::Diff;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -52,11 +53,11 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
-use crate::model::mr::MrDiffFile;
+use crate::model::mr::{MrDiffFile, MrDiff, MrPageInfo};
+
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -371,33 +372,51 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
-    /// Generate diff content directly from two blob sets using the diff engine
-    ///
+    /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
-    /// * `mr_link` - Merge request link identifier
-    ///
+    /// * `mr_link` - The link to the merge request.
+    /// * `page_id` - The page number to fetch. (id out of bounds will return empty)
+    /// * `page_size` - The number of items per page.
     /// # Returns
-    /// String containing the unified diff output
-    pub async fn content_diff(&self, mr_link: &str) -> Result<String, GitError> {
+    ///  a `Result` containing `MrDiff` on success or a `GitError` on failure.
+    pub async fn content_diff(
+        &self,
+        mr_link: &str,
+        page_id: usize,
+        page_size: usize,
+    ) -> Result<MrDiff, GitError> {
+        // old and new blobs for comparison
         let stg = self.storage.mr_storage();
-        let mr =
-            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-                GitError::CustomError(format!("Merge request not found: {mr_link}"))
-            })?;
+        let mr = stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
+            GitError::CustomError(format!("Merge request not found: {mr_link}"))
+        })?;
+        let old_blobs = self.get_commit_blobs(&mr.from_hash).await.map_err(|e| {
+            GitError::CustomError(format!("Failed to get old commit blobs: {e}"))
+        })?;
+        let new_blobs = self.get_commit_blobs(&mr.to_hash).await.map_err(|e| {
+            GitError::CustomError(format!("Failed to get new commit blobs: {e}"))
+        })?;
 
-        let old_blobs = self
-            .get_commit_blobs(&mr.from_hash)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
-        let new_blobs = self
-            .get_commit_blobs(&mr.to_hash)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
+        // calculate pages
+        let sorted_changed_files = self.mr_files_list(old_blobs.clone(), new_blobs.clone()).await?;
 
-        let algo = "histogram".to_string(); // Default diff algorithm
-        let filter_paths: Vec<PathBuf> = Vec::new(); // No filtering by default
+        // ensure page_id is within bounds
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(sorted_changed_files.len());
 
-        // Pre-fetch all blob contents to avoid async issues in the closure
+        let page_slice: &[MrDiffFile] = if (start) < sorted_changed_files.len() {
+            let start_idx = start;
+            let end_idx = end;
+            &sorted_changed_files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        // create filtered files
+        let mut page_old_blobs = Vec::new();
+        let mut page_new_blobs = Vec::new();
+        self.collect_page_blobs(page_slice, &mut page_old_blobs, &mut page_new_blobs);
+
         let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
 
         // Collect all unique hashes
@@ -422,14 +441,52 @@ impl MonoApiService {
         }
 
         // Simple synchronous closure that uses the pre-fetched cache
-        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8>{
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 
         // Use the unified diff function that returns a single string
-        let diff_output = Diff::diff(old_blobs, new_blobs, algo, filter_paths, read_content).await;
+        let diff_output = Diff::diff(
+            page_old_blobs,
+            page_new_blobs,
+            "histogram".to_string(),
+            Vec::new(),
+            read_content,
+        ).await;
 
-        Ok(diff_output)
+        Ok(MrDiff {
+            data: diff_output,
+            page_info: Some(MrPageInfo {
+                total_pages: sorted_changed_files.len(),
+                current_page: page_id,
+                page_size,
+            })
+        })
+    }
+
+    fn collect_page_blobs(
+        self: &Self,
+        items: &[MrDiffFile],
+        old_out: &mut Vec<(PathBuf, SHA1)>,
+        new_out: &mut Vec<(PathBuf, SHA1)>,
+    ) {
+        old_out.reserve(items.len());
+        new_out.reserve(items.len());
+
+        for item in items {
+            match item {
+                MrDiffFile::New(p, h_new) => {
+                    new_out.push((p.clone(), *h_new));
+                }
+                MrDiffFile::Deleted(p, h_old) => {
+                    old_out.push((p.clone(), *h_old));
+                }
+                MrDiffFile::Modified(p, h_old, h_new) => {
+                    old_out.push((p.clone(), *h_old));
+                    new_out.push((p.clone(), *h_new));
+                }
+            }
+        }
     }
 
     pub async fn mr_files_list(
@@ -457,6 +514,11 @@ impl MonoApiService {
                 }
             }
         }
+
+        // Sort the results
+        res.sort_by(|a, b| {
+            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(&b.kind_weight()))
+        });
         Ok(res)
     }
 
@@ -503,7 +565,11 @@ impl MonoApiService {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::path::PathBuf;
+    use mercury::hash::SHA1;
+    use std::str::FromStr;
+    use crate::model::mr::{MrDiffFile, MrPageInfo};
 
     #[test]
     pub fn test_path() {
@@ -514,5 +580,283 @@ mod test {
             full_path.pop();
             println!("name: {name}, path: {full_path:?}");
         }
+    }
+
+    #[test]
+    fn test_paging_calculation_basic() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+        ];
+
+        let page_size = 2u32;
+        let page_id = 1u32;
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 0);
+        assert_eq!(end, 2);
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 2);
+    }
+
+    #[test]
+    fn test_paging_calculation_second_page() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+            MrDiffFile::New(PathBuf::from("file4.txt"), SHA1::from_str("2222222222222222222222222222222222222222").unwrap()),
+        ];
+
+        let page_size = 2u32;
+        let page_id = 2u32;
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 2);
+        assert_eq!(end, 4);
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 2);
+        assert_eq!(page_slice[0].path(), &PathBuf::from("file3.txt"));
+        assert_eq!(page_slice[1].path(), &PathBuf::from("file4.txt"));
+    }
+
+    #[test]
+    fn test_paging_calculation_partial_page() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+        ];
+
+        let page_size = 5u32;
+        let page_id = 1u32;
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 0);
+        assert_eq!(end, 3);
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 3);
+    }
+
+    #[test]
+    fn test_paging_calculation_out_of_bounds() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+        ];
+
+        let page_size = 2u32;
+        let page_id = 3u32; // Page that doesn't exist
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 4);
+        assert_eq!(end, 1); // end is clamped to files.len()
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 0);
+    }
+
+    #[test]
+    fn test_paging_calculation_edge_case_zero_page_size() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+        ];
+
+        let page_size = 0u32;
+        let page_id = 1u32;
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 0);
+        assert_eq!(end, 0);
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 0);
+    }
+
+    #[test]
+    fn test_paging_calculation_zero_page_id() {
+        let files: Vec<MrDiffFile> = vec![
+            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+        ];
+
+        let page_size = 2u32;
+        let page_id = 0u32; // Should be treated as page 1 due to saturating_sub
+
+        let start = (page_id.saturating_sub(1)) * page_size;
+        let end = (start + page_size).min(files.len() as u32);
+
+        assert_eq!(start, 0);
+        assert_eq!(end, 2);
+
+        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+            let start_idx = start as usize;
+            let end_idx = end as usize;
+            &files[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        assert_eq!(page_slice.len(), 2);
+    }
+
+    #[test]
+    fn test_paging_page_info_construction() {
+        let total_files = 10usize;
+        let current_page = 2u32;
+        let page_size = 3u32;
+
+        let page_info = MrPageInfo {
+            total_pages: total_files,
+            current_page: current_page as usize,
+            page_size: page_size as usize,
+        };
+
+        assert_eq!(page_info.total_pages, 10);
+        assert_eq!(page_info.current_page, 2);
+        assert_eq!(page_info.page_size, 3);
+    }
+
+    #[test]
+    fn test_collect_page_blobs_new_files() {
+        let service = MonoApiService {
+            storage: Storage::mock(),
+        };
+
+        let files = vec![
+            MrDiffFile::New(PathBuf::from("new_file.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+        ];
+
+        let mut old_blobs = Vec::new();
+        let mut new_blobs = Vec::new();
+
+        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+
+        assert_eq!(old_blobs.len(), 0);
+        assert_eq!(new_blobs.len(), 1);
+        assert_eq!(new_blobs[0].0, PathBuf::from("new_file.txt"));
+    }
+
+    #[test]
+    fn test_collect_page_blobs_deleted_files() {
+        let service = MonoApiService {
+            storage: Storage::mock(),
+        };
+
+        let files = vec![
+            MrDiffFile::Deleted(PathBuf::from("deleted_file.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
+        ];
+
+        let mut old_blobs = Vec::new();
+        let mut new_blobs = Vec::new();
+
+        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+
+        assert_eq!(old_blobs.len(), 1);
+        assert_eq!(new_blobs.len(), 0);
+        assert_eq!(old_blobs[0].0, PathBuf::from("deleted_file.txt"));
+    }
+
+    #[test]
+    fn test_collect_page_blobs_modified_files() {
+        let service = MonoApiService {
+            storage: Storage::mock(),
+        };
+
+        let files = vec![
+            MrDiffFile::Modified(
+                PathBuf::from("modified_file.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()
+            ),
+        ];
+
+        let mut old_blobs = Vec::new();
+        let mut new_blobs = Vec::new();
+
+        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+
+        assert_eq!(old_blobs.len(), 1);
+        assert_eq!(new_blobs.len(), 1);
+        assert_eq!(old_blobs[0].0, PathBuf::from("modified_file.txt"));
+        assert_eq!(new_blobs[0].0, PathBuf::from("modified_file.txt"));
+    }
+
+    #[test]
+    fn test_collect_page_blobs_mixed_files() {
+        let service = MonoApiService {
+            storage: Storage::mock(),
+        };
+
+        let files = vec![
+            MrDiffFile::New(PathBuf::from("new.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+            MrDiffFile::Deleted(PathBuf::from("deleted.txt"), SHA1::from_str("2222222222222222222222222222222222222222").unwrap()),
+            MrDiffFile::Modified(
+                PathBuf::from("modified.txt"),
+                SHA1::from_str("3333333333333333333333333333333333333333").unwrap(),
+                SHA1::from_str("4444444444444444444444444444444444444444").unwrap()
+            ),
+        ];
+
+        let mut old_blobs = Vec::new();
+        let mut new_blobs = Vec::new();
+
+        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+
+        assert_eq!(old_blobs.len(), 2); // deleted + modified
+        assert_eq!(new_blobs.len(), 2); // new + modified
+
+        assert_eq!(old_blobs[0].0, PathBuf::from("deleted.txt"));
+        assert_eq!(old_blobs[1].0, PathBuf::from("modified.txt"));
+        assert_eq!(new_blobs[0].0, PathBuf::from("new.txt"));
+        assert_eq!(new_blobs[1].0, PathBuf::from("modified.txt"));
     }
 }
