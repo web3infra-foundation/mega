@@ -219,8 +219,7 @@ impl IssueStorage {
     pub async fn get_label_by_id(&self, id: i64) -> Result<Option<label::Model>, MegaError> {
         let model = label::Entity::find_by_id(id)
             .one(self.get_connection())
-            .await
-            .unwrap();
+            .await?;
         Ok(model)
     }
 
