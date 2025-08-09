@@ -87,8 +87,8 @@ if __name__ == "__main__":
             exit()
 
         # concatenate the URL with the latest release tag
-        # GTK_PKG = "https://github.com/wingtk/gvsbuild/releases/latest"
-        # gtk_ver = get_redirected_url(GTK_PKG).split("/")[-1]
+        GTK_PKG = "https://github.com/wingtk/gvsbuild/releases/latest"
+        gtk_ver = get_redirected_url(GTK_PKG).split("/")[-1]
         # gtk_url = f"https://github.com/wingtk/gvsbuild/releases/download/{gtk_ver}/GTK4_Gvsbuild_{gtk_ver}_x64.zip"
         gtk_url = f"https://file.gitmega.com/monobean/GTK4_Gvsbuild_2025.6.0_x64.zip"
 
