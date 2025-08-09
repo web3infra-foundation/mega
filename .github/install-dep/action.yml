@@ -42,12 +42,26 @@ runs:
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         
+        # 检查并安装缺失的包
+        PACKAGES="cmake git git-lfs build-essential pkg-config curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev libwebkit2gtk-4.1-dev fuse3 libfuse3-dev"
+        MISSING_PACKAGES=""
+        
+        for pkg in $PACKAGES; do
+          if ! dpkg -l | grep -q "^ii  $pkg "; then
+            MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
+          fi
+        done
+        
+        if [ -n "$MISSING_PACKAGES" ]; then
+          echo "Installing missing packages: $MISSING_PACKAGES"
+          sudo apt update
+          sudo apt install -y $MISSING_PACKAGES
+        else
+          echo "All required packages are already installed"
+        fi
+        
         # 创建用户缓存目录
         mkdir -p ~/.cache/apt-archives
-        
-        # 配置APT使用用户缓存目录
-        sudo mkdir -p /etc/apt/apt.conf.d
-        echo 'Dir::Cache::Archives "'$HOME'/.cache/apt-archives";' | sudo tee /etc/apt/apt.conf.d/01cache
         
         sudo apt update
         sudo apt install -y \
