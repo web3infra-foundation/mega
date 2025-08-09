@@ -457,7 +457,7 @@ impl MonoApiService {
         Ok(MrDiff {
             data: diff_output,
             page_info: Some(MrPageInfo {
-                total_pages: (sorted_changed_files.len() + page_size - 1) / page_size,
+                total_pages: (sorted_changed_files.len()-1).div_ceil(page_size),
                 current_page: page_id,
                 page_size,
             })
@@ -755,11 +755,6 @@ mod test {
         let page_size = 3u32;
 
         let page_info = MrPageInfo {
-            total_pages: total_files,
-            current_page: current_page as usize,
-            page_size: page_size as usize,
-        };
-
             total_pages: (total_files + page_size as usize - 1) / page_size as usize,
             current_page: current_page as usize,
             page_size: page_size as usize,
