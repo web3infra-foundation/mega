@@ -20,21 +20,20 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # ================= Universal Initialization =================
-    # on windows, it suffers from extremely slow zstd compression and decompression speed
-    # https://github.com/actions/toolkit/issues/1578#issuecomment-2253355054
-    # So we have to manuallly restore and save the cache
-    - name: Restore dependencies
-      if: inputs.self-hosted == 'false'
-      id: cache-restore
+    # ================= Linux Only Cache Restore =================
+    - name: Restore dependencies (Linux Only)
+      if: contains(inputs.platform, 'ubuntu')
+      id: cache-restore-linux
       uses: actions/cache/restore@v4
       with:
         path: |
-          /var/cache/apt/
-          ~/Library/Caches/Homebrew
-          C:\ProgramData\chocolatey\lib
-          ./.choco-cache
+          ~/.cache/apt-archives
+          ~/.cache/pip
+          ~/.cargo/registry
+          ~/.cargo/git
         key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}
+        restore-keys: |
+          ${{ inputs.platform }}-sysdeps-
 
     # ================ Platform-specific Initialization (Linux) ================
     - name: Install dependencies (Ubuntu)
@@ -42,7 +41,14 @@ runs:
       shell: bash
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
+        
+        # 创建用户缓存目录
+        mkdir -p ~/.cache/apt-archives
+        
+        # 配置APT使用用户缓存目录
+        sudo mkdir -p /etc/apt/apt.conf.d
+        echo 'Dir::Cache::Archives "'$HOME'/.cache/apt-archives";' | sudo tee /etc/apt/apt.conf.d/01cache
+        
         sudo apt update
         sudo apt install -y \
           cmake \
@@ -62,36 +68,34 @@ runs:
           libgtksourceview-5-dev \
           libwebkit2gtk-4.1-dev \
           fuse3 \
-          libfuse3-dev \
+          libfuse3-dev
 
     # ================ Platform-specific Initialization (macOS) ================
-    # fuse not available on macOS
-    # Newest cmake version from homebrew is 4.x, which breaks building for rdkafka-sys
+    # macOS - 不使用缓存，直接安装
     - name: Install dependencies (macOS)
       if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
         echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> $GITHUB_ENV
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
         brew install \
           gtk4 \
           libadwaita \
           librsvg \
-          gtksourceview5 \
+          gtksourceview5
 
     # =============== Platform-specific Initialization (Windows) ===============
-    # According to https://github.com/actions/runner-images/blob/main/images/windows/toolsets/toolset-2025.json
-    # OpenSSL, cmake and some other build tools have been embedded into the windows-latest image.
+    # Windows - 不使用缓存，直接安装
     - name: Install dependencies (Windows)
       if: contains(inputs.platform, 'windows')
       shell: powershell
       run: |
-        choco config set cacheLocation ./.choco-cache
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
         rustup update
 
     # Required by monobean, performing this step would take about 5s.
-    # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
     - name: Load GTK and libadwaita
       if: contains(inputs.platform, 'windows') && inputs.use-gtk == 'true'
       shell: powershell
@@ -123,13 +127,14 @@ runs:
         components: clippy rustfmt
         cache: false
 
-    - name: Cache dependencies
-      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted == 'false'
+    # ================ Linux Only Cache Save ================
+    - name: Cache dependencies (Linux Only)
+      if: contains(inputs.platform, 'ubuntu') && steps.cache-restore-linux.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
-          /var/cache/apt/
-          ~/Library/Caches/Homebrew
-          C:\ProgramData\chocolatey\lib
-          ./.choco-cache
+          ~/.cache/apt-archives
+          ~/.cache/pip
+          ~/.cargo/registry
+          ~/.cargo/git
         key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}
