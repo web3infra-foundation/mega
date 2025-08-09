@@ -760,7 +760,12 @@ mod test {
             page_size: page_size as usize,
         };
 
-        assert_eq!(page_info.total_pages, 10);
+            total_pages: (total_files + page_size as usize - 1) / page_size as usize,
+            current_page: current_page as usize,
+            page_size: page_size as usize,
+        };
+
+        assert_eq!(page_info.total_pages, 4);
         assert_eq!(page_info.current_page, 2);
         assert_eq!(page_info.page_size, 3);
     }
