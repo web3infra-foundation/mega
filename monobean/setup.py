@@ -21,7 +21,7 @@ def download_file_with_resume(url, save_path):
         else:
             downloaded_size = 0
 
-        response = requests.get(url, headers=headers, stream=True, timeout=10)
+        response = requests.get(url, headers=headers, stream=True, timeout=30)
         response.raise_for_status()
 
         total_size = int(response.headers.get('content-length', 0)) + downloaded_size
@@ -87,8 +87,8 @@ if __name__ == "__main__":
             exit()
 
         # concatenate the URL with the latest release tag
-        # GTK_PKG = "https://github.com/wingtk/gvsbuild/releases/latest"
-        # gtk_ver = get_redirected_url(GTK_PKG).split("/")[-1]
+        GTK_PKG = "https://github.com/wingtk/gvsbuild/releases/latest"
+        gtk_ver = get_redirected_url(GTK_PKG).split("/")[-1]
         # gtk_url = f"https://github.com/wingtk/gvsbuild/releases/download/{gtk_ver}/GTK4_Gvsbuild_{gtk_ver}_x64.zip"
         gtk_url = f"https://file.gitmega.com/monobean/GTK4_Gvsbuild_2025.6.0_x64.zip"
 
@@ -110,6 +110,7 @@ if __name__ == "__main__":
                     print("GTK4 is outdated!")
                     exit()
 
+        
         # download the GTK4 package
         print(f"Downloading GTK4 package with version {gtk_ver}...")
         download_file_with_resume(gtk_url, "GTK4_Gvsbuild.zip")
