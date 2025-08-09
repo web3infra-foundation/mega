@@ -20,11 +20,11 @@ impl MrDiffFile {
         }
     }
 
-    pub fn kind_weight(&self) -> &PathBuf {
+    pub fn kind_weight(&self) -> u8 {
         match self {
-            MrDiffFile::New(path, _) 
-            | MrDiffFile::Deleted(path, _)
-            | MrDiffFile::Modified(path, _, _) => path,
+            MrDiffFile::New(_, _) => 0,
+            MrDiffFile::Deleted(_, _) => 1,
+            MrDiffFile::Modified(_, _, _) => 2,
         }
     }
 }

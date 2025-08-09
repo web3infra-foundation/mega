@@ -404,7 +404,7 @@ impl MonoApiService {
         let start = (page_id.saturating_sub(1)) * page_size;
         let end = (start + page_size).min(sorted_changed_files.len());
 
-        let page_slice: &[MrDiffFile] = if (start) < sorted_changed_files.len() {
+        let page_slice: &[MrDiffFile] = if start < sorted_changed_files.len() {
             let start_idx = start;
             let end_idx = end;
             &sorted_changed_files[start_idx..end_idx]
@@ -457,7 +457,7 @@ impl MonoApiService {
         Ok(MrDiff {
             data: diff_output,
             page_info: Some(MrPageInfo {
-                total_pages: sorted_changed_files.len(),
+                total_pages: (sorted_changed_files.len() - 1) / page_size + 1,
                 current_page: page_id,
                 page_size,
             })
@@ -517,7 +517,7 @@ impl MonoApiService {
 
         // Sort the results
         res.sort_by(|a, b| {
-            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(b.kind_weight()))
+            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(&b.kind_weight()))
         });
         Ok(res)
     }
