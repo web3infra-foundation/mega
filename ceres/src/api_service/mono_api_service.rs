@@ -457,7 +457,7 @@ impl MonoApiService {
         Ok(MrDiff {
             data: diff_output,
             page_info: Some(MrPageInfo {
-                total_pages: (sorted_changed_files.len() - 1) / page_size + 1,
+                total_pages: (sorted_changed_files.len() + page_size - 1) / page_size,
                 current_page: page_id,
                 page_size,
             })
