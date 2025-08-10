@@ -41,7 +41,7 @@ import {
   useLabelsSelector,
   useMemberMap
 } from './utils/sideEffect'
-import { idAtom } from './utils/store'
+import { idAtom, useRefresh } from './utils/store'
 
 export default function IssueDetailPage({ link }: { link: string }) {
   const [id] = useAtom(idAtom)
@@ -106,6 +106,15 @@ export default function IssueDetailPage({ link }: { link: string }) {
   useEffect(() => {
     fetchDetail()
   }, [fetchDetail, link])
+
+  const refresh = useRefresh()
+  
+  useEffect(() => {
+    fetchDetail()
+    console.log(refresh)
+    // return () => setRefresh(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh.current])
 
   const [_loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()

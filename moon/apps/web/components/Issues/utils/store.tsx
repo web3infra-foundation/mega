@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { CookieValueTypes } from 'cookies-next'
 import { atom } from 'jotai'
 import { atomFamily } from 'jotai/utils'
@@ -42,3 +43,12 @@ export const labelsCloseCurrentPage = atomWithWebStorage('LabelsCloseCurrentPage
 
 export const idAtom = atom(0)
 export const mridAtom = atom(0)
+
+export const FALSE_EDIT_VAL = -1
+export const editIdAtom = atom(0)
+
+export const useRefresh = () => {
+  const refresh = useRef(0)
+
+  return refresh
+}
