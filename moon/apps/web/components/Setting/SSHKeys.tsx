@@ -43,7 +43,12 @@ const SshKeyItem = ({keyData}: { keyData: ListSSHKey }) => {
   )
 }
 
-const NewSSHKeyDialog = ({open, setOpen}) => {
+interface NewSSHKeyDialogProps {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
+const NewSSHKeyDialog = ({open, setOpen}: NewSSHKeyDialogProps) => {
   const {mutate: postSSHKey, isPending} = usePostSSHKey()
   const [title, setTitle] = useState('')
   const [sshKey, setSshKey] = useState('')
@@ -97,7 +102,6 @@ const NewSSHKeyDialog = ({open, setOpen}) => {
 
         <div className='mb-4'>
           <TextField
-            className="m-2"
             placeholder='begins with "ssh-rsa" or "ssh-ed25519"'
             multiline
             minRows={5}

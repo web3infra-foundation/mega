@@ -3,7 +3,7 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { legacyApiClient } from '@/utils/queryClient'
 import { useQuery } from '@tanstack/react-query'
 import { useAtom } from 'jotai'
-import { useMemo } from 'react'
+import {useEffect} from 'react'
 import { ListToken } from '@gitmono/types'
 
 const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
@@ -12,7 +12,7 @@ const getTokenListAtom = atomFamily(() =>
 )
 
 export const useGetTokenList = () => {
-  const [, setTokenList] = useAtom(getTokenListAtom())
+  const [tokenList, setTokenList] = useAtom(getTokenListAtom('token'))
 
   const {data, isLoading, isPending, isFetching} = useQuery({
     queryKey: fetchTokenList.requestKey(),
@@ -23,10 +23,11 @@ export const useGetTokenList = () => {
     },
   })
 
-  const tokenList = useMemo(() => {
-    setTokenList(data)
-    return data ?? []
-  }, [data, setTokenList])
+  useEffect(() => {
+    if(data){
+      setTokenList(data)
+    }
+  }, [data, setTokenList]);
 
   return {
     tokenList,

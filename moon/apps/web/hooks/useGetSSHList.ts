@@ -4,7 +4,7 @@ import {atomWithWebStorage} from "@/utils/atomWithWebStorage";
 import {ListSSHKey} from "@gitmono/types";
 import {useAtom} from "jotai";
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import {useEffect} from 'react'
 
 const fetchSSHList = legacyApiClient.v1.getApiUserSshList()
 const getSSHListAtom = atomFamily(() =>
@@ -12,7 +12,7 @@ const getSSHListAtom = atomFamily(() =>
 )
 
 export const useGetSSHList = () => {
-  const [, setSSHList] = useAtom(getSSHListAtom())
+  const [sshKeys, setSSHList] = useAtom(getSSHListAtom('ssh-key'))
 
   const { data, isLoading, isPending, isFetching } = useQuery({
     queryKey: fetchSSHList.requestKey(),
@@ -23,9 +23,10 @@ export const useGetSSHList = () => {
     },
   });
 
-  const sshKeys = useMemo(() => {
-    setSSHList(data);
-    return data ?? []
+  useEffect(() => {
+    if(data){
+      setSSHList(data)
+    }
   }, [data, setSSHList]);
 
   return { sshKeys, isLoading, isPending, isFetching }
