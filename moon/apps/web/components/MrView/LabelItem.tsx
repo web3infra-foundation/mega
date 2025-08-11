@@ -4,7 +4,7 @@ import {MemberHovercard} from '../InlinePost/MemberHovercard'
 import {MemberAvatar} from '../MemberAvatar'
 import {UserLinkByName} from './components/UserLinkByName'
 import HandleTime from './components/HandleTime'
-import {ConversationItem, GetApiLabelByIdData, type LabelItem} from '@gitmono/types/generated'
+import {ConversationItem, GetApiLabelByIdData} from '@gitmono/types/generated'
 import {getFontColor} from "@/utils/getFontColor";
 import {legacyApiClient} from "@/utils/queryClient";
 import {useEffect, useMemo, useState} from "react";
@@ -13,6 +13,7 @@ import {apiErrorToast} from "@/utils/apiErrorToast";
 interface LabelItemProps {
   conv: ConversationItem
 }
+type LabelList = ({ color: string; description: string; id: number; name: string; })[]
 
 function LabelItem({conv}: LabelItemProps) {
   const {data: member} = useGetOrganizationMember({username: conv.username})
@@ -22,7 +23,7 @@ function LabelItem({conv}: LabelItemProps) {
       conv.comment?.match(/\[(.*?)]/) ?? []
     , [conv.comment])
   const [idList, setIdList] = useState<string[]>([])
-  const [labelList, setLabelList] = useState<LabelItem[]>([]);
+  const [labelList, setLabelList] = useState<LabelList>([]);
 
   useEffect(() => {
     const res = (match.length > 1) ? match[1].split(", ") : []
@@ -42,7 +43,7 @@ function LabelItem({conv}: LabelItemProps) {
     ).then((res: GetApiLabelByIdData[]) => {
       const fetchedLabels = res
         .filter(res => res?.data)
-        .map(res => res.data);
+        .map(res => res!!.data!!) ?? [];
 
       setLabelList(fetchedLabels);
     }).catch(err =>
