@@ -3122,6 +3122,18 @@ export type CommonResultIssueDetailRes = {
   req_result: boolean
 }
 
+export type CommonResultLabelItem = {
+  data?: {
+    color: string
+    description: string
+    /** @format int64 */
+    id: number
+    name: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultMRDetailRes = {
   data?: {
     assignees: string[]
@@ -4688,7 +4700,7 @@ export type PostApiLabelListData = CommonResultCommonPageLabelItem
 
 export type PostApiLabelNewData = CommonResultString
 
-export type GetApiLabelByIdData = CommonResultCommonPageLabelItem
+export type GetApiLabelByIdData = CommonResultLabelItem
 
 export type GetApiLatestCommitParams = {
   refs?: string
