@@ -160,7 +160,7 @@ export const SimpleNoteContent = memo(
     }, [editor, onChange])
 
     return (
-      <div ref={containerRef} className='relative mb-2 h-[95%] min-h-[100px] overflow-auto'>
+      <div ref={containerRef} className='relative mb-2 h-[95%] min-h-[100px]'>
         <LayeredHotkeys
           keys={ADD_ATTACHMENT_SHORTCUT}
           callback={() => {

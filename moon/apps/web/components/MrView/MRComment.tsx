@@ -32,9 +32,10 @@ interface CommentProps {
   conv: ConversationItem
   id: string
   whoamI: string
+  editorRef: React.RefObject<SimpleNoteContentRef>
 }
 
-const Comment = ({ conv, id, whoamI }: CommentProps) => {
+const Comment = ({ conv, id, whoamI, editorRef }: CommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
 
   const extensions = useMemo(() => getNoteExtensions({ linkUnfurl: {} }), [])
@@ -93,7 +94,7 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
             }
             onReactionSelect={handleReactionSelect}
           />
-          <CommentDropdownMenu id={id} Conversation={conv} CommentType={whoamI} />
+          <CommentDropdownMenu id={id} Conversation={conv} CommentType={whoamI} editorRef={editorRef} />
         </div>
       </div>
 
