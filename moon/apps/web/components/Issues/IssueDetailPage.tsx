@@ -384,7 +384,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={link} type='issue' />
+                  <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef}/>
                 )}
 
                 {info && info.status === 'open' && (
