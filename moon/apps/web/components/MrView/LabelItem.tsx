@@ -33,9 +33,12 @@ function LabelItem({conv}: LabelItemProps) {
     if (idList.length === 0) return;
 
     Promise.all(
-      idList.map(id =>
-        legacyApiClient.v1.getApiLabelById().request(parseInt(id, 10))
-      )
+      idList.map(id => {
+        const numId = parseInt(id, 10);
+
+        if (isNaN(numId)) return Promise.reject(new Error('Invalid ID'));
+        return legacyApiClient.v1.getApiLabelById().request(numId);
+      })
     ).then((res: GetApiLabelByIdData[]) => {
       const fetchedLabels = res
         .filter(res => res?.data)
@@ -68,8 +71,6 @@ function LabelItem({conv}: LabelItemProps) {
           {
             labelList.map(label => {
               const fontColor = getFontColor(label.color)
-
-              if (!label) return null
 
               return <span
                 key={label.id}
