@@ -290,7 +290,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                         <LoadingSpinner />
                       </div>
                     ) : (
-                      mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' />
+                      mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
                     )}
                     <div style={{ marginTop: '12px' }} className='prose'>
                       <div className='flex'>

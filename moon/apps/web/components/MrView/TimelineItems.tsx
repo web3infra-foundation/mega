@@ -22,6 +22,7 @@ import MergedItem from './MergedItem'
 import ReopenItem from './ReopenItem'
 import LabelItem from '@/components/MrView/LabelItem'
 import ForcePushItem from './item/ForcePushItem'
+import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
 
 interface TimelineItemProps {
   badge?: React.ReactNode
@@ -68,7 +69,7 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   )
 }
 
-const TimelineItems: React.FC<{ detail: any; id: string; type: string }> = ({ detail, id, type }) => {
+const TimelineItems: React.FC<{ detail: any; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
   const convItems: ConvItem[] = detail.conversations.map((conv: ConversationItem) => {
     let icon
     let children
@@ -77,7 +78,7 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string }> = ({ de
     switch (conv.conv_type) {
       case 'Comment':
         icon = <CommentIcon />
-        children = <MRComment conv={conv} id={id} whoamI={type} />
+        children = <MRComment conv={conv} id={id} whoamI={type} editorRef={editorRef} />
         break
       case 'Merged':
         icon = <FeedMergedIcon size={24} className='text-purple-500' />
