@@ -9,10 +9,13 @@ enum Status {
   Rejected = 'rejected'
 }
 
+const root = '/sse/'
+
 const Checks = () => {
   const serverStream = useRef('')
   const es = useRef<EventSource | null>()
-  const baseUrl = useRef('http://47.79.95.33:3000/logs?follow=true')
+  // const baseUrl = useRef('http://47.79.95.33:3000/logs?follow=true')
+  const baseUrl = useRef(`${root}logs?follow=true`)
   const status = useRef(Status.Pending)
   const [displayTest, setDisplayText] = useState('')
   const { createEventSource } = useSSM()
@@ -40,7 +43,7 @@ const Checks = () => {
       serverStream.current = ''
       setDisplayText('')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 import toast from 'react-hot-toast'
 
@@ -16,7 +16,7 @@ import { trimHtml } from '@/utils/trimHtml'
 
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { useChange } from '../Issues/utils/sideEffect'
-import { editIdAtom, FALSE_EDIT_VAL, useRefresh } from '../Issues/utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, refreshAtom } from '../Issues/utils/store'
 import { MemberAvatar } from '../MemberAvatar'
 import { useHandleBottomScrollOffset } from '../NoteEditor/useHandleBottomScrollOffset'
 import { ComposerReactionPicker } from '../Reactions/ComposerReactionPicker'
@@ -41,15 +41,7 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
   const handleReactionSelect = useHandleExpression({ conv, id, type: whoamI })
   const [editId, setEditId] = useAtom(editIdAtom)
   const editInputRef = useRef<{ handleUpdate: () => void }>()
-
-  const refresh = useRefresh()
-
-  useEffect(() => {
-    // fetchDetail()
-    console.log(refresh.current)
-    // return () => setRefresh(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh.current])
+  const [refresh, setRefresh] = useAtom(refreshAtom)
 
   return (
     <div className='overflow-hidden rounded-lg border border-gray-300 bg-white'>
@@ -111,13 +103,15 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
           <>
             <EditInput ref={editInputRef} comment={conv} />
             <div className='flex justify-end gap-4'>
-              <Button onClick={() => setEditId(FALSE_EDIT_VAL)}>Cancel</Button>
+              <Button disabled={refresh !== 0} onClick={() => setEditId(FALSE_EDIT_VAL)}>
+                Cancel
+              </Button>
               <Button
+                disabled={refresh !== 0}
                 onClick={() => {
-                  setEditId(FALSE_EDIT_VAL)
+                  // setEditId(FALSE_EDIT_VAL)
+                  setRefresh(Date.now())
                   editInputRef.current && editInputRef.current.handleUpdate()
-                  // toast.success('update successfully!')
-                  // refresh.current = Date.now()
                 }}
                 className='bg-[#1f883d] text-white'
               >
@@ -142,39 +136,28 @@ const EditInput = forwardRef(({ comment }: { comment: ConversationItem }, ref) =
   })
   const { handleChange } = useChange({})
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
-  const { mutate: updateComment } = usePostComment()
-  const [_, setEditId] = useAtom(editIdAtom)
-  const refresh = useRefresh()
+  const { mutateAsync: updateComment } = usePostComment()
 
-  const handleUpdate = () => {
+  const [_refresh, setRefresh] = useAtom(refreshAtom)
+
+  const handleUpdate = async () => {
     const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>'
 
     if (trimHtml(currentContentHTML) === '') {
       toast.error('comment can not be empty!')
+      setRefresh(0)
       return
     }
 
-    updateComment(
-      { commentId: comment.id, data: { content: currentContentHTML } },
-      {
-        onError: (err) => apiErrorToast(new Error(err.message)),
-        onSuccess: () => {
-          console.log('success')
-          setTimeout(() => {
-            toast.success('update successfully!')
-            refresh.current = Date.now()
-          }, 0)
-        },
-        onSettled: () => {
-          console.log('settled')
-          setTimeout(() => {
-            refresh.current = Date.now()
-            console.log(refresh.current)
-            setEditId(FALSE_EDIT_VAL)
-          }, 0)
-        }
-      }
-    )
+    try {
+      await updateComment({ commentId: comment.id, data: { content: currentContentHTML } })
+      toast.success('update successfully!')
+    } catch (err: any) {
+      apiErrorToast(new Error(err.message))
+    }
+    // finally {
+    //   setRefresh(Date.now())
+    // }
   }
 
   useImperativeHandle(ref, () => ({

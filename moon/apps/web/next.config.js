@@ -62,7 +62,8 @@ const cspResourcesByDirective = {
     process.env.NODE_ENV !== 'production' && 'https://campsite-dev.imgix.net',
     'https://react-tweet.vercel.app', // for react-tweet embeds
     'https://media.tenor.com', // used for Tenor gifs
-    'http://47.79.95.33:3000'
+    // 'http://47.79.95.33:3000'
+    'https://orion.gitmega.com'
   ],
   'font-src': ["'self'"],
   'img-src': [
@@ -221,6 +222,10 @@ const moduleExports = {
       {
         source: '/ingest/decide',
         destination: 'https://us.i.posthog.com/decide'
+      },
+      {
+        source: '/sse/:path*',
+        destination: `https://orion.gitmega.com/:path*`
       }
     ]
   },
