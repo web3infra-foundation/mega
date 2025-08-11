@@ -1,7 +1,9 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 
-import { useSSM } from '../../hook/useSSM'
+import { useGetMrTask } from '@/hooks/SSE/useGetMrTask'
+
+import { useTaskSSE } from '../../hook/useSSM'
 
 enum Status {
   Pending = 'pending',
@@ -9,42 +11,54 @@ enum Status {
   Rejected = 'rejected'
 }
 
-const root = '/sse/'
-
-const Checks = () => {
-  const serverStream = useRef('')
-  const es = useRef<EventSource | null>()
+const Checks = ({ mr }: { mr: string }) => {
+  // const serverStream = useRef('')
+  // const es = useRef<EventSource | null>()
   // const baseUrl = useRef('http://47.79.95.33:3000/logs?follow=true')
-  const baseUrl = useRef(`${root}logs?follow=true`)
-  const status = useRef(Status.Pending)
+  // const status = useRef(Status.Pending)
   const [displayTest, setDisplayText] = useState('')
-  const { createEventSource } = useSSM()
+  // const { createEventSource, initial, sseUrl } = useSSM()
+  const { data } = useGetMrTask('VDPUMBPI')
+  const [taskids, setTaskids] = useState<string[]>([])
+
+  useEffect(() => {
+    if (data) {
+      const ids = data.map((i) => i.build_id)
+
+      setTaskids(ids)
+    }
+  }, [data])
+
+  const eventMap = useTaskSSE(taskids)
+
+  console.log(eventMap)
 
   // 页面初始化时建立连接
-  useEffect(() => {
-    if (status.current !== Status.Fullfilled) {
-      createEventSource(baseUrl.current)
-        .then((res) => {
-          es.current = res
-          status.current = Status.Fullfilled
-          es.current.onmessage = (event) => {
-            serverStream.current += event.data + '\n'
-            setDisplayText(serverStream.current)
-          }
-        })
-        .catch(() => (status.current = Status.Rejected))
-    }
+  // useEffect(() => {
+  //   initial()
+  //   if (status.current !== Status.Fullfilled) {
+  //     createEventSource(sseUrl.current)
+  //       .then((res) => {
+  //         es.current = res
+  //         status.current = Status.Fullfilled
+  //         es.current.onmessage = (event) => {
+  //           serverStream.current += event.data + '\n'
+  //           setDisplayText(serverStream.current)
+  //         }
+  //       })
+  //       .catch(() => (status.current = Status.Rejected))
+  //   }
 
-    return () => {
-      // 关闭连接
-      status.current = Status.Pending
-      es.current?.close()
-      es.current = null
-      serverStream.current = ''
-      setDisplayText('')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  //   return () => {
+  //     // 关闭连接
+  //     status.current = Status.Pending
+  //     es.current?.close()
+  //     es.current = null
+  //     serverStream.current = ''
+  //     setDisplayText('')
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [])
 
   return (
     <>

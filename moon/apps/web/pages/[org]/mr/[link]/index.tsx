@@ -436,7 +436,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                 </div>
               </UnderlinePanels.Panel>
               <UnderlinePanels.Panel>
-                <Checks />
+                <Checks mr={id} />
               </UnderlinePanels.Panel>
               <UnderlinePanels.Panel>
                 {fileChgIsLoading ? (
