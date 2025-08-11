@@ -113,7 +113,10 @@ impl MonoStorage {
         Ok(result)
     }
 
-    pub async fn get_mr_ref(&self, ref_name: &str) -> Result<Option<mega_refs::Model>, MegaError> {
+    pub async fn get_ref_by_name(
+        &self,
+        ref_name: &str,
+    ) -> Result<Option<mega_refs::Model>, MegaError> {
         let res = mega_refs::Entity::find()
             .filter(mega_refs::Column::RefName.eq(ref_name))
             .one(self.get_connection())

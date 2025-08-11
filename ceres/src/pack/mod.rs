@@ -37,7 +37,7 @@ pub mod import_repo;
 pub mod monorepo;
 
 #[async_trait]
-pub trait PackHandler: Send + Sync + 'static {
+pub trait RepoHandler: Send + Sync + 'static {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
     async fn receiver_handler(
@@ -115,6 +115,10 @@ pub trait PackHandler: Send + Sync + 'static {
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
+
+    async fn save_or_update_mr(&self) -> Result<(), MegaError>;
+
+    async fn post_mr_operation(&self) -> Result<(), MegaError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
 

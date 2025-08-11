@@ -50,7 +50,6 @@ pub async fn execute(args: BranchArgs) {
             Head::Branch(name) => set_upstream(&name, &args.set_upstream_to.unwrap()).await,
             Head::Detached(_) => {
                 eprintln!("fatal: HEAD is detached");
-                return;
             }
         };
     } else if args.list {

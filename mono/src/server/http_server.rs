@@ -33,10 +33,14 @@ use crate::api::MonoApiServiceState;
 use context::AppContext;
 
 #[derive(Clone)]
-pub struct AppState {
+pub struct ProtocolApiState {
     pub storage: Storage,
-    pub host: String,
-    pub port: u16,
+}
+
+impl ProtocolApiState {
+    fn new(storage: Storage) -> Self {
+        Self { storage }
+    }
 }
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
@@ -51,7 +55,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let server_url = format!("{host}:{port}");
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
-    tracing::info!("http server start up!");
+    tracing::info!("HTTP server started up!");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -89,18 +93,14 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(storage: Storage, host: String, port: u16) -> Router {
-    let state = AppState {
-        host: host.clone(),
-        port,
-        storage: storage.clone(),
-    };
-
+    let state = ProtocolApiState::new(storage.clone());
     let config = storage.config();
+
     let oauth_config = config.oauth.clone().unwrap_or_default();
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
-        store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
+        session_store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
         listen_addr: format!("http://{host}:{port}"),
     };
 
@@ -155,7 +155,7 @@ lazy_static! {
 }
 
 pub async fn get_method_router(
-    state: State<AppState>,
+    state: State<ProtocolApiState>,
     Query(params): Query<InfoRefsParams>,
     uri: Uri,
 ) -> Result<Response<Body>, ProtocolError> {
@@ -174,7 +174,7 @@ pub async fn get_method_router(
 }
 
 pub async fn post_method_router(
-    state: State<AppState>,
+    state: State<ProtocolApiState>,
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response, ProtocolError> {
@@ -195,9 +195,9 @@ pub async fn post_method_router(
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
         crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
     } else {
-        return Err(ProtocolError::NotFound(
+        Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),
-        ));
+        ))
     }
 }
 
@@ -219,19 +219,4 @@ pub const USER_TAG: &str = "user";
 struct ApiDoc;
 
 #[cfg(test)]
-mod test {
-    use std::{fs, io::Write};
-    use utoipa::OpenApi;
-
-    use crate::server::https_server::ApiDoc;
-
-    #[test]
-    fn generate_swagger_json() {
-        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
-        let temp_path = temp_dir.path().join("gitmono.json");
-        let mut file = fs::File::create(temp_path).unwrap();
-        let json = ApiDoc::openapi().to_pretty_json().unwrap();
-        file.write_all(json.as_bytes()).unwrap();
-        println!("{json}");
-    }
-}
+mod test {}

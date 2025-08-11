@@ -22,7 +22,7 @@ use crate::api::{
     issue::{IssueDetailRes, ItemRes, NewIssue},
     oauth::model::LoginUser,
 };
-use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
+use crate::{api::error::ApiError, server::http_server::ISSUE_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

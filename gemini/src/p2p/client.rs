@@ -13,7 +13,7 @@ use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
 use ceres::lfs::lfs_structs::RequestObject;
 use ceres::pack::import_repo::ImportRepo;
-use ceres::pack::PackHandler;
+use ceres::pack::RepoHandler;
 use ceres::protocol::repo::Repo;
 use common::utils::generate_id;
 use dashmap::DashMap;
@@ -79,7 +79,7 @@ impl P2PClient {
         }
     }
 
-    pub fn get_bootstrap_node(&self) -> Cow<str> {
+    pub fn get_bootstrap_node(&self) -> Cow<'_, str> {
         let ref_str = self
             .bootstrap_node
             .get()

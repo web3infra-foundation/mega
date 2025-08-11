@@ -1,7 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
-    extract::{Path, State}, Json,
+    extract::{Path, State},
+    Json,
 };
 use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -24,7 +25,7 @@ use crate::api::{
     mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::{api::error::ApiError, server::https_server::MR_TAG};
+use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -262,7 +263,7 @@ async fn mr_detail(
     params(
         ("link", description = "MR link"),
     ),
-    path = "/{link}/files-changed",
+    path = "/{link}/files-changed/{page_id}/{page_size}",
     responses(
         (status = 200, body = CommonResult<FilesChangedList>, content_type = "application/json")
     ),
@@ -270,12 +271,16 @@ async fn mr_detail(
 )]
 async fn mr_files_changed(
     Path(link): Path<String>,
+    Path(page_id): Path<usize>,
+    Path(page_size): Path<usize>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    // let listen_addr = &state.listen_addr;
-    let diff_res = state.monorepo().content_diff(&link).await?;
+    let diff_res = state
+        .monorepo()
+        .content_diff(&link, page_id, page_size)
+        .await?;
 
-    let diff_files = extract_files_with_status(&diff_res);
+    let diff_files = extract_files_with_status(&diff_res.data);
     let mut paths = vec![];
     for (path, _) in diff_files {
         paths.push(path);
@@ -464,6 +469,7 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
+    use ceres::model::mr::MrDiff;
     use crate::api::mr::mr_router::{build_forest, extract_files_with_status};
     use crate::api::mr::FilesChangedList;
 
@@ -565,15 +571,20 @@ mod test {
         let root_labels: Vec<&str> = mui_trees.iter().map(|tree| tree.label.as_str()).collect();
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
+        
+        let content = MrDiff {
+            data: sample_diff_output.to_string(),
+            page_info: None 
+        };
 
         // Test the complete response structure
         let files_changed_list = FilesChangedList {
             mui_trees,
-            content: sample_diff_output.to_string(),
+            content,
         };
         
         assert!(!files_changed_list.mui_trees.is_empty());
-        assert_eq!(files_changed_list.content, sample_diff_output);
+        assert_eq!(files_changed_list.content.data, sample_diff_output);
     }
 
     #[test]

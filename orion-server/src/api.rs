@@ -38,6 +38,65 @@ use tokio::sync::mpsc::UnboundedSender;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+// Global configuration for build log directory
+static BUILD_LOG_DIR: Lazy<String> =
+    Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
+
+/// Creates a log file for a specific task ID
+/// Ensures parent directories exist before creating the file
+fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
+    let log_path = format!("{}/{}", *BUILD_LOG_DIR, task_id);
+    let path = std::path::Path::new(&log_path);
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Create or open the log file in append mode
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+}
+
+/// Request payload for creating a new build task
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct BuildRequest {
+    repo: String,
+    buck_hash: String,
+    buckconfig_hash: String,
+    args: Option<Vec<String>>,
+    mr: Option<String>,
+}
+
+/// Information about an active build task
+#[derive(Clone)]
+pub struct BuildInfo {
+    pub repo: String,
+    pub target: String,
+    pub args: Option<Vec<String>>,
+    pub start_at: DateTimeUtc,
+    pub mr: Option<String>,
+    pub _worker_id: String,
+    pub log_file: Arc<Mutex<std::fs::File>>,
+}
+
+/// Status of a worker node
+#[derive(Debug, Clone)]
+pub enum WorkerStatus {
+    Idle,
+    Busy(String), // Contains task ID when busy
+}
+
+/// Information about a connected worker
+#[derive(Debug)]
+pub struct WorkerInfo {
+    pub sender: UnboundedSender<WSMessage>,
+    pub status: WorkerStatus,
+    pub last_heartbeat: DateTimeUtc,
+}
+
 /// Enumeration of possible task statuses
 #[derive(Debug, Serialize, Default, ToSchema)]
 pub enum TaskStatusEnum {
@@ -279,6 +338,7 @@ pub async fn task_handler(
             ).into_response();
         }
     };
+
 
     // Check if there are idle workers available
     if state.scheduler.has_idle_workers() {

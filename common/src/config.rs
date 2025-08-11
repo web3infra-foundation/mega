@@ -93,6 +93,7 @@ pub struct Config {
     // Not used in mega app
     #[serde(default)]
     pub oauth: Option<OauthConfig>,
+    pub build: BuildConfig,
 }
 
 impl Config {
@@ -120,6 +121,7 @@ impl Config {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             oauth: None,
+            build: BuildConfig::default(),
         }
     }
 
@@ -431,9 +433,7 @@ impl PackConfig {
         }
 
         let ratio_result = size_str.parse::<f64>();
-        if ratio_result.is_ok() {
-            let ratio = ratio_result.unwrap();
-
+        if let Ok(ratio) = ratio_result {
             if ratio > 0.0 && ratio < 1.0 {
                 let total_mem = fn_get_total_capacity()?;
 
@@ -596,6 +596,12 @@ impl Default for OauthConfig {
             .collect(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct BuildConfig {
+    pub enable_build: bool,
+    pub orion_server: String,
 }
 
 #[cfg(test)]

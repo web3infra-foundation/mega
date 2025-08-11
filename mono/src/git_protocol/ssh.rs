@@ -238,7 +238,7 @@ impl SshServer {
             let chunk = chunk.unwrap();
 
             if let Some(pos) = search_subsequence(&chunk, b"PACK") {
-                smart_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk[..pos]));
+                smart_protocol.parse_receive_pack_commands(Bytes::copy_from_slice(&chunk[..pos]));
                 let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
                 let remaining_stream =
                     stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
