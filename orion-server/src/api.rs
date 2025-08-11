@@ -1,8 +1,7 @@
-use crate::buck2::download_and_get_buck2_targets;
 use crate::model::builds;
 use crate::scheduler::{
-    BuildInfo, BuildRequest, TaskScheduler, WorkerInfo, WorkerStatus,
-    create_log_file, get_build_log_dir, TaskQueueStats
+    BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+    create_log_file, get_build_log_dir,
 };
 use axum::{
     Json, Router,
@@ -19,10 +18,8 @@ use futures_util::{SinkExt, Stream, StreamExt, stream};
 use orion::ws::WSMessage;
 use rand::Rng;
 use sea_orm::{
-    {
-        ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-        QueryFilter as _,
-    },
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
+    QueryFilter as _,
 };
 use serde::Serialize;
 use std::convert::Infallible;
@@ -37,7 +34,6 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use utoipa::ToSchema;
 use uuid::Uuid;
-
 
 /// Enumeration of possible task statuses
 #[derive(Debug, Serialize, Default, ToSchema)]
@@ -69,20 +65,15 @@ pub struct AppState {
 
 impl AppState {
     /// Create new AppState instance
-    pub fn new(conn: DatabaseConnection, queue_config: Option<crate::scheduler::TaskQueueConfig>) -> Self {
+    pub fn new(
+        conn: DatabaseConnection,
+        queue_config: Option<crate::scheduler::TaskQueueConfig>,
+    ) -> Self {
         let workers = Arc::new(DashMap::new());
         let active_builds = Arc::new(DashMap::new());
-        let scheduler = TaskScheduler::new(
-            conn.clone(),
-            workers,
-            active_builds,
-            queue_config,
-        );
-        
-        Self {
-            scheduler,
-            conn,
-        }
+        let scheduler = TaskScheduler::new(conn.clone(), workers, active_builds, queue_config);
+
+        Self { scheduler, conn }
     }
 }
 
@@ -111,9 +102,7 @@ pub async fn start_queue_manager(state: AppState) {
         (status = 200, description = "Queue statistics", body = TaskQueueStats)
     )
 )]
-pub async fn queue_stats_handler(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn queue_stats_handler(State(state): State<AppState>) -> impl IntoResponse {
     let stats = state.scheduler.get_queue_stats().await;
     (StatusCode::OK, Json(stats))
 }
@@ -270,17 +259,18 @@ pub async fn task_handler(
     Json(req): Json<BuildRequest>,
 ) -> impl IntoResponse {
     // Download and get buck2 targets first
-    let target = match download_and_get_buck2_targets(&req.buck_hash, &req.buckconfig_hash).await {
-        Ok(target) => target,
-        Err(e) => {
-            tracing::error!("Failed to download buck2 targets: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "message": format!("Failed to download buck2 targets: {}", e) })),
-            ).into_response();
-        }
-    };
-
+    // let target = match download_and_get_buck2_targets(&req.buck_hash, &req.buckconfig_hash).await {
+    //     Ok(target) => target,
+    //     Err(e) => {
+    //         tracing::error!("Failed to download buck2 targets: {}", e);
+    //         return (
+    //             StatusCode::INTERNAL_SERVER_ERROR,
+    //             Json(serde_json::json!({ "message": format!("Failed to download buck2 targets: {}", e) })),
+    //         ).into_response();
+    //     }
+    // };
+    // for now we do not extract from file, just use the fixed build target.
+    let target = "//...".to_string();
 
     // Check if there are idle workers available
     if state.scheduler.has_idle_workers() {
@@ -288,10 +278,14 @@ pub async fn task_handler(
         handle_immediate_task_dispatch(state, req, target).await
     } else {
         // No idle workers, add task to queue
-        match state.scheduler.enqueue_task(req.clone(), target.clone()).await {
+        match state
+            .scheduler
+            .enqueue_task(req.clone(), target.clone())
+            .await
+        {
             Ok(task_id) => {
                 tracing::info!("Task {} queued for later processing", task_id);
-                
+
                 // Save to database (mark as Pending status)
                 let model = builds::ActiveModel {
                     build_id: Set(task_id),
@@ -304,7 +298,7 @@ pub async fn task_handler(
                     arguments: Set(req.args.clone().unwrap_or_default().join(" ")),
                     mr: Set(req.mr.clone().unwrap_or_default()),
                 };
-                
+
                 if let Err(e) = model.insert(&state.conn).await {
                     tracing::error!("Failed to insert queued task into DB: {}", e);
                 }
@@ -312,11 +306,12 @@ pub async fn task_handler(
                 (
                     StatusCode::OK,
                     Json(serde_json::json!({
-                        "task_id": task_id.to_string(), 
+                        "task_id": task_id.to_string(),
                         "status": "queued",
                         "message": "Task queued for processing when workers become available"
                     })),
-                ).into_response()
+                )
+                    .into_response()
             }
             Err(e) => {
                 tracing::warn!("Failed to queue task: {}", e);
@@ -325,7 +320,8 @@ pub async fn task_handler(
                     Json(serde_json::json!({
                         "message": format!("Unable to queue task: {}", e)
                     })),
-                ).into_response()
+                )
+                    .into_response()
             }
         }
     }
@@ -345,7 +341,8 @@ async fn handle_immediate_task_dispatch(
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"message": "No available workers at the moment"})),
-        ).into_response();
+        )
+            .into_response();
     }
 
     // Randomly select an idle worker
@@ -364,7 +361,8 @@ async fn handle_immediate_task_dispatch(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"message": "Failed to create log file"})),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -396,7 +394,8 @@ async fn handle_immediate_task_dispatch(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": "Failed to create task in database"})),
-        ).into_response();
+        )
+            .into_response();
     }
 
     // Create WebSocket message for the worker
@@ -412,16 +411,24 @@ async fn handle_immediate_task_dispatch(
     if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id) {
         if worker.sender.send(msg).is_ok() {
             worker.status = WorkerStatus::Busy(task_id.to_string());
-            state.scheduler.active_builds.insert(task_id.to_string(), build_info);
-            tracing::info!("Task {} dispatched immediately to worker {}", task_id, chosen_id);
+            state
+                .scheduler
+                .active_builds
+                .insert(task_id.to_string(), build_info);
+            tracing::info!(
+                "Task {} dispatched immediately to worker {}",
+                task_id,
+                chosen_id
+            );
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
-                    "task_id": task_id.to_string(), 
+                    "task_id": task_id.to_string(),
                     "client_id": chosen_id,
                     "status": "dispatched"
                 })),
-            ).into_response()
+            )
+                .into_response()
         } else {
             tracing::error!(
                 "Failed to send task to supposedly idle worker {}. It might have just disconnected.",
@@ -442,7 +449,8 @@ async fn handle_immediate_task_dispatch(
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": "Internal scheduler error."})),
-        ).into_response()
+        )
+            .into_response()
     }
 }
 
@@ -548,7 +556,7 @@ async fn process_message(
                         },
                     );
                     *worker_id = Some(id);
-                    
+
                     // After new worker registration, notify to process queued tasks
                     state.scheduler.notify_task_available();
                 } else {
