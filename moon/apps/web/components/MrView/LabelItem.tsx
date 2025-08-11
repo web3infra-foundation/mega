@@ -36,7 +36,7 @@ function LabelItem({conv}: LabelItemProps) {
       idList.map(id =>
         legacyApiClient.v1.getApiLabelById().request(parseInt(id, 10))
       )
-    ).then((res: GetApiLabelByIdData) => {
+    ).then((res: GetApiLabelByIdData[]) => {
       const fetchedLabels = res
         .filter(res => res?.data)
         .map(res => res.data);
