@@ -43,7 +43,7 @@ pub async fn start_server(port: u16) {
 
     // Start background health check task
     tokio::spawn(start_health_check_task(state.clone()));
-    
+
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 

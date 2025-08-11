@@ -2,20 +2,18 @@ use crate::model::builds;
 use dashmap::DashMap;
 use orion::ws::WSMessage;
 use rand::Rng;
-use sea_orm::{
-    prelude::DateTimeUtc,
-    ActiveModelTrait, ActiveValue::Set, DatabaseConnection,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc::UnboundedSender, Mutex, Notify};
+use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Request payload for creating a new build task
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[allow(dead_code)]
 pub struct BuildRequest {
     pub repo: String,
     pub buck_hash: String,
@@ -91,7 +89,7 @@ impl TaskQueue {
     pub fn cleanup_expired(&mut self) -> Vec<PendingTask> {
         let now = Instant::now();
         let mut expired_tasks = Vec::new();
-        
+
         self.queue.retain(|task| {
             if now.duration_since(task.created_at) > self.config.max_wait_time {
                 expired_tasks.push(task.clone());
@@ -100,7 +98,7 @@ impl TaskQueue {
                 true
             }
         });
-        
+
         expired_tasks
     }
 
@@ -108,7 +106,9 @@ impl TaskQueue {
     pub fn get_stats(&self) -> TaskQueueStats {
         TaskQueueStats {
             total_queued: self.queue.len(),
-            oldest_task_age_seconds: self.queue.front()
+            oldest_task_age_seconds: self
+                .queue
+                .front()
                 .map(|task| Instant::now().duration_since(task.created_at).as_secs()),
         }
     }
@@ -183,9 +183,13 @@ impl TaskScheduler {
     }
 
     /// Add task to queue
-    pub async fn enqueue_task(&self, request: BuildRequest, target: String) -> Result<Uuid, String> {
+    pub async fn enqueue_task(
+        &self,
+        request: BuildRequest,
+        target: String,
+    ) -> Result<Uuid, String> {
         let task_id = Uuid::now_v7();
-        
+
         let pending_task = PendingTask {
             task_id,
             request,
@@ -197,7 +201,7 @@ impl TaskScheduler {
             let mut queue = self.pending_tasks.lock().await;
             queue.enqueue(pending_task)?;
         }
-        
+
         // Notify that there's a new task to process
         self.task_notifier.notify_one();
         Ok(task_id)
@@ -242,7 +246,7 @@ impl TaskScheduler {
         // Process tasks in batches, up to the number of idle workers
         let max_tasks = idle_workers.len();
         let mut tasks_to_dispatch = Vec::with_capacity(max_tasks);
-        
+
         // Batch dequeue tasks
         {
             let mut queue = self.pending_tasks.lock().await;
@@ -257,14 +261,17 @@ impl TaskScheduler {
 
         // Dispatch tasks concurrently
         if !tasks_to_dispatch.is_empty() {
-            let dispatch_futures: Vec<_> = tasks_to_dispatch.into_iter().map(|task| {
-                let scheduler = self.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = scheduler.dispatch_task(task).await {
-                        tracing::error!("Failed to dispatch queued task: {}", e);
-                    }
+            let dispatch_futures: Vec<_> = tasks_to_dispatch
+                .into_iter()
+                .map(|task| {
+                    let scheduler = self.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = scheduler.dispatch_task(task).await {
+                            tracing::error!("Failed to dispatch queued task: {}", e);
+                        }
+                    })
                 })
-            }).collect();
+                .collect();
 
             // Wait for all dispatch tasks to complete
             for future in dispatch_futures {
@@ -291,7 +298,11 @@ impl TaskScheduler {
         let log_file = match create_log_file(&pending_task.task_id.to_string()) {
             Ok(file) => Arc::new(Mutex::new(file)),
             Err(e) => {
-                tracing::error!("Failed to create log file for task {}: {}", pending_task.task_id, e);
+                tracing::error!(
+                    "Failed to create log file for task {}: {}",
+                    pending_task.task_id,
+                    e
+                );
                 return Err(format!("Failed to create log file: {e}"));
             }
         };
@@ -338,8 +349,13 @@ impl TaskScheduler {
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
                 worker.status = WorkerStatus::Busy(pending_task.task_id.to_string());
-                self.active_builds.insert(pending_task.task_id.to_string(), build_info);
-                tracing::info!("Queued task {} dispatched to worker {}", pending_task.task_id, chosen_id);
+                self.active_builds
+                    .insert(pending_task.task_id.to_string(), build_info);
+                tracing::info!(
+                    "Queued task {} dispatched to worker {}",
+                    pending_task.task_id,
+                    chosen_id
+                );
                 Ok(())
             } else {
                 Err(format!("Failed to send task to worker {chosen_id}"))
@@ -383,15 +399,18 @@ impl TaskScheduler {
         let cleanup_scheduler = self.clone();
         let cleanup_task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(cleanup_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Clean up expired tasks
                 let expired_tasks = cleanup_scheduler.cleanup_expired_tasks().await;
                 if !expired_tasks.is_empty() {
-                    tracing::warn!("Cleaned up {} expired tasks from queue", expired_tasks.len());
-                    
+                    tracing::warn!(
+                        "Cleaned up {} expired tasks from queue",
+                        expired_tasks.len()
+                    );
+
                     // Log expired task information
                     for task in expired_tasks {
                         tracing::debug!("Expired task: {} ({})", task.task_id, task.request.repo);
@@ -446,7 +465,7 @@ mod tests {
     fn test_task_queue_fifo() {
         let config = TaskQueueConfig::default();
         let mut queue = TaskQueue::new(config);
-        
+
         // Create test tasks
         let task1 = PendingTask {
             task_id: Uuid::now_v7(),
@@ -460,7 +479,7 @@ mod tests {
             target: "target1".to_string(),
             created_at: Instant::now(),
         };
-        
+
         let task2 = PendingTask {
             task_id: Uuid::now_v7(),
             request: BuildRequest {
@@ -473,20 +492,18 @@ mod tests {
             target: "target2".to_string(),
             created_at: Instant::now(),
         };
-        
+
         // Test FIFO behavior
         assert!(queue.enqueue(task1.clone()).is_ok());
         assert!(queue.enqueue(task2.clone()).is_ok());
-        
-        
+
         let dequeued1 = queue.dequeue().unwrap();
         assert_eq!(dequeued1.task_id, task1.task_id);
         assert_eq!(dequeued1.request.repo, "test1");
-        
+
         let dequeued2 = queue.dequeue().unwrap();
         assert_eq!(dequeued2.task_id, task2.task_id);
         assert_eq!(dequeued2.request.repo, "test2");
-        
     }
 
     /// Test queue capacity limit
@@ -498,7 +515,7 @@ mod tests {
             cleanup_interval: Duration::from_secs(30),
         };
         let mut queue = TaskQueue::new(config);
-        
+
         let task = PendingTask {
             task_id: Uuid::now_v7(),
             request: BuildRequest {
@@ -511,11 +528,11 @@ mod tests {
             target: "target".to_string(),
             created_at: Instant::now(),
         };
-        
+
         // Fill queue to capacity
         assert!(queue.enqueue(task.clone()).is_ok());
         assert!(queue.enqueue(task.clone()).is_ok());
-        
+
         // Should fail when full
         assert!(queue.enqueue(task).is_err());
     }
