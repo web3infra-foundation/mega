@@ -1,9 +1,23 @@
-import { Button, CopyIcon, DotsHorizontal, PreferenceIcon, PencilIcon, QuoteIcon, TrashIcon, EyeHideIcon } from '@gitmono/ui'
+import { useAtom } from 'jotai'
+
+import { ConversationItem } from '@gitmono/types/generated'
+import {
+  Button,
+  CopyIcon,
+  DotsHorizontal,
+  EyeHideIcon,
+  PencilIcon,
+  PreferenceIcon,
+  QuoteIcon,
+  TrashIcon
+} from '@gitmono/ui'
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
-import { ConversationItem } from '@gitmono/types/generated';
+
 import { useDeleteIssueComment } from '@/hooks/issues/useDeleteIssueComment'
 import { useDeleteMrCommentDelete } from '@/hooks/useDeleteMrCommentDelete'
+
+import { editIdAtom } from '../Issues/utils/store'
 
 interface CommentDropdownMenuProps {
   id: string
@@ -14,6 +28,7 @@ interface CommentDropdownMenuProps {
 export function CommentDropdownMenu({ Conversation, id, CommentType }: CommentDropdownMenuProps) {
   const { mutate: deleteComment } = useDeleteMrCommentDelete(id)
   const { mutate: deleteIssueComment } = useDeleteIssueComment(id)
+  const [_editId, setEditId] = useAtom(editIdAtom)
 
   const handleDelete = () => {
     switch (CommentType) {
@@ -32,28 +47,29 @@ export function CommentDropdownMenu({ Conversation, id, CommentType }: CommentDr
     {
       type: 'item',
       label: 'Copy',
-      leftSlot: <CopyIcon />,
+      leftSlot: <CopyIcon />
     },
     {
       type: 'item',
       label: 'Quote',
-      leftSlot: <QuoteIcon />,
+      leftSlot: <QuoteIcon />
     },
     {
       type: 'item',
       label: 'Reference',
-      leftSlot: <PreferenceIcon />,
+      leftSlot: <PreferenceIcon />
     },
     { type: 'separator' },
     {
       type: 'item',
       label: 'Edit',
       leftSlot: <PencilIcon />,
+      onSelect: () => setEditId(Conversation.id)
     },
     {
       type: 'item',
       label: 'Hide',
-      leftSlot: <EyeHideIcon />,
+      leftSlot: <EyeHideIcon />
     },
     {
       type: 'item',
@@ -63,8 +79,6 @@ export function CommentDropdownMenu({ Conversation, id, CommentType }: CommentDr
       onSelect: () => handleDelete()
     }
   ])
-
-
 
   return (
     <>

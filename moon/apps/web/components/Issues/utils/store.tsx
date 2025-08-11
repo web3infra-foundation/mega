@@ -42,3 +42,8 @@ export const labelsCloseCurrentPage = atomWithWebStorage('LabelsCloseCurrentPage
 
 export const idAtom = atom(0)
 export const mridAtom = atom(0)
+
+export const FALSE_EDIT_VAL = -1
+export const editIdAtom = atom(0)
+
+export const refreshAtom = atom(0)
