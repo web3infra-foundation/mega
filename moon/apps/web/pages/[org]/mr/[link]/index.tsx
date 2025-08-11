@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ChecklistIcon, CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
 import { BaseStyles, TextInput, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
@@ -25,7 +25,7 @@ import {
   useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
-import { mridAtom } from '@/components/Issues/utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, mridAtom, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { MemberAvatar } from '@/components/MemberAvatar'
 import Checks from '@/components/MrView/components/Checks'
@@ -89,6 +89,19 @@ const MRDetailPage: PageWithLayout<any> = () => {
       }
     })
   }
+
+  const [_, setEditId] = useAtom(editIdAtom)
+  const [refresh, setRefresh] = useAtom(refreshAtom)
+
+  useEffect(() => {
+    const load = async () => {
+      await refetch()
+      setEditId(FALSE_EDIT_VAL)
+      setRefresh(0)
+    }
+
+    load()
+  }, [refresh, refetch, setEditId, setRefresh])
 
   const { mutate: closeMr, isPending: mrCloseIsPending } = usePostMrClose(id)
   const handleMrClose = () => {
