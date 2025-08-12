@@ -58,6 +58,7 @@ impl mega_mr::Model {
         link: String,
         from_hash: String,
         to_hash: String,
+        username: String,
     ) -> Self {
         let now = chrono::Utc::now().naive_utc();
         Self {
@@ -71,6 +72,7 @@ impl mega_mr::Model {
             path,
             from_hash,
             to_hash,
+            username,
         }
     }
 }

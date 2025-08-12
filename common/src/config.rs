@@ -156,6 +156,10 @@ impl Config {
     pub fn from_config(config: c::Config) -> Result<Self, ConfigError> {
         config.try_deserialize::<Config>()
     }
+
+    pub fn enable_http_auth(&self) -> bool {
+        self.authentication.enable_http_auth
+    }
 }
 
 impl Default for Config {
