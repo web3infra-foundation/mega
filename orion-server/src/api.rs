@@ -3,6 +3,7 @@ use crate::scheduler::{
     BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
 };
+use crate::scheduler::{LogSegment, LogReadError};
 use axum::{
     Json, Router,
     extract::{
@@ -84,6 +85,7 @@ pub fn routers() -> Router<AppState> {
         .route("/task", axum::routing::post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
+        .route("/task-output-segment/{id}", get(task_output_segment_handler))
         .route("/mr-task/{mr}", get(task_query_by_mr))
         .route("/queue-stats", get(queue_stats_handler))
 }
@@ -241,6 +243,48 @@ pub async fn task_output_handler(
     });
 
     Ok(Sse::new(stream.boxed()).keep_alive(KeepAlive::new()))
+}
+
+#[utoipa::path(
+    get,
+    path = "/task-output-segment/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID whose log to read"),
+        ("offset" = u64, Query, description = "Start byte offset", example = 0),
+        ("len" = usize, Query, description = "Max bytes to read", example = 4096)
+    ),
+    responses(
+        (status = 200, description = "Log segment", body = LogSegment),
+        (status = 404, description = "Log file not found"),
+        (status = 416, description = "Offset out of range"),
+        (status = 400, description = "Invalid parameters")
+    )
+)]
+pub async fn task_output_segment_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let offset = params.get("offset").and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+    let len = params.get("len").and_then(|v| v.parse::<usize>().ok()).unwrap_or(4096);
+    // Cap len to reasonable maximum (e.g., 1MB)
+    let len = len.min(1024 * 1024);
+
+    match state.scheduler.read_log_segment(&id, offset, len).await {
+        Ok(seg) => (StatusCode::OK, Json(seg)).into_response(),
+        Err(LogReadError::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Err(LogReadError::OffsetOutOfRange { size }) => (
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            Json(serde_json::json!({
+                "message": "Offset out of range",
+                "file_size": size
+            }))
+        ).into_response(),
+        Err(LogReadError::Io(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("IO error: {e}")}))
+        ).into_response(),
+    }
 }
 
 #[utoipa::path(

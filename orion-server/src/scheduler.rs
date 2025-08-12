@@ -8,6 +8,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::SeekFrom;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -164,6 +166,37 @@ pub struct TaskScheduler {
     pub conn: DatabaseConnection,
 }
 
+/// Log segment read result
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct LogSegment {
+    /// Task id / log file name
+    pub task_id: String,
+    /// Requested starting offset
+    pub offset: u64,
+    /// Bytes actually read
+    pub len: usize,
+    /// UTF-8 (lossy) decoded data slice
+    pub data: String,
+    /// Next offset (offset + len)
+    pub next_offset: u64,
+    /// Total file size in bytes
+    pub file_size: u64,
+    /// Whether we reached end of file
+    pub eof: bool,
+}
+
+/// Errors when reading a log segment
+#[derive(Debug)]
+pub enum LogReadError {
+    NotFound,
+    OffsetOutOfRange { size: u64 },
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for LogReadError {
+    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+}
+
 impl TaskScheduler {
     /// Create new task scheduler instance
     pub fn new(
@@ -180,6 +213,16 @@ impl TaskScheduler {
             active_builds,
             conn,
         }
+    }
+
+    /// Read a segment of a log file by task id at given offset, limited to max_len bytes.
+    pub async fn read_log_segment(
+        &self,
+        task_id: &str,
+        offset: u64,
+        max_len: usize,
+    ) -> Result<LogSegment, LogReadError> {
+        read_log_segment_raw(task_id, offset, max_len).await
     }
 
     /// Add task to queue
@@ -431,12 +474,87 @@ impl TaskScheduler {
     }
 }
 
+/// Read a segment of a task log file.
+/// Returns metadata and data slice (UTF-8 lossy converted).
+pub async fn read_log_segment_raw(
+    task_id: &str,
+    offset: u64,
+    max_len: usize,
+) -> Result<LogSegment, LogReadError> {
+    let log_path = format!("{}/{}", get_build_log_dir(), task_id);
+    let path = std::path::Path::new(&log_path);
+    if !path.exists() { return Err(LogReadError::NotFound); }
+
+    let meta = tokio::fs::metadata(path).await.map_err(LogReadError::Io)?;
+    let size = meta.len();
+    if offset > size { return Err(LogReadError::OffsetOutOfRange { size }); }
+
+    // Fast path: only metadata
+    if max_len == 0 || offset == size {
+        return Ok(LogSegment {
+            task_id: task_id.to_string(),
+            offset,
+            len: 0,
+            data: String::new(),
+            next_offset: offset,
+            file_size: size,
+            eof: offset >= size,
+        });
+    }
+
+    let mut file = tokio::fs::File::open(path).await.map_err(LogReadError::Io)?;
+    file.seek(SeekFrom::Start(offset)).await.map_err(LogReadError::Io)?;
+
+    let remaining = (size - offset) as usize;
+    let to_read = remaining.min(max_len);
+    let mut buf = vec![0u8; to_read];
+    let read_bytes = file.read(&mut buf).await.map_err(LogReadError::Io)?;
+    buf.truncate(read_bytes);
+    let data = String::from_utf8_lossy(&buf).to_string();
+    let next_offset = offset + read_bytes as u64;
+    let eof = next_offset >= size;
+
+    Ok(LogSegment {
+        task_id: task_id.to_string(),
+        offset,
+        len: read_bytes,
+        data,
+        next_offset,
+        file_size: size,
+        eof,
+    })
+}
+
 /// Get build log directory
 pub fn get_build_log_dir() -> &'static str {
-    use once_cell::sync::Lazy;
-    static BUILD_LOG_DIR: Lazy<String> =
-        Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
-    &BUILD_LOG_DIR
+    #[cfg(not(test))]
+    {
+        use once_cell::sync::Lazy;
+        static BUILD_LOG_DIR: Lazy<String> = Lazy::new(|| {
+            std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set")
+        });
+        &BUILD_LOG_DIR
+    }
+    #[cfg(test)]
+    {
+        // In tests allow changing BUILD_LOG_DIR per test case.
+        thread_local! {
+            static BUILD_LOG_DIR_TLS: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+        }
+        // Read from env each call and cache in TLS for &'static str simulation.
+        // We leak the String to extend lifetime intentionally (test scope only).
+        BUILD_LOG_DIR_TLS.with(|cell| {
+            if cell.borrow().is_none() {
+                let val = std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set");
+                let leaked: &'static str = Box::leak(val.into_boxed_str());
+                *cell.borrow_mut() = Some(leaked.to_string());
+            }
+            let current = cell.borrow();
+            let s = current.as_ref().unwrap();
+            // Leak clone to satisfy 'static return each call.
+            Box::leak(s.clone().into_boxed_str())
+        })
+    }
 }
 
 /// Create log file
@@ -459,6 +577,7 @@ pub fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     /// Test task queue basic functionality
     #[test]
@@ -535,5 +654,36 @@ mod tests {
 
         // Should fail when full
         assert!(queue.enqueue(task).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_log_segment_basic() {
+        // Prepare temp dir
+        let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap()); }
+        let task_id = "segment-test";
+        let mut file = create_log_file(task_id).unwrap();
+        write!(file, "Hello World! This is a test log.").unwrap();
+
+        // Read first 5 bytes
+        let seg = read_log_segment_raw(task_id, 0, 5).await.unwrap();
+        assert_eq!(seg.offset, 0);
+        assert_eq!(seg.len, 5);
+        assert_eq!(seg.data, "Hello");
+        assert!(!seg.eof);
+
+        // Read next bytes
+        let seg2 = read_log_segment_raw(task_id, seg.next_offset, 100).await.unwrap();
+        assert!(seg2.data.starts_with(" World"));
+    }
+
+    #[tokio::test]
+    async fn test_read_log_segment_offset_out_of_range() {
+        let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap()); }
+        let task_id = "segment-oob";
+        let _ = create_log_file(task_id).unwrap();
+        let res = read_log_segment_raw(task_id, 10, 10).await;
+        assert!(matches!(res, Err(LogReadError::OffsetOutOfRange { .. })));
     }
 }
