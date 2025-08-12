@@ -8,7 +8,8 @@ import { useRouter } from 'next/router';
 // import Image from 'next/image';
 import { AppLayout } from '@/components/Layout/AppLayout';
 import AuthAppProviders from '@/components/Providers/AuthAppProviders';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+// import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import CrateInfoLayout from './layout';
 
 // interface CVE {
 //     subtitle?: string;
@@ -62,7 +63,6 @@ const CratePage = () => {
     const params = useParams();
     const router = useRouter();
     const [results, setResults] = useState<cratesInfo | null>(null);
-    const [loading, setLoading] = useState(true);
     const [error, _setError] = useState<string | null>(null);
     const [_packageCurrentPage, _setPackageCurrentPage] = useState(1);
     const [_depCurrentPage, _setDepCurrentPage] = useState(1);
@@ -73,7 +73,7 @@ const CratePage = () => {
     const crateName = (router.query.crateName as string) || params?.crateName as string || "example-crate";
     const version = (router.query.version as string) || params?.version as string || "1.0.0";
     const nsfront = params?.nsfront as string || router.query.org as string;
-    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/search/crate-info";
+    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
     const name = params?.name as string || crateName;
     
     // const basePath = `/${nsfront}/${nsbehind}/${name}/${version}`;
@@ -122,15 +122,11 @@ const CratePage = () => {
             versions: ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]
         };
 
-        // 模拟加载延迟
-        setTimeout(() => {
-            setResults(mockData);
-            _setVersions(mockData.versions);
-            setLoading(false);
-        }, 500);
+        // 直接设置数据，不使用加载延迟
+        setResults(mockData);
+        _setVersions(mockData.versions);
     }, [crateName]);
 
-    if (loading) return <p>Loading...</p>;
     if (error) return <p>Error: {error}</p>;
 
     // const _getCurrentPageItems = (items: CVE[], currentPage: number) => {
@@ -147,132 +143,7 @@ const CratePage = () => {
             <Head>
                 <title>Crate Info - {crateName || 'Crate'}</title>
             </Head>
-            <div className="min-h-screen bg-[#F4F4F5] flex flex-col">
-                {/* 搜索栏 */}
-                <div className="w-full flex justify-center mb-0.5" style={{ background: '#FFF' }}>
-                    <div
-                        className="flex items-center sticky top-0 z-20"
-                        style={{
-                            width: '1680px',
-                            height: '53px',
-                            flexShrink: 0,
-                            marginTop: 0,
-                            marginBottom: 0,
-                            paddingLeft: 32,
-                            paddingRight: 32,
-                            background: '#FFF',
-                            boxSizing: 'border-box',
-                        }}
-                    >
-                        <form className="flex-1 max-w-xl ml-8">
-                            <div className="relative ml-10 mt-2">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    className="block w-full pl-10 pr-3 py-2 border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 placeholder-gray-500"
-                                />
-                            </div>
-                        </form>
-                    </div>
-                    <div 
-                        style={{
-                            width: '1680px',
-                            height: '0px',
-                            background: '#F4F4F5',
-                            marginTop: 0,
-                            marginBottom: 0,
-                            paddingLeft: 32,
-                            paddingRight: 32,
-                            boxSizing: 'border-box',
-                        }}
-                    />
-                </div>
-
-                            {/* 分类标签和版本选择区域 */}
-            <div className="w-full flex justify-center" style={{ background: '#FFF' }}>
-                <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
-                        {/* Crate信息 */}
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center space-x-4">
-                                <div className="flex flex-col space-y-2">
-                                    <div className="text-sm text-gray-500">Cargo crate</div>
-                                    <h1 
-                                        className="text-3xl font-bold text-gray-900"
-                                        style={{
-                                            color: '#1c2024',
-                                            fontFamily: '"HarmonyOS Sans SC"',
-                                            fontSize: '36px',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            lineHeight: 'normal'
-                                        }}
-                                    >
-                                        {crateName}
-                                    </h1>
-                                </div>
-                                <div 
-                                    className="flex items-center space-x-2 mt-8"
-                                    style={{
-                                        display: 'flex',
-                                        height: '40px',
-                                        padding: '0 16px',
-                                        alignItems: 'center',
-                                        gap: '12px',
-                                        alignSelf: 'stretch',
-                                        borderRadius: '6px',
-                                        border: '1px solid #00062e33',
-                                        background: '#ffffffe6'
-                                    }}
-                                >
-                                    <div className="w-6 h-6 border-2 border-gray-400 rounded-full flex items-center justify-center bg-transparent">
-                                        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <span className="text-lg font-medium text-gray-900">{version}</span>
-                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 导航标签 */}
-                        <div className="flex space-x-8 mb-0">
-                            {[
-                                { id: 'overview', label: 'overview' },
-                                { id: 'dependencis', label: 'dependencis' },
-                                { id: 'depentes', label: 'depentes' },
-                                { id: 'compare', label: 'compare' },
-                                { id: 'versions', label: 'versions' }
-                            ].map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    className={`py-2 px-1 border-b-2 transition-colors ${
-                                        tab.id === 'overview'
-                                            ? 'border-blue-500'
-                                            : 'border-transparent hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                    style={{
-                                        color: tab.id === 'overview' ? '#1c2024' : '#6b7280',
-                                        fontFamily: '"HarmonyOS Sans SC"',
-                                        fontSize: '16px',
-                                        fontStyle: 'normal',
-                                        fontWeight: 500,
-                                        lineHeight: '20px',
-                                        letterSpacing: '0',
-                                    }}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
+            <CrateInfoLayout>
                 <div className="flex justify-center">
                     <div className="w-[1370px] px-8 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -515,7 +386,7 @@ const CratePage = () => {
                                                       >
                                                           ISC
                                                       </div>
-                                                                                                             <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">22</div>
+                                                   <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">22</div>
                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
                                                            <div
                                                                className="h-full bg-[#4B68FF] rounded-lg"
@@ -612,7 +483,7 @@ const CratePage = () => {
                                             </div>
 
                                             <div className="mt-6 text-center">
-                                                <Link href={`/${nsfront}/${nsbehind}/${name}/${version}/dependencies`}>
+                                                <Link href={`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies?crateName=${crateName}&version=${version}`}>
                                                     <span className="text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline">
                                                         View all dependencies ({results.dependencies.direct + results.dependencies.indirect})
                                                     </span>
@@ -898,7 +769,7 @@ const CratePage = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+            </CrateInfoLayout>
         </>
     );
 };
