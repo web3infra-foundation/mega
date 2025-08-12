@@ -73,7 +73,7 @@ async fn new_label(
     ),
     path = "/{id}",
     responses(
-        (status = 200, body = CommonResult<CommonPage<LabelItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<LabelItem>, content_type = "application/json")
     ),
     tag = LABEL_TAG
 )]

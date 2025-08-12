@@ -123,15 +123,10 @@ export default function SearchResultsPage() {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('All')
   const [searchResults, setSearchResults] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   const performSearch = useCallback(async (_query: string) => {
-    setLoading(true)
-    setTimeout(() => {
-      setSearchResults(mockSearchResults)
-      setLoading(false)
-    }, 500)
+    setSearchResults(mockSearchResults)
   }, [])
 
   useEffect(() => {
@@ -165,23 +160,23 @@ export default function SearchResultsPage() {
       <Head>
         <title>Search Results - Rust Ecosystem</title>
       </Head>
-                             <div className="min-h-screen  w-full bg-white">
-                   {/* 搜索栏 */}
-                     <div className="w-full flex justify-center mb-4" style={{ background: '#FFF' }}>
-             <div
-               className="flex items-center sticky top-0 z-20"
-               style={{
-                 width: '1680px',
-                 height: '43px',
-                 flexShrink: 0,
-                 marginTop: 0,
-                 marginBottom: 0,
-                 paddingLeft: 32,
-                 paddingRight: 32,
-                 background: '#FFF',
-                 boxSizing: 'border-box',
-               }}
-             >
+      <div className="min-h-screen  w-full bg-white">
+        {/* 搜索栏 */}
+        <div className="w-full flex justify-center mb-4" style={{ background: '#FFF' }}>
+          <div
+            className="flex items-center sticky top-0 z-20"
+            style={{
+              width: '1680px',
+              height: '43px',
+              flexShrink: 0,
+              marginTop: 0,
+              marginBottom: 0,
+              paddingLeft: 32,
+              paddingRight: 32,
+              background: '#FFF',
+              boxSizing: 'border-box',
+            }}
+          >
             <form onSubmit={handleSearch} className="flex-1 max-w-xl ml-8">
               <div className="relative ml-10 mt-5">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -211,36 +206,36 @@ export default function SearchResultsPage() {
           />
         </div>
             
-                                   {/* 分类标签和搜索结果区域 */}
-          <div className="w-full flex justify-center" style={{ background: '#F4F4F5' }}>
-            <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
-                         {/* 分类标签 */}
-             <div className="flex space-x-8 mb-0">
-               {tabs.map((tab) => (
-                 <button
-                   key={tab.id}
-                   onClick={() => setActiveTab(tab.id)}
-                   className={`py-2 px-1 border-b-2 transition-colors ${
-                     activeTab === tab.id
-                       ? 'border-blue-500'
-                       : 'border-transparent hover:text-gray-700 hover:border-gray-300'
-                   }`}
-                   style={{
-                     color: activeTab === tab.id ? '#1c2024' : '#6b7280',
-                     fontFamily: '"HarmonyOS Sans SC"',
-                     fontSize: '24px',
-                     fontStyle: 'normal',
-                     fontWeight: 500,
-                     lineHeight: '20px',
-                     letterSpacing: '0',
-                   }}
-                 >
-                   {tab.label}
-                 </button>
-               ))}
-             </div>
+        {/* 分类标签和搜索结果区域 */}
+        <div className="w-full flex justify-center" style={{ background: '#F4F4F5' }}>
+          <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
+            {/* 分类标签 */}
+            <div className="flex space-x-8 mb-0">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-1 border-b-2 transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-blue-500'
+                      : 'border-transparent hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  style={{
+                    color: activeTab === tab.id ? '#1c2024' : '#6b7280',
+                    fontFamily: '"HarmonyOS Sans SC"',
+                    fontSize: '24px',
+                    fontStyle: 'normal',
+                    fontWeight: 500,
+                    lineHeight: '20px',
+                    letterSpacing: '0',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-             {/* 搜索结果列表容器 */}
+            {/* 搜索结果列表容器 */}
             <div style={{ 
               background: 'white', 
               borderRadius: '8px',
@@ -288,28 +283,23 @@ export default function SearchResultsPage() {
                 </span>
               </div>
 
-              {loading ? (
-                <div className="flex justify-center items-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-              ) : (
-                <div className="space-y-0">
-                  {searchResults.map((item, index) => (
+              <div className="space-y-0">
+                {searchResults.map((item, index) => (
                     <div
                       key={item.id}
                       className="transition-colors cursor-pointer"
-                                             style={{ 
-                         display: 'flex',
-                         minWidth: '100px',
-                         minHeight: '44px',
-                         padding: '8px 16px',
-                         alignItems: 'center',
-                         gap: '8px',
-                         flex: '1 0 0',
-                         alignSelf: 'stretch',
-                         background: '#ffffff00',
-                         borderBottom: index !== searchResults.length - 1 ? '1px solid #e5e7eb' : 'none'
-                       }}
+                      style={{ 
+                        display: 'flex',
+                        minWidth: '100px',
+                        minHeight: '44px',
+                        padding: '8px 16px',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flex: '1 0 0',
+                        alignSelf: 'stretch',
+                        background: '#ffffff00',
+                        borderBottom: index !== searchResults.length - 1 ? '1px solid #e5e7eb' : 'none'
+                      }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = '#EBEBEB'
                       }}
@@ -317,53 +307,52 @@ export default function SearchResultsPage() {
                         e.currentTarget.style.background = '#ffffff00'
                       }}
                     >
-                    <div className="flex flex-col space-y-2">
-                       <span className="text-sm text-gray-500">
-                         {item.type}
-                       </span>
-                       <h3 
-                         className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                         onClick={() => router.push({
-                           pathname: `/${router.query.org}/rust/rust-ecosystem/search/crate-info`,
-                           query: { 
-                             crateName: item.name,
-                             version: item.version || '1.0.0'
-                           }
-                         })}
-                       >
-                         {item.name}
-                       </h3>
-                       <p className="text-sm text-gray-500">
-                         {item.details}
-                       </p>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             )}
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm text-gray-500">
+                          {item.type}
+                        </span>
+                        <h3 
+                          className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                          onClick={() => router.push({
+                            pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/${item.name}`,
+                            query: { 
+                              crateName: item.name,
+                              version: item.version || '1.0.0'
+                            }
+                          })}
+                        >
+                          {item.name}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {item.details}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-             {/* 分页 */}
-             <div className="flex justify-center items-center space-x-4 mt-8">
-               <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                 </svg>
-                 Previous
-               </button>
-               <span className="text-lg font-bold text-gray-900">1</span>
-               <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                 Next
-                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                 </svg>
-               </button>
-             </div>
-           </div>
-         </div>
-       </div>
-     </div>
-   </>
- )
+              {/* 分页 */}
+              <div className="flex justify-center items-center space-x-4 mt-8">
+                <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous
+                </button>
+                <span className="text-lg font-bold text-gray-900">1</span>
+                <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                  Next
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }
 
 SearchResultsPage.getProviders = (page: any, pageProps: any) => {
