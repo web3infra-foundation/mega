@@ -34,3 +34,5 @@ ring = { workspace = true }
 hex = { workspace = true }
 sysinfo = { workspace = true }
 utoipa = { workspace = true }
+base64 = { workspace = true }
+http = { workspace = true }

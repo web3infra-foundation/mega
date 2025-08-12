@@ -8,7 +8,7 @@ use axum::{
 use russh::keys::{parse_public_key_base64, HashAlg};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use common::model::CommonResult;
+use common::{errors::MegaError, model::CommonResult};
 
 use crate::api::user::model::ListSSHKey;
 use crate::api::user::model::ListToken;
@@ -53,23 +53,24 @@ async fn add_key(
     state: State<MonoApiServiceState>,
     Json(json): Json<AddSSHKey>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let ssh_key: Vec<&str> = json.ssh_key.split_whitespace().collect();
-    let key = parse_public_key_base64(ssh_key.get(1).ok_or("Invalid key format").unwrap())?;
-    let title = if !json.title.is_empty() {
-        json.title
-    } else {
-        ssh_key
+    let ssh_parts: Vec<&str> = json.ssh_key.split_whitespace().collect();
+    let key = parse_public_key_base64(
+        ssh_parts
+            .get(1)
+            .ok_or_else(|| MegaError::with_message("Invalid key format"))?,
+    )?;
+    let title = if json.title.is_empty() {
+        ssh_parts
             .get(2)
-            .ok_or("Invalid key format")
-            .unwrap()
-            .to_owned()
-            .to_owned()
+            .ok_or_else(|| MegaError::with_message("Invalid key format"))?
+            .to_string()
+    } else {
+        json.title
     };
-
     state
         .user_stg()
         .save_ssh_key(
-            user.campsite_user_id,
+            user.username,
             &title,
             &json.ssh_key,
             &key.fingerprint(HashAlg::Sha256).to_string(),
@@ -97,7 +98,7 @@ async fn remove_key(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
         .user_stg()
-        .delete_ssh_key(user.campsite_user_id, key_id)
+        .delete_ssh_key(user.username, key_id)
         .await?;
     Ok(Json(CommonResult::success(None)))
 }
@@ -115,10 +116,7 @@ async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
-    let res = state
-        .user_stg()
-        .list_user_ssh(user.campsite_user_id)
-        .await?;
+    let res = state.user_stg().list_user_ssh(user.username).await?;
     Ok(Json(CommonResult::success(Some(
         res.into_iter().map(|x| x.into()).collect(),
     ))))
@@ -137,10 +135,7 @@ async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state
-        .user_stg()
-        .generate_token(user.campsite_user_id)
-        .await?;
+    let res = state.user_stg().generate_token(user.username).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -161,10 +156,7 @@ async fn remove_token(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state
-        .user_stg()
-        .delete_token(user.campsite_user_id, key_id)
-        .await?;
+    state.user_stg().delete_token(user.username, key_id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -181,7 +173,7 @@ async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
-    let data = state.user_stg().list_token(user.campsite_user_id).await?;
+    let data = state.user_stg().list_token(user.username).await?;
     let res = data.into_iter().map(|x| x.into()).collect();
     Ok(Json(CommonResult::success(Some(res))))
 }
