@@ -33,9 +33,11 @@ impl MrStorage {
     pub async fn get_open_mr_by_path(
         &self,
         path: &str,
+        username: &str,
     ) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Path.eq(path))
+            .filter(mega_mr::Column::Username.eq(username))
             .filter(mega_mr::Column::Status.eq(MergeStatusEnum::Open))
             .one(self.get_connection())
             .await
@@ -178,6 +180,7 @@ impl MrStorage {
         title: &str,
         from_hash: &str,
         to_hash: &str,
+        username: &str,
     ) -> Result<String, MegaError> {
         let model = mega_mr::Model::new(
             path.to_owned(),
@@ -185,6 +188,7 @@ impl MrStorage {
             link.to_owned(),
             from_hash.to_owned(),
             to_hash.to_owned(),
+            username.to_owned(),
         );
         let res = model
             .into_active_model()
