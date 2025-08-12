@@ -1,6 +1,11 @@
 use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
+use base64::engine::general_purpose;
+use base64::prelude::*;
+use http::{HeaderMap, HeaderValue};
+use tokio::sync::RwLock;
+
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
@@ -10,7 +15,6 @@ use common::{
 use import_refs::RefCommand;
 use jupiter::storage::Storage;
 use repo::Repo;
-use tokio::sync::RwLock;
 
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, RepoHandler};
 
@@ -26,6 +30,7 @@ pub struct SmartProtocol {
     pub command_list: Vec<RefCommand>,
     pub service_type: Option<ServiceType>,
     pub storage: Storage,
+    pub username: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -134,6 +139,7 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
+            username: None,
         }
     }
 
@@ -146,6 +152,7 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
+            username: None,
         }
     }
 
@@ -183,6 +190,7 @@ impl SmartProtocol {
                 current_commit: Arc::new(RwLock::new(None)),
                 mr_link: Arc::new(RwLock::new(None)),
                 bellatrix: Arc::new(Bellatrix::new(self.storage.config().build.clone())),
+                username: self.username.clone(),
             };
             if let Some(command) = self
                 .command_list
@@ -194,6 +202,45 @@ impl SmartProtocol {
             }
             Ok(Arc::new(res))
         }
+    }
+
+    pub fn enable_http_auth(&self) -> bool {
+        self.storage.config().enable_http_auth()
+    }
+
+    pub async fn http_auth(&mut self, header: &HeaderMap<HeaderValue>) -> bool {
+        for (k, v) in header {
+            if k == http::header::AUTHORIZATION {
+                let decoded = general_purpose::STANDARD
+                    .decode(
+                        v.to_str()
+                            .unwrap()
+                            .strip_prefix("Basic ")
+                            .unwrap()
+                            .as_bytes(),
+                    )
+                    .unwrap();
+                let credentials = String::from_utf8(decoded).unwrap_or_default();
+                let mut parts = credentials.splitn(2, ':');
+                let username = parts.next().unwrap_or("");
+                self.username = Some(username.to_owned());
+                let token = parts.next().unwrap_or("");
+                let auth_config = self.storage.config().authentication.clone();
+                if auth_config.enable_test_user
+                    && username == auth_config.test_user_name
+                    && token == auth_config.test_user_token
+                {
+                    return true;
+                }
+                return self
+                    .storage
+                    .user_storage()
+                    .check_token(username, token)
+                    .await
+                    .unwrap();
+            }
+        }
+        false
     }
 }
 

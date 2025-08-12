@@ -20,6 +20,7 @@ pub struct Model {
     pub to_hash: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
+    pub username: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

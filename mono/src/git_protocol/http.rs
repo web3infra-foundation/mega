@@ -3,12 +3,8 @@ use std::convert::Infallible;
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, Response};
-use base64::engine::general_purpose;
-use base64::prelude::*;
 use bytes::{Bytes, BytesMut};
 use futures::{stream, TryStreamExt};
-use http::HeaderMap;
-use jupiter::storage::Storage;
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
@@ -39,51 +35,6 @@ pub async fn git_info_refs(
             .unwrap(),
     );
     Ok(response)
-}
-
-async fn http_auth(header: &HeaderMap<HeaderValue>, storage: &Storage) -> bool {
-    for (k, v) in header {
-        if k == http::header::AUTHORIZATION {
-            let decoded = general_purpose::STANDARD
-                .decode(
-                    v.to_str()
-                        .unwrap()
-                        .strip_prefix("Basic ")
-                        .unwrap()
-                        .as_bytes(),
-                )
-                .unwrap();
-            let credentials = String::from_utf8(decoded).unwrap_or_default();
-            let mut parts = credentials.splitn(2, ':');
-            let username = parts.next().unwrap_or("");
-            let token = parts.next().unwrap_or("");
-            tracing::debug!("{}, {}", username, token);
-            let auth_config = storage.config().authentication.clone();
-            if auth_config.enable_test_user
-                && username == auth_config.test_user_name
-                && token == auth_config.test_user_token
-            {
-                return true;
-            }
-            match storage
-                .user_storage()
-                .find_user_by_name(username)
-                .await
-                .unwrap()
-            {
-                // TODO refactor later
-                Some(_) => {
-                    return storage
-                        .user_storage()
-                        .check_token(String::new(), token)
-                        .await
-                        .unwrap();
-                }
-                None => return false,
-            }
-        }
-    }
-    false
 }
 
 fn auth_failed() -> Result<Response<Body>, ProtocolError> {
@@ -186,13 +137,7 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol
-        .storage
-        .config()
-        .authentication
-        .enable_http_auth
-        && !http_auth(req.headers(), &pack_protocol.storage).await
-    {
+    if pack_protocol.enable_http_auth() && !pack_protocol.http_auth(req.headers()).await {
         return auth_failed();
     }
     // Convert the request body into a data stream.

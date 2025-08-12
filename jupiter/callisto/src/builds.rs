@@ -11,7 +11,7 @@ pub struct Model {
     pub output: String,
     pub exit_code: Option<i32>,
     pub start_at: DateTime,
-    pub end_at: DateTime,
+    pub end_at: Option<DateTime>,
     pub repo_name: String,
     pub target: String,
 }
