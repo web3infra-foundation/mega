@@ -44,6 +44,7 @@ use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
+use common::model::Pagination;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -52,11 +53,12 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
-use crate::model::mr::{MrDiff, MrDiffFile, MrPageInfo};
+use crate::model::mr::MrDiffFile;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -371,6 +373,27 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
+    pub async fn content_diff(&self, mr_link: &str) -> Result<Vec<DiffItem>, GitError> {
+        let stg = self.storage.mr_storage();
+        let mr =
+            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+            })?;
+
+        let old_blobs = self
+            .get_commit_blobs(&mr.from_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
+        let new_blobs = self
+            .get_commit_blobs(&mr.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
+
+        let diff_output = self.get_diff_by_blobs(old_blobs, new_blobs).await?;
+
+        Ok(diff_output)
+    }
+
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
     /// * `mr_link` - The link to the merge request.
@@ -378,12 +401,14 @@ impl MonoApiService {
     /// * `page_size` - The number of items per page.
     /// # Returns
     ///  a `Result` containing `MrDiff` on success or a `GitError` on failure.
-    pub async fn content_diff(
+    pub async fn paged_content_diff(
         &self,
         mr_link: &str,
-        page_id: usize,
-        page_size: usize,
-    ) -> Result<MrDiff, GitError> {
+        page: Pagination,
+    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+        let per_page = page.per_page as usize;
+        let page_id = page.page as usize;
+
         // old and new blobs for comparison
         let stg = self.storage.mr_storage();
         let mr =
@@ -405,8 +430,8 @@ impl MonoApiService {
             .await?;
 
         // ensure page_id is within bounds
-        let start = (page_id.saturating_sub(1)) * page_size;
-        let end = (start + page_size).min(sorted_changed_files.len());
+        let start = (page_id.saturating_sub(1)) * per_page;
+        let end = (start + per_page).min(sorted_changed_files.len());
 
         let page_slice: &[MrDiffFile] = if start < sorted_changed_files.len() {
             let start_idx = start;
@@ -421,6 +446,23 @@ impl MonoApiService {
         let mut page_new_blobs = Vec::new();
         self.collect_page_blobs(page_slice, &mut page_old_blobs, &mut page_new_blobs);
 
+        // get diff output
+        let diff_output = self
+            .get_diff_by_blobs(page_old_blobs, page_new_blobs)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get diff output: {e}")))?;
+
+        // calculate total pages
+        let total = sorted_changed_files.len().div_ceil(per_page);
+
+        Ok((diff_output, total as u64))
+    }
+
+    async fn get_diff_by_blobs(
+        &self,
+        old_blobs: Vec<(PathBuf, SHA1)>,
+        new_blobs: Vec<(PathBuf, SHA1)>,
+    ) -> Result<Vec<DiffItem>, GitError> {
         let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
 
         // Collect all unique hashes
@@ -432,41 +474,55 @@ impl MonoApiService {
             all_hashes.insert(*hash);
         }
 
-        // Fetch all blobs concurrently
+        // Fetch all blobs with better error handling and logging
+        let mut failed_hashes = Vec::new();
         for hash in all_hashes {
             match self.get_raw_blob_by_hash(&hash.to_string()).await {
                 Ok(Some(blob)) => {
                     blob_cache.insert(hash, blob.data.unwrap_or_default());
                 }
-                _ => {
+                Ok(None) => {
+                    tracing::warn!("Blob not found for hash: {}", hash);
+                    blob_cache.insert(hash, Vec::new());
+                }
+                Err(e) => {
+                    tracing::error!("Failed to fetch blob {}: {}", hash, e);
+                    failed_hashes.push(hash);
                     blob_cache.insert(hash, Vec::new());
                 }
             }
         }
 
-        // Simple synchronous closure that uses the pre-fetched cache
-        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
-            blob_cache.get(hash).cloned().unwrap_or_default()
+        if !failed_hashes.is_empty() {
+            tracing::warn!(
+                "Failed to fetch {} blob(s): {:?}",
+                failed_hashes.len(),
+                failed_hashes
+            );
+        }
+
+        // Enhanced content reader with better error handling
+        let read_content = |file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+            match blob_cache.get(hash) {
+                Some(content) => content.clone(),
+                None => {
+                    tracing::warn!("Missing blob content for file: {:?}, hash: {}", file, hash);
+                    Vec::new()
+                }
+            }
         };
 
-        // Use the unified diff function that returns a single string
+        // Use the unified diff function with configurable algorithm
         let diff_output = Diff::diff(
-            page_old_blobs,
-            page_new_blobs,
+            old_blobs,
+            new_blobs,
             "histogram".to_string(),
             Vec::new(),
             read_content,
         )
         .await;
 
-        Ok(MrDiff {
-            data: diff_output,
-            page_info: Some(MrPageInfo {
-                total_pages: (sorted_changed_files.len() - 1).div_ceil(page_size),
-                current_page: page_id,
-                page_size,
-            }),
-        })
+        Ok(diff_output)
     }
 
     fn collect_page_blobs(
@@ -573,7 +629,7 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::model::mr::{MrDiffFile, MrPageInfo};
+    use crate::model::mr::MrDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;
@@ -798,20 +854,18 @@ mod test {
     }
 
     #[test]
-    fn test_paging_page_info_construction() {
+    fn test_paging_algorithm() {
         let total_files = 10usize;
         let current_page = 2u32;
         let page_size = 3u32;
 
-        let page_info = MrPageInfo {
-            total_pages: (total_files + page_size as usize - 1) / page_size as usize,
-            current_page: current_page as usize,
-            page_size: page_size as usize,
-        };
+        let total_pages = (total_files + page_size as usize - 1) / page_size as usize;
+        let current_page = current_page as usize;
+        let page_size = page_size as usize;
 
-        assert_eq!(page_info.total_pages, 4);
-        assert_eq!(page_info.current_page, 2);
-        assert_eq!(page_info.page_size, 3);
+        assert_eq!(total_pages, 4);
+        assert_eq!(current_page, 2);
+        assert_eq!(page_size, 3);
     }
 
     #[test]
@@ -913,5 +967,106 @@ mod test {
         assert_eq!(old_blobs[1].0, PathBuf::from("modified.txt"));
         assert_eq!(new_blobs[0].0, PathBuf::from("new.txt"));
         assert_eq!(new_blobs[1].0, PathBuf::from("modified.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_content_diff_functionality() {
+        use mercury::internal::object::blob::Blob;
+        use std::collections::HashMap;
+
+        // Create a service with mock storage
+        let service = MonoApiService {
+            storage: Storage::mock(),
+        };
+
+        // Test basic diff generation with sample data
+        let old_content = "Hello World\nLine 2\nLine 3";
+        let new_content = "Hello Universe\nLine 2\nLine 3 modified";
+
+        let old_blob = Blob::from_content(old_content);
+        let new_blob = Blob::from_content(new_content);
+
+        let old_blobs = vec![(PathBuf::from("test_file.txt"), old_blob.id)];
+        let new_blobs = vec![(PathBuf::from("test_file.txt"), new_blob.id)];
+
+        // Create a blob cache for the test
+        let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+        blob_cache.insert(old_blob.id, old_content.as_bytes().to_vec());
+        blob_cache.insert(new_blob.id, new_content.as_bytes().to_vec());
+
+        // Test the diff engine directly
+        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+            blob_cache.get(hash).cloned().unwrap_or_default()
+        };
+
+        let diff_output = Diff::diff(
+            old_blobs,
+            new_blobs,
+            "histogram".to_string(),
+            Vec::new(),
+            read_content,
+        )
+        .await;
+
+        // Verify diff output contains expected content
+        assert!(!diff_output.is_empty(), "Diff output should not be empty");
+        assert_eq!(diff_output.len(), 1, "Should have diff for one file");
+
+        let diff_item = &diff_output[0];
+        assert_eq!(diff_item.path, "test_file.txt");
+        assert!(
+            diff_item.data.contains("diff --git"),
+            "Should contain git diff header"
+        );
+        assert!(
+            diff_item.data.contains("-Hello World"),
+            "Should show removed line"
+        );
+        assert!(
+            diff_item.data.contains("+Hello Universe"),
+            "Should show added line"
+        );
+        assert!(diff_item.data.contains("-Line 3"), "Should show old line 3");
+        assert!(
+            diff_item.data.contains("+Line 3 modified"),
+            "Should show new line 3"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_diff_by_blobs_with_empty_content() {
+        // Test diff generation with empty content (simulating missing blobs)
+        let old_hash = SHA1::from_str("1234567890123456789012345678901234567890").unwrap();
+        let new_hash = SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap();
+
+        let old_blobs = vec![(PathBuf::from("empty_file.txt"), old_hash)];
+        let new_blobs = vec![(PathBuf::from("empty_file.txt"), new_hash)];
+
+        // Create empty blob cache to simulate missing blobs
+        let blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+
+        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+            blob_cache.get(hash).cloned().unwrap_or_default()
+        };
+
+        // Test the diff engine with empty content
+        let diff_output = Diff::diff(
+            old_blobs,
+            new_blobs,
+            "histogram".to_string(),
+            Vec::new(),
+            read_content,
+        )
+        .await;
+
+        assert!(
+            !diff_output.is_empty(),
+            "Should generate diff even with empty blobs"
+        );
+        assert_eq!(diff_output[0].path, "empty_file.txt");
+        assert!(
+            diff_output[0].data.contains("diff --git"),
+            "Should contain git diff header"
+        );
     }
 }

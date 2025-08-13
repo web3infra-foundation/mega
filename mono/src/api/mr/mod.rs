@@ -1,14 +1,15 @@
 use std::str::FromStr;
 
-use ceres::model::mr::{MrDiff, MrDiffFile};
+use ceres::model::mr::MrDiffFile;
 use jupiter::model::mr_dto::MRDetails;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use callisto::sea_orm_active_enums::MergeStatusEnum;
-
 use crate::api::{conversation::ConversationItem, label::LabelItem};
+use callisto::sea_orm_active_enums::MergeStatusEnum;
+use common::model::CommonPage;
+use neptune::model::diff_model::DiffItem;
 
 pub mod mr_router;
 
@@ -52,7 +53,13 @@ impl From<MRDetails> for MRDetailRes {
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedList {
     pub mui_trees: Vec<MuiTreeNode>,
-    pub content: MrDiff,
+    pub content: Vec<DiffItem>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct FilesChangedPage {
+    page: CommonPage<DiffItem>,
+    mui_trees: Vec<MuiTreeNode>,
 }
 
 #[derive(Serialize, Debug, ToSchema)]
