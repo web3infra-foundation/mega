@@ -39,6 +39,8 @@ use uuid::Uuid;
 /// Enumeration of possible task statuses
 #[derive(Debug, Serialize, Default, ToSchema)]
 pub enum TaskStatusEnum {
+    /// Task is queued and waiting to be assigned to a worker
+    Pending,
     Building,
     Interrupted, // Task was interrupted, exit code is None
     Failed,
@@ -90,6 +92,7 @@ pub fn routers() -> Router<AppState> {
             get(task_output_segment_handler),
         )
         .route("/mr-task/{mr}", get(task_query_by_mr))
+        .route("/tasks", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
 }
 
@@ -146,7 +149,8 @@ pub async fn task_status_handler(
                     Some(model) => {
                         // Determine task status based on database fields
                         let status = if model.end_at.is_none() {
-                            TaskStatusEnum::Building
+                            // Not in active_builds and end_at is None => still queued (pending)
+                            TaskStatusEnum::Pending
                         } else if model.exit_code.is_none() {
                             TaskStatusEnum::Interrupted
                         } else if model.exit_code.unwrap() == 0 {
@@ -768,6 +772,85 @@ pub async fn task_query_by_mr(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "message": "Internal server error" })),
+            ))
+        }
+    }
+}
+
+/// Task information including current status
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskInfoDTO {
+    pub build_id: String,
+    pub output_file: String,
+    pub exit_code: Option<i32>,
+    pub start_at: String,
+    pub end_at: Option<String>,
+    pub repo_name: String,
+    pub target: String,
+    pub arguments: String,
+    pub mr: String,
+    pub status: TaskStatusEnum,
+}
+
+impl TaskInfoDTO {
+    fn from_model_with_status(model: builds::Model, status: TaskStatusEnum) -> Self {
+        Self {
+            build_id: model.build_id.to_string(),
+            output_file: model.output_file,
+            exit_code: model.exit_code,
+            start_at: model.start_at.to_rfc3339(),
+            end_at: model.end_at.map(|dt| dt.to_rfc3339()),
+            repo_name: model.repo_name,
+            target: model.target,
+            arguments: model.arguments,
+            mr: model.mr,
+            status,
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/tasks",
+    responses(
+    (status = 200, description = "All tasks with their current status", body = [TaskInfoDTO]),
+    (status = 500, description = "Internal error", body = serde_json::Value)
+    )
+)]
+/// Return all tasks with their current status (combining /mr-task and /task-status logic)
+pub async fn tasks_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
+    let db = &state.conn;
+    let active_builds = state.scheduler.active_builds.clone();
+    match builds::Entity::find().all(db).await {
+        Ok(models) => {
+            let tasks: Vec<TaskInfoDTO> = models
+                .into_iter()
+                .map(|m| {
+                    let id_str = m.build_id.to_string();
+                    let status = if active_builds.contains_key(&id_str) {
+                        TaskStatusEnum::Building
+                    } else if m.end_at.is_none() {
+                        // In queue waiting for a worker assignment
+                        TaskStatusEnum::Pending
+                    } else if m.exit_code.is_none() {
+                        TaskStatusEnum::Interrupted
+                    } else if m.exit_code == Some(0) {
+                        TaskStatusEnum::Completed
+                    } else {
+                        TaskStatusEnum::Failed
+                    };
+                    TaskInfoDTO::from_model_with_status(m, status)
+                })
+                .collect();
+            Ok(Json(tasks))
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch tasks: {e}");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to fetch tasks"})),
             ))
         }
     }
