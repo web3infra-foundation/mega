@@ -525,8 +525,42 @@ pub async fn read_log_segment_raw(
     })
 }
 
-/// Get build log directory
+/// Unified accessor for the build log directory (BUILD_LOG_DIR).
+///
+/// Behavior differs between test and non-test builds:
+///
+/// Non-test (`cfg(not(test))`):
+///   * Uses `once_cell::sync::Lazy` to read the env var exactly once at first access.
+///   * Panics early if the variable is missing (surfacing deployment misconfiguration).
+///   * Cannot be changed at runtime (subsequent env var edits are ignored).
+///
+/// Test (`cfg(test)`):
+///   * Allows setting `BUILD_LOG_DIR` before the first call in each test thread.
+///   * Uses `thread_local!` + `Cell<Option<&'static str>>`; on first access leaks the string via `Box::leak` only once per thread (bounded leak acceptable in tests).
+///   * Motivation:
+///       - Avoid a global `Lazy` capturing a temporary directory too early for all tests.
+///       - Keep memory growth bounded (one leaked string per thread at most).
+///   * Changing the environment variable in the same thread after first access has no effect.
+///
+/// Usage in tests:
+/// ```ignore
+/// let tmp = tempfile::tempdir().unwrap();
+/// std::env::set_var("BUILD_LOG_DIR", tmp.path());
+/// let dir = get_build_log_dir();
+/// ```
+///
+/// # Panics
+/// Panics if `BUILD_LOG_DIR` is not set at first access.
+///
+/// # Thread Safety
+/// Returns an immutable `&'static str`. Non-test mode uses a `Lazy` (thread-safe once init);
+/// test mode uses per-thread initialization to avoid cross-thread contention / early capture.
+///
+/// # Possible Future Improvement
+/// If hot-swapping the directory is ever required, this could return `Arc<PathBuf>` and expose
+/// an atomic update mechanism. Current requirements favor simplicity and immutability.
 pub fn get_build_log_dir() -> &'static str {
+    // Body only distinguishes cfg paths; see doc comment above for detailed rationale.
     #[cfg(not(test))]
     {
         use once_cell::sync::Lazy;
@@ -537,22 +571,18 @@ pub fn get_build_log_dir() -> &'static str {
     }
     #[cfg(test)]
     {
-        // In tests allow changing BUILD_LOG_DIR per test case.
+        // Test mode: allow setting BUILD_LOG_DIR before first use; only leak once per thread.
+        use std::cell::Cell;
         thread_local! {
-            static BUILD_LOG_DIR_TLS: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+            static BUILD_LOG_DIR_TLS: Cell<Option<&'static str>> = Cell::new(None);
         }
-        // Read from env each call and cache in TLS for &'static str simulation.
-        // We leak the String to extend lifetime intentionally (test scope only).
         BUILD_LOG_DIR_TLS.with(|cell| {
-            if cell.borrow().is_none() {
+            if cell.get().is_none() {
                 let val = std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set");
                 let leaked: &'static str = Box::leak(val.into_boxed_str());
-                *cell.borrow_mut() = Some(leaked.to_string());
+                cell.set(Some(leaked));
             }
-            let current = cell.borrow();
-            let s = current.as_ref().unwrap();
-            // Leak clone to satisfy 'static return each call.
-            Box::leak(s.clone().into_boxed_str())
+            cell.get().unwrap()
         })
     }
 }
