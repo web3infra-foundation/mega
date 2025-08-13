@@ -44,7 +44,6 @@ use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
-use neptune::neptune_engine::Diff;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -53,11 +52,11 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
-use crate::model::mr::{MrDiffFile, MrDiff, MrPageInfo};
-
+use crate::model::mr::{MrDiff, MrDiffFile, MrPageInfo};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -387,18 +386,23 @@ impl MonoApiService {
     ) -> Result<MrDiff, GitError> {
         // old and new blobs for comparison
         let stg = self.storage.mr_storage();
-        let mr = stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-            GitError::CustomError(format!("Merge request not found: {mr_link}"))
-        })?;
-        let old_blobs = self.get_commit_blobs(&mr.from_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get old commit blobs: {e}"))
-        })?;
-        let new_blobs = self.get_commit_blobs(&mr.to_hash).await.map_err(|e| {
-            GitError::CustomError(format!("Failed to get new commit blobs: {e}"))
-        })?;
+        let mr =
+            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+            })?;
+        let old_blobs = self
+            .get_commit_blobs(&mr.from_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
+        let new_blobs = self
+            .get_commit_blobs(&mr.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
 
         // calculate pages
-        let sorted_changed_files = self.mr_files_list(old_blobs.clone(), new_blobs.clone()).await?;
+        let sorted_changed_files = self
+            .mr_files_list(old_blobs.clone(), new_blobs.clone())
+            .await?;
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * page_size;
@@ -441,7 +445,7 @@ impl MonoApiService {
         }
 
         // Simple synchronous closure that uses the pre-fetched cache
-        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8>{
+        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 
@@ -452,15 +456,16 @@ impl MonoApiService {
             "histogram".to_string(),
             Vec::new(),
             read_content,
-        ).await;
+        )
+        .await;
 
         Ok(MrDiff {
             data: diff_output,
             page_info: Some(MrPageInfo {
-                total_pages: (sorted_changed_files.len()-1).div_ceil(page_size),
+                total_pages: (sorted_changed_files.len() - 1).div_ceil(page_size),
                 current_page: page_id,
                 page_size,
-            })
+            }),
         })
     }
 
@@ -517,7 +522,9 @@ impl MonoApiService {
 
         // Sort the results
         res.sort_by(|a, b| {
-            a.path().cmp(b.path()).then_with(|| a.kind_weight().cmp(&b.kind_weight()))
+            a.path()
+                .cmp(b.path())
+                .then_with(|| a.kind_weight().cmp(&b.kind_weight()))
         });
         Ok(res)
     }
@@ -566,10 +573,10 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::path::PathBuf;
-    use mercury::hash::SHA1;
-    use std::str::FromStr;
     use crate::model::mr::{MrDiffFile, MrPageInfo};
+    use mercury::hash::SHA1;
+    use std::path::PathBuf;
+    use std::str::FromStr;
 
     #[test]
     pub fn test_path() {
@@ -585,9 +592,19 @@ mod test {
     #[test]
     fn test_paging_calculation_basic() {
         let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
-            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+            MrDiffFile::New(
+                PathBuf::from("file1.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ),
+            MrDiffFile::Modified(
+                PathBuf::from("file2.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+            ),
+            MrDiffFile::Deleted(
+                PathBuf::from("file3.txt"),
+                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+            ),
         ];
 
         let page_size = 2u32;
@@ -613,10 +630,23 @@ mod test {
     #[test]
     fn test_paging_calculation_second_page() {
         let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
-            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
-            MrDiffFile::New(PathBuf::from("file4.txt"), SHA1::from_str("2222222222222222222222222222222222222222").unwrap()),
+            MrDiffFile::New(
+                PathBuf::from("file1.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ),
+            MrDiffFile::Modified(
+                PathBuf::from("file2.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+            ),
+            MrDiffFile::Deleted(
+                PathBuf::from("file3.txt"),
+                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+            ),
+            MrDiffFile::New(
+                PathBuf::from("file4.txt"),
+                SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
+            ),
         ];
 
         let page_size = 2u32;
@@ -644,9 +674,19 @@ mod test {
     #[test]
     fn test_paging_calculation_partial_page() {
         let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
-            MrDiffFile::Deleted(PathBuf::from("file3.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
+            MrDiffFile::New(
+                PathBuf::from("file1.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ),
+            MrDiffFile::Modified(
+                PathBuf::from("file2.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+            ),
+            MrDiffFile::Deleted(
+                PathBuf::from("file3.txt"),
+                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+            ),
         ];
 
         let page_size = 5u32;
@@ -671,9 +711,10 @@ mod test {
 
     #[test]
     fn test_paging_calculation_out_of_bounds() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-        ];
+        let files: Vec<MrDiffFile> = vec![MrDiffFile::New(
+            PathBuf::from("file1.txt"),
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+        )];
 
         let page_size = 2u32;
         let page_id = 3u32; // Page that doesn't exist
@@ -697,9 +738,10 @@ mod test {
 
     #[test]
     fn test_paging_calculation_edge_case_zero_page_size() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-        ];
+        let files: Vec<MrDiffFile> = vec![MrDiffFile::New(
+            PathBuf::from("file1.txt"),
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+        )];
 
         let page_size = 0u32;
         let page_id = 1u32;
@@ -724,8 +766,15 @@ mod test {
     #[test]
     fn test_paging_calculation_zero_page_id() {
         let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(PathBuf::from("file1.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-            MrDiffFile::Modified(PathBuf::from("file2.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap(), SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+            MrDiffFile::New(
+                PathBuf::from("file1.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ),
+            MrDiffFile::Modified(
+                PathBuf::from("file2.txt"),
+                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+            ),
         ];
 
         let page_size = 2u32;
@@ -771,9 +820,10 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![
-            MrDiffFile::New(PathBuf::from("new_file.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-        ];
+        let files = vec![MrDiffFile::New(
+            PathBuf::from("new_file.txt"),
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+        )];
 
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
@@ -791,9 +841,10 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![
-            MrDiffFile::Deleted(PathBuf::from("deleted_file.txt"), SHA1::from_str("1234567890123456789012345678901234567890").unwrap()),
-        ];
+        let files = vec![MrDiffFile::Deleted(
+            PathBuf::from("deleted_file.txt"),
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+        )];
 
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
@@ -811,13 +862,11 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![
-            MrDiffFile::Modified(
-                PathBuf::from("modified_file.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()
-            ),
-        ];
+        let files = vec![MrDiffFile::Modified(
+            PathBuf::from("modified_file.txt"),
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+        )];
 
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
@@ -837,12 +886,18 @@ mod test {
         };
 
         let files = vec![
-            MrDiffFile::New(PathBuf::from("new.txt"), SHA1::from_str("1111111111111111111111111111111111111111").unwrap()),
-            MrDiffFile::Deleted(PathBuf::from("deleted.txt"), SHA1::from_str("2222222222222222222222222222222222222222").unwrap()),
+            MrDiffFile::New(
+                PathBuf::from("new.txt"),
+                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+            ),
+            MrDiffFile::Deleted(
+                PathBuf::from("deleted.txt"),
+                SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
+            ),
             MrDiffFile::Modified(
                 PathBuf::from("modified.txt"),
                 SHA1::from_str("3333333333333333333333333333333333333333").unwrap(),
-                SHA1::from_str("4444444444444444444444444444444444444444").unwrap()
+                SHA1::from_str("4444444444444444444444444444444444444444").unwrap(),
             ),
         ];
 
