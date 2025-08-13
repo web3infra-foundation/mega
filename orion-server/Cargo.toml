@@ -33,3 +33,6 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest.workspace = true
 thiserror = "2.0"
+
+[dev-dependencies]
+tempfile = "3"

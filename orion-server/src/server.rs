@@ -19,10 +19,17 @@ use utoipa_swagger_ui::SwaggerUi;
         api::task_handler,
         api::task_status_handler,
         api::task_output_handler,
+        api::task_output_segment_handler,
         api::task_query_by_mr,
     ),
     components(
-        schemas(crate::scheduler::BuildRequest, api::TaskStatus, api::TaskStatusEnum, api::BuildDTO)
+        schemas(
+            crate::scheduler::BuildRequest,
+            crate::scheduler::LogSegment,
+            api::TaskStatus,
+            api::TaskStatusEnum,
+            api::BuildDTO
+        )
     ),
     tags(
         (name = "Build", description = "Build related endpoints")

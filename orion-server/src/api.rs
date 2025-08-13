@@ -3,6 +3,7 @@ use crate::scheduler::{
     BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
 };
+use crate::scheduler::{LogReadError, LogSegment};
 use axum::{
     Json, Router,
     extract::{
@@ -38,6 +39,8 @@ use uuid::Uuid;
 /// Enumeration of possible task statuses
 #[derive(Debug, Serialize, Default, ToSchema)]
 pub enum TaskStatusEnum {
+    /// Task is queued and waiting to be assigned to a worker
+    Pending,
     Building,
     Interrupted, // Task was interrupted, exit code is None
     Failed,
@@ -84,7 +87,12 @@ pub fn routers() -> Router<AppState> {
         .route("/task", axum::routing::post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
+        .route(
+            "/task-output-segment/{id}",
+            get(task_output_segment_handler),
+        )
         .route("/mr-task/{mr}", get(task_query_by_mr))
+        .route("/tasks", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
 }
 
@@ -141,7 +149,8 @@ pub async fn task_status_handler(
                     Some(model) => {
                         // Determine task status based on database fields
                         let status = if model.end_at.is_none() {
-                            TaskStatusEnum::Building
+                            // Not in active_builds and end_at is None => still queued (pending)
+                            TaskStatusEnum::Pending
                         } else if model.exit_code.is_none() {
                             TaskStatusEnum::Interrupted
                         } else if model.exit_code.unwrap() == 0 {
@@ -241,6 +250,56 @@ pub async fn task_output_handler(
     });
 
     Ok(Sse::new(stream.boxed()).keep_alive(KeepAlive::new()))
+}
+
+#[utoipa::path(
+    get,
+    path = "/task-output-segment/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID whose log to read"),
+        ("offset" = u64, Query, description = "Start byte offset", example = 0),
+        ("len" = usize, Query, description = "Max bytes to read", example = 4096)
+    ),
+    responses(
+        (status = 200, description = "Log segment", body = LogSegment),
+        (status = 404, description = "Log file not found"),
+        (status = 416, description = "Offset out of range"),
+        (status = 400, description = "Invalid parameters")
+    )
+)]
+pub async fn task_output_segment_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let offset = params
+        .get("offset")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let len = params
+        .get("len")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(4096);
+    // Cap len to reasonable maximum (e.g., 1MB)
+    let len = len.min(1024 * 1024);
+
+    match state.scheduler.read_log_segment(&id, offset, len).await {
+        Ok(seg) => (StatusCode::OK, Json(seg)).into_response(),
+        Err(LogReadError::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Err(LogReadError::OffsetOutOfRange { size }) => (
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            Json(serde_json::json!({
+                "message": "Offset out of range",
+                "file_size": size
+            })),
+        )
+            .into_response(),
+        Err(LogReadError::Io(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("IO error: {e}")})),
+        )
+            .into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -713,6 +772,85 @@ pub async fn task_query_by_mr(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "message": "Internal server error" })),
+            ))
+        }
+    }
+}
+
+/// Task information including current status
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskInfoDTO {
+    pub build_id: String,
+    pub output_file: String,
+    pub exit_code: Option<i32>,
+    pub start_at: String,
+    pub end_at: Option<String>,
+    pub repo_name: String,
+    pub target: String,
+    pub arguments: String,
+    pub mr: String,
+    pub status: TaskStatusEnum,
+}
+
+impl TaskInfoDTO {
+    fn from_model_with_status(model: builds::Model, status: TaskStatusEnum) -> Self {
+        Self {
+            build_id: model.build_id.to_string(),
+            output_file: model.output_file,
+            exit_code: model.exit_code,
+            start_at: model.start_at.to_rfc3339(),
+            end_at: model.end_at.map(|dt| dt.to_rfc3339()),
+            repo_name: model.repo_name,
+            target: model.target,
+            arguments: model.arguments,
+            mr: model.mr,
+            status,
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/tasks",
+    responses(
+    (status = 200, description = "All tasks with their current status", body = [TaskInfoDTO]),
+    (status = 500, description = "Internal error", body = serde_json::Value)
+    )
+)]
+/// Return all tasks with their current status (combining /mr-task and /task-status logic)
+pub async fn tasks_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
+    let db = &state.conn;
+    let active_builds = state.scheduler.active_builds.clone();
+    match builds::Entity::find().all(db).await {
+        Ok(models) => {
+            let tasks: Vec<TaskInfoDTO> = models
+                .into_iter()
+                .map(|m| {
+                    let id_str = m.build_id.to_string();
+                    let status = if active_builds.contains_key(&id_str) {
+                        TaskStatusEnum::Building
+                    } else if m.end_at.is_none() {
+                        // In queue waiting for a worker assignment
+                        TaskStatusEnum::Pending
+                    } else if m.exit_code.is_none() {
+                        TaskStatusEnum::Interrupted
+                    } else if m.exit_code == Some(0) {
+                        TaskStatusEnum::Completed
+                    } else {
+                        TaskStatusEnum::Failed
+                    };
+                    TaskInfoDTO::from_model_with_status(m, status)
+                })
+                .collect();
+            Ok(Json(tasks))
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch tasks: {e}");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to fetch tasks"})),
             ))
         }
     }

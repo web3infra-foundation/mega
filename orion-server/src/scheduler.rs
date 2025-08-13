@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::io::SeekFrom;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -164,6 +166,39 @@ pub struct TaskScheduler {
     pub conn: DatabaseConnection,
 }
 
+/// Log segment read result
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct LogSegment {
+    /// Task id / log file name
+    pub task_id: String,
+    /// Requested starting offset
+    pub offset: u64,
+    /// Bytes actually read
+    pub len: usize,
+    /// UTF-8 (lossy) decoded data slice
+    pub data: String,
+    /// Next offset (offset + len)
+    pub next_offset: u64,
+    /// Total file size in bytes
+    pub file_size: u64,
+    /// Whether we reached end of file
+    pub eof: bool,
+}
+
+/// Errors when reading a log segment
+#[derive(Debug)]
+pub enum LogReadError {
+    NotFound,
+    OffsetOutOfRange { size: u64 },
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for LogReadError {
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
 impl TaskScheduler {
     /// Create new task scheduler instance
     pub fn new(
@@ -180,6 +215,16 @@ impl TaskScheduler {
             active_builds,
             conn,
         }
+    }
+
+    /// Read a segment of a log file by task id at given offset, limited to max_len bytes.
+    pub async fn read_log_segment(
+        &self,
+        task_id: &str,
+        offset: u64,
+        max_len: usize,
+    ) -> Result<LogSegment, LogReadError> {
+        read_log_segment_raw(task_id, offset, max_len).await
     }
 
     /// Add task to queue
@@ -431,12 +476,124 @@ impl TaskScheduler {
     }
 }
 
-/// Get build log directory
+/// Read a segment of a task log file.
+/// Returns metadata and data slice (UTF-8 lossy converted).
+pub async fn read_log_segment_raw(
+    task_id: &str,
+    offset: u64,
+    max_len: usize,
+) -> Result<LogSegment, LogReadError> {
+    let log_path = format!("{}/{}", get_build_log_dir(), task_id);
+    let path = std::path::Path::new(&log_path);
+    if !path.exists() {
+        return Err(LogReadError::NotFound);
+    }
+
+    let meta = tokio::fs::metadata(path).await.map_err(LogReadError::Io)?;
+    let size = meta.len();
+    if offset > size {
+        return Err(LogReadError::OffsetOutOfRange { size });
+    }
+
+    // Fast path: only metadata
+    if max_len == 0 || offset == size {
+        return Ok(LogSegment {
+            task_id: task_id.to_string(),
+            offset,
+            len: 0,
+            data: String::new(),
+            next_offset: offset,
+            file_size: size,
+            eof: offset >= size,
+        });
+    }
+
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(LogReadError::Io)?;
+    file.seek(SeekFrom::Start(offset))
+        .await
+        .map_err(LogReadError::Io)?;
+
+    let remaining = (size - offset) as usize;
+    let to_read = remaining.min(max_len);
+    let mut buf = vec![0u8; to_read];
+    let read_bytes = file.read(&mut buf).await.map_err(LogReadError::Io)?;
+    buf.truncate(read_bytes);
+    let data = String::from_utf8_lossy(&buf).to_string();
+    let next_offset = offset + read_bytes as u64;
+    let eof = next_offset >= size;
+
+    Ok(LogSegment {
+        task_id: task_id.to_string(),
+        offset,
+        len: read_bytes,
+        data,
+        next_offset,
+        file_size: size,
+        eof,
+    })
+}
+
+/// Unified accessor for the build log directory (BUILD_LOG_DIR).
+///
+/// Behavior differs between test and non-test builds:
+///
+/// Non-test (`cfg(not(test))`):
+///   * Uses `once_cell::sync::Lazy` to read the env var exactly once at first access.
+///   * Panics early if the variable is missing (surfacing deployment misconfiguration).
+///   * Cannot be changed at runtime (subsequent env var edits are ignored).
+///
+/// Test (`cfg(test)`):
+///   * Allows setting `BUILD_LOG_DIR` before the first call in each test thread.
+///   * Uses `thread_local!` + `Cell<Option<&'static str>>`; on first access leaks the string via `Box::leak` only once per thread (bounded leak acceptable in tests).
+///   * Motivation:
+///       - Avoid a global `Lazy` capturing a temporary directory too early for all tests.
+///       - Keep memory growth bounded (one leaked string per thread at most).
+///   * Changing the environment variable in the same thread after first access has no effect.
+///
+/// Usage in tests:
+/// ```ignore
+/// let tmp = tempfile::tempdir().unwrap();
+/// std::env::set_var("BUILD_LOG_DIR", tmp.path());
+/// let dir = get_build_log_dir();
+/// ```
+///
+/// # Panics
+/// Panics if `BUILD_LOG_DIR` is not set at first access.
+///
+/// # Thread Safety
+/// Returns an immutable `&'static str`. Non-test mode uses a `Lazy` (thread-safe once init);
+/// test mode uses per-thread initialization to avoid cross-thread contention / early capture.
+///
+/// # Possible Future Improvement
+/// If hot-swapping the directory is ever required, this could return `Arc<PathBuf>` and expose
+/// an atomic update mechanism. Current requirements favor simplicity and immutability.
 pub fn get_build_log_dir() -> &'static str {
-    use once_cell::sync::Lazy;
-    static BUILD_LOG_DIR: Lazy<String> =
-        Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
-    &BUILD_LOG_DIR
+    // Body only distinguishes cfg paths; see doc comment above for detailed rationale.
+    #[cfg(not(test))]
+    {
+        use once_cell::sync::Lazy;
+        static BUILD_LOG_DIR: Lazy<String> =
+            Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
+        &BUILD_LOG_DIR
+    }
+    #[cfg(test)]
+    {
+        // Test mode: allow setting BUILD_LOG_DIR before first use; only leak once per thread.
+        use std::cell::Cell;
+        thread_local! {
+            static BUILD_LOG_DIR_TLS: Cell<Option<&'static str>> = const { Cell::new(None) };
+        }
+        BUILD_LOG_DIR_TLS.with(|cell| {
+            if cell.get().is_none() {
+                let val = std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set");
+                let leaked: &'static str = Box::leak(val.into_boxed_str());
+                cell.set(Some(leaked));
+            }
+            cell.get().unwrap()
+        })
+    }
 }
 
 /// Create log file
@@ -459,6 +616,7 @@ pub fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     /// Test task queue basic functionality
     #[test]
@@ -535,5 +693,42 @@ mod tests {
 
         // Should fail when full
         assert!(queue.enqueue(task).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_log_segment_basic() {
+        // Prepare temp dir
+        let tmp = tempfile::tempdir().unwrap();
+        unsafe {
+            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
+        }
+        let task_id = "segment-test";
+        let mut file = create_log_file(task_id).unwrap();
+        write!(file, "Hello World! This is a test log.").unwrap();
+
+        // Read first 5 bytes
+        let seg = read_log_segment_raw(task_id, 0, 5).await.unwrap();
+        assert_eq!(seg.offset, 0);
+        assert_eq!(seg.len, 5);
+        assert_eq!(seg.data, "Hello");
+        assert!(!seg.eof);
+
+        // Read next bytes
+        let seg2 = read_log_segment_raw(task_id, seg.next_offset, 100)
+            .await
+            .unwrap();
+        assert!(seg2.data.starts_with(" World"));
+    }
+
+    #[tokio::test]
+    async fn test_read_log_segment_offset_out_of_range() {
+        let tmp = tempfile::tempdir().unwrap();
+        unsafe {
+            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
+        }
+        let task_id = "segment-oob";
+        let _ = create_log_file(task_id).unwrap();
+        let res = read_log_segment_raw(task_id, 10, 10).await;
+        assert!(matches!(res, Err(LogReadError::OffsetOutOfRange { .. })));
     }
 }
