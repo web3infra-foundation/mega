@@ -616,11 +616,10 @@ mod test {
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
 
-        let mut content = Vec::new();
-        content.push(DiffItem {
+        let content = vec![DiffItem {
             data: sample_diff_output.to_string(),
             path: "diff_output.txt".to_string(),
-        });
+        }];
 
         // Test the complete response structure
         let files_changed_list = FilesChangedList { mui_trees, content };
