@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::io::SeekFrom;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -194,7 +194,9 @@ pub enum LogReadError {
 }
 
 impl From<std::io::Error> for LogReadError {
-    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
 }
 
 impl TaskScheduler {
@@ -483,11 +485,15 @@ pub async fn read_log_segment_raw(
 ) -> Result<LogSegment, LogReadError> {
     let log_path = format!("{}/{}", get_build_log_dir(), task_id);
     let path = std::path::Path::new(&log_path);
-    if !path.exists() { return Err(LogReadError::NotFound); }
+    if !path.exists() {
+        return Err(LogReadError::NotFound);
+    }
 
     let meta = tokio::fs::metadata(path).await.map_err(LogReadError::Io)?;
     let size = meta.len();
-    if offset > size { return Err(LogReadError::OffsetOutOfRange { size }); }
+    if offset > size {
+        return Err(LogReadError::OffsetOutOfRange { size });
+    }
 
     // Fast path: only metadata
     if max_len == 0 || offset == size {
@@ -502,8 +508,12 @@ pub async fn read_log_segment_raw(
         });
     }
 
-    let mut file = tokio::fs::File::open(path).await.map_err(LogReadError::Io)?;
-    file.seek(SeekFrom::Start(offset)).await.map_err(LogReadError::Io)?;
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(LogReadError::Io)?;
+    file.seek(SeekFrom::Start(offset))
+        .await
+        .map_err(LogReadError::Io)?;
 
     let remaining = (size - offset) as usize;
     let to_read = remaining.min(max_len);
@@ -564,9 +574,8 @@ pub fn get_build_log_dir() -> &'static str {
     #[cfg(not(test))]
     {
         use once_cell::sync::Lazy;
-        static BUILD_LOG_DIR: Lazy<String> = Lazy::new(|| {
-            std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set")
-        });
+        static BUILD_LOG_DIR: Lazy<String> =
+            Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
         &BUILD_LOG_DIR
     }
     #[cfg(test)]
@@ -574,7 +583,7 @@ pub fn get_build_log_dir() -> &'static str {
         // Test mode: allow setting BUILD_LOG_DIR before first use; only leak once per thread.
         use std::cell::Cell;
         thread_local! {
-            static BUILD_LOG_DIR_TLS: Cell<Option<&'static str>> = Cell::new(None);
+            static BUILD_LOG_DIR_TLS: Cell<Option<&'static str>> = const { Cell::new(None) };
         }
         BUILD_LOG_DIR_TLS.with(|cell| {
             if cell.get().is_none() {
@@ -690,7 +699,9 @@ mod tests {
     async fn test_read_log_segment_basic() {
         // Prepare temp dir
         let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap()); }
+        unsafe {
+            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
+        }
         let task_id = "segment-test";
         let mut file = create_log_file(task_id).unwrap();
         write!(file, "Hello World! This is a test log.").unwrap();
@@ -703,14 +714,18 @@ mod tests {
         assert!(!seg.eof);
 
         // Read next bytes
-        let seg2 = read_log_segment_raw(task_id, seg.next_offset, 100).await.unwrap();
+        let seg2 = read_log_segment_raw(task_id, seg.next_offset, 100)
+            .await
+            .unwrap();
         assert!(seg2.data.starts_with(" World"));
     }
 
     #[tokio::test]
     async fn test_read_log_segment_offset_out_of_range() {
         let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap()); }
+        unsafe {
+            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
+        }
         let task_id = "segment-oob";
         let _ = create_log_file(task_id).unwrap();
         let res = read_log_segment_raw(task_id, 10, 10).await;

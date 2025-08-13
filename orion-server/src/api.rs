@@ -3,7 +3,7 @@ use crate::scheduler::{
     BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
 };
-use crate::scheduler::{LogSegment, LogReadError};
+use crate::scheduler::{LogReadError, LogSegment};
 use axum::{
     Json, Router,
     extract::{
@@ -85,7 +85,10 @@ pub fn routers() -> Router<AppState> {
         .route("/task", axum::routing::post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
-        .route("/task-output-segment/{id}", get(task_output_segment_handler))
+        .route(
+            "/task-output-segment/{id}",
+            get(task_output_segment_handler),
+        )
         .route("/mr-task/{mr}", get(task_query_by_mr))
         .route("/queue-stats", get(queue_stats_handler))
 }
@@ -265,8 +268,14 @@ pub async fn task_output_segment_handler(
     Path(id): Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let offset = params.get("offset").and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
-    let len = params.get("len").and_then(|v| v.parse::<usize>().ok()).unwrap_or(4096);
+    let offset = params
+        .get("offset")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let len = params
+        .get("len")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(4096);
     // Cap len to reasonable maximum (e.g., 1MB)
     let len = len.min(1024 * 1024);
 
@@ -278,12 +287,14 @@ pub async fn task_output_segment_handler(
             Json(serde_json::json!({
                 "message": "Offset out of range",
                 "file_size": size
-            }))
-        ).into_response(),
+            })),
+        )
+            .into_response(),
         Err(LogReadError::Io(e)) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"message": format!("IO error: {e}")}))
-        ).into_response(),
+            Json(serde_json::json!({"message": format!("IO error: {e}")})),
+        )
+            .into_response(),
     }
 }
 
