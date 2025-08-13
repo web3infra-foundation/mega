@@ -974,11 +974,6 @@ mod test {
         use mercury::internal::object::blob::Blob;
         use std::collections::HashMap;
 
-        // Create a service with mock storage
-        let service = MonoApiService {
-            storage: Storage::mock(),
-        };
-
         // Test basic diff generation with sample data
         let old_content = "Hello World\nLine 2\nLine 3";
         let new_content = "Hello Universe\nLine 2\nLine 3 modified";
