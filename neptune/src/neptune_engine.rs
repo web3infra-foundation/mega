@@ -1,3 +1,4 @@
+use crate::model::diff_model::DiffItem;
 use infer;
 use mercury::hash::SHA1;
 use path_absolutize::Absolutize;
@@ -47,7 +48,7 @@ impl Diff {
         algorithm: String,
         filter: Vec<PathBuf>,
         read_content: F,
-    ) -> String
+    ) -> Vec<DiffItem>
     where
         F: Fn(&PathBuf, &SHA1) -> Vec<u8>,
     {
@@ -59,7 +60,10 @@ impl Diff {
             if let Some(large_file_marker) =
                 Self::is_large_file(&file, &old_blobs_map, &new_blobs_map, &read_content)
             {
-                diff_results.push(large_file_marker);
+                diff_results.push(DiffItem {
+                    path: file.to_string_lossy().to_string(),
+                    data: large_file_marker,
+                });
             } else {
                 let diff = Self::diff_for_file_string(
                     &file,
@@ -68,11 +72,14 @@ impl Diff {
                     algorithm.as_str(),
                     &read_content,
                 );
-                diff_results.push(diff);
+                diff_results.push(DiffItem {
+                    path: file.to_string_lossy().to_string(),
+                    data: diff,
+                });
             }
         }
 
-        diff_results.join("")
+        diff_results
     }
 
     /// Checks if a file is large and returns a message if it is.
