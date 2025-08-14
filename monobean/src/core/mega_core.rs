@@ -20,6 +20,8 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, OnceCell, RwLock};
 use vault::integration::vault_core::VaultCore;
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
+use libra::command::log::{get_reachable_commits};
+use mercury::internal::object::commit::Commit;
 
 pub struct MegaCore {
     config: Arc<RwLock<Config>>,
@@ -67,6 +69,10 @@ pub enum MegaCommands {
     // GetRepoUrl {
     //     chan: oneshot::Sender<MonoBeanResult<String>>,
     // }
+    GetPathHistory{
+        chan: oneshot::Sender<MonoBeanResult<Vec<Commit>>>,
+        path: String,
+    },
 }
 
 impl Debug for MegaCore {
@@ -187,6 +193,10 @@ impl MegaCore {
                 let content = self.load_blob(path).await;
                 chan.send(content).unwrap();
             }
+            MegaCommands::GetPathHistory{ chan, path} => {
+                let commits = self.get_path_history(&path).await;
+                chan.send(commits).unwrap();
+            }
             // MegaCommands::GetRepoUrl => {
             //
             // }
@@ -293,7 +303,7 @@ impl MegaCore {
         *self.running_context.write().await = None;
     }
 
-    // choose ImportApiService or MonoApiService
+    /// choose ImportApiService or MonoApiService judging by path prefix
     async fn api_handler(&self, path: impl AsRef<Path>) -> MonoBeanResult<Box<dyn ApiHandler>> {
         let ctx = self.running_context.read().await.clone();
         if ctx.is_none() {
@@ -314,6 +324,7 @@ impl MegaCore {
                 .unwrap()
             {
                 let repo: Repo = model.into();
+                //tracing::debug!("@@@@@@@@@@@@@@@@@@@@@@@@Found repo {:?}", repo.repo_id);
                 return Ok(Box::new(ImportApiService {
                     storage: ctx.storage.clone(),
                     repo,
@@ -339,6 +350,7 @@ impl MegaCore {
                 acc + &e.as_os_str().to_string_lossy() + "/"
             });
         let path = PathBuf::from(path);
+        tracing::debug!("!!!!!!!!!!!!!!!!Loading tree from path: {}", path.display());
 
         let handler = self.api_handler(&path).await?;
         let tree = handler.search_tree_by_path(&path).await;
@@ -467,6 +479,24 @@ impl MegaCore {
     pub async fn is_core_running(&self) -> bool {
         self.running_context.read().await.is_some()
     }
+
+    async fn get_path_history(&self,path: impl AsRef<Path>) ->  MonoBeanResult<Vec<Commit>>{
+
+        let api_handler = self.api_handler(&path).await?;
+        let cur_commit = api_handler.get_latest_commit(path.as_ref().to_path_buf())
+            .await
+            .map_err(|e| MonoBeanError::MegaCoreError(format!("Failed to get latest commit: {:?}", e)))?;
+
+
+         let mut reachable_commits = get_reachable_commits(cur_commit.oid.clone()).await;
+        //let mut reachable_commits = get_reachable_commits("").await;
+        reachable_commits.sort_by_key(|c| c.committer.timestamp);
+        tracing::debug!("Reachable commits: {:?}", reachable_commits);
+
+
+
+        Ok(reachable_commits)
+    }
 }
 
 #[cfg(test)]
@@ -583,4 +613,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_config() {}
+
+    #[tokio::test]
+    async fn test_get_history() {
+
+    }
+
 }

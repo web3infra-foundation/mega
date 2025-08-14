@@ -295,24 +295,25 @@ impl MonobeanWindow {
         ));
         
         // mega status bar show 
-        let monobean_application:MonobeanApplication = self.application().unwrap().downcast().unwrap();
-        CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
-            loop {
-                let rx = monobean_application.core_status();
-                let (core_started, _) = rx.await.unwrap();
-                if core_started {
-                    status_label.set_label("Mega started");
-                    status_icon.set_icon_name(Some("status-normal-icon"));
-                    //tracing::debug!("watching mage status----------")
-                } else {
-                    status_label.set_label("Mega stoped");
-                    status_icon.set_icon_name(Some("dialog-warning"));
-                    tracing::debug!("watching mage status faild----------")
-                }
-                glib::timeout_future(std::time::Duration::from_secs(5)).await;
-            }
-            
-        });
+        // todo here produce tons of log ,need to adjust logic of generate log 
+        // let monobean_application:MonobeanApplication = self.application().unwrap().downcast().unwrap();
+        // CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+        //     loop {
+        //         let rx = monobean_application.core_status();
+        //         let (core_started, _) = rx.await.unwrap();
+        //         if core_started {
+        //             status_label.set_label("Mega started");
+        //             status_icon.set_icon_name(Some("status-normal-icon"));
+        //             //tracing::debug!("watching mage status----------")
+        //         } else {
+        //             status_label.set_label("Mega stoped");
+        //             status_icon.set_icon_name(Some("dialog-warning"));
+        //             tracing::debug!("watching mage status faild----------")
+        //         }
+        //         glib::timeout_future(std::time::Duration::from_secs(5)).await;
+        //     }
+        //     
+        // });
         
         //let action = Action::MegaCore(CoreStatus());
     }

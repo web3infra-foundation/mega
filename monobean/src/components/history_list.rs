@@ -7,10 +7,13 @@ mod imp {
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
+ 
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::HistoryItem)]
     pub struct HistoryItem {
+        #[property(get, set)]
+        pub id: RefCell<String>,
         #[property(get, set)]
         pub text: RefCell<String>,
     }
@@ -30,7 +33,10 @@ glib::wrapper! {
 }
 
 impl HistoryItem {
-    pub fn new(text: &str) -> Self {
-        glib::Object::builder().property("text", text).build()
+    pub fn new(id: &str,text: &str) -> Self {
+        glib::Object::builder()
+            .property("text", text)
+            .property("id", id)
+            .build()
     }
 }

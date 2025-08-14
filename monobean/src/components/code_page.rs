@@ -15,7 +15,7 @@ use tokio::sync::oneshot;
 
 mod imp {
     use adw::subclass::prelude::BinImpl;
-    use tokio::sync::OnceCell;
+    use tokio::sync::{OnceCell};
 
     use crate::components::file_tree::FileTreeView;
 
@@ -52,6 +52,7 @@ mod imp {
         #[template_child(id = "history_listview")]
         pub history_listview: TemplateChild<gtk::ListView>,
 
+        pub cur_file_path: std::sync::RwLock<PathBuf>,
         pub sender: OnceCell<Sender<Action>>,
     }
 
@@ -105,21 +106,21 @@ impl CodePage {
 
         self.setup_paned();
         self.setup_button();
-        self.setup_history_list();
         self.setup_source_view(opened_file);
         self.setup_file_tree();
     }
 
     fn setup_history_list(&self) {
+        let imp = self.imp();
+        let file_path = imp.cur_file_path.read().unwrap().clone();
+        let sender = imp.sender.get().unwrap().clone();
+
         let list_view = self.imp().history_listview.clone();
 
         // 创建数据模型
         let store = ListStore::new::<HistoryItem>();
 
-        for i in 1..=20 {
-            store.append(&HistoryItem::new(&format!("commit信息 \n 提交人:{i}, sha")));
-        }
-        let selection_model = SingleSelection::new(Some(store));
+        let selection_model = SingleSelection::new(Some(store.clone()));
 
         let factory = SignalListItemFactory::new();
 
@@ -151,6 +152,83 @@ impl CodePage {
 
         list_view.set_model(Some(&selection_model));
         list_view.set_factory(Some(&factory));
+
+        CONTEXT.spawn_local(clone!(
+            #[weak] store,
+            async move{
+                let (tx, rx) = oneshot::channel();
+                sender
+                    .send(Action::MegaCore(MegaCommands::GetPathHistory {
+                        chan: tx,
+                        path: file_path.to_str().unwrap().to_string(),
+                    }))
+                    .await
+                    .unwrap();
+
+                match rx.await.unwrap() {
+                    Ok(commits)=>{
+                        tracing::debug!("Received commit history{:?}",commits);
+                        store.remove_all();
+                        for commit in commits {
+                            store.append(&HistoryItem::new(&commit.id._to_string(),&format!(
+                                "Commit:{}\nAuthor: {}\n message: {} \n Date: {}",
+                                commit.id, commit.author,commit.message,commit.committer.timestamp
+                            )));
+                        }
+                    }
+                    Err(e)=>{
+                        tracing::error!("get history commits error: {:?}", e);
+                        return;
+                    }
+
+                }
+
+
+
+            }
+        ));
+
+
+        // let list_view = self.imp().history_listview.clone();
+        //
+        // // 创建数据模型
+        // let store = ListStore::new::<HistoryItem>();
+        //
+        // for i in 1..=20 {
+        //     store.append(&HistoryItem::new(&format!("commit信息 \n 提交人:{i}, sha")));
+        // }
+        // let selection_model = SingleSelection::new(Some(store));
+        //
+        // let factory = SignalListItemFactory::new();
+        //
+        // factory.connect_setup(move |_, list_item| {
+        //     let label = Label::new(None);
+        //     list_item
+        //         .downcast_ref::<ListItem>()
+        //         .expect("Needs to be ListItem")
+        //         .set_child(Some(&label));
+        // });
+        //
+        // factory.connect_bind(move |_, list_item| {
+        //     let obj = list_item
+        //         .downcast_ref::<ListItem>()
+        //         .expect("Needs to be ListItem")
+        //         .item()
+        //         .and_downcast::<HistoryItem>()
+        //         .expect("Model should be HistoryItem");
+        //
+        //     let label = list_item
+        //         .downcast_ref::<ListItem>()
+        //         .expect("Needs to be ListItem")
+        //         .child()
+        //         .and_downcast::<Label>()
+        //         .expect("Child widget must be a Label");
+        //
+        //     label.set_label(&obj.text()); // 获取属性
+        // });
+        //
+        // list_view.set_model(Some(&selection_model));
+        // list_view.set_factory(Some(&factory));
     }
 
     // sidebar button
@@ -245,6 +323,20 @@ impl CodePage {
 
     pub fn show_editor_on(&self, hash: String, name: String, path: PathBuf) {
         let imp = self.imp();
+
+        tracing::debug!("show_editor_on: path: {:?}", path);
+
+        {
+            let mut cur_path = imp.cur_file_path.write().unwrap();
+            let mut git_path = path.to_string_lossy().replace('\\', "/");
+            if !git_path.starts_with('/') {
+                git_path = format!("/{}", git_path);
+            }
+            // *cur_path = git_path.parse().unwrap();
+            *cur_path = "/third-party/demo3".parse().unwrap();
+        }
+        self.setup_history_list();
+
         imp.file_path_label
             .set_text(&path.to_str().unwrap().replace(['/', '\\'], " > "));
 
