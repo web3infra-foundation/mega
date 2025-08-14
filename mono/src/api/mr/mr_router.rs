@@ -258,6 +258,7 @@ async fn mr_detail(
     Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
+/// Get List of All Changed Files in Merge Request
 #[utoipa::path(
     get,
     params(
@@ -284,7 +285,7 @@ async fn mr_files_changed(
     Ok(Json(res))
 }
 
-/// Get Merge Request file changed list
+/// Get Merge Request file changed list in Pagination
 #[utoipa::path(
     post,
     params(
@@ -411,26 +412,6 @@ async fn edit_title(
     state.mr_stg().edit_title(&link, &payload.content).await?;
     Ok(Json(CommonResult::success(None)))
 }
-
-// fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
-//     let mut files = HashMap::new();
-//
-//     let chunks: Vec<&str> = diff_output.split("diff --git ").collect();
-//
-//     for chunk in chunks.iter().skip(1) {
-//         let lines: Vec<&str> = chunk.split_whitespace().collect();
-//         if lines.len() >= 2 {
-//             let current_file = lines[0].trim_start_matches("a/").to_string();
-//             files.insert(current_file.clone(), "modified".to_string()); // 默认状态为修改
-//             if chunk.contains("new file mode") {
-//                 files.insert(current_file, "new".to_string());
-//             } else if chunk.contains("deleted file mode") {
-//                 files.insert(current_file, "deleted".to_string());
-//             }
-//         }
-//     }
-//     files
-// }
 
 /// Update mr related labels
 #[utoipa::path(

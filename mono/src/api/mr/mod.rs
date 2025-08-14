@@ -58,8 +58,8 @@ pub struct FilesChangedList {
 
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedPage {
-    page: CommonPage<DiffItem>,
-    mui_trees: Vec<MuiTreeNode>,
+    pub mui_trees: Vec<MuiTreeNode>,
+    pub page: CommonPage<DiffItem>,
 }
 
 #[derive(Serialize, Debug, ToSchema)]

@@ -152,7 +152,7 @@ pub async fn execute(args: DiffArgs) {
     // Handle output - libra processes the string according to its needs
     match w {
         Some(ref mut file) => {
-            file.write_all(results.join("\n").as_bytes()).unwrap();
+            file.write_all(results.join("").as_bytes()).unwrap();
         }
         None => {
             #[cfg(unix)]
@@ -164,7 +164,7 @@ pub async fn execute(args: DiffArgs) {
                     .spawn()
                     .expect("failed to execute process");
                 let stdin = child.stdin.as_mut().unwrap();
-                stdin.write_all(results.join("\n").as_bytes()).unwrap();
+                stdin.write_all(results.join("").as_bytes()).unwrap();
                 child.wait().unwrap();
             }
             #[cfg(not(unix))]

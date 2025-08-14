@@ -61,7 +61,7 @@ impl Diff {
                 Self::is_large_file(&file, &old_blobs_map, &new_blobs_map, &read_content)
             {
                 diff_results.push(DiffItem {
-                    path: file.to_str().unwrap().to_string(),
+                    path: file.to_string_lossy().to_string(),
                     data: large_file_marker,
                 });
             } else {
@@ -73,7 +73,7 @@ impl Diff {
                     &read_content,
                 );
                 diff_results.push(DiffItem {
-                    path: file.to_str().unwrap().to_string(),
+                    path: file.to_string_lossy().to_string(),
                     data: diff,
                 });
             }
