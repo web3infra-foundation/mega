@@ -292,7 +292,7 @@ async fn mr_files_changed(
         ("link", description = "MR link"),
     ),
     path = "/{link}/files-changed",
-    request_body = PageParams<ListPayload>,
+    request_body = PageParams<String>,
     responses(
         (status = 200, body = CommonResult<FilesChangedPage>, content_type = "application/json")
     ),
@@ -302,7 +302,7 @@ async fn mr_files_changed(
 async fn mr_files_changed_by_page(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-    Json(json): Json<PageParams<ListPayload>>,
+    Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
     let (items, total) = state
         .monorepo()
