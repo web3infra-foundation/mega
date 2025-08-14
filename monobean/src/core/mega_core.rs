@@ -64,6 +64,9 @@ pub enum MegaCommands {
         chan: oneshot::Sender<MonoBeanResult<String>>,
         id: String,
     },
+    // GetRepoUrl {
+    //     chan: oneshot::Sender<MonoBeanResult<String>>,
+    // }
 }
 
 impl Debug for MegaCore {
@@ -184,6 +187,9 @@ impl MegaCore {
                 let content = self.load_blob(path).await;
                 chan.send(content).unwrap();
             }
+            // MegaCommands::GetRepoUrl => {
+            //
+            // }
         }
     }
 
@@ -287,6 +293,7 @@ impl MegaCore {
         *self.running_context.write().await = None;
     }
 
+    // choose ImportApiService or MonoApiService
     async fn api_handler(&self, path: impl AsRef<Path>) -> MonoBeanResult<Box<dyn ApiHandler>> {
         let ctx = self.running_context.read().await.clone();
         if ctx.is_none() {

@@ -41,6 +41,7 @@ mod imp {
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/window.ui")]
     pub struct MonobeanWindow {
+        // headbar components
         #[template_child]
         pub header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
@@ -58,6 +59,7 @@ mod imp {
         #[template_child]
         pub search_container: TemplateChild<gtk::Box>,
 
+        // content page
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
         // #[template_child]
