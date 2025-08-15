@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAtom } from 'jotai'
+
+import { loadingAtom, logsAtom, statusAtom } from '../components/Checks/cpns/store'
 
 export const useSSM = () => {
   const sseUrl = useRef('')
@@ -28,7 +31,61 @@ export const useSSM = () => {
   }
 }
 
-export const useTaskSSE = (taskIds: string[]) => {
+export const useTaskSSE = () => {
+  const eventSourcesRef = useRef<Record<string, EventSource>>({})
+  const [logsMap, setLogsMap] = useAtom(logsAtom)
+  const [_, setLoading] = useAtom(loadingAtom)
+  const [_status, setStatus] = useAtom(statusAtom)
+
+  const setEventSource: (taskId: string) => void = (taskId: string) => {
+    // const es = new EventSource(`/sse/task-output/${taskId}`)
+    const es = new EventSource(`/api/event?id=${taskId}`)
+
+    es.onmessage = (e) => {
+      setLogsMap((prev) => {
+        const prevLogs = prev[taskId] ?? []
+
+        return {
+          ...prev,
+          [taskId]: [...prevLogs, e.data] // 每条消息生成新数组
+        }
+      })
+    }
+
+    // status
+    es.addEventListener('buildResult', (e) => {
+      const result = JSON.parse(e.data)
+
+      setStatus((prev) => {
+        return {
+          ...prev,
+          [taskId]: result.status // 每条消息生成新数组
+        }
+      })
+      es.close()
+    })
+
+    es.onerror = () => {
+      es.close()
+    }
+
+    eventSourcesRef.current[taskId] = es
+  }
+
+  useEffect(() => {
+    // 组件卸载时关闭所有连接
+    return () => {
+      Object.values(eventSourcesRef.current).forEach((es) => es.close())
+      eventSourcesRef.current = {}
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return { eventSourcesRef, setEventSource, logsMap }
+}
+
+export const useMultiTaskSSE = (taskIds: string[]) => {
   const [eventsMap, setEventsMap] = useState<Record<string, string[]>>({})
   const eventSourcesRef = useRef<Record<string, EventSource>>({})
 

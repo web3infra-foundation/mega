@@ -1,69 +1,67 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
+import { useAtom } from 'jotai'
 
-import { useGetMrTask } from '@/hooks/SSE/useGetMrTask'
+import { LoadingSpinner } from '@gitmono/ui/Spinner'
+
+import { buildId } from '@/components/Issues/utils/store'
+import { TaskResult, useGetMrTask } from '@/hooks/SSE/useGetMrTask'
 
 import { useTaskSSE } from '../../hook/useSSM'
-
-enum Status {
-  Pending = 'pending',
-  Fullfilled = 'fullfilled',
-  Rejected = 'rejected'
-}
+import { loadingAtom } from './cpns/store'
+import { mocks, Task } from './cpns/Task'
 
 const Checks = ({ mr }: { mr: string }) => {
-  // const serverStream = useRef('')
-  // const es = useRef<EventSource | null>()
-  // const baseUrl = useRef('http://47.79.95.33:3000/logs?follow=true')
-  // const status = useRef(Status.Pending)
-  const [displayTest, setDisplayText] = useState('')
-  // const { createEventSource, initial, sseUrl } = useSSM()
-  const { data } = useGetMrTask('VDPUMBPI')
-  const [taskids, setTaskids] = useState<string[]>([])
+  const { data } = useGetMrTask(mr)
+  const [buildid, setBuildId] = useAtom(buildId)
+  const { logsMap, setEventSource } = useTaskSSE()
+  const [loading] = useAtom(loadingAtom)
 
+  // 页面加载时建立连接
   useEffect(() => {
     if (data) {
-      const ids = data.map((i) => i.build_id)
-
-      setTaskids(ids)
+      setBuildId(data[0].build_id)
+      data.map((i) => setEventSource(i.build_id))
     }
-  }, [data])
-
-  const eventMap = useTaskSSE(taskids)
-
-  console.log(eventMap)
-
-  // 页面初始化时建立连接
-  // useEffect(() => {
-  //   initial()
-  //   if (status.current !== Status.Fullfilled) {
-  //     createEventSource(sseUrl.current)
-  //       .then((res) => {
-  //         es.current = res
-  //         status.current = Status.Fullfilled
-  //         es.current.onmessage = (event) => {
-  //           serverStream.current += event.data + '\n'
-  //           setDisplayText(serverStream.current)
-  //         }
-  //       })
-  //       .catch(() => (status.current = Status.Rejected))
-  //   }
-
-  //   return () => {
-  //     // 关闭连接
-  //     status.current = Status.Pending
-  //     es.current?.close()
-  //     es.current = null
-  //     serverStream.current = ''
-  //     setDisplayText('')
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [])
+    setBuildId(mocks[0].build_id)
+    mocks.map((i) => setEventSource(i.build_id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
-      <div style={{ height: `calc(100vh - 104px)` }}>
-        {displayTest && <LazyLog extraLines={1} text={displayTest} stream enableSearch caseInsensitive follow />}
+      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+          <span>
+            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+          </span>
+        </div>
+        <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
+          {/* left side */}
+          <div className='h-full w-[40%] border-r'>
+            {/* {data &&  <Task list={data} />} */}
+            <Task list={data as TaskResult[]} />
+          </div>
+          {/* right side */}
+          <div className='flex-1'>
+            {logsMap[buildid] ? (
+              <LazyLog
+                extraLines={1}
+                text={(logsMap[buildid] ?? []).join('\n')}
+                stream
+                enableSearch
+                caseInsensitive
+                follow
+              />
+            ) : (
+              loading && (
+                <div className='flex h-full flex-1 items-center justify-center'>
+                  <LoadingSpinner />
+                </div>
+              )
+            )}
+          </div>
+        </div>
       </div>
     </>
   )

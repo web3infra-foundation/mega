@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { fetchTask } from './useRequest'
 
-interface TaskResult {
+export interface TaskResult {
   arguments: string
   build_id: string
   end_at: string

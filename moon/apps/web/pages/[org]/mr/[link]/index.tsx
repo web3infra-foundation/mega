@@ -13,7 +13,6 @@ import { PicturePlusIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
-import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
 import {
   splitFun,
@@ -444,7 +443,8 @@ const MRDetailPage: PageWithLayout<any> = () => {
                     <LoadingSpinner />
                   </div>
                 ) : MrFilesChangedData?.data?.content ? (
-                  <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
+                  // <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
+                  <div>files</div>
                 ) : (
                   <div>No files changed</div>
                 )}
