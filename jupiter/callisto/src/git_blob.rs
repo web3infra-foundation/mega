@@ -12,7 +12,6 @@ pub struct Model {
     pub blob_id: String,
     pub name: Option<String>,
     pub size: i32,
-    pub commit_id: String,
     pub created_at: DateTime,
 }
 

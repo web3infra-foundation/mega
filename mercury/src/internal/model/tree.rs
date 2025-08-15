@@ -27,7 +27,6 @@ impl From<Tree> for git_tree::Model {
             tree_id: value.id.to_string(),
             sub_trees: value.to_data().unwrap(),
             size: 0,
-            commit_id: String::new(),
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
