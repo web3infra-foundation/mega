@@ -191,15 +191,19 @@ impl ApiHandler for MonoApiService {
         }
     }
 
-    async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
+    async fn get_tree_relate_commit(&self, t_hash: SHA1, _: PathBuf) -> Result<Commit, GitError> {
         let storage = self.storage.mono_storage();
-        let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
-        storage
+        let tree_info = storage
+            .get_tree_by_hash(&t_hash.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        Ok(storage
             .get_commit_by_hash(&tree_info.commit_id)
             .await
             .unwrap()
             .unwrap()
-            .into()
+            .into())
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {

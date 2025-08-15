@@ -25,7 +25,6 @@ impl From<&Blob> for git_blob::Model {
             repo_id: 0,
             blob_id: value.id.to_string(),
             size: 0,
-            commit_id: String::new(),
             name: None,
             created_at: chrono::Utc::now().naive_utc(),
         }
