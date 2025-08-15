@@ -18,6 +18,8 @@ export const RAILS_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.git
 
 export const MONO_API_URL = process.env.NEXT_PUBLIC_MONO_API_URL || 'https://git.gitmega.com'
 
+export const ORION_API_URL = process.env.NEXT_PUBLIC_ORION_API_URL || 'https://orion.gitmega.com'
+
 export const RAILS_AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.gitmega.com'
 
 /*
