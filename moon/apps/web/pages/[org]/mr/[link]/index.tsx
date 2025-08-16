@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ChecklistIcon, CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
 import { BaseStyles, TextInput, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
@@ -13,7 +13,6 @@ import { PicturePlusIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
-import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
 import {
   splitFun,
@@ -25,7 +24,7 @@ import {
   useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
-import { mridAtom } from '@/components/Issues/utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, mridAtom, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { MemberAvatar } from '@/components/MemberAvatar'
 import Checks from '@/components/MrView/components/Checks'
@@ -89,6 +88,19 @@ const MRDetailPage: PageWithLayout<any> = () => {
       }
     })
   }
+
+  const [_, setEditId] = useAtom(editIdAtom)
+  const [refresh, setRefresh] = useAtom(refreshAtom)
+
+  useEffect(() => {
+    const load = async () => {
+      await refetch()
+      setEditId(FALSE_EDIT_VAL)
+      setRefresh(0)
+    }
+
+    load()
+  }, [refresh, refetch, setEditId, setRefresh])
 
   const { mutate: closeMr, isPending: mrCloseIsPending } = usePostMrClose(id)
   const handleMrClose = () => {
@@ -277,7 +289,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                         <LoadingSpinner />
                       </div>
                     ) : (
-                      mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' />
+                      mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
                     )}
                     <div style={{ marginTop: '12px' }} className='prose'>
                       <div className='flex'>
@@ -423,7 +435,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                 </div>
               </UnderlinePanels.Panel>
               <UnderlinePanels.Panel>
-                <Checks />
+                <Checks mr={id} />
               </UnderlinePanels.Panel>
               <UnderlinePanels.Panel>
                 {fileChgIsLoading ? (
@@ -431,7 +443,8 @@ const MRDetailPage: PageWithLayout<any> = () => {
                     <LoadingSpinner />
                   </div>
                 ) : MrFilesChangedData?.data?.content ? (
-                  <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
+                  // <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
+                  <div>files</div>
                 ) : (
                   <div>No files changed</div>
                 )}

@@ -2,13 +2,11 @@ use crate::api::{self, AppState};
 use crate::model::builds;
 use axum::Router;
 use axum::routing::get;
-use dashmap::DashMap;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
     EntityTrait, QueryFilter, Schema, TransactionTrait,
 };
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
@@ -21,10 +19,17 @@ use utoipa_swagger_ui::SwaggerUi;
         api::task_handler,
         api::task_status_handler,
         api::task_output_handler,
+        api::task_output_segment_handler,
         api::task_query_by_mr,
     ),
     components(
-        schemas(api::BuildRequest, api::TaskStatus, api::TaskStatusEnum, api::BuildDTO)
+        schemas(
+            crate::scheduler::BuildRequest,
+            crate::scheduler::LogSegment,
+            api::TaskStatus,
+            api::TaskStatusEnum,
+            api::BuildDTO
+        )
     ),
     tags(
         (name = "Build", description = "Build related endpoints")
@@ -41,14 +46,13 @@ pub async fn start_server(port: u16) {
         .expect("Database connection failed");
     setup_tables(&conn).await.expect("Failed to setup tables");
 
-    let state = AppState {
-        workers: Arc::new(DashMap::new()),
-        conn,
-        active_builds: Arc::new(DashMap::new()),
-    };
+    let state = AppState::new(conn, None);
 
     // Start background health check task
     tokio::spawn(start_health_check_task(state.clone()));
+
+    // Start queue manager
+    tokio::spawn(api::start_queue_manager(state.clone()));
 
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
@@ -103,7 +107,7 @@ async fn start_health_check_task(state: AppState) {
         let now = chrono::Utc::now();
 
         // Find workers that haven't sent heartbeat within timeout period
-        for entry in state.workers.iter() {
+        for entry in state.scheduler.workers.iter() {
             if now.signed_duration_since(entry.value().last_heartbeat)
                 > chrono::Duration::from_std(worker_timeout).unwrap()
             {
@@ -119,17 +123,17 @@ async fn start_health_check_task(state: AppState) {
 
         // Remove dead workers and handle their tasks
         for worker_id in dead_workers {
-            if let Some((_, worker_info)) = state.workers.remove(&worker_id) {
+            if let Some((_, worker_info)) = state.scheduler.workers.remove(&worker_id) {
                 tracing::info!("Removed dead worker: {}", worker_id);
 
                 // If worker was busy, mark task as interrupted
-                if let api::WorkerStatus::Busy(task_id) = worker_info.status {
+                if let crate::scheduler::WorkerStatus::Busy(task_id) = worker_info.status {
                     tracing::warn!(
                         "Worker {} was busy with task {}. Marking task as Interrupted.",
                         worker_id,
                         task_id
                     );
-                    state.active_builds.remove(&task_id);
+                    state.scheduler.active_builds.remove(&task_id);
 
                     let update_res = builds::Entity::update_many()
                         .set(builds::ActiveModel {

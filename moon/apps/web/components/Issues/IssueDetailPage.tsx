@@ -41,7 +41,7 @@ import {
   useLabelsSelector,
   useMemberMap
 } from './utils/sideEffect'
-import { idAtom } from './utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, idAtom, refreshAtom } from './utils/store'
 
 export default function IssueDetailPage({ link }: { link: string }) {
   const [id] = useAtom(idAtom)
@@ -106,6 +106,19 @@ export default function IssueDetailPage({ link }: { link: string }) {
   useEffect(() => {
     fetchDetail()
   }, [fetchDetail, link])
+
+  const [refresh, setRefresh] = useAtom(refreshAtom)
+  const [_, setEditId] = useAtom(editIdAtom)
+
+  useEffect(() => {
+    const load = async () => {
+      await refetch()
+      setEditId(FALSE_EDIT_VAL)
+      setRefresh(0)
+    }
+
+    load()
+  }, [refresh, refetch, setEditId, setRefresh])
 
   const [_loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
@@ -306,12 +319,14 @@ export default function IssueDetailPage({ link }: { link: string }) {
       <div className='h-screen overflow-auto pt-10'>
         {info?.title && (
           <div className='px-10 pb-4 text-xl'>
-            <div className='mb-4 w-[70%]'>
+            <div className='mb-4'>
               {!isEdit && (
                 <>
                   <div className='flex w-full items-center justify-between'>
                     <UIText size='text-2xl' weight='font-bold' className='-tracking-[1px] lg:flex'>
                       {`${issueDetail?.title || ''}`}
+                      <span>&nbsp;</span>
+                      <span className='font-light !text-[#59636e]'>${issueDetail?.id}</span>
                     </UIText>
                     <Button
                       onClick={() => {
@@ -369,7 +384,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={link} type='issue' />
+                  <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef}/>
                 )}
 
                 {info && info.status === 'open' && (

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use axum::{
     extract::{Path, State},
@@ -13,7 +13,6 @@ use common::{
     model::{CommonPage, CommonResult, PageParams},
 };
 
-use crate::api::MonoApiServiceState;
 use crate::api::{
     api_common::{
         self,
@@ -25,6 +24,7 @@ use crate::api::{
     mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
+use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
 use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -37,6 +37,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(merge_no_auth))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
+            .routes(routes!(mr_files_changed_by_page))
             .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
@@ -257,13 +258,13 @@ async fn mr_detail(
     Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
-/// Get Merge Request file changed list
+/// Get List of All Changed Files in Merge Request
 #[utoipa::path(
     get,
     params(
         ("link", description = "MR link"),
     ),
-    path = "/{link}/files-changed/{page_id}/{page_size}",
+    path = "/{link}/files-changed",
     responses(
         (status = 200, body = CommonResult<FilesChangedList>, content_type = "application/json")
     ),
@@ -271,24 +272,48 @@ async fn mr_detail(
 )]
 async fn mr_files_changed(
     Path(link): Path<String>,
-    Path(page_id): Path<usize>,
-    Path(page_size): Path<usize>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    let diff_res = state
-        .monorepo()
-        .content_diff(&link, page_id, page_size)
-        .await?;
+    let diff_res = state.monorepo().content_diff(&link).await?;
 
-    let diff_files = extract_files_with_status(&diff_res.data);
-    let mut paths = vec![];
-    for (path, _) in diff_files {
-        paths.push(path);
-    }
+    let paths = diff_res.iter().map(|i| i.path.clone()).collect();
     let mui_trees = build_forest(paths);
     let res = CommonResult::success(Some(FilesChangedList {
         mui_trees,
         content: diff_res,
+    }));
+    Ok(Json(res))
+}
+
+/// Get Merge Request file changed list in Pagination
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/files-changed",
+    request_body = PageParams<String>,
+    responses(
+        (status = 200, body = CommonResult<FilesChangedPage>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+#[axum::debug_handler]
+async fn mr_files_changed_by_page(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(json): Json<PageParams<String>>,
+) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
+    let (items, total) = state
+        .monorepo()
+        .paged_content_diff(&link, json.pagination)
+        .await?;
+
+    let paths = items.iter().map(|i| i.path.clone()).collect();
+    let mui_trees = build_forest(paths);
+    let res = CommonResult::success(Some(FilesChangedPage {
+        mui_trees,
+        page: CommonPage { total, items },
     }));
     Ok(Json(res))
 }
@@ -388,26 +413,6 @@ async fn edit_title(
     Ok(Json(CommonResult::success(None)))
 }
 
-fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
-    let mut files = HashMap::new();
-
-    let chunks: Vec<&str> = diff_output.split("diff --git ").collect();
-
-    for chunk in chunks.iter().skip(1) {
-        let lines: Vec<&str> = chunk.split_whitespace().collect();
-        if lines.len() >= 2 {
-            let current_file = lines[0].trim_start_matches("a/").to_string();
-            files.insert(current_file.clone(), "modified".to_string()); // 默认状态为修改
-            if chunk.contains("new file mode") {
-                files.insert(current_file, "new".to_string());
-            } else if chunk.contains("deleted file mode") {
-                files.insert(current_file, "deleted".to_string());
-            }
-        }
-    }
-    files
-}
-
 /// Update mr related labels
 #[utoipa::path(
     post,
@@ -468,10 +473,30 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use ceres::model::mr::MrDiff;
-    use crate::api::mr::mr_router::{build_forest, extract_files_with_status};
+    use crate::api::mr::mr_router::build_forest;
     use crate::api::mr::FilesChangedList;
+    use neptune::model::diff_model::DiffItem;
+    use std::collections::HashMap;
+
+    fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
+        let mut files = HashMap::new();
+
+        let chunks: Vec<&str> = diff_output.split("diff --git ").collect();
+
+        for chunk in chunks.iter().skip(1) {
+            let lines: Vec<&str> = chunk.split_whitespace().collect();
+            if lines.len() >= 2 {
+                let current_file = lines[0].trim_start_matches("a/").to_string();
+                files.insert(current_file.clone(), "modified".to_string()); // 默认状态为修改
+                if chunk.contains("new file mode") {
+                    files.insert(current_file, "new".to_string());
+                } else if chunk.contains("deleted file mode") {
+                    files.insert(current_file, "deleted".to_string());
+                }
+            }
+        }
+        files
+    }
 
     #[test]
     fn test_parse_diff_result_to_filelist() {
@@ -525,7 +550,7 @@ mod test {
     fn test_mr_files_changed_logic() {
         // Test the core logic of mr_files_changed function
         // This tests the data transformation logic without needing the full state
-        
+
         let sample_diff_output = r#"diff --git a/src/main.rs b/src/main.rs
             new file mode 100644
             index 0000000..abc1234
@@ -550,7 +575,7 @@ mod test {
 
         // Test extract_files_with_status
         let diff_files = extract_files_with_status(sample_diff_output);
-        
+
         assert_eq!(diff_files.len(), 3);
         assert_eq!(diff_files.get("src/main.rs"), Some(&"new".to_string()));
         assert_eq!(diff_files.get("src/lib.rs"), Some(&"modified".to_string()));
@@ -561,30 +586,30 @@ mod test {
         for (path, _) in diff_files {
             paths.push(path);
         }
-        
+
         let mui_trees = build_forest(paths);
-        
+
         // Verify the tree structure
         assert!(!mui_trees.is_empty());
-        
+
         // Check that we have the expected root nodes
         let root_labels: Vec<&str> = mui_trees.iter().map(|tree| tree.label.as_str()).collect();
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
-        
-        let content = MrDiff {
+
+        let content = vec![DiffItem {
             data: sample_diff_output.to_string(),
-            page_info: None 
-        };
+            path: "diff_output.txt".to_string(),
+        }];
 
         // Test the complete response structure
-        let files_changed_list = FilesChangedList {
-            mui_trees,
-            content,
-        };
-        
+        let files_changed_list = FilesChangedList { mui_trees, content };
+
         assert!(!files_changed_list.mui_trees.is_empty());
-        assert_eq!(files_changed_list.content.data, sample_diff_output);
+        assert_eq!(
+            files_changed_list.content.first().unwrap().data,
+            sample_diff_output
+        );
     }
 
     #[test]
@@ -605,7 +630,7 @@ new file mode 100644
 index 0000000..1234567
 --- /dev/null
 +++ b/new_file.txt"#;
-        
+
         let result = extract_files_with_status(additions_only);
         assert_eq!(result.len(), 1);
         assert_eq!(result.get("new_file.txt"), Some(&"new".to_string()));
@@ -614,7 +639,7 @@ index 0000000..1234567
         let deletions_only = r#"diff --git a/old_file.txt b/old_file.txt
 deleted file mode 100644
 index 1234567..0000000"#;
-        
+
         let result = extract_files_with_status(deletions_only);
         assert_eq!(result.len(), 1);
         assert_eq!(result.get("old_file.txt"), Some(&"deleted".to_string()));
@@ -642,7 +667,7 @@ index 1234567..0000000"#;
         let result = build_forest(nested_paths);
         assert_eq!(result.len(), 1); // Should have one root "a"
         assert_eq!(result[0].label, "a");
-        
+
         // The tree should have nested structure
         let root = &result[0];
         assert!(root.children.is_some());

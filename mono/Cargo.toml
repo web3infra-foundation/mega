@@ -52,7 +52,6 @@ ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 lazy_static = { workspace = true }
 ctrlc = { workspace = true }
 oauth2 = { workspace = true }
-base64 = { workspace = true }
 async-session = { workspace = true }
 http = { workspace = true }
 cedar-policy = { workspace = true }
@@ -60,6 +59,7 @@ utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
+neptune = { workspace = true }
 
 
 

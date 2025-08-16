@@ -1,6 +1,7 @@
-import { MONO_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
-import { Api, ApiError, DataTag } from '@gitmono/types'
 import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
+
+import { MONO_API_URL, ORION_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
+import { Api, ApiError, DataTag } from '@gitmono/types'
 
 import { ApiErrorResponse } from './types'
 
@@ -147,6 +148,14 @@ export const apiClient = new Api({
 
 export const legacyApiClient = new Api({
   baseUrl: MONO_API_URL,
+  baseApiParams: {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    format: 'json'
+  }
+})
+export const orionApiClient = new Api({
+  baseUrl: ORION_API_URL,
   baseApiParams: {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

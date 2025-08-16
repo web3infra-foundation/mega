@@ -10,7 +10,7 @@ pub struct OrionBuildRequest {
 }
 
 #[derive(Clone)]
-pub struct OrionClient {
+pub(crate) struct OrionClient {
     base_url: String,
     client: reqwest::Client,
 }

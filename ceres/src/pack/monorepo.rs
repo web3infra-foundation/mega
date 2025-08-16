@@ -46,10 +46,11 @@ pub struct MonoRepo {
     pub from_hash: String,
     pub to_hash: String,
     // current_commit only exists when an unpack operation occurs.
-    // When only a branch is updated and the pack file is empty, this value will be null.
+    // When only a branch is updated and the pack file is empty, this value will be None.
     pub current_commit: Arc<RwLock<Option<Commit>>>,
     pub mr_link: Arc<RwLock<Option<String>>>,
     pub bellatrix: Arc<Bellatrix>,
+    pub username: Option<String>,
 }
 
 #[async_trait]
@@ -311,8 +312,9 @@ impl RepoHandler for MonoRepo {
     async fn save_or_update_mr(&self) -> Result<(), MegaError> {
         let storage = self.storage.mr_storage();
         let path_str = self.path.to_str().unwrap();
+        let username = self.username();
 
-        match storage.get_open_mr_by_path(path_str).await? {
+        match storage.get_open_mr_by_path(path_str, &username).await? {
             Some(mr) => {
                 self.update_existing_mr(mr).await?;
             }
@@ -320,9 +322,20 @@ impl RepoHandler for MonoRepo {
                 let link_guard = self.mr_link.read().await;
                 let mr_link = link_guard.as_ref().unwrap();
                 let commit_guard = self.current_commit.read().await;
-                let title = commit_guard.as_ref().unwrap().format_message();
+                let title = if let Some(commit) = commit_guard.as_ref() {
+                    commit.format_message()
+                } else {
+                    String::new()
+                };
                 storage
-                    .new_mr(path_str, mr_link, &title, &self.from_hash, &self.to_hash)
+                    .new_mr(
+                        path_str,
+                        mr_link,
+                        &title,
+                        &self.from_hash,
+                        &self.to_hash,
+                        &username,
+                    )
                     .await?;
             }
         };
@@ -377,7 +390,11 @@ impl MonoRepo {
     async fn fetch_or_new_mr_link(&self) -> Result<String, MegaError> {
         let storage = self.storage.mr_storage();
         let path_str = self.path.to_str().unwrap();
-        let mr_link = match storage.get_open_mr_by_path(path_str).await.unwrap() {
+        let mr_link = match storage
+            .get_open_mr_by_path(path_str, &self.username())
+            .await
+            .unwrap()
+        {
             Some(mr) => mr.link.clone(),
             None => {
                 if self.from_hash == "0".repeat(40) {
@@ -401,9 +418,10 @@ impl MonoRepo {
                 comment_stg
                     .add_conversation(
                         &mr.link,
-                        "",
+                        &self.username(),
                         Some(format!(
-                            "Mega updated the mr automatic from {} to {}",
+                            "{} updated the mr automatic from {} to {}",
+                            self.username(),
                             &mr.to_hash[..6],
                             &self.to_hash[..6]
                         )),
@@ -415,11 +433,12 @@ impl MonoRepo {
                 tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
             }
         } else {
+            // TODO 直接覆盖？
             comment_stg
                 .add_conversation(
                     &mr.link,
-                    "",
-                    Some("Mega closed MR due to conflict".to_string()),
+                    &self.username(),
+                    Some(format!("{} closed MR due to conflict", self.username(),)),
                     ConvTypeEnum::Closed,
                 )
                 .await
@@ -509,6 +528,10 @@ impl MonoRepo {
         let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
         let to_tree: Tree = mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap().into();
         diff_trees(&to_tree, &from_tree)
+    }
+
+    pub fn username(&self) -> String {
+        self.username.clone().unwrap_or(String::from("Admin"))
     }
 }
 
