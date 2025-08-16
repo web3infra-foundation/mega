@@ -1,3 +1,4 @@
+use std::collections::{HashSet, VecDeque};
 use crate::application::Action;
 use crate::core::servers::{HttpOptions, SshOptions};
 use crate::core::CoreConfigChanged;
@@ -10,7 +11,7 @@ use ceres::protocol::repo::Repo;
 use common::config::Config;
 use common::model::P2pOptions;
 use context::AppContext as MegaContext;
-use mercury::internal::object::tree::Tree;
+use mercury::internal::object::tree::{Tree};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
@@ -20,7 +21,6 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, OnceCell, RwLock};
 use vault::integration::vault_core::VaultCore;
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
-use libra::command::log::{get_reachable_commits};
 use mercury::internal::object::commit::Commit;
 
 pub struct MegaCore {
@@ -64,13 +64,18 @@ pub enum MegaCommands {
     },
     LoadFileContent {
         chan: oneshot::Sender<MonoBeanResult<String>>,
-        id: String,
+        id: String, //blob_id
     },
     // GetRepoUrl {
     //     chan: oneshot::Sender<MonoBeanResult<String>>,
     // }
     GetPathHistory{
         chan: oneshot::Sender<MonoBeanResult<Vec<Commit>>>,
+        path: String,
+    },
+    GetHistoryBlobId {
+        chan: oneshot::Sender<MonoBeanResult<String>>,
+        tree_id: String,
         path: String,
     },
 }
@@ -196,6 +201,10 @@ impl MegaCore {
             MegaCommands::GetPathHistory{ chan, path} => {
                 let commits = self.get_path_history(&path).await;
                 chan.send(commits).unwrap();
+            }
+            MegaCommands::GetHistoryBlobId { chan, tree_id, path } => {
+                let blob_id = self.get_history_blob(tree_id, path).await;
+                chan.send(blob_id).unwrap();
             }
             // MegaCommands::GetRepoUrl => {
             //
@@ -324,7 +333,6 @@ impl MegaCore {
                 .unwrap()
             {
                 let repo: Repo = model.into();
-                //tracing::debug!("@@@@@@@@@@@@@@@@@@@@@@@@Found repo {:?}", repo.repo_id);
                 return Ok(Box::new(ImportApiService {
                     storage: ctx.storage.clone(),
                     repo,
@@ -350,7 +358,6 @@ impl MegaCore {
                 acc + &e.as_os_str().to_string_lossy() + "/"
             });
         let path = PathBuf::from(path);
-        tracing::debug!("!!!!!!!!!!!!!!!!Loading tree from path: {}", path.display());
 
         let handler = self.api_handler(&path).await?;
         let tree = handler.search_tree_by_path(&path).await;
@@ -480,22 +487,77 @@ impl MegaCore {
         self.running_context.read().await.is_some()
     }
 
-    async fn get_path_history(&self,path: impl AsRef<Path>) ->  MonoBeanResult<Vec<Commit>>{
+    async fn get_path_history(&self,path: impl AsRef<Path>) ->  MonoBeanResult<Vec<Commit>> {
+        
+        // fistly get the file's latest commit
+        let mut path = PathBuf::from(path.as_ref());
+        let file_name = path.file_name()
+            .expect("path must have file name")
+            .to_string_lossy()
+            .to_string(); // OsString -> String
+        path.pop();
+        tracing::info!("get path:{:?} filename:{:?} history", path,file_name);
 
         let api_handler = self.api_handler(&path).await?;
-        let cur_commit = api_handler.get_latest_commit(path.as_ref().to_path_buf())
+        let map = api_handler.item_to_commit_map(path)
             .await
-            .map_err(|e| MonoBeanError::MegaCoreError(format!("Failed to get latest commit: {:?}", e)))?;
+            .map_err(|e| MonoBeanError::MegaCoreError(e.to_string()))?;
+        //tracing::info!("get map {:?}",map);
+        let latest_commit_id = map.into_iter()
+            .find(|(tree_item, _)| tree_item.name == file_name)
+            .and_then(|(_, commit_opt)| commit_opt)
+            .map(|commit| commit.id)
+            .ok_or_else(|| MonoBeanError::MegaCoreError("no commit found in history".to_string()))?;
+        tracing::info!("get last commit id:{:?}",latest_commit_id.to_string());
+        
+        self.get_reachable_commits(&latest_commit_id.to_string(),api_handler).await
+        
+    }
 
+    async fn get_reachable_commits(&self, commit_id:&str, api_handler: Box<dyn ApiHandler>) -> MonoBeanResult<Vec<Commit>> {
+        let mut queue = VecDeque::new();
+        let mut commit_set: HashSet<String> = HashSet::new(); 
+        let mut reachable_commits: Vec<Commit> = Vec::new();
+        queue.push_back(commit_id.to_string());
+        while !queue.is_empty() {
+            let commit_id = queue.pop_front().unwrap();
+            if commit_set.contains(&commit_id) { continue;  }
+            commit_set.insert(commit_id.clone());
 
-         let mut reachable_commits = get_reachable_commits(cur_commit.oid.clone()).await;
-        //let mut reachable_commits = get_reachable_commits("").await;
-        reachable_commits.sort_by_key(|c| c.committer.timestamp);
-        tracing::debug!("Reachable commits: {:?}", reachable_commits);
-
-
-
+            let commit = api_handler.get_commit_by_hash(&commit_id).await.unwrap();
+            let parent_ids = commit.clone().parent_commit_ids;
+            for parent_id in parent_ids.iter()  {
+                queue.push_back(parent_id.to_string())
+            }
+            reachable_commits.push(commit);
+        }
+        //tracing::info!("get reachable commits:{:?}",reachable_commits);
+        reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
         Ok(reachable_commits)
+    }
+
+    async fn get_history_blob(&self, tree_id: String, path: String) -> MonoBeanResult<String> {
+        let path = PathBuf::from(path.as_str());
+        let api_handler = self.api_handler(&path).await?;
+        let tree = api_handler.get_tree_by_hash(&tree_id).await;
+        
+        // let tree_item = tree.tree_items.iter()
+        //     .find(|tree_item| tree_item.name == path.file_name().unwrap().to_str().unwrap()).unwrap();
+        let file_name = match path.file_name() {
+            Some(name) => name.to_str().unwrap_or(""),
+            None => {
+                tracing::error!("Invalid file path: {:?}", path);
+                return Err(MonoBeanError::MegaCoreError("Invalid file path".to_string()));
+            }
+        };
+
+        let tree_item = tree.tree_items.iter()
+            .find(|tree_item| tree_item.name == file_name).unwrap();
+        
+        let blob_id = tree_item.id.to_string().clone();
+        tracing::info!("id of file:{:?} is {:?}",path,blob_id);
+        
+        Ok(blob_id)
     }
 }
 
@@ -559,7 +621,7 @@ mod tests {
         // Later we will use a bit more complex mechanism to load config,
         // and this test will be able to detect if the loading mechanism is broken.
         // TODO: use `Config::load_sources` to load glib shcema
-        if let Some(cargo_dir) = std::option_env!("CARGO_MANIFEST_DIR") {
+        if let Some(cargo_dir) = option_env!("CARGO_MANIFEST_DIR") {
             std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");
         }
         let resources =

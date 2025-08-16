@@ -20,7 +20,7 @@ use gtk::glib;
 use gtk::prelude::{ButtonExt, GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-use crate::core::mega_core::MegaCommands::CoreStatus;
+
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -210,7 +210,7 @@ impl MonobeanWindow {
         // 强制刷新文件树
         let code_page = self.imp().code_page.get();
         let file_tree = code_page.imp().file_tree_view.get();
-        CONTEXT.spawn_local_with_priority(adw::glib::Priority::LOW, async move {
+        CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
             file_tree.refresh_root().await;
         });
     }
@@ -296,26 +296,26 @@ impl MonobeanWindow {
         
         // mega status bar show 
         // todo here produce tons of log ,need to adjust logic of generate log 
-        // let monobean_application:MonobeanApplication = self.application().unwrap().downcast().unwrap();
-        // CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
-        //     loop {
-        //         let rx = monobean_application.core_status();
-        //         let (core_started, _) = rx.await.unwrap();
-        //         if core_started {
-        //             status_label.set_label("Mega started");
-        //             status_icon.set_icon_name(Some("status-normal-icon"));
-        //             //tracing::debug!("watching mage status----------")
-        //         } else {
-        //             status_label.set_label("Mega stoped");
-        //             status_icon.set_icon_name(Some("dialog-warning"));
-        //             tracing::debug!("watching mage status faild----------")
-        //         }
-        //         glib::timeout_future(std::time::Duration::from_secs(5)).await;
-        //     }
-        //     
-        // });
+        let monobean_application:MonobeanApplication = self.application().unwrap().downcast().unwrap();
+        CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+            loop {
+                let rx = monobean_application.core_status();
+                let (core_started, _) = rx.await.unwrap();
+                if core_started {
+                    status_label.set_label("Mega started");
+                    status_icon.set_icon_name(Some("status-normal-icon"));
+                    //tracing::debug!("watching mage status----------")
+                } else {
+                    status_label.set_label("Mega stoped");
+                    status_icon.set_icon_name(Some("dialog-warning"));
+                    tracing::debug!("watching mage status faild----------")
+                }
+                glib::timeout_future(std::time::Duration::from_secs(5)).await;
+            }
+            
+        });
         
-        //let action = Action::MegaCore(CoreStatus());
+        
     }
 
     pub fn add_toast(&self, message: String) {
@@ -332,7 +332,7 @@ impl MonobeanWindow {
         // seems that dismiss will clear something used by animation
         // cause adw_animation_skip emit 'done' segfault on closure(https://github.com/gmg137/netease-cloud-music-gtk/issues/202)
         // delay to wait for animation skipped/done
-        crate::CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+        CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
             glib::timeout_future(std::time::Duration::from_millis(500)).await;
             // removed from overlay toast queue by signal
             pre.dismiss();

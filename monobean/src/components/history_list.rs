@@ -15,6 +15,8 @@ mod imp {
         #[property(get, set)]
         pub id: RefCell<String>,
         #[property(get, set)]
+        pub tree_id: RefCell<String>,
+        #[property(get, set)]
         pub text: RefCell<String>,
     }
 
@@ -33,10 +35,11 @@ glib::wrapper! {
 }
 
 impl HistoryItem {
-    pub fn new(id: &str,text: &str) -> Self {
+    pub fn new(id: &str,tree_id: &str,text: &str) -> Self {
         glib::Object::builder()
             .property("text", text)
             .property("id", id)
+            .property("tree_id", tree_id)
             .build()
     }
 }
