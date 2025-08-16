@@ -88,6 +88,7 @@ pub async fn execute(args: CloneArgs) {
         initial_branch: args.branch.clone(),
         repo_directory: local_path.to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     command::init::execute(init_args).await;
 
