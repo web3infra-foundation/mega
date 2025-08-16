@@ -104,6 +104,7 @@
           </object>
         </child>
 
+<!--        sidebar-->
         <child>
           <object class="GtkBox" id="sidebar">
             <property name="orientation">vertical</property>
@@ -118,7 +119,7 @@
                 <child>
                   <object class="GtkImage">
                     <property name="icon-name">monobean-url-clone-symbolic</property>
-                    <property name="icon-size">large</property> <!-- 或者使用数字：1=small, 2=normal, 3=large, 4=extra-large -->
+                    <property name="icon-size">large</property> 
                   </object>
                 </child>
                 <style>
@@ -259,9 +260,9 @@
               <property name="vexpand">True</property>
               <property name="hexpand">True</property>
               <property name="propagate-natural-height">False</property>
-              <property name="min-content-height">400</property>
+              <property name="min-content-height">500</property>
               <property name="max-content-height">600</property>
-              <property name="min-content-width">150</property>
+              <property name="min-content-width">250</property>
               <property name="hscrollbar-policy">automatic</property>
               <property name="vscrollbar-policy">automatic</property>
               

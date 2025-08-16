@@ -40,6 +40,7 @@ mod imp {
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/window.ui")]
     pub struct MonobeanWindow {
+        // headbar components
         #[template_child]
         pub header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
@@ -57,6 +58,7 @@ mod imp {
         #[template_child]
         pub search_container: TemplateChild<gtk::Box>,
 
+        // content page
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
         // #[template_child]
@@ -69,9 +71,13 @@ mod imp {
         #[template_child]
         pub not_implemented: TemplateChild<NotImplemented>,
 
+        //bottom bar component
         #[template_child]
         pub mega_status_button: TemplateChild<gtk::Button>,
-
+        #[template_child]
+        pub status_icon: TemplateChild<gtk::Image>,
+        #[template_child]
+        pub status_label: TemplateChild<gtk::Label>,
         pub mega_popup: RefCell<Option<MegaTabWindow>>,
 
         pub sender: OnceCell<Sender<Action>>,
@@ -203,7 +209,7 @@ impl MonobeanWindow {
         // 强制刷新文件树
         let code_page = self.imp().code_page.get();
         let file_tree = code_page.imp().file_tree_view.get();
-        CONTEXT.spawn_local_with_priority(adw::glib::Priority::LOW, async move {
+        CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
             file_tree.refresh_root().await;
         });
     }
@@ -260,6 +266,8 @@ impl MonobeanWindow {
     fn setup_bottombar_widget(&self) {
         let imp = self.imp();
         let mega_status_button = imp.mega_status_button.get();
+        let status_icon = imp.status_icon.get();
+        let status_label = imp.status_label.get();
         mega_status_button.connect_clicked(clone!(
             #[weak(rename_to=window)]
             self,
@@ -284,6 +292,27 @@ impl MonobeanWindow {
                 imp.mega_popup.replace(Some(popup));
             }
         ));
+
+        // mega status bar show
+        // todo here produce tons of log ,need to adjust logic of generate log
+        let monobean_application: MonobeanApplication =
+            self.application().unwrap().downcast().unwrap();
+        CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+            loop {
+                let rx = monobean_application.core_status();
+                let (core_started, _) = rx.await.unwrap();
+                if core_started {
+                    status_label.set_label("Mega started");
+                    status_icon.set_icon_name(Some("status-normal-icon"));
+                    //tracing::debug!("watching mage status----------")
+                } else {
+                    status_label.set_label("Mega stoped");
+                    status_icon.set_icon_name(Some("dialog-warning"));
+                    tracing::debug!("watching mage status faild----------")
+                }
+                glib::timeout_future(std::time::Duration::from_secs(5)).await;
+            }
+        });
     }
 
     pub fn add_toast(&self, message: String) {
@@ -300,7 +329,7 @@ impl MonobeanWindow {
         // seems that dismiss will clear something used by animation
         // cause adw_animation_skip emit 'done' segfault on closure(https://github.com/gmg137/netease-cloud-music-gtk/issues/202)
         // delay to wait for animation skipped/done
-        crate::CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+        CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
             glib::timeout_future(std::time::Duration::from_millis(500)).await;
             // removed from overlay toast queue by signal
             pre.dismiss();

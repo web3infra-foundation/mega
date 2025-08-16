@@ -8,7 +8,7 @@
     <child>
       <object class="AdwPreferencesPage">
         <property name="title" translatable="yes">Mega Configuration</property>
-        <property name="icon_name">preferences-desktop-apps-symbolic</property>
+        <property name="icon_name">monobean-repo-symbolic</property>
         <child>
           <object class="AdwPreferencesGroup">
             <property name="title" translatable="yes">Base Settings</property>
@@ -483,7 +483,7 @@
     <child>
       <object class="AdwPreferencesPage">
         <property name="title" translatable="yes">P2P</property>
-        <property name="icon_name">user-available-symbolic</property>
+        <property name="icon_name">monobean-network-symbolic</property>
         <child>
           <object class="AdwPreferencesGroup">
             <property name="title" translatable="yes">Relay Settings</property>

@@ -289,6 +289,7 @@ impl HelloPage {
             self.imp().email_entry.text()
         );
 
+        // megacore need some time to init , so sleep 1.5s
         glib::MainContext::default().spawn_local(clone!(
             #[weak(rename_to=this)]
             self,
