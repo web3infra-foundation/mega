@@ -119,7 +119,6 @@ async fn test_init_template() {
     );
 }
 
-
 #[tokio::test]
 #[serial]
 /// Test the init function with an invalid template path
@@ -156,7 +155,6 @@ async fn test_init_with_invalid_template_path() {
         println!("Received expected error: {:?}", err);
     }
 }
-
 
 #[tokio::test]
 #[serial]

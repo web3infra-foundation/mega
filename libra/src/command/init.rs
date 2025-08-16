@@ -86,7 +86,12 @@ fn is_writable(cur_dir: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// Recursively copy the contents of the template directory to the destination directory
+/// Recursively copy the contents of the template directory to the destination directory.
+///
+/// # Behavior
+/// - Directories are created as needed.
+/// - Existing files in `dst` are NOT overwritten.
+/// - Subdirectories are copied recursively.
 fn copy_template(src: &Path, dst: &Path) -> io::Result<()> {
     for entry in fs::read_dir(src)? {
         let entry = entry?;
@@ -96,11 +101,9 @@ fn copy_template(src: &Path, dst: &Path) -> io::Result<()> {
         if file_type.is_dir() {
             fs::create_dir_all(&dest_path)?;
             copy_template(&entry.path(), &dest_path)?;
-        } else {
-            if !dest_path.exists() {
-                // Only copy if the file does not already exist
-                fs::copy(entry.path(), &dest_path)?;
-            }
+        } else if !dest_path.exists() {
+            // Only copy if the file does not already exist
+            fs::copy(entry.path(), &dest_path)?;
         }
     }
     Ok(())
