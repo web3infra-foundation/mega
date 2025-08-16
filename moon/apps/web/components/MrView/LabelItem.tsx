@@ -85,6 +85,7 @@ function LabelItem({conv}: LabelItemProps) {
                   justifyContent: 'center',
                   textAlign: 'center'
                 }}
+                className="mr-1"
               >
               {label.name}
             </span>
