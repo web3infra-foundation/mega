@@ -145,29 +145,29 @@ pub mod test {
             .is_ok());
 
         // Test localhost variants - should return true
-        assert!(
-            should_check_port_first("postgres://mono:mono@localhost:5432/mono_test")
-        );
-        assert!(
-            should_check_port_first("postgres://mono:mono@127.0.0.1:5432/mono_test")
-        );
-        assert!(
-            should_check_port_first("postgres://mono:mono@::1:5432/mono_test")
-        );
-        assert!(
-            should_check_port_first("postgres://mono:mono@0.0.0.0:5432/mono_test")
-        );
+        assert!(should_check_port_first(
+            "postgres://mono:mono@localhost:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@127.0.0.1:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@::1:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@0.0.0.0:5432/mono_test"
+        ));
 
         // Test remote addresses - should return false
-        assert!(
-            !should_check_port_first("postgres://mono:mono@192.168.1.100:5432/mono_test")
-        );
-        assert!(
-            !should_check_port_first("postgres://mono:mono@example.com:5432/mono_test")
-        );
-        assert!(
-            !should_check_port_first("postgres://mono:mono@10.0.0.1:5432/mono_test")
-        );
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@192.168.1.100:5432/mono_test"
+        ));
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@example.com:5432/mono_test"
+        ));
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@10.0.0.1:5432/mono_test"
+        ));
 
         // Test invalid URLs - should return false
         assert!(!should_check_port_first("invalid_url"));
