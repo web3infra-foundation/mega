@@ -52,7 +52,7 @@ impl SearchNode {
                 .with_payload(true), // Key: Payload must be explicitly requested
             )
             .await?;
-        debug!("search_result: {:?}", search_result);
+        debug!("search_result: {search_result:?}");
         // Convert the result to content and item_type
         if let Some(point) = search_result.result.into_iter().next() {
             let payload = point.payload;
@@ -86,7 +86,7 @@ impl Action for SearchNode {
         println!("\nPlease enter the query content:");
         let mut stdin = io::BufReader::new(io::stdin());
         if let Err(e) = stdin.read_line(&mut input).await {
-            log::error!("Failed to read input: {}", e);
+            log::error!("Failed to read input: {e}");
             return Output::empty();
         }
         input = input.trim().to_string();
@@ -96,8 +96,8 @@ impl Action for SearchNode {
         let result = match self.search(input.trim()).await {
             Ok(Some((content, item_type))) => {
                 println!("\nSearch result:");
-                println!("\nType: {}", item_type);
-                println!("Content:\n{}", content);
+                println!("\nType: {item_type}");
+                println!("Content:\n{content}");
                 format!(
                     "Query: {}\nType: {}\nContent: {}",
                     input.trim(),
@@ -110,7 +110,7 @@ impl Action for SearchNode {
                 input.trim().to_string()
             }
             Err(e) => {
-                eprintln!("Error during search: {}", e);
+                eprintln!("Error during search: {e}");
                 input.trim().to_string()
             }
         };

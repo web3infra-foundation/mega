@@ -23,7 +23,7 @@ fn unpack_crate_file_to_current_dir(crate_file_path: &Path) -> io::Result<()> {
         .parent()
         .ok_or_else(|| io::Error::other("Cannot get parent directory of the crate file"))?;
 
-    println!("Unpacking to: {:?}", target_dir);
+    println!("Unpacking to: {target_dir:?}");
 
     let tar_gz = File::open(crate_file_path)?;
     let decompressed = GzDecoder::new(tar_gz);
@@ -53,7 +53,7 @@ impl CodeIndexer {
 
     async fn walk_space(&self, crate_entry: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
         // Print the path of the crate file being processed
-        println!("Processing crate file: {:?}", crate_entry);
+        println!("Processing crate file: {crate_entry:?}");
 
         // Verify the crate file exists before proceeding
         assert!(crate_entry.exists());
@@ -77,7 +77,7 @@ impl CodeIndexer {
         let unpacked_dir = parent_dir.join(dir_name);
 
         // Print the path of the unpacked directory we'll process
-        println!("Processing unpacked directory: {:?}", unpacked_dir);
+        println!("Processing unpacked directory: {unpacked_dir:?}");
 
         // Step 5: Recursively walk through the unpacked directory to process files
         self.walk_dir(&unpacked_dir, items).await?;
@@ -91,7 +91,7 @@ impl CodeIndexer {
         let mut entries = fs::read_dir(&crate_path).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            println!("Found path: {:?}", path);
+            println!("Found path: {path:?}");
 
             if path.is_dir() {
                 // Skip target and .git directories
@@ -101,7 +101,7 @@ impl CodeIndexer {
                     .map(|n| n == "target" || n == ".git")
                     .unwrap_or(false)
                 {
-                    println!("Skipping directory: {:?}", path);
+                    println!("Skipping directory: {path:?}");
                     continue;
                 }
                 Box::pin(self.walk_dir(&path, items)).await?;
@@ -111,7 +111,7 @@ impl CodeIndexer {
                 .map(|ext| ext == "rs")
                 .unwrap_or(false)
             {
-                println!("Processing Rust file: {:?}", path);
+                println!("Processing Rust file: {path:?}");
                 self.process_rust_file(&path, items).await?;
             }
         }
@@ -119,15 +119,15 @@ impl CodeIndexer {
     }
 
     async fn process_rust_file(&self, file_path: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
-        println!("Processing file: {:?}", file_path);
+        println!("Processing file: {file_path:?}");
         let content = fs::read_to_string(file_path)
             .await
-            .with_context(|| format!("Failed to read file: {:?}", file_path))?;
+            .with_context(|| format!("Failed to read file: {file_path:?}"))?;
 
         let ast = match parse_file(&content) {
             Ok(ast) => ast,
             Err(e) => {
-                eprintln!("[解析错误] {:?}: {}，跳过该文件", file_path, e);
+                eprintln!("[解析错误] {file_path:?}: {e}，跳过该文件");
                 return Ok(());
             }
         };

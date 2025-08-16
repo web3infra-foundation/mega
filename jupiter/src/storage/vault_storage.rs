@@ -22,7 +22,8 @@ impl Deref for VaultStorage {
 impl VaultStorage {
     pub async fn list_keys(&self, prefix: impl AsRef<str>) -> Result<Vec<String>, MegaError> {
         Entity::find()
-            .select_column(Column::Key)
+            .select_only()
+            .column(Column::Key)
             .filter(Column::Key.like(format!("{}%", prefix.as_ref()).as_str()))
             .into_tuple::<String>()
             .all(self.get_connection())

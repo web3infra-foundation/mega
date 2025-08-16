@@ -9,7 +9,6 @@ common = { workspace = true}
 
 tracing = { workspace = true }
 serde_json = { workspace = true }
-go-defer = { workspace = true }
 openssl = { workspace = true }
 hex = { workspace = true }
 bs58 = { workspace = true }
@@ -22,7 +21,7 @@ smallvec = { workspace = true }
 
 [dependencies.rusty_vault]
 git = "https://github.com/Tongsuo-Project/RustyVault"
-tag = "v0.2.2"
+# tag = "v0.3.0"
 features = ["sync_handler"]
 
 [dev-dependencies]

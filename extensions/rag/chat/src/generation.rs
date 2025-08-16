@@ -59,12 +59,12 @@ impl GenerationNode {
         let file = match File::create(file_path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("Failed to create file {}: {}", file_path, e);
+                eprintln!("Failed to create file {file_path}: {e}");
                 return Err(GenError::Io(e));
             }
         };
         if let Err(e) = serde_json::to_writer(file, &body) {
-            eprintln!("Failed to write JSON data to file {}: {}", file_path, e);
+            eprintln!("Failed to write JSON data to file {file_path}: {e}");
             return Err(GenError::Json(e));
         }
 
@@ -75,7 +75,7 @@ impl GenerationNode {
         {
             Some(content) => content,
             None => {
-                eprintln!("Failed to extract 'content' from JSON response: {:?}", body);
+                eprintln!("Failed to extract 'content' from JSON response: {body:?}");
                 return Err(GenError::Json(serde_json::Error::custom(
                     "Missing or invalid 'content' in JSON response",
                 )));
@@ -103,8 +103,8 @@ impl Action for GenerationNode {
             let context: &String = content.get().unwrap();
             let message = self.generate(context).await;
             match message {
-                Ok(msg) => println!("{}", msg),
-                Err(e) => eprintln!("Generation error: {}", e),
+                Ok(msg) => println!("{msg}"),
+                Err(e) => eprintln!("Generation error: {e}"),
             }
         }
 
