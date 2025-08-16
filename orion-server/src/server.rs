@@ -21,6 +21,7 @@ use utoipa_swagger_ui::SwaggerUi;
         api::task_output_handler,
         api::task_output_segment_handler,
         api::task_query_by_mr,
+        api::tasks_handler,
     ),
     components(
         schemas(
@@ -28,7 +29,8 @@ use utoipa_swagger_ui::SwaggerUi;
             crate::scheduler::LogSegment,
             api::TaskStatus,
             api::TaskStatusEnum,
-            api::BuildDTO
+            api::BuildDTO,
+            api::TaskInfoDTO
         )
     ),
     tags(
