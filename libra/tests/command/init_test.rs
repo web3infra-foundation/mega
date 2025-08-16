@@ -32,6 +32,7 @@ async fn test_init() {
         initial_branch: None,
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -46,6 +47,119 @@ async fn test_init() {
 
 #[tokio::test]
 #[serial]
+/// Test the init function with a template directory
+async fn test_init_template() {
+    use std::fs;
+    use tempfile::tempdir;
+
+    // Create a temporary target directory for the new repo
+    let target_dir = tempdir().unwrap().keep();
+
+    // Create a temporary template directory
+    let template_dir = tempdir().unwrap();
+
+    // Set up template structure similar to Git template
+    fs::create_dir_all(template_dir.path().join("objects/pack")).unwrap();
+    fs::create_dir_all(template_dir.path().join("objects/info")).unwrap();
+    fs::create_dir_all(template_dir.path().join("info")).unwrap();
+
+    // Add description file in the template
+    fs::write(
+        template_dir.path().join("description"),
+        "Template repository",
+    )
+    .unwrap();
+
+    // Add info/exclude file in the template
+    fs::write(template_dir.path().join("info/exclude"), "").unwrap();
+
+    // Prepare init arguments with template path
+    let args = InitArgs {
+        bare: false,
+        initial_branch: None,
+        repo_directory: target_dir.to_str().unwrap().to_string(),
+        quiet: false,
+        template: Some(template_dir.path().to_str().unwrap().to_string()),
+    };
+
+    // Run the init function
+    init(args).await.unwrap();
+
+    // Verify that the `.libra` directory exists
+    let libra_dir = target_dir.join(".libra");
+    assert!(libra_dir.exists(), ".libra directory does not exist");
+
+    // Verify the repository initialization structure
+    verify_init(libra_dir.as_path());
+
+    // --- Additional checks for template contents ---
+
+    // Verify that description file is copied from template
+    let description_path = libra_dir.join("description");
+    assert!(
+        description_path.exists(),
+        "Template description file not copied"
+    );
+
+    // Verify that info/exclude file is copied from template
+    let exclude_path = libra_dir.join("info/exclude");
+    assert!(
+        exclude_path.exists(),
+        "Template info/exclude file not copied"
+    );
+
+    // Verify that objects subdirectories are copied from template
+    assert!(
+        libra_dir.join("objects/pack").exists(),
+        "Template objects/pack directory not copied"
+    );
+    assert!(
+        libra_dir.join("objects/info").exists(),
+        "Template objects/info directory not copied"
+    );
+}
+
+
+#[tokio::test]
+#[serial]
+/// Test the init function with an invalid template path
+async fn test_init_with_invalid_template_path() {
+    use tempfile::tempdir;
+
+    // Create a temporary target directory for the new repo
+    let target_dir = tempdir().unwrap().keep();
+
+    // Provide a non-existent template path
+    let invalid_template_path = "/path/to/nonexistent/template";
+
+    let args = InitArgs {
+        bare: false,
+        initial_branch: None,
+        repo_directory: target_dir.to_str().unwrap().to_string(),
+        quiet: false,
+        template: Some(invalid_template_path.to_string()),
+    };
+
+    // Run the init function and expect it to return an error
+    let result = init(args).await;
+
+    // Verify that the function returns an error due to invalid template path
+    assert!(
+        result.is_err(),
+        "Init should fail when template path does not exist"
+    );
+
+    // Optionally, verify the error kind/message if your init function provides it
+    if let Err(err) = result {
+        // Uncomment and adjust depending on your error type
+        // assert_eq!(err.kind(), Some(ExpectedErrorKind::NotFound));
+        println!("Received expected error: {:?}", err);
+    }
+}
+
+
+#[tokio::test]
+#[serial]
 /// Test the init function with the --bare flag
 async fn test_init_bare() {
     let target_dir = tempdir().unwrap().keep();
@@ -57,6 +171,7 @@ async fn test_init_bare() {
         initial_branch: None,
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -64,6 +179,7 @@ async fn test_init_bare() {
     // Verify the contents of the other directory
     verify_init(target_dir.as_path());
 }
+
 #[tokio::test]
 #[serial]
 /// Test the init function with the --bare flag and an existing repository
@@ -76,6 +192,7 @@ async fn test_init_bare_with_existing_repo() {
         initial_branch: None,
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     init(init_args).await.unwrap(); // Execute init for bare repository
 
@@ -86,6 +203,7 @@ async fn test_init_bare_with_existing_repo() {
             initial_branch: None,
             repo_directory: target_dir.to_str().unwrap().to_string(),
             quiet: false,
+            template: None,
         };
         init(args).await
     };
@@ -110,6 +228,7 @@ async fn test_init_with_initial_branch() {
         initial_branch: Some("main".to_string()),
         repo_directory: temp_path.path().to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -157,6 +276,7 @@ async fn test_invalid_branch_name(branch_name: &str) {
         initial_branch: Some(branch_name.to_string()),
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -180,6 +300,7 @@ async fn test_init_with_directory() {
         initial_branch: None,
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -209,6 +330,7 @@ async fn test_init_with_invalid_directory() {
         initial_branch: None,
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -249,6 +371,7 @@ async fn test_init_with_unauthorized_directory() {
         initial_branch: None,
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
+        template: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -272,6 +395,7 @@ async fn test_init_quiet() {
         initial_branch: None,
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: true,
+        template: None,
     };
     // Run the init function
     init(args).await.unwrap();
