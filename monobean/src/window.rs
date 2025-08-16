@@ -21,7 +21,6 @@ use gtk::prelude::{ButtonExt, GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 
-
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
         @extends gtk::Widget, gtk::Window, adw::ApplicationWindow,
@@ -293,10 +292,11 @@ impl MonobeanWindow {
                 imp.mega_popup.replace(Some(popup));
             }
         ));
-        
-        // mega status bar show 
-        // todo here produce tons of log ,need to adjust logic of generate log 
-        let monobean_application:MonobeanApplication = self.application().unwrap().downcast().unwrap();
+
+        // mega status bar show
+        // todo here produce tons of log ,need to adjust logic of generate log
+        let monobean_application: MonobeanApplication =
+            self.application().unwrap().downcast().unwrap();
         CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
             loop {
                 let rx = monobean_application.core_status();
@@ -312,10 +312,7 @@ impl MonobeanWindow {
                 }
                 glib::timeout_future(std::time::Duration::from_secs(5)).await;
             }
-            
         });
-        
-        
     }
 
     pub fn add_toast(&self, message: String) {

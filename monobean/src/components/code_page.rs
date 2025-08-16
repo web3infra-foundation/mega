@@ -5,6 +5,7 @@ use crate::CONTEXT;
 use adw::gdk;
 use adw::gio::ListStore;
 use async_channel::Sender;
+use chrono::{DateTime, Utc};
 use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -12,11 +13,10 @@ use gtk::{glib, CompositeTemplate, Label, ListItem, SignalListItemFactory, Singl
 use scv::{prelude::*, Buffer};
 use std::path::{Path, PathBuf};
 use tokio::sync::oneshot;
-use chrono::{DateTime, Utc};
 
 mod imp {
     use adw::subclass::prelude::BinImpl;
-    use tokio::sync::{OnceCell};
+    use tokio::sync::OnceCell;
 
     use crate::components::file_tree::FileTreeView;
 
@@ -114,8 +114,9 @@ impl CodePage {
     fn setup_history_list(&self) {
         let imp = self.imp();
         let file_path = imp.cur_file_path.read().unwrap().clone();
+        tracing::info!("file_path: {:?}", file_path);
         let sender = imp.sender.get().unwrap().clone();
-        
+
         //init list view
         let list_view = self.imp().history_listview.clone();
         let store = ListStore::new::<HistoryItem>();
@@ -149,47 +150,58 @@ impl CodePage {
         list_view.set_model(Some(&selection_model));
         list_view.set_factory(Some(&factory));
 
+        if file_path.as_os_str().is_empty() {
+            store.append(&HistoryItem::new("", "", "尚未打开文件"));
+            return;
+        }
+
         // get list view content
         let sender_clone = sender.clone();
         let file_path_clone = file_path.to_str().unwrap().to_string();
         CONTEXT.spawn_local(clone!(
-            #[weak] store,
-            async move{
+            #[weak]
+            store,
+            async move {
                 let (tx, rx) = oneshot::channel();
                 sender_clone
-                    .send(Action::MegaCore(MegaCommands::
-                        GetPathHistory {
-                            chan: tx,
-                            path: file_path_clone
-                        }))
+                    .send(Action::MegaCore(MegaCommands::GetPathHistory {
+                        chan: tx,
+                        path: file_path_clone,
+                    }))
                     .await
                     .unwrap();
 
                 match rx.await.unwrap() {
-                    Ok(commits)=>{
+                    Ok(commits) => {
                         //tracing::debug!("Received commit history{:?}",commits);
                         store.remove_all();
                         for commit in commits {
-                            let  full_message = commit.message;
+                            let full_message = commit.message;
                             let parts: Vec<&str> = full_message.split("\n\n").collect();
                             let main_message = parts.last().unwrap_or(&"");
-                            store.append(&HistoryItem::new(&commit.id._to_string(),&commit.tree_id.to_string(),&format!(
-                                "Commit:{}\nAuthor: {}\n message: {}  Date: {}",
-                                commit.id.to_string(),
-                                commit.author.name,
-                                main_message,
-                                //commit.committer.timestamp.to_string()
-                                 DateTime::<Utc>::from_timestamp(commit.committer.timestamp as i64, 0)
-                                  .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                                  .unwrap_or_else(|| "Invalid Date".to_string())
-                            )));
+                            store.append(&HistoryItem::new(
+                                &commit.id._to_string(),
+                                &commit.tree_id.to_string(),
+                                &format!(
+                                    "Commit:{}\nAuthor: {}\n message: {}  Date: {}",
+                                    commit.id,
+                                    commit.author.name,
+                                    main_message,
+                                    //commit.committer.timestamp.to_string()
+                                    DateTime::<Utc>::from_timestamp(
+                                        commit.committer.timestamp as i64,
+                                        0
+                                    )
+                                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                                    .unwrap_or_else(|| "Invalid Date".to_string())
+                                ),
+                            ));
                         }
                     }
-                    Err(e)=>{
+                    Err(e) => {
                         tracing::error!("get history commits error: {:?}", e);
                         return;
                     }
-
                 }
             }
         ));
@@ -202,7 +214,6 @@ impl CodePage {
             selection_model_clone.set_selected(pos);
             if let Some(item) = selection_model_clone.item(pos) {
                 if let Ok(history_item) = item.downcast::<HistoryItem>() {
-
                     let tree_id = history_item.tree_id();
                     let file_path_clone = file_path.to_str().unwrap().to_string();
                     let sender = sender_clone.clone();
@@ -215,13 +226,14 @@ impl CodePage {
                                 chan: tx,
                                 tree_id,
                                 path: file_path_clone.clone(),
-                            })).await.unwrap();
+                            }))
+                            .await
+                            .unwrap();
 
                         match rx.await {
                             Ok(Ok(blob_id)) => {
                                 let path = PathBuf::from(file_path_clone);
                                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                                    // 升级弱引用
                                     if let Some(page) = page_weak.upgrade() {
                                         page.show_editor_on(blob_id, file_name.to_string(), path);
                                     } else {
@@ -239,15 +251,9 @@ impl CodePage {
                             }
                         }
                     });
-
                 }
             }
         });
-
-
-
-
-
     }
 
     // sidebar button
@@ -280,7 +286,7 @@ impl CodePage {
         let history_btn = imp.history_btn.get();
         let history_popover = imp.history_popover.get();
 
-        // set Popover 
+        // set Popover
         history_popover.set_position(gtk::PositionType::Left);
         history_popover.set_has_arrow(false);
         history_popover.set_parent(&history_btn);
@@ -288,7 +294,8 @@ impl CodePage {
 
         //let page_weak = self.downgrade();
         history_btn.connect_clicked(clone!(
-            #[weak(rename_to=page)] self,
+            #[weak(rename_to=page)]
+            self,
             #[weak]
             history_popover,
             move |_| {
@@ -351,12 +358,10 @@ impl CodePage {
             let mut cur_path = imp.cur_file_path.write().unwrap();
             let mut git_path = path.to_string_lossy().replace('\\', "/");
             if !git_path.starts_with('/') {
-                git_path = format!("/{}", git_path);
+                git_path = format!("/{git_path}");
             }
-             *cur_path = git_path.parse().unwrap();
-            
+            *cur_path = git_path.parse().unwrap();
         }
-
 
         imp.file_path_label
             .set_text(&path.to_str().unwrap().replace(['/', '\\'], " > "));

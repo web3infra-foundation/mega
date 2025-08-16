@@ -7,7 +7,6 @@ mod imp {
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
- 
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::HistoryItem)]
@@ -35,7 +34,7 @@ glib::wrapper! {
 }
 
 impl HistoryItem {
-    pub fn new(id: &str,tree_id: &str,text: &str) -> Self {
+    pub fn new(id: &str, tree_id: &str, text: &str) -> Self {
         glib::Object::builder()
             .property("text", text)
             .property("id", id)
