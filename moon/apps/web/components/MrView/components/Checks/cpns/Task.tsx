@@ -7,12 +7,12 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 import { buildId } from '@/components/Issues/utils/store'
 import { TaskResult } from '@/hooks/SSE/useGetMrTask'
 
-import { loadingAtom, Status, statusAtom } from './store'
+import { loadingAtom, Status, statusMapAtom } from './store'
 
 export const mocks = [
   {
     arguments: '--env=prod --force',
-    build_id: 'BUILD_20250813001',
+    build_id: '0198b32b-6ede-7be2-99dc-aee8c7ef358d',
     end_at: '2025-08-13T16:20:00Z',
     exit_code: 0,
     mr: 'MR-125',
@@ -49,29 +49,8 @@ export const Task = ({ list }: { list: TaskResult[] }) => {
   const [extend, setExtend] = useState(false)
   const [_, setBuildId] = useAtom(buildId)
   const [_loading, setLoading] = useAtom(loadingAtom)
-  const [status] = useAtom(statusAtom)
 
   list = mocks
-
-  const handleClick = (build_id: string) => {
-    // 此处建立连接
-    setLoading(true)
-    setBuildId(build_id)
-    // if (eventSourcesRef.current[build_id]) return
-    // setEventSource(build_id)
-  }
-
-  const identifyStatus = (status: string) => {
-    switch (status) {
-      case Status.Success:
-        return <CheckIcon size={14} className='text-[#1a7f37]' />
-      case Status.Fail:
-        return <XIcon size={14} className='text-[#d53d46]' />
-
-      default:
-        return <LoadingSpinner />
-    }
-  }
 
   return (
     <>
@@ -89,17 +68,53 @@ export const Task = ({ list }: { list: TaskResult[] }) => {
       {!extend && list && (
         <div className='fz-[14px] border-b pl-4 font-medium text-[#0969da]'>
           {list.map((i) => (
-            <div
-              onClick={() => handleClick(i.build_id)}
-              className='!fz-[14px] flex !h-[37px] items-center gap-2'
-              key={i.build_id}
-            >
-              {identifyStatus(status[i.build_id])}
-              <span className='cursor-pointer hover:text-[#1f2328]'>{i.mr}</span>
-            </div>
+            <TaskItem key={i.build_id} task={i} />
           ))}
         </div>
       )}
     </>
   )
+}
+
+export const TaskItem = ({ task }: { task: TaskResult }) => {
+  const [_loading, setLoading] = useAtom(loadingAtom)
+  const [statusMap] = useAtom(statusMapAtom)
+
+  const [_, setBuildId] = useAtom(buildId)
+  const handleClick = (build_id: string) => {
+    // 此处建立连接
+    setLoading(true)
+    setBuildId(build_id)
+    // if (eventSourcesRef.current[build_id]) return
+    // setEventSource(build_id)
+  }
+
+  return (
+    <>
+      <div
+        onClick={() => handleClick(task.build_id)}
+        className='!fz-[14px] flex !h-[37px] items-center gap-2'
+        key={task.build_id}
+      >
+        {identifyStatus(statusMap.get(task.build_id)?.status || Status.NotFound)}
+        <span className='cursor-pointer hover:text-[#1f2328]'>{task.mr}</span>
+      </div>
+    </>
+  )
+}
+
+export const identifyStatus = (status: Status[keyof Status]) => {
+  switch (status) {
+    case Status.Completed:
+      return <CheckIcon size={14} className='text-[#1a7f37]' />
+    case Status.Failed:
+      return <XIcon size={14} className='text-[#d53d46]' />
+    case Status.Building:
+      return <LoadingSpinner />
+    case Status.Pending:
+      return <LoadingSpinner />
+
+    default:
+      return <XIcon size={14} className='text-[#d53d46]' />
+  }
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchTask } from './useRequest'
+import { fetchTask } from './ssmRequest'
 
 export interface TaskResult {
   arguments: string
@@ -18,5 +18,8 @@ export function useGetMrTask(mr: string) {
   return useQuery<TaskResult[], Error>({
     queryKey: [mr],
     queryFn: () => fetchTask(mr)
+    // refetchInterval: 15000,
+    // refetchIntervalInBackground: true,
+    // enabled: !!mr
   })
 }

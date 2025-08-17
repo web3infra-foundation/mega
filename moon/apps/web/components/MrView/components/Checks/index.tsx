@@ -6,9 +6,10 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
 import { buildId } from '@/components/Issues/utils/store'
 import { TaskResult, useGetMrTask } from '@/hooks/SSE/useGetMrTask'
+import { useGetMrTaskStatus } from '@/hooks/SSE/useGetMrTaskStatus'
 
 import { useTaskSSE } from '../../hook/useSSM'
-import { loadingAtom } from './cpns/store'
+import { loadingAtom, statusMapAtom } from './cpns/store'
 import { mocks, Task } from './cpns/Task'
 
 const Checks = ({ mr }: { mr: string }) => {
@@ -16,6 +17,15 @@ const Checks = ({ mr }: { mr: string }) => {
   const [buildid, setBuildId] = useAtom(buildId)
   const { logsMap, setEventSource } = useTaskSSE()
   const [loading] = useAtom(loadingAtom)
+  const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
+  const { data: status } = useGetMrTaskStatus(mr)
+
+  useEffect(() => {
+    status &&
+      status.map((i) => {
+        statusMap.set(i.build_id, i)
+      })
+  }, [status, statusMap])
 
   // 页面加载时建立连接
   useEffect(() => {

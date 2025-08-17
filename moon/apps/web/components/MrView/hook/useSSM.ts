@@ -38,8 +38,8 @@ export const useTaskSSE = () => {
   const [_status, setStatus] = useAtom(statusAtom)
 
   const setEventSource: (taskId: string) => void = (taskId: string) => {
-    // const es = new EventSource(`/sse/task-output/${taskId}`)
-    const es = new EventSource(`/api/event?id=${taskId}`)
+    const es = new EventSource(`/sse/task-output/${taskId}`)
+    // const es = new EventSource(`/api/event?id=${taskId}`)
 
     es.onmessage = (e) => {
       setLogsMap((prev) => {
