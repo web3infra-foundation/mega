@@ -5,11 +5,24 @@ import {usePostTokenGenerate} from '@/hooks/usePostTokenGenerate'
 import {useDeleteTokenById} from '@/hooks/useDeleteTokenById'
 import {useQueryClient} from '@tanstack/react-query'
 import {legacyApiClient} from '@/utils/queryClient'
-import {ListToken} from '@gitmono/types'
+import {CurrentUser, ListToken} from '@gitmono/types'
 import toast from "react-hot-toast";
 import HandleTime from "@/components/MrView/components/HandleTime";
+import {useGetCurrentUser} from "@/hooks/useGetCurrentUser";
 
-const TokenItem = ({item}: { item: ListToken }) => {
+const UserCard = ({user}: {user: CurrentUser}) => {
+  return (
+    <div className='flex items-center gap-2 text-sm mt-1'>
+      <span className='text-sm font-semibold'>{user.display_name}</span>
+      <span className='ml-1 text-xs text-gray-500'>{user.username}</span>
+    </div>
+  )
+}
+
+const TokenItem = ({item, user}: { 
+  item: ListToken
+  user: CurrentUser
+}) => {
   const {mutate: deleteToken} = useDeleteTokenById()
   const queryClient = useQueryClient()
   const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
@@ -21,6 +34,7 @@ const TokenItem = ({item}: { item: ListToken }) => {
         <div className="ml-4">
           <p className="text-base font-bold text-gray-900">Token #{item.id}</p>
           <p className="text-sm font-mono text-gray-500 mt-1 break-all">{item.token}</p>
+          <UserCard user={user} />
           <p className="text-xs text-gray-500 mt-2">
             <HandleTime created_at={item.created_at}/>
           </p>
@@ -53,6 +67,7 @@ const PersonalToken = () => {
 
   const [generated, setGenerated] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { data: currentUser, isLoading: isUserLoading } = useGetCurrentUser()
 
   const handleGenerate = () => {
     generateToken(undefined, {
@@ -65,16 +80,18 @@ const PersonalToken = () => {
 
   const handleCopy = async () => {
     if (!generated) return
+    const copyText = `${generated}\n\n@${currentUser?.username}`
+
     if (navigator.clipboard) {
       await navigator.clipboard
-        .writeText(generated)
+        .writeText(copyText)
         .then(() => toast.success("Copied to clipboard"))
         .catch(() => toast.error("Copied failed"))
     } else {
       const textArea = document
         .createElement('textarea')
 
-      textArea.value = generated
+      textArea.value = copyText
       document.body.appendChild(textArea)
       textArea.select()
       try {
@@ -127,14 +144,14 @@ const PersonalToken = () => {
 
       <section>
         <h2 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200">Tokens</h2>
-        {isLoading ? (
+        {(isLoading || isUserLoading) ? (
           <div className="flex h-[400px] items-center justify-center">
             <LoadingSpinner/>
           </div>
         ) : (
           <div>
-            {tokenList.map((item) => (
-              <TokenItem key={item.id} item={item}/>
+            {currentUser && tokenList.map((item) => (
+              <TokenItem key={item.id} item={item} user={currentUser}/>
             ))}
           </div>
         )}
