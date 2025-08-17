@@ -3045,6 +3045,18 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
+export type CommonPageDiffItem = {
+  items: {
+    data: string
+    path: string
+  }[]
+  /**
+   * @format int64
+   * @min 0
+   */
+  total: number
+}
+
 export type CommonResultCommonPageItemRes = {
   data?: {
     items: {
@@ -3098,8 +3110,17 @@ export type CommonResultCommonPageLabelItem = {
 
 export type CommonResultFilesChangedList = {
   data?: {
-    content: string
+    content: DiffItem[]
     mui_trees: MuiTreeNode[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultFilesChangedPage = {
+  data?: {
+    mui_trees: MuiTreeNode[]
+    page: CommonPageDiffItem
   }
   err_message: string
   req_result: boolean
@@ -3286,6 +3307,11 @@ export type CreateFileInfo = {
   path: string
 }
 
+export type DiffItem = {
+  data: string
+  path: string
+}
+
 export type FileTreeItem = {
   /** @min 0 */
   total_count: number
@@ -3293,8 +3319,13 @@ export type FileTreeItem = {
 }
 
 export type FilesChangedList = {
-  content: string
+  content: DiffItem[]
   mui_trees: MuiTreeNode[]
+}
+
+export type FilesChangedPage = {
+  mui_trees: MuiTreeNode[]
+  page: CommonPageDiffItem
 }
 
 export type IssueDetailRes = {
@@ -4722,6 +4753,8 @@ export type PostApiMrCommentData = CommonResultString
 export type GetApiMrDetailData = CommonResultMRDetailRes
 
 export type GetApiMrFilesChangedData = CommonResultFilesChangedList
+
+export type PostApiMrFilesChangedData = CommonResultFilesChangedPage
 
 export type GetApiMrFilesListData = CommonResultVecMrFilesRes
 
@@ -13701,7 +13734,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      *
      * @tags merge_request
      * @name GetApiMrFilesChanged
-     * @summary Get Merge Request file changed list
+     * @summary Get List of All Changed Files in Merge Request
      * @request GET:/api/v1/mr/{link}/files-changed
      */
     getApiMrFilesChanged: () => {
@@ -13714,6 +13747,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           this.request<GetApiMrFilesChangedData>({
             path: `/api/v1/mr/${link}/files-changed`,
             method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrFilesChanged
+     * @summary Get Merge Request file changed list in Pagination
+     * @request POST:/api/v1/mr/{link}/files-changed
+     */
+    postApiMrFilesChanged: () => {
+      const base = 'POST:/api/v1/mr/{link}/files-changed' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrFilesChangedData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrFilesChangedData>([base, link]),
+        request: (link: string, data: PageParamsString, params: RequestParams = {}) =>
+          this.request<PostApiMrFilesChangedData>({
+            path: `/api/v1/mr/${link}/files-changed`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
             ...params
           })
       }

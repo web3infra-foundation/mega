@@ -77,7 +77,6 @@ pub struct PageParams<T> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
-
 pub struct CommonPage<T> {
     pub total: u64,
     pub items: Vec<T>,

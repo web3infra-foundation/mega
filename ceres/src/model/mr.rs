@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use mercury::hash::SHA1;
 
@@ -29,19 +28,6 @@ impl MrDiffFile {
             MrDiffFile::Modified(_, _, _) => 2,
         }
     }
-}
-
-#[derive(Debug, ToSchema, Serialize, Deserialize)]
-pub struct MrDiff {
-    pub data: String,
-    pub page_info: Option<MrPageInfo>,
-}
-
-#[derive(Debug, ToSchema, Serialize, Deserialize)]
-pub struct MrPageInfo {
-    pub total_pages: usize,
-    pub current_page: usize,
-    pub page_size: usize,
 }
 
 #[derive(Serialize)]
