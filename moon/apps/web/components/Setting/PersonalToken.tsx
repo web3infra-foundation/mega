@@ -144,14 +144,14 @@ const PersonalToken = () => {
 
       <section>
         <h2 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200">Tokens</h2>
-        {(isLoading && isUserLoading) ? (
+        {(isLoading || isUserLoading) ? (
           <div className="flex h-[400px] items-center justify-center">
             <LoadingSpinner/>
           </div>
         ) : (
           <div>
-            {tokenList.map((item) => (
-              <TokenItem key={item.id} item={item} user={currentUser!}/>
+            {currentUser && tokenList.map((item) => (
+              <TokenItem key={item.id} item={item} user={currentUser}/>
             ))}
           </div>
         )}
