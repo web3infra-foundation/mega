@@ -60,7 +60,7 @@ use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
-use crate::model::mr::{MrDiff, MrDiffFile, MrPageInfo};
+use crate::model::mr::MrDiffFile;
 
 
 #[derive(Clone)]
