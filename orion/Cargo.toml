@@ -14,7 +14,7 @@ futures-util = { workspace = true }
 dashmap = { workspace = true }
 once_cell = { workspace = true }
 dotenvy = { workspace = true }
-tokio-tungstenite = { workspace = true }
+tokio-tungstenite = { workspace = true , features = ["native-tls"]}
 tungstenite = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }

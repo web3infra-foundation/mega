@@ -92,7 +92,7 @@ pub fn routers() -> Router<AppState> {
             get(task_output_segment_handler),
         )
         .route("/mr-task/{mr}", get(task_query_by_mr))
-        .route("/tasks", get(tasks_handler))
+        .route("/tasks/{mr}", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
 }
 
@@ -812,6 +812,9 @@ impl TaskInfoDTO {
 #[utoipa::path(
     get,
     path = "/tasks",
+    params(
+        ("mr" = String, Path, description = "MR number to filter tasks by")
+    ),
     responses(
     (status = 200, description = "All tasks with their current status", body = [TaskInfoDTO]),
     (status = 500, description = "Internal error", body = serde_json::Value)
@@ -820,10 +823,11 @@ impl TaskInfoDTO {
 /// Return all tasks with their current status (combining /mr-task and /task-status logic)
 pub async fn tasks_handler(
     State(state): State<AppState>,
+    Path(mr): Path<String>,
 ) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
     let active_builds = state.scheduler.active_builds.clone();
-    match builds::Entity::find().all(db).await {
+    match builds::Entity::find().filter(builds::Column::Mr.eq(mr)).all(db).await {
         Ok(models) => {
             let tasks: Vec<TaskInfoDTO> = models
                 .into_iter()
