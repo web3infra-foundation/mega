@@ -45,6 +45,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
+
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -53,12 +54,14 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
+
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -191,15 +194,19 @@ impl ApiHandler for MonoApiService {
         }
     }
 
-    async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
+    async fn get_tree_relate_commit(&self, t_hash: SHA1, _: PathBuf) -> Result<Commit, GitError> {
         let storage = self.storage.mono_storage();
-        let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
-        storage
+        let tree_info = storage
+            .get_tree_by_hash(&t_hash.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        Ok(storage
             .get_commit_by_hash(&tree_info.commit_id)
             .await
             .unwrap()
             .unwrap()
-            .into()
+            .into())
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -493,6 +500,7 @@ impl MonoApiService {
             }
         }
 
+
         if !failed_hashes.is_empty() {
             tracing::warn!(
                 "Failed to fetch {} blob(s): {:?}",
@@ -523,6 +531,7 @@ impl MonoApiService {
         .await;
 
         Ok(diff_output)
+
     }
 
     fn collect_page_blobs(
@@ -629,6 +638,7 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
+
     use crate::model::mr::MrDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;
