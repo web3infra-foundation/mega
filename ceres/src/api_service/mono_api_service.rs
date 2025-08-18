@@ -635,7 +635,7 @@ impl MonoApiService {
 mod test {
     use super::*;
 
-    use crate::model::mr::{MrDiffFile, MrPageInfo};
+    use crate::model::mr::MrDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;
