@@ -5,6 +5,7 @@ use crate::CONTEXT;
 use adw::gdk;
 use adw::gio::ListStore;
 use async_channel::Sender;
+use chrono::{DateTime, Utc};
 use glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -52,6 +53,9 @@ mod imp {
         #[template_child(id = "history_listview")]
         pub history_listview: TemplateChild<gtk::ListView>,
 
+        pub cur_file_path: std::sync::RwLock<PathBuf>,
+        pub history_selection_signal: std::sync::RwLock<Option<glib::SignalHandlerId>>,
+        pub history_store: std::sync::RwLock<Option<glib::WeakRef<ListStore>>>,
         pub sender: OnceCell<Sender<Action>>,
     }
 
@@ -111,16 +115,12 @@ impl CodePage {
     }
 
     fn setup_history_list(&self) {
+        let imp = self.imp();
         let list_view = self.imp().history_listview.clone();
 
-        // 创建数据模型
+        // 初始化列表视图组件
         let store = ListStore::new::<HistoryItem>();
-
-        for i in 1..=20 {
-            store.append(&HistoryItem::new(&format!("commit信息 \n 提交人:{i}, sha")));
-        }
-        let selection_model = SingleSelection::new(Some(store));
-
+        let selection_model = SingleSelection::new(Some(store.clone()));
         let factory = SignalListItemFactory::new();
 
         factory.connect_setup(move |_, list_item| {
@@ -146,13 +146,150 @@ impl CodePage {
                 .and_downcast::<Label>()
                 .expect("Child widget must be a Label");
 
-            label.set_label(&obj.text()); // 获取属性
+            label.set_label(&obj.text());
         });
 
         list_view.set_model(Some(&selection_model));
         list_view.set_factory(Some(&factory));
+
+        {
+            let mut store_guard = imp.history_store.write().unwrap();
+            *store_guard = Some(store.downgrade());
+        }
+
+        {
+            let mut signal_guard = imp.history_selection_signal.write().unwrap();
+            if let Some(handler_id) = signal_guard.take() {
+                list_view.disconnect(handler_id);
+            }
+        }
+
+        let selection_model_clone = selection_model.clone();
+        let sender = imp.sender.get().unwrap().clone();
+        let page_weak = self.downgrade();
+
+        let handler_id = list_view.connect_activate(move |_list_view, pos| {
+            tracing::debug!("##############点击了第 {} 项", pos);
+            selection_model_clone.set_selected(pos);
+            if let Some(item) = selection_model_clone.item(pos) {
+                if let Ok(history_item) = item.downcast::<HistoryItem>() {
+                    let tree_id = history_item.tree_id();
+                    let file_path = history_item.file_path();
+                    let sender = sender.clone();
+                    let page_weak = page_weak.clone();
+
+                    CONTEXT.spawn_local(async move {
+                        let (tx, rx) = oneshot::channel();
+                        sender
+                            .send(Action::MegaCore(MegaCommands::GetHistoryBlobId {
+                                chan: tx,
+                                tree_id,
+                                path: file_path.clone(),
+                            }))
+                            .await
+                            .unwrap();
+
+                        match rx.await {
+                            Ok(Ok(blob_id)) => {
+                                let path = PathBuf::from(file_path);
+                                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                                    if let Some(page) = page_weak.upgrade() {
+                                        page.show_editor_on(blob_id, file_name.to_string(), path);
+                                    } else {
+                                        tracing::error!("Failed to upgrade weak reference to page");
+                                    }
+                                } else {
+                                    tracing::error!("Failed to extract file name from path");
+                                }
+                            }
+                            Ok(Err(e)) => {
+                                tracing::error!("Failed to get history blob: {:?}", e);
+                            }
+                            Err(e) => {
+                                tracing::error!("Channel error: {:?}", e);
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        // 保存信号连接ID
+        {
+            let mut signal_guard = imp.history_selection_signal.write().unwrap();
+            *signal_guard = Some(handler_id);
+        }
     }
 
+    fn update_history_list(&self) {
+        let imp = self.imp();
+        let file_path = imp.cur_file_path.read().unwrap().clone();
+        tracing::info!("file_path: {:?}", file_path);
+
+        // 获取store
+        let store_ref = imp.history_store.read().unwrap();
+        let store = store_ref.as_ref().and_then(|weak| weak.upgrade()).unwrap();
+
+        if file_path.as_os_str().is_empty() {
+            store.append(&HistoryItem::new("", "", "", "尚未打开文件"));
+            return;
+        }
+
+        // 获取列表视图内容
+        let sender = imp.sender.get().unwrap().clone();
+        let sender_clone = sender.clone();
+        let file_path_clone = file_path.to_str().unwrap().to_string();
+        CONTEXT.spawn_local(clone!(
+            #[weak]
+            store,
+            async move {
+                let (tx, rx) = oneshot::channel();
+                sender_clone
+                    .send(Action::MegaCore(MegaCommands::GetPathHistory {
+                        chan: tx,
+                        path: file_path_clone.clone(),
+                    }))
+                    .await
+                    .unwrap();
+
+                match rx.await.unwrap() {
+                    Ok(commits) => {
+                        //tracing::debug!("Received commit history{:?}",commits);
+                        store.remove_all();
+                        for commit in commits {
+                            let full_message = commit.message;
+                            let parts: Vec<&str> = full_message.split("\n\n").collect();
+                            let main_message = parts.last().unwrap_or(&"");
+                            store.append(&HistoryItem::new(
+                                &commit.id._to_string(),
+                                &commit.tree_id.to_string(),
+                                &file_path_clone,
+                                &format!(
+                                    "Commit:{}\nAuthor: {}\n message: {}  Date: {}",
+                                    commit.id,
+                                    commit.author.name,
+                                    main_message,
+                                    //commit.committer.timestamp.to_string()
+                                    DateTime::<Utc>::from_timestamp(
+                                        commit.committer.timestamp as i64,
+                                        0
+                                    )
+                                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                                    .unwrap_or_else(|| "Invalid Date".to_string())
+                                ),
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("get history commits error: {:?}", e);
+                        return;
+                    }
+                }
+            }
+        ));
+    }
+
+    // sidebar button
     fn setup_button(&self) {
         let imp = self.imp();
 
@@ -182,20 +319,23 @@ impl CodePage {
         let history_btn = imp.history_btn.get();
         let history_popover = imp.history_popover.get();
 
-        // 设置 Popover 在按钮左侧弹出
+        // set Popover
         history_popover.set_position(gtk::PositionType::Left);
         history_popover.set_has_arrow(false);
         history_popover.set_parent(&history_btn);
-        history_popover.set_autohide(false);
+        history_popover.set_autohide(true);
 
-        // 按钮点击处理 - 确保位置正确
+        //let page_weak = self.downgrade();
         history_btn.connect_clicked(clone!(
+            #[weak(rename_to=page)]
+            self,
             #[weak]
             history_popover,
             move |_| {
                 if history_popover.is_visible() {
                     history_popover.popdown();
                 } else {
+                    page.update_history_list();
                     let rect = gdk::Rectangle::new(-5, 200, 100, 30);
 
                     history_popover.set_pointing_to(Some(&rect));
@@ -244,6 +384,18 @@ impl CodePage {
 
     pub fn show_editor_on(&self, hash: String, name: String, path: PathBuf) {
         let imp = self.imp();
+
+        tracing::debug!("show_editor_on: path: {:?}", path);
+
+        {
+            let mut cur_path = imp.cur_file_path.write().unwrap();
+            let mut git_path = path.to_string_lossy().replace('\\', "/");
+            if !git_path.starts_with('/') {
+                git_path = format!("/{git_path}");
+            }
+            *cur_path = git_path.parse().unwrap();
+        }
+
         imp.file_path_label
             .set_text(&path.to_str().unwrap().replace(['/', '\\'], " > "));
 

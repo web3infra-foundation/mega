@@ -12,6 +12,12 @@ mod imp {
     #[properties(wrapper_type = super::HistoryItem)]
     pub struct HistoryItem {
         #[property(get, set)]
+        pub id: RefCell<String>,
+        #[property(get, set)]
+        pub tree_id: RefCell<String>,
+        #[property(get, set)]
+        pub file_path: RefCell<String>,
+        #[property(get, set)]
         pub text: RefCell<String>,
     }
 
@@ -30,7 +36,12 @@ glib::wrapper! {
 }
 
 impl HistoryItem {
-    pub fn new(text: &str) -> Self {
-        glib::Object::builder().property("text", text).build()
+    pub fn new(id: &str, tree_id: &str, file_path: &str, text: &str) -> Self {
+        glib::Object::builder()
+            .property("text", text)
+            .property("id", id)
+            .property("file_path", file_path)
+            .property("tree_id", tree_id)
+            .build()
     }
 }
