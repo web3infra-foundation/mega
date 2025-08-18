@@ -132,10 +132,10 @@ const PersonalToken = () => {
         <div className="mb-8 p-4 border border-green-200 rounded-md bg-green-50">
           <p className="text-sm text-gray-700">Your new token has been generated.</p>
           <div className="mt-2 flex-col items-center">
-            <span className="text-sm text-gray-700">Token:</span>
-            <CopySpace copyText={generated}/>
             <span className="text-sm text-gray-700">Username:</span>
             <CopySpace copyText={currentUser.username} />
+            <span className="text-sm text-gray-700">Token:</span>
+            <CopySpace copyText={generated}/>
           </div>
           <p className="text-xs text-gray-500 mt-2">Make sure to copy your new token now. You won’t be able to see it
             again.</p>
