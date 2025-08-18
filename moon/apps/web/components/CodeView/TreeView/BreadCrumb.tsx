@@ -20,7 +20,7 @@ const Breadcrumb = ({ path }:any) => {
   });
 
     return (
-      <div className='flex items-center overflow-x-auto p-2 no-scrollbar mt-2'>
+      <div className='flex items-center overflow-x-auto p-3 no-scrollbar'>
 
         {breadCrumbItems?.map((item: { isLast: any; title: string; href: string | UrlObject; }, index: number) => (
         <React.Fragment key={item.title}>
@@ -37,7 +37,7 @@ const Breadcrumb = ({ path }:any) => {
           ) : (
             // middle item
             <Link href={item?.href} >
-              <BreadcrumbLabel className="ml-1">{item?.title}</BreadcrumbLabel>
+              <BreadcrumbLabel>{item?.title}</BreadcrumbLabel>
             </Link>
           )}
         </React.Fragment>
