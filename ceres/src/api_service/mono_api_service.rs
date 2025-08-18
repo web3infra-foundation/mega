@@ -45,6 +45,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
+
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -53,12 +54,14 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
+
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -497,6 +500,7 @@ impl MonoApiService {
             }
         }
 
+
         if !failed_hashes.is_empty() {
             tracing::warn!(
                 "Failed to fetch {} blob(s): {:?}",
@@ -527,6 +531,7 @@ impl MonoApiService {
         .await;
 
         Ok(diff_output)
+
     }
 
     fn collect_page_blobs(
@@ -633,6 +638,7 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
+
     use crate::model::mr::MrDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;
