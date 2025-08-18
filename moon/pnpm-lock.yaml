@@ -84,6 +84,9 @@ catalogs:
     '@radix-ui/react-accordion':
       specifier: ^1.2.0
       version: 1.2.11
+    '@radix-ui/react-collapsible':
+      specifier: ^1.1.1
+      version: 1.1.11
     '@radix-ui/react-context-menu':
       specifier: ^2.2.1
       version: 2.2.15
@@ -845,6 +848,9 @@ importers:
       '@radix-ui/react-accordion':
         specifier: 'catalog:'
         version: 1.2.11(@types/react-dom@18.2.24)(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@radix-ui/react-collapsible':
+        specifier: 'catalog:'
+        version: 1.1.11(@types/react-dom@18.2.24)(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@radix-ui/react-context-menu':
         specifier: ^2.2.15
         version: 2.2.15(@types/react-dom@18.2.24)(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
