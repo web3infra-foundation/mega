@@ -8,20 +8,21 @@ import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
+import { Theme } from '@radix-ui/themes'
 
 const codeStyle = {
   borderRadius: 8,
   background: '#fff',
   border: '1px solid #d1d9e0',
   margin: '0 8px',
-  // width: 'calc(80% - 8px)'
-  width: '100%'
+  flexGrow: 1,
+  minWidth: 0
 }
 
 const treeStyle = {
   borderRadius: 8,
   overflow: 'hidden',
-  width: 'calc(20% - 8px)',
+  width: '400px',
   background: '#fff'
 }
 
@@ -40,30 +41,28 @@ function BlobPage() {
   }
 
   return (
-    <div style={{ overflow: 'auto' }}>
-      <div className='flex flex-col gap-4'>
-        <div>
+    <Theme>
+      <div className='relative m-4 h-screen overflow-auto'>
           <BreadCrumb path={path} />
-        </div>
-        {/* tree */}
-        <div className='flex'>
-          <div style={treeStyle}>
-            <RepoTree flag={'detail'} />
-          </div>
-
-          <div style={codeStyle}>
-            <div className='m-2'>
-              <CommitHistory flag={'details'} info={commitInfo} />
+          {/* tree */}
+          <div className='flex gap-4'>
+            <div style={treeStyle}>
+              <RepoTree />
             </div>
-            <div className='flex w-full flex-wrap gap-4'>
-              <div style={codeStyle}>
-                <CodeContent fileContent={fileContent} path={path} />
+
+            <div style={codeStyle}>
+              <div className='m-2'>
+                <CommitHistory flag={'details'} info={commitInfo} />
+              </div>
+              <div className='flex w-full flex-wrap gap-4'>
+                <div style={codeStyle}>
+                  <CodeContent fileContent={fileContent} path={path} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
       </div>
-    </div>
+    </Theme>
   )
 }
 
