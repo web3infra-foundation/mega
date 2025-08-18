@@ -36,6 +36,8 @@
         <file compressed="true">icons/scalable/apps/walrus-4.png</file>
         <file compressed="true">icons/scalable/apps/walrus-5.png</file>
         <file compressed="true">icons/scalable/apps/walrus-6.png</file>
+        <file compressed="true">icons/scalable/apps/status-normal-icon.svg</file>
+        <file compressed="true">icons/scalable/apps/link-status-icon.svg</file>
 
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-archive-restore-symbolic.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-arrow-down-symbolic.svg</file>
@@ -71,5 +73,6 @@
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-rss-symbolic.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-css-symbolic.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-json-symbolic.svg</file>
+        
     </gresource>
 </gresources>
