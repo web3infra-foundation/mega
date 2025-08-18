@@ -23,6 +23,10 @@ pub struct InitArgs {
     #[clap(long, required = false)]
     pub bare: bool, // Default is false
 
+    /// directory from which templates will be used
+    #[clap(long = "template", name = "template-directory", required = false)]
+    pub template: Option<String>,
+
     /// Set the initial branch name
     #[clap(short = 'b', long, required = false)]
     pub initial_branch: Option<String>,
@@ -82,6 +86,29 @@ fn is_writable(cur_dir: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Recursively copy the contents of the template directory to the destination directory.
+///
+/// # Behavior
+/// - Directories are created as needed.
+/// - Existing files in `dst` are NOT overwritten.
+/// - Subdirectories are copied recursively.
+fn copy_template(src: &Path, dst: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            fs::create_dir_all(&dest_path)?;
+            copy_template(&entry.path(), &dest_path)?;
+        } else if !dest_path.exists() {
+            // Only copy if the file does not already exist
+            fs::copy(entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
+
 /// Initialize a new Libra repository
 /// This function creates the necessary directories and files for a new Libra repository.
 /// It also sets up the database and the initial configuration.
@@ -127,41 +154,63 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
         }
     }
 
-    // Create .libra & sub-dirs
-    let dirs = ["objects/pack", "objects/info", "info", "hooks"];
+    // ensure root dir exists
+    fs::create_dir_all(&root_dir)?;
+
+    // If a template path is provided, copy the template files to the root directory
+    if let Some(template_path) = &args.template {
+        let template_dir = Path::new(template_path);
+        if template_dir.exists() {
+            copy_template(template_dir, &root_dir)?;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("template directory '{}' does not exist", template_path),
+            ));
+        }
+    } else {
+        // Create info & hooks
+        let dirs = ["info", "hooks"];
+        for dir in dirs {
+            fs::create_dir_all(root_dir.join(dir))?;
+        }
+        // Create info/exclude
+        // `include_str!` includes the file content while compiling
+        fs::write(
+            root_dir.join("info/exclude"),
+            include_str!("../../template/exclude"),
+        )?;
+        // Create .libra/description
+        fs::write(
+            root_dir.join("description"),
+            include_str!("../../template/description"),
+        )?;
+        // Create .libra/hooks/pre-commit.sh
+        fs::write(
+            root_dir.join("hooks").join("pre-commit.sh"),
+            include_str!("../../template/pre-commit.sh"),
+        )?;
+
+        // Set Permission
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::Permissions::from_mode(0o755);
+            fs::set_permissions(root_dir.join("hooks").join("pre-commit.sh"), perms)?;
+        }
+
+        // Create .libra/hooks/pre-commit.ps1
+        fs::write(
+            root_dir.join("hooks").join("pre-commit.ps1"),
+            include_str!("../../template/pre-commit.ps1"),
+        )?;
+    }
+
+    // Complete .libra and sub-directories
+    let dirs = ["objects/pack", "objects/info"];
     for dir in dirs {
         fs::create_dir_all(root_dir.join(dir))?;
     }
-    // Create info/exclude
-    // `include_str!` includes the file content while compiling
-    fs::write(
-        root_dir.join("info/exclude"),
-        include_str!("../../template/exclude"),
-    )?;
-    // Create .libra/description
-    fs::write(
-        root_dir.join("description"),
-        include_str!("../../template/description"),
-    )?;
-    // Create .libra/hooks/pre-commit.sh
-    fs::write(
-        root_dir.join("hooks").join("pre-commit.sh"),
-        include_str!("../../template/pre-commit.sh"),
-    )?;
-
-    // Set Permission
-    #[cfg(not(target_os = "windows"))]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = fs::Permissions::from_mode(0o755);
-        fs::set_permissions(root_dir.join("hooks").join("pre-commit.sh"), perms)?;
-    }
-
-    // Create .libra/hooks/pre-commit.ps1
-    fs::write(
-        root_dir.join("hooks").join("pre-commit.ps1"),
-        include_str!("../../template/pre-commit.ps1"),
-    )?;
 
     // Create database: .libra/libra.db
     let conn;
@@ -206,6 +255,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     Ok(())
 }
+
 /// Initialize the configuration for the Libra repository
 /// This function creates the necessary configuration entries in the database.
 async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
