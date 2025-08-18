@@ -73,35 +73,58 @@
 
 
                     <!-- control visable-->
-                    <child>
-                      <object class="GtkBox" id="search_container">
-                        <property name="orientation">horizontal</property>
-                        <property name="spacing">0</property>
+<!--                    <child>-->
+<!--                      <object class="GtkBox" id="search_container">-->
+<!--                        <property name="orientation">horizontal</property>-->
+<!--                        <property name="spacing">0</property>-->
 
-                        <!-- 搜索框，拉伸 -->
-                        <child>
-                          <object class="GtkSearchEntry" id="search_entry">
-                            <property name="hexpand">true</property>
-                            <property name="placeholder-text">请输入文本</property>
-                          </object>
-                        </child>
+<!--                        &lt;!&ndash; 搜索框，拉伸 &ndash;&gt;-->
+<!--                        <child>-->
+<!--                          <object class="GtkSearchEntry" id="search_entry">-->
+<!--                            <property name="hexpand">true</property>-->
+<!--                            <property name="placeholder-text">请输入文本</property>-->
+<!--                          </object>-->
+<!--                        </child>-->
 
-                        <!-- 搜索按钮 -->
-                        <child>
-                          <object class="GtkButton" id="search_button">
-                            <property name="label">搜索</property>
-                          </object>
-                        </child>
+<!--                        &lt;!&ndash; 搜索按钮 &ndash;&gt;-->
+<!--                        <child>-->
+<!--                          <object class="GtkButton" id="search_button">-->
+<!--                            <property name="label">搜索</property>-->
+<!--                          </object>-->
+<!--                        </child>-->
 
-                      </object>
-                    </child>
+<!--                      </object>-->
+<!--                    </child>-->
 
                   </object>
                 </child>
 
 
                 <child type="title">
-                  <object class="GtkBox"/>
+                  <object class="GtkBox" id="search_container">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">5</property>
+
+                    <child>
+                      <object class="GtkBox" >
+                        <property name="hexpand">true</property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkSearchEntry" id="search_entry">
+                        <property name="hexpand">true</property>
+                        <property name="placeholder-text">请输入文本</property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkBox" >
+                        <property name="hexpand">true</property>
+                      </object>
+                    </child>
+
+                  </object>
                 </child>
 
 
@@ -217,7 +240,7 @@
                                     <property name="spacing">4</property>
 
                                     <child>
-                                      <object class="GtkImage">
+                                      <object class="GtkImage" id="status_icon">
                                         <property name="icon-name">dialog-warning</property>
                                       </object>
                                     </child>
@@ -253,7 +276,7 @@
 
                                 <child>
                                   <object class="GtkImage">
-                                    <property name="icon-name">network-wired-symbolic</property>
+                                    <property name="icon-name">link-status-icon</property>
                                   </object>
                                 </child>
 
