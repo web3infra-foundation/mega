@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use axum::{
@@ -43,7 +44,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title)),
+            .routes(routes!(edit_title))
+            .routes(routes!()),
     )
 }
 
@@ -447,6 +449,28 @@ async fn assignees(
     Json(payload): Json<AssigneeUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
+}
+
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/verify-signature",
+    responses(
+        (status = 200, body = CommonResult<HashMap<String, bool>>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn verify_mr_signature(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
+    let res = state
+        .monorepo()
+        .verify_mr(&link)
+        .await?;
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {

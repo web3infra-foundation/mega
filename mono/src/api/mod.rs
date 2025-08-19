@@ -34,6 +34,7 @@ pub mod mr;
 pub mod notes;
 pub mod oauth;
 pub mod user;
+mod gpg;
 
 pub type GithubClient<
     HasAuthUrl = EndpointSet,

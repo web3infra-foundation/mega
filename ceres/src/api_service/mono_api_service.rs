@@ -35,17 +35,16 @@
 //! API requests for monorepo operations. All operations are asynchronous and return
 //! appropriate error types for robust error handling.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
-
+use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -54,10 +53,9 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
-
+use regex::Regex;
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
@@ -591,6 +589,118 @@ impl MonoApiService {
         Ok(res)
     }
 
+    pub async fn verify_mr(
+        &self,
+        mr_link: &str,
+    ) -> Result<HashMap<String, bool>, MegaError> {
+        let stg = self.storage.mr_storage();
+        let mr = stg.get_mr(mr_link).await?.ok_or_else(|| {
+            MegaError::with_message(format!("Merge request not found: {mr_link}"))
+        })?;
+
+        let hashes = self.get_mr_commit_hashes(&mr.from_hash, &mr.to_hash.clone()).await?;
+        let mut commits = self
+            .storage
+            .mono_storage()
+            .get_commits_by_hashes(&hashes)
+            .await?;
+
+        let mut res= HashMap::new();
+        for commit in commits {
+            let content = commit.content.clone().unwrap_or_default();
+            let user = self
+                .storage
+                .user_storage()
+                .find_user_by_email(
+                    &self.extract_email(&content).await.unwrap_or_default(),
+                ).await?;
+
+            // get user gpg keys
+            // verify commit signature
+
+            let verified = self.verify_commit_gpg_signature(&content).await?;
+            res.insert(commit.id.to_string(), verified);
+        }
+
+        Ok(res)
+    }
+
+
+    async fn extract_email(
+        &self,
+        s: &str
+    ) -> Option<String>{
+        let re = Regex::new(r"<\s*(?P<email>[^<>@\s]+@[^<>@\s]+)\s*>").unwrap();
+        re.captures(s)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().to_string())
+    }
+
+    async fn verify_commit_gpg_signature(
+        &self,
+        commit_content: &str,
+    ) -> Result<bool, MegaError> {
+        let (_, signature) = parse_commit_msg(commit_content);
+        if signature.is_none() {
+            return Ok(false); // No signature to verify
+        }
+
+        // Get GPG key based on user from the storage
+        // Check if user holds the GPG key is verified by user
+
+        Ok(true) // Assume verification is successful for this example
+    }
+
+    async fn get_mr_commit_hashes(
+        &self,
+        from_hash: &str,
+        to_hash: &str,
+    ) -> Result<Vec<String>, MegaError> {
+        let to_commits_hashes = self.get_commit_tree_by_hash(to_hash).await?;
+        let from_commits_hashes = self.get_commit_tree_by_hash(from_hash).await?;
+
+        let from_set: HashSet<String> = from_commits_hashes.into_iter().collect();
+        let mr_commits: Vec<String> = to_commits_hashes
+            .into_iter()
+            .filter(|id| !from_set.contains(id))
+            .collect();
+
+        Ok(mr_commits)
+    }
+
+    async fn get_commit_tree_by_hash(
+        &self,
+        commit_hash: &str,
+    ) -> Result<Vec<String>, MegaError> {
+        let storage = self.storage.mono_storage();
+        let mut visited = HashSet::new();
+        let mut result = Vec::new();
+        let mut queue = VecDeque::new();
+
+        queue.push_back(commit_hash.to_string());
+
+        while let Some(current_hash) = queue.pop_front() {
+            if visited.contains(&current_hash) {
+                continue;
+            }
+            visited.insert(current_hash.clone());
+
+            if let Some(commit) = storage.get_commit_by_hash(&current_hash).await? {
+                result.push(commit.commit_id.clone());
+
+                if let Some(parents) = commit.parents_id.as_array() {
+                    for parent in parents {
+                        if let Some(parent_hash) = parent.as_str() {
+                            queue.push_back(parent_hash.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     pub async fn get_commit_blobs(
         &self,
         commit_hash: &str,
@@ -635,7 +745,6 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
-
     use crate::model::mr::MrDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;

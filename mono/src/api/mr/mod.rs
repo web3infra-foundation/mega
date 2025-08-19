@@ -12,6 +12,7 @@ use common::model::CommonPage;
 use neptune::model::diff_model::DiffItem;
 
 pub mod mr_router;
+mod model;
 
 #[derive(Serialize, ToSchema)]
 pub struct MRDetailRes {
