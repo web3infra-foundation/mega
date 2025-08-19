@@ -14,6 +14,7 @@ use axum::{
     response::{IntoResponse, Sse, sse::Event, sse::KeepAlive},
     routing::{any, get},
 };
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt, stream};
 use orion::ws::WSMessage;
@@ -350,7 +351,7 @@ pub async fn task_handler(
                     build_id: Set(task_id),
                     output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
                     exit_code: Set(None),
-                    start_at: Set(chrono::Utc::now()),
+                    start_at: Set(chrono::Utc::now().naive_utc()),
                     end_at: Set(None),
                     repo_name: Set(req.repo.clone()),
                     target: Set(target.clone()),
@@ -441,7 +442,7 @@ async fn handle_immediate_task_dispatch(
         build_id: Set(task_id),
         output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
         exit_code: Set(None),
-        start_at: Set(build_info.start_at),
+    start_at: Set(build_info.start_at.naive_utc()),
         end_at: Set(None),
         repo_name: Set(build_info.repo.clone()),
         target: Set(build_info.target.clone()),
@@ -636,7 +637,7 @@ async fn process_message(
                     );
                 }
                 WSMessage::Heartbeat => {
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.last_heartbeat = chrono::Utc::now();
                         tracing::debug!("Received heartbeat from {current_worker_id}");
                     }
@@ -677,7 +678,7 @@ async fn process_message(
                     let _ = builds::Entity::update_many()
                         .set(builds::ActiveModel {
                             exit_code: Set(exit_code),
-                            end_at: Set(Some(chrono::Utc::now())),
+                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
                             ..Default::default()
                         })
                         .filter(builds::Column::BuildId.eq(id.parse::<uuid::Uuid>().unwrap()))
@@ -725,8 +726,8 @@ impl BuildDTO {
             build_id: model.build_id.to_string(),
             output_file: model.output_file,
             exit_code: model.exit_code,
-            start_at: model.start_at.to_rfc3339(),
-            end_at: model.end_at.map(|dt| dt.to_rfc3339()),
+            start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
+            end_at: model.end_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,
@@ -798,8 +799,8 @@ impl TaskInfoDTO {
             build_id: model.build_id.to_string(),
             output_file: model.output_file,
             exit_code: model.exit_code,
-            start_at: model.start_at.to_rfc3339(),
-            end_at: model.end_at.map(|dt| dt.to_rfc3339()),
+            start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
+            end_at: model.end_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,

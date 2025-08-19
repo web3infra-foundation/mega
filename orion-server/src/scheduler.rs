@@ -368,7 +368,7 @@ impl TaskScheduler {
             build_id: Set(pending_task.task_id),
             output_file: Set(format!("{}/{}", get_build_log_dir(), pending_task.task_id)),
             exit_code: Set(None),
-            start_at: Set(build_info.start_at),
+            start_at: Set(build_info.start_at.naive_utc()),
             end_at: Set(None),
             repo_name: Set(build_info.repo.clone()),
             target: Set(build_info.target.clone()),
