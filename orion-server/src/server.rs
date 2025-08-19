@@ -140,7 +140,7 @@ async fn start_health_check_task(state: AppState) {
 
                     let update_res = builds::Entity::update_many()
                         .set(builds::ActiveModel {
-                            end_at: Set(Some(chrono::Utc::now())),
+                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
                             ..Default::default()
                         })
                         .filter(builds::Column::BuildId.eq(task_id.parse::<uuid::Uuid>().unwrap()))

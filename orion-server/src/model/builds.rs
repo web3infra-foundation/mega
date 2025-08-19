@@ -8,16 +8,16 @@ use serde::Serialize;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub build_id: Uuid,
-    pub output_file: String,
-    /// Exit code of the build process. None if process was terminated by signal on Unix
     pub exit_code: Option<i32>,
-    pub start_at: DateTimeUtc,
-    pub end_at: Option<DateTimeUtc>,
+    pub start_at: DateTime,
+    pub end_at: Option<DateTime>,
     pub repo_name: String,
-    /// Build target specification (e.g., "//:main")
     pub target: String,
+    #[sea_orm(column_type = "Text")]
+    pub output_file: String,
+    #[sea_orm(column_type = "Text")]
     pub arguments: String,
-    /// Merge request identifier
+    #[sea_orm(column_type = "Text")]
     pub mr: String,
 }
 
@@ -25,6 +25,7 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
+
 
 impl Model {
     /// Retrieves a build record by its UUID from the database
