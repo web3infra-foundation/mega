@@ -8,12 +8,17 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub build_id: Uuid,
-    pub output: String,
     pub exit_code: Option<i32>,
     pub start_at: DateTime,
     pub end_at: Option<DateTime>,
     pub repo_name: String,
     pub target: String,
+    #[sea_orm(column_type = "Text")]
+    pub output_file: String,
+    #[sea_orm(column_type = "Text")]
+    pub arguments: String,
+    #[sea_orm(column_type = "Text")]
+    pub mr: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
