@@ -812,7 +812,7 @@ impl TaskInfoDTO {
 
 #[utoipa::path(
     get,
-    path = "/tasks",
+    path = "/tasks/{mr}",
     params(
         ("mr" = String, Path, description = "MR number to filter tasks by")
     ),
