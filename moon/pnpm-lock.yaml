@@ -303,6 +303,9 @@ catalogs:
     '@todesktop/client-core':
       specifier: ^1.10.0
       version: 1.10.0
+    '@types/d3':
+      specifier: ^7.4.3
+      version: 7.4.3
     '@types/d3-selection':
       specifier: ^3.0.3
       version: 3.0.5
@@ -369,6 +372,9 @@ catalogs:
     copy-to-clipboard:
       specifier: ^3.3.3
       version: 3.3.3
+    d3:
+      specifier: ^7.8.5
+      version: 7.9.0
     d3-selection:
       specifier: ^3.0.0
       version: 3.0.0
@@ -912,7 +918,7 @@ importers:
         specifier: 'catalog:'
         version: 1.10.0
       '@types/d3':
-        specifier: ^7.4.3
+        specifier: 'catalog:'
         version: 7.4.3
       '@vercel/og':
         specifier: 'catalog:'
@@ -933,7 +939,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.3
       d3:
-        specifier: ^7.9.0
+        specifier: 'catalog:'
         version: 7.9.0
       d3-selection:
         specifier: 'catalog:'
