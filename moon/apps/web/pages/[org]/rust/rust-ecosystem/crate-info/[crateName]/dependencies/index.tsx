@@ -39,7 +39,7 @@ const DependenciesPage = () => {
             {
                 id: '1',
                 name: 'cheerio',
-                version: '1.1.1.0',
+                version: '1.1.3.0',
                 relation: 'Direct',
                 license: 'MIT',
                 dependencies: 21,

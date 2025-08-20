@@ -31,5 +31,9 @@
     "patchedDependencies": {
       "@radix-ui/react-popper": "patches/@radix-ui__react-popper.patch"
     }
+  },
+  "dependencies": {
+    "merge-stream": "^2.0.0",
+    "picomatch": "^4.0.3"
   }
 }

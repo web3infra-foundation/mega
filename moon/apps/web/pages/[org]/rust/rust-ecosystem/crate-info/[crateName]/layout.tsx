@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useParams } from 'next/navigation';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { VersionSelectorDropdown } from '../../../components/VersionSelector/VersionSelectorDropdown';
+import { VersionSelectorDropdown } from '../../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
 
 interface CrateInfoLayoutProps {
     children: React.ReactNode;

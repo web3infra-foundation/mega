@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/Layout/AppLayout';
 import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import CrateInfoLayout from '../../layout';
-import DependencyGraph from '../../../../../components/DependencyGraph';
+import DependencyGraph from '@/components/Rust/Graph/DependencyGraph';
 
 const DependenciesGraphPage = () => {
     const params = useParams();
