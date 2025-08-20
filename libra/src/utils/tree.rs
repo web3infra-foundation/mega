@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path};
+use std::path::Path;
 
 use mercury::errors::GitError;
 use mercury::internal::index::Index;
