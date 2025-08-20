@@ -9,6 +9,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
+use mercury::hash::SHA1;
 
 const HEAD: &str = "HEAD";
 
@@ -55,9 +56,13 @@ impl Display for ReflogContext {
         match &self.action {
             ReflogAction::Commit { message } => write!(f, "{}", message.lines().next().unwrap_or("")),
             ReflogAction::Switch { from, to } => write!(f, "moving from {from} to {to}"),
+            ReflogAction::Checkout { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Reset { target } => write!(f, "moving to {target}"),
             ReflogAction::Merge { branch, policy } => write!(f, "merge {branch}:{policy}"),
-            ReflogAction::Pull => todo!(),
+            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.lines().next().unwrap_or("")),
+            ReflogAction::Fetch => write!(f, "fast-forward"),
+            ReflogAction::Pull => write!(f, "fast-forward"),
+            ReflogAction::Rebase { state, details } => write!(f, "{state} {details}"),
             ReflogAction::Clone { from } => write!(f, "from {from}"),
         }
     }
@@ -67,8 +72,12 @@ impl Display for ReflogContext {
 pub enum ReflogAction {
     Commit { message: String },
     Reset { target: String },
+    Checkout { from: String, to: String },
     Switch { from: String, to: String },
     Merge { branch: String, policy: String },
+    CherryPick { source_message: String, },
+    Rebase { state: String, details: String },
+    Fetch,
     Pull,
     Clone { from: String },
 }
@@ -77,8 +86,17 @@ pub enum ReflogAction {
 pub enum ReflogActionKind {
     Commit,
     Reset,
+    // we don't need `checkout` because we have `switch`,
+    Checkout,
     Switch,
     Merge,
+    // todo: implement reflog for cherry pick.
+    CherryPick,
+    // todo: implement reflog for rebase.
+    Rebase,
+    // todo: implement reflog for fetch
+    Fetch,
+    // pull is a combination of `fetch` and `merge`, maybe we don't need to do anything...
     Pull,
     Clone,
 }
@@ -88,8 +106,12 @@ impl Display for ReflogActionKind {
         match self {
             Self::Commit => write!(f, "commit"),
             Self::Reset => write!(f, "reset"),
+            Self::Checkout => write!(f, "checkout"),
             Self::Switch => write!(f, "switch"),
             Self::Merge => write!(f, "merge"),
+            Self::CherryPick => write!(f, "cherry-pick"),
+            Self::Rebase => write!(f, "rebase"),
+            Self::Fetch => write!(f, "fetch"),
             Self::Pull => write!(f, "pull"),
             Self::Clone => write!(f, "clone"),
         }
@@ -105,6 +127,10 @@ impl ReflogAction {
             Self::Merge { .. } => ReflogActionKind::Merge,
             Self::Pull => ReflogActionKind::Pull,
             Self::Clone { .. } => ReflogActionKind::Clone,
+            Self::CherryPick { .. } => ReflogActionKind::CherryPick,
+            Self::Rebase { .. } => ReflogActionKind::Rebase,
+            Self::Checkout { .. } => ReflogActionKind::Checkout,
+            Self::Fetch { .. } => ReflogActionKind::Fetch,
         }
     }
 }
@@ -112,18 +138,7 @@ impl ReflogAction {
 pub struct Reflog;
 
 impl Reflog {
-    /// insert a reflog record.
-    /// see `ReflogContext`
-    pub async fn insert(db: &DatabaseTransaction, context: ReflogContext) -> Result<(), ReflogError> {
-        ensure_reflog_table_exists(db).await?;
-        let kind = context.action.kind();
-        let head = Head::current_with_conn(db).await;
-
-        let ref_name = match head {
-            Head::Branch(name) => Some(name),
-            Head::Detached(_) => None,
-        };
-
+    pub async fn insert_single_entry(db: &DatabaseTransaction, context: &ReflogContext, ref_to_log: &str) -> Result<(), ReflogError> {
         // considering that there are many commands that have not yet used user configs,
         // we just set default user info.
         let name = config::Config::get_with_conn(db, "user", None, "name")
@@ -134,11 +149,11 @@ impl Reflog {
             .unwrap_or("admin@mega.org".to_string());
         let message = context.to_string();
 
-        let mut model = ActiveModel {
-            ref_name: Set(HEAD.to_string()),
-            old_oid: Set(context.old_oid),
-            new_oid: Set(context.new_oid),
-            action: Set(kind.to_string()),
+        let model = ActiveModel {
+            ref_name: Set(ref_to_log.to_string()),
+            old_oid: Set(context.old_oid.clone()),
+            new_oid: Set(context.new_oid.clone()),
+            action: Set(context.action.kind().to_string()),
             committer_name: Set(name),
             committer_email: Set(email),
             timestamp: Set(timestamp_seconds()),
@@ -146,23 +161,32 @@ impl Reflog {
             ..Default::default()
         };
 
-        match ref_name {
-            Some(ref_name) => {
-                model.clone().save(db).await?;
+        model.save(db).await?;
+        Ok(())
+    }
 
-                if !matches!(kind, ReflogActionKind::Switch) {
-                    model.ref_name = Set(ref_name.to_string());
-                    model.save(db).await?;
-                }
-            }
-            None => {
-                model.save(db).await?;
+    /// insert a reflog record.
+    /// see `ReflogContext`
+    pub async fn insert(db: &DatabaseTransaction, context: ReflogContext, insert_ref: bool) -> Result<(), ReflogError> {
+        ensure_reflog_table_exists(db).await?;
+        let head = Head::current_with_conn(db).await;
+
+        Self::insert_single_entry(db, &context, HEAD).await?;
+
+        if let Head::Branch(branch_name) = head {
+            if insert_ref {
+                let full_branch_ref = format!("refs/heads/{}", branch_name);
+                Self::insert_single_entry(db, &context, &full_branch_ref).await?;
             }
         }
         Ok(())
     }
 
     pub async fn find_all<C: ConnectionTrait>(db: &C, ref_name: &str) -> Vec<Model> {
+        let ref_name = match ref_name {
+            HEAD => HEAD.to_string(),
+            x => format!("refs/heads/{x}")
+        };
         reflog::Entity::find()
             .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
@@ -172,8 +196,12 @@ impl Reflog {
     }
 
     pub async fn find_one<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Option<Model>, ReflogError> {
+        let ref_name = match ref_name {
+            HEAD => HEAD.to_string(),
+            x => format!("refs/heads/{x}")
+        };
         Ok(reflog::Entity::find()
-            .filter(reflog::Column::RefName.eq(ref_name))
+            .filter(reflog::Column::RefName.eq(&ref_name))
             .order_by_desc(reflog::Column::Timestamp)
             .one(db)
             .await?)
@@ -222,14 +250,22 @@ fn timestamp_seconds() -> i64 {
 /// });
 ///
 /// // 3. Execute the wrapper.
-/// match with_reflog(reflog_context, core_operation).await {
+/// match with_reflog(reflog_context, core_operation, true).await {
 ///     Ok(_) => println!("Commit and reflog recorded successfully."),
 ///     Err(e) => eprintln!("Operation failed: {:?}", e),
 /// }
 /// ```
+/// # Parameters
+///
+/// * `context`: A `ReflogContext` struct...
+/// * `operation`: An asynchronous closure that performs the core database work...
+/// * `insert_ref`: A boolean flag. If `true`, a reflog entry will be created for the
+///   current branch in addition to HEAD. If `false`, only HEAD will be logged. This should
+///   be `false` for operations like `checkout` that only move HEAD.
 pub async fn with_reflog<F>(
     context: ReflogContext,
     operation: F,
+    insert_ref: bool,
 ) -> Result<(), ReflogError>
 where
         for<'b> F: FnOnce(&'b DatabaseTransaction) -> Pin<Box<dyn Future<Output = Result<(), DbErr>> + Send + 'b>>,
@@ -240,7 +276,7 @@ where
         Box::pin(async move {
             operation(txn).await
                 .map_err(ReflogError::from)?;
-            Reflog::insert(txn, context).await?;
+            Reflog::insert(txn, context, insert_ref).await?;
             Ok::<_, ReflogError>(())
         })
     })
@@ -309,4 +345,8 @@ async fn ensure_reflog_table_exists<C: ConnectionTrait>(db: &C) -> Result<(), Re
 
     db.execute(create_index_stmt).await?;
     Ok(())
+}
+
+pub fn zero_sha1() -> SHA1 {
+    SHA1::from_bytes(&[0; 20])
 }
