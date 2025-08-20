@@ -207,7 +207,7 @@ async fn perform_reset(target_commit_id: SHA1, mode: ResetMode) -> Result<(), St
 
 /// Reset the index to match the specified commit's tree.
 /// Clears the current index and rebuilds it from the commit's tree structure.
-fn reset_index_to_commit(commit_id: &SHA1) -> Result<(), String> {
+pub(crate) fn reset_index_to_commit(commit_id: &SHA1) -> Result<(), String> {
     let commit: Commit =
         load_object(commit_id).map_err(|e| format!("failed to load commit: {e}"))?;
 
@@ -230,7 +230,7 @@ fn reset_index_to_commit(commit_id: &SHA1) -> Result<(), String> {
 /// Reset the working directory to match the specified commit.
 /// Removes files that exist in the original commit but not in the target commit,
 /// and restores files from the target commit's tree.
-async fn reset_working_directory_to_commit(
+pub(crate) async fn reset_working_directory_to_commit(
     commit_id: &SHA1,
     original_head_commit: Option<SHA1>,
 ) -> Result<(), String> {
@@ -293,7 +293,7 @@ async fn reset_working_directory_to_commit(
 
 /// Recursively rebuild the index from a tree structure.
 /// Traverses the tree and adds all files to the index with their blob hashes.
-fn rebuild_index_from_tree(tree: &Tree, index: &mut Index, prefix: &str) -> Result<(), String> {
+pub(crate) fn rebuild_index_from_tree(tree: &Tree, index: &mut Index, prefix: &str) -> Result<(), String> {
     for item in &tree.tree_items {
         let full_path = if prefix.is_empty() {
             item.name.clone()
@@ -324,7 +324,7 @@ fn rebuild_index_from_tree(tree: &Tree, index: &mut Index, prefix: &str) -> Resu
 
 /// Restore the working directory from a tree structure.
 /// Recursively creates directories and writes files from the tree's blob objects.
-fn restore_working_directory_from_tree(
+pub(crate) fn restore_working_directory_from_tree(
     tree: &Tree,
     workdir: &Path,
     prefix: &str,
@@ -372,7 +372,7 @@ fn restore_working_directory_from_tree(
 /// Remove empty directories from the working directory.
 /// Recursively traverses the directory tree and removes any empty directories,
 /// except for the .libra directory and the working directory root.
-fn remove_empty_directories(workdir: &Path) -> Result<(), String> {
+pub(crate) fn remove_empty_directories(workdir: &Path) -> Result<(), String> {
     fn remove_empty_dirs_recursive(dir: &Path, workdir: &Path) -> Result<(), String> {
         if !dir.is_dir() || dir == workdir {
             return Ok(());
