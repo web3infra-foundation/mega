@@ -59,10 +59,10 @@ impl Display for ReflogContext {
             ReflogAction::Checkout { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Reset { target } => write!(f, "moving to {target}"),
             ReflogAction::Merge { branch, policy } => write!(f, "merge {branch}:{policy}"),
-            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.lines().next().unwrap_or("")),
+            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.trim().lines().next().unwrap_or("")),
             ReflogAction::Fetch => write!(f, "fast-forward"),
             ReflogAction::Pull => write!(f, "fast-forward"),
-            ReflogAction::Rebase { state, details } => write!(f, "{state} {details}"),
+            ReflogAction::Rebase { state, details } => write!(f, "({state}) {details}"),
             ReflogAction::Clone { from } => write!(f, "from {from}"),
         }
     }
@@ -90,11 +90,8 @@ pub enum ReflogActionKind {
     Checkout,
     Switch,
     Merge,
-    // todo: implement reflog for cherry pick.
     CherryPick,
-    // todo: implement reflog for rebase.
     Rebase,
-    // todo: implement reflog for fetch
     Fetch,
     // pull is a combination of `fetch` and `merge`, maybe we don't need to do anything...
     Pull,
@@ -138,7 +135,7 @@ impl ReflogAction {
 pub struct Reflog;
 
 impl Reflog {
-    pub async fn insert_single_entry(db: &DatabaseTransaction, context: &ReflogContext, ref_to_log: &str) -> Result<(), ReflogError> {
+    pub async fn insert_single_entry<C: ConnectionTrait>(db: &C, context: &ReflogContext, ref_to_log: &str) -> Result<(), ReflogError> {
         // considering that there are many commands that have not yet used user configs,
         // we just set default user info.
         let name = config::Config::get_with_conn(db, "user", None, "name")
@@ -183,10 +180,6 @@ impl Reflog {
     }
 
     pub async fn find_all<C: ConnectionTrait>(db: &C, ref_name: &str) -> Vec<Model> {
-        let ref_name = match ref_name {
-            HEAD => HEAD.to_string(),
-            x => format!("refs/heads/{x}")
-        };
         reflog::Entity::find()
             .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
@@ -196,12 +189,8 @@ impl Reflog {
     }
 
     pub async fn find_one<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Option<Model>, ReflogError> {
-        let ref_name = match ref_name {
-            HEAD => HEAD.to_string(),
-            x => format!("refs/heads/{x}")
-        };
         Ok(reflog::Entity::find()
-            .filter(reflog::Column::RefName.eq(&ref_name))
+            .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
             .one(db)
             .await?)
@@ -246,6 +235,7 @@ fn timestamp_seconds() -> i64 {
 ///     Head::update_with_conn(txn, Head::Branch("main".to_string()), None).await;
 ///
 ///     // The closure must return a Result compatible with DbErr.
+///     // You can use `ReflogError`.
 ///     Ok(())
 /// });
 ///

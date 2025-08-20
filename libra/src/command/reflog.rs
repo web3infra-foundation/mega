@@ -1,4 +1,4 @@
-use crate::command::load_object;
+use crate::command::{load_object, HEAD};
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
 use crate::internal::reflog;
@@ -53,7 +53,9 @@ pub async fn execute(args: ReflogArgs) {
 
 async fn handle_show(ref_name: &str, pretty: FormatterKind) {
     let db = get_db_conn_instance().await;
-    let logs = Reflog::find_all(db, ref_name).await;
+
+    let ref_name = parse_ref_name(ref_name);
+    let logs = Reflog::find_all(db, &ref_name).await;
     let formatter = ReflogFormatter {
         logs: &logs,
         kind: pretty,
@@ -80,6 +82,16 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
 
     #[cfg(not(unix))]
     println!("{formatter}")
+}
+
+fn parse_ref_name(partial_ref_name: &str) -> String {
+    if partial_ref_name == HEAD {
+        return HEAD.to_string();
+    }
+    if partial_ref_name.contains("/") {
+        return format!("refs/remotes/{partial_ref_name}");
+    }
+    format!("refs/heads/{partial_ref_name}")
 }
 
 async fn handle_exists(ref_name: &str) {

@@ -98,7 +98,7 @@ pub async fn execute(args: CloneArgs) {
         name: "origin".to_string(),
         url: remote_repo.clone(),
     };
-    fetch::fetch_repository(&remote_config, args.branch.clone()).await;
+    fetch::fetch_repository(remote_config, args.branch.clone()).await;
 
     /* setup */
     if let Err(e) = setup_repository(remote_repo.clone(), args.branch.clone()).await {
