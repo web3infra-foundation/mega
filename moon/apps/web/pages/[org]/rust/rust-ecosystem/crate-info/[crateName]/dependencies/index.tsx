@@ -26,14 +26,12 @@ const DependenciesPage = () => {
     const router = useRouter();
     const [dependencies, setDependencies] = useState<Dependency[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [viewMode, setViewMode] = useState<'table' | 'graph'>('table');
     const [searchTerm, setSearchTerm] = useState('');
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
     const version = (router.query.version as string) || params?.version as string || "1.2.01";
-    // const nsfront = params?.nsfront as string || router.query.org as string;
-    // const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+    const nsfront = params?.nsfront as string || router.query.org as string;
 
     useEffect(() => {
         // 模拟依赖数据
@@ -41,7 +39,7 @@ const DependenciesPage = () => {
             {
                 id: '1',
                 name: 'cheerio',
-                version: '1.1.1.0',
+                version: '1.1.3.0',
                 relation: 'Direct',
                 license: 'MIT',
                 dependencies: 21,
@@ -131,6 +129,10 @@ const DependenciesPage = () => {
         dep.version.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleNavigateToGraph = () => {
+        router.push(`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies/graph`);
+    };
+
     return (
         <>
             <Head>
@@ -169,9 +171,8 @@ const DependenciesPage = () => {
                                         />
                                     </div>
                                 </div>
-                                                                 <div className="flex space-x-2 ml-auto mr-2">
+                                <div className="flex space-x-2 ml-auto mr-2">
                                     <button
-                                        onClick={() => setViewMode('table')}
                                         style={{
                                             display: 'flex',
                                             height: 'var(--Tokens-Space-button-height-2, 32px)',
@@ -180,11 +181,9 @@ const DependenciesPage = () => {
                                             alignItems: 'center',
                                             gap: 'var(--Spacing-2, 8px)',
                                             borderRadius: 'var(--Radius-2-max, 4px)',
-                                            background: viewMode === 'table' 
-                                                ? 'var(--Colors-Accent-Accent-9, #3E63DD)' 
-                                                : 'var(--Tokens-Colors-surface, #ffffffe6)',
-                                            color: viewMode === 'table' ? 'white' : 'var(--Colors-Neutral-Neutral-9, #333333)',
-                                            border: viewMode === 'table' ? 'none' : '1px solid var(--Colors-Neutral-Neutral-Alpha-5, #0009321f)'
+                                            background: 'var(--Colors-Accent-Accent-9, #3E63DD)',
+                                            color: 'white',
+                                            border: 'none'
                                         }}
                                     >
                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -193,7 +192,7 @@ const DependenciesPage = () => {
                                         <span>Table</span>
                                     </button>
                                     <button
-                                        onClick={() => setViewMode('graph')}
+                                        onClick={handleNavigateToGraph}
                                         style={{
                                             display: 'flex',
                                             height: 'var(--Tokens-Space-button-height-2, 32px)',
@@ -202,32 +201,30 @@ const DependenciesPage = () => {
                                             alignItems: 'center',
                                             gap: 'var(--Spacing-2, 8px)',
                                             borderRadius: 'var(--Radius-2-max, 4px)',
-                                            background: viewMode === 'graph' 
-                                                ? 'var(--Colors-Accent-Accent-9, #3E63DD)' 
-                                                : 'var(--Colors-Accent-Accent-Alpha-3, #0047f112)',
-                                            color: viewMode === 'graph' ? 'white' : '#002bb7c4',
-                                            border: viewMode === 'graph' ? 'none' : '1px solid var(--Colors-Neutral-Neutral-Alpha-5, #0009321f)'
+                                            background: 'var(--Colors-Accent-Accent-Alpha-3, #0047f112)',
+                                            color: '#002bb7c4',
+                                            border: '1px solid var(--Colors-Neutral-Neutral-Alpha-5, #0009321f)'
                                         }}
                                     >
                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                                         </svg>
-                                                                                 <span style={{
-                                             fontFamily: '"SF Pro"',
-                                             fontSize: '14px',
-                                             fontStyle: 'normal',
-                                             fontWeight: '500',
-                                             lineHeight: '20px',
-                                             letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                         }}>Graph</span>
+                                        <span style={{
+                                            fontFamily: '"SF Pro"',
+                                            fontSize: '14px',
+                                            fontStyle: 'normal',
+                                            fontWeight: '500',
+                                            lineHeight: '20px',
+                                            letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                        }}>Graph</span>
                                     </button>
                                 </div>
                             </div>
 
-                            {/* 表格 - 在面板内部 */}
+                            {/* 表格视图内容 */}
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
-                                                                        <thead style={{ background: '#ffffff00' }}>
+                                    <thead style={{ background: '#ffffff00' }}>
                                         <tr>
                                             <th className="px-6 py-3 text-left w-1/3">
                                                 <span style={{
@@ -346,130 +343,130 @@ const DependenciesPage = () => {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                                                         
-                                                     </td>
-                                                       <td className="px-6 py-4 whitespace-nowrap text-left" style={{ paddingLeft: 'calc(1.5rem + 91px)' }}>
-                                                          <span style={{
-                                                              display: '-webkit-box',
-                                                              WebkitBoxOrient: 'vertical',
-                                                              WebkitLineClamp: 1,
-                                                              overflow: 'hidden',
-                                                              color: '#002bb7c4',
-                                                              textOverflow: 'ellipsis',
-                                                              fontFamily: '"HarmonyOS Sans SC"',
-                                                              fontSize: '14px',
-                                                              fontStyle: 'normal',
-                                                              fontWeight: '400',
-                                                              lineHeight: '20px',
-                                                              letterSpacing: 'var(--Typography-Letter-spacing-2, 0)',
-                                                              cursor: 'pointer'
-                                                          }}>
-                                                              {dependency.relation}
-                                                          </span>
-                                                      </td>
-                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left" style={{ paddingLeft: 'calc(1.5rem + 91px)' }}>
-                                                         {dependency.license}
-                                                     </td>
-                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left" style={{ paddingLeft: 'calc(1.5rem + 68px)' }}>
-                                                         {dependency.dependencies}
-                                                     </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                     
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-left" style={{ paddingLeft: 'calc(1.5rem + 91px)' }}>
+                                                        <span style={{
+                                                            display: '-webkit-box',
+                                                            WebkitBoxOrient: 'vertical',
+                                                            WebkitLineClamp: 1,
+                                                            overflow: 'hidden',
+                                                            color: '#002bb7c4',
+                                                            textOverflow: 'ellipsis',
+                                                            fontFamily: '"HarmonyOS Sans SC"',
+                                                            fontSize: '14px',
+                                                            fontStyle: 'normal',
+                                                            fontWeight: '400',
+                                                            lineHeight: '20px',
+                                                            letterSpacing: 'var(--Typography-Letter-spacing-2, 0)',
+                                                            cursor: 'pointer'
+                                                        }}>
+                                                            {dependency.relation}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left" style={{ paddingLeft: 'calc(1.5rem + 91px)' }}>
+                                                        {dependency.license}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left" style={{ paddingLeft: 'calc(1.5rem + 68px)' }}>
+                                                        {dependency.dependencies}
+                                                    </td>
                                                 </tr>
-                                                 {dependency.expanded && dependency.description && (
-                                                     <tr className="bg-gray-50">
-                                                         <td colSpan={5} className="px-6 py-4">
-                                                               <div className="ml-8">
-                                                                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                                      <tbody>
-                                                                          <tr>
-                                                                              <td style={{ 
-                                                                                  width: '120px', 
-                                                                                  verticalAlign: 'top',
-                                                                                  color: '#000000',
-                                                                                  fontFamily: '"HarmonyOS Sans SC"',
-                                                                                  fontSize: '14px',
-                                                                                  fontStyle: 'normal',
-                                                                                  fontWeight: '400',
-                                                                                  lineHeight: 'normal',
-                                                                                  letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                              }}>
-                                                                                  Version:
-                                                                              </td>
-                                                                              <td style={{ 
-                                                                                  verticalAlign: 'top',
-                                                                                  color: '#002bb7c4',
-                                                                                  fontFamily: '"HarmonyOS Sans SC"',
-                                                                                  fontSize: '14px',
-                                                                                  fontStyle: 'normal',
-                                                                                  fontWeight: '400',
-                                                                                  lineHeight: 'normal',
-                                                                                  letterSpacing: 'var(--Typography-Letter-spacing-3, 0)'
-                                                                              }}>
-                                                                                  {dependency.version}
-                                                                              </td>
-                                                                          </tr>
-                                                                          <tr>
-                                                                              <td style={{ 
-                                                                                  width: '120px', 
-                                                                                  verticalAlign: 'top',
-                                                                                  color: '#000000',
-                                                                                  fontFamily: '"HarmonyOS Sans SC"',
-                                                                                  fontSize: '14px',
-                                                                                  fontStyle: 'normal',
-                                                                                  fontWeight: '400',
-                                                                                  lineHeight: 'normal',
-                                                                                  letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                              }}>
-                                                                                  Published:
-                                                                              </td>
-                                                                              <td style={{ 
-                                                                                  verticalAlign: 'top',
-                                                                                  alignSelf: 'stretch',
-                                                                                  color: '#80838d',
-                                                                                  fontFamily: '"HarmonyOS Sans SC"',
-                                                                                  fontSize: '14px',
-                                                                                  fontStyle: 'normal',
-                                                                                  fontWeight: '400',
-                                                                                  lineHeight: 'normal',
-                                                                                  letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                              }}>
-                                                                                  {dependency.published}
-                                                                              </td>
-                                                                          </tr>
-                                                                          <tr>
-                                                                              <td style={{ 
-                                                                                  width: '120px', 
-                                                                                  verticalAlign: 'top',
-                                                                                  color: '#000000',
-                                                                                  fontFamily: '"HarmonyOS Sans SC"',
-                                                                                  fontSize: '14px',
-                                                                                  fontStyle: 'normal',
-                                                                                  fontWeight: '400',
-                                                                                  lineHeight: 'normal',
-                                                                                  letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                              }}>
-                                                                                  Description:
-                                                                              </td>
-                                                                                                                                                             <td style={{ 
-                                                                                   verticalAlign: 'top',
-                                                                                   alignSelf: 'stretch',
-                                                                                   color: '#80838d',
-                                                                                   fontFamily: '"HarmonyOS Sans SC"',
-                                                                                   fontSize: '14px',
-                                                                                   fontStyle: 'normal',
-                                                                                   fontWeight: '400',
-                                                                                   lineHeight: 'normal',
-                                                                                   letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                               }}>
-                                                                                   {dependency.description}
-                                                                               </td>
-                                                                          </tr>
-                                                                      </tbody>
-                                                                  </table>
-                                                              </div>
-                                                         </td>
-                                                     </tr>
-                                                 )}
+                                                {dependency.expanded && dependency.description && (
+                                                    <tr className="bg-gray-50">
+                                                        <td colSpan={5} className="px-6 py-4">
+                                                            <div className="ml-8">
+                                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                                    <tbody>
+                                                                        <tr>
+                                                                            <td style={{ 
+                                                                                width: '120px', 
+                                                                                verticalAlign: 'top',
+                                                                                color: '#000000',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                                                            }}>
+                                                                                Version:
+                                                                            </td>
+                                                                            <td style={{ 
+                                                                                verticalAlign: 'top',
+                                                                                color: '#002bb7c4',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-3, 0)'
+                                                                            }}>
+                                                                                {dependency.version}
+                                                                            </td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <td style={{ 
+                                                                                width: '120px', 
+                                                                                verticalAlign: 'top',
+                                                                                color: '#000000',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                                                            }}>
+                                                                                Published:
+                                                                            </td>
+                                                                            <td style={{ 
+                                                                                verticalAlign: 'top',
+                                                                                alignSelf: 'stretch',
+                                                                                color: '#80838d',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                                                            }}>
+                                                                                {dependency.published}
+                                                                            </td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <td style={{ 
+                                                                                width: '120px', 
+                                                                                verticalAlign: 'top',
+                                                                                color: '#000000',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                                                            }}>
+                                                                                Description:
+                                                                            </td>
+                                                                            <td style={{ 
+                                                                                verticalAlign: 'top',
+                                                                                alignSelf: 'stretch',
+                                                                                color: '#80838d',
+                                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                                fontSize: '14px',
+                                                                                fontStyle: 'normal',
+                                                                                fontWeight: '400',
+                                                                                lineHeight: 'normal',
+                                                                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                                                                            }}>
+                                                                                {dependency.description}
+                                                                            </td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </React.Fragment>
                                         ))}
                                     </tbody>
@@ -477,39 +474,39 @@ const DependenciesPage = () => {
                             </div>
                         </div>
 
-                                                 {/* 分页功能区 */}
-                         <div className="w-full flex justify-center mt-8">
-                             <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32 }}>
-                                 <div className="flex justify-center items-center gap-6" style={{ marginLeft: '-100px' }}>
-                                     {/* Previous 按钮 */}
-                                     <button
-                                         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                         disabled={currentPage === 1}
-                                         className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                     >
-                                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                         </svg>
-                                         Previous
-                                     </button>
+                        {/* 分页功能区 */}
+                        <div className="w-full flex justify-center mt-8">
+                            <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32 }}>
+                                <div className="flex justify-center items-center gap-6" style={{ marginLeft: '-100px' }}>
+                                    {/* Previous 按钮 */}
+                                    <button
+                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                        disabled={currentPage === 1}
+                                        className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Previous
+                                    </button>
 
-                                     {/* 当前页码 */}
-                                     <span className="text-lg font-bold text-gray-900 ml-2 mr-2" style={{ fontSize: '14px' }}>{currentPage}</span>
+                                    {/* 当前页码 */}
+                                    <span className="text-lg font-bold text-gray-900 ml-2 mr-2" style={{ fontSize: '14px' }}>{currentPage}</span>
 
-                                     {/* Next 按钮 */}
-                                     <button
-                                         onClick={() => setCurrentPage(Math.min(5, currentPage + 1))}
-                                         disabled={currentPage === 5}
-                                         className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                     >
-                                         Next
-                                         <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                         </svg>
-                                     </button>
-                                 </div>
-                             </div>
-                         </div>
+                                    {/* Next 按钮 */}
+                                    <button
+                                        onClick={() => setCurrentPage(Math.min(5, currentPage + 1))}
+                                        disabled={currentPage === 5}
+                                        className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </CrateInfoLayout>

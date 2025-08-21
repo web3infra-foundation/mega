@@ -76,6 +76,8 @@ const CratePage = () => {
     const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
     const name = params?.name as string || crateName;
     
+
+    
     // const basePath = `/${nsfront}/${nsbehind}/${name}/${version}`;
 
     useEffect(() => {
@@ -119,7 +121,7 @@ const CratePage = () => {
             license: "MIT License",
             github_url: "https://github.com/example/example-crate",
             doc_url: "https://docs.rs/example-crate",
-            versions: ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]
+            versions: ["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]
         };
 
         // 直接设置数据，不使用加载延迟

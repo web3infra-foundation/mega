@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useParams } from 'next/navigation';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { VersionSelectorDropdown } from '../../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
 
 interface CrateInfoLayoutProps {
     children: React.ReactNode;
@@ -26,6 +27,11 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
         [params?.nsfront, router.query.org]
     );
     
+    // 版本选择相关状态
+    const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+    const [selectedVersion, setSelectedVersion] = useState<string>(version);
+    const [versions] = useState<string[]>(["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]);
+    
     // 根据当前路径确定activeTab
     const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>('overview');
     
@@ -47,6 +53,18 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
 
     const handleTabClick = useCallback((href: string) => {
         router.push(href, undefined, { shallow: true });
+    }, [router]);
+
+    // 版本选择处理函数
+    const handleVersionSelect = useCallback((newVersion: string) => {
+        setSelectedVersion(newVersion);
+        // 更新URL中的版本参数
+        const currentPath = router.asPath;
+
+        const newPath = currentPath.replace(/[?&]version=[^&]*/, '') + 
+            (currentPath.includes('?') ? '&' : '?') + `version=${newVersion}`;
+            
+        router.push(newPath, undefined, { shallow: true });
     }, [router]);
 
     const navigationTabs = useMemo(() => [
@@ -124,29 +142,41 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
                                     {crateName}
                                 </h1>
                             </div>
-                            <div 
-                                className="flex items-center space-x-2 mt-8"
-                                style={{
-                                    display: 'flex',
-                                    height: '40px',
-                                    padding: '0 16px',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    alignSelf: 'stretch',
-                                    borderRadius: '6px',
-                                    border: '1px solid #00062e33',
-                                    background: '#ffffffe6'
-                                }}
-                            >
-                                <div className="w-6 h-6 border-2 border-gray-400 rounded-full flex items-center justify-center bg-transparent">
-                                    <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsVersionDialogOpen(!isVersionDialogOpen)}
+                                    className="flex items-center space-x-2 mt-8 hover:bg-gray-50 transition-colors"
+                                    style={{
+                                        display: 'flex',
+                                        height: '40px',
+                                        padding: '0 16px',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        alignSelf: 'stretch',
+                                        borderRadius: '6px',
+                                        border: '1px solid #00062e33',
+                                        background: '#ffffffe6',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <div className="w-6 h-6 border-2 border-gray-400 rounded-full flex items-center justify-center bg-transparent">
+                                        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-lg font-medium text-gray-900">{selectedVersion}</span>
+                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
-                                </div>
-                                <span className="text-lg font-medium text-gray-900">{version}</span>
-                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                </button>
+                                
+                                <VersionSelectorDropdown
+                                    isOpen={isVersionDialogOpen}
+                                    onClose={() => setIsVersionDialogOpen(false)}
+                                    onVersionSelect={handleVersionSelect}
+                                    currentVersion={selectedVersion}
+                                    versions={versions}
+                                />
                             </div>
                         </div>
                     </div>
