@@ -57,6 +57,7 @@ export const ROUTES: EachRoute[] = [
           { title: "reset", href: "/reset" },
           { title: "restore", href: "/restore" },
           { title: "rm", href: "/rm" },
+          { title: "stash", href: "/stash" },
           { title: "status", href: "/status" },
           { title: "switch", href: "/switch" },
           { title: "tag", href: "/tag" },
