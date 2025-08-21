@@ -25,13 +25,13 @@ impl Deref for GpgStorage {
 }
 
 impl GpgStorage{
-    fn create_sample_key(&self) -> gpg_key::Model {
+    fn create_sample_key(&self, user_id: i64) -> gpg_key::Model {
         let key = gpg_key::Model {
-            id: generate_id(),
-            key_id: generate_id(),
-            user_id: generate_id(),
+            id: 123,
+            key_id: 123,
+            user_id,
             public_key: "PUBKEY".to_string(),
-            fingerprint: format!("fp-{}", generate_id()),
+            fingerprint: format!("fp-{}", 123456),
             alias: "sample".to_string(),
             is_verified: false,
             created_at: chrono::Utc::now().naive_utc(),
@@ -40,8 +40,8 @@ impl GpgStorage{
         key
     }
 
-    pub async fn save_gpg_key(&self, ) -> Result<(), MegaError> {
-        let key = self.create_sample_key();
+    pub async fn save_gpg_key(&self, user_id: i64) -> Result<(), MegaError> {
+        let key = self.create_sample_key(user_id);
         let a_model = key.into_active_model();
         a_model.insert(self.get_connection()).await?;
         Ok(())
