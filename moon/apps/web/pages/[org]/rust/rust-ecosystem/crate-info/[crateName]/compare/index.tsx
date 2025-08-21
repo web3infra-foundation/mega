@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -36,9 +36,12 @@ const ComparePage = () => {
     const router = useRouter();
     const [leftVersion, setLeftVersion] = useState<VersionData | null>(null);
     const [rightVersion, setRightVersion] = useState<VersionData | null>(null);
-    const selectedLeftVersion = '1.2.01';
-    const selectedRightVersion = '1.2.01';
+    const [selectedLeftVersion, setSelectedLeftVersion] = useState('1.2.01');
+    const [selectedRightVersion, setSelectedRightVersion] = useState('1.2.01');
     const [isSwapped, setIsSwapped] = useState(false);
+    const [isLeftVersionDialogOpen, setIsLeftVersionDialogOpen] = useState(false);
+    const [isRightVersionDialogOpen, setIsRightVersionDialogOpen] = useState(false);
+    const [versions] = useState<string[]>(["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]);
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
@@ -99,58 +102,204 @@ const ComparePage = () => {
         setIsSwapped(!isSwapped);
     };
 
-    const VersionSelector = ({ 
-        version 
+    const handleLeftVersionSelect = (version: string) => {
+        setSelectedLeftVersion(version);
+        setIsLeftVersionDialogOpen(false);
+    };
+
+    const handleRightVersionSelect = (version: string) => {
+        setSelectedRightVersion(version);
+        setIsRightVersionDialogOpen(false);
+    };
+
+    // 版本选择下拉框组件
+    const VersionSelectorDropdown = ({ 
+        isOpen, 
+        onClose, 
+        onVersionSelect, 
+        currentVersion, 
+        versions 
     }: { 
-        version: string; 
-    }) => (
-        <div 
-            className="flex items-center space-x-2"
-            style={{
-                display: 'flex',
-                width: '140px',
-                height: '40px',
-                padding: '0 12px',
-                alignItems: 'center',
-                gap: '10px',
-                borderRadius: '6px',
-                border: '1px solid #00062e33',
-                background: '#ffffffe6'
-            }}
-        >
+        isOpen: boolean; 
+        onClose: () => void; 
+        onVersionSelect: (version: string) => void; 
+        currentVersion: string; 
+        versions: string[]; 
+    }) => {
+        const dropdownRef = useRef<HTMLDivElement>(null);
+
+        const handleVersionSelect = (version: string) => {
+            onVersionSelect(version);
+            onClose();
+        };
+
+        useEffect(() => {
+            const handleClickOutside = (event: MouseEvent) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                    onClose();
+                }
+            };
+
+            if (isOpen) {
+                document.addEventListener('mousedown', handleClickOutside);
+            }
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }, [isOpen, onClose]);
+
+        if (!isOpen) return null;
+
+        return (
             <div 
-                className="flex items-center justify-center bg-transparent"
+                ref={dropdownRef}
+                className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-50"
+                style={{ width: '140px' }}
+            >
+                <div className="p-3">
+                    <div className="max-h-48 overflow-y-auto">
+                        <div className="mb-0">
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 pl-0">
+                                Default
+                            </div>
+                            <div className="space-y-1">
+                                <button
+                                    onClick={() => handleVersionSelect(currentVersion)}
+                                    className="w-full text-left px-0 py-1 rounded hover:bg-gray-100"
+                                >
+                                    <span className="text-sm text-gray-900">{currentVersion}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div 
+                                style={{
+                                    display: 'flex',
+                                    padding: 'var(--Spacing-2, 8px) var(--Spacing-3, 12px)',
+                                    alignItems: 'center',
+                                    alignSelf: 'stretch',
+                                    background: '#ffffff00',
+                                    marginTop: '1px',
+                                    marginBottom: '6px'
+                                }}
+                            >
+                                <div className="w-full bg-gray-200" style={{ marginLeft: '-12px', marginRight: '-2px', height: '1.5px' }}></div>
+                            </div>
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 pl-0">
+                                ALL
+                            </div>
+                            <div className="space-y-1">
+                                {versions.map((version: string) => (
+                                    <button
+                                        key={version}
+                                        onClick={() => handleVersionSelect(version)}
+                                        className="w-full text-left px-0 py-1 rounded hover:bg-gray-100"
+                                    >
+                                        <span className="text-sm text-gray-900">{version}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t pt-3 mt-3">
+                        <button
+                            onClick={() => {
+                                // console.log('View all versions');
+                            }}
+                            style={{
+                                flex: '1 0 0',
+                                color: '#3a5bc7',
+                                fontFamily: '"SF Pro"',
+                                fontSize: '14px',
+                                fontStyle: 'normal',
+                                fontWeight: 400,
+                                lineHeight: '20px',
+                                letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
+                            }}
+                        >
+                            View all versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const VersionSelector = ({ 
+        version,
+        isOpen,
+        onToggle,
+        onVersionSelect,
+        versions
+    }: { 
+        version: string;
+        isOpen: boolean;
+        onToggle: () => void;
+        onVersionSelect: (version: string) => void;
+        versions: string[];
+    }) => (
+        <div className="relative">
+            <button
+                onClick={onToggle}
+                className="flex items-center space-x-2 hover:bg-gray-50 transition-colors"
                 style={{
-                    width: '24px',
-                    height: '24px',
-                    border: '2px solid #9ca3af',
-                    borderRadius: '50%',
-                    flexShrink: 0
+                    display: 'flex',
+                    width: '140px',
+                    height: '40px',
+                    padding: '0 12px',
+                    alignItems: 'center',
+                    gap: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #00062e33',
+                    background: '#ffffffe6',
+                    cursor: 'pointer'
                 }}
             >
-                <svg 
-                    className="text-gray-400" 
-                    fill="currentColor" 
-                    viewBox="0 0 20 20"
+                <div 
+                    className="flex items-center justify-center bg-transparent"
                     style={{
-                        width: '12px',
-                        height: '12px'
+                        width: '24px',
+                        height: '24px',
+                        border: '2px solid #9ca3af',
+                        borderRadius: '50%',
+                        flexShrink: 0
                     }}
                 >
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    <svg 
+                        className="text-gray-400" 
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                        style={{
+                            width: '12px',
+                            height: '12px'
+                        }}
+                    >
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                </div>
+                <span className="text-lg font-medium text-gray-900" style={{
+                    fontFamily: '"HarmonyOS Sans SC"',
+                    fontSize: '16px',
+                    fontWeight: 500,
+                    color: '#1c2024'
+                }}>
+                    {version}
+                </span>
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-            </div>
-            <span className="text-lg font-medium text-gray-900" style={{
-                fontFamily: '"HarmonyOS Sans SC"',
-                fontSize: '16px',
-                fontWeight: 500,
-                color: '#1c2024'
-            }}>
-                {version}
-            </span>
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            </button>
+            
+            <VersionSelectorDropdown
+                isOpen={isOpen}
+                onClose={() => onToggle()}
+                onVersionSelect={onVersionSelect}
+                currentVersion={version}
+                versions={versions}
+            />
         </div>
     );
 
@@ -242,6 +391,10 @@ const ComparePage = () => {
                                 <div className="mb-6">
                                     <VersionSelector 
                                         version={selectedLeftVersion}
+                                        isOpen={isLeftVersionDialogOpen}
+                                        onToggle={() => setIsLeftVersionDialogOpen(!isLeftVersionDialogOpen)}
+                                        onVersionSelect={handleLeftVersionSelect}
+                                        versions={versions}
                                     />
                                 </div>
                                 {/* Published */}
@@ -666,6 +819,10 @@ const ComparePage = () => {
                                 <div className="mb-6">
                                     <VersionSelector 
                                         version={selectedRightVersion}
+                                        isOpen={isRightVersionDialogOpen}
+                                        onToggle={() => setIsRightVersionDialogOpen(!isRightVersionDialogOpen)}
+                                        onVersionSelect={handleRightVersionSelect}
+                                        versions={versions}
                                     />
                                 </div>
                                 {/* Published */}
