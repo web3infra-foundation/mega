@@ -274,3 +274,5 @@ catalog:
   prism-react-renderer: ^2.4.1
   material-file-icons: ^2.4.0
   colord: ^2.9.3
+  merge-stream: ^2.0.0
+  picomatch: ^4.0.3
