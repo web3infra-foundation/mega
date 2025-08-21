@@ -32,7 +32,7 @@ impl Time {
         UNIX_EPOCH + std::time::Duration::new(self.seconds.into(), self.nanos)
     }
 
-    fn from_system_time(system_time: SystemTime) -> Self {
+    pub fn from_system_time(system_time: SystemTime) -> Self {
         match system_time.duration_since(UNIX_EPOCH) {
             Ok(duration) => {
                 let seconds = duration

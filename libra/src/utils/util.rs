@@ -373,6 +373,22 @@ pub fn check_gitignore(work_dir: &PathBuf, target_file: &PathBuf) -> bool {
     false
 }
 
+use crate::internal::config::Config;
+use mercury::internal::object::signature::{Signature, SignatureType};
+
+pub async fn create_signatures() -> (Signature, Signature) {
+    let user_name = Config::get("user", None, "name")
+        .await
+        .unwrap_or_else(|| "Stasher".to_string());
+    let user_email = Config::get("user", None, "email")
+        .await
+        .unwrap_or_else(|| "stasher@example.com".to_string());
+
+    let author = Signature::new(SignatureType::Author, user_name.clone(), user_email.clone());
+    let committer = Signature::new(SignatureType::Committer, user_name, user_email);
+    (author, committer)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -497,3 +513,5 @@ mod test {
         fs::remove_dir_all(workdir.join("tmp")).unwrap();
     }
 }
+
+
