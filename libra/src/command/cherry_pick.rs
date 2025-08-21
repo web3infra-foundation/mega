@@ -13,6 +13,8 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use sea_orm::{ConnectionTrait};
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 
 /// Arguments for the cherry-pick command
 #[derive(Parser, Debug)]
@@ -203,7 +205,25 @@ async fn create_cherry_pick_commit(
     );
 
     save_object(&commit, &commit.id).map_err(|e| format!("failed to save commit: {e}"))?;
-    update_head(&commit.id.to_string()).await;
+
+    // let reflog extract the subject of message.
+    let action = ReflogAction::CherryPick { source_message: original_commit.message.clone() };
+    let context = ReflogContext {
+        old_oid: parent_id.to_string(),
+        new_oid: commit.id.to_string(),
+        action,
+    };
+
+    with_reflog(
+        context,
+        move |txn| {
+            Box::pin(async move {
+                update_head(txn, &commit.id.to_string()).await;
+                Ok(())
+            })
+        },
+        true,
+    ).await.map_err(|e| e.to_string())?;
     Ok(commit.id)
 }
 
@@ -388,8 +408,8 @@ async fn resolve_commit(reference: &str) -> Result<SHA1, String> {
 /// This function updates the current branch to point to the specified commit.
 /// It only works when HEAD is pointing to a branch (not in detached HEAD state).
 /// The branch reference is updated to the new commit ID.
-async fn update_head(commit_id: &str) {
-    if let Head::Branch(name) = Head::current().await {
-        Branch::update_branch(&name, commit_id, None).await;
+async fn update_head<C: ConnectionTrait>(db: &C, commit_id: &str) {
+    if let Head::Branch(name) = Head::current_with_conn(db).await {
+        Branch::update_branch_with_conn(db, &name, commit_id, None).await;
     }
 }

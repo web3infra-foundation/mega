@@ -12,6 +12,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 
 #[derive(Parser, Debug)]
 pub struct ResetArgs {
@@ -78,7 +80,7 @@ pub async fn execute(args: ResetArgs) {
     };
 
     // Perform reset based on mode
-    match perform_reset(target_commit_id, mode).await {
+    match perform_reset(target_commit_id, mode, &args.target).await {
         Ok(_) => {
             println!(
                 "HEAD is now at {} {}",
@@ -169,23 +171,55 @@ async fn reset_pathspecs(pathspecs: &[String], target: &str) {
 
 /// Perform the actual reset operation based on the specified mode.
 /// Updates HEAD pointer and optionally resets index and working directory.
-async fn perform_reset(target_commit_id: SHA1, mode: ResetMode) -> Result<(), String> {
-    // First, get the current HEAD commit before updating it
-    let current_head_commit = Head::current_commit().await;
+async fn perform_reset(
+    target_commit_id: SHA1,
+    mode: ResetMode,
+    target_ref_str: &str, // e.g, "HEAD~2"
+) -> Result<(), String> {
+    // avoids holding the transaction open while doing read-only preparations.
+    let db = get_db_conn_instance().await;
+    let old_oid = Head::current_commit_with_conn(db)
+        .await
+        .ok_or_else(|| "Cannot reset: HEAD is unborn and points to no commit.".to_string())?;
 
-    // 1. Move HEAD pointer - preserve branch if we're on one
-    let current_head = Head::current().await;
-    match current_head {
-        Head::Branch(branch_name) => {
-            // Update the branch to point to target commit
-            Branch::update_branch(&branch_name, &target_commit_id.to_string(), None).await;
-        }
-        Head::Detached(_) => {
-            // Update detached HEAD
-            let head = Head::Detached(target_commit_id);
-            Head::update(head, None).await;
-        }
+    if old_oid == target_commit_id {
+        println!("HEAD already at {}, nothing to do.", &target_commit_id.to_string()[..7]);
+        return Ok(());
     }
+
+    // determine if HEAD is attached to a branch or detached. This is crucial for
+    // deciding which reference pointer to update in the transaction.
+    let current_head_state = Head::current_with_conn(db).await;
+
+    let action = ReflogAction::Reset { target: target_ref_str.to_string() };
+    let context = ReflogContext {
+        old_oid: old_oid.to_string(),
+        new_oid: target_commit_id.to_string(),
+        action,
+    };
+
+    with_reflog(
+        context,
+        move |txn| {
+            Box::pin(async move {
+                match &current_head_state {
+                    // If on a branch, update the branch pointer. HEAD will move with it.
+                    Head::Branch(branch_name) => {
+                        Branch::update_branch_with_conn(txn, branch_name, &target_commit_id.to_string(), None).await;
+                    }
+                    // If in a detached state, update the HEAD pointer directly.
+                    Head::Detached(_) => {
+                        let new_head = Head::Detached(target_commit_id);
+                        Head::update_with_conn(txn, new_head, None).await;
+                    }
+                }
+                Ok(())
+            })
+        },
+        true,
+    )
+        .await
+        .map_err(|e| e.to_string())?;
 
     match mode {
         ResetMode::Soft => {
@@ -198,10 +232,9 @@ async fn perform_reset(target_commit_id: SHA1, mode: ResetMode) -> Result<(), St
         ResetMode::Hard => {
             // Reset index and working directory
             reset_index_to_commit(&target_commit_id)?;
-            reset_working_directory_to_commit(&target_commit_id, current_head_commit).await?;
+            reset_working_directory_to_commit(&target_commit_id, Some(old_oid)).await?;
         }
     }
-
     Ok(())
 }
 

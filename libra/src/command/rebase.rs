@@ -10,6 +10,10 @@ use mercury::internal::object::tree::Tree;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use sea_orm::{TransactionTrait};
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext, ReflogError};
 
 /// Command-line arguments for the rebase operation
 #[derive(Parser, Debug)]
@@ -35,6 +39,8 @@ pub async fn execute(args: RebaseArgs) {
     if !util::check_repo_exist() {
         return;
     }
+
+    let db = get_db_conn_instance().await;
 
     // Get the current branch that will be moved to the new base
     let current_branch_name = match Head::current().await {
@@ -102,13 +108,43 @@ pub async fn execute(args: RebaseArgs) {
         args.upstream
     );
 
+    let start_action = ReflogAction::Rebase {
+        state: "start".to_string(),
+        details: format!("checkout {}", args.upstream),
+    };
+    let start_context = ReflogContext {
+        old_oid: head_to_rebase_id.to_string(),
+        new_oid: upstream_id.to_string(),
+        action: start_action,
+    };
+    let transaction_result = db.transaction(|txn| {
+        Box::pin(async move {
+            reflog::Reflog::insert_single_entry(txn, &start_context, "HEAD").await?;
+            Head::update_with_conn(txn, Head::Detached(upstream_id), None).await;
+            Ok::<_, ReflogError>(())
+        })
+    }).await;
+
+    if let Err(e) = transaction_result {
+        eprintln!("fatal: failed to start rebase: {}", e);
+        return;
+    }
+
+    // This mimics Git's behavior.
+    Head::update_with_conn(db, Head::Detached(upstream_id), None).await;
     // Replay each commit on top of the upstream branch
     // Each commit is applied as a three-way merge and creates a new commit
+    println!(
+        "Rebasing {} commits from `{}` onto `{}`...",
+        commits_to_replay.len(), current_branch_name, args.upstream
+    );
     let mut new_base_id = upstream_id;
     for commit_id in commits_to_replay {
         match replay_commit(&commit_id, &new_base_id).await {
             Ok(replayed_commit_id) => {
                 new_base_id = replayed_commit_id;
+                // Temporarily move HEAD along with each replayed commit.
+                Head::update_with_conn(db, Head::Detached(new_base_id), None).await;
                 let original_commit: Commit = load_object(&commit_id).unwrap();
                 println!(
                     "Applied: {} {}",
@@ -117,21 +153,51 @@ pub async fn execute(args: RebaseArgs) {
                 );
             }
             Err(e) => {
+                // IMPORTANT: If rebase failed, we should reset HEAD back to the original branch.
+                Head::update_with_conn(db, Head::Branch(current_branch_name), None).await;
                 eprintln!(
                     "error: could not apply {}: {}",
                     &commit_id.to_string()[..7],
                     e
                 );
-                eprintln!("Rebase failed.");
-                // TODO: Implement proper conflict resolution and recovery mechanisms
-                // Currently, we just abort the rebase without cleanup or rollback
+                eprintln!("Rebase failed. HEAD reset to original state.");
                 return;
             }
         }
     }
 
-    // Update the current branch reference to point to the final replayed commit
-    Branch::update_branch(&current_branch_name, &new_base_id.to_string(), None).await;
+    let final_commit_id = new_base_id;
+    let finish_action = ReflogAction::Rebase {
+        state: "finish".to_string(),
+        details: format!("returning to refs/heads/{current_branch_name}"),
+    };
+    let finish_context = ReflogContext {
+        old_oid: head_to_rebase_id.to_string(),
+        new_oid: final_commit_id.to_string(),
+        action: finish_action,
+    };
+
+    let branch_name_cloned = current_branch_name.clone();
+    if let Err(e) = with_reflog(
+        finish_context,
+        move |txn: &sea_orm::DatabaseTransaction| {
+            Box::pin(async move {
+                // This is the crucial step: move the original branch from its old position
+                // to the final replayed commit.
+                Branch::update_branch_with_conn(txn, &branch_name_cloned, &final_commit_id.to_string(), None).await;
+
+                // Also, re-attach HEAD to the newly moved branch.
+                Head::update_with_conn(txn, Head::Branch(branch_name_cloned.clone()), None).await;
+                Ok(())
+            })
+        },
+        true,
+    ).await
+    {
+        eprintln!("fatal: failed to finalize rebase: {e}");
+        // Attempt to restore HEAD to a safe state
+        Head::update_with_conn(db, Head::Detached(upstream_id), None).await;
+    }
 
     // Reset the working directory and index to match the final state
     // This ensures that the workspace reflects the rebased commits
@@ -144,8 +210,6 @@ pub async fn execute(args: RebaseArgs) {
     index.save(&index_file).unwrap();
     reset_workdir_to_index(&index).unwrap();
 
-    // Update HEAD to point to the current branch (not strictly necessary but good practice)
-    Head::update(Head::Branch(current_branch_name.clone()), None).await;
     println!(
         "Successfully rebased branch '{}' onto '{}'.",
         current_branch_name, args.upstream
