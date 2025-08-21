@@ -103,7 +103,7 @@
     "metascraper-url": "catalog:",
     "metascraper-video": "catalog:",
     "metascraper-youtube": "catalog:",
-    "next": "^14.1.0",
+    "next": "catalog:",
     "next-seo": "catalog:",
     "next-themes": "catalog:",
     "nextjs-cors": "catalog:",
