@@ -1,1 +1,1 @@
-mod gpg_router;
+pub mod gpg_router;

@@ -44,8 +44,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title))
-            .routes(routes!()),
+            .routes(routes!(edit_title)),
     )
 }
 

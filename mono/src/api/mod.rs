@@ -17,7 +17,7 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::storage::note_storage::NoteStorage;
+use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 use jupiter::storage::{
     conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
     user_storage::UserStorage, Storage,
@@ -96,6 +96,10 @@ impl MonoApiServiceState {
 
     fn issue_stg(&self) -> IssueStorage {
         self.storage.issue_storage()
+    }
+
+    fn gpg_stg(&self) -> GpgStorage {
+        self.storage.gpg_storage()
     }
 
     fn mr_stg(&self) -> MrStorage {
