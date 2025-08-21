@@ -73,6 +73,8 @@ enum Commands {
     Remote(command::remote::RemoteCmds),
     #[command(about = "Manage repository configurations")]
     Config(command::config::ConfigArgs),
+    #[command(about = "Manage the log of reference changes (e.g., HEAD, branches)")]
+    Reflog(command::reflog::ReflogArgs),
 
     // other hidden commands
     #[command(
@@ -137,6 +139,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Pull(args) => command::pull::execute(args).await,
         Commands::Config(args) => command::config::execute(args).await,
         Commands::Checkout(args) => command::checkout::execute(args).await,
+        Commands::Reflog(args) => command::reflog::execute(args).await,
     }
     Ok(())
 }

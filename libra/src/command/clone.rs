@@ -1,18 +1,19 @@
+use super::fetch::{self};
 use crate::command::restore::RestoreArgs;
 use crate::command::{self, branch};
 use crate::internal::branch::Branch;
 use crate::internal::config::{Config, RemoteConfig};
 use crate::internal::head::Head;
+use crate::internal::reflog::{with_reflog, zero_sha1, ReflogAction, ReflogContext};
 use crate::utils::path_ext::PathExt;
 use crate::utils::util;
 use clap::Parser;
 use colored::Colorize;
 use scopeguard::defer;
+use sea_orm::DatabaseTransaction;
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::{env, fs};
-
-use super::fetch::{self};
 
 const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
 
@@ -97,59 +98,95 @@ pub async fn execute(args: CloneArgs) {
         name: "origin".to_string(),
         url: remote_repo.clone(),
     };
-    fetch::fetch_repository(&remote_config, args.branch.clone()).await;
+    fetch::fetch_repository(remote_config, args.branch.clone()).await;
 
     /* setup */
-    setup(remote_repo.clone(), args.branch.clone()).await;
+    if let Err(e) = setup_repository(remote_repo.clone(), args.branch.clone()).await {
+        eprintln!("fatal: {}", e);
+        return;
+    }
 
     is_success.set(true);
 }
 
-async fn setup(remote_repo: String, specified_branch: Option<String>) {
-    // look for remote head and set local HEAD&branch
-    let remote_head = Head::remote_current(ORIGIN).await;
+/// Sets up the local repository after a clone by configuring the remote,
+/// setting up the initial branch and HEAD, and creating the first reflog entry.
+async fn setup_repository(remote_repo: String, specified_branch: Option<String>) -> Result<(), String> {
+    let db = crate::internal::db::get_db_conn_instance().await;
+    let remote_head = Head::remote_current_with_conn(db, ORIGIN).await;
 
-    // set config: remote.origin.url,it's essential for git
-    Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
-    // set config: remote.origin.fetch
-    // todo: temporary ignore fetch option
+    // Determine which branch to check out.
+    let branch_to_checkout = match specified_branch {
+        Some(b_name) => Some(b_name),
+        None => {
+            if let Some(Head::Branch(name)) = remote_head {
+                Some(name)
+            } else {
+                None // This case handles empty repos or detached HEADs
+            }
+        }
+    };
 
-    if let Some(specified_branch) = specified_branch {
-        setup_branch(specified_branch).await;
-    } else if let Some(Head::Branch(name)) = remote_head {
-        setup_branch(name).await;
-    } else if let Some(Head::Detached(_)) = remote_head {
-        eprintln!("fatal: remote HEAD points to a detached commit");
+    if let Some(branch_name) = branch_to_checkout {
+        let origin_branch = Branch::find_branch_with_conn(db, &branch_name, Some(ORIGIN)).await
+            .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
+
+        // Prepare the reflog context *before* the transaction
+        let action = ReflogAction::Clone { from: remote_repo.clone() };
+
+        let context = ReflogContext {
+            // In a clone, there is no "old" oid. A zero-hash is the standard representation.
+            old_oid: zero_sha1().to_string(),
+            new_oid: origin_branch.commit.to_string(),
+            action,
+        };
+
+        // `insert_ref` is true, as we are creating the initial branch reflog.
+        with_reflog(
+            context,
+            move |txn: &DatabaseTransaction| {
+                Box::pin(async move {
+                    // 1. Create the local branch pointing to the fetched commit
+                    Branch::update_branch_with_conn(txn, &branch_name, &origin_branch.commit.to_string(), None).await;
+
+                    // 2. Set HEAD to point to the new local branch
+                    Head::update_with_conn(txn, Head::Branch(branch_name.to_owned()), None).await;
+
+                    // 3. Configure remote tracking for the branch
+                    let merge_ref = format!("refs/heads/{}", branch_name);
+                    Config::insert_with_conn(txn, "branch", Some(&branch_name), "merge", &merge_ref).await;
+                    Config::insert_with_conn(txn, "branch", Some(&branch_name), "remote", ORIGIN).await;
+
+                    // 4. Configure the remote URL
+                    Config::insert_with_conn(txn, "remote", Some(ORIGIN), "url", &remote_repo).await;
+                    Ok(())
+                })
+            },
+            true,
+        ).await.map_err(|e| e.to_string())?;
+
+        // After the DB is set up, restore the working directory
+        command::restore::execute(RestoreArgs {
+            worktree: true,
+            staged: true,
+            source: None,
+            pathspec: vec![util::working_dir_string()],
+        }).await;
+
     } else {
         println!("warning: You appear to have cloned an empty repository.");
 
-        // set config: branch.$name.merge, e.g.
-        let merge = "refs/heads/master".to_owned();
-        Config::insert("branch", Some("master"), "merge", &merge).await;
-        // set config: branch.$name.remote
-        Config::insert("branch", Some("master"), "remote", ORIGIN).await;
+        // We only need to set the remote URL. No reflog is created as there are no commits.
+        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+
+        // Optionally set up a default branch config for a future 'master' or 'main'
+        let default_branch = "master";
+        let merge_ref = format!("refs/heads/{}", default_branch);
+        Config::insert("branch", Some(default_branch), "merge", &merge_ref).await;
+        Config::insert("branch", Some(default_branch), "remote", ORIGIN).await;
     }
-}
 
-async fn setup_branch(branch_name: String) {
-    let origin_head_branch = Branch::find_branch(&branch_name, Some(ORIGIN))
-        .await
-        .expect("origin HEAD branch not found");
-
-    Branch::update_branch(&branch_name, &origin_head_branch.commit.to_string(), None).await;
-    Head::update(Head::Branch(branch_name.to_owned()), None).await;
-
-    let merge = "refs/heads/".to_owned() + &branch_name;
-    Config::insert("branch", Some(&branch_name), "merge", &merge).await;
-    Config::insert("branch", Some(&branch_name), "remote", ORIGIN).await;
-
-    command::restore::execute(RestoreArgs {
-        worktree: true,
-        staged: true,
-        source: None,
-        pathspec: vec![util::working_dir_string()],
-    })
-    .await;
+    Ok(())
 }
 
 /// Unit tests for the clone module

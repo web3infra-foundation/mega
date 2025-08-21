@@ -22,6 +22,7 @@ pub mod restore;
 pub mod revert;
 pub mod status;
 pub mod switch;
+pub mod reflog;
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;

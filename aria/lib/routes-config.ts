@@ -53,6 +53,7 @@ export const ROUTES: EachRoute[] = [
           { title: "pull", href: "/pull" },
           { title: "push", href: "/push" },
           { title: "rebase", href: "/rebase" },
+          { title: "reflog", href: "/reflog" },
           { title: "remote", href: "/remote" },
           { title: "reset", href: "/reset" },
           { title: "restore", href: "/restore" },
