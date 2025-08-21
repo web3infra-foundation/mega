@@ -2,10 +2,12 @@ use std::process::Stdio;
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
+use super::save_object;
 use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config as UserConfig;
 use crate::internal::head::Head;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::util;
@@ -16,9 +18,8 @@ use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
+use sea_orm::{ConnectionTrait};
 use std::process::Command;
-
-use super::save_object;
 
 #[derive(Parser, Debug, Default)]
 pub struct CommitArgs {
@@ -145,7 +146,7 @@ pub async fn execute(args: CommitArgs) {
             .unwrap();
 
         /* update HEAD */
-        update_head(&commit.id.to_string()).await;
+        update_head_and_reflog(&commit.id.to_string(), &commit_message).await;
         return;
     }
 
@@ -163,7 +164,7 @@ pub async fn execute(args: CommitArgs) {
         .unwrap();
 
     /* update HEAD */
-    update_head(&commit.id.to_string()).await;
+    update_head_and_reflog(&commit.id.to_string(), &commit_message).await;
 }
 
 /// recursively create tree from index's tracked entries
@@ -251,18 +252,43 @@ async fn get_parents_ids() -> Vec<SHA1> {
 }
 
 /// update HEAD to new commit, if in branch, update branch's commit id, if detached head, update head's commit id
-async fn update_head(commit_id: &str) {
+async fn update_head<C: ConnectionTrait>(db: &C, commit_id: &str) {
     // let head = reference::Model::current_head(db).await.unwrap();
-    match Head::current().await {
+    match Head::current_with_conn(db).await {
         Head::Branch(name) => {
             // in branch
-            Branch::update_branch(&name, commit_id, None).await;
+            Branch::update_branch_with_conn(db, &name, commit_id, None).await;
         }
         // None => {
         Head::Detached(_) => {
             let head = Head::Detached(SHA1::from_str(commit_id).unwrap());
-            Head::update(head, None).await;
+            Head::update_with_conn(db, head, None).await;
         }
+    }
+}
+
+async fn update_head_and_reflog(commit_id: &str, commit_message: &str) {
+    let reflog_context = new_reflog_context(commit_id, commit_message).await;
+    let commit_id = commit_id.to_string();
+    with_reflog(reflog_context, |txn| Box::pin(async move {
+        update_head(txn, &commit_id).await;
+        Ok(())
+    }), true).await.unwrap();
+}
+
+async fn new_reflog_context(commit_id: &str, message: &str) -> ReflogContext {
+    let old_oid = Head::current_commit()
+        .await
+        .unwrap_or(SHA1::from_bytes(&[0; 20]))
+        ._to_string();
+    let new_oid = commit_id.to_string();
+    let action = ReflogAction::Commit {
+        message: message.to_string(),
+    };
+    ReflogContext {
+        old_oid,
+        new_oid,
+        action,
     }
 }
 
