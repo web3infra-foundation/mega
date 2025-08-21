@@ -23,6 +23,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 async fn gpg(
     state: State<MonoApiServiceState>
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.storage.gpg_storage().save_gpg_key().await?;
+    state.gpg_stg().save_gpg_key().await?;
     Ok(Json(CommonResult::success(Some("success".to_string()))))
 } 
