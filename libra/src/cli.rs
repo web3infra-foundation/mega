@@ -41,6 +41,8 @@ enum Commands {
     Restore(command::restore::RestoreArgs),
     #[command(about = "Show the working tree status")]
     Status,
+    #[command(subcommand, about = "Stash the changes in a dirty working directory away")]
+    Stash(Stash),
     #[command(subcommand, about = "Large File Storage")]
     Lfs(command::lfs::LfsCmds),
     #[command(about = "Show commit logs")]
@@ -90,6 +92,32 @@ enum Commands {
     Checkout(command::checkout::CheckoutArgs),
 }
 
+#[derive(Subcommand, Debug)]
+pub enum Stash {
+    #[command(about = "Save your local modifications to a new stash")]
+    Push {
+        #[arg(short, long, help = "The message to display for the stash")]
+        message: Option<String>,
+    },
+    #[command(about = "Remove a single stashed state from the stash list")]
+    Pop {
+        #[arg(help = "The stash to pop")]
+        stash: Option<String>,
+    },
+    #[command(about = "List the stashes that you currently have")]
+    List,
+    #[command(about = "Like pop, but do not remove the state from the stash list")]
+    Apply {
+        #[arg(help = "The stash to apply")]
+        stash: Option<String>,
+    },
+    #[command(about = "Remove a single stashed state from the stash list")]
+    Drop {
+        #[arg(help = "The stash to drop")]
+        stash: Option<String>,
+    },
+}
+
 /// The main function is the entry point of the Libra application.
 /// It parses the command-line arguments and executes the corresponding function.
 /// - Caution: This is a `synchronous` function, it's declared as `async` to be able to use `[tokio::main]`
@@ -121,6 +149,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Restore(args) => command::restore::execute(args).await,
         Commands::Status => command::status::execute().await,
+        Commands::Stash(cmd) => command::stash::execute(cmd).await,
         Commands::Lfs(cmd) => command::lfs::execute(cmd).await,
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Branch(args) => command::branch::execute(args).await,
