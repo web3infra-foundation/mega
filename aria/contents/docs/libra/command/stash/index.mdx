@@ -1,0 +1,36 @@
+---
+title: The [stash] Command
+description: Stash the changes in a dirty working directory away
+---
+
+### Usage
+
+libra stash `<subcommand>` \[OPTIONS\] \[STASH\]
+
+### Description
+
+Use `libra stash` when you want to record the current state of the working directory and the index, but want to go back to a clean working directory. The command saves your local modifications away and reverts the working directory to match the `HEAD` commit.
+
+The modifications stashed away by this command can be listed with `libra stash list`, inspected with `libra stash show`, and restored (potentially on top of a different commit) with `libra stash apply`. Calling `libra stash` without any arguments is equivalent to `libra stash push`.
+
+### Subcommands
+
+-   **`push [-m | --message <message>]`**
+    Save your local modifications to a new stash entry and roll back to the `HEAD` commit. The `<message>` part is optional and gives the description along with the stashed state.
+
+-   **`pop [stash]`**
+    Remove a single stashed state from the stash list and apply it on top of the current working tree state. If no `stash` is given, it defaults to the latest one (`stash@{0}`).
+
+-   **`list`**
+    List the stash entries that you currently have. Each stash entry is listed with its name (e.g. `stash@{0}`) and the description from when it was created.
+
+-   **`apply [stash]`**
+    Like `pop`, but do not remove the stashed state from the stash list. If no `stash` is given, it defaults to the latest one (`stash@{0}`).
+
+-   **`drop [stash]`**
+    Remove a single stashed state from the stash list. If no `stash` is given, it defaults to the latest one (`stash@{0}`).
+
+### Arguments
+
+-   `[STASH]`
+    A reference to a specific stash. The syntax is `stash@{<revision>}` (e.g., `stash@{0}` for the latest stash, `stash@{1}` for the one before, etc.). If not specified, the command defaults to the latest stash.
