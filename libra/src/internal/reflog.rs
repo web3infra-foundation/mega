@@ -20,18 +20,13 @@ pub struct ReflogContext {
     pub action: ReflogAction,
 }
 
+#[derive(Debug)]
 pub enum ReflogError {
     DatabaseError(DbErr),
     TransactionError(TransactionError<DbErr>),
 }
 
 impl Display for ReflogError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{:?}", self)
-    }
-}
-
-impl Debug for ReflogError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DatabaseError(e) => write!(f, "Database error: {}", e),
@@ -54,12 +49,12 @@ impl From<TransactionError<DbErr>> for ReflogError {
 impl Display for ReflogContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.action {
-            ReflogAction::Commit { message } => write!(f, "{}", message.lines().next().unwrap_or("")),
+            ReflogAction::Commit { message } => write!(f, "{}", message.lines().next().unwrap_or("(no commit message)")),
             ReflogAction::Switch { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Checkout { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Reset { target } => write!(f, "moving to {target}"),
             ReflogAction::Merge { branch, policy } => write!(f, "merge {branch}:{policy}"),
-            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.trim().lines().next().unwrap_or("")),
+            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.trim().lines().next().unwrap_or("(no commit message)")),
             ReflogAction::Fetch => write!(f, "fast-forward"),
             ReflogAction::Pull => write!(f, "fast-forward"),
             ReflogAction::Rebase { state, details } => write!(f, "({state}) {details}"),
@@ -127,7 +122,7 @@ impl ReflogAction {
             Self::CherryPick { .. } => ReflogActionKind::CherryPick,
             Self::Rebase { .. } => ReflogActionKind::Rebase,
             Self::Checkout { .. } => ReflogActionKind::Checkout,
-            Self::Fetch { .. } => ReflogActionKind::Fetch,
+            Self::Fetch => ReflogActionKind::Fetch,
         }
     }
 }
@@ -179,13 +174,12 @@ impl Reflog {
         Ok(())
     }
 
-    pub async fn find_all<C: ConnectionTrait>(db: &C, ref_name: &str) -> Vec<Model> {
-        reflog::Entity::find()
+    pub async fn find_all<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Vec<Model>, ReflogError> {
+        Ok(reflog::Entity::find()
             .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
             .all(db)
-            .await
-            .unwrap()
+            .await?)
     }
 
     pub async fn find_one<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Option<Model>, ReflogError> {

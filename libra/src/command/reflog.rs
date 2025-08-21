@@ -1,14 +1,14 @@
 use crate::command::{load_object, HEAD};
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
-use crate::internal::reflog;
-use crate::internal::reflog::Reflog;
+use crate::internal::reflog::{Reflog, ReflogError};
+use crate::internal::config;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
 use sea_orm::sqlx::types::chrono;
-use sea_orm::{ConnectionTrait, DbBackend, DbErr, Statement, TransactionTrait};
+use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -28,7 +28,7 @@ enum Subcommands {
         #[clap(default_value = "HEAD")]
         ref_name: String,
         #[arg(long = "pretty")]
-        #[clap(default_value = "FormatterKind::default()")]
+        #[clap(default_value_t = FormatterKind::default())]
         pretty: FormatterKind,
     },
     /// clear the reflog record of the specified branch.
@@ -54,8 +54,15 @@ pub async fn execute(args: ReflogArgs) {
 async fn handle_show(ref_name: &str, pretty: FormatterKind) {
     let db = get_db_conn_instance().await;
 
-    let ref_name = parse_ref_name(ref_name);
-    let logs = Reflog::find_all(db, &ref_name).await;
+    let ref_name = parse_ref_name(ref_name).await;
+    let logs = match Reflog::find_all(db, &ref_name).await {
+        Ok(logs) => logs,
+        Err(e) => {
+            eprintln!("fatal: failed to get reflog entries: {e}");
+            return;
+        }
+    };
+
     let formatter = ReflogFormatter {
         logs: &logs,
         kind: pretty,
@@ -72,7 +79,7 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
 
     #[cfg(unix)]
     if let Some(ref mut stdin) = less.stdin {
-        writeln!(stdin, "{formatter}").unwrap();
+        writeln!(stdin, "{formatter}").expect("fatal: failed to write to stdin");
     } else {
         eprintln!("Failed to capture stdin");
     }
@@ -84,11 +91,16 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
     println!("{formatter}")
 }
 
-fn parse_ref_name(partial_ref_name: &str) -> String {
+// `partial_ref_name` is the branch name entered by the user.
+async fn parse_ref_name(partial_ref_name: &str) -> String {
     if partial_ref_name == HEAD {
         return HEAD.to_string();
     }
-    if partial_ref_name.contains("/") {
+    if !partial_ref_name.contains("/") {
+        return format!("refs/heads/{partial_ref_name}");
+    }
+    let (ref_name, _) = partial_ref_name.split_once("/").unwrap();
+    if config::Config::get("remote", Some(ref_name), "url").await.is_some() {
         return format!("refs/remotes/{partial_ref_name}");
     }
     format!("refs/heads/{partial_ref_name}")
@@ -98,7 +110,7 @@ async fn handle_exists(ref_name: &str) {
     let db = get_db_conn_instance().await;
     let log = Reflog::find_one(db, ref_name)
         .await
-        .unwrap();
+        .expect("fatal: failed to get reflog entry");
     match log {
         Some(_) => {}
         None => std::process::exit(1),
@@ -116,7 +128,7 @@ async fn handle_delete(selectors: &[String]) {
             continue;
         }
         eprintln!("fatal: invalid reflog entry format: {selector}");
-        return
+        return;
     }
 
     let groups = groups
@@ -141,7 +153,7 @@ async fn delete_single_group(group: &[(&str, usize)]) {
 
     db.transaction(|txn| Box::pin(async move {
         let ref_name = &group[0].0;
-        let logs = reflog::Reflog::find_all(txn, ref_name).await;
+        let logs = Reflog::find_all(txn, ref_name).await?;
 
         for (_, index) in &group {
             if let Some(entry) = logs.get(*index) {
@@ -156,8 +168,8 @@ async fn delete_single_group(group: &[(&str, usize)]) {
             eprintln!("fatal: reflog entry `{ref_name}@{{{index}}}` not found")
         }
 
-        Ok::<_, DbErr>(())
-    })).await.unwrap()
+        Ok::<_, ReflogError>(())
+    })).await.expect("fatal: failed to delete reflog entries")
 }
 
 fn parse_reflog_selector(selector: &str) -> Option<(&str, usize)> {
@@ -180,6 +192,17 @@ enum FormatterKind {
     Short,
     Medium,
     Full,
+}
+
+impl Display for FormatterKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Oneline => f.write_str("oneline"),
+            Self::Short => f.write_str("short"),
+            Self::Medium => f.write_str("medium"),
+            Self::Full => f.write_str("full"),
+        }
+    }
 }
 
 impl Default for FormatterKind {
