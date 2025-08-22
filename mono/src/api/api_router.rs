@@ -121,10 +121,22 @@ async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
+    let query_path: std::path::PathBuf = query.path.into();
+    let import_dir = state.storage.config().monorepo.import_dir.clone();
+    if let Ok(rest) = query_path.strip_prefix(import_dir) {
+        if rest.components().count() == 1 {
+            let res = state
+                .monorepo()
+                .get_latest_commit(query_path.clone())
+                .await?;
+            return Ok(Json(res));
+        }
+    }
+
     let res = state
-        .api_handler(query.path.as_ref())
+        .api_handler(&query_path)
         .await?
-        .get_latest_commit(query.path.into())
+        .get_latest_commit(query_path)
         .await?;
     Ok(Json(res))
 }
