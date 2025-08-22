@@ -41,7 +41,10 @@ enum Commands {
     Restore(command::restore::RestoreArgs),
     #[command(about = "Show the working tree status")]
     Status,
-    #[command(subcommand, about = "Stash the changes in a dirty working directory away")]
+    #[command(
+        subcommand,
+        about = "Stash the changes in a dirty working directory away"
+    )]
     Stash(Stash),
     #[command(subcommand, about = "Large File Storage")]
     Lfs(command::lfs::LfsCmds),

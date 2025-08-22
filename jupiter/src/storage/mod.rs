@@ -24,10 +24,10 @@ use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
-    git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
-    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
-    gpg_storage::GpgStorage
+    git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
+    lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mr_storage::MrStorage,
+    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
+    vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -86,7 +86,7 @@ impl Storage {
 
         let mono_storage = MonoStorage { base: base.clone() };
         let git_db_storage = GitDbStorage { base: base.clone() };
-        let gpg_storage = GpgStorage {base: base.clone()};
+        let gpg_storage = GpgStorage { base: base.clone() };
         let raw_db_storage = RawDbStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
         let relay_storage = RelayStorage { base: base.clone() };

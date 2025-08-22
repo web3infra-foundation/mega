@@ -466,10 +466,7 @@ async fn verify_mr_signature(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
-    let res = state
-        .monorepo()
-        .verify_mr(&link)
-        .await?;
+    let res = state.monorepo().verify_mr(&link).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 

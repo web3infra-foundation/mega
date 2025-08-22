@@ -39,8 +39,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use crate::api_service::ApiHandler;
+use crate::model::git::CreateFileInfo;
+use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
-use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
@@ -56,10 +58,8 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
+use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use regex::Regex;
-use crate::api_service::ApiHandler;
-use crate::model::git::CreateFileInfo;
-use crate::model::mr::MrDiffFile;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -525,7 +525,7 @@ impl MonoApiService {
             Vec::new(),
             read_content,
         )
-            .await;
+        .await;
 
         Ok(diff_output)
     }
@@ -590,16 +590,17 @@ impl MonoApiService {
         Ok(res)
     }
 
-    pub async fn verify_mr(
-        &self,
-        mr_link: &str,
-    ) -> Result<HashMap<String, bool>, MegaError> {
+    pub async fn verify_mr(&self, mr_link: &str) -> Result<HashMap<String, bool>, MegaError> {
         let stg = self.storage.mr_storage();
         let mr = stg.get_mr(mr_link).await?.ok_or_else(|| {
             MegaError::with_message(format!("Merge request not found: {mr_link}"))
         })?;
 
-        let commit = self.storage.mono_storage().get_commit_by_hash(&mr.to_hash).await?
+        let commit = self
+            .storage
+            .mono_storage()
+            .get_commit_by_hash(&mr.to_hash)
+            .await?
             .ok_or_else(|| MegaError::with_message("Commit not found"))?;
 
         let mut res = HashMap::new();
@@ -607,9 +608,7 @@ impl MonoApiService {
         let user_id = self
             .storage
             .user_storage()
-            .find_user_by_email(
-                &self.extract_email(&content).await.unwrap_or_default(),
-            )
+            .find_user_by_email(&self.extract_email(&content).await.unwrap_or_default())
             .await?
             .unwrap()
             .id;
@@ -618,11 +617,7 @@ impl MonoApiService {
         Ok(res)
     }
 
-
-    async fn extract_email(
-        &self,
-        s: &str
-    ) -> Option<String> {
+    async fn extract_email(&self, s: &str) -> Option<String> {
         let re = Regex::new(r"<\s*(?P<email>[^<>@\s]+@[^<>@\s]+)\s*>").unwrap();
         re.captures(s)
             .and_then(|c| c.get(1))
@@ -668,7 +663,7 @@ impl MonoApiService {
         message: &str,
     ) -> Result<bool, MegaError> {
         let (public_key, _) = SignedPublicKey::from_string(public_key)?;
-        let (signature, _)= StandaloneSignature::from_string(signature)?;
+        let (signature, _) = StandaloneSignature::from_string(signature)?;
 
         Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
     }

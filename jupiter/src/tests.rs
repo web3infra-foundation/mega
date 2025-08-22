@@ -49,7 +49,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     let svc = AppService {
         mono_storage: MonoStorage { base: base.clone() },
         git_db_storage: GitDbStorage { base: base.clone() },
-        gpg_storage: GpgStorage {base: base.clone()},
+        gpg_storage: GpgStorage { base: base.clone() },
         raw_db_storage: RawDbStorage { base: base.clone() },
         lfs_db_storage: LfsDbStorage { base: base.clone() },
         relay_storage: RelayStorage { base: base.clone() },

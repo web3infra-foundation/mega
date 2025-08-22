@@ -11,8 +11,8 @@ use callisto::sea_orm_active_enums::MergeStatusEnum;
 use common::model::CommonPage;
 use neptune::model::diff_model::DiffItem;
 
-pub mod mr_router;
 mod model;
+pub mod mr_router;
 
 #[derive(Serialize, ToSchema)]
 pub struct MRDetailRes {

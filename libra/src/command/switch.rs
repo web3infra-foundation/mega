@@ -1,16 +1,16 @@
 use clap::Parser;
 use mercury::hash::SHA1;
 
+use super::{
+    restore::{self, RestoreArgs},
+    status,
+};
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::{
     command::branch,
     internal::{branch::Branch, head::Head},
     utils::util::{self, get_commit_base},
-};
-use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
-use super::{
-    restore::{self, RestoreArgs},
-    status,
 };
 
 #[derive(Parser, Debug)]
@@ -97,13 +97,16 @@ async fn switch_to_commit(commit_hash: SHA1) {
     if let Err(e) = with_reflog(
         context,
         move |txn: &sea_orm::DatabaseTransaction| {
-                Box::pin(async move {
-                    let new_head = Head::Detached(commit_hash);
-                    Head::update_with_conn(txn, new_head, None).await;
-                    Ok(())
-                })
-            },
-        false).await {
+            Box::pin(async move {
+                let new_head = Head::Detached(commit_hash);
+                Head::update_with_conn(txn, new_head, None).await;
+                Ok(())
+            })
+        },
+        false,
+    )
+    .await
+    {
         eprintln!("fatal: {e}");
         return;
     };
@@ -153,7 +156,6 @@ async fn switch_to_branch(branch_name: String) {
         action,
     };
 
-
     // `log_for_branch` is `false`. This is the key insight for `switch`/`checkout`.
     if let Err(e) = with_reflog(
         context,
@@ -164,7 +166,10 @@ async fn switch_to_branch(branch_name: String) {
                 Ok(())
             })
         },
-        false).await {
+        false,
+    )
+    .await
+    {
         eprintln!("fatal: {e}");
         return;
     }

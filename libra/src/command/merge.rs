@@ -1,15 +1,15 @@
 use clap::Parser;
 use mercury::internal::object::commit::Commit;
 
-use crate::{
-    internal::{branch::Branch, head::Head},
-    utils::util,
-};
-use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{with_reflog, zero_sha1, ReflogAction, ReflogContext};
 use super::{
     get_target_commit, load_object, log,
     restore::{self, RestoreArgs},
+};
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog::{with_reflog, zero_sha1, ReflogAction, ReflogContext};
+use crate::{
+    internal::{branch::Branch, head::Head},
+    utils::util,
 };
 
 #[derive(Parser, Debug)]
@@ -117,7 +117,13 @@ async fn merge_ff(target_commit: Commit, target_branch_name: &str) {
             Box::pin(async move {
                 match &current_head_state {
                     Head::Branch(branch_name) => {
-                        Branch::update_branch_with_conn(txn, branch_name, &target_commit.id.to_string(), None).await;
+                        Branch::update_branch_with_conn(
+                            txn,
+                            branch_name,
+                            &target_commit.id.to_string(),
+                            None,
+                        )
+                        .await;
                     }
                     Head::Detached(_) => {
                         // Merging into a detached HEAD is unusual but possible. We just move HEAD.
@@ -127,7 +133,9 @@ async fn merge_ff(target_commit: Commit, target_branch_name: &str) {
                 Ok(())
             })
         },
-        true).await
+        true,
+    )
+    .await
     {
         eprintln!("fatal: {}", e);
         return;
@@ -140,5 +148,5 @@ async fn merge_ff(target_commit: Commit, target_branch_name: &str) {
         source: None, // `restore` without source defaults to HEAD, which is now correct.
         pathspec: vec![util::working_dir_string()],
     })
-        .await;
+    .await;
 }

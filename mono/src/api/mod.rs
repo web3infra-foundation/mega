@@ -17,16 +17,17 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 use jupiter::storage::{
     conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
     user_storage::UserStorage, Storage,
 };
+use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 
 pub mod api_common;
 pub mod api_router;
 pub mod conversation;
 pub mod error;
+mod gpg;
 pub mod issue;
 pub mod label;
 pub mod lfs;
@@ -34,7 +35,6 @@ pub mod mr;
 pub mod notes;
 pub mod oauth;
 pub mod user;
-mod gpg;
 
 pub type GithubClient<
     HasAuthUrl = EndpointSet,

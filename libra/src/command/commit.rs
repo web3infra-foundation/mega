@@ -18,7 +18,7 @@ use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
-use sea_orm::{ConnectionTrait};
+use sea_orm::ConnectionTrait;
 use std::process::Command;
 
 #[derive(Parser, Debug, Default)]
@@ -270,10 +270,18 @@ async fn update_head<C: ConnectionTrait>(db: &C, commit_id: &str) {
 async fn update_head_and_reflog(commit_id: &str, commit_message: &str) {
     let reflog_context = new_reflog_context(commit_id, commit_message).await;
     let commit_id = commit_id.to_string();
-    with_reflog(reflog_context, |txn| Box::pin(async move {
-        update_head(txn, &commit_id).await;
-        Ok(())
-    }), true).await.unwrap();
+    with_reflog(
+        reflog_context,
+        |txn| {
+            Box::pin(async move {
+                update_head(txn, &commit_id).await;
+                Ok(())
+            })
+        },
+        true,
+    )
+    .await
+    .unwrap();
 }
 
 async fn new_reflog_context(commit_id: &str, message: &str) -> ReflogContext {
