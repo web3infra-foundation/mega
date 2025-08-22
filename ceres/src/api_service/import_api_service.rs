@@ -277,7 +277,7 @@ impl ImportApiService {
         search_item: &TreeItem,
         cache: &mut GitObjectCache,
     ) -> Result<bool, GitError> {
-        let relative_path = self.strip_relative(path).unwrap();
+        let relative_path = self.strip_relative(path)?;
         let mut search_tree = root_tree;
         // first find search tree by path
         for component in relative_path.components() {
