@@ -35,7 +35,7 @@
 //! API requests for monorepo operations. All operations are asynchronous and return
 //! appropriate error types for robust error handling.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
