@@ -235,7 +235,7 @@ impl<'a> Display for ReflogFormatter<'a> {
             .iter()
             .enumerate()
             .map(|(idx, log)| {
-                let head = format!("HEAD@{{{}}}", idx);
+                let head = format!("HEAD@{{{idx}}}");
                 let new_oid = &log.new_oid[..7];
 
                 let commit = find_commit(&log.new_oid);

@@ -40,6 +40,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
@@ -524,7 +525,7 @@ impl MonoApiService {
             Vec::new(),
             read_content,
         )
-        .await;
+            .await;
 
         Ok(diff_output)
     }
@@ -598,30 +599,22 @@ impl MonoApiService {
             MegaError::with_message(format!("Merge request not found: {mr_link}"))
         })?;
 
-        let hashes = self.get_mr_commit_hashes(&mr.from_hash, &mr.to_hash.clone()).await?;
-        let mut commits = self
+        let commit = self.storage.mono_storage().get_commit_by_hash(&mr.to_hash).await?
+            .ok_or_else(|| MegaError::with_message("Commit not found"))?;
+
+        let mut res = HashMap::new();
+        let content = commit.content.clone().unwrap_or_default();
+        let user_id = self
             .storage
-            .mono_storage()
-            .get_commits_by_hashes(&hashes)
-            .await?;
-
-        let mut res= HashMap::new();
-        for commit in commits {
-            let content = commit.content.clone().unwrap_or_default();
-            let user = self
-                .storage
-                .user_storage()
-                .find_user_by_email(
-                    &self.extract_email(&content).await.unwrap_or_default(),
-                ).await?;
-
-            // get user gpg keys
-            // verify commit signature
-
-            let verified = self.verify_commit_gpg_signature(&content).await?;
-            res.insert(commit.id.to_string(), verified);
-        }
-
+            .user_storage()
+            .find_user_by_email(
+                &self.extract_email(&content).await.unwrap_or_default(),
+            )
+            .await?
+            .unwrap()
+            .id;
+        let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
+        res.insert(commit.commit_id.clone(), verified);
         Ok(res)
     }
 
@@ -629,7 +622,7 @@ impl MonoApiService {
     async fn extract_email(
         &self,
         s: &str
-    ) -> Option<String>{
+    ) -> Option<String> {
         let re = Regex::new(r"<\s*(?P<email>[^<>@\s]+@[^<>@\s]+)\s*>").unwrap();
         re.captures(s)
             .and_then(|c| c.get(1))
@@ -639,66 +632,45 @@ impl MonoApiService {
     async fn verify_commit_gpg_signature(
         &self,
         commit_content: &str,
+        user_id: i64,
     ) -> Result<bool, MegaError> {
-        let (_, signature) = parse_commit_msg(commit_content);
+        let (commit_msg, signature) = parse_commit_msg(commit_content);
         if signature.is_none() {
             return Ok(false); // No signature to verify
         }
 
-        // Get GPG key based on user from the storage
-        // Check if user holds the GPG key is verified by user
+        let sig_str = signature.unwrap();
 
-        Ok(true) // Assume verification is successful for this example
-    }
+        // Remove "gpgsig " prefix if present
+        let sig = sig_str
+            .strip_prefix("gpgsig ")
+            .map(|s| s.trim())
+            .unwrap_or(sig_str);
 
-    async fn get_mr_commit_hashes(
-        &self,
-        from_hash: &str,
-        to_hash: &str,
-    ) -> Result<Vec<String>, MegaError> {
-        let to_commits_hashes = self.get_commit_tree_by_hash(to_hash).await?;
-        let from_commits_hashes = self.get_commit_tree_by_hash(from_hash).await?;
+        let keys = self.storage.gpg_storage().list_user_gpg(user_id).await?;
 
-        let from_set: HashSet<String> = from_commits_hashes.into_iter().collect();
-        let mr_commits: Vec<String> = to_commits_hashes
-            .into_iter()
-            .filter(|id| !from_set.contains(id))
-            .collect();
-
-        Ok(mr_commits)
-    }
-
-    async fn get_commit_tree_by_hash(
-        &self,
-        commit_hash: &str,
-    ) -> Result<Vec<String>, MegaError> {
-        let storage = self.storage.mono_storage();
-        let mut visited = HashSet::new();
-        let mut result = Vec::new();
-        let mut queue = VecDeque::new();
-
-        queue.push_back(commit_hash.to_string());
-
-        while let Some(current_hash) = queue.pop_front() {
-            if visited.contains(&current_hash) {
-                continue;
-            }
-            visited.insert(current_hash.clone());
-
-            if let Some(commit) = storage.get_commit_by_hash(&current_hash).await? {
-                result.push(commit.commit_id.clone());
-
-                if let Some(parents) = commit.parents_id.as_array() {
-                    for parent in parents {
-                        if let Some(parent_hash) = parent.as_str() {
-                            queue.push_back(parent_hash.to_string());
-                        }
-                    }
-                }
+        for key in keys {
+            let verified = self
+                .verify_signature_with_key(&key.public_key, sig, commit_msg)
+                .await?;
+            if verified {
+                return Ok(true); // Signature verified successfully
             }
         }
 
-        Ok(result)
+        Ok(false) // No key could verify the signature
+    }
+
+    async fn verify_signature_with_key(
+        &self,
+        public_key: &str,
+        signature: &str,
+        message: &str,
+    ) -> Result<bool, MegaError> {
+        let (public_key, _) = SignedPublicKey::from_string(public_key)?;
+        let (signature, _)= StandaloneSignature::from_string(signature)?;
+
+        Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
     }
 
     pub async fn get_commit_blobs(

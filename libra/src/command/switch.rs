@@ -104,7 +104,7 @@ async fn switch_to_commit(commit_hash: SHA1) {
                 })
             },
         false).await {
-        eprintln!("fatal: {}", e);
+        eprintln!("fatal: {e}");
         return;
     };
 
@@ -139,7 +139,7 @@ async fn switch_to_branch(branch_name: String) {
     };
 
     if from_ref_name == branch_name {
-        println!("Already on '{}'", branch_name);
+        println!("Already on '{branch_name}'");
         return;
     }
 
@@ -165,7 +165,7 @@ async fn switch_to_branch(branch_name: String) {
             })
         },
         false).await {
-        eprintln!("fatal: {}", e);
+        eprintln!("fatal: {e}");
         return;
     }
 

@@ -67,5 +67,13 @@ impl GpgStorage{
             .await?;
         Ok(())
     }
+
+    pub async fn list_user_gpg(&self, user_id: i64) -> Result<Vec<gpg_key::Model>, MegaError> {
+        let res: Vec<gpg_key::Model> = gpg_key::Entity::find()
+            .filter(gpg_key::Column::UserId.eq(user_id))
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
+    }
 }
 

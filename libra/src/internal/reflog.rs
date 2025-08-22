@@ -29,8 +29,8 @@ pub enum ReflogError {
 impl Display for ReflogError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DatabaseError(e) => write!(f, "Database error: {}", e),
-            Self::TransactionError(e) => write!(f, "Transaction error: {}", e),
+            Self::DatabaseError(e) => write!(f, "Database error: {e}"),
+            Self::TransactionError(e) => write!(f, "Transaction error: {e}"),
         }
     }
 }
@@ -167,7 +167,7 @@ impl Reflog {
 
         if let Head::Branch(branch_name) = head {
             if insert_ref {
-                let full_branch_ref = format!("refs/heads/{}", branch_name);
+                let full_branch_ref = format!("refs/heads/{branch_name}");
                 Self::insert_single_entry(db, &context, &full_branch_ref).await?;
             }
         }
