@@ -97,6 +97,7 @@ cedar-policy = "4.4.1"
 secp256k1 = "0.30.0"
 pgp = "0.15.0"
 openssl = "0.10.73"
+sequoia-openpgp = {version = "2.0.0" }
 oauth2 = "5.0.0"
 base64 = "0.22.1"
 encoding_rs = "0.8.35"

@@ -13,12 +13,11 @@ impl MigrationTrait for Migration {
                     .table(GpgKey::Table)
                     .if_not_exists()
                     .col(pk_auto(GpgKey::Id))
-                    .col(big_integer(GpgKey::KeyId))
                     .col(big_integer(GpgKey::UserId))
+                    .col(text(GpgKey::KeyId))
                     .col(text(GpgKey::PublicKey))
                     .col(text(GpgKey::Fingerprint).unique_key())
                     .col(text(GpgKey::Alias))
-                    .col(boolean(GpgKey::IsVerified))
                     .col(timestamp(GpgKey::CreatedAt))
                     .col(timestamp_null(GpgKey::ExpiresAt))
                     .foreign_key(
@@ -52,7 +51,6 @@ enum GpgKey {
     PublicKey,
     Fingerprint,
     Alias,
-    IsVerified,
     CreatedAt,
     ExpiresAt,
 }

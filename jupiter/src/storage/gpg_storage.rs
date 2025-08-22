@@ -1,5 +1,5 @@
 use std::ops::Deref;
-
+use std::str::FromStr;
 use callisto::entity_ext::generate_id;
 use callisto::gpg_key;
 use common::errors::MegaError;
@@ -25,23 +25,35 @@ impl Deref for GpgStorage {
 }
 
 impl GpgStorage{
-    fn create_sample_key(&self, user_id: i64) -> gpg_key::Model {
+    fn create_key(&self, user_id: i64, gpg_content: String, expires_days: Option<i32>) -> Result<gpg_key::Model, MegaError> {
+        let cert = sequoia_openpgp::Cert::from_str(&gpg_content)?;
+        let fingerprint = cert.fingerprint().to_hex();
+        let key_id = format!("{:016X}", cert.keyid());
+        let created_at = chrono::Utc::now().naive_utc();
+        let expires_at = expires_days.map(|days| created_at+ chrono::Duration::days(days as i64));
+
         let key = gpg_key::Model {
-            id: 123,
-            key_id: 123,
+            id: generate_id(),
             user_id,
-            public_key: "PUBKEY".to_string(),
-            fingerprint: format!("fp-{}", 123456),
-            alias: "sample".to_string(),
-            is_verified: false,
-            created_at: chrono::Utc::now().naive_utc(),
-            expires_at: None,
+            key_id,
+            public_key: gpg_content,
+            fingerprint,
+            alias: "user-key".to_string(),
+            created_at,
+            expires_at
         };
-        key
+
+        Ok(key)
     }
 
-    pub async fn save_gpg_key(&self, user_id: i64) -> Result<(), MegaError> {
-        let key = self.create_sample_key(user_id);
+    pub async fn add_gpg_key(&self, user_id: i64, gpg_content: String, expired_at: Option<i32>) -> Result<(), MegaError> {
+        let key = self.create_key(user_id, gpg_content, expired_at)?;
+        let a_model = key.into_active_model();
+        a_model.insert(self.get_connection()).await?;
+        Ok(())
+    }
+
+    pub async fn save_gpg_key(&self, key: gpg_key::Model) -> Result<(), MegaError> {
         let a_model = key.into_active_model();
         a_model.insert(self.get_connection()).await?;
         Ok(())

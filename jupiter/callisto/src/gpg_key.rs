@@ -6,15 +6,15 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub key_id: i64,
     pub user_id: i64,
+    #[sea_orm(column_type = "Text", unique)]
+    pub key_id: String,
     #[sea_orm(column_type = "Text")]
     pub public_key: String,
     #[sea_orm(column_type = "Text", unique)]
     pub fingerprint: String,
     #[sea_orm(column_type = "Text")]
     pub alias: String,
-    pub is_verified: bool,
     pub created_at: DateTime,
     pub expires_at: Option<DateTime>,
 }

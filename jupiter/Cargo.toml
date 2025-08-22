@@ -42,3 +42,4 @@ anyhow = { workspace = true }
 tempfile = { workspace = true }
 indexmap = { workspace = true }
 url = { workspace = true }
+sequoia-openpgp = { workspace = true }

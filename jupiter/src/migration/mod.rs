@@ -50,7 +50,7 @@ mod m20250812_022434_alter_mega_mr;
 mod m20250815_075653_remove_commit_id;
 mod m20250819_025231_alter_builds;
 mod m20250821_083749_add_checks;
-mod m20250821_140458_add_gpg_keys;
+mod m20250820_102133_gpgkey;
 /// Creates a primary key column definition with big integer type.
 ///
 /// # Arguments
@@ -87,6 +87,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250812_022434_alter_mega_mr::Migration),
             Box::new(m20250815_075653_remove_commit_id::Migration),
             Box::new(m20250819_025231_alter_builds::Migration),
+            Box::new(m20250820_102133_gpgkey::Migration)
         ]
     }
 }
