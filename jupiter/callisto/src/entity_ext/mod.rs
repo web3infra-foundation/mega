@@ -1,3 +1,4 @@
+pub mod check_result;
 pub mod item_assignees;
 pub mod item_labels;
 pub mod label;

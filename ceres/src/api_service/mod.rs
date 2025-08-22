@@ -76,7 +76,8 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit>;
 
-    async fn get_tree_relate_commit(&self, t_hash: SHA1, path: PathBuf) -> Result<Commit, GitError>;
+    async fn get_tree_relate_commit(&self, t_hash: SHA1, path: PathBuf)
+        -> Result<Commit, GitError>;
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
 

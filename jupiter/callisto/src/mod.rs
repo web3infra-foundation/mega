@@ -5,6 +5,7 @@ pub mod prelude;
 
 pub mod access_token;
 pub mod builds;
+pub mod check_result;
 pub mod git_blob;
 pub mod git_commit;
 pub mod git_issue;
@@ -29,6 +30,7 @@ pub mod mega_tag;
 pub mod mega_tree;
 pub mod mq_storage;
 pub mod notes;
+pub mod path_check_configs;
 pub mod raw_blob;
 pub mod reactions;
 pub mod relay_lfs_info;
