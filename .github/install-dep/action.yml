@@ -98,6 +98,13 @@ runs:
           nettle 
 
     # =============== Platform-specific Initialization (Windows) ===============
+    - name: Install MSYS2
+      if: contains(inputs.platform, 'windows')
+      shell: powershell
+      run: |
+        choco install --no-progress msys2
+        refreshenv
+
     - name: Install dependencies (Windows)
       if: contains(inputs.platform, 'windows')
       shell: powershell
@@ -105,7 +112,9 @@ runs:
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
         rustup update
-        pacman -S mingw-w64-x86_64-nettle
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm mingw-w64-x86_64-nettle
+        
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
