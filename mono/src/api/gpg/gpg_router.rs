@@ -4,6 +4,7 @@ use crate::{
     server::http_server::GPG_TAG,
 };
 use axum::{extract::State, Json};
+use axum::extract::Path;
 use callisto::gpg_key::Model;
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -70,9 +71,9 @@ async fn add_gpg(
 )]
 async fn list_gpg(
     state: State<MonoApiServiceState>,
-    Json(req): Json<NewGpgRequest>,
+    Path(user_id): Path<i64>,
 ) -> Result<Json<CommonResult<Vec<GpgKey>>>, ApiError> {
-    let raw_keys = state.gpg_stg().list_user_gpg(req.user_id).await;
+    let raw_keys = state.gpg_stg().list_user_gpg(user_id).await;
 
     let res: Vec<GpgKey> = raw_keys
         .into_iter()
