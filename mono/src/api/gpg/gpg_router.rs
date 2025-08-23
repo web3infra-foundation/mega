@@ -20,7 +20,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 }
 
 #[utoipa::path(
-    post,
+    delete,
     path = "/remove",
     request_body = RemoveGpgRequest,
     responses(
@@ -40,7 +40,7 @@ async fn remove_gpg(
 }
 
 #[utoipa::path(
-    delete,
+    get,
     path = "/add",
     request_body = NewGpgRequest,
     responses(

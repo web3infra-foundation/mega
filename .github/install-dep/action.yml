@@ -94,7 +94,8 @@ runs:
           gtk4 \
           libadwaita \
           librsvg \
-          gtksourceview5
+          gtksourceview5 \
+          nettle 
 
     # =============== Platform-specific Initialization (Windows) ===============
     - name: Install dependencies (Windows)
@@ -104,6 +105,7 @@ runs:
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
         rustup update
+        pacman -S mingw-w64-x86_64-nettle
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita

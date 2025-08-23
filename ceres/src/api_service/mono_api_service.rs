@@ -605,13 +605,14 @@ impl MonoApiService {
 
         let mut res = HashMap::new();
         let content = commit.content.clone().unwrap_or_default();
+        let email = self.extract_email(&content).await.unwrap_or_default();
         let user_id = self
             .storage
             .user_storage()
-            .find_user_by_email(&self.extract_email(&content).await.unwrap_or_default())
+            .find_user_by_email(&email)
             .await?
-            .unwrap()
-            .id;
+            .ok_or_else(|| MegaError::with_message(format!("No user found for email: {}", email)))?.id;
+        
         let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
         res.insert(commit.commit_id.clone(), verified);
         Ok(res)
