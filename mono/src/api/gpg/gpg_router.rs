@@ -20,14 +20,14 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 
 #[utoipa::path(
     post,
-    path = "/add",
+    path = "/remove",
     request_body = RemoveGpgRequest,
     responses(
         (status = 200, body = CommonResult<String>, content_type="application/json")
     ),
     tag = GPG_TAG
 )]
-async fn add_gpg(
+async fn remove_gpg(
     state: State<MonoApiServiceState>,
     Json(req): Json<RemoveGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
@@ -40,14 +40,14 @@ async fn add_gpg(
 
 #[utoipa::path(
     delete,
-    path = "/remove",
+    path = "/add",
     request_body = NewGpgRequest,
     responses(
         (status = 200, body = CommonResult<String>, content_type="application/json")
     ),
     tag = GPG_TAG
 )]
-async fn remove_gpg(
+async fn add_gpg(
     state: State<MonoApiServiceState>,
     Json(req): Json<NewGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
