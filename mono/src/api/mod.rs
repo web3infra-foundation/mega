@@ -1,4 +1,3 @@
-use async_session::MemoryStore;
 use axum::extract::FromRef;
 use oauth2::{
     basic::{
@@ -8,6 +7,7 @@ use oauth2::{
     Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
 };
 use std::path::Path;
+use tower_sessions::MemoryStore;
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use ceres::{
@@ -64,7 +64,7 @@ pub struct MonoApiServiceState {
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
     fn from_ref(_: &MonoApiServiceState) -> Self {
-        MemoryStore::new()
+        MemoryStore::default()
     }
 }
 

@@ -41,17 +41,16 @@ runs:
       shell: bash
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        
-        # 检查并安装缺失的包
+
         PACKAGES="cmake git git-lfs build-essential pkg-config curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev libwebkit2gtk-4.1-dev fuse3 libfuse3-dev"
         MISSING_PACKAGES=""
-        
+
         for pkg in $PACKAGES; do
           if ! dpkg -l | grep -q "^ii  $pkg "; then
             MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
           fi
         done
-        
+
         if [ -n "$MISSING_PACKAGES" ]; then
           echo "Installing missing packages: $MISSING_PACKAGES"
           sudo apt update
@@ -59,10 +58,9 @@ runs:
         else
           echo "All required packages are already installed"
         fi
-        
-        # 创建用户缓存目录
+
         mkdir -p ~/.cache/apt-archives
-        
+
         sudo apt update
         sudo apt install -y \
           cmake \
@@ -85,14 +83,13 @@ runs:
           libfuse3-dev
 
     # ================ Platform-specific Initialization (macOS) ================
-    # macOS - 不使用缓存，直接安装
     - name: Install dependencies (macOS)
       if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
         echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> $GITHUB_ENV
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        
+
         brew install \
           gtk4 \
           libadwaita \
@@ -100,7 +97,6 @@ runs:
           gtksourceview5
 
     # =============== Platform-specific Initialization (Windows) ===============
-    # Windows - 不使用缓存，直接安装
     - name: Install dependencies (Windows)
       if: contains(inputs.platform, 'windows')
       shell: powershell
