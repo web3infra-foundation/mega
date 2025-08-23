@@ -11,7 +11,7 @@ use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
 use mercury::hash::SHA1;
 
-const HEAD: &str = "HEAD";
+pub const HEAD: &str = "HEAD";
 
 #[derive(Debug)]
 pub struct ReflogContext {

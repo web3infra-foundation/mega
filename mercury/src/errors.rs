@@ -26,8 +26,11 @@ pub enum GitError {
     #[error("Not a valid git commit object.")]
     InvalidCommitObject,
 
-    #[error("Not a valid git tag object.")]
-    InvalidTagObject,
+    #[error("Invalid Commit: {0}")]
+    InvalidCommit(String),
+
+    #[error("Not a valid git tag object: {0}")]
+    InvalidTagObject(String),
 
     #[error("The `{0}` is not a valid idx file.")]
     InvalidIdxFile(String),
