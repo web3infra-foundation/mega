@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use async_trait::async_trait;
 use http::header::COOKIE;
 use reqwest::Client;
 use reqwest::Url;
-use tower_sessions::{session::{Record, Id}, session_store::Result, SessionStore};
-use async_trait::async_trait;
+use tower_sessions::{
+    session::{Id, Record},
+    session_store::Result,
+    SessionStore,
+};
 
 use crate::api::oauth::model::CampsiteUserJson;
 use crate::api::oauth::model::LoginUser;
@@ -50,11 +54,14 @@ impl CampsiteApiStore {
     }
 
     // Custom method to load user from external API
-    pub async fn load_user_from_api(&self, cookie_value: String) -> anyhow::Result<Option<LoginUser>> {
+    pub async fn load_user_from_api(
+        &self,
+        cookie_value: String,
+    ) -> anyhow::Result<Option<LoginUser>> {
         let url = format!("{}/v1/users/me", self.api_base_url)
             .parse::<Url>()
             .context("failed to parse API base URL")?;
-        
+
         let resp = self
             .client
             .get(url)

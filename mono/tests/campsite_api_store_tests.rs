@@ -1,10 +1,8 @@
 //! Tests for CampsiteApiStore functionality
-//! 
+//!
 //! These tests cover the CampsiteApiStore's ability to load user information from an external API.
 
-use axum::{
-    Router,
-};
+use axum::Router;
 use mono::api::oauth::campsite_store::CampsiteApiStore;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -44,7 +42,10 @@ async fn mock_user_endpoint() -> impl axum::response::IntoResponse {
 
 // Mock endpoint that returns an error
 async fn mock_error_endpoint() -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        "Internal Server Error",
+    )
 }
 
 #[tokio::test]
@@ -53,14 +54,16 @@ async fn test_load_user_from_api_success() {
     let api_url = format!("http://{}", addr);
 
     let store = CampsiteApiStore::new(api_url);
-    
+
     // Test with a valid cookie
-    let result = store.load_user_from_api("valid_session_cookie".to_string()).await;
-    
+    let result = store
+        .load_user_from_api("valid_session_cookie".to_string())
+        .await;
+
     assert!(result.is_ok());
     let user = result.unwrap();
     assert!(user.is_some());
-    
+
     let user = user.unwrap();
     assert_eq!(user.campsite_user_id, "1");
     assert_eq!(user.username, "testuser");
@@ -76,13 +79,15 @@ async fn test_load_user_from_api_invalid_cookie() {
     // Test with an invalid cookie that causes a 401 response
     // We'll simulate this by using a non-existent endpoint
     let invalid_store = CampsiteApiStore::new(format!("http://{}/nonexistent", addr));
-    
-    let result = invalid_store.load_user_from_api("invalid_session_cookie".to_string()).await;
-    
+
+    let result = invalid_store
+        .load_user_from_api("invalid_session_cookie".to_string())
+        .await;
+
     // Depending on the implementation, this might be Ok(None) or an Err
     // Let's check that it doesn't panic and handles the error gracefully
     assert!(result.is_ok() || result.is_err());
-    
+
     if let Ok(user) = result {
         // If it's Ok, it should be None (no user found)
         assert!(user.is_none());
@@ -96,13 +101,13 @@ async fn test_load_user_from_api_server_error() {
     let api_url = format!("http://{}", addr);
 
     let store = CampsiteApiStore::new(format!("{}/v1/users/error", api_url));
-    
+
     let result = store.load_user_from_api("any_cookie".to_string()).await;
-    
+
     // Depending on the implementation, this might be Ok(None) or an Err
     // Let's check that it doesn't panic and handles the error gracefully
     assert!(result.is_ok() || result.is_err());
-    
+
     if let Ok(user) = result {
         // If it's Ok, it should be None (no user found due to server error)
         assert!(user.is_none());
@@ -114,13 +119,13 @@ async fn test_load_user_from_api_server_error() {
 async fn test_load_user_from_api_network_error() {
     // Test with an invalid URL that will cause a network error
     let store = CampsiteApiStore::new("http://invalid.domain.localhost:12345".to_string());
-    
+
     let result = store.load_user_from_api("any_cookie".to_string()).await;
-    
+
     // Depending on the implementation, this might be Ok(None) or an Err
     // Let's check that it doesn't panic and handles the error gracefully
     assert!(result.is_ok() || result.is_err());
-    
+
     if let Ok(user) = result {
         // If it's Ok, it should be None (no user found due to network error)
         assert!(user.is_none());

@@ -1,5 +1,5 @@
 //! Tests for LoginUser extractor functionality
-//! 
+//!
 //! These tests cover the LoginUser extractor's ability to extract user information from requests.
 //! Since the extractor relies on CampsiteApiStore, we focus on testing the underlying functionality.
 
@@ -10,8 +10,7 @@ use tokio::net::TcpListener;
 
 // Mock server to simulate the campsite API
 async fn create_mock_campsite_server() -> (SocketAddr, tokio::task::JoinHandle<()>) {
-    let app = axum::Router::new()
-        .route("/v1/users/me", axum::routing::get(mock_user_endpoint));
+    let app = axum::Router::new().route("/v1/users/me", axum::routing::get(mock_user_endpoint));
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -46,14 +45,16 @@ async fn test_login_user_extractor_success() {
 
     // Create a mock store
     let store = CampsiteApiStore::new(format!("http://{}", addr));
-    
+
     // Test the load_user_from_api method directly
-    let result = store.load_user_from_api("valid_session_cookie".to_string()).await;
-    
+    let result = store
+        .load_user_from_api("valid_session_cookie".to_string())
+        .await;
+
     assert!(result.is_ok());
     let user = result.unwrap();
     assert!(user.is_some());
-    
+
     let user = user.unwrap();
     assert_eq!(user.username, "testuser");
     assert_eq!(user.email, "test@example.com");
@@ -68,13 +69,15 @@ async fn test_login_user_extractor_invalid_cookie() {
 
     // Create a mock store with a non-existent endpoint to simulate an invalid cookie
     let store = CampsiteApiStore::new(format!("http://{}/nonexistent", addr));
-    
+
     // Test the load_user_from_api method directly
-    let result = store.load_user_from_api("invalid_session_cookie".to_string()).await;
-    
+    let result = store
+        .load_user_from_api("invalid_session_cookie".to_string())
+        .await;
+
     // Depending on the implementation, this might be Ok(None) or an Err
     assert!(result.is_ok() || result.is_err());
-    
+
     if let Ok(user) = result {
         // If it's Ok, it should be None (no user found)
         assert!(user.is_none());
@@ -88,14 +91,14 @@ async fn test_login_user_extractor_missing_cookie() {
 
     // Create a mock store
     let store = CampsiteApiStore::new(format!("http://{}", addr));
-    
+
     // Test with an empty cookie string to simulate missing cookie
     let result = store.load_user_from_api("".to_string()).await;
-    
+
     // Depending on the implementation, this might be Ok(None) or an Err
     assert!(result.is_ok() || result.is_err());
-    
-    // Note: The behavior when an empty cookie is provided depends on the 
+
+    // Note: The behavior when an empty cookie is provided depends on the
     // campsite API implementation. It might return an error or None.
     // We're testing that it doesn't panic and handles the situation gracefully.
 }
@@ -104,12 +107,12 @@ async fn test_login_user_extractor_missing_cookie() {
 async fn test_login_user_extractor_network_error() {
     // Test with an invalid URL that will cause a network error
     let store = CampsiteApiStore::new("http://invalid.domain.localhost:12345".to_string());
-    
+
     let result = store.load_user_from_api("any_cookie".to_string()).await;
-    
+
     // Depending on the implementation, this might be Ok(None) or an Err
     assert!(result.is_ok() || result.is_err());
-    
+
     if let Ok(user) = result {
         // If it's Ok, it should be None (no user found due to network error)
         assert!(user.is_none());

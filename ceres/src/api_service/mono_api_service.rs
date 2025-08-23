@@ -62,7 +62,6 @@ use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 
-
 #[derive(Clone)]
 pub struct MonoApiService {
     pub storage: Storage,
@@ -500,7 +499,6 @@ impl MonoApiService {
             }
         }
 
-
         if !failed_hashes.is_empty() {
             tracing::warn!(
                 "Failed to fetch {} blob(s): {:?}",
@@ -531,7 +529,6 @@ impl MonoApiService {
         .await;
 
         Ok(diff_output)
-
     }
 
     fn collect_page_blobs(

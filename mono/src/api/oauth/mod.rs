@@ -14,9 +14,9 @@ use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl,
 };
-use tower_sessions::{MemoryStore, Session, SessionStore};
 use std::sync::Arc;
 use tower_sessions::session::Id;
+use tower_sessions::{MemoryStore, Session, SessionStore};
 
 use common::config::OauthConfig;
 use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
@@ -113,10 +113,16 @@ async fn login_authorized(
         .map_err(|e| anyhow::anyhow!("Failed to insert user into session: {:?}", e))?;
 
     // Save session
-    session.save().await.map_err(|e| anyhow::anyhow!("failed to store session: {:?}", e))?;
+    session
+        .save()
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to store session: {:?}", e))?;
 
     // Get session cookie value
-    let cookie = session.id().ok_or_else(|| anyhow::anyhow!("Session ID not found"))?.to_string();
+    let cookie = session
+        .id()
+        .ok_or_else(|| anyhow::anyhow!("Session ID not found"))?
+        .to_string();
 
     // SameSite=Lax: Allow GET, disable POST cookie send, prevent CSRF
     // SameSite=None: allow Post cookie send
@@ -153,13 +159,10 @@ async fn logout(
     })?;
 
     // Delete session
-    store
-        .delete(&session_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to destroy session: {:?}", e);
-            anyhow::anyhow!("Failed to destroy session")
-        })?;
+    store.delete(&session_id).await.map_err(|e| {
+        tracing::error!("Failed to destroy session: {:?}", e);
+        anyhow::anyhow!("Failed to destroy session")
+    })?;
 
     // Expire cookie
     let cookie = format!(
@@ -224,7 +227,7 @@ where
                 },
                 _ => panic!("unexpected error getting cookies: {e}"),
             })?;
-            
+
         let session_cookie = cookies.get(CAMPSITE_API_COOKIE).ok_or(AuthRedirect)?;
 
         // Load user from external API
