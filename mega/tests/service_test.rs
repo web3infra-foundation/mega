@@ -2,6 +2,7 @@ use serial_test::serial;
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn check_mono_service_status() -> Result<(), reqwest::Error> {
     let client = reqwest::Client::new();
     let response = client

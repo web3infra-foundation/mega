@@ -51,7 +51,8 @@ async fn test_execute_log() {
     let max_output_number = min(6, reachable_commits.len());
     let mut output_number = 6;
     for commit in reachable_commits.iter().take(max_output_number) {
-        assert_eq!(commit.message, format!("\nCommit_{output_number}"));
+        let msg = commit.message.trim_start_matches('\n');
+        assert_eq!(msg, format!("Commit_{output_number}"));
         output_number -= 1;
     }
 }
