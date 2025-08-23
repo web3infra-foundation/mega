@@ -4,10 +4,10 @@ import { useAtom } from 'jotai'
 
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
-import { buildId } from '@/components/Issues/utils/store'
+import { buildIdAtom } from '@/components/Issues/utils/store'
 import { TaskResult } from '@/hooks/SSE/useGetMrTask'
 
-import { loadingAtom, Status, statusMapAtom } from './store'
+import { Status, statusMapAtom } from './store'
 
 export const mocks = [
   {
@@ -47,10 +47,8 @@ export const mocks = [
 
 export const Task = ({ list }: { list: TaskResult[] }) => {
   const [extend, setExtend] = useState(false)
-  const [_, setBuildId] = useAtom(buildId)
-  const [_loading, setLoading] = useAtom(loadingAtom)
 
-  list = mocks
+  // list = mocks
 
   return (
     <>
@@ -77,13 +75,12 @@ export const Task = ({ list }: { list: TaskResult[] }) => {
 }
 
 export const TaskItem = ({ task }: { task: TaskResult }) => {
-  const [_loading, setLoading] = useAtom(loadingAtom)
   const [statusMap] = useAtom(statusMapAtom)
 
-  const [_, setBuildId] = useAtom(buildId)
+  const [_, setBuildId] = useAtom(buildIdAtom)
   const handleClick = (build_id: string) => {
     // 此处建立连接
-    setLoading(true)
+    // setLoading(true)
     setBuildId(build_id)
     // if (eventSourcesRef.current[build_id]) return
     // setEventSource(build_id)
@@ -97,7 +94,7 @@ export const TaskItem = ({ task }: { task: TaskResult }) => {
         key={task.build_id}
       >
         {identifyStatus(statusMap.get(task.build_id)?.status || Status.NotFound)}
-        <span className='cursor-pointer hover:text-[#1f2328]'>{task.mr}</span>
+        <span className='cursor-pointer hover:text-[#1f2328]'>{task.build_id}</span>
       </div>
     </>
   )
@@ -112,6 +109,8 @@ export const identifyStatus = (status: Status[keyof Status]) => {
     case Status.Building:
       return <LoadingSpinner />
     case Status.Pending:
+      return <LoadingSpinner />
+    case Status.NotFound:
       return <LoadingSpinner />
 
     default:

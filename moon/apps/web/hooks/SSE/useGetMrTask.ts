@@ -17,7 +17,7 @@ export interface TaskResult {
 export function useGetMrTask(mr: string) {
   return useQuery<TaskResult[], Error>({
     queryKey: [mr],
-    queryFn: () => fetchTask(mr)
+    queryFn: () => fetchTask(mr),
     // refetchInterval: 15000,
     // refetchIntervalInBackground: true,
     // enabled: !!mr
