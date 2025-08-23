@@ -16,6 +16,8 @@ use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
+use tower_sessions::{MemoryStore, SessionManagerLayer, Expiry};
+use time::Duration;
 
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
@@ -113,6 +115,12 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
+    // add SessionManagerLayer for session management
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false) // Set to true in production with HTTPS
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(3600))); // 1 hour of inactivity
+    
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(lfs_router::routers().with_state(api_state.clone()))
         .nest(
@@ -123,22 +131,24 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
         // Using Regular Expressions for Path Matching in Protocol
         .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
-            ServiceBuilder::new().layer(
-                CorsLayer::new()
-                    .allow_origin(origins)
-                    .allow_headers(vec![
-                        http::header::AUTHORIZATION,
-                        http::header::CONTENT_TYPE,
-                    ])
-                    .allow_methods([
-                        Method::GET,
-                        Method::POST,
-                        Method::OPTIONS,
-                        Method::DELETE,
-                        Method::PUT,
-                    ])
-                    .allow_credentials(true),
-            ),
+            ServiceBuilder::new()
+                .layer(session_layer)
+                .layer(
+                    CorsLayer::new()
+                        .allow_origin(origins)
+                        .allow_headers(vec![
+                            http::header::AUTHORIZATION,
+                            http::header::CONTENT_TYPE,
+                        ])
+                        .allow_methods([
+                            Method::GET,
+                            Method::POST,
+                            Method::OPTIONS,
+                            Method::DELETE,
+                            Method::PUT,
+                        ])
+                        .allow_credentials(true),
+                ),
         )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
