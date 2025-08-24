@@ -163,13 +163,8 @@ runs:
           pkg-config
           libnettle-devel
 
-    - name: Verify nettle (Windows)
-      if: contains(inputs.platform, 'windows')
-      shell: msys2 {0}
-      run: |
-        pacman -Syu --noconfirm
-        pacman -Ql libnettle-devel
-        pkg-config --libs nettle
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v2
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
@@ -182,10 +177,9 @@ runs:
       shell: powershell
       run: |
         $msys2Location = "${{ steps.msys2.outputs.msys2-location }}"
-        echo "MSYS2 Location: $msys2Location"
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msys2Location\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "$msys2Location\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
+        $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;$msys2Location\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
         $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$msys2Location\usr\include\nettle"
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
