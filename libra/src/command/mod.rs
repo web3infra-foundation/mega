@@ -20,8 +20,10 @@ pub mod remove;
 pub mod reset;
 pub mod restore;
 pub mod revert;
+pub mod stash;
 pub mod status;
 pub mod switch;
+pub mod reflog;
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;

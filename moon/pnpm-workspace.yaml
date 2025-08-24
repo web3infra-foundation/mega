@@ -110,6 +110,7 @@ catalog:
   '@tiptap/react': ^2.6.4
   '@todesktop/client-core': ^1.10.0
   '@types/body-parser': ^1.19.5
+  '@types/d3': ^7.4.3
   '@types/d3-selection': ^3.0.3
   '@types/d3-transition': ^3.0.3
   '@types/d3-zoom': ^3.0.3
@@ -140,6 +141,7 @@ catalog:
   cmark-gfm-js: ^1.1.7
   concurrently: '>=8'
   cookies-next: ^2.1.1
+  d3: ^7.8.5
   d3-selection: ^3.0.0
   d3-zoom: ^3.0.0
   date-fns: ^3.6.0
@@ -272,3 +274,5 @@ catalog:
   prism-react-renderer: ^2.4.1
   material-file-icons: ^2.4.0
   colord: ^2.9.3
+  merge-stream: ^2.0.0
+  picomatch: ^4.0.3
