@@ -163,9 +163,6 @@ runs:
           pkg-config
           libnettle-devel
 
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v2
-
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
       if: contains(inputs.platform, 'windows') && inputs.use-gtk == 'true'
@@ -177,6 +174,14 @@ runs:
       shell: powershell
       run: |
         $msys2Location = "${{ steps.msys2.outputs.msys2-location }}"
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        $vcvars = "$vsPath\VC\Auxiliary\Build\vcvarsall.bat"
+        cmd /c "call `"$vcvars`" x64 && set" | ForEach-Object {
+            if ($_ -match '^(.*?)=(.*)$') {
+                [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+            }
+        }
+        
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msys2Location\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
         $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;$msys2Location\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
