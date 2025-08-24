@@ -14,7 +14,7 @@ use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
 
 /// A encoder for generating pack files with delta objects.
-pub struct PackEncoder {
+pub(crate) struct PackEncoder {
     object_number: usize,
     process_index: usize,
     window_size: usize,
@@ -106,7 +106,11 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
 }
 
 impl PackEncoder {
-    pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
+    pub(crate) fn new(
+        object_number: usize,
+        window_size: usize,
+        sender: mpsc::Sender<Vec<u8>>,
+    ) -> Self {
         PackEncoder {
             object_number,
             window_size,
@@ -120,18 +124,18 @@ impl PackEncoder {
         }
     }
 
-    pub fn drop_sender(&mut self) {
+    pub(crate) fn drop_sender(&mut self) {
         self.sender.take(); // Take the sender out, dropping it
     }
 
-    pub async fn send_data(&mut self, data: Vec<u8>) {
+    pub(crate) async fn send_data(&mut self, data: Vec<u8>) {
         if let Some(sender) = &self.sender {
             sender.send(data).await.unwrap();
         }
     }
 
     /// Get the hash of the pack file. if the pack file is not finished, return None
-    pub fn get_hash(&self) -> Option<SHA1> {
+    pub(crate) fn get_hash(&self) -> Option<SHA1> {
         self.final_hash
     }
 
@@ -142,11 +146,11 @@ impl PackEncoder {
     /// Returns `Ok(())` if encoding is successful, or a `GitError` in case of failure.
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
-    pub async fn encode(&mut self, entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+    pub(crate) async fn encode(&mut self, entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
         return self.inner_encode(entry_rx, false).await;
     }
 
-    pub async fn encode_with_zstdelta(
+    pub(crate) async fn encode_with_zstdelta(
         &mut self,
         entry_rx: mpsc::Receiver<Entry>,
     ) -> Result<(), GitError> {

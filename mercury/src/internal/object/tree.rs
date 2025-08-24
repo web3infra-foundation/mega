@@ -80,6 +80,7 @@ impl TreeItemMode {
     /// Submodules can be a powerful tool for managing dependencies between different projects and
     /// components. However, they can also add complexity to your workflow, so it's important to
     /// understand how they work and when to use them.
+    /// Determines the [`TreeItemMode`] from its byte representation.
     pub fn tree_item_type_from_bytes(mode: &[u8]) -> Result<TreeItemMode, GitError> {
         Ok(match mode {
             b"40000" => TreeItemMode::Tree,
@@ -101,6 +102,7 @@ impl TreeItemMode {
     /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
     /// - 3-bit unused
     /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
+    /// Converts the mode into its raw byte form.
     pub fn to_bytes(self) -> &'static [u8] {
         match self {
             TreeItemMode::Blob => b"100644",
@@ -150,7 +152,7 @@ impl Display for TreeItem {
 }
 
 impl TreeItem {
-    // Create a new TreeItem from a mode, id and name
+    /// Creates a new [`TreeItem`] from its mode, id and name.
     pub fn new(mode: TreeItemMode, id: SHA1, name: String) -> Self {
         TreeItem { mode, id, name }
     }
@@ -214,10 +216,12 @@ impl TreeItem {
         bytes
     }
 
+    /// Returns `true` if this item is a tree.
     pub fn is_tree(&self) -> bool {
         self.mode == TreeItemMode::Tree
     }
 
+    /// Returns `true` if this item is a blob.
     pub fn is_blob(&self) -> bool {
         self.mode == TreeItemMode::Blob
     }
@@ -249,6 +253,7 @@ impl Display for Tree {
 }
 
 impl Tree {
+    /// Builds a [`Tree`] from a list of [`TreeItem`] entries.
     pub fn from_tree_items(tree_items: Vec<TreeItem>) -> Result<Self, GitError> {
         if tree_items.is_empty() {
             return Err(GitError::EmptyTreeItems(

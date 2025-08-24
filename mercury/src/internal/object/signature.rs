@@ -76,12 +76,18 @@ impl SignatureType {
     }
 }
 
+/// Represents an author's or committer's identity in a Git object.
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
 pub struct Signature {
+    /// The kind of signature (author, committer, or tagger).
     pub signature_type: SignatureType,
+    /// The display name of the signer.
     pub name: String,
+    /// The email address of the signer.
     pub email: String,
+    /// UNIX timestamp of when the action occurred.
     pub timestamp: usize,
+    /// Timezone offset string, e.g. "+0800".
     pub timezone: String,
 }
 
@@ -96,6 +102,7 @@ impl Display for Signature {
 }
 
 impl Signature {
+    /// Parses a raw byte representation into a [`Signature`].
     pub fn from_data(data: Vec<u8>) -> Result<Signature, GitError> {
         // Make a mutable copy of the input data vector.
         let mut sign = data;
@@ -152,6 +159,7 @@ impl Signature {
         })
     }
 
+    /// Serializes the [`Signature`] into its byte representation.
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         // Create a new empty vector to store the encoded data.
         let mut sign = Vec::new();

@@ -3,6 +3,7 @@ use std::string::FromUtf8Error;
 use common::errors::MegaError;
 use thiserror::Error;
 
+/// Errors that can occur when working with Git objects and pack files.
 #[derive(Error, Debug)]
 pub enum GitError {
     #[error("The `{0}` is not a valid git object type.")]
@@ -94,13 +95,14 @@ pub enum GitError {
 }
 
 impl From<FromUtf8Error> for GitError {
+    /// Converts a UTF-8 conversion error into a [`GitError`].
     fn from(err: FromUtf8Error) -> Self {
-        // convert the FromUtf8Error to GitError and return it
         GitError::ConversionError(err.to_string())
     }
 }
 
 impl From<MegaError> for GitError {
+    /// Wraps a generic [`MegaError`] as a [`GitError`].
     fn from(err: MegaError) -> Self {
         GitError::CustomError(err.to_string())
     }

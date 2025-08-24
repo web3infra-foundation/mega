@@ -1,5 +1,5 @@
-pub mod index;
-pub mod model;
+pub(crate) mod index;
+pub(crate) mod model;
 pub mod object;
 pub mod pack;
-pub mod zlib;
+pub(crate) mod zlib;

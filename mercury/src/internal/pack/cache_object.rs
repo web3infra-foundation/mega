@@ -16,8 +16,8 @@ use crate::{hash::SHA1, internal::object::types::ObjectType};
 // /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
 
-/// file load&store trait
-pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
+/// File load&store trait used internally for caching.
+pub(crate) trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
     fn f_load(path: &Path) -> Result<Self, io::Error>;
     fn f_save(&self, path: &Path) -> Result<(), io::Error>;
 }
@@ -79,12 +79,15 @@ impl CacheObjectInfo {
     }
 }
 
+/// Cached representation of a pack object, including its offset and decompressed data.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
     pub(crate) info: CacheObjectInfo,
+    /// Offset of the object within the pack file.
     pub offset: usize,
+    /// Decompressed object data.
     pub data_decompressed: Vec<u8>,
-    pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
+    pub(crate) mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
 impl Clone for CacheObject {
@@ -152,7 +155,7 @@ impl Drop for CacheObject {
 /// <br> So, variable-size fields in object should NOT be modified to keep heap-size stable.
 /// <br> Or, you can record the initial mem-size in this object
 /// <br> Or, update it (not impl)
-pub trait MemSizeRecorder: MemSize {
+pub(crate) trait MemSizeRecorder: MemSize {
     fn record_mem_size(&self);
     fn set_mem_recorder(&mut self, mem_size: Arc<AtomicUsize>);
     // fn get_mem_size() -> usize;
@@ -239,7 +242,7 @@ impl CacheObject {
 }
 
 /// trait alias for simple use
-pub trait ArcWrapperBounds:
+pub(crate) trait ArcWrapperBounds:
     HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static
 {
 }
@@ -253,7 +256,7 @@ impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> 
 /// Implementing encapsulation of Arc to enable third-party Trait HeapSize implementation for the Arc type
 /// Because of use Arc in LruCache, the LruCache is not clear whether a pointer will drop the referenced
 /// content when it is ejected from the cache, the actual memory usage is not accurate
-pub struct ArcWrapper<T: ArcWrapperBounds> {
+pub(crate) struct ArcWrapper<T: ArcWrapperBounds> {
     pub data: Arc<T>,
     complete_signal: Arc<AtomicBool>,
     pool: Option<Arc<ThreadPool>>,
@@ -261,7 +264,11 @@ pub struct ArcWrapper<T: ArcWrapperBounds> {
 }
 impl<T: ArcWrapperBounds> ArcWrapper<T> {
     /// Create a new ArcWrapper
-    pub fn new(data: Arc<T>, share_flag: Arc<AtomicBool>, pool: Option<Arc<ThreadPool>>) -> Self {
+    pub(crate) fn new(
+        data: Arc<T>,
+        share_flag: Arc<AtomicBool>,
+        pool: Option<Arc<ThreadPool>>,
+    ) -> Self {
         ArcWrapper {
             data,
             complete_signal: share_flag,
@@ -269,7 +276,7 @@ impl<T: ArcWrapperBounds> ArcWrapper<T> {
             store_path: None,
         }
     }
-    pub fn set_store_path(&mut self, path: PathBuf) {
+    pub(crate) fn set_store_path(&mut self, path: PathBuf) {
         self.store_path = Some(path);
     }
 }

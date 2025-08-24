@@ -2,26 +2,31 @@
 //! ## Reference
 //! 1. Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
 //!
-pub mod cache;
-pub mod cache_object;
-pub mod channel_reader;
-pub mod decode;
-pub mod encode;
-pub mod entry;
-pub mod utils;
-pub mod waitlist;
-pub mod wrapper;
+mod cache;
+mod cache_object;
+mod channel_reader;
+mod decode;
+mod encode;
+pub(crate) mod entry;
+mod utils;
+mod waitlist;
+pub(crate) mod wrapper;
+
+pub use cache_object::CacheObject;
+pub use entry::Entry;
 
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use threadpool::ThreadPool;
 
+use self::cache::Caches;
+use self::waitlist::Waitlist;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
-use crate::internal::pack::cache::Caches;
-use crate::internal::pack::waitlist::Waitlist;
 
 const DEFAULT_TMP_DIR: &str = "./.cache_temp";
+
+/// Collection of objects and supporting data used to build or decode pack files.
 pub struct Pack {
     pub number: usize,
     pub signature: SHA1,

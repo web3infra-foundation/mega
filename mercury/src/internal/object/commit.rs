@@ -65,6 +65,7 @@ impl Display for Commit {
 }
 
 impl Commit {
+    /// Creates a new [`Commit`] with the provided author, tree, parents and message.
     pub fn new(
         author: Signature,
         committer: Signature,

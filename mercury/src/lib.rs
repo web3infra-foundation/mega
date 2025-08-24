@@ -2,11 +2,14 @@
 
 pub mod errors;
 pub mod hash;
-pub mod internal;
-pub mod utils;
+mod internal;
 
-// #[cfg(test)]
-pub mod test_utils {
+pub use internal::{object, pack};
+
+pub(crate) mod utils;
+
+#[cfg(test)]
+pub(crate) mod test_utils {
     use reqwest::Client;
     use ring::digest::{Context, SHA256};
     use std::collections::HashMap;

@@ -35,6 +35,7 @@ impl Hash for Entry {
 }
 
 impl Entry {
+    /// Converts this entry's raw data into a strongly typed [`GitObject`].
     pub fn process_entry(&self) -> GitObject {
         match self.obj_type {
             ObjectType::Commit => {

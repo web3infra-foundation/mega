@@ -54,6 +54,7 @@ impl Display for SHA1 {
 }
 
 impl AsRef<[u8]> for SHA1 {
+    /// Returns a reference to the raw hash bytes.
     fn as_ref(&self) -> &[u8] {
         &self.0
     }

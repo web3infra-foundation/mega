@@ -582,6 +582,7 @@ impl Pack {
 
     /// Reconstruct the Delta Object based on the "base object"
     /// and return the new object.
+    /// Reconstructs a delta object using the provided base object.
     pub fn rebuild_delta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
@@ -666,7 +667,7 @@ impl Pack {
         } // Canonical form (Complete Object)
           // Memory recording will happen after this function returns. See `process_delta`
     }
-    pub fn rebuild_zstdelta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
+    fn rebuild_zstdelta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         let result = zstdelta::apply(&base_obj.data_decompressed, &delta_obj.data_decompressed)
             .expect("Failed to apply zstdelta");
         let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
