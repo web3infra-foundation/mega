@@ -442,7 +442,7 @@ async fn handle_immediate_task_dispatch(
         build_id: Set(task_id),
         output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
         exit_code: Set(None),
-    start_at: Set(build_info.start_at.naive_utc()),
+        start_at: Set(build_info.start_at.naive_utc()),
         end_at: Set(None),
         repo_name: Set(build_info.repo.clone()),
         target: Set(build_info.target.clone()),
@@ -637,7 +637,7 @@ async fn process_message(
                     );
                 }
                 WSMessage::Heartbeat => {
-                        if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.last_heartbeat = chrono::Utc::now();
                         tracing::debug!("Received heartbeat from {current_worker_id}");
                     }
@@ -727,7 +727,9 @@ impl BuildDTO {
             output_file: model.output_file,
             exit_code: model.exit_code,
             start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
-            end_at: model.end_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
+            end_at: model
+                .end_at
+                .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,
@@ -800,7 +802,9 @@ impl TaskInfoDTO {
             output_file: model.output_file,
             exit_code: model.exit_code,
             start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
-            end_at: model.end_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
+            end_at: model
+                .end_at
+                .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,
@@ -828,7 +832,11 @@ pub async fn tasks_handler(
 ) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
     let active_builds = state.scheduler.active_builds.clone();
-    match builds::Entity::find().filter(builds::Column::Mr.eq(mr)).all(db).await {
+    match builds::Entity::find()
+        .filter(builds::Column::Mr.eq(mr))
+        .all(db)
+        .await
+    {
         Ok(models) => {
             let tasks: Vec<TaskInfoDTO> = models
                 .into_iter()
