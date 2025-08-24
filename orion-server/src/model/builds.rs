@@ -26,7 +26,6 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-
 impl Model {
     /// Retrieves a build record by its UUID from the database
     pub async fn get_by_build_id(build_id: Uuid, conn: &DatabaseConnection) -> Option<Model> {

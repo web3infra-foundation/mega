@@ -159,6 +159,6 @@ mod test {
             vec![],
             "\nInit Mega Directory",
         );
-        println!("{}", commit);
+        println!("{commit}");
     }
 }
