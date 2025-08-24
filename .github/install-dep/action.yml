@@ -185,7 +185,7 @@ runs:
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msys2Location\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
         $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;$msys2Location\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
-        $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
+        $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib;$msys2Location\usr\lib"
         $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$msys2Location\usr\include\nettle"
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
         $env:AWS_LC_SYS_C_STD = 11
