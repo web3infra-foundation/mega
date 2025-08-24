@@ -162,6 +162,7 @@ runs:
           git
           pkg-config
           nettle
+          libnettle
           libnettle-devel
 
     # Required by monobean, performing this step would take about 5s.
