@@ -180,13 +180,14 @@ runs:
     - name: Manually set env vars and export
       if: contains(inputs.platform, 'windows')
       shell: powershell
+      env:
+        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
       run: |
-        $msysRoot = "C:\msys64"
-        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msysRoot\usr\bin"
+        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$MSYS2_LOCATION\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "$msysRoot\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
+        $env:PKG_CONFIG_PATH = "$MSYS2_LOCATION\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
-        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$msysRoot\usr\include\nettle"
+        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$MSYS2_LOCATION\usr\include\nettle"
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
         $env:AWS_LC_SYS_C_STD = 11
         $exportVariables = @("Path", "OPENSSL_DIR", "OPENSSL_LIB_DIR", "PKG_CONFIG_PATH", "LIB", "INCLUDE", "AWS_LC_SYS_C_STD", "AWS_LC_SYS_PREBUILT_NASM")
