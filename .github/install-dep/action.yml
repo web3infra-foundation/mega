@@ -153,6 +153,7 @@ runs:
     - name: Setup MSYS2 (Windows)
       if: contains(inputs.platform, 'windows')
       uses: msys2/setup-msys2@v2
+      id: msys2
       with:
         msystem: MINGW64
         update: true
@@ -161,6 +162,9 @@ runs:
           git
           pkg-config
           libnettle-devel
+    - env:
+        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+      run: echo "$env:MSYS2_LOCATION"
 
     - name: Verify nettle (Windows)
       if: contains(inputs.platform, 'windows')
@@ -183,7 +187,7 @@ runs:
         $msysRoot = "C:\msys64"
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msysRoot\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig;$msysRoot\usr\lib\pkgconfig"
+        $env:PKG_CONFIG_PATH = "$msysRoot\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
         $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$msysRoot\usr\include\nettle"
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
