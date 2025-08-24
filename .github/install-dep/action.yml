@@ -167,7 +167,7 @@ runs:
       shell: msys2 {0}
       run: |
         pacman -Syu --noconfirm
-        pacman -Qi mingw-w64-x86_64-nettle
+        pacman -Qi libnettle-devel
         pkg-config --libs nettle
 
     # Required by monobean, performing this step would take about 5s.
