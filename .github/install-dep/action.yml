@@ -161,6 +161,7 @@ runs:
           base-devel
           git
           pkg-config
+          mingw-w64-x86_64-{clang,pkg-config,nettle}
           libnettle-devel
 
     # Required by monobean, performing this step would take about 5s.
