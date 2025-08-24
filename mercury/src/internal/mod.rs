@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub(crate) mod index;
 pub(crate) mod model;
 pub mod object;
