@@ -77,11 +77,11 @@ impl Action for QdrantNode {
                 ))
                 .await
             {
-                log::error!("Error storing item in Qdrant: {}", e);
+                log::error!("Error storing item in Qdrant: {e}");
             } else {
                 processed_count += 1;
                 if processed_count % 100 == 0 {
-                    log::info!("Processed {} items", processed_count);
+                    log::info!("Processed {processed_count} items");
                 }
             }
             out_channels.broadcast(Content::new(())).await;

@@ -171,61 +171,43 @@ impl VaultCore {
 mod tests_raw {
     use std::io::Write;
     use std::{
-        collections::HashMap,
-        default::Default,
-        env, fs,
-        sync::{Arc, RwLock},
+        fs,
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use go_defer::defer;
+    use common::errors::MegaError;
+    use jupiter::tests::test_storage;
     use openssl::{asn1::Asn1Time, ec::EcKey, nid::Nid, pkey::PKey, rsa::Rsa, x509::X509};
-    use rusty_vault::errors::RvError;
+
     use rusty_vault::logical::Response;
-    use rusty_vault::{
-        core::{Core, SealConfig},
-        logical::{Operation, Request},
-        storage,
-        storage::barrier_aes_gcm,
-    };
+
     use serde_json::{Map, Value, json};
 
+    use crate::integration::VaultCore;
+    use crate::integration::vault_core::VaultCoreInterface;
+
     async fn test_read_api(
-        core: &Core,
-        token: &str,
+        core: &VaultCore,
         path: &str,
         is_ok: bool,
-    ) -> Result<Option<Response>, RvError> {
-        let mut req = Request::new(path);
-        req.operation = Operation::Read;
-        req.client_token = token.to_string();
-        let resp = core.handle_request(&mut req);
+    ) -> Result<Option<Response>, MegaError> {
+        let resp = core.read_api(path);
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
 
     async fn test_write_api(
-        core: &Core,
-        token: &str,
+        core: &VaultCore,
         path: &str,
         is_ok: bool,
         data: Option<Map<String, Value>>,
-    ) -> Result<Option<Response>, RvError> {
-        let mut req = Request::new(path);
-        req.operation = Operation::Write;
-        req.client_token = token.to_string();
-        req.body = data;
-
-        let resp = core.handle_request(&mut req);
-        println!("path: {}, req.body: {:?}", path, req.body);
+    ) -> Result<Option<Response>, MegaError> {
+        let resp = core.write_api(path, data);
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
 
-    async fn test_pki_config_ca(core: Arc<RwLock<Core>>, token: &str) {
-        let core = core.read().unwrap();
-
-        // mount pki backend to path: pki/
+    async fn test_pki_config_ca(core: &VaultCore) {
         let mount_data = json!({
             "type": "pki",
         })
@@ -233,13 +215,11 @@ mod tests_raw {
         .unwrap()
         .clone();
 
-        let resp = test_write_api(&core, token, "sys/mounts/pki/", true, Some(mount_data)).await;
+        let resp = test_write_api(core, "sys/mounts/pki/", true, Some(mount_data)).await;
         assert!(resp.is_ok());
     }
 
-    async fn test_pki_config_role(core: Arc<RwLock<Core>>, token: &str) {
-        let core = core.read().unwrap();
-
+    async fn test_pki_config_role(core: &VaultCore) {
         let role_data = json!({
             "ttl": "60d",
             "max_ttl": "365d",
@@ -257,11 +237,11 @@ mod tests_raw {
 
         // config role
         assert!(
-            test_write_api(&core, token, "pki/roles/test", true, Some(role_data))
+            test_write_api(core, "pki/roles/test", true, Some(role_data))
                 .await
                 .is_ok()
         );
-        let resp = test_read_api(&core, token, "pki/roles/test", true).await;
+        let resp = test_read_api(core, "pki/roles/test", true).await;
         assert!(resp.as_ref().unwrap().is_some());
         let resp = resp.unwrap();
         assert!(resp.is_some());
@@ -281,14 +261,7 @@ mod tests_raw {
         assert!(!role_data["no_store"].as_bool().unwrap());
     }
 
-    async fn test_pki_generate_root(
-        core: Arc<RwLock<Core>>,
-        token: &str,
-        exported: bool,
-        is_ok: bool,
-    ) {
-        let core = core.read().unwrap();
-
+    async fn test_pki_generate_root(core: &VaultCore, exported: bool, is_ok: bool) {
         let key_type = "rsa";
         let key_bits = 4096;
         let common_name = "test-ca";
@@ -304,8 +277,7 @@ mod tests_raw {
         .clone();
         // println!("generate root req_data: {:?}, is_ok: {}", req_data, is_ok);
         let resp = test_write_api(
-            &core,
-            token,
+            core,
             format!(
                 "pki/root/generate/{}",
                 if exported { "exported" } else { "internal" }
@@ -324,7 +296,7 @@ mod tests_raw {
         assert!(data.is_some());
         let key_data = data.unwrap();
 
-        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true).await;
+        let resp_ca_pem = test_read_api(core, "pki/ca/pem", true).await;
         let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
 
         let ca_cert = X509::from_pem(
@@ -367,9 +339,7 @@ mod tests_raw {
         }
     }
 
-    async fn test_pki_issue_cert_by_generate_root(core: Arc<RwLock<Core>>, token: &str) {
-        let core = core.read().unwrap();
-
+    async fn test_pki_issue_cert_by_generate_root(core: &VaultCore) {
         let dns_sans = ["test.com", "a.test.com", "b.test.com"];
         let issue_data = json!({
             "ttl": "10d",
@@ -381,7 +351,7 @@ mod tests_raw {
         .clone();
 
         // issue cert
-        let resp = test_write_api(&core, token, "pki/issue/test", true, Some(issue_data)).await;
+        let resp = test_write_api(core, "pki/issue/test", true, Some(issue_data)).await;
         assert!(resp.is_ok());
         let resp_body = resp.unwrap();
         assert!(resp_body.is_some());
@@ -442,7 +412,7 @@ mod tests_raw {
             hex::encode(authority_key_id.unwrap().as_slice())
         );
 
-        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true).await;
+        let resp_ca_pem = test_read_api(core, "pki/ca/pem", true).await;
         let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
 
         let ca_cert = X509::from_pem(
@@ -465,65 +435,23 @@ mod tests_raw {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_pki_module() {
-        let dir = env::temp_dir().join("rusty_vault_pki_module-test");
-        assert!(fs::create_dir(&dir).is_ok());
-        defer! (
-            assert!(fs::remove_dir_all(&dir).is_ok());
-        );
-
-        let mut root_token = String::new();
-        println!("root_token: {root_token:?}");
-
-        let mut conf: HashMap<String, Value> = HashMap::new();
-        conf.insert(
-            "path".to_string(),
-            Value::String(dir.to_string_lossy().into_owned()),
-        );
-
-        let backend = storage::new_backend("file", &conf).unwrap();
-        let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
-
-        let c = Arc::new(RwLock::new(Core {
-            physical: backend,
-            barrier: Arc::new(barrier),
-            ..Default::default()
-        }));
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let key_path = temp_dir.path().join("key.json");
+        let storage = test_storage(temp_dir.path()).await;
+        let vault_core = VaultCore::config(storage, key_path);
 
         {
-            let mut core = c.write().unwrap();
-            assert!(core.config(Arc::clone(&c), None).is_ok());
-
-            let seal_config = SealConfig {
-                secret_shares: 10,
-                secret_threshold: 5,
-            };
-
-            let result = core.init(&seal_config);
-            assert!(result.is_ok());
-            let init_result = result.unwrap();
-            println!("init_result: {init_result:?}");
-
-            let mut unsealed = false;
-            for i in 0..seal_config.secret_threshold {
-                let key = &init_result.secret_shares[i as usize];
-                let unseal = core.unseal(key);
-                assert!(unseal.is_ok());
-                unsealed = unseal.unwrap();
-            }
-
-            root_token = init_result.root_token;
-
-            assert!(unsealed);
-        }
-
-        {
-            println!("root_token: {root_token:?}");
-            test_pki_config_ca(Arc::clone(&c), &root_token).await;
-            test_pki_generate_root(Arc::clone(&c), &root_token, false, true).await;
-            test_pki_config_role(Arc::clone(&c), &root_token).await;
-            test_pki_issue_cert_by_generate_root(Arc::clone(&c), &root_token).await;
+            println!("Initializing Vault CA...");
+            test_pki_config_ca(&vault_core).await;
+            println!("Vault CA initialized.");
+            test_pki_generate_root(&vault_core, false, true).await;
+            println!("Root CA generated.");
+            test_pki_config_role(&vault_core).await;
+            println!("Role configured.");
+            test_pki_issue_cert_by_generate_root(&vault_core).await;
+            println!("Certificate issued.");
         }
     }
 }

@@ -61,7 +61,7 @@ impl Action for VectClient {
                         log::info!("VectClient has processed an item");
                     }
                     Err(e) => {
-                        log::error!("Failed to vectorize content: {}", e);
+                        log::error!("Failed to vectorize content: {e}");
                         continue;
                     }
                 }

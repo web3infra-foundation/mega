@@ -2,7 +2,7 @@
 
 Mono is a monorepo & monolithic codebase management system that supports Git, it is designed to manage large-scale codebases, streamline development, and foster collaboration. Mono is an unofficial open source implementation of Google Piper. 
 
-Mega is standalone version of Mono for the indiviual developer in their local machine and connecting to each other to build a decentralized open source collaboration network. 
+Mega is a standalone version of Mono for individual developers on their local machines, enabling them to connect with each other to build a decentralized open source collaboration network. 
 
 ## What's the Piper?
 
