@@ -21,7 +21,7 @@ use tokio::runtime::Runtime;
 fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
     crates_path
         .join(c_name)
-        .join(format!("{}-{}.crate", c_name, c_version))
+        .join(format!("{c_name}-{c_version}.crate"))
 }
 
 fn main() {
@@ -52,7 +52,7 @@ fn main() {
                 // This ensures each spawned task gets its own reference.
                 let id_counter_for_task = Arc::clone(&id_counter_for_loop);
                 async move {
-                    println!("✅ Received: {}", payload);
+                    println!("✅ Received: {payload}");
 
                     let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
                     let file_path = get_file_path(
@@ -60,7 +60,7 @@ fn main() {
                         &crate_msg.crate_name,
                         &crate_msg.crate_version,
                     );
-                    println!("📦 File path: {:?}", file_path);
+                    println!("📦 File path: {file_path:?}");
 
                     tokio::spawn(async move {
                         tokio::task::spawn_blocking(move || {

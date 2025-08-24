@@ -52,7 +52,10 @@ ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 lazy_static = { workspace = true }
 ctrlc = { workspace = true }
 oauth2 = { workspace = true }
-async-session = { workspace = true }
+tower-sessions = { workspace = true, features = ["memory-store"] }
+async-trait = { workspace = true }
+time = { workspace = true, features = ["serde"] }
+
 http = { workspace = true }
 cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
@@ -70,4 +73,5 @@ jemallocator = { workspace = true }
 mimalloc = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true}
+tempfile = { workspace = true }
+http-body-util = "0.1"
