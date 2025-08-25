@@ -1,6 +1,7 @@
 use crate::command::{load_object, save_object};
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::utils::object_ext::BlobExt;
 use crate::utils::object_ext::TreeExt;
 use crate::utils::{path, util};
@@ -10,11 +11,10 @@ use mercury::hash::SHA1;
 use mercury::internal::index::{Index, IndexEntry};
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use sea_orm::ConnectionTrait;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use sea_orm::{ConnectionTrait};
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 
 /// Arguments for the cherry-pick command
 #[derive(Parser, Debug)]
@@ -207,7 +207,9 @@ async fn create_cherry_pick_commit(
     save_object(&commit, &commit.id).map_err(|e| format!("failed to save commit: {e}"))?;
 
     // let reflog extract the subject of message.
-    let action = ReflogAction::CherryPick { source_message: original_commit.message.clone() };
+    let action = ReflogAction::CherryPick {
+        source_message: original_commit.message.clone(),
+    };
     let context = ReflogContext {
         old_oid: parent_id.to_string(),
         new_oid: commit.id.to_string(),
@@ -223,7 +225,9 @@ async fn create_cherry_pick_commit(
             })
         },
         true,
-    ).await.map_err(|e| e.to_string())?;
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(commit.id)
 }
 

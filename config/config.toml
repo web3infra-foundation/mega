@@ -26,6 +26,7 @@ db_path = "${base_dir}/mega.db"
 
 # database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
 db_url = "postgres://mono:mono@localhost:5432/mono"
+#db_url = "postgres://mono:mono@127.0.0.1:5432/mono"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
 max_connection = 16

@@ -1,6 +1,8 @@
 use crate::command::{get_target_commit, load_object};
 use crate::internal::branch::Branch;
+use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::utils::object_ext::{BlobExt, TreeExt};
 use crate::utils::{path, util};
 use clap::Parser;
@@ -12,8 +14,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 
 #[derive(Parser, Debug)]
 pub struct ResetArgs {
@@ -183,7 +183,10 @@ async fn perform_reset(
         .ok_or_else(|| "Cannot reset: HEAD is unborn and points to no commit.".to_string())?;
 
     if old_oid == target_commit_id {
-        println!("HEAD already at {}, nothing to do.", &target_commit_id.to_string()[..7]);
+        println!(
+            "HEAD already at {}, nothing to do.",
+            &target_commit_id.to_string()[..7]
+        );
         return Ok(());
     }
 
@@ -191,7 +194,9 @@ async fn perform_reset(
     // deciding which reference pointer to update in the transaction.
     let current_head_state = Head::current_with_conn(db).await;
 
-    let action = ReflogAction::Reset { target: target_ref_str.to_string() };
+    let action = ReflogAction::Reset {
+        target: target_ref_str.to_string(),
+    };
     let context = ReflogContext {
         old_oid: old_oid.to_string(),
         new_oid: target_commit_id.to_string(),
@@ -205,7 +210,13 @@ async fn perform_reset(
                 match &current_head_state {
                     // If on a branch, update the branch pointer. HEAD will move with it.
                     Head::Branch(branch_name) => {
-                        Branch::update_branch_with_conn(txn, branch_name, &target_commit_id.to_string(), None).await;
+                        Branch::update_branch_with_conn(
+                            txn,
+                            branch_name,
+                            &target_commit_id.to_string(),
+                            None,
+                        )
+                        .await;
                     }
                     // If in a detached state, update the HEAD pointer directly.
                     Head::Detached(_) => {
@@ -218,8 +229,8 @@ async fn perform_reset(
         },
         true,
     )
-        .await
-        .map_err(|e| e.to_string())?;
+    .await
+    .map_err(|e| e.to_string())?;
 
     match mode {
         ResetMode::Soft => {
@@ -326,7 +337,11 @@ pub(crate) async fn reset_working_directory_to_commit(
 
 /// Recursively rebuild the index from a tree structure.
 /// Traverses the tree and adds all files to the index with their blob hashes.
-pub(crate) fn rebuild_index_from_tree(tree: &Tree, index: &mut Index, prefix: &str) -> Result<(), String> {
+pub(crate) fn rebuild_index_from_tree(
+    tree: &Tree,
+    index: &mut Index,
+    prefix: &str,
+) -> Result<(), String> {
     for item in &tree.tree_items {
         let full_path = if prefix.is_empty() {
             item.name.clone()
