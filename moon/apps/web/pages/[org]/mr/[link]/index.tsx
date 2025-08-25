@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { ChecklistIcon, CommentDiscussionIcon, FileDiffIcon } from '@primer/octicons-react'
 import { BaseStyles, TextInput, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import { toast } from 'react-hot-toast'
 
@@ -26,8 +26,9 @@ import {
 } from '@/components/Issues/utils/sideEffect'
 import { editIdAtom, FALSE_EDIT_VAL, mridAtom, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
+import { TabLayout } from '@/components/Layout/TabLayout'
 import { MemberAvatar } from '@/components/MemberAvatar'
-import Checks from '@/components/MrView/components/Checks'
+import { tabAtom } from '@/components/MrView/components/Checks/cpns/store'
 import TimelineItems from '@/components/MrView/TimelineItems'
 import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
@@ -47,8 +48,6 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-
-const { UnderlinePanels } = require('@primer/react/experimental')
 
 export interface MRDetail {
   status: string
@@ -72,6 +71,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const [isEdit, setIsEdit] = useState(false)
   const [editTitle, setEditTitle] = useState(mrDetail?.title)
   const [loading, setLoading] = useState(false)
+  const Checks = dynamic(() => import('@/components/MrView/components/Checks'))
 
   if (mrDetail && typeof mrDetail.status === 'string') {
     mrDetail.status = mrDetail.status.toLowerCase()
@@ -235,6 +235,175 @@ const MRDetailPage: PageWithLayout<any> = () => {
     )
   }
 
+  const [tab] = useAtom(tabAtom)
+  const Conversation = () => (
+    <div className='flex gap-40'>
+      <div className='mt-3 flex w-[60%] flex-col'>
+        {detailIsLoading ? (
+          <div className='flex h-16 items-center justify-center'>
+            <LoadingSpinner />
+          </div>
+        ) : (
+          mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
+        )}
+        <div style={{ marginTop: '12px' }} className='prose'>
+          <div className='flex'>
+            {mrDetail && mrDetail.status === 'open' && (
+              <Button
+                disabled={!login || mrMergeIsPending}
+                onClick={handleMrApprove}
+                aria-label='Merge MR'
+                className={cn(buttonClasses)}
+                loading={mrMergeIsPending}
+              >
+                Merge MR
+              </Button>
+            )}
+          </div>
+          <h2>Add a comment</h2>
+          <input {...dropzone.getInputProps()} />
+          <div className='rounded-lg border p-6'>
+            <SimpleNoteContent
+              commentId='temp' //  Temporary filling, replacement later
+              ref={editorRef}
+              editable='all'
+              content={EMPTY_HTML}
+              onKeyDown={onKeyDownScrollHandler}
+              onChange={(html) => handleChange(html)}
+            />
+            <Button
+              variant='plain'
+              iconOnly={<PicturePlusIcon />}
+              accessibilityLabel='Add files'
+              onClick={dropzone.open}
+              tooltip='Add files'
+            />
+            <ComposerReactionPicker
+              editorRef={editorRef}
+              open={isReactionPickerOpen}
+              onOpenChange={setIsReactionPickerOpen}
+            />
+          </div>
+          <div className='flex justify-end gap-2'>
+            {mrDetail && mrDetail.status === 'open' && (
+              <Button
+                disabled={!login || mrCloseIsPending}
+                onClick={handleMrClose}
+                aria-label='Close Merge Request'
+                className={cn(buttonClasses)}
+                loading={mrCloseIsPending}
+              >
+                {closeHint}
+              </Button>
+            )}
+            {mrDetail && mrDetail.status === 'closed' && (
+              <Button
+                disabled={!login || mrReopenIsPending}
+                onClick={handleMrReopen}
+                aria-label='Reopen Merge Request'
+                className={cn(buttonClasses)}
+                loading={mrReopenIsPending}
+              >
+                Reopen Merge Request
+              </Button>
+            )}
+            <Button
+              disabled={!login || mrCommentIsPending}
+              onClick={() => send_comment()}
+              aria-label='Comment'
+              className={cn(buttonClasses)}
+              loading={mrCommentIsPending}
+            >
+              Comment
+            </Button>
+          </div>
+        </div>
+      </div>
+      {/* <SideBar /> */}
+      <div className='flex flex-1 flex-col flex-wrap items-center'>
+        <BadgeItem
+          selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
+          items={avatars}
+          title='Assignees'
+          handleGroup={(selected) => handleAssignees(selected)}
+          open={open}
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          onOpenChange={(open) => handleOpenChange(open)}
+          selected={fetchSelected}
+        >
+          {(el) => {
+            const names = Array.from(new Set(splitFun(el)))
+
+            return (
+              <>
+                {names.map((i, index) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <div key={index} className='mb-4 flex items-center gap-2 px-4 text-sm text-gray-500'>
+                    <MemberAvatar size='sm' member={memberMap.get(i)} />
+                    <span>{i}</span>
+                  </div>
+                ))}
+              </>
+            )
+          }}
+        </BadgeItem>
+        <BadgeItem
+          selectPannelProps={{ title: 'Apply labels to this issue' }}
+          items={labels}
+          title='Labels'
+          handleGroup={(selected) => handleLabels(selected)}
+          open={label_open}
+          onOpenChange={(open) => label_handleOpenChange(open)}
+          selected={label_fetchSelected}
+        >
+          {(el) => {
+            const names = splitFun(el)
+
+            return (
+              <>
+                <div className='flex flex-wrap items-start px-4'>
+                  {names.map((i, index) => {
+                    const label = labelMap.get(i) ?? {}
+
+                    return (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <div key={index} className='mb-4 flex items-center justify-center pr-2'>
+                        <div
+                          className='rounded-full border px-2 text-sm text-[#fff]'
+                          //eslint-disable-next-line react/forbid-dom-props
+                          style={{ backgroundColor: label.color, borderColor: label.color }}
+                        >
+                          {label.name}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          }}
+        </BadgeItem>
+        <BadgeItem title='Type' items={labels} />
+        <BadgeItem title='Projects' items={labels} />
+        <BadgeItem title='Milestones' items={labels} />
+      </div>
+    </div>
+  )
+  const FileChange = () => (
+    <>
+      {fileChgIsLoading ? (
+        <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
+          <LoadingSpinner />
+        </div>
+      ) : MrFilesChangedData?.data?.content ? (
+        // <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
+        <div>files</div>
+      ) : (
+        <div>No files changed</div>
+      )}
+    </>
+  )
+
   return (
     <ThemeProvider>
       <BaseStyles>
@@ -277,179 +446,11 @@ const MRDetailPage: PageWithLayout<any> = () => {
             )}
           </div>
           <div>
-            <UnderlinePanels aria-label='Select a tab'>
-              <UnderlinePanels.Tab icon={CommentDiscussionIcon}>Conversation</UnderlinePanels.Tab>
-              <UnderlinePanels.Tab icon={ChecklistIcon}>Checks</UnderlinePanels.Tab>
-              <UnderlinePanels.Tab icon={FileDiffIcon}>Files Changed</UnderlinePanels.Tab>
-              <UnderlinePanels.Panel>
-                <div className='flex gap-40'>
-                  <div className='mt-3 flex w-[60%] flex-col'>
-                    {detailIsLoading ? (
-                      <div className='flex h-16 items-center justify-center'>
-                        <LoadingSpinner />
-                      </div>
-                    ) : (
-                      mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
-                    )}
-                    <div style={{ marginTop: '12px' }} className='prose'>
-                      <div className='flex'>
-                        {mrDetail && mrDetail.status === 'open' && (
-                          <Button
-                            disabled={!login || mrMergeIsPending}
-                            onClick={handleMrApprove}
-                            aria-label='Merge MR'
-                            className={cn(buttonClasses)}
-                            loading={mrMergeIsPending}
-                          >
-                            Merge MR
-                          </Button>
-                        )}
-                      </div>
-                      <h2>Add a comment</h2>
-                      <input {...dropzone.getInputProps()} />
-                      <div className='rounded-lg border p-6'>
-                        <SimpleNoteContent
-                          commentId='temp' //  Temporary filling, replacement later
-                          ref={editorRef}
-                          editable='all'
-                          content={EMPTY_HTML}
-                          onKeyDown={onKeyDownScrollHandler}
-                          onChange={(html) => handleChange(html)}
-                        />
-                        <Button
-                          variant='plain'
-                          iconOnly={<PicturePlusIcon />}
-                          accessibilityLabel='Add files'
-                          onClick={dropzone.open}
-                          tooltip='Add files'
-                        />
-                        <ComposerReactionPicker
-                          editorRef={editorRef}
-                          open={isReactionPickerOpen}
-                          onOpenChange={setIsReactionPickerOpen}
-                        />
-                      </div>
-                      <div className='flex justify-end gap-2'>
-                        {mrDetail && mrDetail.status === 'open' && (
-                          <Button
-                            disabled={!login || mrCloseIsPending}
-                            onClick={handleMrClose}
-                            aria-label='Close Merge Request'
-                            className={cn(buttonClasses)}
-                            loading={mrCloseIsPending}
-                          >
-                            {closeHint}
-                          </Button>
-                        )}
-                        {mrDetail && mrDetail.status === 'closed' && (
-                          <Button
-                            disabled={!login || mrReopenIsPending}
-                            onClick={handleMrReopen}
-                            aria-label='Reopen Merge Request'
-                            className={cn(buttonClasses)}
-                            loading={mrReopenIsPending}
-                          >
-                            Reopen Merge Request
-                          </Button>
-                        )}
-                        <Button
-                          disabled={!login || mrCommentIsPending}
-                          onClick={() => send_comment()}
-                          aria-label='Comment'
-                          className={cn(buttonClasses)}
-                          loading={mrCommentIsPending}
-                        >
-                          Comment
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  {/* <SideBar /> */}
-                  <div className='flex flex-1 flex-col flex-wrap items-center'>
-                    <BadgeItem
-                      selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
-                      items={avatars}
-                      title='Assignees'
-                      handleGroup={(selected) => handleAssignees(selected)}
-                      open={open}
-                      // eslint-disable-next-line react-hooks/rules-of-hooks
-                      onOpenChange={(open) => handleOpenChange(open)}
-                      selected={fetchSelected}
-                    >
-                      {(el) => {
-                        const names = Array.from(new Set(splitFun(el)))
-
-                        return (
-                          <>
-                            {names.map((i, index) => (
-                              // eslint-disable-next-line react/no-array-index-key
-                              <div key={index} className='mb-4 flex items-center gap-2 px-4 text-sm text-gray-500'>
-                                <MemberAvatar size='sm' member={memberMap.get(i)} />
-                                <span>{i}</span>
-                              </div>
-                            ))}
-                          </>
-                        )
-                      }}
-                    </BadgeItem>
-                    <BadgeItem
-                      selectPannelProps={{ title: 'Apply labels to this issue' }}
-                      items={labels}
-                      title='Labels'
-                      handleGroup={(selected) => handleLabels(selected)}
-                      open={label_open}
-                      onOpenChange={(open) => label_handleOpenChange(open)}
-                      selected={label_fetchSelected}
-                    >
-                      {(el) => {
-                        const names = splitFun(el)
-
-                        return (
-                          <>
-                            <div className='flex flex-wrap items-start px-4'>
-                              {names.map((i, index) => {
-                                const label = labelMap.get(i) ?? {}
-
-                                return (
-                                  // eslint-disable-next-line react/no-array-index-key
-                                  <div key={index} className='mb-4 flex items-center justify-center pr-2'>
-                                    <div
-                                      className='rounded-full border px-2 text-sm text-[#fff]'
-                                      //eslint-disable-next-line react/forbid-dom-props
-                                      style={{ backgroundColor: label.color, borderColor: label.color }}
-                                    >
-                                      {label.name}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </>
-                        )
-                      }}
-                    </BadgeItem>
-                    <BadgeItem title='Type' items={labels} />
-                    <BadgeItem title='Projects' items={labels} />
-                    <BadgeItem title='Milestones' items={labels} />
-                  </div>
-                </div>
-              </UnderlinePanels.Panel>
-              <UnderlinePanels.Panel>
-                <Checks mr={id} />
-              </UnderlinePanels.Panel>
-              <UnderlinePanels.Panel>
-                {fileChgIsLoading ? (
-                  <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
-                    <LoadingSpinner />
-                  </div>
-                ) : MrFilesChangedData?.data?.content ? (
-                  // <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
-                  <div>files</div>
-                ) : (
-                  <div>No files changed</div>
-                )}
-              </UnderlinePanels.Panel>
-            </UnderlinePanels>
+            <TabLayout>
+              {tab === 'check' && <Checks mr={id} />}
+              {tab === 'conversation' && <Conversation />}
+              {tab === 'filechange' && <FileChange />}
+            </TabLayout>
           </div>
         </div>
       </BaseStyles>
