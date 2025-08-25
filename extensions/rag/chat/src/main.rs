@@ -26,13 +26,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut search_node_table = NodeTable::default();
 
             // Safely create SearchNode
-            let search_node = match SearchNode::new(&vect_url(), &qdrant_url(), "code_items") {
-                Ok(node) => node,
-                Err(e) => {
-                    error!("Failed to create SearchNode: {e}");
-                    return Err(e);
-                }
-            };
+            let search_node =
+                match SearchNode::new(&vect_url(), &qdrant_url(), "test_test_code_items") {
+                    Ok(node) => node,
+                    Err(e) => {
+                        error!("Failed to create SearchNode: {e}");
+                        return Err(e);
+                    }
+                };
 
             let search_node = DefaultNode::with_action(
                 SEARCH_NODE.to_string(),
