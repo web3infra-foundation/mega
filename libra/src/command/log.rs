@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use crate::command::load_object;
 use crate::internal::branch::Branch;
@@ -12,10 +13,13 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use mercury::hash::SHA1;
-use mercury::internal::object::commit::Commit;
+use mercury::internal::object::{blob::Blob, tree::Tree, commit::Commit};
+use neptune::Diff;
 use std::collections::VecDeque;
 use std::str::FromStr;
 
+use crate::utils::util;
+use crate::utils::object_ext::TreeExt;
 use common::utils::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
@@ -25,6 +29,13 @@ pub struct LogArgs {
     /// Shorthand for --pretty=oneline --abbrev-commit
     #[clap(long)]
     pub oneline: bool,
+    /// Show diffs for each commit (like git -p)
+    #[clap(short = 'p', long = "patch")]
+    pub patch: bool,
+
+    /// Files to limit diff output (only used with -p)
+    #[clap(requires = "patch", value_name = "PATHS")]
+    pathspec: Vec<String>,
 }
 
 ///  Get all reachable commits from the given commit hash
@@ -91,7 +102,10 @@ pub async fn execute(args: LogArgs) {
 
         let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
 
-        let message = if args.oneline {
+    // prepare pathspecs for diff if needed
+    let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
+
+    let message = if args.oneline {
             // Oneline format: <short_hash> <commit_message_first_line>
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
@@ -106,7 +120,7 @@ pub async fn execute(args: LogArgs) {
             } else {
                 format!("{} {}", short_hash.yellow(), msg)
             }
-        } else {
+    } else {
             // Default detailed format
             let mut message = format!(
                 "{} {}",
@@ -150,6 +164,12 @@ pub async fn execute(args: LogArgs) {
             message.push_str(&format!("\nAuthor: {}", commit.author));
             let (msg, _) = parse_commit_msg(&commit.message);
             message.push_str(&format!("\n{msg}\n"));
+            // If patch requested, compute diff between this commit and its first parent
+            if args.patch {
+                let patch_output = generate_diff(&commit, paths.clone()).await;
+                message.push_str(&patch_output);
+            }
+
             message
         };
 
@@ -190,6 +210,49 @@ async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
     }
 
     commit_to_branches
+}
+
+/// Generate unified diff between commit and its first parent (or empty tree)
+async fn generate_diff(commit: &Commit, paths: Vec<PathBuf>) -> String {
+    // prepare old and new blobs
+    // new_blobs from commit tree
+    let tree = load_object::<Tree>(&commit.tree_id).unwrap();
+    let new_blobs: Vec<(PathBuf, SHA1)> = tree.get_plain_items();
+
+    // old_blobs from first parent if exists
+    let old_blobs: Vec<(PathBuf, SHA1)> = if !commit.parent_commit_ids.is_empty() {
+        let parent = &commit.parent_commit_ids[0];
+        let parent_hash = SHA1::from_str(&parent.to_string()).unwrap();
+        let parent_commit = load_object::<Commit>(&parent_hash).unwrap();
+        let parent_tree = load_object::<Tree>(&parent_commit.tree_id).unwrap();
+        parent_tree.get_plain_items()
+    } else {
+        Vec::new()
+    };
+
+    let read_content = |file: &PathBuf, hash: &SHA1| {
+        match load_object::<Blob>(hash) {
+            Ok(blob) => blob.data,
+            Err(_) => {
+                let file = util::to_workdir_path(file);
+                std::fs::read(&file).unwrap()
+            }
+        }
+    };
+
+    let diffs = Diff::diff(
+        old_blobs,
+        new_blobs,
+        String::from("histogram"),
+        paths.into_iter().collect(),
+        read_content,
+    )
+    .await;
+    let mut out = String::new();
+    for d in diffs {
+        out.push_str(&d.data);
+    }
+    out
 }
 
 #[cfg(test)]

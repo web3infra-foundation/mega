@@ -1,5 +1,6 @@
 use super::*;
 use std::cmp::min;
+use clap::Parser;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -138,16 +139,13 @@ async fn test_log_oneline() {
     let reachable_commits = get_reachable_commits(commit_id).await;
 
     // Test oneline format
-    let args = LogArgs {
-        number: Some(3),
-        oneline: true,
-    };
+    let args = LogArgs::try_parse_from(&["libra", "--number", "3", "--oneline"]);
 
     // Since execute function writes to stdout, we'll test the logic directly
     let mut sorted_commits = reachable_commits.clone();
     sorted_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    let max_commits = std::cmp::min(args.number.unwrap_or(usize::MAX), sorted_commits.len());
+    let max_commits = std::cmp::min(args.unwrap().number.unwrap_or(usize::MAX), sorted_commits.len());
 
     for (i, commit) in sorted_commits.iter().take(max_commits).enumerate() {
         // Test short hash format (should be 7 characters)
