@@ -3,6 +3,9 @@ import { useAtom } from 'jotai'
 
 import { loadingAtom, logsAtom, statusAtom } from '../components/Checks/cpns/store'
 
+// TODO：request path should be set by the environment val
+export const SSEPATH = window.location.href.includes('app') ? 'https://orion.gitmega.com/' : '/sse/'
+
 export const useSSM = () => {
   const sseUrl = useRef('')
   const createEventSource = (baseUrl: string): Promise<EventSource> => {
@@ -39,8 +42,13 @@ export const useTaskSSE = () => {
 
   const setEventSource: (taskId: string) => void = (taskId: string) => {
     if (eventSourcesRef.current[taskId]) return
-    const es = new EventSource(`/sse/task-output/${taskId}`)
+    // proxy
+    // const es = new EventSource(`/sse/task-output/${taskId}`)
+
+    // mock
     // const es = new EventSource(`/api/event?id=${taskId}`)
+
+    const es = new EventSource(`${SSEPATH}task-output/${taskId}`)
 
     es.onmessage = (e) => {
       setLogsMap((prev) => {
@@ -112,7 +120,7 @@ export const useMultiTaskSSE = (taskIds: string[]) => {
     taskIds.forEach((taskId) => {
       if (!eventSourcesRef.current[taskId]) {
         // const es = new EventSource(`/api/tasks/${taskId}/events`)
-        const es = new EventSource(`/sse/task-output/${taskId}`)
+        const es = new EventSource(`${SSEPATH}/task-output/${taskId}`)
 
         es.onmessage = (e) => {
           setEventsMap((prev) => {
