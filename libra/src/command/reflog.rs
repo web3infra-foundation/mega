@@ -1,8 +1,8 @@
-use crate::command::{load_object, HEAD};
+use crate::command::load_object;
+use crate::internal::config;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
-use crate::internal::reflog::{Reflog, ReflogError};
-use crate::internal::config;
+use crate::internal::reflog::{Reflog, ReflogError, HEAD};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use mercury::hash::SHA1;
@@ -11,7 +11,9 @@ use sea_orm::sqlx::types::chrono;
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+#[cfg(unix)]
 use std::io::Write;
+#[cfg(unix)]
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 
@@ -40,7 +42,7 @@ enum Subcommands {
     Exists {
         #[clap(required = true)]
         ref_name: String,
-    }
+    },
 }
 
 pub async fn execute(args: ReflogArgs) {
@@ -79,7 +81,7 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
 
     #[cfg(unix)]
     if let Some(ref mut stdin) = less.stdin {
-        writeln!(stdin, "{formatter}").expect("fatal: failed to write to stdin");
+        writeln!(stdin, "{}", formatter).expect("fatal: failed to write to stdin");
     } else {
         eprintln!("Failed to capture stdin");
     }
@@ -100,7 +102,10 @@ async fn parse_ref_name(partial_ref_name: &str) -> String {
         return format!("refs/heads/{partial_ref_name}");
     }
     let (ref_name, _) = partial_ref_name.split_once("/").unwrap();
-    if config::Config::get("remote", Some(ref_name), "url").await.is_some() {
+    if config::Config::get("remote", Some(ref_name), "url")
+        .await
+        .is_some()
+    {
         return format!("refs/remotes/{partial_ref_name}");
     }
     format!("refs/heads/{partial_ref_name}")
@@ -113,7 +118,10 @@ async fn handle_exists(ref_name: &str) {
         .expect("fatal: failed to get reflog entry");
     match log {
         Some(_) => {}
-        None => std::process::exit(1),
+        None => {
+            eprintln!("fatal: reflog entry for '{}' not found", ref_name);
+            return;
+        }
     }
 }
 
@@ -151,25 +159,30 @@ async fn delete_single_group(group: &[(&str, usize)]) {
         .map(|(s, i)| ((*s).to_string(), *i))
         .collect::<Vec<(String, usize)>>();
 
-    db.transaction(|txn| Box::pin(async move {
-        let ref_name = &group[0].0;
-        let logs = Reflog::find_all(txn, ref_name).await?;
+    db.transaction(|txn| {
+        Box::pin(async move {
+            let ref_name = &group[0].0;
+            let logs = Reflog::find_all(txn, ref_name).await?;
 
-        for (_, index) in &group {
-            if let Some(entry) = logs.get(*index) {
-                let id = entry.id;
-                txn.execute(Statement::from_sql_and_values(
-                    DbBackend::Sqlite,
-                    "DELETE FROM reflog WHERE id = ?;",
-                    [id.into()],
-                )).await?;
-                continue;
+            for (_, index) in &group {
+                if let Some(entry) = logs.get(*index) {
+                    let id = entry.id;
+                    txn.execute(Statement::from_sql_and_values(
+                        DbBackend::Sqlite,
+                        "DELETE FROM reflog WHERE id = ?;",
+                        [id.into()],
+                    ))
+                    .await?;
+                    continue;
+                }
+                eprintln!("fatal: reflog entry `{ref_name}@{{{index}}}` not found")
             }
-            eprintln!("fatal: reflog entry `{ref_name}@{{{index}}}` not found")
-        }
 
-        Ok::<_, ReflogError>(())
-    })).await.expect("fatal: failed to delete reflog entries")
+            Ok::<_, ReflogError>(())
+        })
+    })
+    .await
+    .expect("fatal: failed to delete reflog entries")
 }
 
 fn parse_reflog_selector(selector: &str) -> Option<(&str, usize)> {
@@ -179,7 +192,7 @@ fn parse_reflog_selector(selector: &str) -> Option<(&str, usize)> {
             let index_str = &selector[at_brace + 2..end_brace];
 
             if let Ok(index) = index_str.parse::<usize>() {
-                return Some((ref_name, index))
+                return Some((ref_name, index));
             }
         }
     }
@@ -223,13 +236,12 @@ impl From<String> for FormatterKind {
     }
 }
 
-
 struct ReflogFormatter<'a> {
     logs: &'a Vec<Model>,
     kind: FormatterKind,
 }
 
-impl<'a> Display for ReflogFormatter<'a> {
+impl Display for ReflogFormatter<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let all = self.logs
             .iter()

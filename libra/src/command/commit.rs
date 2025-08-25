@@ -1,8 +1,10 @@
+use super::save_object;
 use std::process::Stdio;
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
-use super::save_object;
+const EMPTY_TREE_HASH: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
 use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config as UserConfig;
@@ -18,7 +20,7 @@ use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
-use sea_orm::{ConnectionTrait};
+use sea_orm::ConnectionTrait;
 use std::process::Command;
 
 #[derive(Parser, Debug, Default)]
@@ -230,8 +232,7 @@ pub async fn create_tree(index: &Index, storage: &ClientStorage, current_root: P
     let tree = {
         // `from_tree_items` can't create empty tree, so use `from_bytes` instead
         if tree_items.is_empty() {
-            // git create a no zero hash for empty tree, didn't know method. use default SHA1 temporarily
-            Tree::from_bytes(&[], SHA1::default()).unwrap()
+            Tree::from_bytes(&[], SHA1::from_str(EMPTY_TREE_HASH).unwrap()).unwrap()
         } else {
             Tree::from_tree_items(tree_items).unwrap()
         }
@@ -270,10 +271,18 @@ async fn update_head<C: ConnectionTrait>(db: &C, commit_id: &str) {
 async fn update_head_and_reflog(commit_id: &str, commit_message: &str) {
     let reflog_context = new_reflog_context(commit_id, commit_message).await;
     let commit_id = commit_id.to_string();
-    with_reflog(reflog_context, |txn| Box::pin(async move {
-        update_head(txn, &commit_id).await;
-        Ok(())
-    }), true).await.unwrap();
+    with_reflog(
+        reflog_context,
+        |txn| {
+            Box::pin(async move {
+                update_head(txn, &commit_id).await;
+                Ok(())
+            })
+        },
+        true,
+    )
+    .await
+    .unwrap();
 }
 
 async fn new_reflog_context(commit_id: &str, message: &str) -> ReflogContext {
