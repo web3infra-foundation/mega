@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 复制构建的二进制文件
 COPY --from=builder /chat/target/release/chat /usr/local/bin/chat
-COPY ./extensions/rag/chat/src/chat.sh /entrypoint.sh
+COPY ./extensions/rag/chat/chat.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # 设置默认命令
