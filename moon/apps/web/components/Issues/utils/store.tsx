@@ -48,4 +48,4 @@ export const editIdAtom = atom(0)
 
 export const refreshAtom = atom(0)
 
-export const buildId = atom('')
+export const buildIdAtom = atom('')

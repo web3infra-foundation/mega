@@ -53,7 +53,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 复制构建的二进制文件
 COPY --from=builder /index/target/release/index /usr/local/bin/index
-COPY --from=builder /index/extensions/sync.py /usr/local/bin/sync.py
+COPY --from=builder /index/extensions /usr/local/bin/extensions
 
 # 设置工作目录
 WORKDIR /index

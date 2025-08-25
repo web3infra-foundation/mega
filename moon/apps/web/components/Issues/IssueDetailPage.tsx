@@ -326,7 +326,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <UIText size='text-2xl' weight='font-bold' className='-tracking-[1px] lg:flex'>
                       {`${issueDetail?.title || ''}`}
                       <span>&nbsp;</span>
-                      <span className='font-light !text-[#59636e]'>${issueDetail?.id}</span>
+                      <span className='font-light !text-[#59636e]'>${link}</span>
                     </UIText>
                     <Button
                       onClick={() => {
@@ -384,7 +384,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef}/>
+                  <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef} />
                 )}
 
                 {info && info.status === 'open' && (

@@ -1,32 +1,67 @@
-import { memo, useEffect } from 'react'
+import { useEffect } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 import { useAtom } from 'jotai'
 
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
-import { buildId } from '@/components/Issues/utils/store'
-import { TaskResult, useGetMrTask } from '@/hooks/SSE/useGetMrTask'
+import { buildIdAtom } from '@/components/Issues/utils/store'
+import { HttpTaskRes } from '@/hooks/SSE/ssmRequest'
+// import { TaskResult } from '@/hooks/SSE/useGetMrTask'
+import { useGetMrTaskStatus } from '@/hooks/SSE/useGetMrTaskStatus'
 
 import { useTaskSSE } from '../../hook/useSSM'
-import { loadingAtom } from './cpns/store'
-import { mocks, Task } from './cpns/Task'
+import { statusMapAtom } from './cpns/store'
+import { Task } from './cpns/Task'
 
 const Checks = ({ mr }: { mr: string }) => {
-  const { data } = useGetMrTask(mr)
-  const [buildid, setBuildId] = useAtom(buildId)
-  const { logsMap, setEventSource } = useTaskSSE()
-  const [loading] = useAtom(loadingAtom)
+  // const { data } = useGetMrTask(mr)
+  const [buildid, setBuildId] = useAtom(buildIdAtom)
+  const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
+  const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
+  // 获取所有构建任务
+  const { data: status } = useGetMrTaskStatus(mr)
+
+  useEffect(() => {
+    // 构建日志id与日志映射，同时获取已存在日志
+    if (!status) return
+    // setBuildId((prev) => prev ?? status[0].build_id)
+    const fetchLogs = async () => {
+      const logsResult = await Promise.allSettled(
+        status.map(async (i) => {
+          statusMap.set(i.build_id, i)
+          const res = await HttpTaskRes(i.build_id, 0, 4096)
+
+          return res
+        })
+      )
+      const newLogsMap = logsResult.reduce(
+        (acc, i) => {
+          if (i.status === 'fulfilled' && i.value) {
+            acc[i.value.task_id] = i.value.data === '' ? 'empty logs, please check it later' : i.value.data
+          }
+          return acc
+        },
+        { ...logsMap }
+      )
+
+      setLogsMap(newLogsMap)
+    }
+
+    fetchLogs()
+    setBuildId(status[0].build_id)
+    return () => {
+      statusMap.clear()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
 
   // 页面加载时建立连接
   useEffect(() => {
-    if (data) {
-      setBuildId(data[0].build_id)
-      data.map((i) => setEventSource(i.build_id))
+    if (status?.length) {
+      status.map((i) => setEventSource(i.build_id))
     }
-    setBuildId(mocks[0].build_id)
-    mocks.map((i) => setEventSource(i.build_id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [status])
 
   return (
     <>
@@ -39,27 +74,29 @@ const Checks = ({ mr }: { mr: string }) => {
         <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
           {/* left side */}
           <div className='h-full w-[40%] border-r'>
-            {/* {data &&  <Task list={data} />} */}
-            <Task list={data as TaskResult[]} />
+            {status && <Task list={status} />}
+            {/* <Task list={status as TaskResult[]} /> */}
           </div>
           {/* right side */}
           <div className='flex-1'>
-            {logsMap[buildid] ? (
-              <LazyLog
-                extraLines={1}
-                text={(logsMap[buildid] ?? []).join('\n')}
-                stream
-                enableSearch
-                caseInsensitive
-                follow
-              />
-            ) : (
-              loading && (
+            {
+              logsMap[buildid] && eventSourcesRef.current[buildid] ? (
+                <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+              ) : eventSourcesRef.current[buildid] ? (
+                <div></div>
+              ) : (
+                // <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
                 <div className='flex h-full flex-1 items-center justify-center'>
                   <LoadingSpinner />
                 </div>
               )
-            )}
+
+              // loading && (
+              //   <div className='flex h-full flex-1 items-center justify-center'>
+              //     <LoadingSpinner />
+              //   </div>
+              // )
+            }
           </div>
         </div>
       </div>
@@ -67,4 +104,5 @@ const Checks = ({ mr }: { mr: string }) => {
   )
 }
 
-export default memo(Checks)
+// export default memo(Checks)
+export default Checks

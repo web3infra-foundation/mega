@@ -29,11 +29,11 @@ pub fn consumer_group() -> String {
 }
 
 pub fn broker() -> String {
-    std::env::var("BROKER").unwrap_or_else(|_| "kafka:9092".to_string())
+    std::env::var("BROKER").unwrap_or_else(|_| "172.17.0.1:30092".to_string())
 }
 
 pub fn topic() -> String {
-    std::env::var("TOPIC").unwrap_or_else(|_| "REPO_SYNC_STATUS.dev.0902".to_string())
+    std::env::var("TOPIC").unwrap_or_else(|_| "INDEX_TEST".to_string())
 }
 
 pub fn crates_path() -> String {

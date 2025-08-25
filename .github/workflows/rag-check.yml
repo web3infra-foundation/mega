@@ -1,0 +1,58 @@
+name: Rag Extensions Check, Test and Lints
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/rag-**'
+      - 'extensions/observatory'
+      - 'extensions/rag/**'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clippy:
+    name: Clippy Check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - extensions/observatory
+          - extensions/rag/chat
+          - extensions/rag/index
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run cargo clippy
+        run: |
+          cargo build
+          cargo clippy --all-targets --all-features --no-deps -- -D warnings
+
+  test:
+    name: Full Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Run cargo test
+        run: |
+          cargo test --manifest-path extensions/observatory/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path extensions/rag/chat/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path extensions/rag/index/Cargo.toml --all-features --no-fail-fast -- --nocapture
