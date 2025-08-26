@@ -2,8 +2,6 @@ use super::*;
 use std::cmp::min;
 use clap::Parser;
 use mercury::internal::object::commit::Commit;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -218,37 +216,42 @@ async fn test_log_patch_no_pathspec() {
     })
     .await;
 
-    // Get commits and compute diffs (replicating generate_diff logic) to avoid spawning pager
-    // Prepare a fake `less` wrapper that writes stdin to a file so we can assert on the pager output.
     let bin_dir = temp_path.path().join("bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
     let out_file = temp_path.path().join("less_out.txt");
 
-    // On Unix create a shell script and chmod +x. On Windows create a batch file (no chmod).
-    let less_path = if cfg!(windows) {
-        bin_dir.join("less.bat")
+    if cfg!(windows) {
+        // Windows: use PowerShell to fetch stdin
+        let ps_script = format!(
+            r#"
+$content = [Console]::In.ReadToEnd()
+[System.IO.File]::WriteAllText('{}', $content)
+"#,
+            out_file.display().to_string().replace("\\", "\\\\")
+        );
+        let ps_path = bin_dir.join("less.ps1");
+        std::fs::write(&ps_path, ps_script.as_bytes()).unwrap();
+
+        // Create a batch file to call PowerShell
+        let bat_path = bin_dir.join("less.bat");
+        let bat_script = format!(
+            "@echo off\r\npowershell -ExecutionPolicy Bypass -File \"{}\"\r\n",
+            ps_path.display()
+        );
+        std::fs::write(&bat_path, bat_script.as_bytes()).unwrap();
     } else {
-        bin_dir.join("less")
-    };
-
-    let script = if cfg!(windows) {
-        // batch: `more` reads stdin and we redirect into file
-        format!("@echo off\r\nmore > \"{}\"\r\n", out_file.display())
-    } else {
-        format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display())
-    };
-
-    std::fs::write(&less_path, script.as_bytes()).unwrap();
-
-    // chmod on unix only
-    #[cfg(unix)]
-    {
-        let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&less_path, perms).unwrap();
+        // Unix: use shell script
+        let less_path = bin_dir.join("less");
+        let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+        std::fs::write(&less_path, script.as_bytes()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
     }
-    
-    // Prepend our bin dir to PATH so Command::new("less") finds it. Use platform PATH sep.
+
+    // Set PATH
     let old_path = std::env::var("PATH").unwrap_or_default();
     let new_path = if cfg!(windows) {
         format!("{};{}", bin_dir.display(), old_path)
@@ -257,16 +260,16 @@ async fn test_log_patch_no_pathspec() {
     };
     std::env::set_var("PATH", &new_path);
 
-    // Call log subcommand with -p
+    // Call log command
     let args = LogArgs::try_parse_from(["libra", "--number", "2", "-p"]).unwrap();
     libra::command::log::execute(args).await;
 
-    // restore PATH
+    // Restore PATH
     std::env::set_var("PATH", old_path);
 
-    let combined_out = std::fs::read_to_string(out_file).unwrap();
-    assert!(combined_out.contains("Content A"), "patch should contain A content");
-    assert!(combined_out.contains("Content B"), "patch should contain B content");
+    let combined_out = std::fs::read_to_string(&out_file).unwrap_or_default();
+    assert!(combined_out.contains("Content A"), "patch should contain A content, got: {}", combined_out);
+    assert!(combined_out.contains("Content B"), "patch should contain B content, got: {}", combined_out);
 }
 
 #[tokio::test]
@@ -302,32 +305,39 @@ async fn test_log_patch_with_pathspec() {
     })
     .await;
 
-    // Prepare fake less again (platform aware)
     let bin_dir = temp_path.path().join("bin2");
     std::fs::create_dir_all(&bin_dir).unwrap();
     let out_file = temp_path.path().join("less_out_pathspec.txt");
 
-    let less_path = if cfg!(windows) {
-        bin_dir.join("less.bat")
+    if cfg!(windows) {
+        let ps_script = format!(
+            r#"
+$content = [Console]::In.ReadToEnd()
+[System.IO.File]::WriteAllText('{}', $content)
+"#,
+            out_file.display().to_string().replace("\\", "\\\\")
+        );
+        let ps_path = bin_dir.join("less.ps1");
+        std::fs::write(&ps_path, ps_script.as_bytes()).unwrap();
+        
+        let bat_path = bin_dir.join("less.bat");
+        let bat_script = format!(
+            "@echo off\r\npowershell -ExecutionPolicy Bypass -File \"{}\"\r\n",
+            ps_path.display()
+        );
+        std::fs::write(&bat_path, bat_script.as_bytes()).unwrap();
     } else {
-        bin_dir.join("less")
-    };
-
-    let script = if cfg!(windows) {
-        format!("@echo off\r\nmore > \"{}\"\r\n", out_file.display())
-    } else {
-        format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display())
-    };
-
-    std::fs::write(&less_path, script.as_bytes()).unwrap();
-    #[cfg(unix)]
-    {
-        let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&less_path, perms).unwrap();
+        let less_path = bin_dir.join("less");
+        let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+        std::fs::write(&less_path, script.as_bytes()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
     }
 
-    // Prepend our bin dir to PATH so Command::new("less") finds it. Use platform PATH sep.
+    // Set PATH
     let old_path = std::env::var("PATH").unwrap_or_default();
     let new_path = if cfg!(windows) {
         format!("{};{}", bin_dir.display(), old_path)
@@ -336,14 +346,13 @@ async fn test_log_patch_with_pathspec() {
     };
     std::env::set_var("PATH", &new_path);
 
-    // Call log subcommand with -p and pathspec A.txt
+    // Call log command
     let args = LogArgs::try_parse_from(["libra", "-p", "A.txt"]).unwrap();
     libra::command::log::execute(args).await;
 
-    // restore PATH
     std::env::set_var("PATH", old_path);
 
-    let out = std::fs::read_to_string(out_file).unwrap();
-    assert!(out.contains("Content A"), "patch should contain A content");
-    assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A");
+    let out = std::fs::read_to_string(out_file).unwrap_or_default();
+    assert!(out.contains("Content A"), "patch should contain A content, got: {}", out);
+    assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", out);
 }
