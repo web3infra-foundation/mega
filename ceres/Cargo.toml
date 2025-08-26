@@ -37,5 +37,4 @@ sysinfo = { workspace = true }
 utoipa = { workspace = true }
 base64 = { workspace = true }
 http = { workspace = true }
-sequoia-openpgp = { workspace = true }
 regex = "1.11.1"

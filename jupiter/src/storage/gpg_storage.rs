@@ -8,6 +8,9 @@ use sea_orm::IntoActiveModel;
 use sea_orm::QueryFilter;
 use std::ops::Deref;
 use std::str::FromStr;
+use pgp::composed::{SignedPublicKey};
+use pgp::Deserializable;
+use pgp::types::PublicKeyTrait;
 
 use crate::storage::base_storage::BaseStorage;
 use crate::storage::base_storage::StorageConnector;
@@ -31,9 +34,10 @@ impl GpgStorage {
         gpg_content: String,
         expires_days: Option<i32>,
     ) -> Result<gpg_key::Model, MegaError> {
-        let cert = sequoia_openpgp::Cert::from_str(&gpg_content)?;
-        let fingerprint = cert.fingerprint().to_hex();
-        let key_id = format!("{:016X}", cert.keyid());
+
+        let (pk, _headers) = SignedPublicKey::from_string(&gpg_content)?;
+        let key_id = format!("{:016X}", pk.key_id());
+        let fingerprint = format!("{:?}", pk.fingerprint());
         let created_at = chrono::Utc::now().naive_utc();
         let expires_at = expires_days.map(|days| created_at + chrono::Duration::days(days as i64));
 
