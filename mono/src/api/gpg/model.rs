@@ -13,7 +13,7 @@ pub struct NewGpgRequest {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RemoveGpgRequest {
     pub user_id: i64,
-    pub key_id: i64,
+    pub key_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

@@ -73,7 +73,7 @@ impl GpgStorage {
         Ok(())
     }
 
-    pub async fn remove_gpg_key(&self, user_id: i64, key_id: i64) -> Result<(), MegaError> {
+    pub async fn remove_gpg_key(&self, user_id: i64, key_id: String) -> Result<(), MegaError> {
         gpg_key::Entity::delete_many()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .filter(gpg_key::Column::KeyId.eq(key_id))
