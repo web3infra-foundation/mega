@@ -310,4 +310,26 @@ export function mergeTreeNodes(nodes1: MuiTreeNode[], nodes2: MuiTreeNode[]): Mu
   return sortProjectsByType(result);
 }
 
+/**
+* Recursively retrieves the IDs of all descendant nodes of a node.
+* @param treeData: The complete tree data.
+* @param nodeId: The ID of the parent node to be found.
+* @returns: An array of the IDs of all descendant nodes under the node.
+*/
+export function getDescendantIds(treeData: MuiTreeNode[], nodeId: string): string[] {
+  const node = findNode(treeData, nodeId);
+
+  if (!node || !node.children) {
+    return [];
+  }
+
+  let ids: string[] = [];
+  
+  node.children.forEach(child => {
+    ids.push(child.id);
+    ids = ids.concat(getDescendantIds(treeData, child.id));
+  });
+
+  return ids;
+}
 
