@@ -2,6 +2,12 @@ use super::*;
 use std::cmp::min;
 use clap::Parser;
 use mercury::internal::object::commit::Commit;
+use std::str::FromStr;
+use mercury::hash::SHA1;
+use mercury::internal::object::{blob::Blob, tree::Tree};
+use libra::utils::object_ext::TreeExt;
+use libra::utils::util;
+use neptune::Diff;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -220,27 +226,13 @@ async fn test_log_patch_no_pathspec() {
     std::fs::create_dir_all(&bin_dir).unwrap();
     let out_file = temp_path.path().join("less_out.txt");
 
+    // On Windows we inline diff generation to avoid relying on spawned pager
     if cfg!(windows) {
-        // Windows: use PowerShell to fetch stdin
-        let ps_script = format!(
-            r#"
-$content = [Console]::In.ReadToEnd()
-[System.IO.File]::WriteAllText('{}', $content)
-"#,
-            out_file.display().to_string().replace("\\", "\\\\")
-        );
-        let ps_path = bin_dir.join("less.ps1");
-        std::fs::write(&ps_path, ps_script.as_bytes()).unwrap();
-
-        // Create a batch file to call PowerShell
-        let bat_path = bin_dir.join("less.bat");
-        let bat_script = format!(
-            "@echo off\r\npowershell -ExecutionPolicy Bypass -File \"{}\"\r\n",
-            ps_path.display()
-        );
-        std::fs::write(&bat_path, bat_script.as_bytes()).unwrap();
+        let diffs = collect_combined_diff_for_commits(2, Vec::new()).await;
+        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
+        assert!(diffs.contains("Content B"), "patch should contain B content, got: {}", diffs);
     } else {
-        // Unix: use shell script
+        // Unix: create shell script that writes stdin to file
         let less_path = bin_dir.join("less");
         let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
         std::fs::write(&less_path, script.as_bytes()).unwrap();
@@ -249,27 +241,22 @@ $content = [Console]::In.ReadToEnd()
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
+
+        // Set PATH and run
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), old_path);
+        std::env::set_var("PATH", &new_path);
+
+        let args = LogArgs::try_parse_from(["libra", "--number", "2", "-p"]).unwrap();
+        libra::command::log::execute(args).await;
+
+        // Restore PATH
+        std::env::set_var("PATH", old_path);
+
+        let combined_out = std::fs::read_to_string(&out_file).unwrap_or_default();
+        assert!(combined_out.contains("Content A"), "patch should contain A content, got: {}", combined_out);
+        assert!(combined_out.contains("Content B"), "patch should contain B content, got: {}", combined_out);
     }
-
-    // Set PATH
-    let old_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = if cfg!(windows) {
-        format!("{};{}", bin_dir.display(), old_path)
-    } else {
-        format!("{}:{}", bin_dir.display(), old_path)
-    };
-    std::env::set_var("PATH", &new_path);
-
-    // Call log command
-    let args = LogArgs::try_parse_from(["libra", "--number", "2", "-p"]).unwrap();
-    libra::command::log::execute(args).await;
-
-    // Restore PATH
-    std::env::set_var("PATH", old_path);
-
-    let combined_out = std::fs::read_to_string(&out_file).unwrap_or_default();
-    assert!(combined_out.contains("Content A"), "patch should contain A content, got: {}", combined_out);
-    assert!(combined_out.contains("Content B"), "patch should contain B content, got: {}", combined_out);
 }
 
 #[tokio::test]
@@ -310,22 +297,10 @@ async fn test_log_patch_with_pathspec() {
     let out_file = temp_path.path().join("less_out_pathspec.txt");
 
     if cfg!(windows) {
-        let ps_script = format!(
-            r#"
-$content = [Console]::In.ReadToEnd()
-[System.IO.File]::WriteAllText('{}', $content)
-"#,
-            out_file.display().to_string().replace("\\", "\\\\")
-        );
-        let ps_path = bin_dir.join("less.ps1");
-        std::fs::write(&ps_path, ps_script.as_bytes()).unwrap();
-        
-        let bat_path = bin_dir.join("less.bat");
-        let bat_script = format!(
-            "@echo off\r\npowershell -ExecutionPolicy Bypass -File \"{}\"\r\n",
-            ps_path.display()
-        );
-        std::fs::write(&bat_path, bat_script.as_bytes()).unwrap();
+        let paths = vec![util::to_workdir_path("A.txt")];
+        let diffs = collect_combined_diff_for_commits(1, paths).await;
+        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
+        assert!(!diffs.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", diffs);
     } else {
         let less_path = bin_dir.join("less");
         let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
@@ -335,24 +310,58 @@ $content = [Console]::In.ReadToEnd()
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), old_path);
+        std::env::set_var("PATH", &new_path);
+
+        let args = LogArgs::try_parse_from(["libra", "-p", "A.txt"]).unwrap();
+        libra::command::log::execute(args).await;
+
+        std::env::set_var("PATH", old_path);
+
+        let out = std::fs::read_to_string(out_file).unwrap_or_default();
+        assert!(out.contains("Content A"), "patch should contain A content, got: {}", out);
+        assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", out);
     }
+}
 
-    // Set PATH
-    let old_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = if cfg!(windows) {
-        format!("{};{}", bin_dir.display(), old_path)
-    } else {
-        format!("{}:{}", bin_dir.display(), old_path)
-    };
-    std::env::set_var("PATH", &new_path);
+async fn collect_combined_diff_for_commits(count: usize, paths: Vec<std::path::PathBuf>) -> String {
+    // Get head commit and reachable commits
+    let commit_hash = Head::current_commit().await.unwrap().to_string();
+    let mut reachable_commits = get_reachable_commits(commit_hash).await;
+    reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    // Call log command
-    let args = LogArgs::try_parse_from(["libra", "-p", "A.txt"]).unwrap();
-    libra::command::log::execute(args).await;
+    let max_output_number = std::cmp::min(count, reachable_commits.len());
+    let mut out = String::new();
+    for commit in reachable_commits.into_iter().take(max_output_number) {
+        let tree = load_object::<Tree>(&commit.tree_id).unwrap();
+        let new_blobs: Vec<(std::path::PathBuf, SHA1)> = tree.get_plain_items();
 
-    std::env::set_var("PATH", old_path);
+        let old_blobs: Vec<(std::path::PathBuf, SHA1)> = if !commit.parent_commit_ids.is_empty() {
+            let parent = &commit.parent_commit_ids[0];
+            let parent_hash = SHA1::from_str(&parent.to_string()).unwrap();
+            let parent_commit = load_object::<Commit>(&parent_hash).unwrap();
+            let parent_tree = load_object::<Tree>(&parent_commit.tree_id).unwrap();
+            parent_tree.get_plain_items()
+        } else {
+            Vec::new()
+        };
 
-    let out = std::fs::read_to_string(out_file).unwrap_or_default();
-    assert!(out.contains("Content A"), "patch should contain A content, got: {}", out);
-    assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", out);
+        let read_content = |file: &std::path::PathBuf, hash: &SHA1| {
+            match load_object::<Blob>(hash) {
+                Ok(blob) => blob.data,
+                Err(_) => {
+                    let file = util::to_workdir_path(file);
+                    std::fs::read(&file).unwrap()
+                }
+            }
+        };
+
+        let diffs = Diff::diff(old_blobs, new_blobs, String::from("histogram"), paths.clone().into_iter().collect(), read_content).await;
+        for d in diffs {
+            out.push_str(&d.data);
+        }
+    }
+    out
 }
