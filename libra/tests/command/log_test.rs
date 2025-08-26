@@ -2,6 +2,7 @@ use super::*;
 use std::cmp::min;
 use clap::Parser;
 use mercury::internal::object::commit::Commit;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 #[tokio::test]
 #[serial]
@@ -222,17 +223,37 @@ async fn test_log_patch_no_pathspec() {
     let bin_dir = temp_path.path().join("bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
     let out_file = temp_path.path().join("less_out.txt");
-    let less_path = bin_dir.join("less");
-    let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
-    std::fs::write(&less_path, script.as_bytes()).unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(&less_path, perms).unwrap();
 
-    // Prepend our bin dir to PATH so Command::new("less") finds it.
+    // On Unix create a shell script and chmod +x. On Windows create a batch file (no chmod).
+    let less_path = if cfg!(windows) {
+        bin_dir.join("less.bat")
+    } else {
+        bin_dir.join("less")
+    };
+
+    let script = if cfg!(windows) {
+        // batch: `more` reads stdin and we redirect into file
+        format!("@echo off\r\nmore > \"{}\"\r\n", out_file.display())
+    } else {
+        format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display())
+    };
+
+    std::fs::write(&less_path, script.as_bytes()).unwrap();
+
+    // chmod on unix only
+    if cfg!(unix) {
+        let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&less_path, perms).unwrap();
+    }
+
+    // Prepend our bin dir to PATH so Command::new("less") finds it. Use platform PATH sep.
     let old_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", bin_dir.display(), old_path);
+    let new_path = if cfg!(windows) {
+        format!("{};{}", bin_dir.display(), old_path)
+    } else {
+        format!("{}:{}", bin_dir.display(), old_path)
+    };
     std::env::set_var("PATH", &new_path);
 
     // Call log subcommand with -p
@@ -280,20 +301,37 @@ async fn test_log_patch_with_pathspec() {
     })
     .await;
 
-    // Prepare fake less again
+    // Prepare fake less again (platform aware)
     let bin_dir = temp_path.path().join("bin2");
     std::fs::create_dir_all(&bin_dir).unwrap();
     let out_file = temp_path.path().join("less_out_pathspec.txt");
-    let less_path = bin_dir.join("less");
-    let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
-    std::fs::write(&less_path, script.as_bytes()).unwrap();
-    let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(&less_path, perms).unwrap();
 
-    // Prepend our bin dir to PATH so Command::new("less") finds it.
+    let less_path = if cfg!(windows) {
+        bin_dir.join("less.bat")
+    } else {
+        bin_dir.join("less")
+    };
+
+    let script = if cfg!(windows) {
+        format!("@echo off\r\nmore > \"{}\"\r\n", out_file.display())
+    } else {
+        format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display())
+    };
+
+    std::fs::write(&less_path, script.as_bytes()).unwrap();
+    if cfg!(unix) {
+        let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&less_path, perms).unwrap();
+    }
+
+    // Prepend our bin dir to PATH so Command::new("less") finds it. Use platform PATH sep.
     let old_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", bin_dir.display(), old_path);
+    let new_path = if cfg!(windows) {
+        format!("{};{}", bin_dir.display(), old_path)
+    } else {
+        format!("{}:{}", bin_dir.display(), old_path)
+    };
     std::env::set_var("PATH", &new_path);
 
     // Call log subcommand with -p and pathspec A.txt
