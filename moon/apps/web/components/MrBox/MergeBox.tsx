@@ -16,7 +16,7 @@ export function MergeBox({ prId }: { prId: string }) {
 
   // 定义最终的合并处理函数
   const handleMerge = useCallback(async () => {
-    console.log('Final validation before merge...');
+    // console.log('Final validation before merge...');
     // TODO: 再次发送校验请求
     refresh();
 
@@ -26,7 +26,7 @@ export function MergeBox({ prId }: { prId: string }) {
     if (stillHasFailures) {
       alert("阻止合并：仍有检查项未通过，请刷新页面查看详情。");
     } else {
-      console.log('All checks passed. Sending merge request to backend...');
+      // console.log('All checks passed. Sending merge request to backend...');
 
       approveMr(undefined)
       
