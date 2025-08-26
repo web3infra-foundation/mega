@@ -13,6 +13,7 @@ import { PicturePlusIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
+import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
 import {
   splitFun,
@@ -38,16 +39,17 @@ import { useScope } from '@/contexts/scope'
 import { usePostMRAssignees } from '@/hooks/issues/usePostMRAssignees'
 import { usePostMrTitle } from '@/hooks/MR/usePostMrTitle'
 import { useGetMrDetail } from '@/hooks/useGetMrDetail'
-import { useGetMrFilesChanged } from '@/hooks/useGetMrFilesChanged'
+import { useMrFilesChanged } from '@/hooks/useMrFilesChanged'
 import { usePostMrClose } from '@/hooks/usePostMrClose'
 import { usePostMrComment } from '@/hooks/usePostMrComment'
 import { usePostMRLabels } from '@/hooks/usePostMRLabels'
-import { usePostMrMerge } from '@/hooks/usePostMrMerge'
+// import { usePostMrMerge } from '@/hooks/usePostMrMerge'
 import { usePostMrReopen } from '@/hooks/usePostMrReopen'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
+import { MergeBox } from "@/components/MrBox/MergeBox";
 
 export interface MRDetail {
   status: string
@@ -72,22 +74,29 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const [editTitle, setEditTitle] = useState(mrDetail?.title)
   const [loading, setLoading] = useState(false)
   const Checks = dynamic(() => import('@/components/MrView/components/Checks'))
+  const [page, _setPage] = useState(1)
 
-  if (mrDetail && typeof mrDetail.status === 'string') {
+  if (mrDetail) {
     mrDetail.status = mrDetail.status.toLowerCase()
   }
 
-  const { data: MrFilesChangedData, isLoading: fileChgIsLoading } = useGetMrFilesChanged(id)
+  const { data: MrFilesChangedData, isLoading: fileChgIsLoading } = useMrFilesChanged(id, {
+    additional: 'string', 
+    pagination: {
+      page,
+      per_page: 10,
+    },
+  })
   const { mutate: modifyTitle } = usePostMrTitle()
 
-  const { mutate: approveMr, isPending: mrMergeIsPending } = usePostMrMerge(id)
-  const handleMrApprove = () => {
-    approveMr(undefined, {
-      onSuccess: () => {
-        router.push(`/${scope}/mr`)
-      }
-    })
-  }
+  // const { mutate: approveMr, isPending: mrMergeIsPending } = usePostMrMerge(id)
+  // const handleMrApprove = () => {
+  //   approveMr(undefined, {
+  //     onSuccess: () => {
+  //       router.push(`/${scope}/mr`)
+  //     }
+  //   })
+  // }
 
   const [_, setEditId] = useAtom(editIdAtom)
   const [refresh, setRefresh] = useAtom(refreshAtom)
@@ -247,17 +256,22 @@ const MRDetailPage: PageWithLayout<any> = () => {
           mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
-          <div className='flex'>
+          {/*<div className='flex'>*/}
+          {/*  {mrDetail && mrDetail.status === 'open' && (*/}
+          {/*    <Button*/}
+          {/*      disabled={!login || mrMergeIsPending}*/}
+          {/*      onClick={handleMrApprove}*/}
+          {/*      aria-label='Merge MR'*/}
+          {/*      className={cn(buttonClasses)}*/}
+          {/*      loading={mrMergeIsPending}*/}
+          {/*    >*/}
+          {/*      Merge MR*/}
+          {/*    </Button>*/}
+          {/*  )}*/}
+          {/*</div>*/}
+          <div className='w-full'>
             {mrDetail && mrDetail.status === 'open' && (
-              <Button
-                disabled={!login || mrMergeIsPending}
-                onClick={handleMrApprove}
-                aria-label='Merge MR'
-                className={cn(buttonClasses)}
-                loading={mrMergeIsPending}
-              >
-                Merge MR
-              </Button>
+              <MergeBox prId={id} />
             )}
           </div>
           <h2>Add a comment</h2>
@@ -395,10 +409,9 @@ const MRDetailPage: PageWithLayout<any> = () => {
         <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
           <LoadingSpinner />
         </div>
-      ) : MrFilesChangedData?.data?.content ? (
-        // <FileDiff diffs={MrFilesChangedData.data.content} treeData={MrFilesChangedData.data} />
-        <div>files</div>
-      ) : (
+        ) : MrFilesChangedData?.data?.page.items ? (
+          <FileDiff diffs={MrFilesChangedData.data.page.items} treeData={MrFilesChangedData.data} />
+        ) : (
         <div>No files changed</div>
       )}
     </>

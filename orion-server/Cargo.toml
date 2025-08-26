@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-orion = { workspace = true}
+orion = { workspace = true }
 
+http = { workspace = true }
 axum = { workspace = true, features = ["macros", "ws"] }
 axum-extra = { workspace = true, features = ["erased-json"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "process"] }
@@ -16,7 +17,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 futures-util = { workspace = true }
 uuid = { workspace = true, features = ["v7"] }
-tower-http = { workspace = true, features = ["trace"] }
+tower-http = { workspace = true, features = ["trace", "cors"] }
+tower = { workspace = true }
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
     "runtime-tokio-rustls",
