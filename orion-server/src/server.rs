@@ -1,17 +1,21 @@
-use crate::api::{self, AppState};
-use crate::model::builds;
+use std::net::SocketAddr;
+use std::time::Duration;
+
 use axum::Router;
 use axum::routing::get;
+use http::{HeaderValue, Method};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
     EntityTrait, QueryFilter, Schema, TransactionTrait,
 };
-use std::net::SocketAddr;
-use std::time::Duration;
+use tower::ServiceBuilder;
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::api::{self, AppState};
+use crate::model::builds;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
@@ -57,12 +61,36 @@ pub async fn start_server(port: u16) {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
+    let origins: Vec<HeaderValue> = std::env::var("ALLOWED_CORS_ORIGINS")
+        .unwrap()
+        .split(',')
+        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
+        .collect();
+
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .with_state(state)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new().layer(
+                CorsLayer::new()
+                    .allow_origin(origins)
+                    .allow_headers(vec![
+                        http::header::AUTHORIZATION,
+                        http::header::CONTENT_TYPE,
+                    ])
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::OPTIONS,
+                        Method::DELETE,
+                        Method::PUT,
+                    ])
+                    .allow_credentials(true),
+            ),
+        );
 
     tracing::info!("Listening on port {}", port);
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
