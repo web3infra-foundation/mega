@@ -1,6 +1,8 @@
 use super::*;
 use std::cmp::min;
 use clap::Parser;
+use mercury::internal::object::commit::Commit;
+use std::os::unix::fs::PermissionsExt;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -139,7 +141,7 @@ async fn test_log_oneline() {
     let reachable_commits = get_reachable_commits(commit_id).await;
 
     // Test oneline format
-    let args = LogArgs::try_parse_from(&["libra", "--number", "3", "--oneline"]);
+    let args = LogArgs::try_parse_from(["libra", "--number", "3", "--oneline"]);
 
     // Since execute function writes to stdout, we'll test the logic directly
     let mut sorted_commits = reachable_commits.clone();
@@ -160,4 +162,148 @@ async fn test_log_oneline() {
         let expected_number = 6 - i; // commits are numbered 6, 5, 4, 3, 2, 1
         assert_eq!(msg.trim(), format!("Commit_{expected_number}"));
     }
+}
+
+
+#[tokio::test]
+#[serial]
+/// Tests log -p (patch) without pathspec: create A -> commit -> create B -> commit -> assert diffs contain both A and B contents
+async fn test_log_patch_no_pathspec() {
+    let temp_path = tempdir().unwrap();
+    test::setup_with_new_libra_in(temp_path.path()).await;
+    let _guard = ChangeDirGuard::new(temp_path.path());
+
+    // Create file A and commit
+    test::ensure_file("A.txt", Some("Content A\n"));
+    add::execute(AddArgs {
+        pathspec: vec![String::from("A.txt")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+    commit::execute(CommitArgs {
+        message: "Add A".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    // Create file B and commit
+    test::ensure_file("B.txt", Some("Content B\n"));
+    add::execute(AddArgs {
+        pathspec: vec![String::from("B.txt")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+    commit::execute(CommitArgs {
+        message: "Add B".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    // Get commits and compute diffs (replicating generate_diff logic) to avoid spawning pager
+    // Prepare a fake `less` wrapper that writes stdin to a file so we can assert on the pager output.
+    let bin_dir = temp_path.path().join("bin");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    let out_file = temp_path.path().join("less_out.txt");
+    let less_path = bin_dir.join("less");
+    let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+    std::fs::write(&less_path, script.as_bytes()).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&less_path, perms).unwrap();
+
+    // Prepend our bin dir to PATH so Command::new("less") finds it.
+    let old_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", bin_dir.display(), old_path);
+    std::env::set_var("PATH", &new_path);
+
+    // Call log subcommand with -p
+    let args = LogArgs::try_parse_from(["libra", "--number", "2", "-p"]).unwrap();
+    libra::command::log::execute(args).await;
+
+    // restore PATH
+    std::env::set_var("PATH", old_path);
+
+    let combined_out = std::fs::read_to_string(out_file).unwrap();
+    assert!(combined_out.contains("Content A"), "patch should contain A content");
+    assert!(combined_out.contains("Content B"), "patch should contain B content");
+}
+
+#[tokio::test]
+#[serial]
+/// Tests log -p with a specific pathspec: commit contains A and B, but log -p A should only include A
+async fn test_log_patch_with_pathspec() {
+    let temp_path = tempdir().unwrap();
+    test::setup_with_new_libra_in(temp_path.path()).await;
+    let _guard = ChangeDirGuard::new(temp_path.path());
+
+    // Create files A and B and commit both in one commit
+    test::ensure_file("A.txt", Some("Content A\n"));
+    test::ensure_file("B.txt", Some("Content B\n"));
+
+    add::execute(AddArgs {
+        pathspec: vec![String::from(".")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+
+    commit::execute(CommitArgs {
+        message: "Add A and B".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    // Prepare fake less again
+    let bin_dir = temp_path.path().join("bin2");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    let out_file = temp_path.path().join("less_out_pathspec.txt");
+    let less_path = bin_dir.join("less");
+    let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+    std::fs::write(&less_path, script.as_bytes()).unwrap();
+    let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&less_path, perms).unwrap();
+
+    // Prepend our bin dir to PATH so Command::new("less") finds it.
+    let old_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", bin_dir.display(), old_path);
+    std::env::set_var("PATH", &new_path);
+
+    // Call log subcommand with -p and pathspec A.txt
+    let args = LogArgs::try_parse_from(["libra", "-p", "A.txt"]).unwrap();
+    libra::command::log::execute(args).await;
+
+    // restore PATH
+    std::env::set_var("PATH", old_path);
+
+    let out = std::fs::read_to_string(out_file).unwrap();
+    assert!(out.contains("Content A"), "patch should contain A content");
+    assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A");
 }
