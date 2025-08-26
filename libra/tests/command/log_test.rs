@@ -241,12 +241,13 @@ async fn test_log_patch_no_pathspec() {
     std::fs::write(&less_path, script.as_bytes()).unwrap();
 
     // chmod on unix only
-    if cfg!(unix) {
+    #[cfg(unix)]
+    {
         let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&less_path, perms).unwrap();
     }
-
+    
     // Prepend our bin dir to PATH so Command::new("less") finds it. Use platform PATH sep.
     let old_path = std::env::var("PATH").unwrap_or_default();
     let new_path = if cfg!(windows) {
@@ -319,7 +320,8 @@ async fn test_log_patch_with_pathspec() {
     };
 
     std::fs::write(&less_path, script.as_bytes()).unwrap();
-    if cfg!(unix) {
+    #[cfg(unix)]
+    {
         let mut perms = std::fs::metadata(&less_path).unwrap().permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&less_path, perms).unwrap();
