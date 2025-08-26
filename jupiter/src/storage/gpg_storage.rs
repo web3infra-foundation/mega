@@ -7,7 +7,6 @@ use sea_orm::EntityTrait;
 use sea_orm::IntoActiveModel;
 use sea_orm::QueryFilter;
 use std::ops::Deref;
-use std::str::FromStr;
 use pgp::composed::{SignedPublicKey};
 use pgp::Deserializable;
 use pgp::types::PublicKeyTrait;
