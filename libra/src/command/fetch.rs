@@ -239,7 +239,7 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
                     } else if let Some(mr_name) = r._ref.strip_prefix("refs/mr/") {
                         // Handle merge requests if your system supports them
                         full_ref_name = format!("mr/{}", mr_name);
-                    } else if &r._ref == HEAD {
+                    } else if r._ref == HEAD {
                         continue;
                     } else {
                         tracing::warn!("Unsupported ref type during fetch: {}", r._ref);
