@@ -109,7 +109,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let origins: Vec<HeaderValue> = oauth_config
         .allowed_cors_origins
         .into_iter()
-        .map(|x| x.parse::<HeaderValue>().unwrap())
+        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
         .collect();
 
     // add RequestDecompressionLayer for handle gzip encode
