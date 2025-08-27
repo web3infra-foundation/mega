@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::Write;
 
@@ -11,7 +12,9 @@ use crate::internal::object::types::ObjectType;
 use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
-const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
+const MAX_CHAIN_LEN: usize = 50;
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can acceptbase 必须和 entry 类型一致
+
 
 /// A encoder for generating pack files with delta objects.
 pub struct PackEncoder {
@@ -105,6 +108,23 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
     Ok(encoded_data)
 }
 
+
+fn magic_sort(a:&Entry,b:&Entry)  -> Ordering {
+    let ord = b.obj_type.to_u8().cmp(&a.obj_type.to_u8());
+    if ord != Ordering::Equal { return ord; }
+
+    // the hash should be file hash not content hash
+    // todo the feature need larger refactor
+    // let ord = b.hash.cmp(&a.hash);
+    // if ord != Ordering::Equal { return ord; }
+
+    let ord = b.data.len().cmp(&a.data.len());
+    if ord != Ordering::Equal { return ord; }
+
+    // fallback pointer order (newest first)
+    (a as *const Entry).cmp(&(b as *const Entry))
+}
+
 impl PackEncoder {
     pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
         PackEncoder {
@@ -170,36 +190,76 @@ impl PackEncoder {
                 "encoding operation is already in progress".to_string(),
             ));
         }
-        loop {
-            match entry_rx.recv().await {
-                Some(entry) => {
-                    self.process_index += 1;
-                    // push window after encode to void diff by self
-                    let offset = self.inner_offset;
-                    let mut try_delta_entry = entry.clone();
-                    let try_delfa_offset = match enable_zstdelta {
-                        true => self.try_as_offset_zstdelta(&mut try_delta_entry),
-                        false => self.try_as_offset_delta(&mut try_delta_entry),
-                    };
-                    let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
 
-                    self.write_all_and_update(&obj_data).await;
-                    self.window.push_back((entry, offset));
-                    if self.window.len() > self.window_size {
-                        self.window.pop_front();
-                    }
-                }
-                None => {
-                    if self.process_index != self.object_number {
-                        panic!(
-                            "not all objects are encoded, process:{}, total:{}",
-                            self.process_index, self.object_number
-                        );
-                    }
-                    break;
-                }
+        // collect entries before magic sort
+        let mut all_entries = Vec::with_capacity(self.object_number);
+        while let Some(entry) = entry_rx.recv().await {
+            all_entries.push(entry);
+        }
+        
+        if all_entries.len() != self.object_number {
+            panic!(
+                "not all objects are encoded, process:{}, total:{}",
+                self.process_index, self.object_number
+            );
+        }
+        
+        
+        all_entries.par_sort_by(magic_sort);
+        
+        
+        for mut entry in all_entries {
+            self.process_index += 1;
+            let offset = self.inner_offset;
+            let mut entry_for_window = entry.clone();
+            let try_offset = if enable_zstdelta {
+                self.try_as_offset_zstdelta(&mut entry)
+            } else {
+                self.try_as_offset_delta(&mut entry)
+            };
+            let obj_data = encode_one_object(&entry, try_offset)?;
+            self.write_all_and_update(&obj_data).await;
+            entry_for_window.chain_len = entry.chain_len;
+        
+            self.window.push_back((entry_for_window, offset));
+            if self.window.len() > self.window_size {
+                self.window.pop_front();
             }
         }
+
+
+        // loop {
+        //     match entry_rx.recv().await {
+        //         Some(entry) => {
+        //             self.process_index += 1;
+        //             // push window after encode to void diff by self
+        //             let offset = self.inner_offset;
+        //             let mut try_delta_entry = entry.clone();
+        //             let try_delfa_offset = match enable_zstdelta {
+        //                 true => self.try_as_offset_zstdelta(&mut try_delta_entry),
+        //                 false => self.try_as_offset_delta(&mut try_delta_entry),
+        //             };
+        //             let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
+        // 
+        //             self.write_all_and_update(&obj_data).await;
+        //             self.window.push_back((entry, offset));
+        //             if self.window.len() > self.window_size {
+        //                 self.window.pop_front();
+        //             }
+        //         }
+        //         None => {
+        //             if self.process_index != self.object_number {
+        //                 panic!(
+        //                     "not all objects are encoded, process:{}, total:{}",
+        //                     self.process_index, self.object_number
+        //                 );
+        //             }
+        //             break;
+        //         }
+        //     }
+        // }
+
+
 
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
@@ -288,21 +348,66 @@ impl PackEncoder {
     fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
         let mut best_base: Option<&(Entry, usize)> = None;
         let mut best_rate: f64 = 0.0;
+        let mut best_chain_len: usize = 0;
+        let mut best_base_offset: usize = 0;
+        let tie_epsilon: f64 = 0.02;
         for try_base in self.window.iter() {
+            // tracing::debug!(
+            //     "entry={} best_base={:?} rate={:?}",
+            //     entry.hash,
+            //     best_base.map(|b| b.0.hash),
+            //     best_rate
+            // );
             if try_base.0.obj_type != entry.obj_type {
                 continue;
             }
-            let rate = delta::encode_rate(&try_base.0.data, &entry.data);
-            if rate > MIN_DELTA_RATE && rate > best_rate {
-                best_rate = rate;
-                best_base = Some(try_base);
+
+            if try_base.0.chain_len >= MAX_CHAIN_LEN {
+                continue;
+            }
+
+            if try_base.0.hash == entry.hash {
+                continue;
+            }
+
+            // 这是导致运行时间爆炸的原因
+            // when data is small, heuristic_encode_rate is not accurate
+            let rate = if (try_base.0.data.len() +  entry.data.len()) / 2 > 20 {
+               delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
+            }else { 
+                delta::encode_rate(&try_base.0.data, &entry.data)
+            };
+            
+
+            if rate > MIN_DELTA_RATE {
+                let is_better = if rate > best_rate + tie_epsilon {
+                    true
+                } else if (rate - best_rate).abs() <= tie_epsilon {
+                    let base_chain = try_base.0.chain_len;
+                    let base_offset = self.inner_offset - try_base.1;
+                    base_chain > best_chain_len || (base_chain == best_chain_len && base_offset > best_base_offset)
+                } else {
+                    false
+                };
+
+                if is_better {
+                    best_rate = rate;
+                    best_chain_len = try_base.0.chain_len;
+                    best_base_offset = self.inner_offset - try_base.1;
+                    best_base = Some(try_base);
+                }
             }
         }
+
         best_base.map(|best_base| {
+            // 修正2：delta::encode 返回 Vec<u8>，不是 Result
             let delta = delta::encode(&best_base.0.data, &entry.data);
+
             let offset = self.inner_offset - best_base.1;
             entry.obj_type = ObjectType::OffsetDelta;
             entry.data = delta;
+            entry.chain_len = best_base.0.chain_len + 1;
+            tracing::debug!("chain_len: {:?}", entry.chain_len);
             offset
         })
     }
@@ -315,27 +420,57 @@ impl PackEncoder {
     fn try_as_offset_zstdelta(&self, entry: &mut Entry) -> Option<usize> {
         let mut best_delta_obj = None; // obj, offset
         let mut best_rate: f64 = 0.0;
+        let mut best_chain_len: usize = 0;
+        let mut best_base_offset: usize = 0;
+        let tie_epsilon: f64 = 0.02; // when rates are close, prefer deeper/newer base
+        
+        if entry.data.is_empty() {
+            return None;
+        }
+
         for try_base in self.window.iter() {
             if try_base.0.obj_type != entry.obj_type {
                 continue;
             }
-            let try_delta_obj = zstdelta::diff(&try_base.0.data, &entry.data);
-            if try_delta_obj.is_err() {
-                return None; // IO error, can't handle
+            if try_base.0.chain_len >= MAX_CHAIN_LEN {
+                continue;
             }
-            let try_delta_obj = try_delta_obj.unwrap();
+            let try_delta_obj = match zstdelta::diff(&try_base.0.data, &entry.data) {
+                Ok(v) => v,
+                Err(_) => continue, // IO error for this base, try next
+            };
             // The DeltaDiff algorithm uses the proportion of the delta part as the delta rate,
             // while zstdelta does not have this data and directly uses the overall compression rate.
             let rate = 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64;
-            if rate > MIN_DELTA_RATE && rate > best_rate {
-                best_rate = rate;
-                best_delta_obj = Some((try_delta_obj, try_base.1));
+            // if rate > MIN_DELTA_RATE && rate > best_rate {
+            //     best_rate = rate;
+            //     best_delta_obj = Some((try_delta_obj, try_base.1));
+            // }
+
+            if rate > MIN_DELTA_RATE {
+                let is_better = if rate > best_rate + tie_epsilon {
+                    true
+                } else if (rate - best_rate).abs() <= tie_epsilon {
+                    let base_chain = try_base.0.chain_len;
+                    let base_offset = self.inner_offset - try_base.1;
+                    base_chain > best_chain_len || (base_chain == best_chain_len && base_offset > best_base_offset)
+                } else {
+                    false
+                };
+
+                if is_better {
+                    best_rate = rate;
+                    best_chain_len = try_base.0.chain_len;
+                    best_base_offset = self.inner_offset - try_base.1;
+                    best_delta_obj = Some((try_delta_obj, try_base.1));
+                }
             }
         }
         best_delta_obj.map(|(best_delta_data, best_base_offset)| {
             let offset = self.inner_offset - best_base_offset;
             entry.obj_type = ObjectType::OffsetZstdelta;
             entry.data = best_delta_data;
+            entry.chain_len = best_chain_len + 1;
             // tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
             offset
         })
@@ -372,11 +507,20 @@ impl PackEncoder {
             self.encode_with_zstdelta(rx).await.unwrap()
         }))
     }
+
+    #[cfg(test)]
+    pub fn get_window_info(&self) -> Vec<(ObjectType, usize, usize)> {
+        self.window
+            .iter()
+            .map(|(entry, offset)| (entry.obj_type, entry.chain_len, *offset))
+            .collect()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::collections::HashSet;
     use std::sync::Arc;
     use std::{io::Cursor, path::PathBuf};
 
@@ -436,6 +580,56 @@ mod tests {
         let pack_with_delta = encode_once(3).await;
         assert_ne!(pack_with_delta.len(), pack_without_delta_size);
         check_format(&pack_with_delta);
+    }
+
+    #[tokio::test]
+    async fn test_encode_then_decode_delta_chain() {
+        init_logger();
+
+        // 1) 构造一组相似的内容，鼓励形成 delta 链
+        let mut contents: Vec<Vec<u8>> = Vec::new();
+        let mut base = String::from("base line 0\n");
+        for i in 1..=8usize {
+            base.push_str(&format!("line {i}: some repeated text with slight changes...\n"));
+            contents.push(base.as_bytes().to_vec());
+        }
+
+        // 2) 用 PackEncoder（window_size>0）编码，尽量产生 offset-delta
+        let (tx, mut rx) = mpsc::channel(10_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(10_000);
+
+        let encoder = PackEncoder::new(contents.len(), 10, tx);
+        encoder.encode_async(entry_rx).await.unwrap();
+
+        for data in contents.clone() {
+            let blob = crate::internal::object::blob::Blob::from_content_bytes(data);
+            let entry: Entry = blob.into();
+            entry_tx.send(entry).await.unwrap();
+        }
+        drop(entry_tx);
+
+        let mut pack_bytes = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            pack_bytes.extend(chunk);
+        }
+
+        // 3) 用 Pack::decode 解析，重建为完整对象
+        let mut p = Pack::new(None, Some(1024 * 1024 * 20), Some(PathBuf::from("/tmp/.cache_temp")), true);
+        let mut reader = Cursor::new(pack_bytes);
+        let decoded = Arc::new(tokio::sync::Mutex::new(Vec::<Entry>::new()));
+        let decoded_c = decoded.clone();
+        p.decode(&mut reader, move |entry, _| {
+            let mut guard = decoded_c.blocking_lock();
+            guard.push(entry);
+        }).expect("pack decode should succeed");
+
+        let decoded_entries = decoded.lock().await;
+        assert_eq!(decoded_entries.len(), contents.len());
+
+        // 4) 校验内容集合相等（忽略顺序）
+        let expected: HashSet<Vec<u8>> = contents.into_iter().collect();
+        let got: HashSet<Vec<u8>> = decoded_entries.iter().map(|e| e.data.clone()).collect();
+        assert_eq!(expected, got, "decoded contents should equal original contents");
     }
 
     async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
@@ -508,6 +702,11 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
+        // 计算原始总大小
+        let total_original_size: usize = entries.lock().await.iter()
+            .map(|entry| entry.data.len())
+            .sum();
+
         // encode entries
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
@@ -529,10 +728,29 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        // only receive data
-        while (rx.recv().await).is_some() {
-            // do nothing
+        // // only receive data
+        // while (rx.recv().await).is_some() {
+        //     // do nothing
+        // }
+
+        // 收集数据并计算压缩率
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
         }
+
+        // 计算压缩率
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
     }
 
     #[tokio::test]
@@ -540,6 +758,12 @@ mod tests {
         init_logger();
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
+        
+        // 计算原始总大小
+        let total_original_size: usize = entries.lock().await.iter()
+            .map(|entry| entry.data.len())
+            .sum();
+        
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
@@ -556,12 +780,25 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        // only receive data
+        // 收集数据并计算压缩率
         let mut result = Vec::new();
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
-        tracing::info!("new pack file size: {}", result.len());
+        
+        // 计算压缩率
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+        
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
+        
         // check format
         check_format(&result);
     }
@@ -578,4 +815,57 @@ mod tests {
         println!("result: {result}");
         assert_eq!(result, value as u64);
     }
+
+    
+
+    #[tokio::test]
+    async fn test_pack_encoder_large_file_with_delta() {
+        init_logger();
+        let entries = get_entries_for_test().await;
+        let entries_number = entries.lock().await.len();
+
+        // 计算原始总大小
+        let total_original_size: usize = entries.lock().await.iter()
+            .map(|entry| entry.data.len())
+            .sum();
+
+        let (tx, mut rx) = mpsc::channel(100_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
+
+        let mut encoder = PackEncoder::new(entries_number, 10, tx);
+        encoder.encode_async(entry_rx).await.unwrap();
+
+        // spawn a task to send entries
+        tokio::spawn(async move {
+            let entries = entries.lock().await;
+            for entry in entries.iter() {
+                entry_tx.send(entry.clone()).await.unwrap();
+            }
+            drop(entry_tx);
+            tracing::info!("all entries sent");
+        });
+
+        // 收集数据并计算压缩率
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
+        }
+
+        // 计算压缩率
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
+
+        // check format
+        check_format(&result);
+    }
+
 }
