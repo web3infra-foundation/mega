@@ -1,5 +1,13 @@
 use super::*;
 use std::cmp::min;
+use clap::Parser;
+use mercury::internal::object::commit::Commit;
+use std::str::FromStr;
+use mercury::hash::SHA1;
+use mercury::internal::object::{blob::Blob, tree::Tree};
+use libra::utils::object_ext::TreeExt;
+use libra::utils::util;
+use neptune::Diff;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -138,16 +146,13 @@ async fn test_log_oneline() {
     let reachable_commits = get_reachable_commits(commit_id).await;
 
     // Test oneline format
-    let args = LogArgs {
-        number: Some(3),
-        oneline: true,
-    };
+    let args = LogArgs::try_parse_from(["libra", "--number", "3", "--oneline"]);
 
     // Since execute function writes to stdout, we'll test the logic directly
     let mut sorted_commits = reachable_commits.clone();
     sorted_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    let max_commits = std::cmp::min(args.number.unwrap_or(usize::MAX), sorted_commits.len());
+    let max_commits = std::cmp::min(args.unwrap().number.unwrap_or(usize::MAX), sorted_commits.len());
 
     for (i, commit) in sorted_commits.iter().take(max_commits).enumerate() {
         // Test short hash format (should be 7 characters)
@@ -162,4 +167,201 @@ async fn test_log_oneline() {
         let expected_number = 6 - i; // commits are numbered 6, 5, 4, 3, 2, 1
         assert_eq!(msg.trim(), format!("Commit_{expected_number}"));
     }
+}
+
+
+#[tokio::test]
+#[serial]
+/// Tests log -p (patch) without pathspec: create A -> commit -> create B -> commit -> assert diffs contain both A and B contents
+async fn test_log_patch_no_pathspec() {
+    let temp_path = tempdir().unwrap();
+    test::setup_with_new_libra_in(temp_path.path()).await;
+    let _guard = ChangeDirGuard::new(temp_path.path());
+
+    // Create file A and commit
+    test::ensure_file("A.txt", Some("Content A\n"));
+    add::execute(AddArgs {
+        pathspec: vec![String::from("A.txt")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+    commit::execute(CommitArgs {
+        message: "Add A".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    // Create file B and commit
+    test::ensure_file("B.txt", Some("Content B\n"));
+    add::execute(AddArgs {
+        pathspec: vec![String::from("B.txt")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+    commit::execute(CommitArgs {
+        message: "Add B".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    let bin_dir = temp_path.path().join("bin");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    let out_file = temp_path.path().join("less_out.txt");
+
+    // On Windows we inline diff generation to avoid relying on spawned pager
+    if cfg!(windows) {
+        let diffs = collect_combined_diff_for_commits(2, Vec::new()).await;
+        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
+        assert!(diffs.contains("Content B"), "patch should contain B content, got: {}", diffs);
+    } else {
+        // Unix: create shell script that writes stdin to file
+        let less_path = bin_dir.join("less");
+        let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+        std::fs::write(&less_path, script.as_bytes()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        // Set PATH and run
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), old_path);
+        std::env::set_var("PATH", &new_path);
+
+        let args = LogArgs::try_parse_from(["libra", "--number", "2", "-p"]).unwrap();
+        libra::command::log::execute(args).await;
+
+        // Restore PATH
+        std::env::set_var("PATH", old_path);
+
+        let combined_out = std::fs::read_to_string(&out_file).unwrap_or_default();
+        assert!(combined_out.contains("Content A"), "patch should contain A content, got: {}", combined_out);
+        assert!(combined_out.contains("Content B"), "patch should contain B content, got: {}", combined_out);
+    }
+}
+
+#[tokio::test]
+#[serial]
+/// Tests log -p with a specific pathspec: commit contains A and B, but log -p A should only include A
+async fn test_log_patch_with_pathspec() {
+    let temp_path = tempdir().unwrap();
+    test::setup_with_new_libra_in(temp_path.path()).await;
+    let _guard = ChangeDirGuard::new(temp_path.path());
+
+    // Create files A and B and commit both in one commit
+    test::ensure_file("A.txt", Some("Content A\n"));
+    test::ensure_file("B.txt", Some("Content B\n"));
+
+    add::execute(AddArgs {
+        pathspec: vec![String::from(".")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+
+    commit::execute(CommitArgs {
+        message: "Add A and B".to_string(),
+        allow_empty: false,
+        conventional: false,
+        amend: false,
+        signoff: false,
+        disable_pre: false,
+    })
+    .await;
+
+    let bin_dir = temp_path.path().join("bin2");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    let out_file = temp_path.path().join("less_out_pathspec.txt");
+
+    if cfg!(windows) {
+        let paths = vec![util::to_workdir_path("A.txt")];
+        let diffs = collect_combined_diff_for_commits(1, paths).await;
+        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
+        assert!(!diffs.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", diffs);
+    } else {
+        let less_path = bin_dir.join("less");
+        let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
+        std::fs::write(&less_path, script.as_bytes()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&less_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), old_path);
+        std::env::set_var("PATH", &new_path);
+
+        let args = LogArgs::try_parse_from(["libra", "-p", "A.txt"]).unwrap();
+        libra::command::log::execute(args).await;
+
+        std::env::set_var("PATH", old_path);
+
+        let out = std::fs::read_to_string(out_file).unwrap_or_default();
+        assert!(out.contains("Content A"), "patch should contain A content, got: {}", out);
+        assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", out);
+    }
+}
+
+async fn collect_combined_diff_for_commits(count: usize, paths: Vec<std::path::PathBuf>) -> String {
+    // Get head commit and reachable commits
+    let commit_hash = Head::current_commit().await.unwrap().to_string();
+    let mut reachable_commits = get_reachable_commits(commit_hash).await;
+    reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
+
+    let max_output_number = std::cmp::min(count, reachable_commits.len());
+    let mut out = String::new();
+    for commit in reachable_commits.into_iter().take(max_output_number) {
+        let tree = load_object::<Tree>(&commit.tree_id).unwrap();
+        let new_blobs: Vec<(std::path::PathBuf, SHA1)> = tree.get_plain_items();
+
+        let old_blobs: Vec<(std::path::PathBuf, SHA1)> = if !commit.parent_commit_ids.is_empty() {
+            let parent = &commit.parent_commit_ids[0];
+            let parent_hash = SHA1::from_str(&parent.to_string()).unwrap();
+            let parent_commit = load_object::<Commit>(&parent_hash).unwrap();
+            let parent_tree = load_object::<Tree>(&parent_commit.tree_id).unwrap();
+            parent_tree.get_plain_items()
+        } else {
+            Vec::new()
+        };
+
+        let read_content = |file: &std::path::PathBuf, hash: &SHA1| {
+            match load_object::<Blob>(hash) {
+                Ok(blob) => blob.data,
+                Err(_) => {
+                    let file = util::to_workdir_path(file);
+                    std::fs::read(&file).unwrap()
+                }
+            }
+        };
+
+        let diffs = Diff::diff(old_blobs, new_blobs, String::from("histogram"), paths.clone().into_iter().collect(), read_content).await;
+        for d in diffs {
+            out.push_str(&d.data);
+        }
+    }
+    out
 }
