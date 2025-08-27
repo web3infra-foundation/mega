@@ -64,6 +64,7 @@ axum-extra = "0.10.1"
 russh = "0.52.1"
 tower-http = "0.6.4"
 tower = "0.5.2"
+time = { version = "0.3", features = ["serde"] }
 
 #====
 sea-orm = "1.1.12"
@@ -134,7 +135,7 @@ pager = "0.16.1"
 jemallocator = "0.5.4"
 mimalloc = "0.1.46"
 assert_cmd = "2.0.17"
-async-session = "3.0.0"
+tower-sessions = { version = "0.12.1", features = ["memory-store"] }
 dotenvy = "0.15.7"
 tokio-tungstenite = "0.27.0"
 tungstenite = "0.27.0"

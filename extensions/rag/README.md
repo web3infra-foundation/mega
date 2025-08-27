@@ -100,7 +100,7 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
    - Run the `index` module:
      ```bash
      docker build -t rag-index -f ./extensions/rag/index/Dockerfile .
-     docker run --rm -it -d --name rag-index --network mono-network  -v /mnt/data:/opt/data rag-index \
+     docker run --rm -it -d --name rag-index --network mono-network  -v /mnt/data:/opt/data --add-host=git.gitmega.nju:172.17.0.1  rag-index \
      ```
 
    - Run the `chat` module:

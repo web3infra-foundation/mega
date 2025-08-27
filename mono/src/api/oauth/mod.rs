@@ -1,8 +1,7 @@
 use anyhow::Context;
-use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
     extract::{FromRef, FromRequestParts, Query, State},
-    http::{header::SET_COOKIE, HeaderMap},
+    http::{header::SET_COOKIE, HeaderMap, StatusCode},
     response::{IntoResponse, Redirect, Response},
     routing::get,
     RequestPartsExt,
@@ -10,11 +9,14 @@ use axum::{
 use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader};
 use callisto::user;
 use chrono::{Duration, Utc};
-use http::{header, request::Parts, StatusCode};
+use http::request::Parts;
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl,
 };
+use std::sync::Arc;
+use tower_sessions::session::Id;
+use tower_sessions::{MemoryStore, Session, SessionStore};
 
 use common::config::OauthConfig;
 use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
@@ -103,17 +105,24 @@ async fn login_authorized(
         login_user = new_user.into();
     }
 
-    let mut session = Session::new();
+    // Create a new session
+    let session = Session::new(None, Arc::new(store.clone()), None);
     session
         .insert("user", &login_user)
-        .context("failed in inserting serialized value into session")?;
-
-    // Store session and get corresponding cookie
-    let cookie = store
-        .store_session(session)
         .await
-        .context("failed to store session")?
-        .context("unexpected error retrieving cookie value")?;
+        .map_err(|e| anyhow::anyhow!("Failed to insert user into session: {:?}", e))?;
+
+    // Save session
+    session
+        .save()
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to store session: {:?}", e))?;
+
+    // Get session cookie value
+    let cookie = session
+        .id()
+        .ok_or_else(|| anyhow::anyhow!("Session ID not found"))?
+        .to_string();
 
     // SameSite=Lax: Allow GET, disable POST cookie send, prevent CSRF
     // SameSite=None: allow Post cookie send
@@ -143,20 +152,17 @@ async fn logout(
         .context("unexpected error getting cookie name")?;
     let mut headers = HeaderMap::new();
 
-    let session = match store
-        .load_session(cookie.to_string())
-        .await
-        .context("failed to load session")?
-    {
-        Some(s) => s,
-        // No session active, just redirect
-        None => return Ok((headers, Redirect::to(config.ui_domain.as_str()))),
-    };
+    // Parse session ID from cookie
+    let session_id = cookie.parse::<Id>().map_err(|e| {
+        tracing::error!("Failed to parse session ID: {:?}", e);
+        anyhow::anyhow!("Invalid session ID")
+    })?;
 
-    store
-        .destroy_session(session)
-        .await
-        .context("failed to destroy session")?;
+    // Delete session
+    store.delete(&session_id).await.map_err(|e| {
+        tracing::error!("Failed to destroy session: {:?}", e);
+        anyhow::anyhow!("Failed to destroy session")
+    })?;
 
     // Expire cookie
     let cookie = format!(
@@ -215,24 +221,24 @@ where
             .extract::<TypedHeader<headers::Cookie>>()
             .await
             .map_err(|e| match *e.name() {
-                header::COOKIE => match e.reason() {
+                http::header::COOKIE => match e.reason() {
                     TypedHeaderRejectionReason::Missing => AuthRedirect,
                     _ => panic!("unexpected error getting Cookie header(s): {e}"),
                 },
                 _ => panic!("unexpected error getting cookies: {e}"),
             })?;
+
         let session_cookie = cookies.get(CAMPSITE_API_COOKIE).ok_or(AuthRedirect)?;
 
-        let session = store
-            .load_session(session_cookie.to_string())
+        // Load user from external API
+        let user = store
+            .load_user_from_api(session_cookie.to_string())
             .await
             .map_err(|e| {
-                tracing::error!("load_session error: {:?}", e);
+                tracing::error!("load_user_from_api error: {:?}", e);
                 AuthRedirect
             })?
             .ok_or(AuthRedirect)?;
-
-        let user = session.get::<LoginUser>("user").ok_or(AuthRedirect)?;
 
         Ok(user)
     }
