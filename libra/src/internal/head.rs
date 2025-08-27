@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use sea_orm::ConnectionTrait;
 use sea_orm::ActiveValue::Set;
+use sea_orm::ConnectionTrait;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use mercury::hash::SHA1;

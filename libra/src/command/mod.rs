@@ -15,6 +15,7 @@ pub mod merge;
 pub mod pull;
 pub mod push;
 pub mod rebase;
+pub mod reflog;
 pub mod remote;
 pub mod remove;
 pub mod reset;
@@ -23,7 +24,6 @@ pub mod revert;
 pub mod stash;
 pub mod status;
 pub mod switch;
-pub mod reflog;
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;

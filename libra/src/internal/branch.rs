@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use sea_orm::{ActiveModelTrait, ConnectionTrait};
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, ConnectionTrait};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use mercury::hash::SHA1;
@@ -17,7 +17,11 @@ pub struct Branch {
 }
 
 //  `_with_conn` version of the helper function
-async fn query_reference_with_conn<C>(db: &C, branch_name: &str, remote: Option<&str>) -> Option<reference::Model>
+async fn query_reference_with_conn<C>(
+    db: &C,
+    branch_name: &str,
+    remote: Option<&str>,
+) -> Option<reference::Model>
 where
     C: ConnectionTrait,
 {
@@ -103,7 +107,11 @@ impl Branch {
     }
 
     //  `_with_conn` version for `find_branch`
-    pub async fn find_branch_with_conn<C>(db: &C, branch_name: &str, remote: Option<&str>) -> Option<Self>
+    pub async fn find_branch_with_conn<C>(
+        db: &C,
+        branch_name: &str,
+        remote: Option<&str>,
+    ) -> Option<Self>
     where
         C: ConnectionTrait,
     {
@@ -161,8 +169,12 @@ impl Branch {
     }
 
     //  `_with_conn` version for `update_branch`
-    pub async fn update_branch_with_conn<C>(db: &C, branch_name: &str, commit_hash: &str, remote: Option<&str>)
-    where
+    pub async fn update_branch_with_conn<C>(
+        db: &C,
+        branch_name: &str,
+        commit_hash: &str,
+        remote: Option<&str>,
+    ) where
         C: ConnectionTrait,
     {
         let branch = query_reference_with_conn(db, branch_name, remote).await;
@@ -181,9 +193,9 @@ impl Branch {
                     remote: Set(remote.map(|s| s.to_owned())),
                     ..Default::default()
                 }
-                    .insert(db)
-                    .await
-                    .unwrap();
+                .insert(db)
+                .await
+                .unwrap();
             }
         }
     }
@@ -198,8 +210,10 @@ impl Branch {
     where
         C: ConnectionTrait,
     {
-        let branch: reference::ActiveModel =
-            query_reference_with_conn(db, branch_name, remote).await.unwrap().into();
+        let branch: reference::ActiveModel = query_reference_with_conn(db, branch_name, remote)
+            .await
+            .unwrap()
+            .into();
         branch.delete(db).await.unwrap();
     }
 

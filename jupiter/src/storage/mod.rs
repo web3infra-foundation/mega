@@ -1,6 +1,7 @@
 pub mod base_storage;
 pub mod conversation_storage;
 pub mod git_db_storage;
+pub mod gpg_storage;
 pub mod init;
 pub mod issue_storage;
 pub mod lfs_db_storage;
@@ -23,9 +24,10 @@ use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
-    git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
-    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+    git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
+    lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mr_storage::MrStorage,
+    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
+    vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -35,6 +37,7 @@ use crate::storage::note_storage::NoteStorage;
 pub struct AppService {
     pub mono_storage: MonoStorage,
     pub git_db_storage: GitDbStorage,
+    pub gpg_storage: GpgStorage,
     pub raw_db_storage: RawDbStorage,
     pub lfs_db_storage: LfsDbStorage,
     pub relay_storage: RelayStorage,
@@ -53,6 +56,7 @@ impl AppService {
         Arc::new(Self {
             mono_storage: MonoStorage { base: mock.clone() },
             git_db_storage: GitDbStorage { base: mock.clone() },
+            gpg_storage: GpgStorage { base: mock.clone() },
             raw_db_storage: RawDbStorage { base: mock.clone() },
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
             relay_storage: RelayStorage { base: mock.clone() },
@@ -82,6 +86,7 @@ impl Storage {
 
         let mono_storage = MonoStorage { base: base.clone() };
         let git_db_storage = GitDbStorage { base: base.clone() };
+        let gpg_storage = GpgStorage { base: base.clone() };
         let raw_db_storage = RawDbStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
         let relay_storage = RelayStorage { base: base.clone() };
@@ -96,6 +101,7 @@ impl Storage {
         let app_service = AppService {
             mono_storage,
             git_db_storage,
+            gpg_storage,
             raw_db_storage,
             lfs_db_storage,
             relay_storage,
@@ -125,6 +131,10 @@ impl Storage {
 
     pub fn git_db_storage(&self) -> GitDbStorage {
         self.app_service.git_db_storage.clone()
+    }
+
+    pub fn gpg_storage(&self) -> GpgStorage {
+        self.app_service.gpg_storage.clone()
     }
 
     pub fn raw_db_storage(&self) -> RawDbStorage {

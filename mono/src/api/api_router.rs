@@ -20,8 +20,8 @@ use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    conversation::conv_router, issue::issue_router, label::label_router, mr::mr_router,
-    notes::note_router, user::user_router, MonoApiServiceState,
+    conversation::conv_router, gpg::gpg_router, issue::issue_router, label::label_router,
+    mr::mr_router, notes::note_router, user::user_router, MonoApiServiceState,
 };
 use crate::{api::error::ApiError, server::http_server::GIT_TAG};
 
@@ -39,6 +39,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .route("/file/blob/{object_id}", get(get_blob_file))
         .route("/file/tree", get(get_tree_file))
         .merge(mr_router::routers())
+        .merge(gpg_router::routers())
         .merge(user_router::routers())
         .merge(issue_router::routers())
         .merge(label_router::routers())
