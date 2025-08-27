@@ -4,3 +4,4 @@ packaging>=23.0
 SQLAlchemy>=2.0
 pydantic>=1.10
 psycopg2-binary
+python-dotenv>=1.0

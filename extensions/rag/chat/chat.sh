@@ -9,7 +9,5 @@ echo "[entrypoint] NO_PROXY=$NO_PROXY"
 echo "[entrypoint] http_proxy=$http_proxy"
 echo "[entrypoint] https_proxy=$https_proxy"
 
-
-
 # 启动主服务
 exec /usr/local/bin/chat chat

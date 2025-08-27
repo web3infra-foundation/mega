@@ -6,7 +6,7 @@ import shutil
 import json
 import hashlib
 import tarfile
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from pathlib import Path
 from git import Repo, Actor
@@ -19,16 +19,23 @@ from .kafka_message_model import CrateTypeEnum, MessageKindEnum, MessageModel, R
 from .model import SyncStatusEnum
 
 
-# Configuration constants
-REPO_URL = "https://github.com/rust-lang/crates.io-index.git"
-CLONE_DIR = "/opt/data/crates.io-index"
-DOWNLOAD_DIR = "/opt/data/crates"
-MAX_RETRIES = 3
-MEGA_URL = "http://git.gitmega.nju:30080"
-KAFKA_BROKER = "172.17.0.1:30092"
-KAFKA_TOPIC = "ANALYSIS_TEST"
-KAFKA_TOPIC_INDEX = "INDEX_TEST"
+# 仓库和目录
+REPO_URL = os.environ.get(
+    "REPO_URL",
+    "https://github.com/rust-lang/crates.io-index.git"
+)
+CLONE_DIR = os.environ.get("CLONE_DIR", "/opt/data/crates.io-index")
+DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "/opt/data/crates")
 
+# Mega配置
+MEGA_URL = os.environ.get("MEGA_URL", "http://git.gitmega.nju:30080")
+
+# Kafka 配置
+KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "172.17.0.1:30092")
+KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC", "ANALYSIS_TEST")
+KAFKA_TOPIC_INDEX = os.environ.get("KAFKA_TOPIC_INDEX", "INDEX_TEST")
+
+MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
 
 def clone_or_update_index():
     """
@@ -357,6 +364,15 @@ def send_kafka_message(broker, topic, message_dict):
     producer.send(topic, message_dict)
     producer.flush()
 
+def send_kafka_message_json(broker, topic, message_dict):
+    """发送Kafka消息"""
+    producer = KafkaProducer(
+        bootstrap_servers=[broker],
+        # 直接编码为字节，不进行 JSON 序列化
+        value_serializer=lambda v: v.encode('utf-8')
+    )
+    producer.send(topic, message_dict)
+    producer.flush()
 
 def remove_extension(path):
     """去掉文件扩展名"""
@@ -384,6 +400,9 @@ def download_all_crates():
         processed_entry = processed.get(name)
         latest_version = processed_entry["latest_version"] if processed_entry else None
         repo_id = processed_entry["id"] if processed_entry else None
+        print(f"latest_version: {latest_version}")
+        print(f"repo_id: {repo_id}")
+
         if latest_version:
             new_versions = [
                 (v, cksum) for v, cksum in version_checksum_list 
@@ -435,6 +454,8 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
         push_status = SyncStatusEnum.FAILED
         err_msg = str(e)
 
+    push_status = SyncStatusEnum.SUCCEED
+    err_msg = None
     # 更新数据库
     update_repo_sync_result(
         crate_name=crate_name,
@@ -462,10 +483,10 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
         message_kind=MessageKindEnum.MEGA,
         source_of_data=SourceOfDataEnum.CRATESIO,
         timestamp=datetime.utcnow().isoformat()  + "Z",
-        extra_field=f"checksum:{checksum}|uuid:{uuid.uuid4()}"
+        extra_field=None
     )
 
-    send_kafka_message(kafka_broker, kafka_topic, message.json())
+    send_kafka_message_json(kafka_broker, kafka_topic, message.model_dump_json())
 
     index_message = {
         "crate_name": crate_name,

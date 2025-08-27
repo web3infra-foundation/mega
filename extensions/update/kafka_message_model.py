@@ -1,30 +1,16 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+# from datetime import datetime
 from enum import Enum
-
-
-class SyncStatusEnum(str, Enum):
-    SYNCING = "syncing"
-    SUCCEED = "succeed"
-    FAILED = "failed"
-    ANALYSING = "analysing"
-    ANALYSED = "analysed"
-
-
-class CrateTypeEnum(str, Enum):
-    LIB = "lib"
-    APPLICATION = "application"
-
+from .model import CrateTypeEnum, SyncStatusEnum
 
 class MessageKindEnum(str, Enum):
-    MEGA = "mega"
-    USER = "user"
-
+    MEGA = "Mega"
+    USER = "User"
 
 class SourceOfDataEnum(str, Enum):
-    CRATESIO = "cratesio"
-    GITHUB = "github"
+    CRATESIO = "Cratesio"
+    GITHUB = "Github"
 
 
 # -------------------
@@ -52,5 +38,5 @@ class MessageModel(BaseModel):
     db_model: RepoSyncModel
     message_kind: MessageKindEnum
     source_of_data: SourceOfDataEnum
-    timestamp: datetime
+    timestamp: str
     extra_field: Optional[str] = None
