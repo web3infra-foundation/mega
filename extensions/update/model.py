@@ -3,19 +3,17 @@ from datetime import datetime
 from .database import Base
 import enum
 
-# 定义枚举，对应 Rust 里的 SyncStatusEnum
-class SyncStatusEnum(str, enum.Enum):
-    SYNCING = "syncing"
-    SUCCEED = "succeed"
-    FAILED = "failed"
-    ANALYSING = "analysing"
-    ANALYSED = "analysed"
 
-
-# 定义枚举，对应 Rust 里的 CrateTypeEnum
 class CrateTypeEnum(str, enum.Enum):
-    LIB = "lib"
-    BIN = "application"
+    LIB = "Lib"
+    APPLICATION = "Application"
+
+class SyncStatusEnum(str, enum.Enum):
+    SYNCING = "Syncing"
+    SUCCEED = "Succeed"
+    FAILED = "Failed"
+    ANALYSING = "Analysing"
+    ANALYSED = "Analysed"
 
 class RepoSyncResult(Base):
     __tablename__ = "repo_sync_result"
