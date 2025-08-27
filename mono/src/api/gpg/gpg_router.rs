@@ -4,7 +4,6 @@ use crate::{
     server::http_server::GPG_TAG,
 };
 use axum::{extract::State, Json};
-use axum::extract::Path;
 use callisto::gpg_key::Model;
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};

@@ -5,14 +5,12 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NewGpgRequest {
-    pub user_id: i64,
     pub gpg_content: String,
     pub expires_days: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RemoveGpgRequest {
-    pub user_id: i64,
     pub key_id: String,
 }
 
