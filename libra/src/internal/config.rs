@@ -11,6 +11,7 @@ use crate::internal::model::config::{self, ActiveModel, Model};
 
 pub struct Config;
 
+#[derive(Clone)]
 pub struct RemoteConfig {
     pub name: String,
     pub url: String,
