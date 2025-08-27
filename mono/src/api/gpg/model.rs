@@ -18,7 +18,7 @@ pub struct RemoveGpgRequest {
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GpgKey {
-    pub user_id: i64,
+    pub user_id: String,
     pub key_id: String,
     pub fingerprint: String,
     pub created_at: DateTime<Utc>,

@@ -10,7 +10,6 @@ use std::ops::Deref;
 use pgp::composed::{SignedPublicKey};
 use pgp::Deserializable;
 use pgp::types::PublicKeyTrait;
-
 use crate::storage::base_storage::BaseStorage;
 use crate::storage::base_storage::StorageConnector;
 
@@ -29,7 +28,7 @@ impl Deref for GpgStorage {
 impl GpgStorage {
     fn create_key(
         &self,
-        user_id: i64,
+        user_id: String,
         gpg_content: String,
         expires_days: Option<i32>,
     ) -> Result<gpg_key::Model, MegaError> {
@@ -56,7 +55,7 @@ impl GpgStorage {
 
     pub async fn add_gpg_key(
         &self,
-        user_id: i64,
+        user_id: String,
         gpg_content: String,
         expired_at: Option<i32>,
     ) -> Result<(), MegaError> {
@@ -72,7 +71,7 @@ impl GpgStorage {
         Ok(())
     }
 
-    pub async fn remove_gpg_key(&self, user_id: i64, key_id: String) -> Result<(), MegaError> {
+    pub async fn remove_gpg_key(&self, user_id: String, key_id: String) -> Result<(), MegaError> {
         gpg_key::Entity::delete_many()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .filter(gpg_key::Column::KeyId.eq(key_id))
@@ -81,7 +80,7 @@ impl GpgStorage {
         Ok(())
     }
 
-    pub async fn list_user_gpg(&self, user_id: i64) -> Result<Vec<gpg_key::Model>, MegaError> {
+    pub async fn list_user_gpg(&self, user_id: String) -> Result<Vec<gpg_key::Model>, MegaError> {
         let res: Vec<gpg_key::Model> = gpg_key::Entity::find()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .all(self.get_connection())
