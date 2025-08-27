@@ -1,3 +1,5 @@
+import { SSEPATH } from '@/components/MrView/hook/useSSM'
+
 import { HTTPLogRes } from './useGetHTTPLog'
 
 export const fetchTask = async (mr: string) => {
@@ -43,7 +45,8 @@ export const MrTaskStatus = async (mr: string) => {
 }
 
 export const HttpTaskRes = async (taskId: string, offset: number, len: number): Promise<HTTPLogRes> => {
-  const res = await fetch(`/sse/task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
+  const res = await fetch(`${SSEPATH}task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
+  // const res = await fetch(`/sse/task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
