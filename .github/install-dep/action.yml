@@ -150,20 +150,14 @@ runs:
         pip install requests tqdm
         rustup update
 
-    - name: Setup MSYS2 (Windows)
+    - uses: lukka/get-cmake@latest
       if: contains(inputs.platform, 'windows')
-      uses: msys2/setup-msys2@v2
-      id: msys2
+
+    - name: Setup anew (or from cache) vcpkg (and does not build any package)
+      if: contains(inputs.platform, 'windows')
+      uses: lukka/run-vcpkg@v11
       with:
-        msystem: MINGW64
-        update: true
-        install: >-
-          base-devel
-          git
-          pkg-config
-          nettle
-          libnettle
-          libnettle-devel
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
@@ -175,22 +169,15 @@ runs:
       if: contains(inputs.platform, 'windows')
       shell: powershell
       run: |
-        $msys2Location = "${{ steps.msys2.outputs.msys2-location }}"
-        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-        $vcvars = "$vsPath\VC\Auxiliary\Build\vcvarsall.bat"
-        cmd /c "call `"$vcvars`" x64 && set" | ForEach-Object {
-            if ($_ -match '^(.*?)=(.*)$') {
-                [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])
-            }
-        }
-        
-        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin;$msys2Location\usr\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;$msys2Location\usr\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
-        $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib;$msys2Location\usr\lib"
-        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include;$msys2Location\usr\include\nettle"
+        $env:PKG_CONFIG_PATH = "${{ github.workspace }}\vcpkg\installed\x64-windows\lib\pkgconfig"
+        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
+        $env:LIB = "$env:LIB;${{ github.workspace }}\vcpkg\installed\x64-windows\lib"
+        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\vcpkg\installed\x64-windows\include"
+
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
         $env:AWS_LC_SYS_C_STD = 11
+
         $exportVariables = @("Path", "OPENSSL_DIR", "OPENSSL_LIB_DIR", "PKG_CONFIG_PATH", "LIB", "INCLUDE", "AWS_LC_SYS_C_STD", "AWS_LC_SYS_PREBUILT_NASM")
         foreach ($var in $exportVariables) {
             if (Test-Path "Env:\$var") {
