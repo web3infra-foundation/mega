@@ -1,4 +1,5 @@
 use sea_orm_migration::{prelude::*, schema::*};
+use crate::migration::pk_bigint;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -12,7 +13,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(GpgKey::Table)
                     .if_not_exists()
-                    .col(pk_auto(GpgKey::Id))
+                    .col(pk_bigint(GpgKey::Id))
                     .col(big_integer(GpgKey::UserId))
                     .col(text(GpgKey::KeyId))
                     .col(text(GpgKey::PublicKey))
