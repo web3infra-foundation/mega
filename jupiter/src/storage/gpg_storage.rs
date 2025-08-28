@@ -1,18 +1,17 @@
+use crate::storage::base_storage::BaseStorage;
+use crate::storage::base_storage::StorageConnector;
 use callisto::entity_ext::generate_id;
 use callisto::gpg_key;
 use common::errors::MegaError;
+use pgp::composed::SignedPublicKey;
+use pgp::types::PublicKeyTrait;
+use pgp::Deserializable;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
 use sea_orm::IntoActiveModel;
 use sea_orm::QueryFilter;
 use std::ops::Deref;
-use pgp::composed::{SignedPublicKey};
-use pgp::Deserializable;
-use pgp::types::PublicKeyTrait;
-
-use crate::storage::base_storage::BaseStorage;
-use crate::storage::base_storage::StorageConnector;
 
 #[derive(Clone)]
 pub struct GpgStorage {
@@ -29,11 +28,10 @@ impl Deref for GpgStorage {
 impl GpgStorage {
     fn create_key(
         &self,
-        user_id: i64,
+        user_id: String,
         gpg_content: String,
         expires_days: Option<i32>,
     ) -> Result<gpg_key::Model, MegaError> {
-
         let (pk, _headers) = SignedPublicKey::from_string(&gpg_content)?;
         let key_id = format!("{:016X}", pk.key_id());
         let fingerprint = format!("{:?}", pk.fingerprint());
@@ -56,7 +54,7 @@ impl GpgStorage {
 
     pub async fn add_gpg_key(
         &self,
-        user_id: i64,
+        user_id: String,
         gpg_content: String,
         expired_at: Option<i32>,
     ) -> Result<(), MegaError> {
@@ -72,7 +70,7 @@ impl GpgStorage {
         Ok(())
     }
 
-    pub async fn remove_gpg_key(&self, user_id: i64, key_id: String) -> Result<(), MegaError> {
+    pub async fn remove_gpg_key(&self, user_id: String, key_id: String) -> Result<(), MegaError> {
         gpg_key::Entity::delete_many()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .filter(gpg_key::Column::KeyId.eq(key_id))
@@ -81,7 +79,7 @@ impl GpgStorage {
         Ok(())
     }
 
-    pub async fn list_user_gpg(&self, user_id: i64) -> Result<Vec<gpg_key::Model>, MegaError> {
+    pub async fn list_user_gpg(&self, user_id: String) -> Result<Vec<gpg_key::Model>, MegaError> {
         let res: Vec<gpg_key::Model> = gpg_key::Entity::find()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .all(self.get_connection())
