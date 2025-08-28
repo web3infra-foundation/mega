@@ -119,7 +119,10 @@ pub async fn execute(args: AddArgs) {
 
     // When adding the whole worktree (e.g., `add .` or `-A`), avoid adding the running
     // binary itself to the index. We compare canonicalized absolute paths.
-    if let Some(exe_path) = std::env::current_exe().ok().and_then(|p| p.canonicalize().ok()) {
+    if let Some(exe_path) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.canonicalize().ok())
+    {
         files.retain(|p| {
             // convert the repo-relative/workdir-relative path to absolute path
             if let Ok(abs) = util::workdir_to_absolute(p).canonicalize() {
