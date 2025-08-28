@@ -47,7 +47,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::parse_commit_msg;
+// use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -58,7 +58,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
-use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
+// use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use regex::Regex;
 
 #[derive(Clone)]
