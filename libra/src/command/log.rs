@@ -13,13 +13,13 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use mercury::hash::SHA1;
-use mercury::internal::object::{blob::Blob, tree::Tree, commit::Commit};
+use mercury::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use neptune::Diff;
 use std::collections::VecDeque;
 use std::str::FromStr;
 
-use crate::utils::util;
 use crate::utils::object_ext::TreeExt;
+use crate::utils::util;
 use common::utils::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
@@ -102,10 +102,10 @@ pub async fn execute(args: LogArgs) {
 
         let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
 
-    // prepare pathspecs for diff if needed
-    let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
+        // prepare pathspecs for diff if needed
+        let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
-    let message = if args.oneline {
+        let message = if args.oneline {
             // Oneline format: <short_hash> <commit_message_first_line>
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
@@ -120,7 +120,7 @@ pub async fn execute(args: LogArgs) {
             } else {
                 format!("{} {}", short_hash.yellow(), msg)
             }
-    } else {
+        } else {
             // Default detailed format
             let mut message = format!(
                 "{} {}",
@@ -230,13 +230,11 @@ async fn generate_diff(commit: &Commit, paths: Vec<PathBuf>) -> String {
         Vec::new()
     };
 
-    let read_content = |file: &PathBuf, hash: &SHA1| {
-        match load_object::<Blob>(hash) {
-            Ok(blob) => blob.data,
-            Err(_) => {
-                let file = util::to_workdir_path(file);
-                std::fs::read(&file).unwrap()
-            }
+    let read_content = |file: &PathBuf, hash: &SHA1| match load_object::<Blob>(hash) {
+        Ok(blob) => blob.data,
+        Err(_) => {
+            let file = util::to_workdir_path(file);
+            std::fs::read(&file).unwrap()
         }
     };
 

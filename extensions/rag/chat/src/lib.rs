@@ -6,7 +6,6 @@ pub mod vectorization;
 
 use std::env;
 
-
 pub const PROCESS_ITEMS_NODE: &str = "process_items";
 pub const VECT_CLIENT_NODE: &str = "vect_client";
 pub const QDRANT_NODE: &str = "qdrant";

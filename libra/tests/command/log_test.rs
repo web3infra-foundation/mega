@@ -1,13 +1,13 @@
 use super::*;
-use std::cmp::min;
 use clap::Parser;
-use mercury::internal::object::commit::Commit;
-use std::str::FromStr;
-use mercury::hash::SHA1;
-use mercury::internal::object::{blob::Blob, tree::Tree};
 use libra::utils::object_ext::TreeExt;
 use libra::utils::util;
+use mercury::hash::SHA1;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::{blob::Blob, tree::Tree};
 use neptune::Diff;
+use std::cmp::min;
+use std::str::FromStr;
 #[tokio::test]
 #[serial]
 /// Tests retrieval of commits reachable from a specific commit hash
@@ -152,7 +152,10 @@ async fn test_log_oneline() {
     let mut sorted_commits = reachable_commits.clone();
     sorted_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    let max_commits = std::cmp::min(args.unwrap().number.unwrap_or(usize::MAX), sorted_commits.len());
+    let max_commits = std::cmp::min(
+        args.unwrap().number.unwrap_or(usize::MAX),
+        sorted_commits.len(),
+    );
 
     for (i, commit) in sorted_commits.iter().take(max_commits).enumerate() {
         // Test short hash format (should be 7 characters)
@@ -168,7 +171,6 @@ async fn test_log_oneline() {
         assert_eq!(msg.trim(), format!("Commit_{expected_number}"));
     }
 }
-
 
 #[tokio::test]
 #[serial]
@@ -229,8 +231,16 @@ async fn test_log_patch_no_pathspec() {
     // On Windows we inline diff generation to avoid relying on spawned pager
     if cfg!(windows) {
         let diffs = collect_combined_diff_for_commits(2, Vec::new()).await;
-        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
-        assert!(diffs.contains("Content B"), "patch should contain B content, got: {}", diffs);
+        assert!(
+            diffs.contains("Content A"),
+            "patch should contain A content, got: {}",
+            diffs
+        );
+        assert!(
+            diffs.contains("Content B"),
+            "patch should contain B content, got: {}",
+            diffs
+        );
     } else {
         // Unix: create shell script that writes stdin to file
         let less_path = bin_dir.join("less");
@@ -254,8 +264,16 @@ async fn test_log_patch_no_pathspec() {
         std::env::set_var("PATH", old_path);
 
         let combined_out = std::fs::read_to_string(&out_file).unwrap_or_default();
-        assert!(combined_out.contains("Content A"), "patch should contain A content, got: {}", combined_out);
-        assert!(combined_out.contains("Content B"), "patch should contain B content, got: {}", combined_out);
+        assert!(
+            combined_out.contains("Content A"),
+            "patch should contain A content, got: {}",
+            combined_out
+        );
+        assert!(
+            combined_out.contains("Content B"),
+            "patch should contain B content, got: {}",
+            combined_out
+        );
     }
 }
 
@@ -299,8 +317,16 @@ async fn test_log_patch_with_pathspec() {
     if cfg!(windows) {
         let paths = vec![util::to_workdir_path("A.txt")];
         let diffs = collect_combined_diff_for_commits(1, paths).await;
-        assert!(diffs.contains("Content A"), "patch should contain A content, got: {}", diffs);
-        assert!(!diffs.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", diffs);
+        assert!(
+            diffs.contains("Content A"),
+            "patch should contain A content, got: {}",
+            diffs
+        );
+        assert!(
+            !diffs.contains("Content B"),
+            "patch should not contain B content when pathspec is A, got: {}",
+            diffs
+        );
     } else {
         let less_path = bin_dir.join("less");
         let script = format!("#!/bin/sh\ncat - > \"{}\"\n", out_file.display());
@@ -321,8 +347,16 @@ async fn test_log_patch_with_pathspec() {
         std::env::set_var("PATH", old_path);
 
         let out = std::fs::read_to_string(out_file).unwrap_or_default();
-        assert!(out.contains("Content A"), "patch should contain A content, got: {}", out);
-        assert!(!out.contains("Content B"), "patch should not contain B content when pathspec is A, got: {}", out);
+        assert!(
+            out.contains("Content A"),
+            "patch should contain A content, got: {}",
+            out
+        );
+        assert!(
+            !out.contains("Content B"),
+            "patch should not contain B content when pathspec is A, got: {}",
+            out
+        );
     }
 }
 
@@ -348,17 +382,23 @@ async fn collect_combined_diff_for_commits(count: usize, paths: Vec<std::path::P
             Vec::new()
         };
 
-        let read_content = |file: &std::path::PathBuf, hash: &SHA1| {
-            match load_object::<Blob>(hash) {
-                Ok(blob) => blob.data,
-                Err(_) => {
-                    let file = util::to_workdir_path(file);
-                    std::fs::read(&file).unwrap()
-                }
+        let read_content = |file: &std::path::PathBuf, hash: &SHA1| match load_object::<Blob>(hash)
+        {
+            Ok(blob) => blob.data,
+            Err(_) => {
+                let file = util::to_workdir_path(file);
+                std::fs::read(&file).unwrap()
             }
         };
 
-        let diffs = Diff::diff(old_blobs, new_blobs, String::from("histogram"), paths.clone().into_iter().collect(), read_content).await;
+        let diffs = Diff::diff(
+            old_blobs,
+            new_blobs,
+            String::from("histogram"),
+            paths.clone().into_iter().collect(),
+            read_content,
+        )
+        .await;
         for d in diffs {
             out.push_str(&d.data);
         }

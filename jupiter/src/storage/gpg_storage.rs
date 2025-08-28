@@ -1,17 +1,17 @@
+use crate::storage::base_storage::BaseStorage;
+use crate::storage::base_storage::StorageConnector;
 use callisto::entity_ext::generate_id;
 use callisto::gpg_key;
 use common::errors::MegaError;
+use pgp::composed::SignedPublicKey;
+use pgp::types::PublicKeyTrait;
+use pgp::Deserializable;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
 use sea_orm::IntoActiveModel;
 use sea_orm::QueryFilter;
 use std::ops::Deref;
-use pgp::composed::{SignedPublicKey};
-use pgp::Deserializable;
-use pgp::types::PublicKeyTrait;
-use crate::storage::base_storage::BaseStorage;
-use crate::storage::base_storage::StorageConnector;
 
 #[derive(Clone)]
 pub struct GpgStorage {
@@ -32,7 +32,6 @@ impl GpgStorage {
         gpg_content: String,
         expires_days: Option<i32>,
     ) -> Result<gpg_key::Model, MegaError> {
-
         let (pk, _headers) = SignedPublicKey::from_string(&gpg_content)?;
         let key_id = format!("{:016X}", pk.key_id());
         let fingerprint = format!("{:?}", pk.fingerprint());

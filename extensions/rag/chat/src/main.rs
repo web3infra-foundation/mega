@@ -1,11 +1,8 @@
+use axum::{routing::post, Json, Router};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
 use chat::{llm_url, qdrant_url, vect_url};
 use log::{error, info};
-use axum::{
-    routing::post,
-    Json, Router,
-};
 use serde::Deserialize;
 use std::env;
 
@@ -21,8 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     // Build Axum app
-    let app = Router::new()
-        .route("/chat", post(chat_handler));
+    let app = Router::new().route("/chat", post(chat_handler));
 
     info!("Server running on http://0.0.0.0:30088");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:30088").await?;
@@ -32,19 +28,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // POST /chat
-async fn chat_handler(
-    Json(payload): Json<ChatRequest>,
-) -> Result<Json<String>, String> {
+async fn chat_handler(Json(payload): Json<ChatRequest>) -> Result<Json<String>, String> {
     info!("Received chat request: {}", payload.prompt);
 
     // Create SearchNode with request prompt
-    let search_node = SearchNode::new(&vect_url(), &qdrant_url(), "test_test_code_items", &payload.prompt)
-        .expect("Failed to create SearchNode");
+    let search_node = SearchNode::new(
+        &vect_url(),
+        &qdrant_url(),
+        "test_test_code_items",
+        &payload.prompt,
+    )
+    .expect("Failed to create SearchNode");
 
     // Execute search directly
     let search_result = match search_node.search(&payload.prompt).await {
         Ok(Some((content, item_type))) => {
-            info!("Search result found: type={}, content length={}", item_type, content.len());
+            info!(
+                "Search result found: type={}, content length={}",
+                item_type,
+                content.len()
+            );
             info!("Search content: {}", content);
             format!(
                 "{}\nThe enhanced information after local RAG may be helpful, but it is not necessarily accurate:\n Related information type: {}\nRelated information Content: {}",
