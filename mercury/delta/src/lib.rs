@@ -9,7 +9,7 @@ mod utils;
 
 pub use decode::delta_decode as decode;
 
-const SAMPLE_STEP: usize = 32;      // 每隔 64 字节取样
+const SAMPLE_STEP: usize = 64;      // 每隔 64 字节取样
 const MIN_DELTA_RATE: f64 = 0.5;    // 最小 delta rate
 
 /// 计算两个对象的 delta rate（近似）
@@ -151,7 +151,7 @@ mod tests {
         assert_eq!(rate, 0.0, "Large completely different data should early stop with 0 rate");
 
         // 大文件部分匹配 → 保留部分匹配
-        let mut data3 = vec![0u8; 100];
+        let  data3 = vec![0u8; 100];
         let mut data4 = vec![0u8; 100];
         // 在一部分修改一些数据
         for i in 0..2 {

@@ -7,13 +7,16 @@ use rayon::prelude::*;
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use std::hash::{Hash, Hasher};
+use ahash::AHasher;
 
 use crate::internal::object::types::ObjectType;
 use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
 const MAX_CHAIN_LEN: usize = 50;
-const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can acceptbase 必须和 entry 类型一致
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate 
+const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
 
 
 /// A encoder for generating pack files with delta objects.
@@ -125,6 +128,95 @@ fn magic_sort(a:&Entry,b:&Entry)  -> Ordering {
     (a as *const Entry).cmp(&(b as *const Entry))
 }
 
+// pub fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
+//     // 取前 64 字节做预判
+//     let n = a.len().min(b.len()).min(64);
+//
+//     // 数据太小就直接认为可能相似
+//     if n < 8 {
+//         return true;
+//     }
+//
+//     // 内部函数：对切片计算 AHasher hash
+//     fn calc_hash(data: &[u8]) -> u64 {
+//         let mut hasher = AHasher::default();
+//         data.hash(&mut hasher);
+//         hasher.finish()
+//     }
+//
+//     // 计算前 n 字节的 hash
+//     let ha = calc_hash(&a[..n]);
+//     let hb = calc_hash(&b[..n]);
+//
+//     // 简单阈值判断：
+//     // - 如果两者 trailing_zeros 很少，说明不相似
+//     // - 你可以根据经验调节 2
+//     ha.trailing_zeros().min(hb.trailing_zeros()) > 2
+// }
+
+/// 计算单片段 hash
+fn calc_hash(data: &[u8]) -> u64 {
+    let mut hasher = AHasher::default();
+    data.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// 分片 hash 函数，将数据分成 n_segments 片段并计算每片 hash
+fn calc_hashes(data: &[u8], n_segments: usize) -> Vec<u64> {
+    let mut res = Vec::with_capacity(n_segments);
+    let step = (data.len() + n_segments - 1) / n_segments; // 向上取整
+    for i in 0..n_segments {
+        let start = i * step;
+        let end = ((i + 1) * step).min(data.len());
+        if start >= end { break; }
+        res.push(calc_hash(&data[start..end]));
+    }
+    res
+}
+
+/// cheap_similar 最终优化版
+pub fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
+    let min_len = a.len().min(b.len());
+
+    // 对小对象直接全量比较
+    if min_len < 8 {
+        return a == b;
+    }
+
+    // 前缀长度，可调
+    let prefix_len = min_len.min(128);
+    let a_prefix = &a[..prefix_len];
+    let b_prefix = &b[..prefix_len];
+
+    // 动态分片数，每段约 32 字节
+    let n_segments = (prefix_len / 32).max(1).min(4);
+
+    let a_hashes = calc_hashes(a_prefix, n_segments);
+    let b_hashes = calc_hashes(b_prefix, n_segments);
+
+    // Hamming 距离阈值
+    let hamming_threshold = 8;
+
+    // 对小前缀顺序比较
+    if prefix_len <= 64 {
+        let mut diff_bits = 0;
+        for (x, y) in a_hashes.iter().zip(&b_hashes) {
+            diff_bits += (x ^ y).count_ones();
+            if diff_bits > hamming_threshold {
+                return false;
+            }
+        }
+        true
+    } else {
+        // 大对象使用并行比较
+        a_hashes
+            .par_iter()
+            .zip(&b_hashes)
+            .map(|(x, y)| (x ^ y).count_ones())
+            .sum::<u32>() <= hamming_threshold
+    }
+}
+
 impl PackEncoder {
     pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
         PackEncoder {
@@ -226,41 +318,7 @@ impl PackEncoder {
                 self.window.pop_front();
             }
         }
-
-
-        // loop {
-        //     match entry_rx.recv().await {
-        //         Some(entry) => {
-        //             self.process_index += 1;
-        //             // push window after encode to void diff by self
-        //             let offset = self.inner_offset;
-        //             let mut try_delta_entry = entry.clone();
-        //             let try_delfa_offset = match enable_zstdelta {
-        //                 true => self.try_as_offset_zstdelta(&mut try_delta_entry),
-        //                 false => self.try_as_offset_delta(&mut try_delta_entry),
-        //             };
-        //             let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
-        // 
-        //             self.write_all_and_update(&obj_data).await;
-        //             self.window.push_back((entry, offset));
-        //             if self.window.len() > self.window_size {
-        //                 self.window.pop_front();
-        //             }
-        //         }
-        //         None => {
-        //             if self.process_index != self.object_number {
-        //                 panic!(
-        //                     "not all objects are encoded, process:{}, total:{}",
-        //                     self.process_index, self.object_number
-        //                 );
-        //             }
-        //             break;
-        //         }
-        //     }
-        // }
-
-
-
+        
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
@@ -350,14 +408,9 @@ impl PackEncoder {
         let mut best_rate: f64 = 0.0;
         let mut best_chain_len: usize = 0;
         let mut best_base_offset: usize = 0;
-        let tie_epsilon: f64 = 0.02;
+        let tie_epsilon: f64 = 0.15;
+
         for try_base in self.window.iter() {
-            // tracing::debug!(
-            //     "entry={} best_base={:?} rate={:?}",
-            //     entry.hash,
-            //     best_base.map(|b| b.0.hash),
-            //     best_rate
-            // );
             if try_base.0.obj_type != entry.obj_type {
                 continue;
             }
@@ -370,44 +423,71 @@ impl PackEncoder {
                 continue;
             }
 
-            // 这是导致运行时间爆炸的原因
+            // 尺寸差异过大时直接跳过
+            let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64) / (try_base.0.data.len().max(entry.data.len()) as f64);
+            if sym_ratio < 0.5 {
+                continue;
+            }
+
+            // 轻量 hash 预判（例如比较前 64 字节的 hash）
+            if !cheap_similar(&try_base.0.data, &entry.data) {
+                continue;
+            }
+
+
             // when data is small, heuristic_encode_rate is not accurate
             let rate = if (try_base.0.data.len() +  entry.data.len()) / 2 > 20 {
                delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
             }else { 
                 delta::encode_rate(&try_base.0.data, &entry.data)
             };
-            
 
+            
             if rate > MIN_DELTA_RATE {
                 let is_better = if rate > best_rate + tie_epsilon {
-                    true
-                } else if (rate - best_rate).abs() <= tie_epsilon {
-                    let base_chain = try_base.0.chain_len;
-                    let base_offset = self.inner_offset - try_base.1;
-                    base_chain > best_chain_len || (base_chain == best_chain_len && base_offset > best_base_offset)
-                } else {
-                    false
-                };
+                        // rate 明显更大，直接优先
+                        true
+                    } else if (rate - best_rate).abs() <= tie_epsilon {
+                        // 构造候选 Key
+                        let cand_key = (
+                            try_base.0.chain_len,
+                            self.inner_offset - try_base.1,
+                        );
+
+                        // 当前最佳 Key
+                        let best_key = (
+                            best_chain_len,
+                            best_base_offset,
+                        );
+                        cand_key > best_key
+                    } else {
+                        false
+                    };
 
                 if is_better {
                     best_rate = rate;
                     best_chain_len = try_base.0.chain_len;
                     best_base_offset = self.inner_offset - try_base.1;
                     best_base = Some(try_base);
+
+                    if rate > 0.90 {
+                        break;
+                    }
                 }
+
             }
+
         }
 
         best_base.map(|best_base| {
-            // 修正2：delta::encode 返回 Vec<u8>，不是 Result
+
             let delta = delta::encode(&best_base.0.data, &entry.data);
 
             let offset = self.inner_offset - best_base.1;
             entry.obj_type = ObjectType::OffsetDelta;
             entry.data = delta;
             entry.chain_len = best_base.0.chain_len + 1;
-            tracing::debug!("chain_len: {:?}", entry.chain_len);
+            //tracing::debug!("chain_len: {:?}", entry.chain_len);
             offset
         })
     }
@@ -432,9 +512,23 @@ impl PackEncoder {
             if try_base.0.obj_type != entry.obj_type {
                 continue;
             }
-            if try_base.0.chain_len >= MAX_CHAIN_LEN {
+            if try_base.0.chain_len >= MAX_ZSTDELTA_CHAIN_LEN {
                 continue;
             }
+
+            // 尺寸差异过大时直接跳过
+            let size_a = try_base.0.data.len();
+            let size_b = entry.data.len();
+            if size_a * 10 < size_b || size_b * 10 < size_a {
+                continue;
+            }
+
+            // 轻量 hash 预判（例如比较前 64 字节的 hash）
+            if !cheap_similar(&try_base.0.data, &entry.data) {
+                continue;
+            }
+            
+            
             let try_delta_obj = match zstdelta::diff(&try_base.0.data, &entry.data) {
                 Ok(v) => v,
                 Err(_) => continue, // IO error for this base, try next
@@ -485,6 +579,9 @@ impl PackEncoder {
 
     /// async version of encode, result data will be returned by JoinHandle.
     /// It will consume PackEncoder, so you can't use it after calling this function.
+    /// when window_size = 0, it executes parallel_encode which retains stream transmission
+    /// when window_size = 0,it executes encode which uses magic sort and delta. 
+    /// It seems that all other modules rely on this api
     pub async fn encode_async(
         mut self,
         rx: mpsc::Receiver<Entry>,
@@ -523,7 +620,7 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::Arc;
     use std::{io::Cursor, path::PathBuf};
-
+    use std::time::Instant;
     use tokio::sync::Mutex;
 
     use crate::internal::object::blob::Blob;
@@ -599,10 +696,10 @@ mod tests {
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(10_000);
 
         let encoder = PackEncoder::new(contents.len(), 10, tx);
-        encoder.encode_async(entry_rx).await.unwrap();
+        encoder.encode_async_with_zstdelta(entry_rx).await.unwrap();
 
         for data in contents.clone() {
-            let blob = crate::internal::object::blob::Blob::from_content_bytes(data);
+            let blob = Blob::from_content_bytes(data);
             let entry: Entry = blob.into();
             entry_tx.send(entry).await.unwrap();
         }
@@ -636,7 +733,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack");
         // let file_map = crate::test_utils::setup_lfs_file().await;
-        // let source = file_map
+        // let source = file_mapa
         //     .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
         //     .unwrap();
         // decode pack file to get entries
@@ -707,6 +804,7 @@ mod tests {
             .map(|entry| entry.data.len())
             .sum();
 
+        let start = Instant::now(); // 开始时间
         // encode entries
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
@@ -747,6 +845,8 @@ mod tests {
             0.0
         };
 
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
@@ -763,7 +863,8 @@ mod tests {
         let total_original_size: usize = entries.lock().await.iter()
             .map(|entry| entry.data.len())
             .sum();
-        
+
+        let start = Instant::now();
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
@@ -793,7 +894,9 @@ mod tests {
         } else {
             0.0
         };
-        
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
@@ -832,7 +935,9 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
-        let mut encoder = PackEncoder::new(entries_number, 10, tx);
+        let encoder = PackEncoder::new(entries_number, 10, tx);
+
+        let start = Instant::now(); // 开始时间
         encoder.encode_async(entry_rx).await.unwrap();
 
         // spawn a task to send entries
@@ -859,6 +964,9 @@ mod tests {
             0.0
         };
 
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
