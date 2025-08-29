@@ -1,5 +1,6 @@
 use crate::storage::base_storage::BaseStorage;
 use crate::storage::base_storage::StorageConnector;
+use anyhow::anyhow;
 use callisto::entity_ext::generate_id;
 use callisto::gpg_key;
 use common::errors::MegaError;
@@ -32,7 +33,11 @@ impl GpgStorage {
         gpg_content: String,
         expires_days: Option<i32>,
     ) -> Result<gpg_key::Model, MegaError> {
-        let (pk, _headers) = SignedPublicKey::from_string(&gpg_content)?;
+        let (pk, _headers) = SignedPublicKey::from_string(&gpg_content).map_err(|e| {
+            tracing::error!("{:?}", e);
+            MegaError::new(anyhow!("Failed to parse GPG key, please check format"), 1)
+        })?;
+
         let key_id = format!("{:016X}", pk.key_id());
         let fingerprint = format!("{:?}", pk.fingerprint());
         let created_at = chrono::Utc::now().naive_utc();
@@ -60,13 +65,10 @@ impl GpgStorage {
     ) -> Result<(), MegaError> {
         let key = self.create_key(user_id, gpg_content, expired_at)?;
         let a_model = key.into_active_model();
-        a_model.insert(self.get_connection()).await?;
-        Ok(())
-    }
-
-    pub async fn save_gpg_key(&self, key: gpg_key::Model) -> Result<(), MegaError> {
-        let a_model = key.into_active_model();
-        a_model.insert(self.get_connection()).await?;
+        a_model.insert(self.get_connection()).await.map_err(|e| {
+            tracing::error!("{:?}", e);
+            MegaError::new(anyhow!("Failed to save GPG key"), 1)
+        })?;
         Ok(())
     }
 
@@ -75,7 +77,11 @@ impl GpgStorage {
             .filter(gpg_key::Column::UserId.eq(user_id))
             .filter(gpg_key::Column::KeyId.eq(key_id))
             .exec(self.get_connection())
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("{:?}", e);
+                MegaError::new(anyhow!("Failed to delete GPG key"), 1)
+            })?;
         Ok(())
     }
 
@@ -83,7 +89,11 @@ impl GpgStorage {
         let res: Vec<gpg_key::Model> = gpg_key::Entity::find()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .all(self.get_connection())
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("{:?}", e);
+                MegaError::new(anyhow!("Failed to get GPG keys"), 1)
+            })?;
         Ok(res)
     }
 }
