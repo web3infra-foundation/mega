@@ -410,7 +410,7 @@ impl MonoApiService {
         &self,
         mr_link: &str,
         page: Pagination,
-    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+    ) -> Result<(Vec<DiffItem>, Vec<String>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
@@ -433,6 +433,10 @@ impl MonoApiService {
         let sorted_changed_files = self
             .mr_files_list(old_blobs.clone(), new_blobs.clone())
             .await?;
+        let file_paths: Vec<String> = sorted_changed_files
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect();
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
@@ -460,7 +464,7 @@ impl MonoApiService {
         // calculate total pages
         let total = sorted_changed_files.len().div_ceil(per_page);
 
-        Ok((diff_output, total as u64))
+        Ok((diff_output, file_paths, total as u64))
     }
 
     async fn get_diff_by_blobs(

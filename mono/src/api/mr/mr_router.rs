@@ -307,13 +307,12 @@ async fn mr_files_changed_by_page(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
-    let (items, total) = state
+    let (items, changed_files_path, total) = state
         .monorepo()
         .paged_content_diff(&link, json.pagination)
         .await?;
 
-    let paths = items.iter().map(|i| i.path.clone()).collect();
-    let mui_trees = build_forest(paths);
+    let mui_trees = build_forest(changed_files_path);
     let res = CommonResult::success(Some(FilesChangedPage {
         mui_trees,
         page: CommonPage { total, items },
