@@ -298,4 +298,15 @@ impl MrStorage {
             .await?;
         Ok(())
     }
+
+    pub async fn get_check_result(
+        &self,
+        mr_link: &str,
+    ) -> Result<Vec<check_result::Model>, MegaError> {
+        let models = check_result::Entity::find()
+            .filter(check_result::Column::MrLink.eq(mr_link))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
+    }
 }

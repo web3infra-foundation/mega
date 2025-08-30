@@ -1,10 +1,10 @@
 use crate::api::gpg::model::{GpgKey, NewGpgRequest, RemoveGpgRequest};
+use crate::api::oauth::model::LoginUser;
 use crate::{
     api::{error::ApiError, MonoApiServiceState},
     server::http_server::GPG_TAG,
 };
 use axum::{extract::State, Json};
-use axum::extract::Path;
 use callisto::gpg_key::Model;
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -29,18 +29,18 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     tag = GPG_TAG
 )]
 async fn remove_gpg(
+    user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(req): Json<RemoveGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let _ = state
-        .gpg_stg()
-        .remove_gpg_key(req.user_id, req.key_id)
-        .await;
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id.clone();
+    state.gpg_stg().remove_gpg_key(uid, req.key_id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
 #[utoipa::path(
-    get,
+    post,
     path = "/add",
     request_body = NewGpgRequest,
     responses(
@@ -49,37 +49,41 @@ async fn remove_gpg(
     tag = GPG_TAG
 )]
 async fn add_gpg(
+    user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(req): Json<NewGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let _ = state
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id.clone();
+    println!("Adding GPG key for user: {}", req.gpg_content.clone());
+    state
         .gpg_stg()
-        .add_gpg_key(req.user_id, req.gpg_content, req.expires_days)
-        .await;
+        .add_gpg_key(uid, req.gpg_content, req.expires_days)
+        .await?;
+
     Ok(Json(CommonResult::success(None)))
 }
 #[utoipa::path(
     get,
-    params(
-        ("id" = i64, description = "The user ID"),
-    ),
-    path = "/list/{id}",
+    path = "/list",
     responses(
         (status = 200, body = CommonResult<Vec<GpgKey>>, content_type="application/json")
     ),
     tag = GPG_TAG
 )]
 async fn list_gpg(
+    user: LoginUser,
     state: State<MonoApiServiceState>,
-    Path(user_id): Path<i64>,
 ) -> Result<Json<CommonResult<Vec<GpgKey>>>, ApiError> {
-    let raw_keys = state.gpg_stg().list_user_gpg(user_id).await;
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id;
+    let raw_keys = state.gpg_stg().list_user_gpg(uid.clone()).await;
 
     let res: Vec<GpgKey> = raw_keys
         .into_iter()
         .flatten()
         .map(|k: Model| GpgKey {
-            user_id: k.user_id,
+            user_id: uid.clone(),
             key_id: k.key_id,
             fingerprint: k.fingerprint,
             created_at: k.created_at.and_utc(),

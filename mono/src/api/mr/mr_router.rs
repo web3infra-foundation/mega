@@ -5,7 +5,6 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
@@ -13,6 +12,7 @@ use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
+use jupiter::service::mr_service::MRService;
 
 use crate::api::{
     api_common::{
@@ -22,7 +22,7 @@ use crate::api::{
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{FilesChangedList, MRDetailRes, MrFilesRes, MuiTreeNode},
+    mr::{Condition, FilesChangedList, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
@@ -35,6 +35,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(fetch_mr_list))
             .routes(routes!(mr_detail))
             .routes(routes!(merge))
+            .routes(routes!(merge_box))
             .routes(routes!(merge_no_auth))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
@@ -306,13 +307,12 @@ async fn mr_files_changed_by_page(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
-    let (items, total) = state
+    let (items, changed_files_path, total) = state
         .monorepo()
         .paged_content_diff(&link, json.pagination)
         .await?;
 
-    let paths = items.iter().map(|i| i.path.clone()).collect();
-    let mui_trees = build_forest(paths);
+    let mui_trees = build_forest(changed_files_path);
     let res = CommonResult::success(Some(FilesChangedPage {
         mui_trees,
         page: CommonPage { total, items },
@@ -356,6 +356,47 @@ async fn mr_files_list(
             item
         })
         .collect::<Vec<MrFilesRes>>();
+    Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Get Merge Box to check merge status
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/merge-box",
+    responses(
+        (status = 200, body = CommonResult<MergeBoxRes>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+#[axum::debug_handler]
+async fn merge_box(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<MergeBoxRes>>, ApiError> {
+    let mr = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?;
+
+    let res = match mr.status {
+        MergeStatusEnum::Open => {
+            let check_res: Vec<Condition> = state
+                .mr_stg()
+                .get_check_result(&link)
+                .await?
+                .into_iter()
+                .map(|m| m.into())
+                .collect();
+            MergeBoxRes::from_condition(check_res)
+        }
+        MergeStatusEnum::Merged | MergeStatusEnum::Closed => MergeBoxRes {
+            merge_requirements: None,
+        },
+    };
     Ok(Json(CommonResult::success(Some(res))))
 }
 

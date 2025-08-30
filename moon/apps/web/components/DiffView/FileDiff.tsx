@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 
-import { CommonResultFilesChangedList } from '@gitmono/types/generated'
+import { CommonResultFilesChangedPage, DiffItem } from '@gitmono/types/generated'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 
 import StableTreeView from './StableTreeView'
-
-// import TreeView from './TreeView'
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
   const lines = diffText.split('\n')
@@ -35,7 +33,7 @@ function generateParsedFiles(diffFiles: { path: string; lang: string; diff: stri
   stats: { additions: number; deletions: number }
 }[] {
   return diffFiles.map((file) => {
-    if (file.lang === 'binary') {
+    if (file.lang === 'binary' || file.diff === 'EMPTY_DIFF_MARKER\n') {
       return {
         file,
         instance: null,
@@ -64,8 +62,8 @@ export default function FileDiff({
   diffs,
   treeData
 }: {
-  diffs: string
-  treeData: CommonResultFilesChangedList['data']
+  diffs: DiffItem[]
+  treeData: CommonResultFilesChangedPage['data']
 }) {
   const diffFiles = useMemo(() => parsedDiffs(diffs), [diffs])
 
@@ -94,21 +92,23 @@ export default function FileDiff({
     file: { path: string; lang: string; diff: string }
     instance: DiffFile | null
   }) => {
-    if (file.lang === 'binary' || instance === null) {
+    if (instance){
+      return (
+        <DiffView
+          diffFile={instance}
+          diffViewFontSize={14}
+          diffViewWrap
+          diffViewMode={DiffModeEnum.Unified}
+          diffViewHighlight
+        />
+      )
+    }else if (file.lang === 'binary') {
       return <div className='p-2 text-center'>Binary file</div>
     } else if (file.diff === 'EMPTY_DIFF_MARKER\n') {
       return <div className='p-2 text-center'>No change</div>
     }
 
-    return (
-      <DiffView
-        diffFile={instance}
-        diffViewFontSize={14}
-        diffViewWrap
-        diffViewMode={DiffModeEnum.Unified}
-        diffViewHighlight
-      />
-    )
+    return null
   }
 
   return (

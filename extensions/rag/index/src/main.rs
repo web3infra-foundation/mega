@@ -28,8 +28,6 @@ fn main() {
     env::set_var("RUST_LOG", "INFO");
     env_logger::init();
 
-    dotenv::from_path("extensions/rag/.env").ok();
-
     // 1. Initialize the shared atomic counter once at the start.
     let id_path = "/opt/data/last_id.json";
     let initial_id = fs::read_to_string(id_path)
@@ -138,4 +136,44 @@ fn update_knowledge_base(file_path: &PathBuf, id_counter: Arc<AtomicU64>) {
 
     handle.join().unwrap();
     log::info!("Knowledge base updated!");
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::{Path, PathBuf};
+
+    use observatory::facilities::Telescope;
+    use observatory::model::crates::CrateMessage;
+    use tokio::time::Duration;
+
+    const BROKER: &str = "127.0.0.1:30092";
+    const TOPIC: &str = "INDEX_TEST";
+
+    pub fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
+        crates_path
+            .join(c_name)
+            .join(format!("{c_name}-{c_version}.crate"))
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_consume_down_crates_msg() {
+        let telescope = Telescope::new(BROKER, "test", TOPIC);
+        tokio::select! {
+            _ = telescope.consume_loop(|payload:String| async move {
+                println!("✅ test_loop_consume: Received: {}", payload);
+                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
+                let file_path = get_file_path(&PathBuf::from("/mnt/data/crates"), &crate_msg.crate_name, &crate_msg.crate_version);
+                assert!(file_path.exists());
+            }) => {},
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                println!("⏰ Timeout");
+            }
+        }
+    }
+
+    #[test]
+    fn test_consumer_group_env() {
+        dotenv::from_path("../.env").ok();
+        assert_eq!(std::env::var("CONSUMER_GROUP").unwrap(), "test");
+    }
 }

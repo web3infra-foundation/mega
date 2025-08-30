@@ -47,7 +47,6 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -58,7 +57,6 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
-use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use regex::Regex;
 
 #[derive(Clone)]
@@ -410,7 +408,7 @@ impl MonoApiService {
         &self,
         mr_link: &str,
         page: Pagination,
-    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+    ) -> Result<(Vec<DiffItem>, Vec<String>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
@@ -433,6 +431,10 @@ impl MonoApiService {
         let sorted_changed_files = self
             .mr_files_list(old_blobs.clone(), new_blobs.clone())
             .await?;
+        let file_paths: Vec<String> = sorted_changed_files
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect();
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
@@ -460,7 +462,7 @@ impl MonoApiService {
         // calculate total pages
         let total = sorted_changed_files.len().div_ceil(per_page);
 
-        Ok((diff_output, total as u64))
+        Ok((diff_output, file_paths, total as u64))
     }
 
     async fn get_diff_by_blobs(
@@ -605,15 +607,17 @@ impl MonoApiService {
 
         let mut res = HashMap::new();
         let content = commit.content.clone().unwrap_or_default();
-        let email = self.extract_email(&content).await.unwrap_or_default();
-        let user_id = self
+
+        let _user_id = self
             .storage
             .user_storage()
-            .find_user_by_email(&email)
+            .find_user_by_email(&self.extract_email(&content).await.unwrap_or_default())
             .await?
-            .ok_or_else(|| MegaError::with_message(format!("No user found for email: {}", email)))?.id;
-        
-        let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
+            .unwrap()
+            .id;
+        // let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
+        // TODO: Temporarily disable GPG verification
+        let verified = false;
         res.insert(commit.commit_id.clone(), verified);
         Ok(res)
     }
@@ -625,49 +629,50 @@ impl MonoApiService {
             .map(|m| m.as_str().to_string())
     }
 
-    async fn verify_commit_gpg_signature(
-        &self,
-        commit_content: &str,
-        user_id: i64,
-    ) -> Result<bool, MegaError> {
-        let (commit_msg, signature) = parse_commit_msg(commit_content);
-        if signature.is_none() {
-            return Ok(false); // No signature to verify
-        }
-
-        let sig_str = signature.unwrap();
-
-        // Remove "gpgsig " prefix if present
-        let sig = sig_str
-            .strip_prefix("gpgsig ")
-            .map(|s| s.trim())
-            .unwrap_or(sig_str);
-
-        let keys = self.storage.gpg_storage().list_user_gpg(user_id).await?;
-
-        for key in keys {
-            let verified = self
-                .verify_signature_with_key(&key.public_key, sig, commit_msg)
-                .await?;
-            if verified {
-                return Ok(true); // Signature verified successfully
-            }
-        }
-
-        Ok(false) // No key could verify the signature
-    }
-
-    async fn verify_signature_with_key(
-        &self,
-        public_key: &str,
-        signature: &str,
-        message: &str,
-    ) -> Result<bool, MegaError> {
-        let (public_key, _) = SignedPublicKey::from_string(public_key)?;
-        let (signature, _) = StandaloneSignature::from_string(signature)?;
-
-        Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
-    }
+    // TODO: implement GPG
+    // async fn verify_commit_gpg_signature(
+    //     &self,
+    //     commit_content: &str,
+    //     user_id: String,
+    // ) -> Result<bool, MegaError> {
+    //     let (commit_msg, signature) = parse_commit_msg(commit_content);
+    //     if signature.is_none() {
+    //         return Ok(false); // No signature to verify
+    //     }
+    //
+    //     let sig_str = signature.unwrap();
+    //
+    //     // Remove "gpgsig " prefix if present
+    //     let sig = sig_str
+    //         .strip_prefix("gpgsig ")
+    //         .map(|s| s.trim())
+    //         .unwrap_or(sig_str);
+    //
+    //     let keys = self.storage.gpg_storage().list_user_gpg(user_id).await?;
+    //
+    //     for key in keys {
+    //         let verified = self
+    //             .verify_signature_with_key(&key.public_key, sig, commit_msg)
+    //             .await?;
+    //         if verified {
+    //             return Ok(true); // Signature verified successfully
+    //         }
+    //     }
+    //
+    //     Ok(false) // No key could verify the signature
+    // }
+    //
+    // async fn verify_signature_with_key(
+    //     &self,
+    //     public_key: &str,
+    //     signature: &str,
+    //     message: &str,
+    // ) -> Result<bool, MegaError> {
+    //     let (public_key, _) = SignedPublicKey::from_string(public_key)?;
+    //     let (signature, _) = StandaloneSignature::from_string(signature)?;
+    //
+    //     Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
+    // }
 
     pub async fn get_commit_blobs(
         &self,

@@ -10,6 +10,7 @@ pub use super::git_pr::Entity as GitPr;
 pub use super::git_repo::Entity as GitRepo;
 pub use super::git_tag::Entity as GitTag;
 pub use super::git_tree::Entity as GitTree;
+pub use super::gpg_key::Entity as GpgKey;
 pub use super::import_refs::Entity as ImportRefs;
 pub use super::item_assignees::Entity as ItemAssignees;
 pub use super::item_labels::Entity as ItemLabels;

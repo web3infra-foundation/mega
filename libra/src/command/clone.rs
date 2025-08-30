@@ -15,8 +15,6 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::{env, fs};
 
-const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
-
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
@@ -98,10 +96,10 @@ pub async fn execute(args: CloneArgs) {
         name: "origin".to_string(),
         url: remote_repo.clone(),
     };
-    fetch::fetch_repository(remote_config, args.branch.clone()).await;
+    fetch::fetch_repository(remote_config.clone(), args.branch.clone()).await;
 
     /* setup */
-    if let Err(e) = setup_repository(remote_repo.clone(), args.branch.clone()).await {
+    if let Err(e) = setup_repository(remote_config, args.branch.clone()).await {
         eprintln!("fatal: {}", e);
         return;
     }
@@ -116,7 +114,7 @@ async fn setup_repository(
     specified_branch: Option<String>,
 ) -> Result<(), String> {
     let db = crate::internal::db::get_db_conn_instance().await;
-    let remote_head = Head::remote_current_with_conn(db, ORIGIN).await;
+    let remote_head = Head::remote_current_with_conn(db, &remote_config.name).await;
 
     // Determine which branch to check out.
     let branch_to_checkout = match specified_branch {
@@ -200,13 +198,25 @@ async fn setup_repository(
         println!("warning: You appear to have cloned an empty repository.");
 
         // We only need to set the remote URL. No reflog is created as there are no commits.
-        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+        Config::insert(
+            "remote",
+            Some(&remote_config.name),
+            "url",
+            &remote_config.url,
+        )
+        .await;
 
         // Optionally set up a default branch config for a future 'master' or 'main'
         let default_branch = "master";
         let merge_ref = format!("refs/heads/{}", default_branch);
         Config::insert("branch", Some(default_branch), "merge", &merge_ref).await;
-        Config::insert("branch", Some(default_branch), "remote", ORIGIN).await;
+        Config::insert(
+            "branch",
+            Some(default_branch),
+            "remote",
+            &remote_config.name,
+        )
+        .await;
     }
 
     Ok(())

@@ -3045,6 +3045,16 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
+export enum CheckType {
+  GpgSignature = 'GpgSignature',
+  BranchProtection = 'BranchProtection',
+  CommitMessage = 'CommitMessage',
+  MrSync = 'MrSync',
+  MergeConflict = 'MergeConflict',
+  CiStatus = 'CiStatus',
+  CodeReview = 'CodeReview'
+}
+
 export type CommonPageDiffItem = {
   items: {
     data: string
@@ -3126,6 +3136,12 @@ export type CommonResultFilesChangedPage = {
   req_result: boolean
 }
 
+export type CommonResultHashMapStringBool = {
+  data?: Record<string, boolean>
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultIssueDetailRes = {
   data?: {
     assignees: string[]
@@ -3174,6 +3190,14 @@ export type CommonResultMRDetailRes = {
   req_result: boolean
 }
 
+export type CommonResultMergeBoxRes = {
+  data?: {
+    merge_requirements?: null | MergeRequirements
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultString = {
   data?: string
   err_message: string
@@ -3185,6 +3209,20 @@ export type CommonResultTreeResponse = {
     file_tree: Record<string, FileTreeItem>
     tree_items: TreeBriefItem[]
   }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecGpgKey = {
+  data?: {
+    /** @format date-time */
+    created_at: string
+    /** @format date-time */
+    expires_at?: string | null
+    fingerprint: string
+    key_id: string
+    user_id: string
+  }[]
   err_message: string
   req_result: boolean
 }
@@ -3265,6 +3303,19 @@ export type CommonResultBool = {
   req_result: boolean
 }
 
+export type Condition = {
+  description: string
+  display_name: string
+  message: string
+  result: ConditionResult
+  type: CheckType
+}
+
+export enum ConditionResult {
+  FAILED = 'FAILED',
+  PASSED = 'PASSED'
+}
+
 export type ContentPayload = {
   content: string
 }
@@ -3326,6 +3377,16 @@ export type FilesChangedList = {
 export type FilesChangedPage = {
   mui_trees: MuiTreeNode[]
   page: CommonPageDiffItem
+}
+
+export type GpgKey = {
+  /** @format date-time */
+  created_at: string
+  /** @format date-time */
+  expires_at?: string | null
+  fingerprint: string
+  key_id: string
+  user_id: string
 }
 
 export type IssueDetailRes = {
@@ -3436,6 +3497,15 @@ export type MRDetailRes = {
   title: string
 }
 
+export type MergeBoxRes = {
+  merge_requirements?: null | MergeRequirements
+}
+
+export type MergeRequirements = {
+  conditions: Condition[]
+  state: RequirementsState
+}
+
 export enum MergeStatus {
   Open = 'Open',
   Merged = 'Merged',
@@ -3452,6 +3522,12 @@ export type MuiTreeNode = {
   children?: any[] | null
   id: string
   label: string
+}
+
+export type NewGpgRequest = {
+  /** @format int32 */
+  expires_days?: number | null
+  gpg_content: string
 }
 
 export type NewIssue = {
@@ -3507,6 +3583,15 @@ export type ReactionItem = {
 export type ReactionRequest = {
   comment_type: string
   content: string
+}
+
+export type RemoveGpgRequest = {
+  key_id: string
+}
+
+export enum RequirementsState {
+  UNMERGEABLE = 'UNMERGEABLE',
+  MERGEABLE = 'MERGEABLE'
 }
 
 export type ShowResponse = {
@@ -4703,6 +4788,12 @@ export type PostApiConversationReactionsData = CommonResultString
 
 export type PostApiCreateFileData = CommonResultString
 
+export type PostApiGpgAddData = CommonResultString
+
+export type GetApiGpgListData = CommonResultVecGpgKey
+
+export type DeleteApiGpgRemoveData = CommonResultString
+
 export type PostApiIssueAssigneesData = CommonResultString
 
 export type GetApiIssueIssueSuggesterParams = {
@@ -4760,11 +4851,15 @@ export type GetApiMrFilesListData = CommonResultVecMrFilesRes
 
 export type PostApiMrMergeData = CommonResultString
 
+export type GetApiMrMergeBoxData = CommonResultMergeBoxRes
+
 export type PostApiMrMergeNoAuthData = CommonResultString
 
 export type PostApiMrReopenData = CommonResultString
 
 export type PostApiMrTitleData = CommonResultString
+
+export type GetApiMrVerifySignatureData = CommonResultHashMapStringBool
 
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
@@ -13245,6 +13340,76 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags gpg-key
+     * @name PostApiGpgAdd
+     * @request POST:/api/v1/gpg/add
+     */
+    postApiGpgAdd: () => {
+      const base = 'POST:/api/v1/gpg/add' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiGpgAddData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiGpgAddData>([base]),
+        request: (data: NewGpgRequest, params: RequestParams = {}) =>
+          this.request<PostApiGpgAddData>({
+            path: `/api/v1/gpg/add`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags gpg-key
+     * @name GetApiGpgList
+     * @request GET:/api/v1/gpg/list
+     */
+    getApiGpgList: () => {
+      const base = 'GET:/api/v1/gpg/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiGpgListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiGpgListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiGpgListData>({
+            path: `/api/v1/gpg/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags gpg-key
+     * @name DeleteApiGpgRemove
+     * @request DELETE:/api/v1/gpg/remove
+     */
+    deleteApiGpgRemove: () => {
+      const base = 'DELETE:/api/v1/gpg/remove' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiGpgRemoveData>([base]),
+        requestKey: () => dataTaggedQueryKey<DeleteApiGpgRemoveData>([base]),
+        request: (data: RemoveGpgRequest, params: RequestParams = {}) =>
+          this.request<DeleteApiGpgRemoveData>({
+            path: `/api/v1/gpg/remove`,
+            method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags issue
      * @name PostApiIssueAssignees
      * @summary Update issue related assignees
@@ -13824,6 +13989,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     },
 
     /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrMergeBox
+     * @summary Get Merge Box to check merge status
+     * @request GET:/api/v1/mr/{link}/merge-box
+     */
+    getApiMrMergeBox: () => {
+      const base = 'GET:/api/v1/mr/{link}/merge-box' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrMergeBoxData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrMergeBoxData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrMergeBoxData>({
+            path: `/api/v1/mr/${link}/merge-box`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
  * No description
  *
  * @tags merge_request
@@ -13890,6 +14078,28 @@ It's for local testing purposes.
             method: 'POST',
             body: data,
             type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrVerifySignature
+     * @request GET:/api/v1/mr/{link}/verify-signature
+     */
+    getApiMrVerifySignature: () => {
+      const base = 'GET:/api/v1/mr/{link}/verify-signature' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrVerifySignatureData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrVerifySignatureData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrVerifySignatureData>({
+            path: `/api/v1/mr/${link}/verify-signature`,
+            method: 'GET',
             ...params
           })
       }

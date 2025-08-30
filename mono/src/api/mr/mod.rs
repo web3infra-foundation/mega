@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
-use ceres::model::mr::MrDiffFile;
+use ceres::{merge_checker::CheckType, model::mr::MrDiffFile};
 use jupiter::model::mr_dto::MRDetails;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::api::{conversation::ConversationItem, label::LabelItem};
-use callisto::sea_orm_active_enums::MergeStatusEnum;
+use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
 use common::model::CommonPage;
 use neptune::model::diff_model::DiffItem;
 
@@ -131,7 +131,7 @@ impl From<MrDiffFile> for MrFilesRes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub enum MergeStatus {
     Open,
     Merged,
@@ -156,4 +156,64 @@ impl From<MergeStatus> for MergeStatusEnum {
             MergeStatus::Closed => MergeStatusEnum::Closed,
         }
     }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct MergeBoxRes {
+    pub merge_requirements: Option<MergeRequirements>,
+}
+
+impl MergeBoxRes {
+    pub fn from_condition(conditions: Vec<Condition>) -> Self {
+        let mut state = RequirementsState::MERGEABLE;
+        for cond in &conditions {
+            if cond.result == ConditionResult::FAILED {
+                state = RequirementsState::UNMERGEABLE
+            }
+        }
+        MergeBoxRes {
+            merge_requirements: Some(MergeRequirements { conditions, state }),
+        }
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct MergeRequirements {
+    pub conditions: Vec<Condition>,
+    pub state: RequirementsState,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Condition {
+    #[serde(rename = "type")]
+    pub condition_type: CheckType,
+    pub display_name: String,
+    pub description: String,
+    pub message: String,
+    pub result: ConditionResult,
+}
+
+impl From<check_result::Model> for Condition {
+    fn from(value: check_result::Model) -> Self {
+        let check_type: CheckType = value.check_type_code.into();
+        Self {
+            condition_type: check_type.clone(),
+            display_name: check_type.clone().display_name().to_string(),
+            description: check_type.description().to_string(),
+            message: value.message,
+            result: ConditionResult::PASSED,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub enum RequirementsState {
+    UNMERGEABLE,
+    MERGEABLE,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub enum ConditionResult {
+    FAILED,
+    PASSED,
 }

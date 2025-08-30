@@ -21,3 +21,4 @@ dagrs = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 dotenv = { workspace = true }
+axum = { workspace = true }

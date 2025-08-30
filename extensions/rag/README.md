@@ -100,13 +100,28 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
    - Run the `index` module:
      ```bash
      docker build -t rag-index -f ./extensions/rag/index/Dockerfile .
-     docker run --rm -it -d --name rag-index --network mono-network  -v /mnt/data:/opt/data rag-index \
+     docker run --rm  -d --name rag-index --network mono-network  -v /mnt/data:/opt/data --add-host=git.gitmega.nju:172.17.0.1 --env-file ./extensions/rag/.env  rag-index \
      ```
 
    - Run the `chat` module:
      ```bash
      docker build -t rag-chat -f ./extensions/rag/chat/Dockerfile .
-     docker run --rm -it  --name rag-chat --network mono-network rag-chat
+     docker run --rm -it  --name rag-chat --network mono-network --env-file ./extensions/rag/.env -p 30088:30088 rag-chat
+     ```
+
+     **Note**: The `chat` module listens on port 30088 inside the container. The `-p 30088:30088` flag maps the container's port 30088 to the host's port 30088, allowing external access to the chat API.
+
+     **Access the chat API**:
+     ```bash
+     # Test the chat endpoint
+     curl -X POST http://localhost:30088/chat \
+       -H "Content-Type: application/json" \
+       -d '{"prompt": "your question here"}'
+     
+     # Or from another container in the same network
+     curl -X POST http://rag-chat:30088/chat \
+       -H "Content-Type: application/json" \
+       -d '{"prompt": "your question here"}'
      ```
 
 Please adjust and supplement according to the specific functions and needs of the project. If there is any other specific information that needs to be added, please let me know! I will update the `README.md` file.
