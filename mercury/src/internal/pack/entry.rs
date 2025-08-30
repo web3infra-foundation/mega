@@ -18,7 +18,7 @@ pub struct Entry {
     pub obj_type: ObjectType,
     pub data: Vec<u8>,
     pub hash: SHA1,
-    pub chain_len: usize
+    pub chain_len: usize,
 }
 
 impl PartialEq for Entry {

@@ -2,22 +2,22 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::Write;
 
-use flate2::write::ZlibEncoder;
-use rayon::prelude::*;
-use sha1::{Digest, Sha1};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
-use std::hash::{Hash, Hasher};
-use ahash::AHasher;
-
 use crate::internal::object::types::ObjectType;
 use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
+use ahash::AHasher;
+use flate2::write::ZlibEncoder;
+use futures_util::future::join_all;
+use rayon::prelude::*;
+use sha1::{Digest, Sha1};
+use std::hash::{Hash, Hasher};
+use tokio::sync::mpsc;
+use tokio::task;
+use tokio::task::JoinHandle;
 
 const MAX_CHAIN_LEN: usize = 50;
-const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate 
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate
 const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
-
 
 /// A encoder for generating pack files with delta objects.
 pub struct PackEncoder {
@@ -111,10 +111,11 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
     Ok(encoded_data)
 }
 
-
-fn magic_sort(a:&Entry,b:&Entry)  -> Ordering {
+fn magic_sort(a: &Entry, b: &Entry) -> Ordering {
     let ord = b.obj_type.to_u8().cmp(&a.obj_type.to_u8());
-    if ord != Ordering::Equal { return ord; }
+    if ord != Ordering::Equal {
+        return ord;
+    }
 
     // the hash should be file hash not content hash
     // todo the feature need larger refactor
@@ -122,37 +123,13 @@ fn magic_sort(a:&Entry,b:&Entry)  -> Ordering {
     // if ord != Ordering::Equal { return ord; }
 
     let ord = b.data.len().cmp(&a.data.len());
-    if ord != Ordering::Equal { return ord; }
+    if ord != Ordering::Equal {
+        return ord;
+    }
 
     // fallback pointer order (newest first)
     (a as *const Entry).cmp(&(b as *const Entry))
 }
-
-// pub fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
-//     // 取前 64 字节做预判
-//     let n = a.len().min(b.len()).min(64);
-//
-//     // 数据太小就直接认为可能相似
-//     if n < 8 {
-//         return true;
-//     }
-//
-//     // 内部函数：对切片计算 AHasher hash
-//     fn calc_hash(data: &[u8]) -> u64 {
-//         let mut hasher = AHasher::default();
-//         data.hash(&mut hasher);
-//         hasher.finish()
-//     }
-//
-//     // 计算前 n 字节的 hash
-//     let ha = calc_hash(&a[..n]);
-//     let hb = calc_hash(&b[..n]);
-//
-//     // 简单阈值判断：
-//     // - 如果两者 trailing_zeros 很少，说明不相似
-//     // - 你可以根据经验调节 2
-//     ha.trailing_zeros().min(hb.trailing_zeros()) > 2
-// }
 
 // /// 计算单片段 hash
 fn calc_hash(data: &[u8]) -> u64 {
@@ -160,113 +137,14 @@ fn calc_hash(data: &[u8]) -> u64 {
     data.hash(&mut hasher);
     hasher.finish()
 }
-//
-// /// 分片 hash 函数，将数据分成 n_segments 片段并计算每片 hash
-// fn calc_hashes(data: &[u8], n_segments: usize) -> Vec<u64> {
-//     let mut res = Vec::with_capacity(n_segments);
-//     let step = (data.len() + n_segments - 1) / n_segments; // 向上取整
-//     for i in 0..n_segments {
-//         let start = i * step;
-//         let end = ((i + 1) * step).min(data.len());
-//         if start >= end { break; }
-//         res.push(calc_hash(&data[start..end]));
-//     }
-//     res
-// }
-//
-// /// cheap_similar 最终优化版
-// pub fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
-//     let min_len = a.len().min(b.len());
-//
-//     // 对小对象直接全量比较
-//     if min_len < 8 {
-//         return a == b;
-//     }
-//
-//     // 前缀长度，可调
-//     let prefix_len = min_len.min(128);
-//     let a_prefix = &a[..prefix_len];
-//     let b_prefix = &b[..prefix_len];
-//
-//     // 动态分片数，每段约 32 字节
-//     let n_segments = (prefix_len / 32).max(1).min(4);
-//
-//     let a_hashes = calc_hashes(a_prefix, n_segments);
-//     let b_hashes = calc_hashes(b_prefix, n_segments);
-//
-//     // Hamming 距离阈值
-//     let hamming_threshold = 4;
-//
-//     // 对小前缀顺序比较
-//     if prefix_len <= 64 {
-//         let mut diff_bits = 0;
-//         for (x, y) in a_hashes.iter().zip(&b_hashes) {
-//             diff_bits += (x ^ y).count_ones();
-//             if diff_bits > hamming_threshold {
-//                 return false;
-//             }
-//         }
-//         true
-//     } else {
-//         // 大对象使用并行比较
-//         a_hashes
-//             .par_iter()
-//             .zip(&b_hashes)
-//             .map(|(x, y)| (x ^ y).count_ones())
-//             .sum::<u32>() <= hamming_threshold
-//     }
-// }
-
-// pub fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
-//     let min_len = a.len().min(b.len());
-//     if min_len < 64 {
-//         // 小对象直接要求前后各16字节完全相等，严格但便宜
-//         let k = min_len.min(16);
-//         return a.get(..k) == b.get(..k) && a.get(min_len.saturating_sub(k)..) == b.get(min_len.saturating_sub(k)..);
-//     }
-// 
-//     // 允许的最大不匹配字节数（锚点总计），越大越宽松
-//     let mut mismatches = 0usize;
-//     let budget = 8; // 可调
-// 
-//     // 比对前/中/后三个区域，各取16字节
-//     let anchor_len = 16;
-//     let mids = [
-//         0,                                     // 前
-//         (min_len / 2).saturating_sub(anchor_len / 2), // 中
-//         min_len.saturating_sub(anchor_len),    // 后
-//     ];
-// 
-//     for &pos in &mids {
-//         let a_seg = &a[pos..pos + anchor_len];
-//         let b_seg = &b[pos..pos + anchor_len];
-//         // 逐字节计数（16字节很快，且避免未对齐/未定义读取）
-//         for i in 0..anchor_len {
-//             if a_seg[i] != b_seg[i] {
-//                 mismatches += 1;
-//                 if mismatches > budget {
-//                     return false; // 早停
-//                 }
-//             }
-//         }
-//     }
-// 
-//     // 再加一个极便宜的长度差门槛（避免尺寸相差太大的情况）
-//     let sym_ratio = (a.len().min(b.len()) as f64) / (a.len().max(b.len()) as f64);
-//     if sym_ratio < 0.5 {
-//         return false;
-//     }
-// 
-//     true
-// }
-
 
 fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
     let k = a.len().min(b.len()).min(128);
-    if k == 0 { return false; }
+    if k == 0 {
+        return false;
+    }
     calc_hash(&a[..k]) == calc_hash(&b[..k])
 }
-
 
 impl PackEncoder {
     pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
@@ -334,55 +212,212 @@ impl PackEncoder {
             ));
         }
 
-        // collect entries before magic sort
-
-        let mut all_entries = Vec::with_capacity(self.object_number);
-        time_it!( "%%%&&&&&  receive cost :",{
-            //let mut all_entries = Vec::with_capacity(self.object_number);
-            while let Some(entry) = entry_rx.recv().await {
-                all_entries.push(entry);
-            }
-
-
-            if all_entries.len() != self.object_number {
-                panic!(
-                    "not all objects are encoded, process:{}, total:{}",
-                    self.process_index, self.object_number
-                );
-            }
-
-                all_entries.sort_by(magic_sort);
-            });
-        //all_entries.par_sort_by(magic_sort);
-
-
-
-
-        for mut entry in all_entries {
-            self.process_index += 1;
-            let offset = self.inner_offset;
-            let mut entry_for_window = entry.clone();
-            let try_offset = if enable_zstdelta {
-                self.try_as_offset_zstdelta(&mut entry)
-            } else {
-                self.try_as_offset_delta(&mut entry)
-            };
-            let obj_data = encode_one_object(&entry, try_offset)?;
-            self.write_all_and_update(&obj_data).await;
-            entry_for_window.chain_len = entry.chain_len;
-        
-            self.window.push_back((entry_for_window, offset));
-            if self.window.len() > self.window_size {
-                self.window.pop_front();
+        let mut commits: Vec<Entry> = Vec::new();
+        let mut trees: Vec<Entry> = Vec::new();
+        let mut blobs: Vec<Entry> = Vec::new();
+        let mut tags: Vec<Entry> = Vec::new();
+        while let Some(entry) = entry_rx.recv().await {
+            match entry.obj_type {
+                ObjectType::Commit => {
+                    commits.push(entry);
+                }
+                ObjectType::Tree => {
+                    trees.push(entry);
+                }
+                ObjectType::Blob => {
+                    blobs.push(entry);
+                }
+                ObjectType::Tag => {
+                    tags.push(entry);
+                }
+                _ => {}
             }
         }
-        
-        // hash signature
+
+        commits.sort_by(magic_sort);
+        trees.sort_by(magic_sort);
+        blobs.sort_by(magic_sort);
+        tags.sort_by(magic_sort);
+        tracing::info!(
+            "numbers :  commits: {:?} trees: {:?} blobs:{:?} tag :{:?}",
+            commits.len(),
+            trees.len(),
+            blobs.len(),
+            tags.len()
+        );
+
+        // 并行处理不同类型的 vec，使用 spawn_blocking 因为 try_as_offset_delta 是同步函数
+        let (commit_results, tree_results, blob_results, tag_results) = tokio::try_join!(
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(commits, 10) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(trees, 10) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(blobs, 10) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(tags, 10) }),
+        )
+        .map_err(|e| GitError::PackEncodeError(format!("Task join error: {}", e)))?;
+
+        // 收集并合并结果
+        let all_encoded_data = [
+            commit_results
+                .map_err(|e| GitError::PackEncodeError(format!("Commit encoding error: {}", e)))?,
+            tree_results
+                .map_err(|e| GitError::PackEncodeError(format!("Tree encoding error: {}", e)))?,
+            blob_results
+                .map_err(|e| GitError::PackEncodeError(format!("Blob encoding error: {}", e)))?,
+            tag_results
+                .map_err(|e| GitError::PackEncodeError(format!("Tag encoding error: {}", e)))?,
+        ]
+        .concat();
+
+        // 按顺序发送合并后的结果
+        for data in all_encoded_data {
+            self.write_all_and_update(&data).await;
+        }
+
+        // Hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
-        self.send_data((hash_result).to_vec()).await;
+        self.send_data(hash_result.to_vec()).await;
+
         self.drop_sender();
         Ok(())
+    }
+
+    /// Try to encode as delta using objects in window
+    /// # Returns
+    /// - Return (offset) if success make delta
+    /// - Return (None) if didn't delta,
+    fn try_as_offset_delta(
+        mut bucket: Vec<Entry>,
+        window_size: usize,
+    ) -> Result<Vec<Vec<u8>>, GitError> {
+        let mut current_offset = 0usize; // 当前类型的局部偏移
+        let mut window: VecDeque<(Entry, usize)> = VecDeque::with_capacity(window_size);
+        let mut res: Vec<Vec<u8>> = Vec::new();
+
+        for entry in bucket.iter_mut() {
+            
+            let entry_for_window = entry.clone();
+            // 每次循环重置最佳基对象选择
+            let mut best_base: Option<&(Entry, usize)> = None;
+            let mut best_rate: f64 = 0.0;
+            //let mut best_base_offset: usize = 0;
+            let tie_epsilon: f64 = 0.15;
+
+            // 在窗口内寻找最佳基对象
+            let candidates: Vec<_> = window
+                .par_iter()
+                .with_min_len(3)
+                .filter_map(|try_base| {
+                    
+                    
+                    if try_base.0.obj_type != entry.obj_type {
+                        return None;
+                    }
+
+                    if try_base.0.chain_len >= MAX_CHAIN_LEN {
+                        return None;
+                    }
+
+                    if try_base.0.hash == entry.hash {
+                        return None;
+                    }
+
+                    let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64)
+                        / (try_base.0.data.len().max(entry.data.len()) as f64);
+                    if sym_ratio < 0.5 {
+                        return None;
+                    }
+
+                    if !cheap_similar(&try_base.0.data, &entry.data) {
+                        return None;
+                    }
+
+                    let rate = if (try_base.0.data.len() + entry.data.len()) / 2 > 20 {
+                        delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
+                    } else {
+                        delta::encode_rate(&try_base.0.data, &entry.data)
+                    };
+
+                    if rate > MIN_DELTA_RATE {
+                        Some((rate, try_base))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // 选择最佳基对象
+            for (rate, try_base) in candidates {
+                match best_base {
+                    None => {
+                        best_rate = rate;
+                        //best_base_offset = current_offset - try_base.1; // 使用局部偏移
+                        best_base = Some(try_base);
+                    }
+                    Some(best_base_ref) => {
+                        let is_better = if rate > best_rate + tie_epsilon {
+                            true
+                        } else if (rate - best_rate).abs() <= tie_epsilon {
+                            
+                            try_base.0.chain_len > best_base_ref.0.chain_len
+                            
+                        } else {
+                            false
+                        };
+
+                        if is_better {
+                            best_rate = rate;
+                            //best_base_offset = current_offset - try_base.1;
+                            best_base = Some(try_base);
+                        }
+                    }
+                }
+            }
+
+            // 应用 delta 并更新窗口
+            if let Some(best_base) = best_base {
+                // 保存原始数据用于窗口
+                let original_data = entry.data.clone();
+                let original_obj_type = entry.obj_type;
+                
+                let delta = delta::encode(&best_base.0.data, &original_data);
+                let offset = best_base.1-entry.1; // 基对象在pack文件中的绝对位置
+
+                entry.obj_type = ObjectType::OffsetDelta;
+                entry.data = delta;
+                entry.chain_len = best_base.0.chain_len + 1;
+
+                // 将原始对象添加到窗口（不是 delta 对象）
+                let original_entry = Entry {
+                    obj_type: original_obj_type,
+                    data: original_data, // 保存原始数据
+                    hash: entry.hash,
+                    chain_len: entry.chain_len,
+                };
+                
+                // 在添加到窗口之前检查大小
+                if window.len() >= window_size {
+                    window.pop_front();
+                }
+                window.push_back((original_entry, current_offset));
+            } else {
+                // 没有找到合适的基对象，保持原样
+                // 在添加到窗口之前检查大小
+                if window.len() >= window_size {
+                    window.pop_front();
+                }
+                window.push_back((entry.clone(), current_offset));
+            }
+
+            // 编码对象（使用局部偏移）
+            let obj_data = encode_one_object(entry, Some(current_offset)).unwrap();
+            res.push(obj_data.clone());
+
+            // 更新局部偏移
+            current_offset += obj_data.len();
+        }
+
+        Ok(res)
     }
 
     /// Parallel encode with rayon, only works when window_size == 0 (no delta)
@@ -457,100 +492,100 @@ impl PackEncoder {
         Ok(())
     }
 
-    /// Try to encode as delta using objects in window
-    /// # Returns
-    /// - Return (offset) if success make delta
-    /// - Return (None) if didn't delta,
-    fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
-        let mut best_base: Option<&(Entry, usize)> = None;
-        let mut best_rate: f64 = 0.0;
-        let mut best_base_offset: usize = 0;
-        let tie_epsilon: f64 = 0.15;
-
-        let candidates: Vec<_> = self.window
-            .par_iter()
-            .with_min_len(3)
-            .filter_map(|try_base| {
-                if try_base.0.obj_type != entry.obj_type {
-                    return None;
-                }
-
-                if try_base.0.chain_len >= MAX_CHAIN_LEN {
-                    return None;
-                }
-
-                if try_base.0.hash == entry.hash {
-                    return None;
-                }
-                let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64) / (try_base.0.data.len().max(entry.data.len()) as f64);
-                if sym_ratio < 0.5 {
-                    return None;
-                }
-                // 轻量 hash 预判（例如比较前 64 字节的 hash）
-                if !cheap_similar(&try_base.0.data, &entry.data) {
-                    return None;
-                }
-
-                let rate = if (try_base.0.data.len() +  entry.data.len()) / 2 > 20 {
-                           delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
-                        }else {
-                            delta::encode_rate(&try_base.0.data, &entry.data)
-                        };
-
-                if rate > MIN_DELTA_RATE {
-                    Some((rate, try_base))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-
-        for (rate, try_base) in candidates {
-            match best_base {
-                None => {
-                    best_rate = rate;
-                    best_base_offset = self.inner_offset - try_base.1;
-                    best_base = Some(try_base);
-                }
-                Some(best_base_ref) => {
-                    let is_better = if rate > best_rate + tie_epsilon {
-                        true
-                    } else if (rate - best_rate).abs() <= tie_epsilon {
-
-                        if try_base.0.chain_len != best_base_ref.0.chain_len {
-                            try_base.0.chain_len > best_base_ref.0.chain_len
-                        } else {
-                            let base_offset = self.inner_offset - try_base.1;
-                            let best_offset = self.inner_offset - best_base_ref.1;
-                            base_offset > best_offset
-                        }
-                    } else {
-                        false
-                    };
-
-                    if is_better {
-                        best_rate = rate;
-                        best_base_offset = self.inner_offset - try_base.1;
-                        best_base = Some(try_base);
-                    }
-                }
-            }
-        }
-
-
-        best_base.map(|best_base| {
-                let delta = delta::encode(&best_base.0.data, &entry.data);
-
-                let offset = self.inner_offset - best_base.1;
-                entry.obj_type = ObjectType::OffsetDelta;
-                entry.data = delta;
-                entry.chain_len = best_base.0.chain_len + 1;
-                //tracing::debug!("chain_len: {:?}", entry.chain_len);
-                offset
-            })
-
-    }
+    // /// Try to encode as delta using objects in window
+    // /// # Returns
+    // /// - Return (offset) if success make delta
+    // /// - Return (None) if didn't delta,
+    // fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
+    //     let mut best_base: Option<&(Entry, usize)> = None;
+    //     let mut best_rate: f64 = 0.0;
+    //     let mut best_base_offset: usize = 0;
+    //     let tie_epsilon: f64 = 0.15;
+    //
+    //     let candidates: Vec<_> = self.window
+    //         .par_iter()
+    //         .with_min_len(3)
+    //         .filter_map(|try_base| {
+    //             if try_base.0.obj_type != entry.obj_type {
+    //                 return None;
+    //             }
+    //
+    //             if try_base.0.chain_len >= MAX_CHAIN_LEN {
+    //                 return None;
+    //             }
+    //
+    //             if try_base.0.hash == entry.hash {
+    //                 return None;
+    //             }
+    //             let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64) / (try_base.0.data.len().max(entry.data.len()) as f64);
+    //             if sym_ratio < 0.5 {
+    //                 return None;
+    //             }
+    //             // 轻量 hash 预判（例如比较前 64 字节的 hash）
+    //             if !cheap_similar(&try_base.0.data, &entry.data) {
+    //                 return None;
+    //             }
+    //
+    //             let rate = if (try_base.0.data.len() +  entry.data.len()) / 2 > 20 {
+    //                        delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
+    //                     }else {
+    //                         delta::encode_rate(&try_base.0.data, &entry.data)
+    //                     };
+    //
+    //             if rate > MIN_DELTA_RATE {
+    //                 Some((rate, try_base))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
+    //
+    //
+    //     for (rate, try_base) in candidates {
+    //         match best_base {
+    //             None => {
+    //                 best_rate = rate;
+    //                 best_base_offset = self.inner_offset - try_base.1;
+    //                 best_base = Some(try_base);
+    //             }
+    //             Some(best_base_ref) => {
+    //                 let is_better = if rate > best_rate + tie_epsilon {
+    //                     true
+    //                 } else if (rate - best_rate).abs() <= tie_epsilon {
+    //
+    //                     if try_base.0.chain_len != best_base_ref.0.chain_len {
+    //                         try_base.0.chain_len > best_base_ref.0.chain_len
+    //                     } else {
+    //                         let base_offset = self.inner_offset - try_base.1;
+    //                         let best_offset = self.inner_offset - best_base_ref.1;
+    //                         base_offset > best_offset
+    //                     }
+    //                 } else {
+    //                     false
+    //                 };
+    //
+    //                 if is_better {
+    //                     best_rate = rate;
+    //                     best_base_offset = self.inner_offset - try_base.1;
+    //                     best_base = Some(try_base);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //
+    //
+    //     best_base.map(|best_base| {
+    //             let delta = delta::encode(&best_base.0.data, &entry.data);
+    //
+    //             let offset = self.inner_offset - best_base.1;
+    //             entry.obj_type = ObjectType::OffsetDelta;
+    //             entry.data = delta;
+    //             entry.chain_len = best_base.0.chain_len + 1;
+    //             //tracing::debug!("chain_len: {:?}", entry.chain_len);
+    //             offset
+    //         })
+    //
+    // }
 
     /// Try to encode as sapling-zstdelta using objects in window
     /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
@@ -563,7 +598,7 @@ impl PackEncoder {
         let mut best_chain_len: usize = 0;
         let mut best_base_offset: usize = 0;
         let tie_epsilon: f64 = 0.02; // when rates are close, prefer deeper/newer base
-        
+
         if entry.data.is_empty() {
             return None;
         }
@@ -587,8 +622,7 @@ impl PackEncoder {
             if !cheap_similar(&try_base.0.data, &entry.data) {
                 continue;
             }
-            
-            
+
             let try_delta_obj = match zstdelta::diff(&try_base.0.data, &entry.data) {
                 Ok(v) => v,
                 Err(_) => continue, // IO error for this base, try next
@@ -607,7 +641,8 @@ impl PackEncoder {
                 } else if (rate - best_rate).abs() <= tie_epsilon {
                     let base_chain = try_base.0.chain_len;
                     let base_offset = self.inner_offset - try_base.1;
-                    base_chain > best_chain_len || (base_chain == best_chain_len && base_offset > best_base_offset)
+                    base_chain > best_chain_len
+                        || (base_chain == best_chain_len && base_offset > best_base_offset)
                 } else {
                     false
                 };
@@ -640,7 +675,7 @@ impl PackEncoder {
     /// async version of encode, result data will be returned by JoinHandle.
     /// It will consume PackEncoder, so you can't use it after calling this function.
     /// when window_size = 0, it executes parallel_encode which retains stream transmission
-    /// when window_size = 0,it executes encode which uses magic sort and delta. 
+    /// when window_size = 0,it executes encode which uses magic sort and delta.
     /// It seems that all other modules rely on this api
     pub async fn encode_async(
         mut self,
@@ -676,11 +711,11 @@ impl PackEncoder {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::collections::HashSet;
+    use std::env;
     use std::sync::Arc;
-    use std::{io::Cursor, path::PathBuf};
     use std::time::Instant;
+    use std::{io::Cursor, path::PathBuf};
     use tokio::sync::Mutex;
 
     use crate::internal::object::blob::Blob;
@@ -747,7 +782,9 @@ mod tests {
         let mut contents: Vec<Vec<u8>> = Vec::new();
         let mut base = String::from("base line 0\n");
         for i in 1..=8usize {
-            base.push_str(&format!("line {i}: some repeated text with slight changes...\n"));
+            base.push_str(&format!(
+                "line {i}: some repeated text with slight changes...\n"
+            ));
             contents.push(base.as_bytes().to_vec());
         }
 
@@ -771,14 +808,20 @@ mod tests {
         }
 
         // 3) 用 Pack::decode 解析，重建为完整对象
-        let mut p = Pack::new(None, Some(1024 * 1024 * 20), Some(PathBuf::from("/tmp/.cache_temp")), true);
+        let mut p = Pack::new(
+            None,
+            Some(1024 * 1024 * 20),
+            Some(PathBuf::from("/tmp/.cache_temp")),
+            true,
+        );
         let mut reader = Cursor::new(pack_bytes);
         let decoded = Arc::new(tokio::sync::Mutex::new(Vec::<Entry>::new()));
         let decoded_c = decoded.clone();
         p.decode(&mut reader, move |entry, _| {
             let mut guard = decoded_c.blocking_lock();
             guard.push(entry);
-        }).expect("pack decode should succeed");
+        })
+        .expect("pack decode should succeed");
 
         let decoded_entries = decoded.lock().await;
         assert_eq!(decoded_entries.len(), contents.len());
@@ -786,7 +829,10 @@ mod tests {
         // 4) 校验内容集合相等（忽略顺序）
         let expected: HashSet<Vec<u8>> = contents.into_iter().collect();
         let got: HashSet<Vec<u8>> = decoded_entries.iter().map(|e| e.data.clone()).collect();
-        assert_eq!(expected, got, "decoded contents should equal original contents");
+        assert_eq!(
+            expected, got,
+            "decoded contents should equal original contents"
+        );
     }
 
     async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
@@ -820,13 +866,15 @@ mod tests {
     async fn test_pack_encoder_parallel_large_file() {
         init_logger();
 
-
         let start = Instant::now(); // 开始时间
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
         // 计算原始总大小
-        let total_original_size: usize = entries.lock().await.iter()
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
             .map(|entry| entry.data.len())
             .sum();
 
@@ -863,8 +911,6 @@ mod tests {
         } else {
             0.0
         };
-        
-        
 
         let duration = start.elapsed();
         tracing::info!("test executed in: {:.2?}", duration);
@@ -881,12 +927,15 @@ mod tests {
         let entries_number = entries.lock().await.len();
 
         // 计算原始总大小
-        let total_original_size: usize = entries.lock().await.iter()
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
             .map(|entry| entry.data.len())
             .sum();
 
         let start = Instant::now(); // 开始时间
-        // encode entries
+                                    // encode entries
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
@@ -931,7 +980,10 @@ mod tests {
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
-        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
     }
 
     #[tokio::test]
@@ -939,9 +991,12 @@ mod tests {
         init_logger();
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
-        
+
         // 计算原始总大小
-        let total_original_size: usize = entries.lock().await.iter()
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
             .map(|entry| entry.data.len())
             .sum();
 
@@ -967,7 +1022,7 @@ mod tests {
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
-        
+
         // 计算压缩率
         let pack_size = result.len();
         let compression_rate = if total_original_size > 0 {
@@ -981,8 +1036,11 @@ mod tests {
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
-        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
-        
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
+
         // check format
         check_format(&result);
     }
@@ -1000,8 +1058,6 @@ mod tests {
         assert_eq!(result, value as u64);
     }
 
-    
-
     #[tokio::test]
     async fn test_pack_encoder_large_file_with_delta() {
         init_logger();
@@ -1009,7 +1065,10 @@ mod tests {
         let entries_number = entries.lock().await.len();
 
         // 计算原始总大小
-        let total_original_size: usize = entries.lock().await.iter()
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
             .map(|entry| entry.data.len())
             .sum();
 
@@ -1045,16 +1104,17 @@ mod tests {
             0.0
         };
 
-
         let duration = start.elapsed();
         tracing::info!("test executed in: {:.2?}", duration);
         tracing::info!("new pack file size: {}", pack_size);
         tracing::info!("original total size: {}", total_original_size);
         tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
-        tracing::info!("space saved: {} bytes", total_original_size.saturating_sub(pack_size));
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
 
         // check format
         check_format(&result);
     }
-
 }
