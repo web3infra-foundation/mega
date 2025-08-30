@@ -15,6 +15,8 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::{env, fs};
 
+const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
+
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
