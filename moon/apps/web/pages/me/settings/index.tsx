@@ -17,6 +17,7 @@ import { PersonalCallLinks } from '@/components/UserSettings/PersonalCallLinks';
 import { SlackNotificationSettings } from '@/components/UserSettings/SlackNotificationSettings';
 import { Timezone } from '@/components/UserSettings/Timezone'
 import { PageWithProviders } from '@/utils/types';
+import GPGKeys from "@/components/Setting/GPGKeys";
 
 const UserSettingsPage: PageWithProviders<any> = () => {
   useEffect(() => {
@@ -43,6 +44,7 @@ const UserSettingsPage: PageWithProviders<any> = () => {
         <ProfileDisplay />
         <Timezone />
         <SSHKeys />
+        <GPGKeys />
         <PersonalToken />
         <PersonalCallLinks />
         <ThemePicker />
