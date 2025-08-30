@@ -15,6 +15,8 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::{env, fs};
 
+const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
+
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
@@ -110,7 +112,7 @@ pub async fn execute(args: CloneArgs) {
 /// Sets up the local repository after a clone by configuring the remote,
 /// setting up the initial branch and HEAD, and creating the first reflog entry.
 async fn setup_repository(
-    remote_config: RemoteConfig,
+    remote_repo: String,
     specified_branch: Option<String>,
 ) -> Result<(), String> {
     let db = crate::internal::db::get_db_conn_instance().await;
@@ -129,14 +131,13 @@ async fn setup_repository(
     };
 
     if let Some(branch_name) = branch_to_checkout {
-        let origin_branch =
-            Branch::find_branch_with_conn(db, &branch_name, Some(&remote_config.name))
-                .await
-                .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
+        let origin_branch = Branch::find_branch_with_conn(db, &branch_name, Some(ORIGIN))
+            .await
+            .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
 
         // Prepare the reflog context *before* the transaction
         let action = ReflogAction::Clone {
-            from: remote_config.url.clone(),
+            from: remote_repo.clone(),
         };
 
         let context = ReflogContext {
@@ -173,24 +174,12 @@ async fn setup_repository(
                         &merge_ref,
                     )
                     .await;
-                    Config::insert_with_conn(
-                        txn,
-                        "branch",
-                        Some(&branch_name),
-                        "remote",
-                        &remote_config.name,
-                    )
-                    .await;
+                    Config::insert_with_conn(txn, "branch", Some(&branch_name), "remote", ORIGIN)
+                        .await;
 
                     // 4. Configure the remote URL
-                    Config::insert_with_conn(
-                        txn,
-                        "remote",
-                        Some(&remote_config.name),
-                        "url",
-                        &remote_config.url,
-                    )
-                    .await;
+                    Config::insert_with_conn(txn, "remote", Some(ORIGIN), "url", &remote_repo)
+                        .await;
                     Ok(())
                 })
             },

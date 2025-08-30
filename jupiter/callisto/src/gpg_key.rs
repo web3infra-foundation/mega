@@ -11,6 +11,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub user_id: String,
     #[sea_orm(column_type = "Text")]
+
     pub key_id: String,
     #[sea_orm(column_type = "Text")]
     pub public_key: String,
