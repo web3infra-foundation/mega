@@ -72,7 +72,9 @@ pub fn heuristic_encode_rate_parallel(old_data: &[u8], new_data: &[u8]) -> f64 {
 
     let min_len = old_len.min(new_len);
 
-    let step = if min_len > 1_000_000 {
+    let step = if min_len > 10_000_000{
+       1024  
+    } else if min_len > 1_000_000 {
         512
     } else if min_len > 100_000 {
         128
