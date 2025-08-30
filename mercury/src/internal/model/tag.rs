@@ -42,7 +42,7 @@ impl From<Tag> for git_tag::Model {
 impl From<mega_tag::Model> for Tag {
     fn from(value: mega_tag::Model) -> Self {
         Self {
-            id: SHA1::from_str(&value.tag_id).unwrap(),
+            id: SHA1::from_str(&value.tag_id).expect("Invalid tag_id in database"),
             object_hash: SHA1::from_str(&value.object_id).unwrap(),
             object_type: ObjectType::from_string(&value.object_type).unwrap(),
             tag_name: value.tag_name,

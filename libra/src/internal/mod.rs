@@ -5,3 +5,4 @@ pub mod head;
 pub mod model;
 pub mod protocol;
 pub mod reflog;
+pub mod tag;

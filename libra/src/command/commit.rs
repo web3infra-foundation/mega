@@ -1,8 +1,10 @@
+use super::save_object;
 use std::process::Stdio;
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
-use super::save_object;
+const EMPTY_TREE_HASH: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
 use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config as UserConfig;
@@ -230,8 +232,7 @@ pub async fn create_tree(index: &Index, storage: &ClientStorage, current_root: P
     let tree = {
         // `from_tree_items` can't create empty tree, so use `from_bytes` instead
         if tree_items.is_empty() {
-            // git create a no zero hash for empty tree, didn't know method. use default SHA1 temporarily
-            Tree::from_bytes(&[], SHA1::default()).unwrap()
+            Tree::from_bytes(&[], SHA1::from_str(EMPTY_TREE_HASH).unwrap()).unwrap()
         } else {
             Tree::from_tree_items(tree_items).unwrap()
         }

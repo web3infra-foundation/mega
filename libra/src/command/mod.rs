@@ -21,12 +21,12 @@ pub mod remove;
 pub mod reset;
 pub mod restore;
 pub mod revert;
+pub mod tag;
+
 pub mod stash;
 pub mod status;
 pub mod switch;
 
-use crate::internal::branch::Branch;
-use crate::internal::head::Head;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils;
 use crate::utils::object_ext::BlobExt;
@@ -38,7 +38,7 @@ use std::io;
 use std::io::Write;
 use std::path::Path;
 
-const HEAD: &str = "HEAD";
+
 
 // impl load for all objects
 pub fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
@@ -108,29 +108,9 @@ pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
 
 /// Get the commit hash from branch name or commit hash, support remote branch
 pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
-    if branch_or_commit == HEAD {
-        return Ok(Head::current_commit().await.unwrap());
-    }
-
-    let possible_branches = Branch::search_branch(branch_or_commit).await;
-    if possible_branches.len() > 1 {
-        return Err("Ambiguous branch name".into());
-        // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
-    }
-
-    if possible_branches.is_empty() {
-        let storage = util::objects_storage();
-        let possible_commits = storage.search(branch_or_commit).await;
-        if possible_commits.len() > 1 {
-            return Err(format!("Ambiguous commit hash '{branch_or_commit}'").into());
-        }
-        if possible_commits.is_empty() {
-            return Err(format!("No such branch or commit: '{branch_or_commit}'").into());
-        }
-        Ok(possible_commits[0])
-    } else {
-        Ok(possible_branches[0].commit)
-    }
+    util::get_commit_base(branch_or_commit)
+        .await
+        .map_err(|e| e.into())
 }
 
 #[cfg(test)]
@@ -166,12 +146,14 @@ mod tests {
                 "gpgsig -----BEGIN SSH SIGNATURE-----\ncontent1\n-----END SSH SIGNATURE-----";
             let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
             let msg_ssh = format_commit_msg(msg, Some(ssh_sig));
+            let gpg_sig_val = &gpg_sig[7..];
+            let ssh_sig_val = &ssh_sig[7..];
             let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
             let (msg__, ssh_sig__) = parse_commit_msg(&msg_ssh);
             assert_eq!(msg, msg_);
             assert_eq!(msg, msg__);
-            assert_eq!(gpg_sig, gpg_sig_.unwrap());
-            assert_eq!(ssh_sig, ssh_sig__.unwrap());
+            assert_eq!(gpg_sig_val, gpg_sig_.unwrap());
+            assert_eq!(ssh_sig_val, ssh_sig__.unwrap());
 
             let msg_none = format_commit_msg(msg, None);
             let (msg_, sig_) = parse_commit_msg(&msg_none);
