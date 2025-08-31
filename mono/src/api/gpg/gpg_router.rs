@@ -33,10 +33,9 @@ async fn remove_gpg(
     state: State<MonoApiServiceState>,
     Json(req): Json<RemoveGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let _ = state
-        .gpg_stg()
-        .remove_gpg_key(user.campsite_user_id, req.key_id)
-        .await;
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id.clone();
+    state.gpg_stg().remove_gpg_key(uid, req.key_id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -54,18 +53,19 @@ async fn add_gpg(
     state: State<MonoApiServiceState>,
     Json(req): Json<NewGpgRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let _ = state
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id.clone();
+    println!("Adding GPG key for user: {}", req.gpg_content.clone());
+    state
         .gpg_stg()
-        .add_gpg_key(user.campsite_user_id, req.gpg_content, req.expires_days)
-        .await;
+        .add_gpg_key(uid, req.gpg_content, req.expires_days)
+        .await?;
+
     Ok(Json(CommonResult::success(None)))
 }
 #[utoipa::path(
     get,
-    params(
-        ("id" = i64, description = "The user ID"),
-    ),
-    path = "/list/{id}",
+    path = "/list",
     responses(
         (status = 200, body = CommonResult<Vec<GpgKey>>, content_type="application/json")
     ),
@@ -75,14 +75,15 @@ async fn list_gpg(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<GpgKey>>>, ApiError> {
-    let user_id = user.campsite_user_id;
-    let raw_keys = state.gpg_stg().list_user_gpg(user_id.clone()).await;
+    // let uid = "exampleid".to_string();
+    let uid = user.campsite_user_id;
+    let raw_keys = state.gpg_stg().list_user_gpg(uid.clone()).await;
 
     let res: Vec<GpgKey> = raw_keys
         .into_iter()
         .flatten()
         .map(|k: Model| GpgKey {
-            user_id: user_id.clone(),
+            user_id: uid.clone(),
             key_id: k.key_id,
             fingerprint: k.fingerprint,
             created_at: k.created_at.and_utc(),
