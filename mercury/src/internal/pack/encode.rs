@@ -7,24 +7,22 @@ use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 use ahash::AHasher;
 use flate2::write::ZlibEncoder;
-use futures_util::future::join_all;
 use rayon::prelude::*;
 use sha1::{Digest, Sha1};
 use std::hash::{Hash, Hasher};
 use tokio::sync::mpsc;
-use tokio::task;
 use tokio::task::JoinHandle;
 
 const MAX_CHAIN_LEN: usize = 50;
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate
-const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
+//const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
 
 /// A encoder for generating pack files with delta objects.
 pub struct PackEncoder {
     object_number: usize,
     process_index: usize,
     window_size: usize,
-    window: VecDeque<(Entry, usize)>, // entry and offset
+   // window: VecDeque<(Entry, usize)>, // entry and offset
     sender: Option<mpsc::Sender<Vec<u8>>>,
     inner_offset: usize, // offset of current entry
     inner_hash: Sha1,    // Not SHA1 because need update trait
@@ -112,10 +110,10 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
 }
 
 fn magic_sort(a: &Entry, b: &Entry) -> Ordering {
-    let ord = b.obj_type.to_u8().cmp(&a.obj_type.to_u8());
-    if ord != Ordering::Equal {
-        return ord;
-    }
+    // let ord = b.obj_type.to_u8().cmp(&a.obj_type.to_u8());
+    // if ord != Ordering::Equal {
+    //     return ord;
+    // }
 
     // the hash should be file hash not content hash
     // todo the feature need larger refactor
@@ -152,7 +150,7 @@ impl PackEncoder {
             object_number,
             window_size,
             process_index: 0,
-            window: VecDeque::with_capacity(window_size),
+           // window: VecDeque::with_capacity(window_size),
             sender: Some(sender),
             inner_offset: 12, // 12 bytes header
             inner_hash: Sha1::new(),
@@ -184,7 +182,7 @@ impl PackEncoder {
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
     pub async fn encode(&mut self, entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
-        return self.inner_encode(entry_rx, false).await;
+         self.inner_encode(entry_rx, false).await
     }
 
     pub async fn encode_with_zstdelta(
@@ -246,12 +244,12 @@ impl PackEncoder {
             tags.len()
         );
 
-        // 并行处理不同类型的 vec，使用 spawn_blocking 因为 try_as_offset_delta 是同步函数
+        // parallel encoding vec with different object_type
         let (commit_results, tree_results, blob_results, tag_results) = tokio::try_join!(
-            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(commits, 10) }),
-            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(trees, 10) }),
-            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(blobs, 10) }),
-            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(tags, 10) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(commits, 10,enable_zstdelta) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(trees, 10,enable_zstdelta) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(blobs, 10,enable_zstdelta) }),
+            tokio::task::spawn_blocking(move || { Self::try_as_offset_delta(tags, 10,enable_zstdelta) }),
         )
         .map_err(|e| GitError::PackEncodeError(format!("Task join error: {}", e)))?;
 
@@ -283,27 +281,30 @@ impl PackEncoder {
     }
 
     /// Try to encode as delta using objects in window
+    /// delta & zstdelta have been gathered here 
+    /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
+    /// the sliding window was moved here
     /// # Returns
-    /// - Return (offset) if success make delta
+    /// - Return (Vec<Vec<u8>) if success make delta
     /// - Return (None) if didn't delta,
     fn try_as_offset_delta(
         mut bucket: Vec<Entry>,
         window_size: usize,
+        enable_zstdelta: bool,
     ) -> Result<Vec<Vec<u8>>, GitError> {
-        let mut current_offset = 0usize; // 当前类型的局部偏移
+        let mut current_offset = 0usize; 
         let mut window: VecDeque<(Entry, usize)> = VecDeque::with_capacity(window_size);
         let mut res: Vec<Vec<u8>> = Vec::new();
 
         for entry in bucket.iter_mut() {
             
-            let entry_for_window = entry.clone();
+            //let entry_for_window = entry.clone();
             // 每次循环重置最佳基对象选择
             let mut best_base: Option<&(Entry, usize)> = None;
             let mut best_rate: f64 = 0.0;
-            //let mut best_base_offset: usize = 0;
             let tie_epsilon: f64 = 0.15;
 
-            // 在窗口内寻找最佳基对象
+            
             let candidates: Vec<_> = window
                 .par_iter()
                 .with_min_len(3)
@@ -332,11 +333,15 @@ impl PackEncoder {
                         return None;
                     }
 
-                    let rate = if (try_base.0.data.len() + entry.data.len()) / 2 > 20 {
-                        delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
-                    } else {
-                        delta::encode_rate(&try_base.0.data, &entry.data)
-                    };
+
+                    let rate = 
+                        if (try_base.0.data.len() + entry.data.len()) / 2 > 20 {
+                            delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
+                        } else {
+                            delta::encode_rate(&try_base.0.data, &entry.data)
+                        };
+                    
+
 
                     if rate > MIN_DELTA_RATE {
                         Some((rate, try_base))
@@ -346,79 +351,65 @@ impl PackEncoder {
                 })
                 .collect();
 
-            // 选择最佳基对象
+           
             for (rate, try_base) in candidates {
                 match best_base {
                     None => {
                         best_rate = rate;
-                        //best_base_offset = current_offset - try_base.1; // 使用局部偏移
+                        //best_base_offset = current_offset - try_base.1; 
                         best_base = Some(try_base);
                     }
                     Some(best_base_ref) => {
                         let is_better = if rate > best_rate + tie_epsilon {
                             true
                         } else if (rate - best_rate).abs() <= tie_epsilon {
-                            
                             try_base.0.chain_len > best_base_ref.0.chain_len
-                            
                         } else {
                             false
                         };
 
                         if is_better {
                             best_rate = rate;
-                            //best_base_offset = current_offset - try_base.1;
                             best_base = Some(try_base);
                         }
                     }
                 }
             }
+            
+            let mut entry_for_window = entry.clone();
 
-            // 应用 delta 并更新窗口
-            if let Some(best_base) = best_base {
-                // 保存原始数据用于窗口
-                let original_data = entry.data.clone();
-                let original_obj_type = entry.obj_type;
-                
-                let delta = delta::encode(&best_base.0.data, &original_data);
-                let offset = best_base.1-entry.1; // 基对象在pack文件中的绝对位置
-
-                entry.obj_type = ObjectType::OffsetDelta;
-                entry.data = delta;
-                entry.chain_len = best_base.0.chain_len + 1;
-
-                // 将原始对象添加到窗口（不是 delta 对象）
-                let original_entry = Entry {
-                    obj_type: original_obj_type,
-                    data: original_data, // 保存原始数据
-                    hash: entry.hash,
-                    chain_len: entry.chain_len,
+            let offset = best_base.map(|best_base| { 
+                let delta = if enable_zstdelta{
+                    entry.obj_type = ObjectType::OffsetZstdelta;
+                    zstdelta::diff(&best_base.0.data,&entry.data)
+                        .map_err(|e| GitError::DeltaObjectError(format!("zstdelta diff failed: {}", e))).unwrap()
+                }else {
+                    entry.obj_type = ObjectType::OffsetDelta;
+                    delta::encode(&best_base.0.data, &entry.data)
                 };
-                
-                // 在添加到窗口之前检查大小
-                if window.len() >= window_size {
-                    window.pop_front();
-                }
-                window.push_back((original_entry, current_offset));
-            } else {
-                // 没有找到合适的基对象，保持原样
-                // 在添加到窗口之前检查大小
-                if window.len() >= window_size {
-                    window.pop_front();
-                }
-                window.push_back((entry.clone(), current_offset));
+                //entry.obj_type = ObjectType::OffsetDelta; 
+                entry.data = delta; 
+                entry.chain_len = best_base.0.chain_len + 1;
+                let offset = current_offset - best_base.1;
+                offset
+            }); 
+            
+            entry_for_window.chain_len = entry.chain_len;
+            let obj_data = encode_one_object(&entry, offset)?;
+            window.push_back((entry_for_window, current_offset));
+            if window.len() > window_size {
+                window.pop_front();
             }
-
-            // 编码对象（使用局部偏移）
-            let obj_data = encode_one_object(entry, Some(current_offset)).unwrap();
-            res.push(obj_data.clone());
-
-            // 更新局部偏移
-            current_offset += obj_data.len();
+            current_offset = current_offset + obj_data.len();
+            res.push(obj_data);
+            
+            
         }
-
         Ok(res)
     }
+
+
+   
 
     /// Parallel encode with rayon, only works when window_size == 0 (no delta)
     pub async fn parallel_encode(
@@ -492,178 +483,84 @@ impl PackEncoder {
         Ok(())
     }
 
-    // /// Try to encode as delta using objects in window
-    // /// # Returns
-    // /// - Return (offset) if success make delta
-    // /// - Return (None) if didn't delta,
-    // fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
-    //     let mut best_base: Option<&(Entry, usize)> = None;
-    //     let mut best_rate: f64 = 0.0;
-    //     let mut best_base_offset: usize = 0;
-    //     let tie_epsilon: f64 = 0.15;
-    //
-    //     let candidates: Vec<_> = self.window
-    //         .par_iter()
-    //         .with_min_len(3)
-    //         .filter_map(|try_base| {
-    //             if try_base.0.obj_type != entry.obj_type {
-    //                 return None;
-    //             }
-    //
-    //             if try_base.0.chain_len >= MAX_CHAIN_LEN {
-    //                 return None;
-    //             }
-    //
-    //             if try_base.0.hash == entry.hash {
-    //                 return None;
-    //             }
-    //             let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64) / (try_base.0.data.len().max(entry.data.len()) as f64);
-    //             if sym_ratio < 0.5 {
-    //                 return None;
-    //             }
-    //             // 轻量 hash 预判（例如比较前 64 字节的 hash）
-    //             if !cheap_similar(&try_base.0.data, &entry.data) {
-    //                 return None;
-    //             }
-    //
-    //             let rate = if (try_base.0.data.len() +  entry.data.len()) / 2 > 20 {
-    //                        delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
-    //                     }else {
-    //                         delta::encode_rate(&try_base.0.data, &entry.data)
-    //                     };
-    //
-    //             if rate > MIN_DELTA_RATE {
-    //                 Some((rate, try_base))
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect();
-    //
-    //
-    //     for (rate, try_base) in candidates {
-    //         match best_base {
-    //             None => {
-    //                 best_rate = rate;
-    //                 best_base_offset = self.inner_offset - try_base.1;
-    //                 best_base = Some(try_base);
-    //             }
-    //             Some(best_base_ref) => {
-    //                 let is_better = if rate > best_rate + tie_epsilon {
-    //                     true
-    //                 } else if (rate - best_rate).abs() <= tie_epsilon {
-    //
-    //                     if try_base.0.chain_len != best_base_ref.0.chain_len {
-    //                         try_base.0.chain_len > best_base_ref.0.chain_len
-    //                     } else {
-    //                         let base_offset = self.inner_offset - try_base.1;
-    //                         let best_offset = self.inner_offset - best_base_ref.1;
-    //                         base_offset > best_offset
-    //                     }
-    //                 } else {
-    //                     false
-    //                 };
-    //
-    //                 if is_better {
-    //                     best_rate = rate;
-    //                     best_base_offset = self.inner_offset - try_base.1;
-    //                     best_base = Some(try_base);
-    //                 }
-    //             }
-    //         }
-    //     }
-    //
-    //
-    //     best_base.map(|best_base| {
-    //             let delta = delta::encode(&best_base.0.data, &entry.data);
-    //
-    //             let offset = self.inner_offset - best_base.1;
-    //             entry.obj_type = ObjectType::OffsetDelta;
-    //             entry.data = delta;
-    //             entry.chain_len = best_base.0.chain_len + 1;
-    //             //tracing::debug!("chain_len: {:?}", entry.chain_len);
-    //             offset
-    //         })
-    //
-    // }
-
+    
     /// Try to encode as sapling-zstdelta using objects in window
     /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
     /// # Returns
     /// - Return (offset) if success make delta
     /// - Return (None) if didn't delta,
-    fn try_as_offset_zstdelta(&self, entry: &mut Entry) -> Option<usize> {
-        let mut best_delta_obj = None; // obj, offset
-        let mut best_rate: f64 = 0.0;
-        let mut best_chain_len: usize = 0;
-        let mut best_base_offset: usize = 0;
-        let tie_epsilon: f64 = 0.02; // when rates are close, prefer deeper/newer base
-
-        if entry.data.is_empty() {
-            return None;
-        }
-
-        for try_base in self.window.iter() {
-            if try_base.0.obj_type != entry.obj_type {
-                continue;
-            }
-            if try_base.0.chain_len >= MAX_ZSTDELTA_CHAIN_LEN {
-                continue;
-            }
-
-            // 尺寸差异过大时直接跳过
-            let size_a = try_base.0.data.len();
-            let size_b = entry.data.len();
-            if size_a * 10 < size_b || size_b * 10 < size_a {
-                continue;
-            }
-
-            // 轻量 hash 预判（例如比较前 64 字节的 hash）
-            if !cheap_similar(&try_base.0.data, &entry.data) {
-                continue;
-            }
-
-            let try_delta_obj = match zstdelta::diff(&try_base.0.data, &entry.data) {
-                Ok(v) => v,
-                Err(_) => continue, // IO error for this base, try next
-            };
-            // The DeltaDiff algorithm uses the proportion of the delta part as the delta rate,
-            // while zstdelta does not have this data and directly uses the overall compression rate.
-            let rate = 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64;
-            // if rate > MIN_DELTA_RATE && rate > best_rate {
-            //     best_rate = rate;
-            //     best_delta_obj = Some((try_delta_obj, try_base.1));
-            // }
-
-            if rate > MIN_DELTA_RATE {
-                let is_better = if rate > best_rate + tie_epsilon {
-                    true
-                } else if (rate - best_rate).abs() <= tie_epsilon {
-                    let base_chain = try_base.0.chain_len;
-                    let base_offset = self.inner_offset - try_base.1;
-                    base_chain > best_chain_len
-                        || (base_chain == best_chain_len && base_offset > best_base_offset)
-                } else {
-                    false
-                };
-
-                if is_better {
-                    best_rate = rate;
-                    best_chain_len = try_base.0.chain_len;
-                    best_base_offset = self.inner_offset - try_base.1;
-                    best_delta_obj = Some((try_delta_obj, try_base.1));
-                }
-            }
-        }
-        best_delta_obj.map(|(best_delta_data, best_base_offset)| {
-            let offset = self.inner_offset - best_base_offset;
-            entry.obj_type = ObjectType::OffsetZstdelta;
-            entry.data = best_delta_data;
-            entry.chain_len = best_chain_len + 1;
-            // tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
-            offset
-        })
-    }
+    // fn try_as_offset_zstdelta(&self, entry: &mut Entry) -> Option<usize> {
+    //     let mut best_delta_obj = None; // obj, offset
+    //     let mut best_rate: f64 = 0.0;
+    //     let mut best_chain_len: usize = 0;
+    //     let mut best_base_offset: usize = 0;
+    //     let tie_epsilon: f64 = 0.02; // when rates are close, prefer deeper/newer base
+    // 
+    //     if entry.data.is_empty() {
+    //         return None;
+    //     }
+    // 
+    //     for try_base in self.window.iter() {
+    //         if try_base.0.obj_type != entry.obj_type {
+    //             continue;
+    //         }
+    //         if try_base.0.chain_len >= MAX_ZSTDELTA_CHAIN_LEN {
+    //             continue;
+    //         }
+    // 
+    //         // 尺寸差异过大时直接跳过
+    //         let size_a = try_base.0.data.len();
+    //         let size_b = entry.data.len();
+    //         if size_a * 10 < size_b || size_b * 10 < size_a {
+    //             continue;
+    //         }
+    // 
+    //         // 轻量 hash 预判（例如比较前 64 字节的 hash）
+    //         if !cheap_similar(&try_base.0.data, &entry.data) {
+    //             continue;
+    //         }
+    // 
+    //         let try_delta_obj = match zstdelta::diff(&try_base.0.data, &entry.data) {
+    //             Ok(v) => v,
+    //             Err(_) => continue, // IO error for this base, try next
+    //         };
+    //         // The DeltaDiff algorithm uses the proportion of the delta part as the delta rate,
+    //         // while zstdelta does not have this data and directly uses the overall compression rate.
+    //         let rate = 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64;
+    //         // if rate > MIN_DELTA_RATE && rate > best_rate {
+    //         //     best_rate = rate;
+    //         //     best_delta_obj = Some((try_delta_obj, try_base.1));
+    //         // }
+    // 
+    //         if rate > MIN_DELTA_RATE {
+    //             let is_better = if rate > best_rate + tie_epsilon {
+    //                 true
+    //             } else if (rate - best_rate).abs() <= tie_epsilon {
+    //                 let base_chain = try_base.0.chain_len;
+    //                 let base_offset = self.inner_offset - try_base.1;
+    //                 base_chain > best_chain_len
+    //                     || (base_chain == best_chain_len && base_offset > best_base_offset)
+    //             } else {
+    //                 false
+    //             };
+    // 
+    //             if is_better {
+    //                 best_rate = rate;
+    //                 best_chain_len = try_base.0.chain_len;
+    //                 best_base_offset = self.inner_offset - try_base.1;
+    //                 best_delta_obj = Some((try_delta_obj, try_base.1));
+    //             }
+    //         }
+    //     }
+    //     best_delta_obj.map(|(best_delta_data, best_base_offset)| {
+    //         let offset = self.inner_offset - best_base_offset;
+    //         entry.obj_type = ObjectType::OffsetZstdelta;
+    //         entry.data = best_delta_data;
+    //         entry.chain_len = best_chain_len + 1;
+    //         // tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
+    //         offset
+    //     })
+    // }
 
     /// Write data to writer and update hash & offset
     async fn write_all_and_update(&mut self, data: &[u8]) {
@@ -700,13 +597,7 @@ impl PackEncoder {
         }))
     }
 
-    #[cfg(test)]
-    pub fn get_window_info(&self) -> Vec<(ObjectType, usize, usize)> {
-        self.window
-            .iter()
-            .map(|(entry, offset)| (entry.obj_type, entry.chain_len, *offset))
-            .collect()
-    }
+   
 }
 
 #[cfg(test)]
@@ -837,7 +728,7 @@ mod tests {
 
     async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack");
+        source.push("tests/data/packs/pack-a3b9e4e7e3a73634813f2b7f0239a9c19c914cd2.pack");
         // let file_map = crate::test_utils::setup_lfs_file().await;
         // let source = file_mapa
         //     .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
