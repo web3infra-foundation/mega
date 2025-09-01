@@ -45,24 +45,28 @@ function TreeDetailPage() {
 
   const treeStyle = {
     borderRadius: 8,
-    width: '400px',
-    minWidth: '0px',
+    width: '20%',
+    minWidth: '300px',
     flexShrink: 0,
-    background: '#fff'
+    background: '#fff',
+    height: 'calc(100vh - 96px)',
+    overflow: 'auto',
+    paddingRight: '8px'
   }
 
   const codeStyle = {
     borderRadius: 8,
-    overflow: 'hidden',
     width: 'calc(80% - 8px)',
-    height: '100%',
-    background: '#fff'
+    background: '#fff',
+    height: 'calc(100vh - 96px)',
+    overflow: 'auto',
+    paddingRight: '8px'
   }
 
   return (
     <Theme>
-      <div className='relative m-4 h-screen overflow-auto'>
-        <div className='h-12 flex justify-between items-center'>
+      <div className='relative m-4 h-screen'>
+      <div className='h-12 flex justify-between items-center'>
           <BreadCrumb path={path} />
           {canClone?.data && (
             <div className='m-1 flex justify-end'>
@@ -71,7 +75,6 @@ function TreeDetailPage() {
           )}
         </div>
         <div className='flex gap-4'>
-          {/* tree */}
           <div style={treeStyle}>
             <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
           </div>
