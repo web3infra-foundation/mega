@@ -13,19 +13,23 @@ const CloneTabs = ({ endpoint }: any) => {
   const [copied, setCopied] = useState<boolean>(false)
   const [active_tab, setActiveTab] = useState<string>('HTTP')
   const [open, setOpen] = useState(false)
+  const [repo_name, setRepo_name] = useState<string>('')
   const url = new URL(MONO_API_URL)
 
   useEffect(() => {
     if (MONO_API_URL) {
       const url = new URL(MONO_API_URL)
 
-      if (active_tab === '1') {
-        setText(`${url.href}${pathname?.replace('/myorganization/code/tree/', '')}.git`)
-      } else {
-        setText(`ssh://git@${url.host}${pathname?.replace('/myorganization/code/tree', '')}.git`)
+      setRepo_name(pathname?.split("/code/tree/")[1]!!)
+
+      if (active_tab === 'HTTP') {
+        setText(`${ url.href }${ repo_name }.git`)
+      }
+      if(active_tab === 'SSH') {
+        setText(`ssh://git@${ url.host }/${ repo_name }.git`)
       }
     }
-  }, [pathname, active_tab, endpoint])
+  }, [pathname, active_tab, endpoint, repo_name])
 
   const handleCopy = () => {
     copy(text)
@@ -36,20 +40,20 @@ const CloneTabs = ({ endpoint }: any) => {
   const tabContent = [
     {
       value: 'HTTP',
-      inputValue: `${url.href}${pathname?.replace('/myorganization/code/tree/', '')}.git`,
+      inputValue: `${url.href}${repo_name}.git`,
       info: 'Clone using the web URL.'
     },
     {
       value: 'SSH',
-      inputValue: `ssh://git@${url.host}${pathname?.replace('/myorganization/code/tree', '')}.git`,
+      inputValue: `ssh://git@${url.host}/${repo_name}.git`,
       info: 'Use a password-protected SSH key.'
     }
   ]
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen} modal>
-        <PopoverTrigger asChild>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger>
           <Button variant='base'>
             <Flex gap='3'>
               <DownloadIcon />
@@ -69,7 +73,7 @@ const CloneTabs = ({ endpoint }: any) => {
               asChild
               addDismissibleLayer
             >
-              <Tabs.Root defaultValue='HTTP' onValueChange={setActiveTab}>
+              <Tabs.Root defaultValue={active_tab} onValueChange={setActiveTab}>
                 <Tabs.List size='1' className='p-2'>
                   <Tabs.Trigger value='HTTP'>
                     <Button variant={active_tab === 'HTTP' ? 'flat' : 'plain'}>HTTP</Button>
@@ -82,7 +86,6 @@ const CloneTabs = ({ endpoint }: any) => {
                   {tabContent?.map((_item) => {
                     return (
                       <Tabs.Content value={_item.value} key={_item.value}>
-                        <Flex direction='column'>
                           <Flex align='center'>
                             <input
                               value={_item.inputValue}
@@ -94,7 +97,6 @@ const CloneTabs = ({ endpoint }: any) => {
                             </Button>
                           </Flex>
                           <div className='ml-2 text-gray-500'>{_item.info}</div>
-                        </Flex>
                       </Tabs.Content>
                     )
                   })}

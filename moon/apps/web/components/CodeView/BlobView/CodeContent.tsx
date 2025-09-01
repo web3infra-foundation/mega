@@ -220,7 +220,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                   style={{
                     backgroundColor: selectedLine === i ? '#f0f7ff' : 'transparent'
                   }}
-                  className='flex'
+                  className='flex justify-self-auto'
                   onClick={() => handleLineClick(i)}
                 >
                   <span className='inline-block w-8'>
@@ -242,10 +242,12 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                     null}
                   </span>
                   <span className={styles.codeLineNumber}>{i + 1}</span>
-                  {line.map((token, key) => (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
+                  <span className="max-w-[80%]">
+                    {line.map((token, key) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <span key={key} {...getTokenProps({ token })} />
+                    ))}
+                  </span>
                 </div>
               ))}
             {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}
