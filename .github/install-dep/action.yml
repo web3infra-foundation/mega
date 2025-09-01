@@ -160,7 +160,7 @@ runs:
         vcpkgDirectory: '${{ github.workspace }}/vcpkg'
         vcpkgGitCommitId: 'b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01'
         vcpkgInstall: true
-        vcpkgJsonGlob: **/vcpkg.json
+        vcpkgJsonGlob: '**/vcpkg.json'
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
