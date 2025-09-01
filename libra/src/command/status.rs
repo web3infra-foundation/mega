@@ -11,6 +11,15 @@ use crate::internal::head::Head;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::{path, util};
 use mercury::internal::index::Index;
+use std::io::Write;
+use clap::Parser;
+
+#[derive(Parser, Debug, Default)]
+pub struct StatusArgs {
+    /// Output in a machine-readable format
+    #[clap(long = "porcelain")]
+    pub porcelain: bool,
+}
 
 /// path: to workdir
 #[derive(Debug, Default, Clone)]
@@ -41,28 +50,41 @@ impl Changes {
  * 1. unstaged
  * 2. staged to be committed
  */
-pub async fn execute() {
+
+ pub async fn execute_to(args: StatusArgs,writer: &mut impl Write) {
     if !util::check_repo_exist() {
         return;
     }
-    match Head::current().await {
-        Head::Detached(commit_hash) => {
-            println!("HEAD detached at {}", &commit_hash.to_string()[..8]);
+    
+    // Do not output branch info in porcelain mode
+    if !args.porcelain {
+        match Head::current().await {
+            Head::Detached(commit_hash) => {
+                writeln!(writer, "HEAD detached at {}", &commit_hash.to_string()[..8]).unwrap();
+            }
+            Head::Branch(branch) => {
+                writeln!(writer, "On branch {branch}").unwrap();
+            }
         }
-        Head::Branch(branch) => {
-            println!("On branch {branch}");
+
+        if Head::current_commit().await.is_none() {
+            writeln!(writer, "\nNo commits yet\n").unwrap();
         }
-    }
-
-    if Head::current_commit().await.is_none() {
-        println!("\nNo commits yet\n");
-    }
-
+    }    
+    
     // to cur_dir relative path
     let staged = changes_to_be_committed().await.to_relative();
     let unstaged = changes_to_be_staged().to_relative();
+
+    // Use machine-readable output in porcelain mode
+    if args.porcelain {
+    output_porcelain(&staged, &unstaged, writer);
+    return;
+}
+
+
     if staged.is_empty() && unstaged.is_empty() {
-        println!("nothing to commit, working tree clean");
+        writeln!(writer,"nothing to commit, working tree clean").unwrap();
         return;
     }
 
@@ -71,15 +93,15 @@ pub async fn execute() {
         println!("  use \"libra restore --staged <file>...\" to unstage");
         staged.deleted.iter().for_each(|f| {
             let str = format!("\tdeleted: {}", f.display());
-            println!("{}", str.bright_green());
+            writeln!(writer,"{}", str.bright_green()).unwrap();
         });
         staged.modified.iter().for_each(|f| {
             let str = format!("\tmodified: {}", f.display());
-            println!("{}", str.bright_green());
+            writeln!(writer,"{}", str.bright_green()).unwrap();
         });
         staged.new.iter().for_each(|f| {
             let str = format!("\tnew file: {}", f.display());
-            println!("{}", str.bright_green());
+            writeln!(writer,"{}", str.bright_green()).unwrap();
         });
     }
 
@@ -89,11 +111,11 @@ pub async fn execute() {
         println!("  use \"libra restore <file>...\" to discard changes in working directory");
         unstaged.deleted.iter().for_each(|f| {
             let str = format!("\tdeleted: {}", f.display());
-            println!("{}", str.bright_red());
+            writeln!(writer,"{}", str.bright_red()).unwrap();
         });
         unstaged.modified.iter().for_each(|f| {
             let str = format!("\tmodified: {}", f.display());
-            println!("{}", str.bright_red());
+            writeln!(writer,"{}", str.bright_red()).unwrap();
         });
     }
     if !unstaged.new.is_empty() {
@@ -101,9 +123,40 @@ pub async fn execute() {
         println!("  use \"libra add <file>...\" to include in what will be committed");
         unstaged.new.iter().for_each(|f| {
             let str = format!("\t{}", f.display());
-            println!("{}", str.bright_red());
+            writeln!(writer,"{}", str.bright_red()).unwrap();
         });
     }
+}
+
+pub fn output_porcelain(staged: &Changes, unstaged: &Changes, writer: &mut impl Write) {
+    // Output changes in the staging area
+    for file in &staged.new {
+        writeln!(writer, "A  {}", file.display()).unwrap();
+    }
+    for file in &staged.modified {
+        writeln!(writer, "M  {}", file.display()).unwrap();
+    }
+    for file in &staged.deleted {
+        writeln!(writer, "D  {}", file.display()).unwrap();
+    }
+    
+    // Output unstaged changes
+    for file in &unstaged.modified {
+        writeln!(writer, " M {}", file.display()).unwrap();
+    }
+    for file in &unstaged.deleted {
+        writeln!(writer, " D {}", file.display()).unwrap();
+    }
+    
+    // Output untracked files
+    for file in &unstaged.new {
+        writeln!(writer, "?? {}", file.display()).unwrap();
+    }
+
+}
+
+pub async fn execute(args: StatusArgs) {
+    execute_to(args, &mut std::io::stdout()).await
 }
 
 /// Check if the working tree is clean
