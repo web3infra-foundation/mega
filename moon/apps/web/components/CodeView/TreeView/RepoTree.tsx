@@ -134,7 +134,7 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
           items={treeAllData}
           expandedItems={expandedNodes}
           onExpandedItemsChange={handleNodeToggle}
-          sx={{ height: 'fit-content', flexGrow: 1, width: 400, overflow: 'auto' }}
+          sx={{ height: 'fit-content', flexGrow: 1, width: '100%', overflow: 'auto' }}
           slots={{
             item: (itemProps) => (
               <CustomTreeItem 

@@ -12,18 +12,22 @@ import { Theme } from '@radix-ui/themes'
 
 const codeStyle = {
   borderRadius: 8,
+  width: '80%',
   background: '#fff',
-  border: '1px solid #d1d9e0',
-  margin: '0 8px',
-  flexGrow: 1,
-  minWidth: 0
+  height: 'calc(100vh - 96px)',
+  overflow: 'auto',
+  paddingRight: '8px'
 }
 
 const treeStyle = {
   borderRadius: 8,
-  overflow: 'hidden',
-  width: '400px',
-  background: '#fff'
+  width: '20%',
+  minWidth: '300px',
+  flexShrink: 0,
+  background: '#fff',
+  height: 'calc(100vh - 96px)',
+  overflow: 'auto',
+  paddingRight: '8px'
 }
 
 function BlobPage() {
@@ -42,7 +46,7 @@ function BlobPage() {
 
   return (
     <Theme>
-      <div className='relative m-4 h-screen overflow-auto'>
+      <div className='relative m-4 h-screen'>
           <BreadCrumb path={path} />
           {/* tree */}
           <div className='flex gap-4'>
@@ -54,11 +58,7 @@ function BlobPage() {
               <div className='m-2'>
                 <CommitHistory flag={'details'} info={commitInfo} />
               </div>
-              <div className='flex w-full flex-wrap gap-4'>
-                <div style={codeStyle}>
-                  <CodeContent fileContent={fileContent} path={path} />
-                </div>
-              </div>
+              <CodeContent fileContent={fileContent} path={path} />
             </div>
           </div>
       </div>
