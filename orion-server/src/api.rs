@@ -16,7 +16,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use futures_util::{SinkExt, Stream, StreamExt, stream};
+use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::WSMessage;
 use rand::Rng;
 use sea_orm::{
@@ -30,10 +30,11 @@ use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt};
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -88,6 +89,10 @@ pub fn routers() -> Router<AppState> {
         .route("/task", axum::routing::post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
         .route("/task-output/{id}", get(task_output_handler))
+        .route(
+            "/task-history-output/{id}",
+            get(task_history_output_handler),
+        )
         .route(
             "/task-output-segment/{id}",
             get(task_output_segment_handler),
@@ -217,40 +222,127 @@ pub async fn task_output_handler(
     }
 
     let file = tokio::fs::File::open(log_path).await.unwrap();
-    let reader = tokio::io::BufReader::new(file);
+    let mut reader = tokio::io::BufReader::new(file);
+    reader.seek(tokio::io::SeekFrom::End(0)).await.unwrap();
 
-    // Create a stream that continuously reads from the log file
-    let stream = stream::unfold(reader, move |mut reader| {
-        let id_c = id.clone();
-        let active_builds = state.scheduler.active_builds.clone();
-        async move {
+    // Build an asynchronous data channel
+    // Spawn background task: handle both log + heartbeat with select
+    let (tx, rx) = mpsc::unbounded_channel::<Event>();
+    tokio::spawn(async move {
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
+        loop {
             let mut buf = String::new();
-            let is_building = active_builds.contains_key(&id_c);
-            let size = reader.read_to_string(&mut buf).await.unwrap();
+            let active_builds = state.scheduler.active_builds.clone();
+            let is_building = active_builds.contains_key(&id);
 
-            if size == 0 {
-                if is_building {
-                    // Wait for more content if build is still active
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    let size = reader.read_to_string(&mut buf).await.unwrap();
-                    if size > 0 {
-                        Some((Ok(Event::default().data(buf)), reader))
+            tokio::select! {
+                size = reader.read_to_string(&mut buf) => {
+                    let size = size.unwrap();
+                    if size == 0 {
+                        if is_building {
+                            continue;
+                        } else {
+                            break;
+                        }
                     } else {
-                        // Send keep-alive comment
-                        Some((Ok(Event::default().comment("")), reader))
+                        let _ = tx.send(Event::default().data(buf.trim_end()));
                     }
-                } else {
-                    // Build finished and no more content
-                    None
                 }
-            } else {
-                // Send new content
-                Some((Ok(Event::default().data(buf)), reader))
+                _ = heartbeat.tick() => {
+                    let _ = tx.send(Event::default().comment("heartbeat"));
+                }
             }
         }
     });
 
-    Ok(Sse::new(stream.boxed()).keep_alive(KeepAlive::new()))
+    let stream = UnboundedReceiverStream::new(rx).map(Ok::<_, Infallible>);
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new()))
+}
+
+/// Provides the ability to read historical task logs
+/// supporting either retrieving the entire log at once or segmenting it by line count.
+#[utoipa::path(
+    get,
+    path = "/task-history-output/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID whose log to read"),
+        ("type" = String, Query, description = "The type of log retrieval: “full” indicates full retrieval, while “segment” indicates retrieval of segments.",example = "full"),
+        ("offset" = Option<u64>, Query, description = "Start line number (1-based)"),
+        ("limit"  = Option<u64>, Query, description = "Max number of lines to return"),
+    ),
+    responses(
+        (status = 200, description = "History Log"),
+        (status = 400, description = "Invalid parameters"),
+        (status = 404, description = "Log file not found"),
+    )
+)]
+pub async fn task_history_output_handler(
+    Path(id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
+    let log_path = std::path::Path::new(&log_path_str);
+
+    // Return error message if log file doesn't exist
+    if !log_path.exists() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "message": "Error: Log File Not Found"
+            })),
+        );
+    }
+
+    let log_type = params.get("type").map(|s| s.as_str());
+    match log_type {
+        Some("full") => {
+            // Read the entire log file
+            let file = tokio::fs::File::open(log_path).await.unwrap();
+            let mut reader = tokio::io::BufReader::new(file);
+            let mut buf = String::new();
+            reader.read_to_string(&mut buf).await.unwrap();
+
+            (StatusCode::OK, Json(serde_json::json!({ "data": buf })))
+        }
+        Some("segment") => {
+            // Parse offset
+            let offset = params
+                .get("offset")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(1)
+                .saturating_sub(1);
+            let limit = params
+                .get("limit")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(4096);
+
+            // Read Range Log
+            let file = tokio::fs::File::open(log_path).await.unwrap();
+            let reader = tokio::io::BufReader::new(file);
+            let mut buf = String::new();
+            let mut lines = reader.lines();
+            let mut idx = 0;
+            let mut count = 0;
+
+            while let Ok(Some(line)) = lines.next_line().await {
+                if idx >= offset {
+                    buf.push_str(&line);
+                    buf.push('\n');
+                    count += 1;
+                    if count >= limit {
+                        break;
+                    }
+                }
+                idx += 1;
+            }
+            (StatusCode::OK, Json(serde_json::json!({ "data": buf })))
+        }
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "message": "Invalid type" })),
+        ),
+    }
 }
 
 #[utoipa::path(
