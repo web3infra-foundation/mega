@@ -186,6 +186,7 @@ pub struct LogSegment {
 }
 
 /// Errors when reading a log segment
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum LogReadError {
     NotFound,
@@ -218,7 +219,8 @@ impl TaskScheduler {
     }
 
     /// Read a segment of a log file by task id at given offset, limited to max_len bytes.
-    pub async fn read_log_segment(
+    #[allow(dead_code)]
+    async fn read_log_segment(
         &self,
         task_id: &str,
         offset: u64,
