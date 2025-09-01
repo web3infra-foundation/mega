@@ -3,7 +3,6 @@ use crate::scheduler::{
     BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
 };
-use crate::scheduler::{LogReadError, LogSegment};
 use axum::{
     Json, Router,
     extract::{
@@ -51,6 +50,11 @@ pub enum TaskStatusEnum {
     NotFound,
 }
 
+/// Default log limit for segmented log retrieval
+const DEFAULT_LOG_LIMIT: usize = 4096;
+/// Default log offset for segmented log retrieval
+const DEFAULT_LOG_OFFSET: u64 = 1;
+
 /// Response structure for task status queries
 #[derive(Debug, Serialize, Default, ToSchema)]
 pub struct TaskStatus {
@@ -92,10 +96,6 @@ pub fn routers() -> Router<AppState> {
         .route(
             "/task-history-output/{id}",
             get(task_history_output_handler),
-        )
-        .route(
-            "/task-output-segment/{id}",
-            get(task_output_segment_handler),
         )
         .route("/mr-task/{mr}", get(task_query_by_mr))
         .route("/tasks/{mr}", get(tasks_handler))
@@ -267,14 +267,15 @@ pub async fn task_output_handler(
     path = "/task-history-output/{id}",
     params(
         ("id" = String, Path, description = "Task ID whose log to read"),
-        ("type" = String, Query, description = "The type of log retrieval: “full” indicates full retrieval, while “segment” indicates retrieval of segments.",example = "full"),
+        ("type" = String, Query, description = "The type of log retrieval: \"full\" indicates full retrieval, while \"segment\" indicates retrieval of segments.",example = "full"),
         ("offset" = Option<u64>, Query, description = "Start line number (1-based)"),
-        ("limit"  = Option<u64>, Query, description = "Max number of lines to return"),
+        ("limit"  = Option<usize>, Query, description = "Max number of lines to return"),
     ),
     responses(
         (status = 200, description = "History Log"),
         (status = 400, description = "Invalid parameters"),
         (status = 404, description = "Log file not found"),
+        (status = 500, description = "Failed to operate log file"),
     )
 )]
 pub async fn task_history_output_handler(
@@ -298,10 +299,23 @@ pub async fn task_history_output_handler(
     match log_type {
         Some("full") => {
             // Read the entire log file
-            let file = tokio::fs::File::open(log_path).await.unwrap();
+            let file = match tokio::fs::File::open(log_path).await {
+                Ok(f) => f,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({ "message": "Failed to open log file" })),
+                    );
+                }
+            };
             let mut reader = tokio::io::BufReader::new(file);
             let mut buf = String::new();
-            reader.read_to_string(&mut buf).await.unwrap();
+            if reader.read_to_string(&mut buf).await.is_err() {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "message": "Failed to read log file" })),
+                );
+            }
 
             (StatusCode::OK, Json(serde_json::json!({ "data": buf })))
         }
@@ -310,15 +324,23 @@ pub async fn task_history_output_handler(
             let offset = params
                 .get("offset")
                 .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(1)
+                .unwrap_or(DEFAULT_LOG_OFFSET)
                 .saturating_sub(1);
             let limit = params
                 .get("limit")
                 .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(4096);
+                .unwrap_or(DEFAULT_LOG_LIMIT);
 
             // Read Range Log
-            let file = tokio::fs::File::open(log_path).await.unwrap();
+            let file = match tokio::fs::File::open(log_path).await {
+                Ok(f) => f,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({ "message": "Failed to open log file" })),
+                    );
+                }
+            };
             let reader = tokio::io::BufReader::new(file);
             let mut buf = String::new();
             let mut lines = reader.lines();
@@ -342,56 +364,6 @@ pub async fn task_history_output_handler(
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "message": "Invalid type" })),
         ),
-    }
-}
-
-#[utoipa::path(
-    get,
-    path = "/task-output-segment/{id}",
-    params(
-        ("id" = String, Path, description = "Task ID whose log to read"),
-        ("offset" = u64, Query, description = "Start byte offset", example = 0),
-        ("len" = usize, Query, description = "Max bytes to read", example = 4096)
-    ),
-    responses(
-        (status = 200, description = "Log segment", body = LogSegment),
-        (status = 404, description = "Log file not found"),
-        (status = 416, description = "Offset out of range"),
-        (status = 400, description = "Invalid parameters")
-    )
-)]
-pub async fn task_output_segment_handler(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> impl IntoResponse {
-    let offset = params
-        .get("offset")
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(0);
-    let len = params
-        .get("len")
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(4096);
-    // Cap len to reasonable maximum (e.g., 1MB)
-    let len = len.min(1024 * 1024);
-
-    match state.scheduler.read_log_segment(&id, offset, len).await {
-        Ok(seg) => (StatusCode::OK, Json(seg)).into_response(),
-        Err(LogReadError::NotFound) => StatusCode::NOT_FOUND.into_response(),
-        Err(LogReadError::OffsetOutOfRange { size }) => (
-            StatusCode::RANGE_NOT_SATISFIABLE,
-            Json(serde_json::json!({
-                "message": "Offset out of range",
-                "file_size": size
-            })),
-        )
-            .into_response(),
-        Err(LogReadError::Io(e)) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"message": format!("IO error: {e}")})),
-        )
-            .into_response(),
     }
 }
 
