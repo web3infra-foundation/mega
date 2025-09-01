@@ -1,0 +1,19 @@
+{
+  "name": "mega",
+  "version-string": "1.0.0",
+  "builtin-baseline": "2025-05-01",
+  "dependencies": [
+    {
+      "name": "aws-sdk-cpp",
+      "version>=": "1.9.234"
+    },
+    {
+      "name": "nettle",
+      "version>=": "3.8.1"
+    },
+    {
+      "name": "zstd",
+      "version>=": "1.5.2"
+    }
+  ]
+}
