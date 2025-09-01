@@ -23,7 +23,7 @@ use crate::model::builds;
         api::task_handler,
         api::task_status_handler,
         api::task_output_handler,
-        api::task_output_segment_handler,
+        api::task_history_output_handler,
         api::task_query_by_mr,
         api::tasks_handler,
     ),

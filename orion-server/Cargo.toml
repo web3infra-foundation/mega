@@ -11,6 +11,7 @@ axum = { workspace = true, features = ["macros", "ws"] }
 axum-extra = { workspace = true, features = ["erased-json"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "process"] }
 tokio-retry = "0.3"
+tokio-stream = "0.1.17"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
