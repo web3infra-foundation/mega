@@ -50,7 +50,6 @@ impl Changes {
  * 1. unstaged
  * 2. staged to be committed
  */
-
  pub async fn execute_to(args: StatusArgs,writer: &mut impl Write) {
     if !util::check_repo_exist() {
         return;
@@ -78,9 +77,9 @@ impl Changes {
 
     // Use machine-readable output in porcelain mode
     if args.porcelain {
-    output_porcelain(&staged, &unstaged, writer);
-    return;
-}
+        output_porcelain(&staged, &unstaged, writer);
+        return;
+    }
 
 
     if staged.is_empty() && unstaged.is_empty() {

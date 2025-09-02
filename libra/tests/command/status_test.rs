@@ -1,7 +1,6 @@
 use super::*;
 use std::fs;
 use std::io::Write;
-use libra::command::status::Changes;
 use libra::command::status::StatusArgs;
 use libra::command::status::execute_to as status_execute;
 use libra::command::status::output_porcelain;
@@ -104,7 +103,6 @@ async fn test_changes_to_be_staged() {
         .any(|x| x.file_name().unwrap() == "not_ignore.1"));
 }
 
-
 #[test]
 fn test_output_porcelain_format() {
     use libra::command::status::Changes;
@@ -142,7 +140,6 @@ fn test_output_porcelain_format() {
     assert!(lines.contains(&" D unstaged_deleted.txt"));
     assert!(lines.contains(&"?? untracked_file.txt"));
 }
-
 
 #[tokio::test]
 #[serial]
