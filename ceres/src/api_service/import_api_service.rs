@@ -49,21 +49,6 @@ impl ApiHandler for ImportApiService {
         }
     }
 
-    async fn get_root_commit(&self) -> Commit {
-        let storage = self.storage.git_db_storage();
-        let refs = storage
-            .get_default_ref(self.repo.repo_id)
-            .await
-            .unwrap()
-            .unwrap();
-        storage
-            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
-    }
-
     async fn get_root_tree(&self) -> Tree {
         let storage = self.storage.git_db_storage();
         let refs = storage
@@ -300,5 +285,20 @@ impl ImportApiService {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    async fn get_root_commit(&self) -> Commit {
+        let storage = self.storage.git_db_storage();
+        let refs = storage
+            .get_default_ref(self.repo.repo_id)
+            .await
+            .unwrap()
+            .unwrap();
+        storage
+            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into()
     }
 }
