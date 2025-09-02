@@ -109,7 +109,7 @@ impl TaskQueue {
     /// Get queue statistics
     pub fn get_stats(&self) -> TaskQueueStats {
         TaskQueueStats {
-            total_queued: self.queue.len(),
+            total_queued: self.queue.len(), 
             oldest_task_age_seconds: self
                 .queue
                 .front()
