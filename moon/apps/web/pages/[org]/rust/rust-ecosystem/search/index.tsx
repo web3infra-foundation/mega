@@ -160,11 +160,11 @@ export default function SearchResultsPage() {
       <Head>
         <title>Search Results - Rust Ecosystem</title>
       </Head>
-      <div className="min-h-screen  w-full bg-white">
-        {/* 搜索栏 */}
-        <div className="w-full flex justify-center mb-4" style={{ background: '#FFF' }}>
+      <div className="h-screen flex flex-col">
+        {/* 搜索栏 - 固定在顶部 */}
+        <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#FFF' }}>
           <div
-            className="flex items-center sticky top-0 z-20"
+            className="flex items-center"
             style={{
               width: '1680px',
               height: '43px',
@@ -178,14 +178,15 @@ export default function SearchResultsPage() {
             }}
           >
             <form onSubmit={handleSearch} className="flex-1 max-w-xl ml-8">
-              <div className="relative ml-10 mt-5">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <div className="relative ml-0 mt-0">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ transform: 'translate(20px, 1px)' }}>
                   <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
                   placeholder="Search..."
                   className="block w-full pl-10 pr-3 py-2 border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 placeholder-gray-500"
+                  style={{ transform: 'translate(20px, 1px)' }}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -206,10 +207,9 @@ export default function SearchResultsPage() {
           />
         </div>
             
-        {/* 分类标签和搜索结果区域 */}
-        <div className="w-full flex justify-center" style={{ background: '#F4F4F5' }}>
+        {/* 分类标签 - 固定在搜索栏下方 */}
+        <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#F4F4F5' }}>
           <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
-            {/* 分类标签 */}
             <div className="flex space-x-8 mb-0">
               {tabs.map((tab) => (
                 <button
@@ -234,118 +234,125 @@ export default function SearchResultsPage() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
 
-            {/* 搜索结果列表容器 */}
-            <div style={{ 
-              background: 'white', 
-              borderRadius: '8px',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-              overflow: 'hidden'
-            }}>
-              {/* 标题和结果数量 */}
-              <div className="flex items-center justify-between p-3 border-b border-gray-200">
-                <h1 
-                  style={{
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 1,
-                    overflow: 'hidden',
-                    color: '#1c2024',
-                    textOverflow: 'ellipsis',
-                    fontFamily: '"HarmonyOS Sans SC"',
-                    fontSize: '28px',
-                    fontStyle: 'normal',
-                    fontWeight: 500,
-                    lineHeight: '24px',
-                    letterSpacing: '0'
-                  }}
-                >
-                  ALL
-                </h1>
-                <span 
-                  style={{
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 1,
-                    overflow: 'hidden',
-                    color: '#4b68ff',
-                    textAlign: 'right',
-                    textOverflow: 'ellipsis',
-                    fontFamily: '"SF Pro"',
-                    fontSize: '16px',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    lineHeight: '24px',
-                    letterSpacing: '0'
-                  }}
-                >
-                  Total 56 results
-                </span>
-              </div>
-
-              <div className="space-y-0">
-                {searchResults.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="transition-colors cursor-pointer"
-                      style={{ 
-                        display: 'flex',
-                        minWidth: '100px',
-                        minHeight: '44px',
-                        padding: '8px 16px',
-                        alignItems: 'center',
-                        gap: '8px',
-                        flex: '1 0 0',
-                        alignSelf: 'stretch',
-                        background: '#ffffff00',
-                        borderBottom: index !== searchResults.length - 1 ? '1px solid #e5e7eb' : 'none'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#EBEBEB'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#ffffff00'
-                      }}
-                    >
-                      <div className="flex flex-col space-y-2">
-                        <span className="text-sm text-gray-500">
-                          {item.type}
-                        </span>
-                        <h3 
-                          className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                          onClick={() => router.push({
-                            pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/${item.name}`,
-                            query: { 
-                              crateName: item.name,
-                              version: item.version || '1.0.0'
-                            }
-                          })}
-                        >
-                          {item.name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {item.details}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+        {/* 可滚动内容区域 */}
+        <div className="flex-1 overflow-auto" style={{ background: '#F4F4F5' }}>
+          <div className="w-full flex justify-center pb-8">
+            <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
+              {/* 搜索结果列表容器 */}
+              <div style={{ 
+                background: 'white', 
+                borderRadius: '8px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                overflow: 'hidden'
+              }}>
+                {/* 标题和结果数量 */}
+                <div className="flex items-center justify-between p-3 border-b border-gray-200">
+                  <h1 
+                    style={{
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 1,
+                      overflow: 'hidden',
+                      color: '#1c2024',
+                      textOverflow: 'ellipsis',
+                      fontFamily: '"HarmonyOS Sans SC"',
+                      fontSize: '28px',
+                      fontStyle: 'normal',
+                      fontWeight: 500,
+                      lineHeight: '24px',
+                      letterSpacing: '0'
+                    }}
+                  >
+                    ALL
+                  </h1>
+                  <span 
+                    style={{
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 1,
+                      overflow: 'hidden',
+                      color: '#4b68ff',
+                      textAlign: 'right',
+                      textOverflow: 'ellipsis',
+                      fontFamily: '"SF Pro"',
+                      fontSize: '16px',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      lineHeight: '24px',
+                      letterSpacing: '0'
+                    }}
+                  >
+                    Total 56 results
+                  </span>
                 </div>
 
-              {/* 分页 */}
-              <div className="flex justify-center items-center space-x-4 mt-8">
-                <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Previous
-                </button>
-                <span className="text-lg font-bold text-gray-900">1</span>
-                <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                  Next
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+                <div className="space-y-0">
+                  {searchResults.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="transition-colors cursor-pointer"
+                        style={{ 
+                          display: 'flex',
+                          minWidth: '100px',
+                          minHeight: '44px',
+                          padding: '8px 16px',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flex: '1 0 0',
+                          alignSelf: 'stretch',
+                          background: '#ffffff00',
+                          borderBottom: index !== searchResults.length - 1 ? '1px solid #e5e7eb' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#EBEBEB'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#ffffff00'
+                        }}
+                      >
+                        <div className="flex flex-col space-y-2">
+                          <span className="text-sm text-gray-500">
+                            {item.type}
+                          </span>
+                          <h3 
+                            className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                            onClick={() => router.push({
+                              pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/${item.name}`,
+                              query: { 
+                                crateName: item.name,
+                                version: item.version || '1.0.0'
+                              }
+                            })}
+                          >
+                            {item.name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {item.details}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                {/* 分页 */}
+                <div className="flex justify-center items-center space-x-4 mt-8 mb-8">
+                  <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <span className="text-lg font-bold text-gray-900">1</span>
+                  <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Next
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -39,6 +39,11 @@ pub struct ImportRepo {
 
 #[async_trait]
 impl RepoHandler for ImportRepo {
+
+    fn is_monorepo(&self) -> bool {
+        false
+    }
+    
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage
@@ -54,10 +59,6 @@ impl RepoHandler for ImportRepo {
     async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let storage = self.storage.git_db_storage();
         storage.save_entry(self.repo.repo_id, entry_list).await
-    }
-
-    async fn post_receiver_handler(&self) -> Result<(), GitError> {
-        self.attach_to_monorepo_parent().await
     }
 
     async fn check_entry(&self, _: &Entry) -> Result<(), GitError> {
@@ -292,14 +293,6 @@ impl RepoHandler for ImportRepo {
         Ok(())
     }
 
-    async fn save_or_update_mr(&self) -> Result<(), MegaError> {
-        Ok(())
-    }
-
-    async fn post_mr_operation(&self) -> Result<(), MegaError> {
-        Ok(())
-    }
-
     async fn check_commit_exist(&self, hash: &str) -> bool {
         self.storage
             .git_db_storage()
@@ -320,7 +313,7 @@ impl RepoHandler for ImportRepo {
 
 impl ImportRepo {
     // attach import repo to monorepo parent tree
-    async fn attach_to_monorepo_parent(&self) -> Result<(), GitError> {
+    pub(crate) async fn attach_to_monorepo_parent(&self) -> Result<(), GitError> {
         let iter = self
             .command_list
             .clone()

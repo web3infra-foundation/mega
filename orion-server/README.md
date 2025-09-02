@@ -34,16 +34,16 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
 
 #### 1. WebSocket Endpoint
 
-- **`/ws`**  
-    Establishes a WebSocket connection for build clients (agents).  
+- **`/ws`**
+    Establishes a WebSocket connection for build clients (agents).
     - **Purpose:** Register build clients, receive build tasks, and report build logs/status.
     - **Protocol:** Custom JSON messages (see `WSMessage` in code).
 
 #### 2. Submit Build Task
 
-- **`POST /task`**  
+- **`POST /task`**
     Submits a new build task to the server.
-    - **Request Body:**  
+    - **Request Body:**
         ```json
         {
             "repo": "string",
@@ -52,19 +52,19 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
             "mr": "string"                // optional, Merge Request number
         }
         ```
-    - **Response:**  
+    - **Response:**
         ```json
         {
             "task_id": "string",
             "client_id": "string"
         }
         ```
-    - **Errors:**  
+    - **Errors:**
         - `{ "message": "No clients connected" }` if no build agents are available.
 ```bash
 curl -X POST http://localhost:8004/task \
     -H "Content-Type: application/json" \
-    -d '{ 
+    -d '{
         "repo": "buck2-rust-third-party",
         "target": "root//:rust-third-party",
         "args": [""],
@@ -73,9 +73,9 @@ curl -X POST http://localhost:8004/task \
 ```
 #### 3. Query Task Status
 
-- **`GET /task-status/{id}`**  
+- **`GET /task-status/{id}`**
     Query the status of a build task by its ID.
-    - **Response:**  
+    - **Response:**
         ```json
         {
             "status": "Building|Interrupted|Failed|Completed|NotFound",
@@ -83,25 +83,25 @@ curl -X POST http://localhost:8004/task \
             "message": "string"            // optional
         }
         ```
-    - **Status Codes:**  
-        - `200 OK` if found  
-        - `404 Not Found` if task does not exist  
+    - **Status Codes:**
+        - `200 OK` if found
+        - `404 Not Found` if task does not exist
         - `400 Bad Request` if ID is invalid
 
 #### 4. Real-time Task Output (Logs)
 
-- **`GET /task-output/{id}`**  
+- **`GET /task-output/{id}`**
     Streams real-time build logs for a task using Server-Sent Events (SSE).
-    - **Response:**  
+    - **Response:**
         - SSE stream of log lines as they are produced.
-        - If the log file does not exist:  
+        - If the log file does not exist:
             `data: Task output file not found`
 
 #### 5. Query Builds by Merge Request
 
-- **`GET /mr-task/{mr}`**  
+- **`GET /mr-task/{mr}`**
     Query historical build records by Merge Request (MR) number.
-    - **Response:**  
+    - **Response:**
         - `200 OK` with a JSON array of build records if found.
         - `404 Not Found` with `{ "message": "No builds found for the given MR" }` if none.
         - `500 Internal Server Error` on database errors.
@@ -111,7 +111,69 @@ curl -X POST http://localhost:8004/task \
 curl -X GET http://localhost:8004/mr-task/123
 ```
 
-**Note:**  
+**Note:**
 - All endpoints except `/ws` are intended for HTTP clients (frontends, automation, etc.).
 - WebSocket clients must implement the protocol defined in `orion::ws::WSMessage` for task handling and reporting.
 - SSE endpoints require clients to support Server-Sent Events.
+#### 6. Query Historical Task Logs
+
+- **`GET /task-history-output/{id}`**
+    Provides the ability to read historical task logs, supporting either retrieving the **entire log at once** or **retrieving by line segments**.
+
+    - **Path Parameters:**
+        - `id` *(string)*: Task ID whose log to read.
+
+    - **Query Parameters:**
+        - `type` *(string, required)*: Type of log retrieval.
+          - `"full"` → Return the entire log file.
+          - `"segment"` → Return a portion of the log by line number and limit.
+        - `offset` *(integer, optional)*: Starting line number (**1-based**). Defaults to `1`.
+        - `limit` *(integer, optional)*: Maximum number of lines to return. Defaults to `4096`.
+
+    - **Responses:**
+        - `200 OK` → Returns the log content in JSON:
+            ```json
+            { "data": "log content..." }
+            ```
+          - `400 Bad Request` → Invalid parameters:
+            ```json
+            { "message": "Invalid type" }
+            ```
+        - `404 Not Found` → Log file does not exist:
+            ```json
+            { "message": "Error: Log File Not Found" }
+            ```
+
+
+    - **Examples:**
+
+        Retrieve the full log:
+        ```bash
+        curl -X GET "http://localhost:8004/task-history-output/abc123?type=full"
+        ```
+
+        Retrieve log lines 100–150:
+        ```bash
+        curl -X GET "http://localhost:8004/task-history-output/abc123?type=segment&offset=100&limit=50"
+        ```
+#### 7. Real-time Task Output via SSE
+
+- **`GET /task-output/{id}`**
+    Streams the build output logs for a specific task in real time using Server-Sent Events (SSE).
+    - **Path Parameter:**
+        - `id` — Task ID for which to stream the logs.
+    - **Response:**
+        - `200 OK` — A continuous SSE stream of log lines as they are produced. Each log line is sent as an SSE `data` event.
+        - `404 Not Found` — If the log file for the given task ID does not exist.
+    - **Behavior:**
+        - Starts streaming from the end of the log file.
+        - Keeps the connection alive, sending heartbeat comments every 15 seconds to prevent client timeouts.
+        - Continues streaming until the build completes and no new logs are appended.
+    - **Example using `curl`:**
+    ```bash
+    curl -N http://localhost:8004/task-output/<task_id>
+    ```
+    - **Notes:**
+        - Replace `<task_id>` with the actual task ID returned from the `/task` endpoint.
+        - The SSE stream sends both new log lines (`data`) and periodic heartbeat comments (`: heartbeat`).
+        - Frontend clients should handle incremental updates as log lines arrive.

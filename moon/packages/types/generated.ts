@@ -3221,8 +3221,7 @@ export type CommonResultVecGpgKey = {
     expires_at?: string | null
     fingerprint: string
     key_id: string
-    /** @format int64 */
-    user_id: number
+    user_id: string
   }[]
   err_message: string
   req_result: boolean
@@ -3387,8 +3386,7 @@ export type GpgKey = {
   expires_at?: string | null
   fingerprint: string
   key_id: string
-  /** @format int64 */
-  user_id: number
+  user_id: string
 }
 
 export type IssueDetailRes = {
@@ -3530,8 +3528,6 @@ export type NewGpgRequest = {
   /** @format int32 */
   expires_days?: number | null
   gpg_content: string
-  /** @format int64 */
-  user_id: number
 }
 
 export type NewIssue = {
@@ -3591,8 +3587,6 @@ export type ReactionRequest = {
 
 export type RemoveGpgRequest = {
   key_id: string
-  /** @format int64 */
-  user_id: number
 }
 
 export enum RequirementsState {
@@ -4796,7 +4790,7 @@ export type PostApiCreateFileData = CommonResultString
 
 export type PostApiGpgAddData = CommonResultString
 
-export type GetApiGpgListByIdData = CommonResultVecGpgKey
+export type GetApiGpgListData = CommonResultVecGpgKey
 
 export type DeleteApiGpgRemoveData = CommonResultString
 
@@ -13371,18 +13365,18 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags gpg-key
-     * @name GetApiGpgListById
-     * @request GET:/api/v1/gpg/list/{id}
+     * @name GetApiGpgList
+     * @request GET:/api/v1/gpg/list
      */
-    getApiGpgListById: () => {
-      const base = 'GET:/api/v1/gpg/list/{id}' as const
+    getApiGpgList: () => {
+      const base = 'GET:/api/v1/gpg/list' as const
 
       return {
-        baseKey: dataTaggedQueryKey<GetApiGpgListByIdData>([base]),
-        requestKey: (id: number) => dataTaggedQueryKey<GetApiGpgListByIdData>([base, id]),
-        request: (id: number, params: RequestParams = {}) =>
-          this.request<GetApiGpgListByIdData>({
-            path: `/api/v1/gpg/list/${id}`,
+        baseKey: dataTaggedQueryKey<GetApiGpgListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiGpgListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiGpgListData>({
+            path: `/api/v1/gpg/list`,
             method: 'GET',
             ...params
           })

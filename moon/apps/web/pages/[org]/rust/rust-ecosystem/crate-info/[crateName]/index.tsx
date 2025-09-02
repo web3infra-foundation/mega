@@ -146,7 +146,7 @@ const CratePage = () => {
                 <title>Crate Info - {crateName || 'Crate'}</title>
             </Head>
             <CrateInfoLayout>
-                <div className="flex justify-center">
+                <div className="flex justify-center pb-8">
                     <div className="w-[1370px] px-8 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                             {/* 左侧内容区域 - 占据2列 */}
