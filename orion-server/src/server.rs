@@ -15,13 +15,15 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{self, AppState};
-use crate::model::builds;
+use crate::model::tasks;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
     paths(
         api::task_handler,
+        api::task_build_handler,
         api::task_status_handler,
+        api::task_build_list_handler,
         api::task_output_handler,
         api::task_history_output_handler,
         api::task_query_by_mr,
@@ -33,7 +35,7 @@ use crate::model::builds;
             crate::scheduler::LogSegment,
             api::TaskStatus,
             api::TaskStatusEnum,
-            api::BuildDTO,
+            api::TaskDTO,
             api::TaskInfoDTO
 
         )
@@ -111,7 +113,7 @@ async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
     let schema = Schema::new(builder);
     let statement = builder.build(
         schema
-            .create_table_from_entity(builds::Entity)
+            .create_table_from_entity(tasks::Entity)
             .if_not_exists(),
     );
     trans.execute(statement).await?;
@@ -166,12 +168,12 @@ async fn start_health_check_task(state: AppState) {
                     );
                     state.scheduler.active_builds.remove(&task_id);
 
-                    let update_res = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
+                    let update_res = tasks::Entity::update_many()
+                        .set(tasks::ActiveModel {
                             end_at: Set(Some(chrono::Utc::now().naive_utc())),
                             ..Default::default()
                         })
-                        .filter(builds::Column::BuildId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
+                        .filter(tasks::Column::TaskId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
                         .exec(&state.conn)
                         .await;
 

@@ -1,4 +1,4 @@
-use crate::model::builds;
+use crate::model::tasks;
 use crate::scheduler::{
     BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
@@ -22,7 +22,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter as _,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -54,6 +54,13 @@ pub enum TaskStatusEnum {
 const DEFAULT_LOG_LIMIT: usize = 4096;
 /// Default log offset for segmented log retrieval
 const DEFAULT_LOG_OFFSET: u64 = 1;
+
+/// Response structure for task status queries
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct TaskRequest {
+    pub repo: String,
+    pub mr: Option<String>,
+}
 
 /// Response structure for task status queries
 #[derive(Debug, Serialize, Default, ToSchema)]
@@ -91,7 +98,9 @@ pub fn routers() -> Router<AppState> {
     Router::new()
         .route("/ws", any(ws_handler))
         .route("/task", axum::routing::post(task_handler))
+        .route("/task-build/{id}", axum::routing::post(task_build_handler))
         .route("/task-status/{id}", get(task_status_handler))
+        .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route(
             "/task-history-output/{id}",
@@ -150,7 +159,7 @@ pub async fn task_status_handler(
         // Check database for completed/historical tasks
         match Uuid::parse_str(&id) {
             Ok(id_uuid) => {
-                let output = builds::Model::get_by_build_id(id_uuid, &state.conn).await;
+                let output = tasks::Model::get_by_task_id(id_uuid, &state.conn).await;
                 match output {
                     Some(model) => {
                         // Determine task status based on database fields
@@ -202,7 +211,7 @@ pub async fn task_status_handler(
     get,
     path = "/task-output/{id}",
     params(
-        ("id" = String, Path, description = "Task ID for which to stream output logs")
+        ("id" = String, Path, description = "Build ID for which to stream output logs")
     ),
     responses(
         (status = 200, description = "Server-Sent Events stream of build output logs"),
@@ -266,7 +275,7 @@ pub async fn task_output_handler(
     get,
     path = "/task-history-output/{id}",
     params(
-        ("id" = String, Path, description = "Task ID whose log to read"),
+        ("id" = String, Path, description = "Build ID whose log to read"),
         ("type" = String, Query, description = "The type of log retrieval: \"full\" indicates full retrieval, while \"segment\" indicates retrieval of segments.",example = "full"),
         ("offset" = Option<u64>, Query, description = "Start line number (1-based)"),
         ("limit"  = Option<usize>, Query, description = "Max number of lines to return"),
@@ -317,7 +326,14 @@ pub async fn task_history_output_handler(
                 );
             }
 
-            (StatusCode::OK, Json(serde_json::json!({ "data": buf })))
+            // Split the content into lines and count them
+            let lines: Vec<&str> = buf.lines().collect();
+            let len = lines.len();
+
+            (StatusCode::OK, Json(serde_json::json!({ 
+                "data": lines,
+                "len": len
+            })))
         }
         Some("segment") => {
             // Parse offset
@@ -342,15 +358,14 @@ pub async fn task_history_output_handler(
                 }
             };
             let reader = tokio::io::BufReader::new(file);
-            let mut buf = String::new();
+            let mut lines_vec = Vec::new();
             let mut lines = reader.lines();
             let mut idx = 0;
             let mut count = 0;
 
             while let Ok(Some(line)) = lines.next_line().await {
                 if idx >= offset {
-                    buf.push_str(&line);
-                    buf.push('\n');
+                    lines_vec.push(line);
                     count += 1;
                     if count >= limit {
                         break;
@@ -358,7 +373,11 @@ pub async fn task_history_output_handler(
                 }
                 idx += 1;
             }
-            (StatusCode::OK, Json(serde_json::json!({ "data": buf })))
+            
+            (StatusCode::OK, Json(serde_json::json!({ 
+                "data": lines_vec,
+                "len": lines_vec.len()
+            })))
         }
         _ => (
             StatusCode::BAD_REQUEST,
@@ -369,19 +388,45 @@ pub async fn task_history_output_handler(
 
 #[utoipa::path(
     post,
-    path = "/task",
+    path = "/task-build/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID to get build IDs for")
+    ),
     request_body = BuildRequest,
     responses(
-        (status = 200, description = "Task created", body = serde_json::Value),
+        (status = 200, description = "Task start build", body = serde_json::Value),
+        (status = 401, description = "Not found task id", body = serde_json::Value),
         (status = 503, description = "Queue is full", body = serde_json::Value)
-    )
+    ),
 )]
-/// Creates a new build task and either assigns it immediately or queues it for later processing
-/// Returns task ID and status information upon successful creation
-pub async fn task_handler(
+pub async fn task_build_handler(
     State(state): State<AppState>,
+    Path(id): Path<String>,
     Json(req): Json<BuildRequest>,
 ) -> impl IntoResponse {
+    let db = &state.conn;
+
+    // 解析task_id
+    let task_id = match id.parse::<uuid::Uuid>() {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"message": "Invalid task ID format"})),
+            )
+                .into_response();
+        }
+    };
+
+    // 检查task_id是否存在
+    if !tasks::Model::exists_by_task_id(task_id, db).await {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"message": "Task ID does not exist"})),
+        )
+            .into_response();
+    }
+
     // Download and get buck2 targets first
     // let target = match download_and_get_buck2_targets(&req.buck_hash, &req.buckconfig_hash).await {
     //     Ok(target) => target,
@@ -395,25 +440,29 @@ pub async fn task_handler(
     // };
     // for now we do not extract from file, just use the fixed build target.
     let target = "//...".to_string();
-
     // Check if there are idle workers available
     if state.scheduler.has_idle_workers() {
         // Have idle workers, directly dispatch task (keep original logic)
-        handle_immediate_task_dispatch(state, req, target).await
+        handle_immediate_task_dispatch(state, req, target,task_id).await
     } else {
         // No idle workers, add task to queue
         match state
             .scheduler
-            .enqueue_task(req.clone(), target.clone())
+            .enqueue_task(req.clone(), target.clone(), task_id)
             .await
         {
-            Ok(task_id) => {
-                tracing::info!("Task {} queued for later processing", task_id);
+            Ok( build_id) => {
+                tracing::info!("Build {}/{} queued for later processing", task_id, build_id);
 
                 // Save to database (mark as Pending status)
-                let model = builds::ActiveModel {
-                    build_id: Set(task_id),
-                    output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
+                let model = tasks::ActiveModel {
+                    task_id: Set(task_id),
+                    build_ids: Set(serde_json::json!([build_id])),
+                    output_files: Set(serde_json::json!([format!(
+                        "{}/{}",
+                        get_build_log_dir(),
+                        build_id
+                    )])),
                     exit_code: Set(None),
                     start_at: Set(chrono::Utc::now().naive_utc()),
                     end_at: Set(None),
@@ -431,6 +480,7 @@ pub async fn task_handler(
                     StatusCode::OK,
                     Json(serde_json::json!({
                         "task_id": task_id.to_string(),
+                        "build_id":build_id.to_string(),
                         "status": "queued",
                         "message": "Task queued for processing when workers become available"
                     })),
@@ -451,11 +501,69 @@ pub async fn task_handler(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/task",
+    request_body = TaskRequest,
+    responses(
+        (status = 200, description = "Task created successfully", body = serde_json::Value),
+        (status = 500, description = "Failed to create task", body = serde_json::Value)
+    )
+)]
+/// Creates a new build task and either assigns it immediately or queues it for later processing
+/// Returns task ID and status information upon successful creation
+pub async fn task_handler(
+    State(state): State<AppState>,
+    Json(req): Json<TaskRequest>,
+) -> impl IntoResponse {
+    let task_id = Uuid::now_v7();
+    let db = &state.conn;
+    
+    // Create empty JSON arrays for build_ids and output_files
+    let empty_json_array = serde_json::Value::Array(vec![]);
+    
+    // Insert new task into database
+    let task_model = tasks::ActiveModel {
+        task_id: Set(task_id),
+        build_ids: Set(empty_json_array.clone()),
+        output_files: Set(empty_json_array),
+        exit_code: Set(None),
+        start_at: Set(chrono::Utc::now().naive_utc()),
+        end_at: Set(None),
+        repo_name: Set(req.repo),
+        target: Set(String::new()), // Empty for now, may be populated from request in the future
+        arguments: Set(String::new()), // Empty for now, may be populated from request in the future
+        mr: Set(req.mr.unwrap_or_default()),
+    };
+    
+    match task_model.insert(db).await {
+        Ok(_) => {
+            // Return task_id
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "task_id": task_id.to_string()
+                }))
+            ).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to insert task into database: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "message": "Failed to create task"
+                }))
+            ).into_response()
+        }
+    }
+}
+
 /// Handle immediate task dispatch logic (original task_handler logic)
 async fn handle_immediate_task_dispatch(
     state: AppState,
     req: BuildRequest,
     target: String,
+    task_id: Uuid
 ) -> axum::response::Response {
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
@@ -475,13 +583,18 @@ async fn handle_immediate_task_dispatch(
         rng.random_range(0..idle_workers.len())
     };
     let chosen_id = idle_workers[chosen_index].clone();
-    let task_id = Uuid::now_v7();
+    let build_id = Uuid::now_v7();
 
     // Create log file for the task
-    let log_file = match create_log_file(&task_id.to_string()) {
+    let log_file = match create_log_file(&build_id.to_string()) {
         Ok(file) => Arc::new(Mutex::new(file)),
         Err(e) => {
-            tracing::error!("Failed to create log file for task {}: {}", task_id, e);
+            tracing::error!(
+                "Failed to create log file for build {}/{}: {}",
+                task_id,
+                build_id,
+                e
+            );
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"message": "Failed to create log file"})),
@@ -500,11 +613,39 @@ async fn handle_immediate_task_dispatch(
         _worker_id: chosen_id.clone(),
         log_file,
     };
+    
+    // Retrieve existing task to get current build_ids and output_files
+    let existing_task = match tasks::Model::get_by_task_id(task_id, &state.conn).await {
+        Some(task) => task,
+        None => {
+            tracing::error!("Task not found: {}", task_id);
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"message": "Task not found"})),
+            )
+                .into_response();
+        }
+    };
 
-    // Save task to database
-    let model = builds::ActiveModel {
-        build_id: Set(task_id),
-        output_file: Set(format!("{}/{}", get_build_log_dir(), task_id)),
+    // Update build_ids and output_files arrays
+    let mut build_ids: Vec<serde_json::Value> = existing_task.build_ids.as_array()
+        .cloned()
+        .unwrap_or_default();
+    build_ids.push(serde_json::Value::String(build_id.to_string()));
+
+    let mut output_files: Vec<serde_json::Value> = existing_task.output_files.as_array()
+        .cloned()
+        .unwrap_or_default();
+    output_files.push(serde_json::Value::String(format!(
+        "{}/{}",
+        get_build_log_dir(),
+        build_id
+    )));
+
+    let model = tasks::ActiveModel {
+        task_id: Set(task_id),
+        build_ids: Set(serde_json::Value::Array(build_ids)),
+        output_files: Set(serde_json::Value::Array(output_files)),
         exit_code: Set(None),
         start_at: Set(build_info.start_at.naive_utc()),
         end_at: Set(None),
@@ -513,7 +654,7 @@ async fn handle_immediate_task_dispatch(
         arguments: Set(build_info.args.clone().unwrap_or_default().join(" ")),
         mr: Set(build_info.mr.clone().unwrap_or_default()),
     };
-    if let Err(e) = model.insert(&state.conn).await {
+    if let Err(e) = model.update(&state.conn).await {
         tracing::error!("Failed to insert new build task into DB: {}", e);
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -524,7 +665,7 @@ async fn handle_immediate_task_dispatch(
 
     // Create WebSocket message for the worker
     let msg = WSMessage::Task {
-        id: task_id.to_string(),
+        id: build_id.to_string(),
         repo: req.repo,
         target,
         args: req.args,
@@ -534,20 +675,22 @@ async fn handle_immediate_task_dispatch(
     // Send task to the selected worker
     if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id) {
         if worker.sender.send(msg).is_ok() {
-            worker.status = WorkerStatus::Busy(task_id.to_string());
+            worker.status = WorkerStatus::Busy(build_id.to_string());
             state
                 .scheduler
                 .active_builds
-                .insert(task_id.to_string(), build_info);
+                .insert(build_id.to_string(), build_info);
             tracing::info!(
-                "Task {} dispatched immediately to worker {}",
+                "Build {}/{} dispatched immediately to worker {}",
                 task_id,
+                build_id,
                 chosen_id
             );
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "task_id": task_id.to_string(),
+                    "build_id": build_id.to_string(),
                     "client_id": chosen_id,
                     "status": "dispatched"
                 })),
@@ -575,6 +718,52 @@ async fn handle_immediate_task_dispatch(
             Json(serde_json::json!({"message": "Internal scheduler error."})),
         )
             .into_response()
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/task-build-list/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID to get build IDs for")
+    ),
+    responses(
+        (status = 200, description = "List of build IDs associated with the task", body = [String]),
+        (status = 400, description = "Invalid task ID format", body = serde_json::Value),
+        (status = 404, description = "Task not found", body = serde_json::Value),
+        (status = 500, description = "Internal server error", body = serde_json::Value)
+    )
+)]
+pub async fn task_build_list_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let db = &state.conn;
+
+    // 解析task_id
+    let task_id = match id.parse::<uuid::Uuid>() {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"message": "Invalid task ID format"})),
+            )
+                .into_response();
+        }
+    };
+
+    // 使用get_builds_by_task_id方法获取build_ids
+    match tasks::Model::get_builds_by_task_id(task_id, db).await {
+        Some(build_ids) => {
+            let build_ids_str: Vec<String> =
+                build_ids.into_iter().map(|uuid| uuid.to_string()).collect();
+            (StatusCode::OK, Json(build_ids_str)).into_response()
+        }
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"message": "Task not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -739,13 +928,13 @@ async fn process_message(
 
                     // Remove from active builds and update database
                     state.scheduler.active_builds.remove(&id);
-                    let _ = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
+                    let _ = tasks::Entity::update_many()
+                        .set(tasks::ActiveModel {
                             exit_code: Set(exit_code),
                             end_at: Set(Some(chrono::Utc::now().naive_utc())),
                             ..Default::default()
                         })
-                        .filter(builds::Column::BuildId.eq(id.parse::<uuid::Uuid>().unwrap()))
+                        .filter(tasks::Column::TaskId.eq(id.parse::<uuid::Uuid>().unwrap()))
                         .exec(&state.conn)
                         .await;
 
@@ -771,9 +960,10 @@ async fn process_message(
 
 /// Data transfer object for build information in API responses
 #[derive(Debug, Serialize, ToSchema)]
-pub struct BuildDTO {
-    pub build_id: String,
-    pub output_file: String,
+pub struct TaskDTO {
+    pub task_id: String,
+    pub build_ids: serde_json::Value,
+    pub output_files: serde_json::Value,
     pub exit_code: Option<i32>,
     pub start_at: String,
     pub end_at: Option<String>,
@@ -783,12 +973,13 @@ pub struct BuildDTO {
     pub mr: String,
 }
 
-impl BuildDTO {
+impl TaskDTO {
     /// Converts a database model to a DTO for API responses
-    pub fn from_model(model: builds::Model) -> Self {
+    pub fn from_model(model: tasks::Model) -> Self {
         Self {
-            build_id: model.build_id.to_string(),
-            output_file: model.output_file,
+            task_id: model.task_id.to_string(),
+            build_ids: model.build_ids,
+            output_files: model.output_files,
             exit_code: model.exit_code,
             start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
             end_at: model
@@ -809,25 +1000,25 @@ impl BuildDTO {
         ("mr" = String, Path, description = "MR number")
     ),
     responses(
-        (status = 200, description = "Builds for MR", body = [BuildDTO]),
+        (status = 200, description = "Task for MR", body = [TaskDTO]),
         (status = 404, description = "No builds found for the given MR", body = serde_json::Value),
         (status = 500, description = "Internal server error", body = serde_json::Value)
     )
 )]
 /// Retrieves all build tasks associated with a specific merge request
-/// Returns a list of builds filtered by MR number
+/// Returns a list of task filtered by MR number
 pub async fn task_query_by_mr(
     State(state): State<AppState>,
     Path(mr): Path<String>,
-) -> Result<Json<Vec<BuildDTO>>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Vec<TaskDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
-    match builds::Entity::find()
-        .filter(builds::Column::Mr.eq(mr))
+    match tasks::Entity::find()
+        .filter(tasks::Column::Mr.eq(mr))
         .all(db)
         .await
     {
         Ok(models) if !models.is_empty() => {
-            let dtos = models.into_iter().map(BuildDTO::from_model).collect();
+            let dtos = models.into_iter().map(TaskDTO::from_model).collect();
             Ok(Json(dtos))
         }
         Ok(_) => Err((
@@ -847,8 +1038,8 @@ pub async fn task_query_by_mr(
 /// Task information including current status
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TaskInfoDTO {
-    pub build_id: String,
-    pub output_file: String,
+    pub build_id: serde_json::Value,
+    pub output_files: serde_json::Value,
     pub exit_code: Option<i32>,
     pub start_at: String,
     pub end_at: Option<String>,
@@ -860,10 +1051,10 @@ pub struct TaskInfoDTO {
 }
 
 impl TaskInfoDTO {
-    fn from_model_with_status(model: builds::Model, status: TaskStatusEnum) -> Self {
+    fn from_model_with_status(model: tasks::Model, status: TaskStatusEnum) -> Self {
         Self {
-            build_id: model.build_id.to_string(),
-            output_file: model.output_file,
+            build_id: model.build_ids,
+            output_files: model.output_files,
             exit_code: model.exit_code,
             start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
             end_at: model
@@ -896,8 +1087,8 @@ pub async fn tasks_handler(
 ) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
     let active_builds = state.scheduler.active_builds.clone();
-    match builds::Entity::find()
-        .filter(builds::Column::Mr.eq(mr))
+    match tasks::Entity::find()
+        .filter(tasks::Column::Mr.eq(mr))
         .all(db)
         .await
     {
@@ -905,7 +1096,7 @@ pub async fn tasks_handler(
             let tasks: Vec<TaskInfoDTO> = models
                 .into_iter()
                 .map(|m| {
-                    let id_str = m.build_id.to_string();
+                    let id_str = m.task_id.to_string();
                     let status = if active_builds.contains_key(&id_str) {
                         TaskStatusEnum::Building
                     } else if m.end_at.is_none() {
