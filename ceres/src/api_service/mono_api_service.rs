@@ -159,10 +159,6 @@ impl ApiHandler for MonoApiService {
         Ok(path.to_path_buf())
     }
 
-    async fn get_root_commit(&self) -> Commit {
-        unreachable!()
-    }
-
     async fn get_root_tree(&self) -> Tree {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
