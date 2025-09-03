@@ -175,10 +175,10 @@ runs:
         ls ${{ github.workspace }}\vcpkg
         ls ${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
+        $env:PKG_CONFIG_PATH = "${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\x64-windows\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
-        $env:LIB = "$env:LIB;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\lib;${{ github.workspace }}\monobean\resources\lib\lib"
-        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\include;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include"
+        $env:LIB = "$env:LIB;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\x64-windows\lib;${{ github.workspace }}\monobean\resources\lib\lib"
+        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installedx64-windows\include;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include"
 
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
         $env:AWS_LC_SYS_C_STD = 11
