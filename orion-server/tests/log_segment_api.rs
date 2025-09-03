@@ -16,15 +16,15 @@ fn init_log_dir() {
     }
 }
 
-fn write_log(task_id: &str, content: &str) {
+fn write_log(build_id: &str, content: &str) {
     init_log_dir();
-    let mut f = create_log_file(task_id).expect("create log file");
+    let mut f = create_log_file(build_id).expect("create log file");
     write!(f, "{content}").unwrap();
 }
 
-fn create_empty_log(task_id: &str) {
+fn create_empty_log(build_id: &str) {
     init_log_dir();
-    let _ = create_log_file(task_id).unwrap();
+    let _ = create_log_file(build_id).unwrap();
 }
 
 #[tokio::test]
