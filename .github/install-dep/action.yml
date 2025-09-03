@@ -172,7 +172,8 @@ runs:
       if: contains(inputs.platform, 'windows')
       shell: powershell
       run: |
-        ls ${{ github.workspace }}\vcpkg\installed\x64-windows\lib\pkgconfig
+        ls ${{ github.workspace }}\vcpkg
+        ls $env:VCPKG_INSTALLED_DIR
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
         $env:PKG_CONFIG_PATH = "${{ github.workspace }}\vcpkg\installed\x64-windows\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
