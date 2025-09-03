@@ -50,6 +50,8 @@ pub enum ConvTypeEnum {
     Label,
     #[sea_orm(string_value = "assignee")]
     Assignee,
+    #[sea_orm(string_value = "mention")]
+    Mention,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
@@ -68,6 +70,20 @@ pub enum RefTypeEnum {
     Branch,
     #[sea_orm(string_value = "tag")]
     Tag,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "reference_type_enum"
+)]
+pub enum ReferenceTypeEnum {
+    #[sea_orm(string_value = "mention")]
+    Mention,
+    #[sea_orm(string_value = "build_relates")]
+    BuildRelates,
+    #[sea_orm(string_value = "blocks")]
+    Blocks,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "storage_type_enum")]

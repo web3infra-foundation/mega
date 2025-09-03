@@ -539,7 +539,7 @@ impl MonoRepo {
             .await?
             .expect("MR Not Found");
 
-        let check_reg = CheckerRegistry::new(self.storage.clone().into());
+        let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
         check_reg.run_checks(mr_info.into()).await?;
         Ok(())
     }
