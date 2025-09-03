@@ -13,7 +13,7 @@ use axum::{
     response::{IntoResponse, Sse, sse::Event, sse::KeepAlive},
     routing::{any, get},
 };
-use chrono::{DateTime, Utc};
+use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::WSMessage;
@@ -330,10 +330,13 @@ pub async fn task_history_output_handler(
             let lines: Vec<&str> = buf.lines().collect();
             let len = lines.len();
 
-            (StatusCode::OK, Json(serde_json::json!({ 
-                "data": lines,
-                "len": len
-            })))
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "data": lines,
+                    "len": len
+                })),
+            )
         }
         Some("segment") => {
             // Parse offset
@@ -373,11 +376,14 @@ pub async fn task_history_output_handler(
                 }
                 idx += 1;
             }
-            
-            (StatusCode::OK, Json(serde_json::json!({ 
-                "data": lines_vec,
-                "len": lines_vec.len()
-            })))
+
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "data": lines_vec,
+                    "len": lines_vec.len()
+                })),
+            )
         }
         _ => (
             StatusCode::BAD_REQUEST,
@@ -443,7 +449,7 @@ pub async fn task_build_handler(
     // Check if there are idle workers available
     if state.scheduler.has_idle_workers() {
         // Have idle workers, directly dispatch task (keep original logic)
-        handle_immediate_task_dispatch(state, req, target,task_id).await
+        handle_immediate_task_dispatch(state, req, target, task_id).await
     } else {
         // No idle workers, add task to queue
         match state
@@ -451,7 +457,7 @@ pub async fn task_build_handler(
             .enqueue_task(req.clone(), target.clone(), task_id)
             .await
         {
-            Ok( build_id) => {
+            Ok(build_id) => {
                 tracing::info!("Build {}/{} queued for later processing", task_id, build_id);
 
                 // Save to database (mark as Pending status)
@@ -464,7 +470,7 @@ pub async fn task_build_handler(
                         build_id
                     )])),
                     exit_code: Set(None),
-                    start_at: Set(chrono::Utc::now().naive_utc()),
+                    start_at: Set(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
                     end_at: Set(None),
                     repo_name: Set(req.repo.clone()),
                     target: Set(target.clone()),
@@ -518,24 +524,24 @@ pub async fn task_handler(
 ) -> impl IntoResponse {
     let task_id = Uuid::now_v7();
     let db = &state.conn;
-    
+
     // Create empty JSON arrays for build_ids and output_files
     let empty_json_array = serde_json::Value::Array(vec![]);
-    
+
     // Insert new task into database
     let task_model = tasks::ActiveModel {
         task_id: Set(task_id),
         build_ids: Set(empty_json_array.clone()),
         output_files: Set(empty_json_array),
         exit_code: Set(None),
-        start_at: Set(chrono::Utc::now().naive_utc()),
+        start_at: Set(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
         end_at: Set(None),
         repo_name: Set(req.repo),
         target: Set(String::new()), // Empty for now, may be populated from request in the future
         arguments: Set(String::new()), // Empty for now, may be populated from request in the future
         mr: Set(req.mr.unwrap_or_default()),
     };
-    
+
     match task_model.insert(db).await {
         Ok(_) => {
             // Return task_id
@@ -543,8 +549,9 @@ pub async fn task_handler(
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "task_id": task_id.to_string()
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!("Failed to insert task into database: {}", e);
@@ -552,8 +559,9 @@ pub async fn task_handler(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "message": "Failed to create task"
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
     }
 }
@@ -563,7 +571,7 @@ async fn handle_immediate_task_dispatch(
     state: AppState,
     req: BuildRequest,
     target: String,
-    task_id: Uuid
+    task_id: Uuid,
 ) -> axum::response::Response {
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
@@ -613,7 +621,7 @@ async fn handle_immediate_task_dispatch(
         _worker_id: chosen_id.clone(),
         log_file,
     };
-    
+
     // Retrieve existing task to get current build_ids and output_files
     let existing_task = match tasks::Model::get_by_task_id(task_id, &state.conn).await {
         Some(task) => task,
@@ -628,12 +636,16 @@ async fn handle_immediate_task_dispatch(
     };
 
     // Update build_ids and output_files arrays
-    let mut build_ids: Vec<serde_json::Value> = existing_task.build_ids.as_array()
+    let mut build_ids: Vec<serde_json::Value> = existing_task
+        .build_ids
+        .as_array()
         .cloned()
         .unwrap_or_default();
     build_ids.push(serde_json::Value::String(build_id.to_string()));
 
-    let mut output_files: Vec<serde_json::Value> = existing_task.output_files.as_array()
+    let mut output_files: Vec<serde_json::Value> = existing_task
+        .output_files
+        .as_array()
         .cloned()
         .unwrap_or_default();
     output_files.push(serde_json::Value::String(format!(
@@ -647,7 +659,9 @@ async fn handle_immediate_task_dispatch(
         build_ids: Set(serde_json::Value::Array(build_ids)),
         output_files: Set(serde_json::Value::Array(output_files)),
         exit_code: Set(None),
-        start_at: Set(build_info.start_at.naive_utc()),
+        start_at: Set(build_info
+            .start_at
+            .with_timezone(&FixedOffset::east_opt(0).unwrap())),
         end_at: Set(None),
         repo_name: Set(build_info.repo.clone()),
         target: Set(build_info.target.clone()),
@@ -931,7 +945,9 @@ async fn process_message(
                     let _ = tasks::Entity::update_many()
                         .set(tasks::ActiveModel {
                             exit_code: Set(exit_code),
-                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
+                            end_at: Set(Some(
+                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                            )),
                             ..Default::default()
                         })
                         .filter(tasks::Column::TaskId.eq(id.parse::<uuid::Uuid>().unwrap()))
@@ -981,10 +997,8 @@ impl TaskDTO {
             build_ids: model.build_ids,
             output_files: model.output_files,
             exit_code: model.exit_code,
-            start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
-            end_at: model
-                .end_at
-                .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
+            start_at: model.start_at.with_timezone(&Utc).to_rfc3339(),
+            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,
@@ -1056,10 +1070,8 @@ impl TaskInfoDTO {
             build_id: model.build_ids,
             output_files: model.output_files,
             exit_code: model.exit_code,
-            start_at: DateTime::<Utc>::from_naive_utc_and_offset(model.start_at, Utc).to_rfc3339(),
-            end_at: model
-                .end_at
-                .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc).to_rfc3339()),
+            start_at: model.start_at.with_timezone(&Utc).to_rfc3339(),
+            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
             repo_name: model.repo_name,
             target: model.target,
             arguments: model.arguments,

@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::routing::get;
+use chrono::{FixedOffset, Utc};
 use http::{HeaderValue, Method};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
@@ -170,7 +171,9 @@ async fn start_health_check_task(state: AppState) {
 
                     let update_res = tasks::Entity::update_many()
                         .set(tasks::ActiveModel {
-                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
+                            end_at: Set(Some(
+                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                            )),
                             ..Default::default()
                         })
                         .filter(tasks::Column::TaskId.eq(task_id.parse::<uuid::Uuid>().unwrap()))

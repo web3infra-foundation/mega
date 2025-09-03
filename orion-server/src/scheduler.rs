@@ -1,4 +1,5 @@
 use crate::model::tasks;
+use chrono::FixedOffset;
 use dashmap::DashMap;
 use orion::ws::WSMessage;
 use rand::Rng;
@@ -108,7 +109,7 @@ impl TaskQueue {
     /// Get queue statistics
     pub fn get_stats(&self) -> TaskQueueStats {
         TaskQueueStats {
-            total_queued: self.queue.len(), 
+            total_queued: self.queue.len(),
             oldest_task_age_seconds: self
                 .queue
                 .front()
@@ -373,9 +374,15 @@ impl TaskScheduler {
         let model = tasks::ActiveModel {
             task_id: Set(pending_task.task_id),
             build_ids: Set(serde_json::json!([pending_task.build_id])),
-            output_files: Set(serde_json::json!([format!("{}/{}", get_build_log_dir(), pending_task.build_id)])),
+            output_files: Set(serde_json::json!([format!(
+                "{}/{}",
+                get_build_log_dir(),
+                pending_task.build_id
+            )])),
             exit_code: Set(None),
-            start_at: Set(build_info.start_at.naive_utc()),
+            start_at: Set(build_info
+                .start_at
+                .with_timezone(&FixedOffset::east_opt(0).unwrap())),
             end_at: Set(None),
             repo_name: Set(build_info.repo.clone()),
             target: Set(build_info.target.clone()),
@@ -466,7 +473,12 @@ impl TaskScheduler {
 
                     // Log expired task information
                     for task in expired_tasks {
-                        tracing::debug!("Expired build: {}/{} ({})", task.task_id,task.build_id, task.request.repo);
+                        tracing::debug!(
+                            "Expired build: {}/{} ({})",
+                            task.task_id,
+                            task.build_id,
+                            task.request.repo
+                        );
                     }
                 }
             }

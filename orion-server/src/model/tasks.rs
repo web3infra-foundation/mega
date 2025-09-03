@@ -1,26 +1,24 @@
 use sea_orm::QuerySelect;
 use sea_orm::entity::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Database model for build tasks
 /// Stores information about build jobs including their status, timing, and metadata
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Default)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "tasks")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub task_id: Uuid,
     #[sea_orm(column_type = "JsonBinary")]
-    pub build_ids: serde_json::Value,
+    pub build_ids: Json,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub output_files: Json,
     pub exit_code: Option<i32>,
-    pub start_at: DateTime,
-    pub end_at: Option<DateTime>,
+    pub start_at: DateTimeWithTimeZone,
+    pub end_at: Option<DateTimeWithTimeZone>,
     pub repo_name: String,
     pub target: String,
-    #[sea_orm(column_type = "JsonBinary")]
-    pub output_files: serde_json::Value,
-    #[sea_orm(column_type = "Text")]
     pub arguments: String,
-    #[sea_orm(column_type = "Text")]
     pub mr: String,
 }
 
