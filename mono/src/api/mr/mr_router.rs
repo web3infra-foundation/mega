@@ -498,6 +498,7 @@ async fn assignees(
         ("link", description = "MR link"),
     ),
     path = "/{link}/verify-signature",
+    request_body = VerifyMrPayload
     responses(
         (status = 200, body = CommonResult<HashMap<String, bool>>, content_type = "application/json")
     ),
@@ -506,8 +507,9 @@ async fn assignees(
 async fn verify_mr_signature(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
+    payload: Json<VerifyMrPayload>,
 ) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
-    let res = state.monorepo().verify_mr(&link).await?;
+    let res = state.monorepo().verify_mr(&link, payload.assignees).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
