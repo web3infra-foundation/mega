@@ -173,7 +173,7 @@ runs:
       shell: powershell
       run: |
         ls ${{ github.workspace }}\vcpkg
-        ls ${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec
+        ls ${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
         $env:PKG_CONFIG_PATH = "${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
