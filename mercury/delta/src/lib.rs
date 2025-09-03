@@ -44,8 +44,8 @@ pub fn heuristic_encode_rate(old_data: &[u8], new_data: &[u8]) -> f64 {
         }
         sample_count += 1;
 
-        // 早停判断：
-        // 剩余样本即使全匹配也达不到 MIN_DELTA_RATE，则提前返回 0
+        // Early stopping condition:
+        // If all remaining samples matched, the rate would still not reach MIN_DELTA_RATE, so return 0 early
         let remaining_samples = total_samples - sample_count;
         let max_possible_rate = (match_count + remaining_samples) as f64 / total_samples as f64;
         if max_possible_rate < MIN_DELTA_RATE {

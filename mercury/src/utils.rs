@@ -43,7 +43,7 @@ impl<R: BufRead> BufRead for CountingReader<R> {
     }
 
     fn consume(&mut self, amt: usize) {
-        self.bytes_read += amt as u64; // 关键：统计通过缓冲区消耗的字节
+        self.bytes_read += amt as u64; 
         self.inner.consume(amt);
     }
 }

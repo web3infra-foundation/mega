@@ -261,7 +261,7 @@ impl PackEncoder {
         )
         .map_err(|e| GitError::PackEncodeError(format!("Task join error: {e}")))?;
 
-        // 收集并合并结果
+        
         let all_encoded_data = [
             commit_results
                 .map_err(|e| GitError::PackEncodeError(format!("Commit encoding error: {e}")))?,
@@ -670,7 +670,7 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
-        // 计算原始总大小
+       
         let total_original_size: usize = entries
             .lock()
             .await
