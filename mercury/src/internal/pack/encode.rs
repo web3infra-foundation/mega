@@ -617,7 +617,6 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
-      
         let total_original_size: usize = entries
             .lock()
             .await
@@ -651,7 +650,6 @@ mod tests {
             result.extend(chunk);
         }
 
-        
         let pack_size = result.len();
         let compression_rate = if total_original_size > 0 {
             1.0 - (pack_size as f64 / total_original_size as f64)
@@ -681,8 +679,8 @@ mod tests {
             .map(|entry| entry.data.len())
             .sum();
 
-        let start = Instant::now(); 
-                                    // encode entries
+        let start = Instant::now();
+        // encode entries
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
@@ -708,13 +706,11 @@ mod tests {
         //     // do nothing
         // }
 
-       
         let mut result = Vec::new();
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
 
-       
         let pack_size = result.len();
         let compression_rate = if total_original_size > 0 {
             1.0 - (pack_size as f64 / total_original_size as f64)
@@ -739,7 +735,6 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
-        
         let total_original_size: usize = entries
             .lock()
             .await
@@ -764,7 +759,6 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        
         let mut result = Vec::new();
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
@@ -810,7 +804,6 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
-       
         let total_original_size: usize = entries
             .lock()
             .await
@@ -836,13 +829,11 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        
         let mut result = Vec::new();
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
 
-        
         let pack_size = result.len();
         let compression_rate = if total_original_size > 0 {
             1.0 - (pack_size as f64 / total_original_size as f64)
