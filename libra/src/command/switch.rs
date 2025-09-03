@@ -5,6 +5,7 @@ use super::{
     restore::{self, RestoreArgs},
     status,
 };
+use crate::command::status::StatusArgs;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::{
@@ -59,11 +60,11 @@ pub async fn execute(args: SwitchArgs) {
 pub async fn check_status() -> bool {
     let unstaged: status::Changes = status::changes_to_be_staged();
     if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
-        status::execute().await;
+        status::execute(StatusArgs::default()).await;
         eprintln!("fatal: unstaged changes, can't switch branch");
         true
     } else if !status::changes_to_be_committed().await.is_empty() {
-        status::execute().await;
+        status::execute(StatusArgs::default()).await;
         eprintln!("fatal: uncommitted changes, can't switch branch");
         true
     } else {
