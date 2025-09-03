@@ -153,6 +153,9 @@ runs:
     - uses: lukka/get-cmake@latest
       if: contains(inputs.platform, 'windows')
 
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: contains(inputs.platform, 'windows')
+
     - name: Setup anew (or from cache) vcpkg (and does not build any package)
       if: contains(inputs.platform, 'windows')
       uses: lukka/run-vcpkg@v11
