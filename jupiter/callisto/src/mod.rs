@@ -14,6 +14,7 @@ pub mod git_tag;
 pub mod git_tree;
 pub mod gpg_key;
 pub mod import_refs;
+pub mod issue_mr_references;
 pub mod item_assignees;
 pub mod item_labels;
 pub mod label;
