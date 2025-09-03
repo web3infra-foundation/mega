@@ -30,7 +30,7 @@ impl<R> CountingReader<R> {
 }
 
 impl<R: Read> Read for CountingReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inner.read(buf)?;
         self.bytes_read += n as u64;
         Ok(n)
@@ -38,7 +38,7 @@ impl<R: Read> Read for CountingReader<R> {
 }
 
 impl<R: BufRead> BufRead for CountingReader<R> {
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
         self.inner.fill_buf()
     }
 

@@ -189,7 +189,7 @@ impl PackEncoder {
         &mut self,
         entry_rx: mpsc::Receiver<Entry>,
     ) -> Result<(), GitError> {
-        return self.inner_encode(entry_rx, true).await;
+        self.inner_encode(entry_rx, true).await
     }
 
     /// Delta selection heuristics are based on:
@@ -476,7 +476,7 @@ impl PackEncoder {
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
-        self.send_data((hash_result).to_vec()).await;
+        self.send_data(hash_result.to_vec()).await;
         self.drop_sender();
         Ok(())
     }
@@ -519,7 +519,6 @@ impl PackEncoder {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::env;
     use std::sync::Arc;
     use std::time::Instant;
