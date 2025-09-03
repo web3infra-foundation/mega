@@ -1,7 +1,8 @@
 -- Orion schema (no CREATE DATABASE here)
-CREATE TABLE IF NOT EXISTS public.builds (
-  build_id    UUID PRIMARY KEY,
-  output_file TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS public.tasks (
+  task_id     UUID PRIMARY KEY,
+  build_ids   JSONB NOT NULL,
+  output_files JSONB NOT NULL,
   exit_code   INTEGER,
   start_at    TIMESTAMPTZ NOT NULL,
   end_at      TIMESTAMPTZ,
@@ -11,5 +12,5 @@ CREATE TABLE IF NOT EXISTS public.builds (
   mr          TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_builds_mr ON public.builds (mr);
-CREATE INDEX IF NOT EXISTS idx_builds_start_at ON public.builds (start_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_mr ON public.tasks (mr);
+CREATE INDEX IF NOT EXISTS idx_tasks_start_at ON public.tasks (start_at);

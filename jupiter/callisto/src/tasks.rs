@@ -4,16 +4,21 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "git_repo")]
+#[sea_orm(table_name = "tasks")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub id: i64,
-    #[sea_orm(column_type = "Text", unique)]
-    pub repo_path: String,
-    #[sea_orm(column_type = "Text")]
+    pub task_id: Uuid,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub build_ids: Json,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub output_files: Json,
+    pub exit_code: Option<i32>,
+    pub start_at: DateTimeWithTimeZone,
+    pub end_at: Option<DateTimeWithTimeZone>,
     pub repo_name: String,
-    pub created_at: DateTime,
-    pub updated_at: DateTime,
+    pub target: String,
+    pub arguments: String,
+    pub mr: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
