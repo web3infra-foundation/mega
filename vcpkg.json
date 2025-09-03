@@ -1,7 +1,7 @@
 {
   "name": "mega",
   "version-string": "1.0.0",
-  "builtin-baseline": "2025-05-01",
+  "builtin-baseline": "b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01",
   "dependencies": [
     {
       "name": "aws-sdk-cpp",
