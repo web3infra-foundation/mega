@@ -39,11 +39,10 @@ pub struct ImportRepo {
 
 #[async_trait]
 impl RepoHandler for ImportRepo {
-
     fn is_monorepo(&self) -> bool {
         false
     }
-    
+
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage
