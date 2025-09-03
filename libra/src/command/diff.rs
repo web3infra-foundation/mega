@@ -169,7 +169,7 @@ pub async fn execute(args: DiffArgs) {
             }
             #[cfg(not(unix))]
             {
-                io::stdout().write_all(diff_output.as_bytes()).unwrap();
+                io::stdout().write_all(results.join("").as_bytes()).unwrap();
             }
         }
     }

@@ -3,6 +3,9 @@ import { useAtom } from 'jotai'
 
 import { loadingAtom, logsAtom, statusAtom } from '../components/Checks/cpns/store'
 
+// TODO：request path should be set by the environment val
+export const SSEPATH = window.location.href.includes('app') ? 'https://orion.gitmega.com/' : '/sse/'
+
 export const useSSM = () => {
   const sseUrl = useRef('')
   const createEventSource = (baseUrl: string): Promise<EventSource> => {
@@ -38,18 +41,32 @@ export const useTaskSSE = () => {
   const [_status, setStatus] = useAtom(statusAtom)
 
   const setEventSource: (taskId: string) => void = (taskId: string) => {
+    if (eventSourcesRef.current[taskId]) return
+    // proxy
     // const es = new EventSource(`/sse/task-output/${taskId}`)
-    const es = new EventSource(`/api/event?id=${taskId}`)
+
+    // mock
+    // const es = new EventSource(`/api/event?id=${taskId}`)
+
+    const es = new EventSource(`${SSEPATH}task-output/${taskId}`)
 
     es.onmessage = (e) => {
       setLogsMap((prev) => {
-        const prevLogs = prev[taskId] ?? []
+        const prevLogs = prev[taskId] ?? ''
+        const newLog = e.data + '\n'
+
+        // 判断最后一条是否重复
+        if (prevLogs.endsWith(newLog)) {
+          return prev // 重复就直接返回原对象
+        }
 
         return {
           ...prev,
-          [taskId]: [...prevLogs, e.data] // 每条消息生成新数组
+          [taskId]: prevLogs + newLog
         }
       })
+
+      setLoading(false)
     }
 
     // status
@@ -78,11 +95,12 @@ export const useTaskSSE = () => {
       Object.values(eventSourcesRef.current).forEach((es) => es.close())
       eventSourcesRef.current = {}
       setLoading(false)
+      setLogsMap({})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { eventSourcesRef, setEventSource, logsMap }
+  return { eventSourcesRef, setEventSource, logsMap, setLogsMap }
 }
 
 export const useMultiTaskSSE = (taskIds: string[]) => {
@@ -102,7 +120,7 @@ export const useMultiTaskSSE = (taskIds: string[]) => {
     taskIds.forEach((taskId) => {
       if (!eventSourcesRef.current[taskId]) {
         // const es = new EventSource(`/api/tasks/${taskId}/events`)
-        const es = new EventSource(`/sse/task-output/${taskId}`)
+        const es = new EventSource(`${SSEPATH}/task-output/${taskId}`)
 
         es.onmessage = (e) => {
           setEventsMap((prev) => {

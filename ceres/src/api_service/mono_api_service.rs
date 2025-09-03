@@ -39,12 +39,15 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use crate::api_service::ApiHandler;
+use crate::model::git::CreateFileInfo;
+use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
-
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
+// use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -55,10 +58,8 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
-
-use crate::api_service::ApiHandler;
-use crate::model::git::CreateFileInfo;
-use crate::model::mr::MrDiffFile;
+// use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
+use regex::Regex;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -158,10 +159,6 @@ impl ApiHandler for MonoApiService {
         Ok(path.to_path_buf())
     }
 
-    async fn get_root_commit(&self) -> Commit {
-        unreachable!()
-    }
-
     async fn get_root_tree(&self) -> Tree {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
@@ -191,15 +188,19 @@ impl ApiHandler for MonoApiService {
         }
     }
 
-    async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
+    async fn get_tree_relate_commit(&self, t_hash: SHA1, _: PathBuf) -> Result<Commit, GitError> {
         let storage = self.storage.mono_storage();
-        let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
-        storage
+        let tree_info = storage
+            .get_tree_by_hash(&t_hash.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        Ok(storage
             .get_commit_by_hash(&tree_info.commit_id)
             .await
             .unwrap()
             .unwrap()
-            .into()
+            .into())
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -405,7 +406,7 @@ impl MonoApiService {
         &self,
         mr_link: &str,
         page: Pagination,
-    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+    ) -> Result<(Vec<DiffItem>, Vec<String>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
@@ -428,6 +429,10 @@ impl MonoApiService {
         let sorted_changed_files = self
             .mr_files_list(old_blobs.clone(), new_blobs.clone())
             .await?;
+        let file_paths: Vec<String> = sorted_changed_files
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect();
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
@@ -455,7 +460,7 @@ impl MonoApiService {
         // calculate total pages
         let total = sorted_changed_files.len().div_ceil(per_page);
 
-        Ok((diff_output, total as u64))
+        Ok((diff_output, file_paths, total as u64))
     }
 
     async fn get_diff_by_blobs(
@@ -584,6 +589,87 @@ impl MonoApiService {
         });
         Ok(res)
     }
+
+    pub async fn verify_mr(&self, mr_link: &str) -> Result<HashMap<String, bool>, MegaError> {
+        let stg = self.storage.mr_storage();
+        let mr = stg.get_mr(mr_link).await?.ok_or_else(|| {
+            MegaError::with_message(format!("Merge request not found: {mr_link}"))
+        })?;
+
+        let commit = self
+            .storage
+            .mono_storage()
+            .get_commit_by_hash(&mr.to_hash)
+            .await?
+            .ok_or_else(|| MegaError::with_message("Commit not found"))?;
+
+        let mut res = HashMap::new();
+        let content = commit.content.clone().unwrap_or_default();
+        let _user_id = self
+            .storage
+            .user_storage()
+            .find_user_by_email(&self.extract_email(&content).await.unwrap_or_default())
+            .await?
+            .unwrap()
+            .id;
+        // let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
+        // TODO: Temporarily disable GPG verification
+        let verified = false;
+        res.insert(commit.commit_id.clone(), verified);
+        Ok(res)
+    }
+
+    async fn extract_email(&self, s: &str) -> Option<String> {
+        let re = Regex::new(r"<\s*(?P<email>[^<>@\s]+@[^<>@\s]+)\s*>").unwrap();
+        re.captures(s)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().to_string())
+    }
+
+    // TODO: implement GPG
+    // async fn verify_commit_gpg_signature(
+    //     &self,
+    //     commit_content: &str,
+    //     user_id: String,
+    // ) -> Result<bool, MegaError> {
+    //     let (commit_msg, signature) = parse_commit_msg(commit_content);
+    //     if signature.is_none() {
+    //         return Ok(false); // No signature to verify
+    //     }
+    //
+    //     let sig_str = signature.unwrap();
+    //
+    //     // Remove "gpgsig " prefix if present
+    //     let sig = sig_str
+    //         .strip_prefix("gpgsig ")
+    //         .map(|s| s.trim())
+    //         .unwrap_or(sig_str);
+    //
+    //     let keys = self.storage.gpg_storage().list_user_gpg(user_id).await?;
+    //
+    //     for key in keys {
+    //         let verified = self
+    //             .verify_signature_with_key(&key.public_key, sig, commit_msg)
+    //             .await?;
+    //         if verified {
+    //             return Ok(true); // Signature verified successfully
+    //         }
+    //     }
+    //
+    //     Ok(false) // No key could verify the signature
+    // }
+    //
+    // async fn verify_signature_with_key(
+    //     &self,
+    //     public_key: &str,
+    //     signature: &str,
+    //     message: &str,
+    // ) -> Result<bool, MegaError> {
+    //     let (public_key, _) = SignedPublicKey::from_string(public_key)?;
+    //     let (signature, _) = StandaloneSignature::from_string(signature)?;
+    //
+    //     Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
+    // }
 
     pub async fn get_commit_blobs(
         &self,
@@ -859,7 +945,7 @@ mod test {
         let current_page = 2u32;
         let page_size = 3u32;
 
-        let total_pages = (total_files + page_size as usize - 1) / page_size as usize;
+        let total_pages = total_files.div_ceil(page_size as usize);
         let current_page = current_page as usize;
         let page_size = page_size as usize;
 

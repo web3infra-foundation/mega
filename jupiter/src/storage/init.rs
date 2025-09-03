@@ -2,7 +2,7 @@ use common::config::DbConfig;
 use common::errors::MegaError;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{
-    net::{SocketAddr, TcpStream},
+    net::{TcpStream, ToSocketAddrs},
     path::Path,
     time::Duration,
 };
@@ -36,24 +36,21 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
 
     let conn = if db_config.db_type == "postgres" {
         if should_check_port_first(&db_config.db_url) {
-            if !is_port_reachable(&db_config.db_url) {
-                log::info!("Local postgres port not reachable, falling back to sqlite");
-                sqlite_connection(db_config)
-                    .await
-                    .expect("Cannot connect to any database")
-            } else {
-                match postgres_connection(db_config).await {
-                    Ok(conn) => conn,
-                    Err(e) => {
-                        log::error!("Failed to connect to postgres: {e}");
-                        log::info!("Falling back to sqlite");
-                        sqlite_connection(db_config)
-                            .await
-                            .expect("Cannot connect to any database")
-                    }
+            match check_local_postgres_and_connect(db_config).await {
+                Ok(conn) => conn,
+                Err(reason) => {
+                    log::warn!(
+                        "Falling back to SQLite for {}. Reason: {}",
+                        &db_config.db_url,
+                        reason
+                    );
+                    sqlite_connection(db_config)
+                        .await
+                        .expect("Cannot connect to any database")
                 }
             }
         } else {
+            // online connect
             match postgres_connection(db_config).await {
                 Ok(conn) => conn,
                 Err(e) => {
@@ -87,11 +84,34 @@ fn should_check_port_first(db_url: &str) -> bool {
     false
 }
 
+/// Check local postgres port and try connecting
+async fn check_local_postgres_and_connect(
+    db_config: &DbConfig,
+) -> Result<DatabaseConnection, String> {
+    if !is_port_reachable(&db_config.db_url) {
+        return Err("Local postgres port not reachable".to_string());
+    }
+    match postgres_connection(db_config).await {
+        Ok(conn) => Ok(conn),
+        Err(e) => Err(format!("Postgres connection failed: {}", e)),
+    }
+}
+
+/// Check if any resolved address is reachable within 100ms
 fn is_port_reachable(db_url: &str) -> bool {
     if let Ok(url) = Url::parse(db_url) {
         if let (Some(host), Some(port)) = (url.host_str(), url.port()) {
-            if let Ok(addr) = format!("{host}:{port}").parse::<SocketAddr>() {
-                return TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok();
+            if let Ok(addrs) = (host, port).to_socket_addrs() {
+                for addr in addrs {
+                    if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
+                        log::info!("Successfully connected to {}", addr);
+                        return true;
+                    } else {
+                        log::warn!("Failed to connect to {}", addr);
+                    }
+                }
+            } else {
+                log::warn!("Failed to resolve host: {}", host);
             }
         }
     }
@@ -145,39 +165,32 @@ pub mod test {
             .is_ok());
 
         // Test localhost variants - should return true
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@localhost:5432/mono_test"),
-            true
-        );
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@127.0.0.1:5432/mono_test"),
-            true
-        );
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@::1:5432/mono_test"),
-            true
-        );
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@0.0.0.0:5432/mono_test"),
-            true
-        );
+        assert!(should_check_port_first(
+            "postgres://mono:mono@localhost:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@127.0.0.1:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@::1:5432/mono_test"
+        ));
+        assert!(should_check_port_first(
+            "postgres://mono:mono@0.0.0.0:5432/mono_test"
+        ));
 
         // Test remote addresses - should return false
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@192.168.1.100:5432/mono_test"),
-            false
-        );
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@example.com:5432/mono_test"),
-            false
-        );
-        assert_eq!(
-            should_check_port_first("postgres://mono:mono@10.0.0.1:5432/mono_test"),
-            false
-        );
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@192.168.1.100:5432/mono_test"
+        ));
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@example.com:5432/mono_test"
+        ));
+        assert!(!should_check_port_first(
+            "postgres://mono:mono@10.0.0.1:5432/mono_test"
+        ));
 
         // Test invalid URLs - should return false
-        assert_eq!(should_check_port_first("invalid_url"), false);
-        assert_eq!(should_check_port_first(""), false);
+        assert!(!should_check_port_first("invalid_url"));
+        assert!(!should_check_port_first(""));
     }
 }

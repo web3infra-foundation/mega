@@ -1,16 +1,9 @@
 use crate::integration::jupiter_backend::JupiterBackend;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
-use std::{
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{path::PathBuf, sync::Arc};
 
-use rusty_vault::{
-    core::Core,
-    logical::{Operation, Request, Response},
-    storage::{Backend, barrier_aes_gcm},
-};
+use rusty_vault::{RustyVault, logical::Response, storage::Backend};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tracing::log;
@@ -25,7 +18,7 @@ struct CoreKey {
 
 #[derive(Clone)]
 pub struct VaultCore {
-    core: Arc<RwLock<Core>>,
+    rvault: Arc<RustyVault>,
     key: Arc<CoreKey>,
 }
 
@@ -57,32 +50,26 @@ impl VaultCore {
 
     pub fn config(ctx: Storage, key_path: PathBuf) -> Self {
         let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
-        let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
         let seal_config = rusty_vault::core::SealConfig {
             secret_shares: 10,
             secret_threshold: 5,
         };
 
-        let core = Core {
-            physical: backend,
-            barrier: Arc::new(barrier),
-            ..Default::default()
-        };
-        let core = Arc::new(RwLock::new(core));
-
+        let rvault =
+            RustyVault::new(backend.clone(), None).expect("Failed to create RustyVault instance");
         let key = {
-            let mut managed_core = core.write().unwrap();
-            managed_core
-                .config(core.clone(), None)
-                .expect("Failed to configure vault core");
-
             let core_key = if !key_path.exists() {
-                let result = managed_core
+                println!("Vault core key file does not exist, creating a new one...");
+                let result = rvault
                     .init(&seal_config)
                     .expect("Failed to initialize vault");
+                println!(
+                    "Vault core initialized with root token: {}",
+                    result.root_token
+                );
                 let core_key = CoreKey {
                     secret_shares: Vec::from(&result.secret_shares[..]),
-                    root_token: result.root_token,
+                    root_token: result.root_token.clone(),
                 };
 
                 println!(
@@ -103,7 +90,7 @@ impl VaultCore {
 
             for i in 0..seal_config.secret_threshold {
                 let key = &core_key.secret_shares[i as usize];
-                let unseal = managed_core.unseal(key);
+                let unseal = rvault.unseal(&[key.as_slice()]);
                 assert!(unseal.is_ok(), "Unseal error: {:?}", unseal.err());
             }
 
@@ -112,9 +99,13 @@ impl VaultCore {
                 core_key.root_token
             );
 
-            core_key.into()
+            core_key
         };
-        Self { core, key }
+
+        let rvault = rvault.into();
+        let key = Arc::new(key);
+
+        Self { rvault, key }
     }
 }
 
@@ -124,13 +115,9 @@ impl VaultCoreInterface for VaultCore {
     }
 
     fn read_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
-        let mut req = Request::new(path.as_ref());
-        req.operation = Operation::Read;
-        req.client_token = self.token().to_string();
-        let guard = self.core.read().unwrap();
-        guard
-            .handle_request(&mut req)
-            .map_err(|e| MegaError::with_message(format!("Failed to read from vault API: {e}")))
+        self.rvault
+            .read(self.token().into(), path.as_ref())
+            .map_err(|_| MegaError::with_message("Failed to read from vault API"))
     }
 
     fn write_api(
@@ -138,29 +125,20 @@ impl VaultCoreInterface for VaultCore {
         path: impl AsRef<str>,
         data: Option<Map<String, Value>>,
     ) -> Result<Option<Response>, MegaError> {
-        let mut req = Request::new(path.as_ref());
-        req.operation = Operation::Write;
-        req.client_token = self.token().to_string();
-        req.body = data;
-        let guard = self.core.read().unwrap();
-        guard
-            .handle_request(&mut req)
-            .map_err(|_| MegaError::with_message("Failed to write to vault API"))
+        self.rvault
+            .write(self.token().into(), path.as_ref(), data)
+            .map_err(|e| MegaError::with_message(format!("Failed to write to vault API: {e}")))
     }
 
     fn delete_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
-        let mut req = Request::new(path.as_ref());
-        req.operation = Operation::Delete;
-        req.client_token = self.token().to_string();
-        let guard = self.core.read().unwrap();
-        guard
-            .handle_request(&mut req)
+        self.rvault
+            .delete(self.token().into(), path.as_ref(), None)
             .map_err(|_| MegaError::with_message("Failed to delete from vault API"))
     }
 
     fn write_secret(&self, name: &str, data: Option<Map<String, Value>>) -> Result<(), MegaError> {
         self.write_api(format!("secret/{name}"), data)
-            .map_err(|_| MegaError::with_message(format!("Failed to write secret: {name}")))?;
+            .map_err(|e| MegaError::with_message(format!("Failed to write secret: {name}, {e}")))?;
         Ok(())
     }
 
@@ -190,7 +168,7 @@ mod tests {
     async fn test_vault_core_initialization() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let key_path = temp_dir.path().join(CORE_KEY_FILE);
-        println!("Key path: {:?}", key_path);
+        println!("Key path: {key_path:?}");
         let storage = test_storage(temp_dir.path()).await;
         let vault_core = VaultCore::config(storage, key_path);
 
@@ -199,7 +177,7 @@ mod tests {
             "Vault core token should not be empty"
         );
         assert!(
-            vault_core.core.read().unwrap().inited().unwrap(),
+            vault_core.rvault.core.load().inited().unwrap(),
             "Vault core should be initialized"
         );
     }

@@ -19,6 +19,7 @@ on:
       - 'third-party/**'
       - 'toolchains/**'
       - '.github/workflows/web-**'
+      - 'extensions/**'
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -64,8 +65,8 @@ jobs:
             runs-on: [self-hosted, macOS, ARM64]
             home: "/Users/eli"
           - os: windows
-            runs-on: [self-hosted, X64, Windows]
-            home: "C:\\Users\\meagl"
+            runs-on: windows-latest
+            home: "C:\\Users\\runneradmin"
 
     runs-on: ${{ matrix.runs-on }}
     env:
@@ -104,7 +105,7 @@ jobs:
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path saturn/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
-          
+
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
@@ -120,9 +121,9 @@ jobs:
             self-hosted: true
             home: "/Users/eli"
           - os: windows
-            runs-on: [self-hosted, X64, Windows]
+            runs-on: windows-latest
             self-hosted: true
-            home: "C:\\Users\\meagl"
+            home: "C:\\Users\\runneradmin"
 
     runs-on: ${{ matrix.runs-on }}
     env:

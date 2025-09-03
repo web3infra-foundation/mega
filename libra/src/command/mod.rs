@@ -15,11 +15,13 @@ pub mod merge;
 pub mod pull;
 pub mod push;
 pub mod rebase;
+pub mod reflog;
 pub mod remote;
 pub mod remove;
 pub mod reset;
 pub mod restore;
 pub mod revert;
+pub mod stash;
 pub mod status;
 pub mod switch;
 

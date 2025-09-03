@@ -1,4 +1,3 @@
-use async_session::MemoryStore;
 use axum::extract::FromRef;
 use oauth2::{
     basic::{
@@ -8,6 +7,7 @@ use oauth2::{
     Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
 };
 use std::path::Path;
+use tower_sessions::MemoryStore;
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use ceres::{
@@ -17,16 +17,17 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::storage::note_storage::NoteStorage;
 use jupiter::storage::{
     conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
     user_storage::UserStorage, Storage,
 };
+use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 
 pub mod api_common;
 pub mod api_router;
 pub mod conversation;
 pub mod error;
+mod gpg;
 pub mod issue;
 pub mod label;
 pub mod lfs;
@@ -64,7 +65,7 @@ pub struct MonoApiServiceState {
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
     fn from_ref(_: &MonoApiServiceState) -> Self {
-        MemoryStore::new()
+        MemoryStore::default()
     }
 }
 
@@ -95,6 +96,10 @@ impl MonoApiServiceState {
 
     fn issue_stg(&self) -> IssueStorage {
         self.storage.issue_storage()
+    }
+
+    fn gpg_stg(&self) -> GpgStorage {
+        self.storage.gpg_storage()
     }
 
     fn mr_stg(&self) -> MrStorage {

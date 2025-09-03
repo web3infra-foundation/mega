@@ -1,3 +1,5 @@
+import { DiffItem } from "@gitmono/types/generated"
+
 const extensionToLangMap: Record<string, string> = {
   // Note that the key here is lowercase
   '.ts': 'typescript',
@@ -21,15 +23,15 @@ const extensionToLangMap: Record<string, string> = {
   '.html': 'html',
   '.vue': 'vue',
   '.toml': 'toml',
-  dockerfile: 'dockerfile',
+  'dockerfile': 'dockerfile',
   '.dockerfile': 'dockerfile',
   'license-mit': 'plaintext',
-  buck: 'plaintext',
+  'buck': 'plaintext',
   '.gitignore': 'plaintext',
   '.env': 'plaintext',
   'license-third-party': 'plaintext',
   'license-apache': 'plaintext',
-  workspace: 'plaintext',
+  'workspace': 'plaintext',
   '.buckroot': 'plaintext',
   '.buckconfig': 'plaintext'
 }
@@ -50,18 +52,13 @@ function getLangFromPath(path: string): string {
   return 'binary'
 }
 
-export function parsedDiffs(diffText: string): { path: string; lang: string; diff: string }[] {
-  if (!diffText) return []
+export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string; diff: string }[] {
+  if (diffText.length < 1) return []
 
-  const parts = diffText
-    .split(/(?=^diff --git )/gm)
-    .map((block) => block.trim())
-    .filter(Boolean)
-
-  return parts.map((block) => {
+  return diffText.map((block) => {
     let path = ''
 
-    const diffGitMatch = block.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m)
+    const diffGitMatch = block.data.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m)
 
     if (diffGitMatch) {
       const originalPath = diffGitMatch[1]?.trim()
@@ -78,20 +75,20 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
       return {
         path,
         lang: getLangFromPath(path),
-        diff: block
+        diff: block.data
       }
     }
 
-    let diffWithHeader = block
-    const plusMatch = block.match(/^\+\+\+ b\/([^\n\r]+)/m)
-    const hunkIndex = block.indexOf('@@')
+    let diffWithHeader = block.data
+    const headerRegex = /^(diff|index|---|\+\+\+|new file mode|@@)/;
+    const hunkContent = block.data
+      .split('\n')
+      .filter(line => !headerRegex.test(line.trim()));
 
-    if (!plusMatch) {
-      let prefix = `--- a/${path}\n+++ b/${path}\n`
+    const isEmptyHunk = hunkContent.every(line => line.trim() === '');
 
-      diffWithHeader = hunkIndex >= 0 ? block.slice(0, hunkIndex) + prefix + block.slice(hunkIndex) : prefix + block
-    } else if (hunkIndex < 0) {
-      diffWithHeader = 'EMPTY_DIFF_MARKER'
+    if (!block.data.includes('@@') || isEmptyHunk) {
+      diffWithHeader = 'EMPTY_DIFF_MARKER';
     }
 
     if (!diffWithHeader.endsWith('\n')) {
@@ -99,7 +96,7 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
     }
 
     return {
-      path,
+      path: block.path,
       lang: getLangFromPath(path),
       diff: diffWithHeader
     }

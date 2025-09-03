@@ -8,8 +8,11 @@ import {legacyApiClient} from '@/utils/queryClient'
 import {ListToken} from '@gitmono/types'
 import toast from "react-hot-toast";
 import HandleTime from "@/components/MrView/components/HandleTime";
+import {useGetCurrentUser} from "@/hooks/useGetCurrentUser";
 
-const TokenItem = ({item}: { item: ListToken }) => {
+const TokenItem = ({item}: {
+  item: ListToken
+}) => {
   const {mutate: deleteToken} = useDeleteTokenById()
   const queryClient = useQueryClient()
   const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
@@ -45,36 +48,19 @@ const TokenItem = ({item}: { item: ListToken }) => {
   )
 }
 
-const PersonalToken = () => {
-  const {tokenList, isLoading} = useGetTokenList()
-  const {mutate: generateToken, isPending: isGenerating} = usePostTokenGenerate()
-  const queryClient = useQueryClient()
-  const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
-
-  const [generated, setGenerated] = useState<string | null>(null)
+const CopySpace = ({ copyText }: { copyText: string }) => {
   const [copied, setCopied] = useState(false)
-
-  const handleGenerate = () => {
-    generateToken(undefined, {
-      onSuccess: (result) => {
-        setGenerated(result?.data ?? null)
-        queryClient.invalidateQueries({queryKey: fetchTokenList.requestKey()})
-      }
-    })
-  }
-
-  const handleCopy = async () => {
-    if (!generated) return
+  const handleCopy = async (copyText: string) => {
     if (navigator.clipboard) {
       await navigator.clipboard
-        .writeText(generated)
+        .writeText(copyText)
         .then(() => toast.success("Copied to clipboard"))
         .catch(() => toast.error("Copied failed"))
     } else {
       const textArea = document
         .createElement('textarea')
 
-      textArea.value = generated
+      textArea.value = copyText
       document.body.appendChild(textArea)
       textArea.select()
       try {
@@ -87,6 +73,38 @@ const PersonalToken = () => {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="mb-4">
+      <code
+        className="px-3 py-2 bg-white border border-gray-200 rounded font-mono text-sm break-all flex-1"
+      >
+        {copyText}
+      </code>
+      <Button variant="flat" className="ml-3" onClick={()=> handleCopy(copyText)}>
+        {copied ? 'Copied' : 'Copy'}
+      </Button>
+    </div>
+  )
+}
+
+const PersonalToken = () => {
+  const {tokenList, isLoading} = useGetTokenList()
+  const {mutate: generateToken, isPending: isGenerating} = usePostTokenGenerate()
+  const queryClient = useQueryClient()
+  const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
+
+  const [generated, setGenerated] = useState<string | null>(null)
+  const { data: currentUser, isLoading: isUserLoading } = useGetCurrentUser()
+
+  const handleGenerate = () => {
+    generateToken(undefined, {
+      onSuccess: (result) => {
+        setGenerated(result?.data ?? null)
+        queryClient.invalidateQueries({queryKey: fetchTokenList.requestKey()})
+      }
+    })
   }
 
   return (
@@ -110,15 +128,14 @@ const PersonalToken = () => {
         recognize.
       </p>
 
-      {generated && (
+      {generated && currentUser && (
         <div className="mb-8 p-4 border border-green-200 rounded-md bg-green-50">
           <p className="text-sm text-gray-700">Your new token has been generated.</p>
-          <div className="mt-2 flex items-center">
-            <code
-              className="px-3 py-2 bg-white border border-gray-200 rounded font-mono text-sm break-all flex-1">{generated}</code>
-            <Button variant="flat" className="ml-3" onClick={handleCopy}>
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
+          <div className="mt-2 flex-col items-center">
+            <span className="text-sm text-gray-700">Username:</span>
+            <CopySpace copyText={currentUser.username} />
+            <span className="text-sm text-gray-700">Token:</span>
+            <CopySpace copyText={generated}/>
           </div>
           <p className="text-xs text-gray-500 mt-2">Make sure to copy your new token now. You won’t be able to see it
             again.</p>
@@ -127,13 +144,13 @@ const PersonalToken = () => {
 
       <section>
         <h2 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200">Tokens</h2>
-        {isLoading ? (
+        {(isLoading || isUserLoading) ? (
           <div className="flex h-[400px] items-center justify-center">
             <LoadingSpinner/>
           </div>
         ) : (
           <div>
-            {tokenList.map((item) => (
+            {currentUser && tokenList.map((item) => (
               <TokenItem key={item.id} item={item}/>
             ))}
           </div>

@@ -1,15 +1,16 @@
 use clap::Parser;
 use mercury::hash::SHA1;
 
+use super::{
+    restore::{self, RestoreArgs},
+    status,
+};
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
 use crate::{
     command::branch,
     internal::{branch::Branch, head::Head},
     utils::util::{self, get_commit_base},
-};
-
-use super::{
-    restore::{self, RestoreArgs},
-    status,
 };
 
 #[derive(Parser, Debug)]
@@ -72,28 +73,109 @@ pub async fn check_status() -> bool {
 
 /// change the working directory to the version of commit_hash
 async fn switch_to_commit(commit_hash: SHA1) {
+    let db = get_db_conn_instance().await;
+
+    let old_head_commit = Head::current_commit_with_conn(db)
+        .await
+        .expect("Cannot switch: HEAD is unborn.");
+
+    let from_ref_name = match Head::current_with_conn(db).await {
+        Head::Branch(name) => name,
+        Head::Detached(hash) => hash.to_string()[..7].to_string(), // Use short hash for detached HEAD
+    };
+
+    let action = ReflogAction::Switch {
+        from: from_ref_name,
+        to: commit_hash.to_string()[..7].to_string(), // Use short hash for target commit
+    };
+    let context = ReflogContext {
+        old_oid: old_head_commit.to_string(),
+        new_oid: commit_hash.to_string(),
+        action,
+    };
+
+    if let Err(e) = with_reflog(
+        context,
+        move |txn: &sea_orm::DatabaseTransaction| {
+            Box::pin(async move {
+                let new_head = Head::Detached(commit_hash);
+                Head::update_with_conn(txn, new_head, None).await;
+                Ok(())
+            })
+        },
+        false,
+    )
+    .await
+    {
+        eprintln!("fatal: {e}");
+        return;
+    };
+
+    // Only restore the working directory *after* HEAD has been successfully updated.
     restore_to_commit(commit_hash).await;
-    // update HEAD
-    let head = Head::Detached(commit_hash);
-    Head::update(head, None).await;
+    println!("HEAD is now at {}", &commit_hash.to_string()[..7]);
 }
 
 async fn switch_to_branch(branch_name: String) {
-    let target_branch = Branch::find_branch(&branch_name, None).await;
-    if target_branch.is_none() {
-        if !Branch::search_branch(&branch_name).await.is_empty() {
-            eprintln!("fatal: a branch is expected, got remote branch {branch_name}");
-        } else {
-            eprintln!("fatal: branch '{}' not found", &branch_name);
+    let db = get_db_conn_instance().await;
+
+    let target_branch = match Branch::find_branch_with_conn(db, &branch_name, None).await {
+        Some(b) => b,
+        None => {
+            if !Branch::search_branch(&branch_name).await.is_empty() {
+                eprintln!("fatal: a branch is expected, got remote branch {branch_name}");
+            } else {
+                eprintln!("fatal: branch '{}' not found", &branch_name);
+            }
+            return;
         }
+    };
+    let target_commit_id = target_branch.commit;
+
+    let old_head_commit = Head::current_commit_with_conn(db)
+        .await
+        .expect("Cannot switch: HEAD is unborn.");
+
+    let from_ref_name = match Head::current_with_conn(db).await {
+        Head::Branch(name) => name,
+        Head::Detached(hash) => hash.to_string()[..7].to_string(),
+    };
+
+    if from_ref_name == branch_name {
+        println!("Already on '{branch_name}'");
         return;
     }
-    let commit_id = target_branch.unwrap().commit;
-    restore_to_commit(commit_id).await;
-    // update HEAD
-    // let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
-    let head = Head::Branch(branch_name);
-    Head::update(head, None).await;
+
+    let action = ReflogAction::Switch {
+        from: from_ref_name,
+        to: branch_name.clone(),
+    };
+    let context = ReflogContext {
+        old_oid: old_head_commit.to_string(),
+        new_oid: target_commit_id.to_string(),
+        action,
+    };
+
+    // `log_for_branch` is `false`. This is the key insight for `switch`/`checkout`.
+    if let Err(e) = with_reflog(
+        context,
+        move |txn: &sea_orm::DatabaseTransaction| {
+            Box::pin(async move {
+                let new_head = Head::Branch(branch_name.clone());
+                Head::update_with_conn(txn, new_head, None).await;
+                Ok(())
+            })
+        },
+        false,
+    )
+    .await
+    {
+        eprintln!("fatal: {e}");
+        return;
+    }
+
+    restore_to_commit(target_commit_id).await;
+    println!("Switched to branch '{}'", target_branch.name);
 }
 
 async fn restore_to_commit(commit_id: SHA1) {

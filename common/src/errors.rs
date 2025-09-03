@@ -74,6 +74,12 @@ impl From<sea_orm::DbErr> for MegaError {
     }
 }
 
+impl From<pgp::errors::Error> for MegaError {
+    fn from(err: pgp::errors::Error) -> MegaError {
+        MegaError::new(err.into(), 1)
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum GitLFSError {
     #[error("Something went wrong in Git LFS: {0}")]

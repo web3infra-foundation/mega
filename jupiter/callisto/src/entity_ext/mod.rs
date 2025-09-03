@@ -1,3 +1,4 @@
+pub mod check_result;
 pub mod item_assignees;
 pub mod item_labels;
 pub mod label;
@@ -41,7 +42,7 @@ mod test {
     #[test]
     fn test_pub_id_generate() {
         let link = generate_public_id();
-        println!("public id: {:?}", link);
+        println!("public id: {link:?}");
         assert!(
             link.chars().count() == 12
                 && link
@@ -53,7 +54,7 @@ mod test {
     #[test]
     fn test_link_generate() {
         let link = generate_link();
-        println!("MR Link: '{:?}'", link);
+        println!("MR Link: '{link:?}'");
         assert!(
             link.chars().count() == 8
                 && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())

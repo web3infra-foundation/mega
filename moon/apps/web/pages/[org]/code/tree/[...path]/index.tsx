@@ -45,32 +45,28 @@ function TreeDetailPage() {
 
   const treeStyle = {
     borderRadius: 8,
-    overflow: 'hidden',
-    width: 'calc(20% - 8px)',
-    minWidth: 'calc(20% - 8px)',
-    background: '#fff'
+    width: '20%',
+    minWidth: '300px',
+    flexShrink: 0,
+    background: '#fff',
+    height: 'calc(100vh - 96px)',
+    overflow: 'auto',
+    paddingRight: '8px'
   }
 
   const codeStyle = {
     borderRadius: 8,
-    overflow: 'hidden',
     width: 'calc(80% - 8px)',
-    height: '100%',
-    background: '#fff'
-  }
-
-  const breadStyle = {
-    minHeight: 30,
-    borderRadius: 8,
-    overflow: 'hidden',
-    width: 'calc(100% - 8px)',
-    background: '#fff'
+    background: '#fff',
+    height: 'calc(100vh - 96px)',
+    overflow: 'auto',
+    paddingRight: '8px'
   }
 
   return (
-    <div className='relative m-2 h-screen overflow-auto'>
-      <div className='flex flex-wrap gap-4'>
-        <div style={breadStyle}>
+    <Theme>
+      <div className='relative m-4 h-screen'>
+      <div className='h-12 flex justify-between items-center'>
           <BreadCrumb path={path} />
           {canClone?.data && (
             <div className='m-1 flex justify-end'>
@@ -78,26 +74,27 @@ function TreeDetailPage() {
             </div>
           )}
         </div>
-        {/* tree */}
-        <div style={treeStyle}>
-          <RepoTree flag={'contents'} onCommitInfoChange={(path: string) => setNewPath(path)} />
-        </div>
+        <div className='flex gap-4'>
+          <div style={treeStyle}>
+            <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
+          </div>
 
-        <div style={codeStyle}>
-          {commitInfo && (
-            <div>
-              <CommitHistory flag={'contents'} info={commitInfo} />
-            </div>
-          )}
-          <CodeTable
-            directory={directory}
-            loading={!TreeCommitInfo}
-            onCommitInfoChange={(path: string) => setNewPath(path)}
-            readmeContent={readmeContent?.data}
-          />
+          <div style={codeStyle}>
+            {commitInfo && (
+              <div>
+                <CommitHistory flag={'contents'} info={commitInfo} />
+              </div>
+            )}
+            <CodeTable
+              directory={directory}
+              loading={!TreeCommitInfo}
+              onCommitInfoChange={(path: string) => setNewPath(path)}
+              readmeContent={readmeContent?.data}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </Theme>
   )
 }
 
@@ -116,9 +113,7 @@ TreeDetailPage.getProviders = (
 ) => {
   return (
     <AuthAppProviders {...pageProps}>
-      <Theme>
-        <AppLayout {...pageProps}>{page}</AppLayout>
-      </Theme>
+      <AppLayout {...pageProps}>{page}</AppLayout>
     </AuthAppProviders>
   )
 }

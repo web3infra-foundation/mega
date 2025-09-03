@@ -1,83 +1,86 @@
-use chat::command::{Cli, Commands};
+use axum::{routing::post, Json, Router};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
-use chat::{llm_url, qdrant_url, vect_url, GENERATION_NODE, SEARCH_NODE};
-use clap::Parser;
-use dagrs::utils::env::EnvVar;
-use dagrs::{DefaultNode, Graph, Node, NodeTable};
+use chat::{llm_url, qdrant_url, vect_url};
 use log::{error, info};
+use serde::Deserialize;
 use std::env;
-use std::thread;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logger
+#[derive(Deserialize)]
+struct ChatRequest {
+    prompt: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Logger
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
-    dotenv::from_path("extensions/rag/.env").ok();
+    // Build Axum app
+    let app = Router::new().route("/chat", post(chat_handler));
 
-    let args = Cli::parse();
-
-    match args.command {
-        Commands::Chat => {
-            info!("Starting the conversation process...");
-
-            // Create node table
-            let mut search_node_table = NodeTable::default();
-
-            // Safely create SearchNode
-            let search_node = match SearchNode::new(&vect_url(), &qdrant_url(), "code_items") {
-                Ok(node) => node,
-                Err(e) => {
-                    error!("Failed to create SearchNode: {}", e);
-                    return Err(e);
-                }
-            };
-
-            let search_node = DefaultNode::with_action(
-                SEARCH_NODE.to_string(),
-                search_node,
-                &mut search_node_table,
-            );
-            let search_id = search_node.id();
-
-            // Create GenerationNode
-            let generation_node = GenerationNode::new(&llm_url());
-            let generation_node = DefaultNode::with_action(
-                GENERATION_NODE.to_string(),
-                generation_node,
-                &mut search_node_table,
-            );
-            let generation_id = generation_node.id();
-
-            // Build the graph
-            let mut search_graph = Graph::new();
-            let mut search_env = EnvVar::new(search_node_table);
-
-            search_graph.add_node(search_node);
-            search_graph.add_node(generation_node);
-            search_graph.add_edge(search_id, vec![generation_id]);
-
-            search_env.set(SEARCH_NODE, search_id);
-            search_env.set(GENERATION_NODE, generation_id);
-            search_graph.set_env(search_env);
-
-            // Use thread to handle blocking operations
-            let handle = thread::spawn(move || {
-                if let Err(e) = search_graph.start() {
-                    error!("Error executing search graph: {}", e);
-                }
-            });
-
-            // Wait for the thread to finish
-            if let Err(e) = handle.join() {
-                error!("Thread panicked: {:?}", e);
-                return Err("Thread execution failed".into());
-            }
-
-            info!("Conversation process completed successfully");
-        }
-    }
+    info!("Server running on http://0.0.0.0:30088");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:30088").await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+// POST /chat
+async fn chat_handler(Json(payload): Json<ChatRequest>) -> Result<Json<String>, String> {
+    info!("Received chat request: {}", payload.prompt);
+
+    // Create SearchNode with request prompt
+    let search_node = SearchNode::new(
+        &vect_url(),
+        &qdrant_url(),
+        "test_test_code_items",
+        &payload.prompt,
+    )
+    .expect("Failed to create SearchNode");
+
+    // Execute search directly
+    let search_result = match search_node.search(&payload.prompt).await {
+        Ok(Some((content, item_type))) => {
+            info!(
+                "Search result found: type={}, content length={}",
+                item_type,
+                content.len()
+            );
+            info!("Search content: {}", content);
+            format!(
+                "{}\nThe enhanced information after local RAG may be helpful, but it is not necessarily accurate:\n Related information type: {}\nRelated information Content: {}",
+                payload.prompt,
+                item_type,
+                content
+            )
+        }
+        Ok(None) => {
+            info!("No search results found");
+            payload.prompt
+        }
+        Err(e) => {
+            error!("Search error: {}", e);
+            return Err(format!("Search failed: {}", e));
+        }
+    };
+
+    info!("Search result for generation: {}", search_result);
+
+    // Create GenerationNode and execute generation
+    let generation_node = GenerationNode::new(&llm_url(), None); // No oneshot needed for direct execution
+    let generated_message = match generation_node.generate(&search_result).await {
+        Ok(msg) => {
+            info!("Generation completed successfully");
+            msg
+        }
+        Err(e) => {
+            error!("Generation error: {}", e);
+            return Err(format!("Generation failed: {}", e));
+        }
+    };
+
+    info!("Final response: {}", generated_message);
+    Ok(Json(generated_message))
 }

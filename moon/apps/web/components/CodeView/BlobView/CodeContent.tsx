@@ -202,9 +202,11 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
               backgroundColor: '#fff',
               padding: '16px',
               paddingTop: '30px',
-              userSelect: 'text'
+              userSelect: 'text',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
             }}
-            className='overflow-x-auto whitespace-pre rounded-lg p-4 text-sm'
+            className='overflow-x-auto rounded-lg p-4 text-sm'
           >
             {/* <Button icon={<DotsHorizontal />} size={'sm'} className='flex h-6 w-6 p-0' /> */}
             {!lfs &&
@@ -218,7 +220,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                   style={{
                     backgroundColor: selectedLine === i ? '#f0f7ff' : 'transparent'
                   }}
-                  className='flex h-6 items-center'
+                  className='flex justify-self-auto'
                   onClick={() => handleLineClick(i)}
                 >
                   <span className='inline-block w-8'>
@@ -240,10 +242,12 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                     null}
                   </span>
                   <span className={styles.codeLineNumber}>{i + 1}</span>
-                  {line.map((token, key) => (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
+                  <span className="max-w-[80%]">
+                    {line.map((token, key) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <span key={key} {...getTokenProps({ token })} />
+                    ))}
+                  </span>
                 </div>
               ))}
             {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}

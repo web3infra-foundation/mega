@@ -2,12 +2,16 @@ use async_trait::async_trait;
 use dagrs::{Action, EnvVar, InChannels, OutChannels, Output};
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::{fs::File, sync::Arc};
+use std::{
+    fs::File,
+    sync::{Arc, Mutex},
+};
 
 use crate::{RAG_OUTPUT, SEARCH_NODE};
 
 use serde::de::Error;
 use thiserror::Error;
+use tokio::sync::oneshot;
 
 #[derive(Debug, Error)]
 pub enum GenError {
@@ -22,13 +26,15 @@ pub enum GenError {
 pub struct GenerationNode {
     url: String,
     client: Client,
+    result_tx: Mutex<Option<oneshot::Sender<String>>>,
 }
 
 impl GenerationNode {
-    pub fn new(url: &str) -> Self {
+    pub fn new(url: &str, result_tx: Option<oneshot::Sender<String>>) -> Self {
         Self {
             url: url.to_string(),
             client: Client::new(),
+            result_tx: Mutex::new(result_tx),
         }
     }
 
@@ -59,12 +65,12 @@ impl GenerationNode {
         let file = match File::create(file_path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("Failed to create file {}: {}", file_path, e);
+                eprintln!("Failed to create file {file_path}: {e}");
                 return Err(GenError::Io(e));
             }
         };
         if let Err(e) = serde_json::to_writer(file, &body) {
-            eprintln!("Failed to write JSON data to file {}: {}", file_path, e);
+            eprintln!("Failed to write JSON data to file {file_path}: {e}");
             return Err(GenError::Json(e));
         }
 
@@ -75,7 +81,7 @@ impl GenerationNode {
         {
             Some(content) => content,
             None => {
-                eprintln!("Failed to extract 'content' from JSON response: {:?}", body);
+                eprintln!("Failed to extract 'content' from JSON response: {body:?}");
                 return Err(GenError::Json(serde_json::Error::custom(
                     "Missing or invalid 'content' in JSON response",
                 )));
@@ -103,8 +109,13 @@ impl Action for GenerationNode {
             let context: &String = content.get().unwrap();
             let message = self.generate(context).await;
             match message {
-                Ok(msg) => println!("{}", msg),
-                Err(e) => eprintln!("Generation error: {}", e),
+                Ok(msg) => {
+                    println!("{msg}");
+                    if let Some(tx) = self.result_tx.lock().unwrap().take() {
+                        let _ = tx.send(msg);
+                    }
+                }
+                Err(e) => eprintln!("Generation error: {e}"),
             }
         }
 

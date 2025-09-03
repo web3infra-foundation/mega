@@ -64,6 +64,7 @@ async fn test_checkout_module_functions() {
         initial_branch: Some("main".to_string()),
         repo_directory: temp_path.path().to_str().unwrap().to_string(),
         quiet: false,
+        template: None,
     };
 
     init::init(init_args)

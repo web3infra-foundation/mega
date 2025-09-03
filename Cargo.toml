@@ -43,7 +43,7 @@ neptune = { path = "neptune" }
 
 #====
 anyhow = "1.0.98"
-serde = "1.0.219"
+serde = {  version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
@@ -64,6 +64,7 @@ axum-extra = "0.10.1"
 russh = "0.52.1"
 tower-http = "0.6.4"
 tower = "0.5.2"
+time = { version = "0.3", features = ["serde"] }
 
 #====
 sea-orm = "1.1.12"
@@ -77,7 +78,7 @@ bstr = "1.12.0"
 smallvec = "1.15.1"
 bytes = "1.10.1"
 memchr = "2.7.4"
-chrono = "0.4.41"
+chrono = { version = "0.4.41", features = ["serde"] }
 sha1 = "0.10.6"
 hex = "0.4.3"
 
@@ -103,7 +104,7 @@ encoding_rs = "0.8.35"
 aws-config = "1.6.3"
 aws-sdk-s3 = "1.90.0"
 quinn = "0.11.8"
-utoipa = "5.3.1"
+utoipa = {version = "5.3.1", features = ["chrono"]}
 utoipa-axum = "0.2.0"
 utoipa-swagger-ui = "9.0.2"
 tempfile = "3.20.0"
@@ -134,7 +135,7 @@ pager = "0.16.1"
 jemallocator = "0.5.4"
 mimalloc = "0.1.46"
 assert_cmd = "2.0.17"
-async-session = "3.0.0"
+tower-sessions = { version = "0.12.1", features = ["memory-store"] }
 dotenvy = "0.15.7"
 tokio-tungstenite = "0.27.0"
 tungstenite = "0.27.0"

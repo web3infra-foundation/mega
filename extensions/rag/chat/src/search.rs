@@ -5,13 +5,13 @@ use log::debug;
 use qdrant_client::qdrant::SearchPointsBuilder;
 use qdrant_client::Qdrant;
 use std::sync::Arc;
-use tokio::io::{self, AsyncBufReadExt};
 use vectorization::VectClient;
 
 pub struct SearchNode {
     client: Qdrant,
     vect_client: VectClient,
     collection_name: String,
+    prompt: String,
 }
 
 impl SearchNode {
@@ -19,6 +19,7 @@ impl SearchNode {
         vect_url: &str,
         qdrant_url: &str,
         collection_name: &str,
+        prompt: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let client = Qdrant::from_url(qdrant_url).build()?;
         let vect_client = VectClient::new(vect_url);
@@ -26,6 +27,7 @@ impl SearchNode {
             client,
             vect_client,
             collection_name: collection_name.to_string(),
+            prompt: prompt.to_string(),
         })
     }
 
@@ -81,25 +83,17 @@ impl Action for SearchNode {
         out_channels: &mut OutChannels,
         env: Arc<EnvVar>,
     ) -> Output {
-        // Get query from user input
-        let mut input = String::new();
-        println!("\nPlease enter the query content:");
-        let mut stdin = io::BufReader::new(io::stdin());
-        if let Err(e) = stdin.read_line(&mut input).await {
-            log::error!("Failed to read input: {}", e);
-            return Output::empty();
-        }
-        input = input.trim().to_string();
-        println!("input: {}", input);
+        let input = self.prompt.clone();
         let out_node_id = env.get_ref(GENERATION_NODE).unwrap();
         // Execute search
         let result = match self.search(input.trim()).await {
             Ok(Some((content, item_type))) => {
+                log::info!("原prompt: {:?}", input.trim());
                 println!("\nSearch result:");
-                println!("\nType: {}", item_type);
+                println!("Type: {}", item_type);
                 println!("Content:\n{}", content);
                 format!(
-                    "Query: {}\nType: {}\nContent: {}",
+                    "{}\nThe enhanced information after local RAG may be helpful, but it is not necessarily accurate:\n Related information type: {}\nRelated information Content: {}",
                     input.trim(),
                     item_type,
                     content

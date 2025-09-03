@@ -3,6 +3,7 @@ use clap::Parser;
 use indicatif::ProgressBar;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
+use sea_orm::TransactionTrait;
 use std::io;
 use std::time::Instant;
 use std::vec;
@@ -11,7 +12,10 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-use crate::command::load_object;
+use crate::command::{load_object, HEAD};
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::reflog;
+use crate::internal::reflog::{zero_sha1, ReflogAction, ReflogContext, ReflogError};
 use crate::utils::util;
 use crate::{
     command::index_pack::{self, IndexPackArgs},
@@ -46,7 +50,7 @@ pub async fn execute(args: FetchArgs) {
     if args.all {
         let remotes = Config::all_remote_configs().await;
         let tasks = remotes.into_iter().map(|remote| async move {
-            fetch_repository(&remote, None).await;
+            fetch_repository(remote, None).await;
         });
         futures::future::join_all(tasks).await;
     } else {
@@ -65,7 +69,7 @@ pub async fn execute(args: FetchArgs) {
         };
         let remote_config = Config::remote_config(&remote).await;
         match remote_config {
-            Some(remote_config) => fetch_repository(&remote_config, args.refspec).await,
+            Some(remote_config) => fetch_repository(remote_config, args.refspec).await,
             None => {
                 tracing::error!("remote config '{}' not found", remote);
                 eprintln!("fatal: '{remote}' does not appear to be a libra repository");
@@ -76,7 +80,7 @@ pub async fn execute(args: FetchArgs) {
 
 /// Fetch from remote repository
 /// - `branch` is optional, if `None`, fetch all branches
-pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<String>) {
+pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String>) {
     println!(
         "fetching from {}{}",
         remote_config.name,
@@ -170,7 +174,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
                 2 => {
                     // Progress
                     print!("{}", String::from_utf8_lossy(data));
-                    std::io::stdout().flush().unwrap();
+                    io::stdout().flush().unwrap();
                 }
                 3 => {
                     // Error
@@ -183,7 +187,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         } else if &data != b"NAK\n" {
             // 1.front info (server progress), ignore NAK (first line)
             print!("{}", String::from_utf8_lossy(&data)); // data contains '\r' & '\n' at end
-            std::io::stdout().flush().unwrap();
+            io::stdout().flush().unwrap();
         }
     }
     bar.finish();
@@ -221,46 +225,85 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         });
     }
 
-    /* update reference  */
-    for r in &refs {
-        let ref_str = &r._ref;
-        let remote = Some(remote_config.name.as_str());
-        if let Some(branch_name) = ref_str.strip_prefix("refs/heads/") {
-            Branch::update_branch(branch_name, &r._hash, remote).await;
-        } else if let Some(mr_name) = ref_str.strip_prefix("refs/mr/") {
-            let branch_name = format!("mr/{mr_name}");
-            Branch::update_branch(&branch_name, &r._hash, remote).await;
-        } else {
-            tracing::warn!("Unsupported ref type: {}", ref_str);
-        }
-    }
-    match remote_head {
-        Some(remote_head) => {
-            let remote_head_ref = ref_heads.iter().find(|r| r._hash == remote_head._hash);
+    let db = get_db_conn_instance().await;
+    let transaction_result = db
+        .transaction(|txn| {
+            Box::pin(async move {
+                // 1. Update remote-tracking branches and record reflogs
+                for r in &refs {
+                    let full_ref_name: String;
 
-            match remote_head_ref {
-                Some(remote_head_ref) => {
-                    let remote_head_branch =
-                        remote_head_ref._ref.strip_prefix("refs/heads/").unwrap();
-                    Head::update(
-                        Head::Branch(remote_head_branch.to_owned()),
+                    // Determine the full ref name (e.g., "refs/remotes/origin/main")
+                    if let Some(branch_name) = r._ref.strip_prefix("refs/heads/") {
+                        full_ref_name = branch_name.to_owned();
+                    } else if let Some(mr_name) = r._ref.strip_prefix("refs/mr/") {
+                        // Handle merge requests if your system supports them
+                        full_ref_name = format!("mr/{}", mr_name);
+                    } else if r._ref == HEAD {
+                        continue;
+                    } else {
+                        tracing::warn!("Unsupported ref type during fetch: {}", r._ref);
+                        continue; // Skip unsupported ref types
+                    }
+
+                    // Get the old OID *before* updating the branch
+                    let old_oid = Branch::find_branch_with_conn(
+                        txn,
+                        &full_ref_name,
+                        Some(&remote_config.name),
+                    )
+                    .await
+                    .map_or(zero_sha1().to_string(), |b| b.commit.to_string());
+
+                    // Update the branch pointer
+                    Branch::update_branch_with_conn(
+                        txn,
+                        &full_ref_name,
+                        &r._hash,
                         Some(&remote_config.name),
                     )
                     .await;
+
+                    // Prepare and insert the reflog entry for this specific remote-tracking branch
+                    let context = ReflogContext {
+                        old_oid: old_oid.to_string(),
+                        new_oid: r._hash.clone(),
+                        action: ReflogAction::Fetch, // Using a simple Fetch action
+                    };
+                    reflog::Reflog::insert_single_entry(txn, &context, &full_ref_name).await?;
                 }
-                None => {
-                    if branch.is_none() {
+
+                // 2. Update the remote's HEAD pointer
+                if let Some(remote_head) = remote_head {
+                    if let Some(remote_head_ref) =
+                        ref_heads.iter().find(|r| r._hash == remote_head._hash)
+                    {
+                        if let Some(remote_head_branch) =
+                            remote_head_ref._ref.strip_prefix("refs/heads/")
+                        {
+                            // This updates `refs/remotes/origin/HEAD`
+                            Head::update_with_conn(
+                                txn,
+                                Head::Branch(remote_head_branch.to_owned()),
+                                Some(&remote_config.name),
+                            )
+                            .await;
+                        }
+                    } else if branch.is_none() {
                         eprintln!("remote HEAD not found");
                     } else {
-                        // normal: remote HEAD usually points to master
                         tracing::debug!("Specified branch not found in remote HEAD");
                     }
+                } else {
+                    tracing::warn!("fetch empty, remote HEAD not found");
                 }
-            }
-        }
-        None => {
-            tracing::warn!("fetch empty, remote HEAD not found");
-        }
+                Ok::<_, ReflogError>(())
+            })
+        })
+        .await;
+
+    if let Err(e) = transaction_result {
+        eprintln!("fatal: failed to update references after fetch: {}", e);
     }
 }
 

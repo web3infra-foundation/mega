@@ -8,6 +8,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
+use crate::pack::monorepo::MonoRepo;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::ZERO_ID;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -250,10 +251,15 @@ impl SmartProtocol {
             }
             add_pkt_line_string(&mut report_status, command.get_status());
         }
-        //3. update MR
-        repo_handler.save_or_update_mr().await.unwrap();
-        //4. post operation
-        repo_handler.post_mr_operation().await.unwrap();
+        if repo_handler.is_monorepo() {
+            let any = repo_handler.into_any();
+            if let Ok(monorepo) = any.downcast::<MonoRepo>() {
+                //3.1 update MR
+                monorepo.save_or_update_mr().await.unwrap();
+                //3.2 post operation
+                monorepo.post_mr_operation().await.unwrap();
+            }
+        }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
         let length = report_status.len();

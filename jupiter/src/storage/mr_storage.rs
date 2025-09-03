@@ -3,13 +3,16 @@ use std::ops::Deref;
 
 use common::model::Pagination;
 use sea_orm::prelude::Expr;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set,
 };
 
 use callisto::sea_orm_active_enums::MergeStatusEnum;
-use callisto::{item_assignees, label, mega_conversation, mega_mr};
+use callisto::{
+    check_result, item_assignees, label, mega_conversation, mega_mr, path_check_configs,
+};
 use common::errors::MegaError;
 
 use crate::model::common::{ItemDetails, ListParams};
@@ -244,5 +247,67 @@ impl MrStorage {
         a_model.updated_at = Set(chrono::Utc::now().naive_utc());
         a_model.update(self.get_connection()).await.unwrap();
         Ok(())
+    }
+
+    pub async fn update_mr_hash(
+        &self,
+        model: mega_mr::Model,
+        from_hash: &str,
+        to_hash: &str,
+    ) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.from_hash = Set(from_hash.to_owned());
+        a_model.to_hash = Set(to_hash.to_owned());
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await.unwrap();
+        Ok(())
+    }
+
+    pub async fn get_checks_config_by_path(
+        &self,
+        _: &str,
+    ) -> Result<Vec<path_check_configs::Model>, MegaError> {
+        let models = path_check_configs::Entity::find()
+            // .filter(path_check_configs::Column::Path.eq(path))
+            .filter(path_check_configs::Column::Enabled.eq(true))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
+    }
+
+    pub async fn save_check_results(
+        &self,
+        models: Vec<check_result::Model>,
+    ) -> Result<(), MegaError> {
+        let models: Vec<check_result::ActiveModel> =
+            models.into_iter().map(|m| m.into_active_model()).collect();
+        check_result::Entity::insert_many(models)
+            .on_conflict(
+                OnConflict::columns(vec![
+                    check_result::Column::MrLink,
+                    check_result::Column::CheckTypeCode,
+                ])
+                .update_columns([
+                    check_result::Column::CommitId,
+                    check_result::Column::Status,
+                    check_result::Column::Message,
+                ])
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn get_check_result(
+        &self,
+        mr_link: &str,
+    ) -> Result<Vec<check_result::Model>, MegaError> {
+        let models = check_result::Entity::find()
+            .filter(check_result::Column::MrLink.eq(mr_link))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
     }
 }

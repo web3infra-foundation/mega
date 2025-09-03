@@ -32,28 +32,13 @@ FROM debian:latest
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libz-dev \
-    git \
-    python3 \
-    python3-pip \
-    wget \
-    python3-venv \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 
-
-    # 复制 requirements.txt
-COPY ./extensions/rag/index/requirements.txt .
-
-# 安装 Python 依赖
-
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip3 install --no-cache-dir -r requirements.txt
-
 # 复制构建的二进制文件
 COPY --from=builder /index/target/release/index /usr/local/bin/index
-COPY --from=builder /index/extensions/sync.py /usr/local/bin/sync.py
+COPY --from=builder /index/extensions /usr/local/bin/extensions
 
 # 设置工作目录
 WORKDIR /index

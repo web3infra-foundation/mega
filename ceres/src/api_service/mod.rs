@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     path::{Component, Path, PathBuf},
+    sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ use mercury::{
         ObjectTrait,
     },
 };
+use tokio::sync::Mutex;
 
 use crate::model::git::{
     CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
@@ -27,8 +29,14 @@ pub mod mono_api_service;
 
 #[derive(Debug, Default, Clone)]
 pub struct GitObjectCache {
-    trees: HashMap<SHA1, Tree>,
-    commits: HashMap<SHA1, Commit>,
+    trees: HashMap<SHA1, Arc<Tree>>,
+    commits: HashMap<SHA1, Arc<Commit>>,
+}
+
+impl GitObjectCache {
+    pub fn new() -> Arc<Mutex<GitObjectCache>> {
+        Arc::new(Mutex::new(GitObjectCache::default()))
+    }
 }
 
 #[async_trait]
@@ -43,8 +51,6 @@ pub trait ApiHandler: Send + Sync {
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
-
-    async fn get_root_commit(&self) -> Commit;
 
     async fn get_root_tree(&self) -> Tree;
 
@@ -68,7 +74,8 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit>;
 
-    async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit;
+    async fn get_tree_relate_commit(&self, t_hash: SHA1, path: PathBuf)
+        -> Result<Commit, GitError>;
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
 
@@ -96,7 +103,7 @@ pub trait ApiHandler: Send + Sync {
                 "can't find target parent tree under latest commit".to_string(),
             ));
         };
-        let commit = self.get_tree_relate_commit(&tree.id.to_string()).await;
+        let commit = self.get_tree_relate_commit(tree.id, path).await?;
         Ok(commit.into())
     }
 

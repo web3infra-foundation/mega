@@ -20,8 +20,8 @@ use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    conversation::conv_router, issue::issue_router, label::label_router, mr::mr_router,
-    notes::note_router, user::user_router, MonoApiServiceState,
+    conversation::conv_router, gpg::gpg_router, issue::issue_router, label::label_router,
+    mr::mr_router, notes::note_router, user::user_router, MonoApiServiceState,
 };
 use crate::{api::error::ApiError, server::http_server::GIT_TAG};
 
@@ -39,6 +39,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .route("/file/blob/{object_id}", get(get_blob_file))
         .route("/file/tree", get(get_tree_file))
         .merge(mr_router::routers())
+        .merge(gpg_router::routers())
         .merge(user_router::routers())
         .merge(issue_router::routers())
         .merge(label_router::routers())
@@ -121,10 +122,22 @@ async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
+    let query_path: std::path::PathBuf = query.path.into();
+    let import_dir = state.storage.config().monorepo.import_dir.clone();
+    if let Ok(rest) = query_path.strip_prefix(import_dir) {
+        if rest.components().count() == 1 {
+            let res = state
+                .monorepo()
+                .get_latest_commit(query_path.clone())
+                .await?;
+            return Ok(Json(res));
+        }
+    }
+
     let res = state
-        .api_handler(query.path.as_ref())
+        .api_handler(&query_path)
         .await?
-        .get_latest_commit(query.path.into())
+        .get_latest_commit(query_path)
         .await?;
     Ok(Json(res))
 }

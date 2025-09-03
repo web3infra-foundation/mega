@@ -8,21 +8,26 @@ import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
+import { Theme } from '@radix-ui/themes'
 
 const codeStyle = {
   borderRadius: 8,
+  width: '80%',
   background: '#fff',
-  border: '1px solid #d1d9e0',
-  margin: '0 8px',
-  // width: 'calc(80% - 8px)'
-  width: '100%'
+  height: 'calc(100vh - 96px)',
+  overflow: 'auto',
+  paddingRight: '8px'
 }
 
 const treeStyle = {
   borderRadius: 8,
-  overflow: 'hidden',
-  width: 'calc(20% - 8px)',
-  background: '#fff'
+  width: '20%',
+  minWidth: '300px',
+  flexShrink: 0,
+  background: '#fff',
+  height: 'calc(100vh - 96px)',
+  overflow: 'auto',
+  paddingRight: '8px'
 }
 
 function BlobPage() {
@@ -40,30 +45,24 @@ function BlobPage() {
   }
 
   return (
-    <div style={{ overflow: 'auto' }}>
-      <div className='flex flex-col gap-4'>
-        <div>
+    <Theme>
+      <div className='relative m-4 h-screen'>
           <BreadCrumb path={path} />
-        </div>
-        {/* tree */}
-        <div className='flex'>
-          <div style={treeStyle}>
-            <RepoTree flag={'detail'} />
-          </div>
+          {/* tree */}
+          <div className='flex gap-4'>
+            <div style={treeStyle}>
+              <RepoTree />
+            </div>
 
-          <div style={codeStyle}>
-            <div className='m-2'>
-              <CommitHistory flag={'details'} info={commitInfo} />
-            </div>
-            <div className='flex w-full flex-wrap gap-4'>
-              <div style={codeStyle}>
-                <CodeContent fileContent={fileContent} path={path} />
+            <div style={codeStyle}>
+              <div className='m-2'>
+                <CommitHistory flag={'details'} info={commitInfo} />
               </div>
+              <CodeContent fileContent={fileContent} path={path} />
             </div>
           </div>
-        </div>
       </div>
-    </div>
+    </Theme>
   )
 }
 

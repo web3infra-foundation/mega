@@ -35,6 +35,7 @@ use mercury::{
 
 use crate::{
     api_service::{mono_api_service::MonoApiService, ApiHandler},
+    merge_checker::CheckerRegistry,
     model::mr::BuckFile,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
@@ -55,6 +56,10 @@ pub struct MonoRepo {
 
 #[async_trait]
 impl RepoHandler for MonoRepo {
+    fn is_monorepo(&self) -> bool {
+        true
+    }
+
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let storage = self.storage.mono_storage();
 
@@ -145,10 +150,6 @@ impl RepoHandler for MonoRepo {
             String::new()
         };
         storage.save_entry(&commit_id, entry_list).await
-    }
-
-    async fn post_receiver_handler(&self) -> Result<(), GitError> {
-        Ok(())
     }
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {
@@ -309,69 +310,6 @@ impl RepoHandler for MonoRepo {
         Ok(())
     }
 
-    async fn save_or_update_mr(&self) -> Result<(), MegaError> {
-        let storage = self.storage.mr_storage();
-        let path_str = self.path.to_str().unwrap();
-        let username = self.username();
-
-        match storage.get_open_mr_by_path(path_str, &username).await? {
-            Some(mr) => {
-                self.update_existing_mr(mr).await?;
-            }
-            None => {
-                let link_guard = self.mr_link.read().await;
-                let mr_link = link_guard.as_ref().unwrap();
-                let commit_guard = self.current_commit.read().await;
-                let title = if let Some(commit) = commit_guard.as_ref() {
-                    commit.format_message()
-                } else {
-                    String::new()
-                };
-                storage
-                    .new_mr(
-                        path_str,
-                        mr_link,
-                        &title,
-                        &self.from_hash,
-                        &self.to_hash,
-                        &username,
-                    )
-                    .await?;
-            }
-        };
-        Ok(())
-    }
-
-    async fn post_mr_operation(&self) -> Result<(), MegaError> {
-        if self.bellatrix.enable_build() {
-            let link_guard = self.mr_link.read().await;
-            let mr = link_guard.as_ref().unwrap();
-
-            let buck_files = self.search_buck_under_mr(&self.path).await?;
-            if buck_files.is_empty() {
-                tracing::error!(
-                    "Search BUCK file under {:?} failed, please manually check BUCK file exists!!",
-                    self.path
-                );
-            } else {
-                for buck_file in buck_files {
-                    let req = OrionBuildRequest {
-                        repo: buck_file.path.to_str().unwrap().to_string(),
-                        buck_hash: buck_file.buck.to_string(),
-                        buckconfig_hash: buck_file.buck_config.to_string(),
-                        mr: mr.to_string(),
-                        args: Some(vec![]),
-                    };
-                    let bellatrix = self.bellatrix.clone();
-                    tokio::spawn(async move {
-                        let _ = bellatrix.on_post_receive(req).await;
-                    });
-                }
-            }
-        }
-        Ok(())
-    }
-
     async fn check_commit_exist(&self, hash: &str) -> bool {
         self.storage
             .mono_storage()
@@ -413,37 +351,37 @@ impl MonoRepo {
     async fn update_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
         let mr_stg = self.storage.mr_storage();
         let comment_stg = self.storage.conversation_storage();
-        if mr.from_hash == self.from_hash {
-            if mr.to_hash != self.to_hash {
-                comment_stg
-                    .add_conversation(
-                        &mr.link,
-                        &self.username(),
-                        Some(format!(
-                            "{} updated the mr automatic from {} to {}",
-                            self.username(),
-                            &mr.to_hash[..6],
-                            &self.to_hash[..6]
-                        )),
-                        ConvTypeEnum::ForcePush,
-                    )
-                    .await?;
-                mr_stg.update_mr_to_hash(mr, &self.to_hash).await?;
-            } else {
-                tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
-            }
-        } else {
-            // TODO 直接覆盖？
+
+        let from_same = mr.from_hash == self.from_hash;
+        let to_same = mr.to_hash == self.to_hash;
+
+        if from_same && to_same {
+            tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
+            return Ok(());
+        }
+
+        if from_same {
+            let username = self.username();
+            let old_hash = &mr.to_hash[..6];
+            let new_hash = &self.to_hash[..6];
+
             comment_stg
                 .add_conversation(
                     &mr.link,
-                    &self.username(),
-                    Some(format!("{} closed MR due to conflict", self.username(),)),
-                    ConvTypeEnum::Closed,
+                    &username,
+                    Some(format!(
+                        "{} updated the mr automatic from {} to {}",
+                        username, old_hash, new_hash
+                    )),
+                    ConvTypeEnum::ForcePush,
                 )
-                .await
-                .unwrap();
-            mr_stg.close_mr(mr).await?;
+                .await?;
+
+            mr_stg.update_mr_to_hash(mr, &self.to_hash).await?;
+        } else {
+            mr_stg
+                .update_mr_hash(mr, &self.from_hash, &self.to_hash)
+                .await?;
         }
         Ok(())
     }
@@ -532,6 +470,78 @@ impl MonoRepo {
 
     pub fn username(&self) -> String {
         self.username.clone().unwrap_or(String::from("Admin"))
+    }
+
+    pub async fn save_or_update_mr(&self) -> Result<(), MegaError> {
+        let storage = self.storage.mr_storage();
+        let path_str = self.path.to_str().unwrap();
+        let username = self.username();
+
+        match storage.get_open_mr_by_path(path_str, &username).await? {
+            Some(mr) => {
+                self.update_existing_mr(mr).await?;
+            }
+            None => {
+                let link_guard = self.mr_link.read().await;
+                let mr_link = link_guard.as_ref().unwrap();
+                let commit_guard = self.current_commit.read().await;
+                let title = if let Some(commit) = commit_guard.as_ref() {
+                    commit.format_message()
+                } else {
+                    String::new()
+                };
+                storage
+                    .new_mr(
+                        path_str,
+                        mr_link,
+                        &title,
+                        &self.from_hash,
+                        &self.to_hash,
+                        &username,
+                    )
+                    .await?;
+            }
+        };
+        Ok(())
+    }
+
+    pub async fn post_mr_operation(&self) -> Result<(), MegaError> {
+        let link_guard = self.mr_link.read().await;
+        let link = link_guard.as_ref().unwrap();
+
+        if self.bellatrix.enable_build() {
+            let buck_files = self.search_buck_under_mr(&self.path).await?;
+            if buck_files.is_empty() {
+                tracing::error!(
+                    "Search BUCK file under {:?} failed, please manually check BUCK file exists!!",
+                    self.path
+                );
+            } else {
+                for buck_file in buck_files {
+                    let req = OrionBuildRequest {
+                        repo: buck_file.path.to_str().unwrap().to_string(),
+                        buck_hash: buck_file.buck.to_string(),
+                        buckconfig_hash: buck_file.buck_config.to_string(),
+                        mr: link.to_string(),
+                        args: Some(vec![]),
+                    };
+                    let bellatrix = self.bellatrix.clone();
+                    tokio::spawn(async move {
+                        let _ = bellatrix.on_post_receive(req).await;
+                    });
+                }
+            }
+        }
+        let mr_info = self
+            .storage
+            .mr_storage()
+            .get_mr(link)
+            .await?
+            .expect("MR Not Found");
+
+        let check_reg = CheckerRegistry::new(self.storage.clone().into());
+        check_reg.run_checks(mr_info.into()).await?;
+        Ok(())
     }
 }
 
