@@ -5,15 +5,15 @@
   "dependencies": [
     {
       "name": "aws-sdk-cpp",
-      "version>=": "1.9.234"
+      "version>=": "1.11.591"
     },
     {
       "name": "nettle",
-      "version>=": "3.8.1"
+      "version>=": "3.10.0"
     },
     {
       "name": "zstd",
-      "version>=": "1.5.2"
+      "version>=": "1.5.7"
     }
   ]
 }
