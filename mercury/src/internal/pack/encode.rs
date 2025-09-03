@@ -129,7 +129,6 @@ fn magic_sort(a: &Entry, b: &Entry) -> Ordering {
     (a as *const Entry).cmp(&(b as *const Entry))
 }
 
-
 fn calc_hash(data: &[u8]) -> u64 {
     let mut hasher = AHasher::default();
     data.hash(&mut hasher);
@@ -261,7 +260,6 @@ impl PackEncoder {
         )
         .map_err(|e| GitError::PackEncodeError(format!("Task join error: {e}")))?;
 
-        
         let all_encoded_data = [
             commit_results
                 .map_err(|e| GitError::PackEncodeError(format!("Commit encoding error: {e}")))?,
@@ -670,7 +668,6 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
-       
         let total_original_size: usize = entries
             .lock()
             .await
