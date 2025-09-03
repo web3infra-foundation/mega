@@ -43,11 +43,11 @@ use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
-use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
+use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
 // use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
@@ -60,8 +60,8 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 // use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
-use regex::Regex;
 use common::utils::parse_commit_msg;
+use regex::Regex;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -592,7 +592,11 @@ impl MonoApiService {
         Ok(res)
     }
 
-    pub async fn verify_mr(&self, mr_link: &str, assignees: Vec<String>) -> Result<HashMap<String, bool>, MegaError> {
+    pub async fn verify_mr(
+        &self,
+        mr_link: &str,
+        assignees: Vec<String>,
+    ) -> Result<HashMap<String, bool>, MegaError> {
         let stg = self.storage.mr_storage();
         let mr = stg.get_mr(mr_link).await?.ok_or_else(|| {
             MegaError::with_message(format!("Merge request not found: {mr_link}"))
@@ -614,7 +618,9 @@ impl MonoApiService {
             .await?
             .unwrap()
             .id;
-        let verified = self.verify_commit_gpg_signature(&content, assignees).await?;
+        let verified = self
+            .verify_commit_gpg_signature(&content, assignees)
+            .await?;
         res.insert(commit.commit_id.clone(), verified);
         Ok(res)
     }
@@ -635,20 +641,20 @@ impl MonoApiService {
         if signature.is_none() {
             return Ok(false); // No signature to verify
         }
-    
+
         let sig_str = signature.unwrap();
-    
+
         // Remove "gpgsig " prefix if present
         let sig = sig_str
             .strip_prefix("gpgsig ")
             .map(|s| s.trim())
             .unwrap_or(sig_str);
-    
+
         let mut keys = Vec::new();
         for assignee in assignees {
             keys.extend(self.storage.gpg_storage().list_user_gpg(assignee).await?);
         }
-        
+
         for key in keys {
             let verified = self
                 .verify_signature_with_key(&key.public_key, sig, commit_msg)
@@ -657,10 +663,10 @@ impl MonoApiService {
                 return Ok(true); // Signature verified successfully
             }
         }
-    
+
         Ok(false) // No key could verify the signature
     }
-    
+
     async fn verify_signature_with_key(
         &self,
         public_key: &str,
@@ -669,7 +675,7 @@ impl MonoApiService {
     ) -> Result<bool, MegaError> {
         let (public_key, _) = SignedPublicKey::from_string(public_key)?;
         let (signature, _) = StandaloneSignature::from_string(signature)?;
-    
+
         Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
     }
 
