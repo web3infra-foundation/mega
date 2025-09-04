@@ -9,7 +9,7 @@ edition = "2021"
 diffs = { workspace = true }
 thiserror = { workspace = true }
 flate2 = { workspace = true, features = ["zlib"] }
-
+rayon = { workspace = true }
 [features]
 default = ["diff_mydrs"]
 diff_mydrs = []

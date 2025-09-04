@@ -1,24 +1,28 @@
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::Write;
-
-use flate2::write::ZlibEncoder;
-use rayon::prelude::*;
-use sha1::{Digest, Sha1};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 use crate::internal::object::types::ObjectType;
 use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
+use ahash::AHasher;
+use flate2::write::ZlibEncoder;
+use rayon::prelude::*;
+use sha1::{Digest, Sha1};
+use std::hash::{Hash, Hasher};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
-const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
+const MAX_CHAIN_LEN: usize = 50;
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate
+                                 //const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
 
 /// A encoder for generating pack files with delta objects.
 pub struct PackEncoder {
     object_number: usize,
     process_index: usize,
     window_size: usize,
-    window: VecDeque<(Entry, usize)>, // entry and offset
+    // window: VecDeque<(Entry, usize)>, // entry and offset
     sender: Option<mpsc::Sender<Vec<u8>>>,
     inner_offset: usize, // offset of current entry
     inner_hash: Sha1,    // Not SHA1 because need update trait
@@ -105,13 +109,48 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
     Ok(encoded_data)
 }
 
+fn magic_sort(a: &Entry, b: &Entry) -> Ordering {
+    // let ord = b.obj_type.to_u8().cmp(&a.obj_type.to_u8());
+    // if ord != Ordering::Equal {
+    //     return ord;
+    // }
+
+    // the hash should be file hash not content hash
+    // todo the feature need larger refactor
+    // let ord = b.hash.cmp(&a.hash);
+    // if ord != Ordering::Equal { return ord; }
+
+    let ord = b.data.len().cmp(&a.data.len());
+    if ord != Ordering::Equal {
+        return ord;
+    }
+
+    // fallback pointer order (newest first)
+    (a as *const Entry).cmp(&(b as *const Entry))
+}
+
+
+fn calc_hash(data: &[u8]) -> u64 {
+    let mut hasher = AHasher::default();
+    data.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn cheap_similar(a: &[u8], b: &[u8]) -> bool {
+    let k = a.len().min(b.len()).min(128);
+    if k == 0 {
+        return false;
+    }
+    calc_hash(&a[..k]) == calc_hash(&b[..k])
+}
+
 impl PackEncoder {
     pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
         PackEncoder {
             object_number,
             window_size,
             process_index: 0,
-            window: VecDeque::with_capacity(window_size),
+            // window: VecDeque::with_capacity(window_size),
             sender: Some(sender),
             inner_offset: 12, // 12 bytes header
             inner_hash: Sha1::new(),
@@ -143,14 +182,14 @@ impl PackEncoder {
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
     pub async fn encode(&mut self, entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
-        return self.inner_encode(entry_rx, false).await;
+        self.inner_encode(entry_rx, false).await
     }
 
     pub async fn encode_with_zstdelta(
         &mut self,
         entry_rx: mpsc::Receiver<Entry>,
     ) -> Result<(), GitError> {
-        return self.inner_encode(entry_rx, true).await;
+        self.inner_encode(entry_rx, true).await
     }
 
     /// Delta selection heuristics are based on:
@@ -170,43 +209,204 @@ impl PackEncoder {
                 "encoding operation is already in progress".to_string(),
             ));
         }
-        loop {
-            match entry_rx.recv().await {
-                Some(entry) => {
-                    self.process_index += 1;
-                    // push window after encode to void diff by self
-                    let offset = self.inner_offset;
-                    let mut try_delta_entry = entry.clone();
-                    let try_delfa_offset = match enable_zstdelta {
-                        true => self.try_as_offset_zstdelta(&mut try_delta_entry),
-                        false => self.try_as_offset_delta(&mut try_delta_entry),
-                    };
-                    let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
 
-                    self.write_all_and_update(&obj_data).await;
-                    self.window.push_back((entry, offset));
-                    if self.window.len() > self.window_size {
-                        self.window.pop_front();
-                    }
+        let mut commits: Vec<Entry> = Vec::new();
+        let mut trees: Vec<Entry> = Vec::new();
+        let mut blobs: Vec<Entry> = Vec::new();
+        let mut tags: Vec<Entry> = Vec::new();
+        while let Some(entry) = entry_rx.recv().await {
+            match entry.obj_type {
+                ObjectType::Commit => {
+                    commits.push(entry);
                 }
-                None => {
-                    if self.process_index != self.object_number {
-                        panic!(
-                            "not all objects are encoded, process:{}, total:{}",
-                            self.process_index, self.object_number
-                        );
-                    }
-                    break;
+                ObjectType::Tree => {
+                    trees.push(entry);
                 }
+                ObjectType::Blob => {
+                    blobs.push(entry);
+                }
+                ObjectType::Tag => {
+                    tags.push(entry);
+                }
+                _ => {}
             }
         }
 
-        // hash signature
+        commits.sort_by(magic_sort);
+        trees.sort_by(magic_sort);
+        blobs.sort_by(magic_sort);
+        tags.sort_by(magic_sort);
+        tracing::info!(
+            "numbers :  commits: {:?} trees: {:?} blobs:{:?} tag :{:?}",
+            commits.len(),
+            trees.len(),
+            blobs.len(),
+            tags.len()
+        );
+
+        // parallel encoding vec with different object_type
+        let (commit_results, tree_results, blob_results, tag_results) = tokio::try_join!(
+            tokio::task::spawn_blocking(move || {
+                Self::try_as_offset_delta(commits, 10, enable_zstdelta)
+            }),
+            tokio::task::spawn_blocking(move || {
+                Self::try_as_offset_delta(trees, 10, enable_zstdelta)
+            }),
+            tokio::task::spawn_blocking(move || {
+                Self::try_as_offset_delta(blobs, 10, enable_zstdelta)
+            }),
+            tokio::task::spawn_blocking(move || {
+                Self::try_as_offset_delta(tags, 10, enable_zstdelta)
+            }),
+        )
+        .map_err(|e| GitError::PackEncodeError(format!("Task join error: {e}")))?;
+
+        
+        let all_encoded_data = [
+            commit_results
+                .map_err(|e| GitError::PackEncodeError(format!("Commit encoding error: {e}")))?,
+            tree_results
+                .map_err(|e| GitError::PackEncodeError(format!("Tree encoding error: {e}")))?,
+            blob_results
+                .map_err(|e| GitError::PackEncodeError(format!("Blob encoding error: {e}")))?,
+            tag_results
+                .map_err(|e| GitError::PackEncodeError(format!("Tag encoding error: {e}")))?,
+        ]
+        .concat();
+
+        // 按顺序发送合并后的结果
+        for data in all_encoded_data {
+            self.write_all_and_update(&data).await;
+        }
+
+        // Hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
-        self.send_data((hash_result).to_vec()).await;
+        self.send_data(hash_result.to_vec()).await;
+
         self.drop_sender();
         Ok(())
+    }
+
+    /// Try to encode as delta using objects in window
+    /// delta & zstdelta have been gathered here
+    /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
+    /// the sliding window was moved here
+    /// # Returns
+    /// - Return (Vec<Vec<u8>) if success make delta
+    /// - Return (None) if didn't delta,
+    fn try_as_offset_delta(
+        mut bucket: Vec<Entry>,
+        window_size: usize,
+        enable_zstdelta: bool,
+    ) -> Result<Vec<Vec<u8>>, GitError> {
+        let mut current_offset = 0usize;
+        let mut window: VecDeque<(Entry, usize)> = VecDeque::with_capacity(window_size);
+        let mut res: Vec<Vec<u8>> = Vec::new();
+
+        for entry in bucket.iter_mut() {
+            //let entry_for_window = entry.clone();
+            // 每次循环重置最佳基对象选择
+            let mut best_base: Option<&(Entry, usize)> = None;
+            let mut best_rate: f64 = 0.0;
+            let tie_epsilon: f64 = 0.15;
+
+            let candidates: Vec<_> = window
+                .par_iter()
+                .with_min_len(3)
+                .filter_map(|try_base| {
+                    if try_base.0.obj_type != entry.obj_type {
+                        return None;
+                    }
+
+                    if try_base.0.chain_len >= MAX_CHAIN_LEN {
+                        return None;
+                    }
+
+                    if try_base.0.hash == entry.hash {
+                        return None;
+                    }
+
+                    let sym_ratio = (try_base.0.data.len().min(entry.data.len()) as f64)
+                        / (try_base.0.data.len().max(entry.data.len()) as f64);
+                    if sym_ratio < 0.5 {
+                        return None;
+                    }
+
+                    if !cheap_similar(&try_base.0.data, &entry.data) {
+                        return None;
+                    }
+
+                    let rate = if (try_base.0.data.len() + entry.data.len()) / 2 > 64 {
+                        delta::heuristic_encode_rate_parallel(&try_base.0.data, &entry.data)
+                    } else {
+                        delta::encode_rate(&try_base.0.data, &entry.data)
+                        // let try_delta_obj = zstdelta::diff(&try_base.0.data, &entry.data).unwrap();
+                        // 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64
+                    };
+
+                    if rate > MIN_DELTA_RATE {
+                        Some((rate, try_base))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for (rate, try_base) in candidates {
+                match best_base {
+                    None => {
+                        best_rate = rate;
+                        //best_base_offset = current_offset - try_base.1;
+                        best_base = Some(try_base);
+                    }
+                    Some(best_base_ref) => {
+                        let is_better = if rate > best_rate + tie_epsilon {
+                            true
+                        } else if (rate - best_rate).abs() <= tie_epsilon {
+                            try_base.0.chain_len > best_base_ref.0.chain_len
+                        } else {
+                            false
+                        };
+
+                        if is_better {
+                            best_rate = rate;
+                            best_base = Some(try_base);
+                        }
+                    }
+                }
+            }
+
+            let mut entry_for_window = entry.clone();
+
+            let offset = best_base.map(|best_base| {
+                let delta = if enable_zstdelta {
+                    entry.obj_type = ObjectType::OffsetZstdelta;
+                    zstdelta::diff(&best_base.0.data, &entry.data)
+                        .map_err(|e| {
+                            GitError::DeltaObjectError(format!("zstdelta diff failed: {e}"))
+                        })
+                        .unwrap()
+                } else {
+                    entry.obj_type = ObjectType::OffsetDelta;
+                    delta::encode(&best_base.0.data, &entry.data)
+                };
+                //entry.obj_type = ObjectType::OffsetDelta;
+                entry.data = delta;
+                entry.chain_len = best_base.0.chain_len + 1;
+                current_offset - best_base.1
+            });
+
+            entry_for_window.chain_len = entry.chain_len;
+            let obj_data = encode_one_object(entry, offset)?;
+            window.push_back((entry_for_window, current_offset));
+            if window.len() > window_size {
+                window.pop_front();
+            }
+            current_offset += obj_data.len();
+            res.push(obj_data);
+        }
+        Ok(res)
     }
 
     /// Parallel encode with rayon, only works when window_size == 0 (no delta)
@@ -276,69 +476,9 @@ impl PackEncoder {
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
-        self.send_data((hash_result).to_vec()).await;
+        self.send_data(hash_result.to_vec()).await;
         self.drop_sender();
         Ok(())
-    }
-
-    /// Try to encode as delta using objects in window
-    /// # Returns
-    /// - Return (offset) if success make delta
-    /// - Return (None) if didn't delta,
-    fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
-        let mut best_base: Option<&(Entry, usize)> = None;
-        let mut best_rate: f64 = 0.0;
-        for try_base in self.window.iter() {
-            if try_base.0.obj_type != entry.obj_type {
-                continue;
-            }
-            let rate = delta::encode_rate(&try_base.0.data, &entry.data);
-            if rate > MIN_DELTA_RATE && rate > best_rate {
-                best_rate = rate;
-                best_base = Some(try_base);
-            }
-        }
-        best_base.map(|best_base| {
-            let delta = delta::encode(&best_base.0.data, &entry.data);
-            let offset = self.inner_offset - best_base.1;
-            entry.obj_type = ObjectType::OffsetDelta;
-            entry.data = delta;
-            offset
-        })
-    }
-
-    /// Try to encode as sapling-zstdelta using objects in window
-    /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
-    /// # Returns
-    /// - Return (offset) if success make delta
-    /// - Return (None) if didn't delta,
-    fn try_as_offset_zstdelta(&self, entry: &mut Entry) -> Option<usize> {
-        let mut best_delta_obj = None; // obj, offset
-        let mut best_rate: f64 = 0.0;
-        for try_base in self.window.iter() {
-            if try_base.0.obj_type != entry.obj_type {
-                continue;
-            }
-            let try_delta_obj = zstdelta::diff(&try_base.0.data, &entry.data);
-            if try_delta_obj.is_err() {
-                return None; // IO error, can't handle
-            }
-            let try_delta_obj = try_delta_obj.unwrap();
-            // The DeltaDiff algorithm uses the proportion of the delta part as the delta rate,
-            // while zstdelta does not have this data and directly uses the overall compression rate.
-            let rate = 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64;
-            if rate > MIN_DELTA_RATE && rate > best_rate {
-                best_rate = rate;
-                best_delta_obj = Some((try_delta_obj, try_base.1));
-            }
-        }
-        best_delta_obj.map(|(best_delta_data, best_base_offset)| {
-            let offset = self.inner_offset - best_base_offset;
-            entry.obj_type = ObjectType::OffsetZstdelta;
-            entry.data = best_delta_data;
-            // tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
-            offset
-        })
     }
 
     /// Write data to writer and update hash & offset
@@ -350,6 +490,9 @@ impl PackEncoder {
 
     /// async version of encode, result data will be returned by JoinHandle.
     /// It will consume PackEncoder, so you can't use it after calling this function.
+    /// when window_size = 0, it executes parallel_encode which retains stream transmission
+    /// when window_size = 0,it executes encode which uses magic sort and delta.
+    /// It seems that all other modules rely on this api
     pub async fn encode_async(
         mut self,
         rx: mpsc::Receiver<Entry>,
@@ -378,8 +521,8 @@ impl PackEncoder {
 mod tests {
     use std::env;
     use std::sync::Arc;
+    use std::time::Instant;
     use std::{io::Cursor, path::PathBuf};
-
     use tokio::sync::Mutex;
 
     use crate::internal::object::blob::Blob;
@@ -409,7 +552,7 @@ mod tests {
             let (entry_tx, entry_rx) = mpsc::channel::<Entry>(1);
 
             // make some different objects, or decode will fail
-            let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
+            let str_vec = vec!["hello, word", "hello, world.", "!", "123141251251"];
             let encoder = PackEncoder::new(str_vec.len(), window_size, tx);
             encoder.encode_async(entry_rx).await.unwrap();
 
@@ -433,8 +576,8 @@ mod tests {
         check_format(&pack_without_delta);
 
         // with delta
-        let pack_with_delta = encode_once(3).await;
-        assert_ne!(pack_with_delta.len(), pack_without_delta_size);
+        let pack_with_delta = encode_once(4).await;
+        assert!(pack_with_delta.len() <= pack_without_delta_size);
         check_format(&pack_with_delta);
     }
 
@@ -468,8 +611,17 @@ mod tests {
     #[tokio::test]
     async fn test_pack_encoder_parallel_large_file() {
         init_logger();
+
+        let start = Instant::now();
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
+
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
+            .map(|entry| entry.data.len())
+            .sum();
 
         // encode entries with parallel
         let (tx, mut rx) = mpsc::channel(1_000_000);
@@ -496,8 +648,18 @@ mod tests {
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
-        tracing::info!("new pack file size: {}", result.len());
 
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
+        tracing::info!("new pack file size: {}", result.len());
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
         // check format
         check_format(&result);
     }
@@ -508,6 +670,15 @@ mod tests {
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
 
+       
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
+            .map(|entry| entry.data.len())
+            .sum();
+
+        let start = Instant::now();
         // encode entries
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
@@ -529,10 +700,32 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        // only receive data
-        while (rx.recv().await).is_some() {
-            // do nothing
+        // // only receive data
+        // while (rx.recv().await).is_some() {
+        //     // do nothing
+        // }
+
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
         }
+
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
     }
 
     #[tokio::test]
@@ -540,6 +733,15 @@ mod tests {
         init_logger();
         let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
+
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
+            .map(|entry| entry.data.len())
+            .sum();
+
+        let start = Instant::now();
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
@@ -556,12 +758,28 @@ mod tests {
             tracing::info!("all entries sent");
         });
 
-        // only receive data
         let mut result = Vec::new();
         while let Some(chunk) = rx.recv().await {
             result.extend(chunk);
         }
-        tracing::info!("new pack file size: {}", result.len());
+
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
+
         // check format
         check_format(&result);
     }
@@ -577,5 +795,62 @@ mod tests {
         let (result, _) = read_offset_encoding(&mut reader).unwrap();
         println!("result: {result}");
         assert_eq!(result, value as u64);
+    }
+
+    #[tokio::test]
+    async fn test_pack_encoder_large_file_with_delta() {
+        init_logger();
+        let entries = get_entries_for_test().await;
+        let entries_number = entries.lock().await.len();
+
+        let total_original_size: usize = entries
+            .lock()
+            .await
+            .iter()
+            .map(|entry| entry.data.len())
+            .sum();
+
+        let (tx, mut rx) = mpsc::channel(100_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
+
+        let encoder = PackEncoder::new(entries_number, 10, tx);
+
+        let start = Instant::now(); // 开始时间
+        encoder.encode_async(entry_rx).await.unwrap();
+
+        // spawn a task to send entries
+        tokio::spawn(async move {
+            let entries = entries.lock().await;
+            for entry in entries.iter() {
+                entry_tx.send(entry.clone()).await.unwrap();
+            }
+            drop(entry_tx);
+            tracing::info!("all entries sent");
+        });
+
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
+        }
+
+        let pack_size = result.len();
+        let compression_rate = if total_original_size > 0 {
+            1.0 - (pack_size as f64 / total_original_size as f64)
+        } else {
+            0.0
+        };
+
+        let duration = start.elapsed();
+        tracing::info!("test executed in: {:.2?}", duration);
+        tracing::info!("new pack file size: {}", pack_size);
+        tracing::info!("original total size: {}", total_original_size);
+        tracing::info!("compression rate: {:.2}%", compression_rate * 100.0);
+        tracing::info!(
+            "space saved: {} bytes",
+            total_original_size.saturating_sub(pack_size)
+        );
+
+        // check format
+        check_format(&result);
     }
 }

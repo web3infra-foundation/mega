@@ -17,6 +17,7 @@ use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 
+use super::cache_object::CacheObjectInfo;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::cache::_Cache;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
@@ -25,8 +26,7 @@ use crate::internal::pack::entry::Entry;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
-
-use super::cache_object::CacheObjectInfo;
+use crate::utils::CountingReader;
 
 /// For the convenience of passing parameters
 struct SharedParams {
@@ -204,9 +204,11 @@ impl Pack {
     ) -> Result<(Vec<u8>, usize), GitError> {
         // Create a buffer with the expected size for the decompressed data
         let mut buf = Vec::with_capacity(expected_size);
-        // Create a new Zlib decoder with the original data
-        let mut deflate = ZlibDecoder::new(pack);
 
+        let mut counting_reader = CountingReader::new(pack);
+        // Create a new Zlib decoder with the original data
+        //let mut deflate = ZlibDecoder::new(pack);
+        let mut deflate = ZlibDecoder::new(&mut counting_reader);
         // Attempt to read data to the end of the buffer
         match deflate.read_to_end(&mut buf) {
             Ok(_) => {
@@ -219,8 +221,8 @@ impl Pack {
                     )))
                 } else {
                     // If everything is as expected, return the buffer, the original data, and the total number of input bytes processed
-                    Ok((buf, deflate.total_in() as usize))
-                    // TODO this will likely be smaller than what the decompressor actually read from the underlying stream due to buffering.
+                    let actual_input_bytes = counting_reader.bytes_read as usize;
+                    Ok((buf, actual_input_bytes))
                 }
             }
             Err(e) => {
