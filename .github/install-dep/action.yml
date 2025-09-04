@@ -60,41 +60,86 @@ runs:
         fi
 
         mkdir -p ~/.cache/apt-archives
-
-        sudo apt update
-        sudo apt install -y \
-          cmake \
-          git \
-          git-lfs \
-          build-essential \
-          pkg-config \
-          curl \
-          wget \
-          file \
-          libssl-dev \
-          libayatana-appindicator3-dev \
-          librsvg2-dev \
-          libgtk-4-dev \
-          libadwaita-1-0 \
-          libadwaita-1-dev \
-          libgtksourceview-5-dev \
-          libwebkit2gtk-4.1-dev \
-          fuse3 \
-          libfuse3-dev
-
     # ================ Platform-specific Initialization (macOS) ================
     - name: Install dependencies (macOS)
-      if: contains(inputs.platform, 'macos')
+      if: ${{ contains(inputs.platform, 'macos') }}  # 如果你没有 inputs.platform，可改为: ${{ runner.os == 'macOS' }}
       shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_INSTALL_CLEANUP: "1"
       run: |
-        echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> $GITHUB_ENV
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        set -euo pipefail
+        echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> "$GITHUB_ENV"
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-        brew install \
-          gtk4 \
-          libadwaita \
-          librsvg \
-          gtksourceview5
+        # —— 可配置区域 ——
+        DEFAULT_PACKAGES=(gtk4 libadwaita librsvg gtksourceview5)
+        DO_UPDATE_ON_DEMAND=1
+        TRY_RELINK=1
+        # ————————
+
+        if ! command -v brew >/dev/null 2>&1; then
+          echo "::error::Homebrew 未安装。请在 self-hosted runner 上预装 Homebrew（或改为允许自动安装）"
+          # 如需自动安装（自托管且允许），可取消注释：
+          # NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          # eval "$(/opt/homebrew/bin/brew shellenv || true)"
+          exit 1
+        fi
+
+        # 目标包列表：如需从 inputs 传入，可在此处拼装
+        PACKAGES=("${DEFAULT_PACKAGES[@]}")
+
+        echo "==> Packages to verify: ${PACKAGES[*]:-<none>}"
+
+        # 统计缺失包
+        MISSING=()
+        for pkg in "${PACKAGES[@]}"; do
+          [[ -z "${pkg:-}" ]] && continue
+          if ! brew list --formula --versions "$pkg" >/dev/null 2>&1; then
+            MISSING+=("$pkg")
+          fi
+        done
+
+        if [[ ${#MISSING[@]} -gt 0 ]]; then
+          echo "==> Missing packages: ${MISSING[*]}"
+          if [[ "$DO_UPDATE_ON_DEMAND" == "1" ]]; then
+            echo "==> Running 'brew update' once because some packages are missing..."
+            brew update
+          fi
+          brew install "${MISSING[@]}"
+        else
+          echo "✅ 所有必需的包均已安装。"
+        fi
+
+        # 可选 relink：仅在开启且确有包时执行
+        if [[ "$TRY_RELINK" == "1" && ${#PACKAGES[@]} -gt 0 ]]; then
+          echo "==> Checking for unlinked kegs (best-effort)..."
+          UNLINKED=()
+          for pkg in "${PACKAGES[@]}"; do
+            [[ -z "${pkg:-}" ]] && continue
+            if brew list --formula --versions "$pkg" >/dev/null 2>&1; then
+              if brew info "$pkg" | grep -qi "keg-only"; then
+                echo "   - $pkg is keg-only, skipping link."
+                continue
+              fi
+              if ! brew --prefix "$pkg" >/dev/null 2>&1; then
+                UNLINKED+=("$pkg")
+              fi
+            fi
+          done
+
+          if [[ ${#UNLINKED[@]} -gt 0 ]]; then
+            echo "==> Relinking: ${UNLINKED[*]}"
+            for p in "${UNLINKED[@]}"; do
+              brew link --overwrite "$p" || true
+            done
+          else
+            echo "✅ 无需 relink。"
+          fi
+        fi
+
+        echo "==> Done."
+
 
     # =============== Platform-specific Initialization (Windows) ===============
     - name: Install dependencies (Windows)
@@ -104,6 +149,21 @@ runs:
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
         rustup update
+
+    - uses: lukka/get-cmake@latest
+      if: contains(inputs.platform, 'windows')
+
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: contains(inputs.platform, 'windows')
+
+    - name: Setup anew (or from cache) vcpkg (and does not build any package)
+      if: contains(inputs.platform, 'windows')
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+        vcpkgGitCommitId: 'b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01'
+        runVcpkgInstall: true
+        vcpkgJsonGlob: '**/vcpkg.json'
 
     # Required by monobean, performing this step would take about 5s.
     - name: Load GTK and libadwaita
@@ -115,13 +175,17 @@ runs:
       if: contains(inputs.platform, 'windows')
       shell: powershell
       run: |
-        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
+        ls ${{ github.workspace }}\vcpkg
+        ls ${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
-        $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
-        $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
-        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include"
+        $env:PKG_CONFIG_PATH = "${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\x64-windows\lib\pkgconfig;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
+        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
+        $env:LIB = "$env:LIB;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installed\x64-windows\lib;${{ github.workspace }}\monobean\resources\lib\lib"
+        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\969f6665-88a2-4c98-938e-ca9259871fec\vcpkg_installedx64-windows\include;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include"
+
         $env:AWS_LC_SYS_PREBUILT_NASM = 1
         $env:AWS_LC_SYS_C_STD = 11
+
         $exportVariables = @("Path", "OPENSSL_DIR", "OPENSSL_LIB_DIR", "PKG_CONFIG_PATH", "LIB", "INCLUDE", "AWS_LC_SYS_C_STD", "AWS_LC_SYS_PREBUILT_NASM")
         foreach ($var in $exportVariables) {
             if (Test-Path "Env:\$var") {
