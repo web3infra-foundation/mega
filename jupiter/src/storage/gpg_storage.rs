@@ -56,11 +56,7 @@ impl GpgStorage {
         Ok(key)
     }
 
-    pub async fn add_gpg_key(
-        &self,
-        user_id: String,
-        gpg_content: String,
-    ) -> Result<(), MegaError> {
+    pub async fn add_gpg_key(&self, user_id: String, gpg_content: String) -> Result<(), MegaError> {
         let key = self.create_key(user_id, gpg_content)?;
         let a_model = key.into_active_model();
         a_model.insert(self.get_connection()).await.map_err(|e| {

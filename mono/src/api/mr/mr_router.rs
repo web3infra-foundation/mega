@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use axum::{
@@ -14,7 +13,6 @@ use common::{
 };
 use jupiter::service::mr_service::MRService;
 
-use crate::api::mr::model::VerifyMrPayload;
 use crate::api::{
     api_common::{
         self,
@@ -46,8 +44,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title))
-            .routes(routes!(verify_mr_signature)),
+            .routes(routes!(edit_title)),
     )
 }
 
@@ -491,30 +488,6 @@ async fn assignees(
     Json(payload): Json<AssigneeUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
-}
-
-#[utoipa::path(
-    get,
-    params(
-        ("link", description = "MR link"),
-    ),
-    path = "/{link}/verify-signature",
-    request_body = VerifyMrPayload,
-    responses(
-        (status = 200, body = CommonResult<HashMap<String, bool>>, content_type = "application/json")
-    ),
-    tag = MR_TAG
-)]
-async fn verify_mr_signature(
-    Path(link): Path<String>,
-    state: State<MonoApiServiceState>,
-    payload: Json<VerifyMrPayload>,
-) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
-    let res = state
-        .monorepo()
-        .verify_mr(&link, payload.assignees.clone())
-        .await?;
-    Ok(Json(CommonResult::success(Some(res))))
 }
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
