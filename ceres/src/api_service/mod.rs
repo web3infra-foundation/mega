@@ -52,8 +52,6 @@ pub trait ApiHandler: Send + Sync {
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
 
-    async fn get_root_commit(&self) -> Commit;
-
     async fn get_root_tree(&self) -> Tree;
 
     async fn get_binary_tree_by_path(

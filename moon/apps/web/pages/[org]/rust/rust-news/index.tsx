@@ -178,15 +178,12 @@ export default function RustNewsPage() {
       <Head>
         <title>Rust News</title>
       </Head>
-      <div className="min-h-screen h-auto w-full bg-white px-0 py-0">
-        {/* 搜索栏 */}
+      <div className="h-screen flex flex-col">
+        {/* 搜索栏 - 固定在顶部 */}
         <div
-          className="flex items-center border-b border-gray-200 bg-white w-full sticky top-0 z-20"
+          className="flex items-center border-b border-gray-200 bg-white w-full flex-shrink-0"
           style={{
             height: 53,
-            flexShrink: 0,
-            marginTop: 0,
-            marginBottom: 0,
             paddingLeft: 32,
             paddingRight: 32,
           }}
@@ -195,72 +192,76 @@ export default function RustNewsPage() {
             <IndexSearchInput query={search} setQuery={setSearch} isSearchLoading={isSearchLoading} />
           </div>
         </div>
-        {/* 主标题 */}
-        <div className="max-w-6xl mx-auto mt-6">
-          <h1 className="text-6xl font-black text-[#222]">Rust News</h1>
-          <div
-            style={{
-              width: 360,
-              height: 14,
-              flexShrink: 0,
-              borderRadius: 2,
-              background: '#3E63DD',
-              marginTop: 8,
-              marginBottom: 32,
-            }}
-          />
-        </div>
-        {/* 新闻列表 */}
-        <div className="max-w-6xl mx-auto flex flex-col gap-8">
-          {newsList
-            .filter(item => item.title.includes(search) || item.summary.includes(search))
-            .map((item) => (
+        
+        {/* 可滚动内容区域 */}
+        <div className="flex-1 overflow-auto">
+          {/* 主标题 */}
+          <div className="max-w-6xl mx-auto mt-6">
+            <h1 className="text-6xl font-black text-[#222]">Rust News</h1>
             <div
-              key={item.date + '-' + item.title}
-              className="flex bg-white rounded-2xl shadow-sm border border-gray-200 px-8 py-6 items-center gap-8"
-            >
-              {/* 日期 */}
-              <div className="flex flex-col items-center justify-center min-w-[70px]">
-                <span className="text-2xl font-bold text-gray-800 leading-none">{item.date}</span>
-                <span className="text-base text-gray-400 mt-1">{item.year}</span>
-              </div>
-              {/* 竖线分割 */}
-              <div className="h-16 w-px bg-gray-200 mx-1" />
-              {/* 内容 */}
-              <div className="flex-1 flex flex-col">
-                <div className="flex items-center">
-                  <span className="text-xl font-bold text-gray-900">{item.title}</span>
-                  {item.hot && <span className="ml-2 text-red-500 text-xl">🔥</span>}
+              style={{
+                width: 360,
+                height: 14,
+                flexShrink: 0,
+                borderRadius: 2,
+                background: '#3E63DD',
+                marginTop: 8,
+                marginBottom: 32,
+              }}
+            />
+          </div>
+          {/* 新闻列表 */}
+          <div className="max-w-6xl mx-auto flex flex-col gap-8 pb-8">
+            {newsList
+              .filter(item => item.title.includes(search) || item.summary.includes(search))
+              .map((item) => (
+              <div
+                key={item.date + '-' + item.title}
+                className="flex bg-white rounded-2xl shadow-sm border border-gray-200 px-8 py-6 items-center gap-8"
+              >
+                {/* 日期 */}
+                <div className="flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-2xl font-bold text-gray-800 leading-none">{item.date}</span>
+                  <span className="text-base text-gray-400 mt-1">{item.year}</span>
                 </div>
-                <div className="flex gap-2 mt-2">
-                  {item.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className={`px-2 py-0.5 rounded text-xs font-semibold ${tagColor(tag)}`}
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                {/* 竖线分割 */}
+                <div className="h-16 w-px bg-gray-200 mx-1" />
+                {/* 内容 */}
+                <div className="flex-1 flex flex-col">
+                  <div className="flex items-center">
+                    <span className="text-xl font-bold text-gray-900">{item.title}</span>
+                    {item.hot && <span className="ml-2 text-red-500 text-xl">🔥</span>}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {item.tags.map(tag => (
+                      <span
+                        key={tag}
+                        className={`px-2 py-0.5 rounded text-xs font-semibold ${tagColor(tag)}`}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-gray-500 text-sm mt-2 line-clamp-2">{item.summary}</div>
                 </div>
-                <div className="text-gray-500 text-sm mt-2 line-clamp-2">{item.summary}</div>
+                {/* 详情按钮 */}
+                <div className="flex flex-col items-end justify-between h-full ml-4">
+                  <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow hover:bg-blue-700 transition">
+                    Details
+                  </button>
+                </div>
               </div>
-              {/* 详情按钮 */}
-              <div className="flex flex-col items-end justify-between h-full ml-4">
-                <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow hover:bg-blue-700 transition">
-                  Details
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+        
         {/* 右下角up-icon */}
         <button
           onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            const main = document.querySelector('#__next');
+            const scrollContainer = document.querySelector('.overflow-auto');
             
-            if (main) {
-              main.scrollTo({ top: 0, behavior: 'smooth' });
+            if (scrollContainer) {
+              scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
             }
           }}
           style={{

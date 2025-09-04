@@ -30,6 +30,32 @@ pub enum CheckType {
     CodeReview,
 }
 
+impl CheckType {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            CheckType::GpgSignature => "Gpg signature",
+            CheckType::BranchProtection => "Branch protection",
+            CheckType::CommitMessage => "Commit message",
+            CheckType::MrSync => "Mr sync",
+            CheckType::MergeConflict => "Merge conflict",
+            CheckType::CiStatus => "Ci status",
+            CheckType::CodeReview => "Code review",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            CheckType::GpgSignature => "Verify whether the commit has a valid GPG signature and the key is trusted",
+            CheckType::BranchProtection => "Ensure the merge target complies with branch protection policies, such as no direct merges to main and requiring squash or rebase",
+            CheckType::CommitMessage => "Verify whether the commit message follows Conventional Commits or the internal agreed-upon format",
+            CheckType::MrSync => "Ensure the MR is based on the latest commit of the target branch and determine whether a rebase is required",
+            CheckType::MergeConflict => "The pull request must not have any unresolved merge conflicts",
+            CheckType::CiStatus => "Verify that all required continuous integration pipelines have passed",
+            CheckType::CodeReview => "Ensure the required reviewers have approved the merge request",
+        }
+    }
+}
+
 impl From<CheckTypeEnum> for CheckType {
     fn from(value: CheckTypeEnum) -> Self {
         match value {
@@ -68,13 +94,16 @@ pub struct CheckResult {
 pub struct CheckerRegistry {
     checkers: HashMap<CheckType, Box<dyn Checker>>,
     storage: Arc<Storage>,
+    #[allow(dead_code)]
+    username: String,
 }
 
 impl CheckerRegistry {
-    pub fn new(storage: Arc<Storage>) -> Self {
+    pub fn new(storage: Arc<Storage>, username: String) -> Self {
         let mut r = CheckerRegistry {
             checkers: HashMap::new(),
             storage: storage.clone(),
+            username,
         };
         r.register(CheckType::MrSync, Box::new(MrSyncChecker { storage }));
         r

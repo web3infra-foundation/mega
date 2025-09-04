@@ -15,8 +15,6 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::{env, fs};
 
-const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
-
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
@@ -98,10 +96,10 @@ pub async fn execute(args: CloneArgs) {
         name: "origin".to_string(),
         url: remote_repo.clone(),
     };
-    fetch::fetch_repository(remote_config, args.branch.clone()).await;
+    fetch::fetch_repository(remote_config.clone(), args.branch.clone()).await;
 
     /* setup */
-    if let Err(e) = setup_repository(remote_repo.clone(), args.branch.clone()).await {
+    if let Err(e) = setup_repository(remote_config, args.branch.clone()).await {
         eprintln!("fatal: {}", e);
         return;
     }
@@ -111,9 +109,12 @@ pub async fn execute(args: CloneArgs) {
 
 /// Sets up the local repository after a clone by configuring the remote,
 /// setting up the initial branch and HEAD, and creating the first reflog entry.
-async fn setup_repository(remote_repo: String, specified_branch: Option<String>) -> Result<(), String> {
+async fn setup_repository(
+    remote_config: RemoteConfig,
+    specified_branch: Option<String>,
+) -> Result<(), String> {
     let db = crate::internal::db::get_db_conn_instance().await;
-    let remote_head = Head::remote_current_with_conn(db, ORIGIN).await;
+    let remote_head = Head::remote_current_with_conn(db, &remote_config.name).await;
 
     // Determine which branch to check out.
     let branch_to_checkout = match specified_branch {
@@ -128,11 +129,15 @@ async fn setup_repository(remote_repo: String, specified_branch: Option<String>)
     };
 
     if let Some(branch_name) = branch_to_checkout {
-        let origin_branch = Branch::find_branch_with_conn(db, &branch_name, Some(ORIGIN)).await
-            .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
+        let origin_branch =
+            Branch::find_branch_with_conn(db, &branch_name, Some(&remote_config.name))
+                .await
+                .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
 
         // Prepare the reflog context *before* the transaction
-        let action = ReflogAction::Clone { from: remote_repo.clone() };
+        let action = ReflogAction::Clone {
+            from: remote_config.url.clone(),
+        };
 
         let context = ReflogContext {
             // In a clone, there is no "old" oid. A zero-hash is the standard representation.
@@ -147,23 +152,52 @@ async fn setup_repository(remote_repo: String, specified_branch: Option<String>)
             move |txn: &DatabaseTransaction| {
                 Box::pin(async move {
                     // 1. Create the local branch pointing to the fetched commit
-                    Branch::update_branch_with_conn(txn, &branch_name, &origin_branch.commit.to_string(), None).await;
+                    Branch::update_branch_with_conn(
+                        txn,
+                        &branch_name,
+                        &origin_branch.commit.to_string(),
+                        None,
+                    )
+                    .await;
 
                     // 2. Set HEAD to point to the new local branch
                     Head::update_with_conn(txn, Head::Branch(branch_name.to_owned()), None).await;
 
                     // 3. Configure remote tracking for the branch
                     let merge_ref = format!("refs/heads/{}", branch_name);
-                    Config::insert_with_conn(txn, "branch", Some(&branch_name), "merge", &merge_ref).await;
-                    Config::insert_with_conn(txn, "branch", Some(&branch_name), "remote", ORIGIN).await;
+                    Config::insert_with_conn(
+                        txn,
+                        "branch",
+                        Some(&branch_name),
+                        "merge",
+                        &merge_ref,
+                    )
+                    .await;
+                    Config::insert_with_conn(
+                        txn,
+                        "branch",
+                        Some(&branch_name),
+                        "remote",
+                        &remote_config.name,
+                    )
+                    .await;
 
                     // 4. Configure the remote URL
-                    Config::insert_with_conn(txn, "remote", Some(ORIGIN), "url", &remote_repo).await;
+                    Config::insert_with_conn(
+                        txn,
+                        "remote",
+                        Some(&remote_config.name),
+                        "url",
+                        &remote_config.url,
+                    )
+                    .await;
                     Ok(())
                 })
             },
             true,
-        ).await.map_err(|e| e.to_string())?;
+        )
+        .await
+        .map_err(|e| e.to_string())?;
 
         // After the DB is set up, restore the working directory
         command::restore::execute(RestoreArgs {
@@ -171,19 +205,31 @@ async fn setup_repository(remote_repo: String, specified_branch: Option<String>)
             staged: true,
             source: None,
             pathspec: vec![util::working_dir_string()],
-        }).await;
-
+        })
+        .await;
     } else {
         println!("warning: You appear to have cloned an empty repository.");
 
         // We only need to set the remote URL. No reflog is created as there are no commits.
-        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+        Config::insert(
+            "remote",
+            Some(&remote_config.name),
+            "url",
+            &remote_config.url,
+        )
+        .await;
 
         // Optionally set up a default branch config for a future 'master' or 'main'
         let default_branch = "master";
         let merge_ref = format!("refs/heads/{}", default_branch);
         Config::insert("branch", Some(default_branch), "merge", &merge_ref).await;
-        Config::insert("branch", Some(default_branch), "remote", ORIGIN).await;
+        Config::insert(
+            "branch",
+            Some(default_branch),
+            "remote",
+            &remote_config.name,
+        )
+        .await;
     }
 
     Ok(())

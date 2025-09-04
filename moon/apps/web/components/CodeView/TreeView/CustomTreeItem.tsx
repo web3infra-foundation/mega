@@ -27,7 +27,7 @@ interface CustomTreeItemProps
 
 // Custom tree structure node component, used to render elements such as icons and labels for each node
 export const CustomTreeItem = React.forwardRef(function CustomTreeItem(
-  { onLabelClick, loadingDirectories, ...props }: CustomTreeItemProps,
+  { loadingDirectories, ...props }: CustomTreeItemProps,
   ref: React.Ref<HTMLLIElement>,
 ) {
   const { id, itemId, label, disabled, children, ...other } = props;
@@ -81,11 +81,6 @@ export const CustomTreeItem = React.forwardRef(function CustomTreeItem(
             {...getLabelProps({
               icon,
             })}
-            onClick={() => {
-              if (item.content_type) {
-                onLabelClick?.(item.path, item.content_type === 'directory');
-              }
-            }}
           />
           
           <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />

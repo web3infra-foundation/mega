@@ -2,12 +2,16 @@ use async_trait::async_trait;
 use dagrs::{Action, EnvVar, InChannels, OutChannels, Output};
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::{fs::File, sync::Arc};
+use std::{
+    fs::File,
+    sync::{Arc, Mutex},
+};
 
 use crate::{RAG_OUTPUT, SEARCH_NODE};
 
 use serde::de::Error;
 use thiserror::Error;
+use tokio::sync::oneshot;
 
 #[derive(Debug, Error)]
 pub enum GenError {
@@ -22,13 +26,15 @@ pub enum GenError {
 pub struct GenerationNode {
     url: String,
     client: Client,
+    result_tx: Mutex<Option<oneshot::Sender<String>>>,
 }
 
 impl GenerationNode {
-    pub fn new(url: &str) -> Self {
+    pub fn new(url: &str, result_tx: Option<oneshot::Sender<String>>) -> Self {
         Self {
             url: url.to_string(),
             client: Client::new(),
+            result_tx: Mutex::new(result_tx),
         }
     }
 
@@ -103,7 +109,12 @@ impl Action for GenerationNode {
             let context: &String = content.get().unwrap();
             let message = self.generate(context).await;
             match message {
-                Ok(msg) => println!("{msg}"),
+                Ok(msg) => {
+                    println!("{msg}");
+                    if let Some(tx) = self.result_tx.lock().unwrap().take() {
+                        let _ = tx.send(msg);
+                    }
+                }
                 Err(e) => eprintln!("Generation error: {e}"),
             }
         }

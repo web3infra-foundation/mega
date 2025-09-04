@@ -200,17 +200,17 @@ async fn save_comment(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
+) -> Result<Json<CommonResult<()>>, ApiError> {
     state
         .conv_stg()
         .add_conversation(
             &link,
             &user.username,
-            Some(payload.content),
+            Some(payload.content.clone()),
             ConvTypeEnum::Comment,
         )
         .await?;
-    Ok(Json(CommonResult::success(None)))
+    api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
 /// Update issue related labels

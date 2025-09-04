@@ -40,8 +40,11 @@ enum Commands {
     #[command(about = "Restore working tree files")]
     Restore(command::restore::RestoreArgs),
     #[command(about = "Show the working tree status")]
-    Status,
-    #[command(subcommand, about = "Stash the changes in a dirty working directory away")]
+    Status(command::status::StatusArgs),
+    #[command(
+        subcommand,
+        about = "Stash the changes in a dirty working directory away"
+    )]
     Stash(Stash),
     #[command(subcommand, about = "Large File Storage")]
     Lfs(command::lfs::LfsCmds),
@@ -148,7 +151,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Restore(args) => command::restore::execute(args).await,
-        Commands::Status => command::status::execute().await,
+        Commands::Status(args) => command::status::execute(args).await,
         Commands::Stash(cmd) => command::stash::execute(cmd).await,
         Commands::Lfs(cmd) => command::lfs::execute(cmd).await,
         Commands::Log(args) => command::log::execute(args).await,

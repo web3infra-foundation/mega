@@ -64,7 +64,7 @@ export default function RustEcosystemPage() {
         id: 107,
         title: 'CVE-2023-12345:示例漏洞描述',
         tag: { text: '由国际安全组织报告', color: 'blue' },
-        detail: '该漏洞由国际安全组织披露，建议关注官方通告。',
+      detail: '该漏洞由国际安全组织披露，建议关注官方通告。',
       },
   ]
 
@@ -73,20 +73,28 @@ export default function RustEcosystemPage() {
       <Head>
         <title>Crate Ecosystem</title>
       </Head>
-      <div className="min-h-screen h-auto w-full bg-white">
+      <div className="h-screen overflow-auto">
         {/* 顶部搜索区，带背景图 */}
         <div
-          className="w-full overflow-hidden mb-6 flex flex-col justify-center items-center"
+          className="w-full overflow-hidden mb-6 flex flex-col justify-center items-center relative"
           style={{
-            backgroundImage: 'url(/rust/rust-ecosystem/search-bg.png)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
             height: '160px',
             minHeight: '160px',
           }}
         >
-          <div className="flex flex-col items-center justify-center w-full h-full backdrop-blur-sm bg-white/70">
+          {/* 背景图层 */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'url(/rust/rust-ecosystem/search-bg.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              backgroundAttachment: 'fixed',
+            }}
+          />
+          {/* 内容层 */}
+          <div className="flex flex-col items-center justify-center w-full h-full backdrop-blur-sm bg-white/70 relative z-10">
          
             <div className="flex justify-center w-full">
               <div className="relative flex items-center w-full max-w-4xl" style={{ padding: '0 8px' }}>

@@ -109,7 +109,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let origins: Vec<HeaderValue> = oauth_config
         .allowed_cors_origins
         .into_iter()
-        .map(|x| x.parse::<HeaderValue>().unwrap())
+        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
         .collect();
 
     // add RequestDecompressionLayer for handle gzip encode
@@ -212,6 +212,7 @@ pub async fn post_method_router(
 /// Swagger API tag
 pub const GIT_TAG: &str = "git";
 pub const MR_TAG: &str = "merge_request";
+pub const GPG_TAG: &str = "gpg-key";
 pub const ISSUE_TAG: &str = "issue";
 pub const LABEL_TAG: &str = "label";
 pub const CONV_TAG: &str = "conversation";

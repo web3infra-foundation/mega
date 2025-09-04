@@ -1,25 +1,32 @@
-use crate::api::{self, AppState};
-use crate::model::builds;
+use std::net::SocketAddr;
+use std::time::Duration;
+
 use axum::Router;
 use axum::routing::get;
+use chrono::{FixedOffset, Utc};
+use http::{HeaderValue, Method};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
     EntityTrait, QueryFilter, Schema, TransactionTrait,
 };
-use std::net::SocketAddr;
-use std::time::Duration;
+use tower::ServiceBuilder;
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::api::{self, AppState};
+use crate::model::tasks;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
     paths(
         api::task_handler,
+        api::task_build_handler,
         api::task_status_handler,
+        api::task_build_list_handler,
         api::task_output_handler,
-        api::task_output_segment_handler,
+        api::task_history_output_handler,
         api::task_query_by_mr,
         api::tasks_handler,
     ),
@@ -29,7 +36,7 @@ use utoipa_swagger_ui::SwaggerUi;
             crate::scheduler::LogSegment,
             api::TaskStatus,
             api::TaskStatusEnum,
-            api::BuildDTO,
+            api::TaskDTO,
             api::TaskInfoDTO
 
         )
@@ -57,12 +64,36 @@ pub async fn start_server(port: u16) {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
+    let origins: Vec<HeaderValue> = std::env::var("ALLOWED_CORS_ORIGINS")
+        .unwrap()
+        .split(',')
+        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
+        .collect();
+
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .with_state(state)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new().layer(
+                CorsLayer::new()
+                    .allow_origin(origins)
+                    .allow_headers(vec![
+                        http::header::AUTHORIZATION,
+                        http::header::CONTENT_TYPE,
+                    ])
+                    .allow_methods([
+                        Method::GET,
+                        Method::POST,
+                        Method::OPTIONS,
+                        Method::DELETE,
+                        Method::PUT,
+                    ])
+                    .allow_credentials(true),
+            ),
+        );
 
     tracing::info!("Listening on port {}", port);
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
@@ -83,7 +114,7 @@ async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
     let schema = Schema::new(builder);
     let statement = builder.build(
         schema
-            .create_table_from_entity(builds::Entity)
+            .create_table_from_entity(tasks::Entity)
             .if_not_exists(),
     );
     trans.execute(statement).await?;
@@ -138,12 +169,14 @@ async fn start_health_check_task(state: AppState) {
                     );
                     state.scheduler.active_builds.remove(&task_id);
 
-                    let update_res = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
-                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
+                    let update_res = tasks::Entity::update_many()
+                        .set(tasks::ActiveModel {
+                            end_at: Set(Some(
+                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                            )),
                             ..Default::default()
                         })
-                        .filter(builds::Column::BuildId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
+                        .filter(tasks::Column::TaskId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
                         .exec(&state.conn)
                         .await;
 

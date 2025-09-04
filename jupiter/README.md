@@ -20,7 +20,15 @@ sea-orm-cli generate entity -u postgres://postgres:postgres@localhost:5432/mono 
 
 ```
 
-3. Running Migrator CLI
+3. Apply Migration
+
+```bash
+cd mega
+
+cargo run --bin mono -- service up
+```
+
+4. [Optional] Running Migrator CLI
 
 - Generate a new migration file
     ```sh

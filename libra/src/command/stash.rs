@@ -327,7 +327,7 @@ async fn drop_stash(stash: Option<String>) -> Result<(), String> {
         if index_to_drop == 0 {
             if let Some(new_top_line) = lines.first() {
                 if let Some(new_hash) = new_top_line.split(' ').nth(1) {
-                    std::fs::write(&stash_ref_path, format!("{}\n", new_hash))
+                    std::fs::write(&stash_ref_path, format!("{new_hash}\n"))
                         .map_err(|e| e.to_string())?;
                 }
             }
@@ -438,17 +438,16 @@ fn resolve_stash_to_commit_hash(stash_ref: Option<String>) -> Result<(usize, Str
             if s.starts_with("stash@{") && s.ends_with('}') {
                 s[7..s.len() - 1]
                     .parse::<usize>()
-                    .map_err(|_| format!("fatal: '{}' is not a valid stash reference", s))?
+                    .map_err(|_| format!("fatal: '{s}' is not a valid stash reference"))?
             } else {
-                return Err(format!("fatal: '{}' is not a valid stash reference", s));
+                return Err(format!("fatal: '{s}' is not a valid stash reference"));
             }
         }
     };
 
     if index_to_resolve >= lines.len() {
         return Err(format!(
-            "fatal: stash@{{{}}}: Stash does not exist",
-            index_to_resolve
+            "fatal: stash@{{{index_to_resolve}}}: Stash does not exist",
         ));
     }
 
@@ -487,7 +486,7 @@ fn update_stash_ref(
     if let Some(parent) = stash_ref_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&stash_ref_path, format!("{}\n", stash_hash))?;
+    fs::write(&stash_ref_path, format!("{stash_hash}\n"))?;
 
     // 3. Prepend to logs/refs/stash
     if let Some(parent) = stash_log_path.parent() {
@@ -536,9 +535,9 @@ async fn perform_hard_reset(target_commit_id: &SHA1) -> Result<(), String> {
 
     // 2. Get the list of files in the target commit's tree
     let target_commit: Commit = crate::command::load_object(target_commit_id)
-        .map_err(|e| format!("failed to load target commit: {}", e))?;
+        .map_err(|e| format!("failed to load target commit: {e}"))?;
     let target_tree: Tree = crate::command::load_object(&target_commit.tree_id)
-        .map_err(|e| format!("failed to load target tree: {}", e))?;
+        .map_err(|e| format!("failed to load target tree: {e}"))?;
     let files_in_target_tree: HashSet<PathBuf> = target_tree
         .get_plain_items()
         .into_iter()
@@ -553,7 +552,7 @@ async fn perform_hard_reset(target_commit_id: &SHA1) -> Result<(), String> {
         if !files_in_target_tree.contains(path) {
             let full_path = workdir.join(path);
             if full_path.exists() {
-                fs::remove_file(full_path).map_err(|e| format!("Failed to remove file: {}", e))?;
+                fs::remove_file(full_path).map_err(|e| format!("Failed to remove file: {e}"))?;
             }
         }
     }

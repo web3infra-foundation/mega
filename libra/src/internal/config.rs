@@ -3,9 +3,7 @@ use std::mem::swap;
 
 use sea_orm::entity::ActiveModelTrait;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait, QueryFilter,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait, QueryFilter};
 
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
@@ -13,6 +11,7 @@ use crate::internal::model::config::{self, ActiveModel, Model};
 
 pub struct Config;
 
+#[derive(Clone)]
 pub struct RemoteConfig {
     pub name: String,
     pub url: String,

@@ -265,10 +265,11 @@ impl MrStorage {
 
     pub async fn get_checks_config_by_path(
         &self,
-        path: &str,
+        _: &str,
     ) -> Result<Vec<path_check_configs::Model>, MegaError> {
         let models = path_check_configs::Entity::find()
-            .filter(path_check_configs::Column::Path.eq(path))
+            // .filter(path_check_configs::Column::Path.eq(path))
+            .filter(path_check_configs::Column::Enabled.eq(true))
             .all(self.get_connection())
             .await?;
         Ok(models)
@@ -297,5 +298,16 @@ impl MrStorage {
             .exec(self.get_connection())
             .await?;
         Ok(())
+    }
+
+    pub async fn get_check_result(
+        &self,
+        mr_link: &str,
+    ) -> Result<Vec<check_result::Model>, MegaError> {
+        let models = check_result::Entity::find()
+            .filter(check_result::Column::MrLink.eq(mr_link))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
     }
 }

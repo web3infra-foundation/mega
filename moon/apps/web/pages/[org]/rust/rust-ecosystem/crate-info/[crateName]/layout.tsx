@@ -76,11 +76,11 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
     ], [nsfront, crateName, version]);
 
     return (
-        <div className="min-h-screen bg-[#F4F4F5] flex flex-col">
-            {/* 搜索栏 */}
-            <div className="w-full flex justify-center mb-0.5" style={{ background: '#FFF' }}>
+        <div className="h-screen bg-[#F4F4F5] flex flex-col">
+            {/* 搜索栏 - 固定在顶部 */}
+            <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#FFF' }}>
                 <div
-                    className="flex items-center sticky top-0 z-20"
+                    className="flex items-center"
                     style={{
                         width: '1680px',
                         height: '53px',
@@ -120,8 +120,8 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
                 />
             </div>
 
-            {/* 分类标签和版本选择区域 */}
-            <div className="w-full flex justify-center" style={{ background: '#FFF' }}>
+            {/* 分类标签和版本选择区域 - 固定在搜索栏下方 */}
+            <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#FFF' }}>
                 <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
                     {/* Crate信息 */}
                     <div className="flex items-center justify-between mb-6">
@@ -231,8 +231,10 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
                 </div>
             </div>
 
-            {/* 主要内容区域 */}
-            {children}
+            {/* 可滚动内容区域 */}
+            <div className="flex-1 overflow-auto" style={{ background: '#F4F4F5' }}>
+                {children}
+            </div>
         </div>
     );
 };

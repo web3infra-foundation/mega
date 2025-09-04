@@ -3,13 +3,16 @@ use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
 use crate::internal::model::reflog;
 use crate::internal::model::reflog::{ActiveModel, Model};
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use mercury::hash::SHA1;
+use sea_orm::{
+    ActiveModelTrait, DatabaseTransaction, EntityTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, DbErr, Statement, TransactionError};
 use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
-use mercury::hash::SHA1;
 
 const HEAD: &str = "HEAD";
 
@@ -29,8 +32,8 @@ pub enum ReflogError {
 impl Display for ReflogError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DatabaseError(e) => write!(f, "Database error: {}", e),
-            Self::TransactionError(e) => write!(f, "Transaction error: {}", e),
+            Self::DatabaseError(e) => write!(f, "Database error: {e}"),
+            Self::TransactionError(e) => write!(f, "Transaction error: {e}"),
         }
     }
 }
@@ -49,12 +52,24 @@ impl From<TransactionError<DbErr>> for ReflogError {
 impl Display for ReflogContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.action {
-            ReflogAction::Commit { message } => write!(f, "{}", message.lines().next().unwrap_or("(no commit message)")),
+            ReflogAction::Commit { message } => write!(
+                f,
+                "{}",
+                message.lines().next().unwrap_or("(no commit message)")
+            ),
             ReflogAction::Switch { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Checkout { from, to } => write!(f, "moving from {from} to {to}"),
             ReflogAction::Reset { target } => write!(f, "moving to {target}"),
             ReflogAction::Merge { branch, policy } => write!(f, "merge {branch}:{policy}"),
-            ReflogAction::CherryPick { source_message } => write!(f, "{}", source_message.trim().lines().next().unwrap_or("(no commit message)")),
+            ReflogAction::CherryPick { source_message } => write!(
+                f,
+                "{}",
+                source_message
+                    .trim()
+                    .lines()
+                    .next()
+                    .unwrap_or("(no commit message)")
+            ),
             ReflogAction::Fetch => write!(f, "fast-forward"),
             ReflogAction::Pull => write!(f, "fast-forward"),
             ReflogAction::Rebase { state, details } => write!(f, "({state}) {details}"),
@@ -70,7 +85,7 @@ pub enum ReflogAction {
     Checkout { from: String, to: String },
     Switch { from: String, to: String },
     Merge { branch: String, policy: String },
-    CherryPick { source_message: String, },
+    CherryPick { source_message: String },
     Rebase { state: String, details: String },
     Fetch,
     Pull,
@@ -130,7 +145,11 @@ impl ReflogAction {
 pub struct Reflog;
 
 impl Reflog {
-    pub async fn insert_single_entry<C: ConnectionTrait>(db: &C, context: &ReflogContext, ref_to_log: &str) -> Result<(), ReflogError> {
+    pub async fn insert_single_entry<C: ConnectionTrait>(
+        db: &C,
+        context: &ReflogContext,
+        ref_to_log: &str,
+    ) -> Result<(), ReflogError> {
         // considering that there are many commands that have not yet used user configs,
         // we just set default user info.
         let name = config::Config::get_with_conn(db, "user", None, "name")
@@ -159,7 +178,11 @@ impl Reflog {
 
     /// insert a reflog record.
     /// see `ReflogContext`
-    pub async fn insert(db: &DatabaseTransaction, context: ReflogContext, insert_ref: bool) -> Result<(), ReflogError> {
+    pub async fn insert(
+        db: &DatabaseTransaction,
+        context: ReflogContext,
+        insert_ref: bool,
+    ) -> Result<(), ReflogError> {
         ensure_reflog_table_exists(db).await?;
         let head = Head::current_with_conn(db).await;
 
@@ -167,14 +190,17 @@ impl Reflog {
 
         if let Head::Branch(branch_name) = head {
             if insert_ref {
-                let full_branch_ref = format!("refs/heads/{}", branch_name);
+                let full_branch_ref = format!("refs/heads/{branch_name}");
                 Self::insert_single_entry(db, &context, &full_branch_ref).await?;
             }
         }
         Ok(())
     }
 
-    pub async fn find_all<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Vec<Model>, ReflogError> {
+    pub async fn find_all<C: ConnectionTrait>(
+        db: &C,
+        ref_name: &str,
+    ) -> Result<Vec<Model>, ReflogError> {
         Ok(reflog::Entity::find()
             .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
@@ -182,7 +208,10 @@ impl Reflog {
             .await?)
     }
 
-    pub async fn find_one<C: ConnectionTrait>(db: &C, ref_name: &str) -> Result<Option<Model>, ReflogError> {
+    pub async fn find_one<C: ConnectionTrait>(
+        db: &C,
+        ref_name: &str,
+    ) -> Result<Option<Model>, ReflogError> {
         Ok(reflog::Entity::find()
             .filter(reflog::Column::RefName.eq(ref_name))
             .order_by_desc(reflog::Column::Timestamp)
@@ -193,8 +222,7 @@ impl Reflog {
 
 fn timestamp_seconds() -> i64 {
     let now = SystemTime::now();
-    let since_the_epoch = now.duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
+    let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
     since_the_epoch.as_secs() as i64
 }
 
@@ -252,23 +280,24 @@ pub async fn with_reflog<F>(
     insert_ref: bool,
 ) -> Result<(), ReflogError>
 where
-        for<'b> F: FnOnce(&'b DatabaseTransaction) -> Pin<Box<dyn Future<Output = Result<(), DbErr>> + Send + 'b>>,
-        F: Send + 'static,
+    for<'b> F: FnOnce(
+        &'b DatabaseTransaction,
+    ) -> Pin<Box<dyn Future<Output = Result<(), DbErr>> + Send + 'b>>,
+    F: Send + 'static,
 {
     let db = get_db_conn_instance().await;
     db.transaction(|txn| {
         Box::pin(async move {
-            operation(txn).await
-                .map_err(ReflogError::from)?;
+            operation(txn).await.map_err(ReflogError::from)?;
             Reflog::insert(txn, context, insert_ref).await?;
             Ok::<_, ReflogError>(())
         })
     })
-        .await
-        .map_err(|err| match err {
-            TransactionError::Connection(err) => ReflogError::from(err),
-            TransactionError::Transaction(err) => err,
-        })
+    .await
+    .map_err(|err| match err {
+        TransactionError::Connection(err) => ReflogError::from(err),
+        TransactionError::Transaction(err) => err,
+    })
 }
 
 /// Check whether the current libra repo have a `reflog` table
@@ -280,7 +309,7 @@ async fn reflog_table_exists<C: ConnectionTrait>(db_conn: &C) -> Result<bool, Re
             FROM sqlite_master
             WHERE type='table' AND name=?;
         "#,
-        ["reflog".into()]
+        ["reflog".into()],
     );
 
     if let Some(result) = db_conn.query_one(stmt).await? {
@@ -315,7 +344,8 @@ async fn ensure_reflog_table_exists<C: ConnectionTrait>(db: &C) -> Result<(), Re
                 `action`          TEXT NOT NULL,
                 `message`         TEXT NOT NULL
             );
-        "#.to_string(),
+        "#
+        .to_string(),
     );
 
     db.execute(create_table_stmt).await?;
@@ -324,7 +354,8 @@ async fn ensure_reflog_table_exists<C: ConnectionTrait>(db: &C) -> Result<(), Re
         DbBackend::Sqlite,
         r#"
             CREATE INDEX IF NOT EXISTS idx_ref_name_timestamp ON `reflog`(`ref_name`, `timestamp`);
-        "#.to_string(),
+        "#
+        .to_string(),
     );
 
     db.execute(create_index_stmt).await?;
