@@ -230,6 +230,7 @@ impl CacheObject {
                 obj_type,
                 data: self.data_decompressed.clone(),
                 hash,
+                chain_len: 0,
             },
             _ => {
                 unreachable!("delta object should not persist!")
