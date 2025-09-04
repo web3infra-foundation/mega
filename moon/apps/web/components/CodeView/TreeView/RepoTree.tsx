@@ -11,6 +11,7 @@ import { CustomTreeItem } from './CustomTreeItem';
 import toast from 'react-hot-toast';
 import { useAtom } from 'jotai';
 import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom';
+import { useTreeViewApiRef } from "@mui/x-tree-view";
 
 const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
   const router = useRouter();
@@ -19,7 +20,9 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
   const basePath = pathname?.replace(
     new RegExp(`\\/${scope}\\/code\\/(tree|blob)`), 
     ''
-  ) || '/'; 
+  ) || '/';
+
+  const apiRef = useTreeViewApiRef();
 
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
@@ -116,6 +119,18 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
     }
   }, [router, scope]);
 
+  const handleFocusItem = (_e: React.SyntheticEvent | null, itemId: string) => {
+    const item = apiRef.current!.getItem(itemId)
+
+    if (item.content_type) {
+      handleLabelClick(item.path, item.content_type === 'directory');
+      apiRef.current?.setItemSelection({
+        itemId,
+        keepExistingSelection: false
+      })
+    }
+  }
+  
   useEffect(() => {
     if (basePath) {
       onCommitInfoChange?.(basePath);
@@ -131,7 +146,9 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
       ) 
       : (
         <RichTreeView
+          apiRef={apiRef}
           items={treeAllData}
+          onItemFocus={handleFocusItem}
           expandedItems={expandedNodes}
           onExpandedItemsChange={handleNodeToggle}
           sx={{ height: 'fit-content', flexGrow: 1, width: '100%', overflow: 'auto' }}
@@ -139,7 +156,6 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
             item: (itemProps) => (
               <CustomTreeItem 
                 {...itemProps}
-                onLabelClick={handleLabelClick}
                 loadingDirectories={loadingDirectories}
               />
             )
