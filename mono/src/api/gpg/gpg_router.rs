@@ -58,7 +58,7 @@ async fn add_gpg(
     println!("Adding GPG key for user: {}", req.gpg_content.clone());
     state
         .gpg_stg()
-        .add_gpg_key(uid, req.gpg_content, req.expires_days)
+        .add_gpg_key(uid, req.gpg_content)
         .await?;
 
     Ok(Json(CommonResult::success(None)))
