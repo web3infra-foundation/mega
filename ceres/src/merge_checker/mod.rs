@@ -94,13 +94,16 @@ pub struct CheckResult {
 pub struct CheckerRegistry {
     checkers: HashMap<CheckType, Box<dyn Checker>>,
     storage: Arc<Storage>,
+    #[allow(dead_code)]
+    username: String,
 }
 
 impl CheckerRegistry {
-    pub fn new(storage: Arc<Storage>) -> Self {
+    pub fn new(storage: Arc<Storage>, username: String) -> Self {
         let mut r = CheckerRegistry {
             checkers: HashMap::new(),
             storage: storage.clone(),
+            username,
         };
         r.register(CheckType::MrSync, Box::new(MrSyncChecker { storage }));
         r

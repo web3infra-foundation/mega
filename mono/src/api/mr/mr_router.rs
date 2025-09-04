@@ -419,7 +419,7 @@ async fn save_comment(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
+) -> Result<Json<CommonResult<()>>, ApiError> {
     let res = state.mr_stg().get_mr(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
     state
@@ -427,11 +427,11 @@ async fn save_comment(
         .add_conversation(
             &model.link,
             &user.username,
-            Some(payload.content),
+            Some(payload.content.clone()),
             ConvTypeEnum::Comment,
         )
         .await?;
-    Ok(Json(CommonResult::success(None)))
+    api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
 /// Edit MR title

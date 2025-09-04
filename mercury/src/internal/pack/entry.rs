@@ -18,6 +18,7 @@ pub struct Entry {
     pub obj_type: ObjectType,
     pub data: Vec<u8>,
     pub hash: SHA1,
+    pub chain_len: usize,
 }
 
 impl PartialEq for Entry {
@@ -54,6 +55,7 @@ impl From<Blob> for Entry {
             obj_type: ObjectType::Blob,
             data: value.data,
             hash: value.id,
+            chain_len: 0,
         }
     }
 }
@@ -64,6 +66,7 @@ impl From<Commit> for Entry {
             obj_type: ObjectType::Commit,
             data: value.to_data().unwrap(),
             hash: value.id,
+            chain_len: 0,
         }
     }
 }
@@ -74,6 +77,7 @@ impl From<Tree> for Entry {
             obj_type: ObjectType::Tree,
             data: value.to_data().unwrap(),
             hash: value.id,
+            chain_len: 0,
         }
     }
 }
@@ -84,6 +88,7 @@ impl From<Tag> for Entry {
             obj_type: ObjectType::Tag,
             data: value.to_data().unwrap(),
             hash: value.id,
+            chain_len: 0,
         }
     }
 }
