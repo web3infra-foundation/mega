@@ -148,8 +148,8 @@ mod tests {
     #[test]
     fn test_heuristic_encode_rate_large_files() {
        
-        let data1 = vec![0u8; 1_000_00];
-        let data2 = vec![1u8; 1_000_00];
+        let data1 = vec![0u8; 100_000];
+        let data2 = vec![1u8; 100_000];
         let rate = heuristic_encode_rate(&data1, &data2);
         println!("Large non-matching data rate = {}", rate);
         assert_eq!(rate, 0.0, "Large completely different data should early stop with 0 rate");

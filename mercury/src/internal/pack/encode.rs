@@ -129,7 +129,7 @@ fn magic_sort(a: &Entry, b: &Entry) -> Ordering {
     (a as *const Entry).cmp(&(b as *const Entry))
 }
 
-// /// 计算单片段 hash
+
 fn calc_hash(data: &[u8]) -> u64 {
     let mut hasher = AHasher::default();
     data.hash(&mut hasher);
@@ -585,7 +585,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack");
         // let file_map = crate::test_utils::setup_lfs_file().await;
-        // let source = file_mapa
+        // let source = file_map
         //     .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
         //     .unwrap();
         // decode pack file to get entries
