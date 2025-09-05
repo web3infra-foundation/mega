@@ -78,7 +78,6 @@ const NewGPGKeyDialog = ({ open, setOpen }: NewGPGKeyDialogProps) => {
     postGPGKey(
       {
         data: {
-          expires_days: 10,
           gpg_content: normalizedGpgContent
         }
       },
