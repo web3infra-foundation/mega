@@ -21,7 +21,7 @@ use crate::api::{
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{Condition, FilesChangedList, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
+    mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
@@ -39,7 +39,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
             .routes(routes!(mr_files_changed_by_page))
-            .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
             .routes(routes!(labels))
@@ -257,33 +256,6 @@ async fn mr_detail(
         .await?
         .into();
     Ok(Json(CommonResult::success(Some(mr_details))))
-}
-
-/// Get List of All Changed Files in Merge Request
-#[utoipa::path(
-    get,
-    params(
-        ("link", description = "MR link"),
-    ),
-    path = "/{link}/files-changed",
-    responses(
-        (status = 200, body = CommonResult<FilesChangedList>, content_type = "application/json")
-    ),
-    tag = MR_TAG
-)]
-async fn mr_files_changed(
-    Path(link): Path<String>,
-    state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    let diff_res = state.monorepo().content_diff(&link).await?;
-
-    let paths = diff_res.iter().map(|i| i.path.clone()).collect();
-    let mui_trees = build_forest(paths);
-    let res = CommonResult::success(Some(FilesChangedList {
-        mui_trees,
-        content: diff_res,
-    }));
-    Ok(Json(res))
 }
 
 /// Get Merge Request file changed list in Pagination
@@ -515,7 +487,6 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 #[cfg(test)]
 mod test {
     use crate::api::mr::mr_router::build_forest;
-    use crate::api::mr::FilesChangedList;
     use neptune::model::diff_model::DiffItem;
     use std::collections::HashMap;
 
@@ -638,19 +609,13 @@ mod test {
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
 
-        let content = vec![DiffItem {
+        let content = [DiffItem {
             data: sample_diff_output.to_string(),
             path: "diff_output.txt".to_string(),
         }];
 
-        // Test the complete response structure
-        let files_changed_list = FilesChangedList { mui_trees, content };
-
-        assert!(!files_changed_list.mui_trees.is_empty());
-        assert_eq!(
-            files_changed_list.content.first().unwrap().data,
-            sample_diff_output
-        );
+        assert!(!mui_trees.is_empty());
+        assert_eq!(content.first().unwrap().data, sample_diff_output);
     }
 
     #[test]

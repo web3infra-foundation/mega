@@ -52,12 +52,6 @@ impl From<MRDetails> for MRDetailRes {
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct FilesChangedList {
-    pub mui_trees: Vec<MuiTreeNode>,
-    pub content: Vec<DiffItem>,
-}
-
-#[derive(Serialize, ToSchema)]
 pub struct FilesChangedPage {
     pub mui_trees: Vec<MuiTreeNode>,
     pub page: CommonPage<DiffItem>,
