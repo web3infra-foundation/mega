@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -29,6 +29,34 @@ pub enum CheckType {
     MergeConflict,
     CiStatus,
     CodeReview,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub enum ConditionResult {
+    FAILED,
+    PASSED,
+}
+
+impl fmt::Display for ConditionResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ConditionResult::FAILED => "FAILED",
+            ConditionResult::PASSED => "PASSED",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for ConditionResult {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "PASSED" => Ok(ConditionResult::PASSED),
+            "FAILED" => Ok(ConditionResult::FAILED),
+            _ => Err(()),
+        }
+    }
 }
 
 impl CheckType {
@@ -88,7 +116,7 @@ impl From<CheckType> for CheckTypeEnum {
 #[derive(Debug)]
 pub struct CheckResult {
     pub check_type_code: CheckType,
-    pub status: String,
+    pub status: ConditionResult,
     pub message: String,
 }
 
@@ -142,7 +170,7 @@ impl CheckerRegistry {
                     &mr_info.link,
                     &mr_info.to_hash,
                     res.check_type_code.into(),
-                    &res.status,
+                    &res.status.to_string(),
                     &res.message,
                 );
                 save_models.push(model);
