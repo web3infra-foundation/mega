@@ -9,10 +9,7 @@ import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 
 import StableTreeView from './StableTreeView'
 
-interface DiffItem {
-  data: string
-  path: string
-}
+import { DiffItem } from './parsedDiffs'
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
   const lines = diffText.split('\n')
