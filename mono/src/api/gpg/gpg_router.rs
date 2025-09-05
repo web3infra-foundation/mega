@@ -56,10 +56,7 @@ async fn add_gpg(
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id.clone();
     println!("Adding GPG key for user: {}", req.gpg_content.clone());
-    state
-        .gpg_stg()
-        .add_gpg_key(uid, req.gpg_content, req.expires_days)
-        .await?;
+    state.gpg_stg().add_gpg_key(uid, req.gpg_content).await?;
 
     Ok(Json(CommonResult::success(None)))
 }

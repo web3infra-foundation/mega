@@ -47,7 +47,6 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
-// use common::utils::parse_commit_msg;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -58,8 +57,6 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
-// use pgp::{Deserializable, SignedPublicKey, StandaloneSignature};
-use regex::Regex;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -589,87 +586,6 @@ impl MonoApiService {
         });
         Ok(res)
     }
-
-    pub async fn verify_mr(&self, mr_link: &str) -> Result<HashMap<String, bool>, MegaError> {
-        let stg = self.storage.mr_storage();
-        let mr = stg.get_mr(mr_link).await?.ok_or_else(|| {
-            MegaError::with_message(format!("Merge request not found: {mr_link}"))
-        })?;
-
-        let commit = self
-            .storage
-            .mono_storage()
-            .get_commit_by_hash(&mr.to_hash)
-            .await?
-            .ok_or_else(|| MegaError::with_message("Commit not found"))?;
-
-        let mut res = HashMap::new();
-        let content = commit.content.clone().unwrap_or_default();
-        let _user_id = self
-            .storage
-            .user_storage()
-            .find_user_by_email(&self.extract_email(&content).await.unwrap_or_default())
-            .await?
-            .unwrap()
-            .id;
-        // let verified = self.verify_commit_gpg_signature(&content, user_id).await?;
-        // TODO: Temporarily disable GPG verification
-        let verified = false;
-        res.insert(commit.commit_id.clone(), verified);
-        Ok(res)
-    }
-
-    async fn extract_email(&self, s: &str) -> Option<String> {
-        let re = Regex::new(r"<\s*(?P<email>[^<>@\s]+@[^<>@\s]+)\s*>").unwrap();
-        re.captures(s)
-            .and_then(|c| c.get(1))
-            .map(|m| m.as_str().to_string())
-    }
-
-    // TODO: implement GPG
-    // async fn verify_commit_gpg_signature(
-    //     &self,
-    //     commit_content: &str,
-    //     user_id: String,
-    // ) -> Result<bool, MegaError> {
-    //     let (commit_msg, signature) = parse_commit_msg(commit_content);
-    //     if signature.is_none() {
-    //         return Ok(false); // No signature to verify
-    //     }
-    //
-    //     let sig_str = signature.unwrap();
-    //
-    //     // Remove "gpgsig " prefix if present
-    //     let sig = sig_str
-    //         .strip_prefix("gpgsig ")
-    //         .map(|s| s.trim())
-    //         .unwrap_or(sig_str);
-    //
-    //     let keys = self.storage.gpg_storage().list_user_gpg(user_id).await?;
-    //
-    //     for key in keys {
-    //         let verified = self
-    //             .verify_signature_with_key(&key.public_key, sig, commit_msg)
-    //             .await?;
-    //         if verified {
-    //             return Ok(true); // Signature verified successfully
-    //         }
-    //     }
-    //
-    //     Ok(false) // No key could verify the signature
-    // }
-    //
-    // async fn verify_signature_with_key(
-    //     &self,
-    //     public_key: &str,
-    //     signature: &str,
-    //     message: &str,
-    // ) -> Result<bool, MegaError> {
-    //     let (public_key, _) = SignedPublicKey::from_string(public_key)?;
-    //     let (signature, _) = StandaloneSignature::from_string(signature)?;
-    //
-    //     Ok(signature.verify(&public_key, message.as_bytes()).is_ok())
-    // }
 
     pub async fn get_commit_blobs(
         &self,

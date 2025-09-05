@@ -4,12 +4,13 @@ use async_trait::async_trait;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
+use crate::merge_checker::mr_sync_checker::MrSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
 use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
 
-use crate::merge_checker::mr_sync_checker::MrSyncChecker;
-
+mod gpg_signature_checker;
 pub mod mr_sync_checker;
 
 #[async_trait]
@@ -105,7 +106,18 @@ impl CheckerRegistry {
             storage: storage.clone(),
             username,
         };
-        r.register(CheckType::MrSync, Box::new(MrSyncChecker { storage }));
+        r.register(
+            CheckType::MrSync,
+            Box::new(MrSyncChecker {
+                storage: storage.clone(),
+            }),
+        );
+        r.register(
+            CheckType::GpgSignature,
+            Box::new(GpgSignatureChecker {
+                storage: storage.clone(),
+            }),
+        );
         r
     }
 
