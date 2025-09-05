@@ -11,6 +11,7 @@ export function useMrFilesChanged(
     queryKey: [
       ...legacyApiClient.v1.postApiMrFilesChanged().requestKey(link),
       data,
+      params
     ],
     queryFn: () =>
       legacyApiClient.v1.postApiMrFilesChanged().request(link, data, params)

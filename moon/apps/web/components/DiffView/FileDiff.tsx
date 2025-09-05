@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 
-import { CommonResultFilesChangedPage, DiffItem } from '@gitmono/types/generated'
+import { CommonResultFilesChangedPage } from '@gitmono/types/generated'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 
 import StableTreeView from './StableTreeView'
+
+interface DiffItem {
+  data: string
+  path: string
+}
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
   const lines = diffText.split('\n')
