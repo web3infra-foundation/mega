@@ -35,9 +35,7 @@ impl Checker for GpgSignatureChecker {
             message: String::new(),
         };
 
-        let is_verified = self
-            .verify_mr(&params.mr_to, params.committer)
-            .await;
+        let is_verified = self.verify_mr(&params.mr_to, params.committer).await;
 
         match is_verified {
             Ok(_) => res.message = String::from("PASSED"),
@@ -80,7 +78,9 @@ impl GpgSignatureChecker {
     ) -> Result<(), MegaError> {
         let (commit_msg, signature) = parse_commit_msg(commit_content);
         if signature.is_none() {
-            return Err(MegaError::with_message(format!("No GPG signature found for user {assignee}")));
+            return Err(MegaError::with_message(format!(
+                "No GPG signature found for user {assignee}"
+            )));
         }
 
         let sig_str = signature.unwrap();
@@ -103,7 +103,9 @@ impl GpgSignatureChecker {
             }
         }
 
-        Err(MegaError::with_message("No valid GPG key found to verify the signature"))
+        Err(MegaError::with_message(
+            "No valid GPG key found to verify the signature",
+        ))
     }
 
     async fn verify_signature_with_key(
@@ -115,9 +117,11 @@ impl GpgSignatureChecker {
         let (public_key, _) = SignedPublicKey::from_string(public_key)?;
         let (signature, _) = StandaloneSignature::from_string(signature)?;
 
-        signature.verify(&public_key, message.as_bytes()).map_err(
-            |e| MegaError::with_message(format!("Signature verification failed: {}", e))
-        )?;
+        signature
+            .verify(&public_key, message.as_bytes())
+            .map_err(|e| {
+                MegaError::with_message(format!("Signature verification failed: {}", e))
+            })?;
 
         Ok(())
     }
