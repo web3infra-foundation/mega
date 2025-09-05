@@ -8,7 +8,9 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
-use callisto::{issue_mr_references, item_assignees, item_labels, label, mega_conversation, mega_issue};
+use callisto::{
+    issue_mr_references, item_assignees, item_labels, label, mega_conversation, mega_issue,
+};
 use common::errors::MegaError;
 use common::model::Pagination;
 

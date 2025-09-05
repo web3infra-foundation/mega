@@ -3118,26 +3118,11 @@ export type CommonResultCommonPageLabelItem = {
   req_result: boolean
 }
 
-export type CommonResultFilesChangedList = {
-  data?: {
-    content: DiffItem[]
-    mui_trees: MuiTreeNode[]
-  }
-  err_message: string
-  req_result: boolean
-}
-
 export type CommonResultFilesChangedPage = {
   data?: {
     mui_trees: MuiTreeNode[]
     page: CommonPageDiffItem
   }
-  err_message: string
-  req_result: boolean
-}
-
-export type CommonResultHashMapStringBool = {
-  data?: Record<string, boolean>
   err_message: string
   req_result: boolean
 }
@@ -3333,7 +3318,8 @@ export enum ConvType {
   Closed = 'Closed',
   Reopen = 'Reopen',
   Label = 'Label',
-  Assignee = 'Assignee'
+  Assignee = 'Assignee',
+  Mention = 'Mention'
 }
 
 export type ConversationItem = {
@@ -3358,20 +3344,10 @@ export type CreateFileInfo = {
   path: string
 }
 
-export type DiffItem = {
-  data: string
-  path: string
-}
-
 export type FileTreeItem = {
   /** @min 0 */
   total_count: number
   tree_items: TreeBriefItem[]
-}
-
-export type FilesChangedList = {
-  content: DiffItem[]
-  mui_trees: MuiTreeNode[]
 }
 
 export type FilesChangedPage = {
@@ -3525,8 +3501,6 @@ export type MuiTreeNode = {
 }
 
 export type NewGpgRequest = {
-  /** @format int32 */
-  expires_days?: number | null
   gpg_content: string
 }
 
@@ -3637,6 +3611,104 @@ export type UpdateRequest = {
 export type UserInfo = {
   avatar_url: string
   display_name: string
+}
+
+/** Request payload for creating a new build task */
+export type BuildRequest = {
+  args?: any[] | null
+  buck_hash: string
+  buckconfig_hash: string
+  mr?: string | null
+  repo: string
+}
+
+/** Log segment read result */
+export type LogSegment = {
+  /** build id / log file name */
+  build_id: string
+  /** UTF-8 (lossy) decoded data slice */
+  data: string
+  /** Whether we reached end of file */
+  eof: boolean
+  /**
+   * Total file size in bytes
+   * @format int64
+   * @min 0
+   */
+  file_size: number
+  /**
+   * Bytes actually read
+   * @min 0
+   */
+  len: number
+  /**
+   * Next offset (offset + len)
+   * @format int64
+   * @min 0
+   */
+  next_offset: number
+  /**
+   * Requested starting offset
+   * @format int64
+   * @min 0
+   */
+  offset: number
+}
+
+/** Data transfer object for build information in API responses */
+export type TaskDTO = {
+  arguments: string
+  build_ids: any
+  end_at?: string | null
+  /** @format int32 */
+  exit_code?: number | null
+  mr: string
+  output_files: any
+  repo_name: string
+  start_at: string
+  target: string
+  task_id: string
+}
+
+/** Task information including current status */
+export type TaskInfoDTO = {
+  arguments: string
+  build_id: any
+  end_at?: string | null
+  /** @format int32 */
+  exit_code?: number | null
+  mr: string
+  output_files: any
+  repo_name: string
+  start_at: string
+  /** Enumeration of possible task statuses */
+  status: TaskStatusEnum
+  target: string
+}
+
+/** Response structure for task status queries */
+export type TaskRequest = {
+  mr?: string | null
+  repo: string
+}
+
+/** Response structure for task status queries */
+export type TaskStatus = {
+  /** @format int32 */
+  exit_code?: number | null
+  message?: string | null
+  /** Enumeration of possible task statuses */
+  status: TaskStatusEnum
+}
+
+/** Enumeration of possible task statuses */
+export enum TaskStatusEnum {
+  Pending = 'Pending',
+  Building = 'Building',
+  Interrupted = 'Interrupted',
+  Failed = 'Failed',
+  Completed = 'Completed',
+  NotFound = 'NotFound'
 }
 
 export type PostActivityViewsData = UserNotificationCounts
@@ -4843,8 +4915,6 @@ export type PostApiMrCommentData = CommonResultString
 
 export type GetApiMrDetailData = CommonResultMRDetailRes
 
-export type GetApiMrFilesChangedData = CommonResultFilesChangedList
-
 export type PostApiMrFilesChangedData = CommonResultFilesChangedPage
 
 export type GetApiMrFilesListData = CommonResultVecMrFilesRes
@@ -4858,8 +4928,6 @@ export type PostApiMrMergeNoAuthData = CommonResultString
 export type PostApiMrReopenData = CommonResultString
 
 export type PostApiMrTitleData = CommonResultString
-
-export type GetApiMrVerifySignatureData = CommonResultHashMapStringBool
 
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
@@ -4912,6 +4980,43 @@ export type PostApiUserTokenGenerateData = CommonResultString
 export type GetApiUserTokenListData = CommonResultVecListToken
 
 export type DeleteApiUserTokenByKeyIdData = CommonResultString
+
+export type GetMrTaskByMrData = TaskDTO[]
+
+export type PostTaskData = any
+
+export type GetTaskBuildListByIdData = string[]
+
+export type PostTaskBuildByIdData = any
+
+export type GetTaskHistoryOutputByIdParams = {
+  /**
+   * The type of log retrieval: "full" indicates full retrieval, while "segment" indicates retrieval of segments.
+   * @example "full"
+   */
+  type: string
+  /**
+   * Start line number (1-based)
+   * @format int64
+   * @min 0
+   */
+  offset?: number
+  /**
+   * Max number of lines to return
+   * @min 0
+   */
+  limit?: number
+  /** Build ID whose log to read */
+  id: string
+}
+
+export type GetTaskHistoryOutputByIdData = any
+
+export type GetTaskOutputByIdData = any
+
+export type GetTaskStatusByIdData = TaskStatus
+
+export type GetTasksByMrData = TaskInfoDTO[]
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -5196,6 +5301,32 @@ function dataTaggedQueryKey(key: unknown) {
  * @version 2.0.0
  */
 export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
+  /**
+ * No description
+ *
+ * @tags api
+ * @name PostTask
+ * @summary Creates a new build task and either assigns it immediately or queues it for later processing
+Returns task ID and status information upon successful creation
+ * @request POST:/task
+ */
+  postTask = () => {
+    const base = 'POST:/task' as const
+
+    return {
+      baseKey: dataTaggedQueryKey<PostTaskData>([base]),
+      requestKey: () => dataTaggedQueryKey<PostTaskData>([base]),
+      request: (data: TaskRequest, params: RequestParams = {}) =>
+        this.request<PostTaskData>({
+          path: `/task`,
+          method: 'POST',
+          body: data,
+          type: ContentType.Json,
+          ...params
+        })
+    }
+  }
+
   organizations = {
     /**
      * No description
@@ -13898,29 +14029,6 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags merge_request
-     * @name GetApiMrFilesChanged
-     * @summary Get List of All Changed Files in Merge Request
-     * @request GET:/api/v1/mr/{link}/files-changed
-     */
-    getApiMrFilesChanged: () => {
-      const base = 'GET:/api/v1/mr/{link}/files-changed' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiMrFilesChangedData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesChangedData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiMrFilesChangedData>({
-            path: `/api/v1/mr/${link}/files-changed`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
      * @name PostApiMrFilesChanged
      * @summary Get Merge Request file changed list in Pagination
      * @request POST:/api/v1/mr/{link}/files-changed
@@ -14078,28 +14186,6 @@ It's for local testing purposes.
             method: 'POST',
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
-     * @name GetApiMrVerifySignature
-     * @request GET:/api/v1/mr/{link}/verify-signature
-     */
-    getApiMrVerifySignature: () => {
-      const base = 'GET:/api/v1/mr/{link}/verify-signature' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiMrVerifySignatureData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrVerifySignatureData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiMrVerifySignatureData>({
-            path: `/api/v1/mr/${link}/verify-signature`,
-            method: 'GET',
             ...params
           })
       }
@@ -14434,6 +14520,175 @@ It's for local testing purposes.
           this.request<DeleteApiUserTokenByKeyIdData>({
             path: `/api/v1/user/token/${keyId}`,
             method: 'DELETE',
+            ...params
+          })
+      }
+    }
+  }
+  mr = {
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetMrTaskByMr
+ * @summary Retrieves all build tasks associated with a specific merge request
+Returns a list of task filtered by MR number
+ * @request GET:/mr-task/{mr}
+ */
+    getMrTaskByMr: () => {
+      const base = 'GET:/mr-task/{mr}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetMrTaskByMrData>([base]),
+        requestKey: (mr: string) => dataTaggedQueryKey<GetMrTaskByMrData>([base, mr]),
+        request: (mr: string, params: RequestParams = {}) =>
+          this.request<GetMrTaskByMrData>({
+            path: `/mr-task/${mr}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTasksByMr
+     * @summary Return all tasks with their current status (combining /mr-task and /task-status logic)
+     * @request GET:/tasks/{mr}
+     */
+    getTasksByMr: () => {
+      const base = 'GET:/tasks/{mr}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTasksByMrData>([base]),
+        requestKey: (mr: string) => dataTaggedQueryKey<GetTasksByMrData>([base, mr]),
+        request: (mr: string, params: RequestParams = {}) =>
+          this.request<GetTasksByMrData>({
+            path: `/tasks/${mr}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  id = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTaskBuildListById
+     * @request GET:/task-build-list/{id}
+     */
+    getTaskBuildListById: () => {
+      const base = 'GET:/task-build-list/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskBuildListByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetTaskBuildListByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetTaskBuildListByIdData>({
+            path: `/task-build-list/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags api
+     * @name PostTaskBuildById
+     * @request POST:/task-build/{id}
+     */
+    postTaskBuildById: () => {
+      const base = 'POST:/task-build/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostTaskBuildByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<PostTaskBuildByIdData>([base, id]),
+        request: (id: string, data: BuildRequest, params: RequestParams = {}) =>
+          this.request<PostTaskBuildByIdData>({
+            path: `/task-build/${id}`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskHistoryOutputById
+ * @summary Provides the ability to read historical task logs
+supporting either retrieving the entire log at once or segmenting it by line count.
+ * @request GET:/task-history-output/{id}
+ */
+    getTaskHistoryOutputById: () => {
+      const base = 'GET:/task-history-output/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base]),
+        requestKey: (params: GetTaskHistoryOutputByIdParams) =>
+          dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base, params]),
+        request: ({ id, ...query }: GetTaskHistoryOutputByIdParams, params: RequestParams = {}) =>
+          this.request<GetTaskHistoryOutputByIdData>({
+            path: `/task-history-output/${id}`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskOutputById
+ * @summary Streams build output logs in real-time using Server-Sent Events (SSE)
+Continuously monitors the log file and streams new content as it becomes available
+ * @request GET:/task-output/{id}
+ */
+    getTaskOutputById: () => {
+      const base = 'GET:/task-output/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskOutputByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetTaskOutputByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetTaskOutputByIdData>({
+            path: `/task-output/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskStatusById
+ * @summary Retrieves the current status of a build task by its ID
+Returns status information including exit code and current state
+ * @request GET:/task-status/{id}
+ */
+    getTaskStatusById: () => {
+      const base = 'GET:/task-status/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskStatusByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetTaskStatusByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetTaskStatusByIdData>({
+            path: `/task-status/${id}`,
+            method: 'GET',
             ...params
           })
       }
