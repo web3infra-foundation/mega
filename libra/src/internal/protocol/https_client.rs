@@ -112,7 +112,7 @@ impl HttpsClient {
             .unwrap();
         let res = BasicAuth::send(|| async { self.client.get(url.clone()) })
             .await
-            .unwrap();
+            .map_err(|e| GitError::NetworkError(format!("Failed to send request: {}", e)))?;
         tracing::debug!("{:?}", res);
 
         if res.status() == 401 {
@@ -129,14 +129,22 @@ impl HttpsClient {
         }
 
         // check Content-Type MUST be application/x-$servicename-advertisement
-        let content_type = res.headers().get("Content-Type").unwrap().to_str().unwrap();
+        let content_type = res
+            .headers()
+            .get("Content-Type")
+            .ok_or_else(|| GitError::NetworkError("Missing Content-Type header".to_string()))?
+            .to_str()
+            .map_err(|e| GitError::NetworkError(format!("Invalid Content-Type header: {}", e)))?;
         if content_type != format!("application/x-{service}-advertisement") {
             return Err(GitError::NetworkError(format!(
                 "Content-type must be `application/x-{service}-advertisement`, but got: {content_type}"
             )));
         }
 
-        let mut response_content = res.bytes().await.unwrap();
+        let mut response_content = res
+            .bytes()
+            .await
+            .map_err(|e| GitError::NetworkError(format!("Failed to read response body: {}", e)))?;
         tracing::debug!("{:?}", response_content);
 
         // the first five bytes of the response entity matches the regex ^[0-9a-f]{4}#.
@@ -159,14 +167,17 @@ impl HttpsClient {
                     continue;
                 }
             }
-            let pkt_line = String::from_utf8(pkt_line.to_vec()).unwrap();
+            let pkt_line = String::from_utf8(pkt_line.to_vec())
+                .map_err(|e| GitError::NetworkError(format!("Invalid UTF-8 in response: {}", e)))?;
             let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
                 if hash == SHA1::default().to_string() {
                     break; // empty repo, return empty list // TODO: parse capability
                 }
-                let (head, caps) = refs.split_once('\0').unwrap();
+                let (head, caps) = refs.split_once('\0').ok_or_else(|| {
+                    GitError::NetworkError("Invalid reference format".to_string())
+                })?;
                 if service == UploadPack.to_string() {
                     // for git-upload-pack, the first line is HEAD
                     assert_eq!(head, "HEAD");
@@ -216,7 +227,7 @@ impl HttpsClient {
                 .body(body.clone())
         })
         .await
-        .unwrap();
+        .map_err(|e| IoError::other(format!("Failed to send request: {}", e)))?;
         tracing::debug!("request: {:?}", res);
 
         if res.status() != 200 && res.status() != 304 {
@@ -282,6 +293,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore] // This test requires network connectivity
     async fn test_discover_reference_upload() {
         init_debug_logger();
 
@@ -300,6 +312,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // This test requires network connectivity
     async fn test_post_git_upload_pack_() {
         init_debug_logger();
 

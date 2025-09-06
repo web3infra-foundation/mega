@@ -52,6 +52,8 @@ enum Commands {
     Log(command::log::LogArgs),
     #[command(about = "List, create, or delete branches")]
     Branch(command::branch::BranchArgs),
+    #[command(about = "Create a new tag")]
+    Tag(command::tag::TagArgs),
     #[command(about = "Record changes to the repository")]
     Commit(command::commit::CommitArgs),
     #[command(about = "Switch branches")]
@@ -156,6 +158,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Lfs(cmd) => command::lfs::execute(cmd).await,
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Branch(args) => command::branch::execute(args).await,
+        Commands::Tag(args) => command::tag::execute(args).await,
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Rebase(args) => command::rebase::execute(args).await,

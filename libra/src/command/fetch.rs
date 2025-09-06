@@ -12,10 +12,9 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-use crate::command::{load_object, HEAD};
+use crate::command::load_object;
 use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog;
-use crate::internal::reflog::{zero_sha1, ReflogAction, ReflogContext, ReflogError};
+use crate::internal::reflog::{zero_sha1, Reflog, ReflogAction, ReflogContext, ReflogError, HEAD};
 use crate::utils::util;
 use crate::{
     command::index_pack::{self, IndexPackArgs},
@@ -114,7 +113,7 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
         return;
     }
 
-    let remote_head = refs.iter().find(|r| r._ref == "HEAD").cloned();
+    let remote_head = refs.iter().find(|r| r._ref == HEAD).cloned();
     // remote branches
     let ref_heads = refs
         .clone()
@@ -235,34 +234,24 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
 
                     // Determine the full ref name (e.g., "refs/remotes/origin/main")
                     if let Some(branch_name) = r._ref.strip_prefix("refs/heads/") {
-                        full_ref_name = branch_name.to_owned();
+                        full_ref_name =
+                            format!("refs/remotes/{}/{}", remote_config.name, branch_name);
                     } else if let Some(mr_name) = r._ref.strip_prefix("refs/mr/") {
                         // Handle merge requests if your system supports them
-                        full_ref_name = format!("mr/{}", mr_name);
-                    } else if r._ref == HEAD {
-                        continue;
+                        full_ref_name =
+                            format!("refs/remotes/{}/mr/{}", remote_config.name, mr_name);
                     } else {
                         tracing::warn!("Unsupported ref type during fetch: {}", r._ref);
                         continue; // Skip unsupported ref types
                     }
 
                     // Get the old OID *before* updating the branch
-                    let old_oid = Branch::find_branch_with_conn(
-                        txn,
-                        &full_ref_name,
-                        Some(&remote_config.name),
-                    )
-                    .await
-                    .map_or(zero_sha1().to_string(), |b| b.commit.to_string());
+                    let old_oid = Branch::find_branch_with_conn(txn, &full_ref_name, None)
+                        .await
+                        .map_or(zero_sha1().to_string(), |b| b.commit.to_string());
 
                     // Update the branch pointer
-                    Branch::update_branch_with_conn(
-                        txn,
-                        &full_ref_name,
-                        &r._hash,
-                        Some(&remote_config.name),
-                    )
-                    .await;
+                    Branch::update_branch_with_conn(txn, &full_ref_name, &r._hash, None).await;
 
                     // Prepare and insert the reflog entry for this specific remote-tracking branch
                     let context = ReflogContext {
@@ -270,7 +259,7 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
                         new_oid: r._hash.clone(),
                         action: ReflogAction::Fetch, // Using a simple Fetch action
                     };
-                    reflog::Reflog::insert_single_entry(txn, &context, &full_ref_name).await?;
+                    Reflog::insert_single_entry(txn, &context, &full_ref_name).await?;
                 }
 
                 // 2. Update the remote's HEAD pointer

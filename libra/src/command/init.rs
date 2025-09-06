@@ -1,6 +1,7 @@
 //! This module implements the `init` command for the Libra CLI.
 //!
-//!
+//! The `init` command creates a new Libra repository in the current directory or a specified directory.
+//! It supports customizing the initial branch name with the `--initial-branch` parameter.
 //!
 use std::{
     fs,
@@ -17,7 +18,9 @@ use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 
-#[derive(Parser, Debug)]
+const DEFAULT_BRANCH: &str = "master";
+
+#[derive(Parser, Debug, Clone)]
 pub struct InitArgs {
     /// Create a bare repository
     #[clap(long, required = false)]
@@ -46,7 +49,6 @@ pub async fn execute(args: InitArgs) {
         Ok(_) => {}
         Err(e) => {
             eprintln!("Error: {e}");
-            std::process::exit(1);
         }
     }
 }
@@ -229,14 +231,17 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
         conn = db::create_database(database.to_str().unwrap()).await?;
     }
 
-    // Create config table
-    init_config(&conn).await.unwrap();
+    // Create config table with bare parameter consideration
+    init_config(&conn, args.bare).await.unwrap();
+
+    // Determine the initial branch name: use provided name or default to "main"
+    let initial_branch_name = args
+        .initial_branch
+        .unwrap_or_else(|| DEFAULT_BRANCH.to_owned());
 
     // Create HEAD
     reference::ActiveModel {
-        name: Set(Some(
-            args.initial_branch.unwrap_or_else(|| "master".to_owned()),
-        )),
+        name: Set(Some(initial_branch_name.clone())),
         kind: Set(reference::ConfigKind::Head),
         ..Default::default() // all others are `NotSet`
     }
@@ -247,8 +252,9 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
     if !args.quiet {
+        let repo_type = if args.bare { "bare " } else { "" };
         println!(
-            "Initializing empty Libra repository in {}",
+            "Initializing empty {repo_type}Libra repository in {} with initial branch '{initial_branch_name}'",
             root_dir.display()
         );
     }
@@ -258,7 +264,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
 /// Initialize the configuration for the Libra repository
 /// This function creates the necessary configuration entries in the database.
-async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
+async fn init_config(conn: &DbConn, is_bare: bool) -> Result<(), DbErr> {
     // Begin a new transaction
     let txn = conn.begin().await?;
 
@@ -267,7 +273,7 @@ async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
     let entries = [
         ("repositoryformatversion", "0"),
         ("filemode", "true"),
-        ("bare", "false"),
+        ("bare", if is_bare { "true" } else { "false" }),
         ("logallrefupdates", "true"),
     ];
 
@@ -276,7 +282,7 @@ async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
     let entries = [
         ("repositoryformatversion", "0"),
         ("filemode", "false"), // no filemode on windows
-        ("bare", "false"),
+        ("bare", if is_bare { "true" } else { "false" }),
         ("logallrefupdates", "true"),
         ("symlinks", "false"),  // no symlinks on windows
         ("ignorecase", "true"), // ignorecase on windows
@@ -303,7 +309,7 @@ async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
 #[cfg(target_os = "windows")]
 fn set_dir_hidden(dir: &str) -> io::Result<()> {
     use std::process::Command;
-    Command::new("attrib").arg("+H").arg(dir).spawn()?.wait()?; // 等待命令执行完成
+    Command::new("attrib").arg("+H").arg(dir).spawn()?.wait()?; // Wait for command execution to complete
     Ok(())
 }
 
@@ -314,7 +320,3 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
     // on unix-like systems, dotfiles are hidden by default
     Ok(())
 }
-
-/// Unit tests for the init module
-#[cfg(test)]
-mod tests {}

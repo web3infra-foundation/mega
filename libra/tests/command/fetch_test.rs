@@ -33,6 +33,7 @@ fn init_temp_repo() -> TempDir {
 }
 
 #[tokio::test]
+#[ignore] // This test requires network connectivity
 /// Test fetching from an invalid remote repository with timeout
 async fn test_fetch_invalid_remote() {
     let temp_repo = init_temp_repo();

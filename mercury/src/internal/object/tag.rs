@@ -84,6 +84,30 @@ impl Tag {
     //     let meta = Meta::new_from_file(path)?;
     //     Tag::new_from_meta(meta)
     // }
+
+    pub fn new(
+        object_hash: SHA1,
+        object_type: ObjectType,
+        tag_name: String,
+        tagger: Signature,
+        message: String,
+    ) -> Self {
+        // Serialize the tag data to calculate its hash
+        let data = format!(
+            "object {}\ntype {}\ntag {}\ntagger {}\n\n{}",
+            object_hash, object_type, tag_name, tagger, message
+        );
+        let id = SHA1::from_type_and_data(ObjectType::Tag, data.as_bytes());
+
+        Self {
+            id,
+            object_hash,
+            object_type,
+            tag_name,
+            tagger,
+            message,
+        }
+    }
 }
 
 impl ObjectTrait for Tag {
@@ -100,44 +124,58 @@ impl ObjectTrait for Tag {
     where
         Self: Sized,
     {
-        let mut data = row_data;
+        let mut headers = row_data;
+        let mut message_start = 0;
 
-        let hash_begin = data.find_byte(0x20).unwrap();
-        let hash_end = data.find_byte(0x0a).unwrap();
-        let object_hash = SHA1::from_str(data[hash_begin + 1..hash_end].to_str().unwrap()).unwrap();
-        data = &data[hash_end + 1..];
+        if let Some(pos) = headers.find(b"\n\n") {
+            message_start = pos + 2;
+            headers = &headers[..pos];
+        }
 
-        let type_begin = data.find_byte(0x20).unwrap();
-        let type_end = data.find_byte(0x0a).unwrap();
-        let object_type =
-            ObjectType::from_string(data[type_begin + 1..type_end].to_str().unwrap()).unwrap();
-        data = &data[type_end + 1..];
+        let mut object_hash: Option<SHA1> = None;
+        let mut object_type: Option<ObjectType> = None;
+        let mut tag_name: Option<String> = None;
+        let mut tagger: Option<Signature> = None;
 
-        let tag_begin = data.find_byte(0x20).unwrap();
-        let tag_end = data.find_byte(0x0a).unwrap();
-        let tag_name = String::from_utf8(data[tag_begin + 1..tag_end].to_vec()).unwrap();
-        data = &data[tag_end + 1..];
+        for line in headers.lines() {
+            if let Some(s) = line.strip_prefix(b"object ") {
+                let hash_str = s.to_str().map_err(|_| {
+                    GitError::InvalidTagObject("Invalid UTF-8 in object hash".to_string())
+                })?;
+                object_hash = Some(SHA1::from_str(hash_str).map_err(|_| {
+                    GitError::InvalidTagObject("Invalid object hash format".to_string())
+                })?);
+            } else if let Some(s) = line.strip_prefix(b"type ") {
+                let type_str = s.to_str().map_err(|_| {
+                    GitError::InvalidTagObject("Invalid UTF-8 in object type".to_string())
+                })?;
+                object_type = Some(ObjectType::from_string(type_str)?);
+            } else if let Some(s) = line.strip_prefix(b"tag ") {
+                let tag_str = s.to_str().map_err(|_| {
+                    GitError::InvalidTagObject("Invalid UTF-8 in tag name".to_string())
+                })?;
+                tag_name = Some(tag_str.to_string());
+            } else if line.starts_with(b"tagger ") {
+                tagger = Some(Signature::from_data(line.to_vec())?);
+            }
+        }
 
-        let tagger_begin = data.find("tagger").unwrap();
-        let tagger_end = data.find_byte(0x0a).unwrap();
-        let tagger_data = data[tagger_begin..tagger_end].to_vec();
-        let tagger = Signature::from_data(tagger_data).unwrap();
-        data = &data[data.find_byte(0x0a).unwrap() + 1..];
-
-        let message = unsafe {
-            // There may be non-UTF-8 characters, so we use `to_str_unchecked` for conversion.
-            data[data.find_byte(0x0a).unwrap()..]
-                .to_vec()
-                .to_str_unchecked()
-                .to_string()
+        let message = if message_start > 0 {
+            String::from_utf8_lossy(&row_data[message_start..]).to_string()
+        } else {
+            String::new()
         };
 
         Ok(Tag {
             id: hash,
-            object_hash,
-            object_type,
-            tag_name,
-            tagger,
+            object_hash: object_hash
+                .ok_or_else(|| GitError::InvalidTagObject("Missing object hash".to_string()))?,
+            object_type: object_type
+                .ok_or_else(|| GitError::InvalidTagObject("Missing object type".to_string()))?,
+            tag_name: tag_name
+                .ok_or_else(|| GitError::InvalidTagObject("Missing tag name".to_string()))?,
+            tagger: tagger
+                .ok_or_else(|| GitError::InvalidTagObject("Missing tagger".to_string()))?,
             message,
         })
     }
@@ -147,7 +185,7 @@ impl ObjectTrait for Tag {
     }
 
     fn get_size(&self) -> usize {
-        todo!()
+        self.to_data().map(|data| data.len()).unwrap_or(0)
     }
 
     ///
@@ -161,23 +199,21 @@ impl ObjectTrait for Tag {
     fn to_data(&self) -> Result<Vec<u8>, GitError> {
         let mut data = Vec::new();
 
-        data.extend_from_slice("object".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"object ");
         data.extend_from_slice(self.object_hash.to_string().as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"\n");
 
-        data.extend_from_slice("type".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"type ");
         data.extend_from_slice(self.object_type.to_string().as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"\n");
 
-        data.extend_from_slice("tag".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"tag ");
         data.extend_from_slice(self.tag_name.as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+        data.extend_from_slice(b"\n");
 
-        data.extend_from_slice(self.tagger.to_data()?.as_ref());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+        data.extend_from_slice(&self.tagger.to_data()?);
+        data.extend_from_slice(b"\n\n");
+
         data.extend_from_slice(self.message.as_bytes());
 
         Ok(data)
