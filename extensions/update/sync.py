@@ -19,8 +19,14 @@ from .kafka_message_model import CrateTypeEnum, MessageKindEnum, MessageModel, R
 from .model import SyncStatusEnum
 import atexit
 import threading
+import time
+
 
 import concurrent.futures
+from dotenv import load_dotenv
+
+# 加载 .env 文件中的环境变量
+load_dotenv()
 
 # 并发下载配置
 ENABLE_CONCURRENCY = os.environ.get("ENABLE_CONCURRENCY", "false").lower() == "true"
