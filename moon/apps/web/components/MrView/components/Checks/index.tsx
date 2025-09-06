@@ -15,7 +15,7 @@ import { Task } from './cpns/Task'
 
 const Checks = ({ mr }: { mr: string }) => {
   // const { data } = useGetMrTask(mr)
-  const [buildid, setBuildId] = useAtom(buildIdAtom)
+  const [buildid, _setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   // 获取所有构建任务
@@ -48,7 +48,7 @@ const Checks = ({ mr }: { mr: string }) => {
     }
 
     fetchLogs()
-    setBuildId(status[0].build_id)
+    // setBuildId(status[0].build_id)
     return () => {
       statusMap.clear()
     }
