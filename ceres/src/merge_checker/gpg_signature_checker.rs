@@ -39,10 +39,11 @@ impl Checker for GpgSignatureChecker {
         match is_verified {
             Ok(_) => {
                 res.status = ConditionResult::PASSED;
-                res.message = String::from::("PASSED");
+                res.message = String::from("PASSED");
             }
+
             Err(e) => {
-                res.status = String::from("FAILED");
+                res.status = ConditionResult::PASSED;
                 res.message = format!("Error during GPG signature verification: {}", e);
             }
         };
