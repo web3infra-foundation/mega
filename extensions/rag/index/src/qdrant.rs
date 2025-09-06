@@ -25,24 +25,55 @@ impl QdrantNode {
     }
 
     async fn ensure_collection(&self) {
-        if self
-            .client
-            .create_collection(
-                qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
-                    .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
-                        1024,
-                        qdrant_client::qdrant::Distance::Cosine,
-                    ))
-                    .quantization_config(
-                        qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
-                    ),
-            )
-            .await
-            .is_err()
-        {
-            println!("Collection already exists or error occurred");
+        match self.client.collection_exists(&self.collection_name).await {
+            Ok(true) => {
+                log::info!("Collection '{}' already exists", self.collection_name);
+            }
+            Ok(false) => {
+                log::info!("Collection '{}' does not exist, creating...", self.collection_name);
+                if let Err(e) = self
+                    .client
+                    .create_collection(
+                        qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
+                            .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
+                                1024,
+                                qdrant_client::qdrant::Distance::Cosine,
+                            ))
+                            .quantization_config(
+                                qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
+                            ),
+                    )
+                    .await
+                {
+                    log::error!("Failed to create collection '{}': {e}", self.collection_name);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to check collection existence: {e}");
+            }
         }
     }
+    
+
+    // async fn ensure_collection(&self) {
+    //     if self
+    //         .client
+    //         .create_collection(
+    //             qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
+    //                 .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
+    //                     1024,
+    //                     qdrant_client::qdrant::Distance::Cosine,
+    //                 ))
+    //                 .quantization_config(
+    //                     qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
+    //                 ),
+    //         )
+    //         .await
+    //         .is_err()
+    //     {
+    //         println!("Collection already exists or error occurred");
+    //     }
+    // }
 }
 
 #[async_trait]

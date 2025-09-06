@@ -1,4 +1,4 @@
-use crate::merge_checker::{CheckResult, CheckType, Checker};
+use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 use async_trait::async_trait;
 use common::errors::MegaError;
 use common::utils::parse_commit_msg;
@@ -31,14 +31,16 @@ impl Checker for GpgSignatureChecker {
         let params = GpgSignatureParams::from_value(params).expect("parse params err");
         let mut res = CheckResult {
             check_type_code: CheckType::GpgSignature,
-            status: String::from("PENDING"),
+            status: ConditionResult::FAILED,
             message: String::new(),
         };
 
         let is_verified = self.verify_mr(&params.mr_to, params.committer).await;
-
         match is_verified {
-            Ok(_) => res.message = String::from("PASSED"),
+            Ok(_) => {
+                res.status = ConditionResult::PASSED;
+                res.message = String::from::("PASSED");
+            }
             Err(e) => {
                 res.status = String::from("FAILED");
                 res.message = format!("Error during GPG signature verification: {}", e);
