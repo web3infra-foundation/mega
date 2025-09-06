@@ -1,14 +1,14 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IssueClosedIcon, IssueOpenedIcon, IssueReopenedIcon } from '@primer/octicons-react'
-import { Stack, TextInput } from '@primer/react'
+import { IssueClosedIcon, IssueReopenedIcon } from '@primer/octicons-react'
+import { Stack } from '@primer/react'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
 import { CommonResultIssueDetailRes } from '@gitmono/types'
-import { Button, LoadingSpinner, PicturePlusIcon, UIText } from '@gitmono/ui'
+import { Button, LoadingSpinner, PicturePlusIcon } from '@gitmono/ui'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
 import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
@@ -19,7 +19,6 @@ import { usePostIssueAssignees } from '@/hooks/issues/usePostIssueAssignees'
 import { usePostIssueClose } from '@/hooks/issues/usePostIssueClose'
 import { usePostIssueComment } from '@/hooks/issues/usePostIssueComment'
 import { usePostIssueReopen } from '@/hooks/issues/usePostIssueReopen'
-import { usePostIssueTitle } from '@/hooks/issues/usePostIssueTitle'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { usePostIssueLabels } from '@/hooks/usePostIssueLabels'
@@ -30,6 +29,7 @@ import { trimHtml } from '@/utils/trimHtml'
 import { MemberAvatar } from '../MemberAvatar'
 import TimelineItems from '../MrView/TimelineItems'
 import { BadgeItem } from './IssueNewPage'
+import TitleInput from './TitleInput'
 import { pickWithReflect } from './utils/pickWithReflectDeep'
 import {
   splitFun,
@@ -79,10 +79,6 @@ export default function IssueDetailPage({ link }: { link: string }) {
   const { data: issueDetailObj, error, isError, refetch, isLoading: detailIsLoading } = useGetIssueDetail(link)
 
   const issueDetail = issueDetailObj?.data as CommonResultIssueDetailRes['data'] | undefined
-
-  const [isEdit, setIsEdit] = useState(false)
-  const [editTitle, setEditTitle] = useState(issueDetail?.title)
-  const [titleloading, setTitleLoading] = useState(false)
 
   const applyDetailData = (detail: CommonResultIssueDetailRes | undefined) => {
     if (!detail || !detail.req_result || !detail.data) return
@@ -294,82 +290,18 @@ export default function IssueDetailPage({ link }: { link: string }) {
     }
   })
 
-  const { mutate: modifyTitle } = usePostIssueTitle()
-  const handleSave = () => {
-    if (editTitle === issueDetail?.title || editTitle === '') {
-      apiErrorToast(new Error('Nothing Changed or is Empty'))
-      return
-    }
-    setTitleLoading(true)
-    modifyTitle(
-      { link, data: { content: editTitle as string } },
-      {
-        onError: (err) => apiErrorToast(err),
-        onSuccess: async () => await refetch({ throwOnError: true }),
-        onSettled: () => {
-          setIsEdit(false)
-          setTitleLoading(false)
-        }
-      }
-    )
-  }
-
   return (
     <>
       <div className='h-screen overflow-auto pt-10'>
         {info?.title && (
           <div className='px-10 pb-4 text-xl'>
-            <div className='mb-4'>
-              {!isEdit && (
-                <>
-                  <div className='flex w-full items-center justify-between'>
-                    <UIText size='text-2xl' weight='font-bold' className='-tracking-[1px] lg:flex'>
-                      {`${issueDetail?.title || ''}`}
-                      <span>&nbsp;</span>
-                      <span className='font-light !text-[#59636e]'>${link}</span>
-                    </UIText>
-                    <Button
-                      onClick={() => {
-                        setEditTitle(issueDetail?.title)
-                        setIsEdit(true)
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </>
-              )}
-              {isEdit && (
-                <>
-                  <div className='flex w-full items-center justify-between gap-2'>
-                    <TextInput
-                      value={editTitle || ''}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className='new-issue-input no-border-input w-[80%]'
-                      trailingVisual={() => (titleloading ? <LoadingSpinner /> : '')}
-                    />
-                    <div className='flex gap-4'>
-                      <Button onClick={handleSave}>Save</Button>
-                      <Button onClick={() => setIsEdit(false)}>Cancel</Button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            {info.status === 'open' ? (
-              <>
-                <span className='flex w-fit items-center gap-2 rounded-full bg-[#1f883d] px-3 py-1 text-sm text-[#fff]'>
-                  <IssueOpenedIcon className='text-[#fff]' />
-                  Open
-                </span>
-              </>
-            ) : (
-              <>
-                <span className='flex w-fit items-center gap-2 rounded-full bg-[#8250df] px-3 py-1 text-sm text-[#fff]'>
-                  <IssueClosedIcon className='text-[#fff]' />
-                  Closed
-                </span>
-              </>
+            {issueDetail && (
+              <TitleInput
+                title={issueDetail.title}
+                id={link}
+                whoami='issue'
+                callback={() => refetch({ throwOnError: true })}
+              />
             )}
           </div>
         )}
