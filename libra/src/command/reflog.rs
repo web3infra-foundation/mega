@@ -1,8 +1,8 @@
-use crate::command::{load_object, HEAD};
+use crate::command::load_object;
 use crate::internal::config;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
-use crate::internal::reflog::{Reflog, ReflogError};
+use crate::internal::reflog::{Reflog, ReflogError, HEAD};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use mercury::hash::SHA1;
@@ -11,7 +11,9 @@ use sea_orm::sqlx::types::chrono;
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+#[cfg(unix)]
 use std::io::Write;
+#[cfg(unix)]
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 
@@ -79,7 +81,7 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
 
     #[cfg(unix)]
     if let Some(ref mut stdin) = less.stdin {
-        writeln!(stdin, "{formatter}").expect("fatal: failed to write to stdin");
+        writeln!(stdin, "{}", formatter).expect("fatal: failed to write to stdin");
     } else {
         eprintln!("Failed to capture stdin");
     }
@@ -116,7 +118,9 @@ async fn handle_exists(ref_name: &str) {
         .expect("fatal: failed to get reflog entry");
     match log {
         Some(_) => {}
-        None => std::process::exit(1),
+        None => {
+            eprintln!("fatal: reflog entry for '{}' not found", ref_name);
+        }
     }
 }
 
@@ -236,7 +240,7 @@ struct ReflogFormatter<'a> {
     kind: FormatterKind,
 }
 
-impl<'a> Display for ReflogFormatter<'a> {
+impl Display for ReflogFormatter<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let all = self.logs
             .iter()
