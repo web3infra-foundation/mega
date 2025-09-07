@@ -5,7 +5,7 @@ description: Show the working tree status
 
 ### Usage
 
-libra status
+libra status [--porcelain]
 
 ### Description
 
@@ -13,7 +13,21 @@ Displays paths that have differences between the index file and the current HEAD
 tree and the index file, and paths in the working tree that are not tracked by Libra.
 
 <Note type="note" title="Note">
-    `status` command doesn't support any options & arguments yet.
+    The `status` command now supports the `--porcelain` option for machine-readable output format.
 
     See https://git-scm.com/docs/git-status for more information.
 </Note>
+
+### Options
+
+- `--porcelain`
+    Provide output in a stable, easy-to-parse format for scripts.
+    Each line of output contains two status columns followed by the file path:
+    First column = index status (changes staged for commit)
+    Second column = working tree status (changes not staged)
+    Status codes:
+    A = Added
+    M = Modified
+    D = Deleted
+    ?? = Untracked
+    When --porcelain is not provided, the default human-readable output format is used.

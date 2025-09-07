@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use axum::{
@@ -22,7 +21,7 @@ use crate::api::{
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{Condition, FilesChangedList, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
+    mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
@@ -40,13 +39,11 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
             .routes(routes!(mr_files_changed_by_page))
-            .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title))
-            .routes(routes!(verify_mr_signature)),
+            .routes(routes!(edit_title)),
     )
 }
 
@@ -261,33 +258,6 @@ async fn mr_detail(
     Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
-/// Get List of All Changed Files in Merge Request
-#[utoipa::path(
-    get,
-    params(
-        ("link", description = "MR link"),
-    ),
-    path = "/{link}/files-changed",
-    responses(
-        (status = 200, body = CommonResult<FilesChangedList>, content_type = "application/json")
-    ),
-    tag = MR_TAG
-)]
-async fn mr_files_changed(
-    Path(link): Path<String>,
-    state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    let diff_res = state.monorepo().content_diff(&link).await?;
-
-    let paths = diff_res.iter().map(|i| i.path.clone()).collect();
-    let mui_trees = build_forest(paths);
-    let res = CommonResult::success(Some(FilesChangedList {
-        mui_trees,
-        content: diff_res,
-    }));
-    Ok(Json(res))
-}
-
 /// Get Merge Request file changed list in Pagination
 #[utoipa::path(
     post,
@@ -418,7 +388,7 @@ async fn save_comment(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
+) -> Result<Json<CommonResult<()>>, ApiError> {
     let res = state.mr_stg().get_mr(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
     state
@@ -426,11 +396,11 @@ async fn save_comment(
         .add_conversation(
             &model.link,
             &user.username,
-            Some(payload.content),
+            Some(payload.content.clone()),
             ConvTypeEnum::Comment,
         )
         .await?;
-    Ok(Json(CommonResult::success(None)))
+    api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
 /// Edit MR title
@@ -492,25 +462,6 @@ async fn assignees(
     api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
 }
 
-#[utoipa::path(
-    get,
-    params(
-        ("link", description = "MR link"),
-    ),
-    path = "/{link}/verify-signature",
-    responses(
-        (status = 200, body = CommonResult<HashMap<String, bool>>, content_type = "application/json")
-    ),
-    tag = MR_TAG
-)]
-async fn verify_mr_signature(
-    Path(link): Path<String>,
-    state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
-    let res = state.monorepo().verify_mr(&link).await?;
-    Ok(Json(CommonResult::success(Some(res))))
-}
-
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
     let mut roots: Vec<MuiTreeNode> = Vec::new();
 
@@ -536,7 +487,6 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 #[cfg(test)]
 mod test {
     use crate::api::mr::mr_router::build_forest;
-    use crate::api::mr::FilesChangedList;
     use neptune::model::diff_model::DiffItem;
     use std::collections::HashMap;
 
@@ -659,19 +609,13 @@ mod test {
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
 
-        let content = vec![DiffItem {
+        let content = [DiffItem {
             data: sample_diff_output.to_string(),
             path: "diff_output.txt".to_string(),
         }];
 
-        // Test the complete response structure
-        let files_changed_list = FilesChangedList { mui_trees, content };
-
-        assert!(!files_changed_list.mui_trees.is_empty());
-        assert_eq!(
-            files_changed_list.content.first().unwrap().data,
-            sample_diff_output
-        );
+        assert!(!mui_trees.is_empty());
+        assert_eq!(content.first().unwrap().data, sample_diff_output);
     }
 
     #[test]

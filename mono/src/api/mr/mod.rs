@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use ceres::{merge_checker::CheckType, model::mr::MrDiffFile};
+use ceres::{
+    merge_checker::{CheckType, ConditionResult},
+    model::mr::MrDiffFile,
+};
 use jupiter::model::mr_dto::MRDetails;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -49,12 +52,6 @@ impl From<MRDetails> for MRDetailRes {
                 .collect(),
         }
     }
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct FilesChangedList {
-    pub mui_trees: Vec<MuiTreeNode>,
-    pub content: Vec<DiffItem>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -201,7 +198,7 @@ impl From<check_result::Model> for Condition {
             display_name: check_type.clone().display_name().to_string(),
             description: check_type.description().to_string(),
             message: value.message,
-            result: ConditionResult::PASSED,
+            result: value.status.parse().unwrap(),
         }
     }
 }
@@ -210,10 +207,4 @@ impl From<check_result::Model> for Condition {
 pub enum RequirementsState {
     UNMERGEABLE,
     MERGEABLE,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
-pub enum ConditionResult {
-    FAILED,
-    PASSED,
 }

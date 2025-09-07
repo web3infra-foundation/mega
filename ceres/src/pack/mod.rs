@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::HashSet,
     pin::Pin,
     sync::{
@@ -14,7 +15,10 @@ use sysinfo::System;
 use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::protocol::import_refs::{RefCommand, Refs};
+use crate::{
+    pack::import_repo::ImportRepo,
+    protocol::import_refs::{RefCommand, Refs},
+};
 use callisto::raw_blob;
 use common::{
     config::PackConfig,
@@ -37,7 +41,9 @@ pub mod import_repo;
 pub mod monorepo;
 
 #[async_trait]
-pub trait RepoHandler: Send + Sync + 'static {
+pub trait RepoHandler: Any + Send + Sync + 'static {
+    fn is_monorepo(&self) -> bool;
+
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
     async fn receiver_handler(
@@ -82,12 +88,15 @@ pub trait RepoHandler: Send + Sync + 'static {
                 }
             }
         }
-        self.post_receiver_handler().await
+        if !self.is_monorepo() {
+            if let Some(import_repo) = (&self as &dyn Any).downcast_ref::<ImportRepo>() {
+                return import_repo.attach_to_monorepo_parent().await;
+            }
+        }
+        Ok(())
     }
 
     async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError>;
-
-    async fn post_receiver_handler(&self) -> Result<(), GitError>;
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
@@ -115,10 +124,6 @@ pub trait RepoHandler: Send + Sync + 'static {
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
-
-    async fn save_or_update_mr(&self) -> Result<(), MegaError>;
-
-    async fn post_mr_operation(&self) -> Result<(), MegaError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
 
@@ -243,5 +248,15 @@ pub trait RepoHandler: Send + Sync + 'static {
         if let Some(sender) = sender {
             sender.send(tree.into()).await.unwrap();
         }
+    }
+}
+
+impl dyn RepoHandler {
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    pub fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
     }
 }

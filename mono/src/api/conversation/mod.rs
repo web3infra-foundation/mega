@@ -98,6 +98,7 @@ pub enum ConvType {
     Reopen,
     Label,
     Assignee,
+    Mention,
 }
 
 impl From<ConvTypeEnum> for ConvType {
@@ -116,6 +117,7 @@ impl From<ConvTypeEnum> for ConvType {
             ConvTypeEnum::Reopen => ConvType::Reopen,
             ConvTypeEnum::Label => ConvType::Label,
             ConvTypeEnum::Assignee => ConvType::Assignee,
+            ConvTypeEnum::Mention => ConvType::Mention,
         }
     }
 }
