@@ -147,61 +147,60 @@ impl ObjectTrait for Commit {
     where
         Self: Sized,
     {
-        let mut commit = data;
-        // Find the tree id and remove it from the data
-        let tree_end = commit.find_byte(0x0a).unwrap();
-        let tree_id: SHA1 = SHA1::from_str(
-            String::from_utf8(commit[5..tree_end].to_owned()) // 5 is the length of "tree "
-                .unwrap()
-                .as_str(),
-        )
-        .unwrap();
-        let binding = commit[tree_end + 1..].to_vec(); // Move past the tree id
-        commit = &binding;
+        let mut headers = data;
+        let mut message_start = 0;
 
-        // Find the parent commit ids and remove them from the data
-        let author_begin = commit.find("author").unwrap();
-        // Find all parent commit ids
-        // The parent commit ids are all the lines that start with "parent "
-        // We can use find_iter to find all occurrences of "parent "
-        // and then extract the SHA1 hashes from them.
-        let parent_commit_ids: Vec<SHA1> = commit[..author_begin]
-            .find_iter("parent")
-            .map(|parent| {
-                let parent_end = commit[parent..].find_byte(0x0a).unwrap();
-                SHA1::from_str(
-                    // 7 is the length of "parent "
-                    String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
-                        .unwrap()
-                        .as_str(),
-                )
-                .unwrap()
-            })
-            .collect();
-        let binding = commit[author_begin..].to_vec();
-        commit = &binding;
+        // Find the blank line that separates headers from the message
+        if let Some(pos) = headers.find(b"\n\n") {
+            message_start = pos + 2;
+            headers = &headers[..pos];
+        } else {
+            // If no blank line, the whole data is headers, no message
+        }
 
-        // Find the author and committer and remove them from the data
-        // 0x0a is the newline character
-        let author =
-            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+        let mut tree_id: Option<SHA1> = None;
+        let mut parent_commit_ids: Vec<SHA1> = Vec::new();
+        let mut author: Option<Signature> = None;
+        let mut committer: Option<Signature> = None;
 
-        let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
-        commit = &binding;
-        let committer =
-            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+        for line in headers.lines() {
+            if let Some(tree_str) = line.strip_prefix(b"tree ") {
+                tree_id = Some(
+                    SHA1::from_str(tree_str.to_str().map_err(|e| {
+                        GitError::InvalidCommit(format!("Invalid UTF-8 in tree SHA: {}", e))
+                    })?)
+                    .map_err(|e| GitError::InvalidCommit(format!("Invalid tree SHA: {}", e)))?,
+                );
+            } else if let Some(parent_str) = line.strip_prefix(b"parent ") {
+                parent_commit_ids.push(
+                    SHA1::from_str(parent_str.to_str().map_err(|e| {
+                        GitError::InvalidCommit(format!("Invalid UTF-8 in parent SHA: {}", e))
+                    })?)
+                    .map_err(|e| GitError::InvalidCommit(format!("Invalid parent SHA: {}", e)))?,
+                );
+            } else if line.starts_with(b"author ") {
+                author = Some(Signature::from_data(line.to_vec()).map_err(|e| {
+                    GitError::InvalidCommit(format!("Invalid author signature: {}", e))
+                })?);
+            } else if line.starts_with(b"committer ") {
+                committer = Some(Signature::from_data(line.to_vec()).map_err(|e| {
+                    GitError::InvalidCommit(format!("Invalid committer signature: {}", e))
+                })?);
+            }
+        }
 
-        // The rest is the message
-        let message = unsafe {
-            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
+        let message = if message_start > 0 {
+            String::from_utf8_lossy(&data[message_start..]).to_string()
+        } else {
+            String::new()
         };
 
         Ok(Commit {
             id: hash,
-            tree_id,
+            tree_id: tree_id.ok_or(GitError::InvalidCommit("Missing tree".to_string()))?,
             parent_commit_ids,
-            author,
-            committer,
+            author: author.ok_or(GitError::InvalidCommit("Missing author".to_string()))?,
+            committer: committer.ok_or(GitError::InvalidCommit("Missing committer".to_string()))?,
             message,
         })
     }

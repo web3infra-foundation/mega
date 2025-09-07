@@ -233,15 +233,7 @@ pub async fn execute(args: RebaseArgs) {
 /// then falls back to resolving it as a commit reference (hash, HEAD, etc.).
 /// This allows the rebase command to work with both branch names and commit hashes.
 async fn resolve_branch_or_commit(reference: &str) -> Result<SHA1, String> {
-    // First try to resolve as a branch name
-    if let Some(branch) = Branch::find_branch(reference, None).await {
-        return Ok(branch.commit);
-    }
-    // Fall back to commit hash resolution
-    match util::get_commit_base(reference).await {
-        Ok(id) => Ok(id),
-        Err(_) => Err(format!("invalid reference: {reference}")),
-    }
+    util::get_commit_base(reference).await
 }
 
 /// Replay a single commit on top of a new parent commit
