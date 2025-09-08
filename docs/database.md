@@ -43,6 +43,7 @@ Similar to the 'tree' in Git, Mega maintains relationships between files and fil
 | git_issue       | Issues sync from third parties like GitHub.                                                             |           |           |          |          |
 | lfs_objects     | Store objects related to LFS protocol.                                                                  |           |           |          |          |
 | lfs_locks       | Store locks for lfs files.                                                                              |           |           |          |          |
+| commit_auths    | Store commit binding information associating commits with users.                                         | &#10003;  |           |          |          |
 
 ### ER Diagram
 
@@ -81,6 +82,8 @@ erDiagram
     GIT-TAG }o--|| GIT-REPO : "belong to"
     GIT-TAG |o--o| GIT-COMMIT : points
     GIT-TAG ||--|| RAW-OBJECTS : points
+    COMMIT-AUTHS ||--o| GIT-COMMIT : binds
+    COMMIT-AUTHS ||--o| MEGA-COMMITS : binds
 
 ```
 
@@ -345,6 +348,19 @@ erDiagram
 | oid    | VARCHAR(64) | PRIMARY KEY |
 | size   | BIGINT      |             |
 | exist  | BOOLEAN     |             |
+
+
+#### commit_auths
+
+| Column           | Type        | Constraints | Description                                      |
+|------------------|-------------|-------------|--------------------------------------------------|
+| id               | VARCHAR     | PRIMARY KEY |                                                  |
+| commit_sha       | VARCHAR     | NOT NULL    | Git commit SHA hash                              |
+| author_email     | VARCHAR     | NOT NULL    | Original author email from commit                |
+| matched_user_id  | VARCHAR     | NULL        | User ID that this commit is bound to             |
+| is_anonymous     | BOOLEAN     | NOT NULL    | Whether the commit should be treated as anonymous |
+| matched_at       | TIMESTAMP   | NULL        | When the binding was created/updated             |
+| created_at       | TIMESTAMP   | NOT NULL    | When the record was created                      |
 
 
 ## 3. Prerequisites

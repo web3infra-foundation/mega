@@ -17,7 +17,7 @@ use mono::server::http_server::{get_method_router, post_method_router, ProtocolA
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::{github_router, MegaApiServiceState};
+use crate::api::{commit, github_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -68,7 +68,9 @@ pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> 
     };
 
     pub fn mega_routers() -> OpenApiRouter<MegaApiServiceState> {
-        OpenApiRouter::new().merge(github_router::routers())
+        OpenApiRouter::new()
+            .merge(github_router::routers())
+            .merge(commit::commit_router::routers())
     }
 
     // add RequestDecompressionLayer for handle gzip encode

@@ -1,6 +1,7 @@
 use common::model::P2pOptions;
 use mono::api::MonoApiServiceState;
 
+pub mod commit;
 pub mod github_router;
 mod model;
 

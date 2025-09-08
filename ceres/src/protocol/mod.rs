@@ -16,6 +16,7 @@ use import_refs::RefCommand;
 use jupiter::storage::Storage;
 use repo::Repo;
 
+use crate::auth::{DefaultUserAuthExtractor, UserAuthExtractor, PushUserInfo};
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, RepoHandler};
 
 pub mod import_refs;
@@ -31,6 +32,7 @@ pub struct SmartProtocol {
     pub service_type: Option<ServiceType>,
     pub storage: Storage,
     pub username: Option<String>,
+    pub authenticated_user: Option<PushUserInfo>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -140,6 +142,7 @@ impl SmartProtocol {
             service_type: None,
             storage,
             username: None,
+            authenticated_user: None,
         }
     }
 
@@ -153,6 +156,7 @@ impl SmartProtocol {
             service_type: None,
             storage,
             username: None,
+            authenticated_user: None,
         }
     }
 
@@ -230,17 +234,42 @@ impl SmartProtocol {
                     && username == auth_config.test_user_name
                     && token == auth_config.test_user_token
                 {
+                    // For test user, create a basic PushUserInfo
+                    if let Ok(user_auth) = self.create_user_auth_extractor() {
+                        if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
+                            self.authenticated_user = Some(user_info);
+                            return true;
+                        }
+                    }
                     return true;
                 }
-                return self
+                let token_valid = self
                     .storage
                     .user_storage()
                     .check_token(username, token)
                     .await
-                    .unwrap();
+                    .unwrap_or(false);
+                
+                if token_valid {
+                    // Extract user information for valid token
+                    if let Ok(user_auth) = self.create_user_auth_extractor() {
+                        if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
+                            self.authenticated_user = Some(user_info);
+                            return true;
+                        }
+                    }
+                }
+                
+                return token_valid;
             }
         }
         false
+    }
+    
+    /// Create a user authentication extractor
+    fn create_user_auth_extractor(&self) -> Result<DefaultUserAuthExtractor, MegaError> {
+        let user_storage = self.storage.user_storage();
+        Ok(DefaultUserAuthExtractor::new(user_storage))
     }
 }
 

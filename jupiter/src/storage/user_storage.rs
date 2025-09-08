@@ -39,6 +39,13 @@ impl UserStorage {
         Ok(res)
     }
 
+    pub async fn find_user_by_id(&self, id: i64) -> Result<Option<user::Model>, MegaError> {
+        let res = user::Entity::find_by_id(id)
+            .one(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
     pub async fn save_user(&self, user: user::Model) -> Result<(), MegaError> {
         let a_model = user.into_active_model();
         a_model.insert(self.get_connection()).await.unwrap();
@@ -142,6 +149,13 @@ impl UserStorage {
             Some(_) => Ok(true),
             None => Ok(false),
         }
+    }
+
+    pub async fn list_all_tokens(&self) -> Result<Vec<access_token::Model>, MegaError> {
+        let res = access_token::Entity::find()
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
     }
 }
 

@@ -10,6 +10,7 @@ import RTable from './Table'
 import { columnsType, DirectoryType } from './Table/type'
 import Markdown from 'react-markdown'
 import FileIcon from './FileIcon/FileIcon'
+import CommitMessageWithAuthor from './CommitMessageWithAuthor'
 
 export interface DataType {
   oid: string
@@ -53,8 +54,11 @@ const CodeTable = ({ directory, loading, readmeContent, onCommitInfoChange}: any
         title: 'Message',
         dataIndex: ['commit_message'],
         key: 'commit_message',
-        render: (_, {commit_message}) => (
-          <a className='cursor-pointer transition-colors duration-300 text-gray-600 hover:text-[#69b1ff]'>{commit_message}</a>
+        render: (_, record) => (
+          <CommitMessageWithAuthor 
+            commitMessage={record.commit_message}
+            commitSha={record.oid}
+          />
         )
       },
       {
