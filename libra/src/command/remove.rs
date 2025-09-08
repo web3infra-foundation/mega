@@ -57,8 +57,14 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             if dirs.contains(path_str) {
                 // dir - find all files in this directory that are tracked
                 let entries = index.tracked_entries(0);
+                // Ensure path_wd ends with a separator for correct directory matching
+                let dir_prefix = if path_wd.ends_with(std::path::MAIN_SEPARATOR) {
+                    path_wd.clone()
+                } else {
+                    format!("{}{}", path_wd, std::path::MAIN_SEPARATOR)
+                };
                 for entry in entries.iter() {
-                    if entry.name.starts_with(&path_wd) {
+                    if entry.name.starts_with(&dir_prefix) {
                         println!("rm '{}'", entry.name.bright_yellow());
                     }
                 }
@@ -68,9 +74,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             } else {
                 // file
                 if args.force {
-                    if index.tracked(&path_wd, 0) {
-                        println!("rm '{}'", path_wd.bright_yellow());
-                    } else if !args.cached && path.exists() {
+                    if index.tracked(&path_wd, 0) || (!args.cached && path.exists()) {
                         println!("rm '{}'", path_wd.bright_yellow());
                     }
                 } else if index.tracked(&path_wd, 0) {
