@@ -5,7 +5,6 @@ use axum::{
     Json,
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
-
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use common::{
     errors::MegaError,
@@ -26,6 +25,7 @@ use crate::api::{
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
 use crate::{api::error::ApiError, server::http_server::MR_TAG};
+use crate::api::mr::model::{ReviewerPayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewersResponse};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -43,7 +43,11 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
-            .routes(routes!(edit_title)),
+            .routes(routes!(edit_title))
+            .routes(routes!(add_reviewers))
+            .routes(routes!(remove_reviewers))
+            .routes(routes!(list_reviewers))
+            .routes(routes!(change_reviewer_state)),
     )
 }
 
@@ -461,6 +465,149 @@ async fn assignees(
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
 }
+
+#[utoipa::path(
+    post,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/reviewers",
+    request_body = ReviewerPayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn add_reviewers(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ReviewerPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let mr_id = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?
+        .id;
+
+    state
+        .storage
+        .reviewer_storage()
+        .add_reviewers(mr_id, payload.reviewers)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+#[utoipa::path(
+    delete,
+    params (
+        ("link", description = "the mr link"),
+    ),
+    path = "/{link}/reviewers",
+    request_body = ReviewerPayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+)]
+async fn remove_reviewers(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ReviewerPayload>,
+) -> Result<Json<CommonResult<(String)>>, ApiError> {
+    let mr_id = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?
+        .id;
+
+    state
+        .storage
+        .reviewer_storage()
+        .remove_reviewers(mr_id, payload.reviewers)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+
+#[utoipa::path(
+    get,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/reviewers",
+    responses(
+        (status = 200, body = CommonResult<ReviewersResponse>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn list_reviewers(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<ReviewersResponse>>, ApiError> {
+    let mr_id = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?
+        .id;
+
+    let reviewers = state
+        .storage
+        .reviewer_storage()
+        .list_reviewers(mr_id)
+        .await?
+        .into_iter()
+        .map(|r| ReviewerInfo{
+            campsite_id: r.campsite_id,
+            approved: r.approved,
+        })
+        .collect();
+
+
+    Ok(Json(CommonResult::success(Some(ReviewersResponse {
+        result: reviewers,
+    }))))
+}
+
+#[utoipa::path(
+    post,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/reviewer-new-state",
+    request_body = ChangeReviewerStatePayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn change_reviewer_state(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ChangeReviewerStatePayload>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    let mr_id = state
+        .mr_stg()
+        .get_mr(&link)
+        .await?
+        .ok_or(MegaError::with_message("MR Not Found"))?
+        .id;
+
+    state
+        .storage
+        .reviewer_storage()
+        .reviewer_change_state(mr_id, user.campsite_user_id, payload.state)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+
+
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
     let mut roots: Vec<MuiTreeNode> = Vec::new();

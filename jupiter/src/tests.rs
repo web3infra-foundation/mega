@@ -3,7 +3,6 @@ use tracing::log;
 
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
-
 use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
@@ -17,7 +16,7 @@ use crate::storage::{
     conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
     issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage,
     mr_storage::MrStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
-    user_storage::UserStorage, vault_storage::VaultStorage,
+    user_storage::UserStorage, vault_storage::VaultStorage, mr_reviewer_storage::MrReviewerStorage,
 };
 use crate::storage::{AppService, Storage};
 
@@ -60,6 +59,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         conversation_storage: ConversationStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
         note_storage: NoteStorage { base: base.clone() },
+        reviewer_storage: MrReviewerStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
