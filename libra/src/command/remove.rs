@@ -23,6 +23,9 @@ pub struct RemoveArgs {
     /// force removal, skip validation
     #[clap(short, long)]
     pub force: bool,
+    /// show what would be removed without actually removing
+    #[clap(long)]
+    pub dry_run: bool,
 }
 
 pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
@@ -42,6 +45,40 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
         let error_msg = format!("not removing '{}' recursively without -r", dirs[0]);
         println!("fatal: {error_msg}");
         return Err(GitError::CustomError(error_msg));
+    }
+
+    // In dry-run mode, show what would be removed but don't actually remove anything
+    if args.dry_run {
+        println!("Would remove the following:");
+        for path_str in args.pathspec.iter() {
+            let path = PathBuf::from(path_str);
+            let path_wd = path.to_workdir().to_string_or_panic();
+
+            if dirs.contains(path_str) {
+                // dir - find all files in this directory that are tracked
+                let entries = index.tracked_entries(0);
+                for entry in entries.iter() {
+                    if entry.name.starts_with(&path_wd) {
+                        println!("rm '{}'", entry.name.bright_yellow());
+                    }
+                }
+                if !args.cached {
+                    println!("rm directory '{}'", path_str.bright_yellow());
+                }
+            } else {
+                // file
+                if args.force {
+                    if index.tracked(&path_wd, 0) {
+                        println!("rm '{}'", path_wd.bright_yellow());
+                    } else if !args.cached && path.exists() {
+                        println!("rm '{}'", path_wd.bright_yellow());
+                    }
+                } else if index.tracked(&path_wd, 0) {
+                    println!("rm '{}'", path_wd.bright_yellow());
+                }
+            }
+        }
+        return Ok(());
     }
 
     for path_str in args.pathspec.iter() {
