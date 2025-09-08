@@ -45,6 +45,7 @@ async fn test_remove_single_file() {
         cached: false,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     remove::execute(args).unwrap();
 
@@ -110,6 +111,7 @@ async fn test_remove_cached() {
         cached: true,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     remove::execute(args).unwrap();
 
@@ -164,6 +166,7 @@ async fn test_remove_directory_recursive() {
         cached: false,
         recursive: true,
         force: false,
+        dry_run: false,
     };
     remove::execute(args).unwrap();
 
@@ -236,6 +239,7 @@ async fn test_remove_directory_without_recursive() {
         cached: false,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     assert!(
         remove::execute(args).is_err(),
@@ -271,6 +275,7 @@ async fn test_remove_untracked_file() {
         cached: false,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     let result = remove::execute(args);
     assert!(
@@ -318,6 +323,7 @@ async fn test_remove_modified_file() {
         cached: false,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     remove::execute(args).unwrap();
 
@@ -385,10 +391,173 @@ async fn test_remove_multiple_files() {
         cached: false,
         recursive: false,
         force: false,
+        dry_run: false,
     };
     remove::execute(args).unwrap();
     // Verify the specified files were removed
     assert!(!file1.exists(), "File 1 should be removed");
     assert!(file2.exists(), "File 2 should still exist");
     assert!(!file3.exists(), "File 3 should be removed");
+}
+
+#[tokio::test]
+#[serial]
+/// Tests the --dry-run flag which shows what would be removed without actually removing anything
+async fn test_remove_dry_run() {
+    let test_dir = tempdir().unwrap();
+    test::setup_with_new_libra_in(test_dir.path()).await;
+    let _guard = test::ChangeDirGuard::new(test_dir.path());
+
+    // Create multiple files
+    let file1 = create_file("file1.txt", "File 1 content");
+    let file2 = create_file("file2.txt", "File 2 content");
+    let file3 = create_file("subdir/file3.txt", "File 3 content");
+
+    // Add all files to the index
+    add::execute(AddArgs {
+        pathspec: vec![String::from(".")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+
+    // Make sure all files exist before dry-run
+    assert!(file1.exists(), "File 1 should exist before dry-run");
+    assert!(file2.exists(), "File 2 should exist before dry-run");
+    assert!(file3.exists(), "File 3 should exist before dry-run");
+
+    // Run rm with --dry-run flag
+    let args = RemoveArgs {
+        pathspec: vec![String::from("file1.txt"), String::from("file2.txt")],
+        cached: false,
+        recursive: false,
+        force: false,
+        dry_run: true,
+    };
+    remove::execute(args).unwrap();
+
+    // Verify that no files were actually removed
+    assert!(file1.exists(), "File 1 should still exist after dry-run");
+    assert!(file2.exists(), "File 2 should still exist after dry-run");
+    assert!(file3.exists(), "File 3 should still exist after dry-run");
+
+    // Verify files are still in the index by checking they don't appear as deleted
+    let changes = changes_to_be_staged();
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap() == "file1.txt"),
+        "File 1 should not appear as deleted"
+    );
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap() == "file2.txt"),
+        "File 2 should not appear as deleted"
+    );
+}
+
+#[tokio::test]
+#[serial]
+/// Tests --dry-run with --cached flag
+async fn test_remove_dry_run_cached() {
+    let test_dir = tempdir().unwrap();
+    test::setup_with_new_libra_in(test_dir.path()).await;
+    let _guard = test::ChangeDirGuard::new(test_dir.path());
+
+    // Create a file and add it to index
+    let file_path = create_file("test_file.txt", "Test content");
+
+    add::execute(AddArgs {
+        pathspec: vec![String::from("test_file.txt")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+
+    // Run rm with --dry-run and --cached flags
+    let args = RemoveArgs {
+        pathspec: vec![String::from("test_file.txt")],
+        cached: true,
+        recursive: false,
+        force: false,
+        dry_run: true,
+    };
+    remove::execute(args).unwrap();
+
+    // Verify the file still exists in both filesystem and index
+    assert!(file_path.exists(), "File should still exist in filesystem");
+    
+    // Verify file doesn't appear as deleted in changes
+    let changes = changes_to_be_staged();
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file.txt"),
+        "File should not appear as deleted"
+    );
+}
+
+#[tokio::test]
+#[serial]
+/// Tests --dry-run with recursive directory removal
+async fn test_remove_dry_run_recursive() {
+    let test_dir = tempdir().unwrap();
+    test::setup_with_new_libra_in(test_dir.path()).await;
+    let _guard = test::ChangeDirGuard::new(test_dir.path());
+
+    // Create a directory with files
+    let file1 = create_file("test_dir/file1.txt", "File 1 content");
+    let file2 = create_file("test_dir/file2.txt", "File 2 content");
+    let file3 = create_file("test_dir/subdir/file3.txt", "File 3 content");
+
+    // Add all files to the index
+    add::execute(AddArgs {
+        pathspec: vec![String::from("test_dir")],
+        all: false,
+        update: false,
+        refresh: false,
+        verbose: false,
+        dry_run: false,
+        ignore_errors: false,
+    })
+    .await;
+
+    // Run rm with --dry-run and --recursive flags
+    let args = RemoveArgs {
+        pathspec: vec![String::from("test_dir")],
+        cached: false,
+        recursive: true,
+        force: false,
+        dry_run: true,
+    };
+    remove::execute(args).unwrap();
+
+    // Verify that no files or directories were actually removed
+    assert!(file1.exists(), "File 1 should still exist after dry-run");
+    assert!(file2.exists(), "File 2 should still exist after dry-run");
+    assert!(file3.exists(), "File 3 should still exist after dry-run");
+    assert!(PathBuf::from("test_dir").exists(), "Directory should still exist");
+    assert!(PathBuf::from("test_dir/subdir").exists(), "Subdirectory should still exist");
+
+    // Verify files are still tracked by checking they don't appear as deleted
+    let changes = changes_to_be_staged();
+    assert!(
+        !changes
+            .deleted
+            .iter()
+            .any(|x| x.to_str().unwrap().starts_with("test_dir/")),
+        "No files in test_dir should appear as deleted"
+    );
 }
