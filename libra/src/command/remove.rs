@@ -60,8 +60,10 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
                 // Create directory prefix with proper path separator for cross-platform compatibility
                 let dir_prefix = if path_wd.is_empty() {
                     String::new()
+                } else if path_wd.ends_with(std::path::MAIN_SEPARATOR) {
+                    path_wd.clone()
                 } else {
-                    PathBuf::from(&path_wd).join("").to_string_or_panic()
+                    format!("{}{}", path_wd, std::path::MAIN_SEPARATOR)
                 };
                 for entry in entries.iter() {
                     if entry.name.starts_with(&dir_prefix) {
