@@ -6,8 +6,6 @@ import { BasicTitlebar } from '@/components/Titlebar'
 import { SubnavigationTab } from '@/components/Titlebar/Subnavigation'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 
-import { ScrollableContainer } from '../ScrollableContainer'
-
 interface Props {
   children: React.ReactNode
 }
@@ -46,9 +44,9 @@ export function UserSettingsPageWrapper(props: Props) {
         </div>
       </div>
 
-      <ScrollableContainer className='no-drag relative'>
+      <div className='h-screen overflow-auto'>
         <div className='mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 pb-32 pt-8 lg:px-0'>{children}</div>
-      </ScrollableContainer>
+      </div>
     </>
   )
 }
