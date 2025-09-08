@@ -57,12 +57,12 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             if dirs.contains(path_str) {
                 // dir - find all files in this directory that are tracked
                 let entries = index.tracked_entries(0);
-                // Ensure path_wd ends with a separator for correct directory matching
-                let dir_prefix = if path_wd.ends_with(std::path::MAIN_SEPARATOR) {
-                    path_wd.clone()
-                } else {
-                    format!("{}{}", path_wd, std::path::MAIN_SEPARATOR)
-                };
+                // Use PathBuf for proper cross-platform path handling
+                let mut dir_prefix_path = PathBuf::from(&path_wd);
+                if !path_wd.is_empty() {
+                    dir_prefix_path.push(""); // This ensures a trailing separator
+                }
+                let dir_prefix = dir_prefix_path.to_string_or_panic();
                 for entry in entries.iter() {
                     if entry.name.starts_with(&dir_prefix) {
                         println!("rm '{}'", entry.name.bright_yellow());
