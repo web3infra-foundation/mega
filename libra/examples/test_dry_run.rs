@@ -1,12 +1,12 @@
-// 验证 rm --dry-run 功能的简单测试程序
+// Simple test program to verify rm --dry-run functionality
 use libra::command::remove::{execute, RemoveArgs};
 use std::fs;
 use std::io::Write;
 
 fn main() {
-    println!("正在测试 libra rm --dry-run 功能...");
+    println!("Testing libra rm --dry-run functionality...");
     
-    // 创建测试文件
+    // Create test files
     fs::create_dir_all("test_files").unwrap();
     let mut file1 = fs::File::create("test_files/file1.txt").unwrap();
     file1.write_all(b"Test content 1").unwrap();
@@ -14,36 +14,36 @@ fn main() {
     let mut file2 = fs::File::create("test_files/file2.txt").unwrap();
     file2.write_all(b"Test content 2").unwrap();
     
-    println!("创建了测试文件: test_files/file1.txt, test_files/file2.txt");
+    println!("Created test files: test_files/file1.txt, test_files/file2.txt");
     
-    // 测试 dry-run 功能
+    // Test dry-run functionality
     let args = RemoveArgs {
         pathspec: vec!["test_files/file1.txt".to_string(), "test_files/file2.txt".to_string()],
         cached: false,
         recursive: false,
-        force: true, // 使用 force 模式避免需要 git 仓库
+        force: true, // Use force mode to avoid requiring git repository
         dry_run: true,
     };
     
-    println!("\n执行: libra rm --dry-run --force test_files/file1.txt test_files/file2.txt");
+    println!("\nExecuting: libra rm --dry-run --force test_files/file1.txt test_files/file2.txt");
     
     match execute(args) {
         Ok(_) => {
-            println!("✓ dry-run 执行成功！");
+            println!("✓ dry-run executed successfully!");
             
-            // 验证文件仍然存在
+            // Verify files still exist
             if fs::metadata("test_files/file1.txt").is_ok() && fs::metadata("test_files/file2.txt").is_ok() {
-                println!(" 文件在 dry-run 后仍然存在（正确行为）");
+                println!("  Files still exist after dry-run (correct behavior)");
             } else {
-                println!(" 错误：dry-run 不应该实际删除文件");
+                println!("  Error: dry-run should not actually delete files");
             }
         }
         Err(e) => {
-            println!("✗ dry-run 执行失败: {:?}", e);
+            println!("✗ dry-run execution failed: {:?}", e);
         }
     }
     
-    // 清理测试文件
+    // Clean up test files
     let _ = fs::remove_dir_all("test_files");
-    println!("\n测试完成，已清理测试文件");
+    println!("\nTest completed, test files cleaned up");
 }
