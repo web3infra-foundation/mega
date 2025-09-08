@@ -74,10 +74,17 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             } else {
                 // file
                 if args.force {
-                    if index.tracked(&path_wd, 0) || (!args.cached && path.exists()) {
+                    // In force mode: always try to remove (matches actual execution logic)
+                    // - If tracked, would be removed from index
+                    // - If not tracked, would still be processed (and filesystem file deleted if not cached)
+                    if index.tracked(&path_wd, 0) {
+                        println!("rm '{}'", path_wd.bright_yellow());
+                    } else {
+                        // Even untracked files are processed in force mode
                         println!("rm '{}'", path_wd.bright_yellow());
                     }
                 } else if index.tracked(&path_wd, 0) {
+                    // Normal mode - only show if tracked (matches actual execution logic)
                     println!("rm '{}'", path_wd.bright_yellow());
                 }
             }
