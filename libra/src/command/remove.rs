@@ -61,7 +61,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
                 let dir_prefix = if path_wd.is_empty() {
                     String::new()
                 } else {
-                    format!("{}{}", path_wd, std::path::MAIN_SEPARATOR)
+                    PathBuf::from(&path_wd).join("").to_string_or_panic()
                 };
                 for entry in entries.iter() {
                     if entry.name.starts_with(&dir_prefix) {
