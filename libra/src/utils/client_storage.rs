@@ -16,16 +16,21 @@ use mercury::internal::pack::Pack;
 use mercury::utils::read_sha1;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::prelude::*;
+use std::io::{BufReader, Cursor};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::{fs, io};
+
 static PACK_OBJ_CACHE: Lazy<Mutex<LruCache<String, CacheObject>>> = Lazy::new(|| {
     // `lazy_static!` may affect IDE's code completion
     Mutex::new(LruCache::new(1024 * 1024 * 200))
 });
+
+static PACK_FILE_CACHE: Lazy<Mutex<HashMap<String, Vec<u8>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -465,19 +470,35 @@ impl ClientStorage {
 
     /// Read object from pack file, with offset
     fn read_pack_obj(pack_file: &Path, offset: u64) -> Result<CacheObject, GitError> {
-        let cache_key = format!("{:?}-{}", pack_file.file_name().unwrap(), offset);
+        let file_name = pack_file.file_name().unwrap().to_str().unwrap().to_owned();
+        let cache_key = format!("{:?}-{}", file_name, offset);
         // read cache
         if let Some(cached) = PACK_OBJ_CACHE.lock().unwrap().get(&cache_key) {
             return Ok(cached.clone());
         }
 
-        let file = fs::File::open(pack_file)?;
-        let mut pack_reader = io::BufReader::new(&file);
-        pack_reader.seek(io::SeekFrom::Start(offset))?;
-        let mut pack = Pack::new(None, None, None, false);
         let obj = {
-            let mut offset = offset as usize;
-            pack.decode_pack_object(&mut pack_reader, &mut offset)? // offset will be updated!
+            let mut cache = PACK_FILE_CACHE.lock().unwrap();
+            let pack_file_buf = match cache.get(&file_name) {
+                None => {
+                    let file = fs::File::open(pack_file)?;
+                    let mut pack_reader = io::BufReader::new(&file);
+
+                    let mut buf: Vec<u8> = Vec::new();
+                    pack_reader.read_to_end(&mut buf)?;
+                    cache.insert(file_name.clone(), buf);
+                    cache.get(&file_name).unwrap()
+                }
+                Some(buf) => buf,
+            };
+            
+            let pack_cursor = Cursor::new(pack_file_buf);
+            let mut pack_reader = BufReader::new(pack_cursor);
+            pack_reader.seek(io::SeekFrom::Start(offset))?;
+            {
+                let mut offset = offset as usize;
+                Pack::decode_pack_object(&mut pack_reader, &mut offset)? // offset will be updated!
+            }
         };
         let full_obj = match obj.object_type() {
             ObjectType::OffsetDelta => {

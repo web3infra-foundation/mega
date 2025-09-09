@@ -198,7 +198,6 @@ impl Pack {
     /// * Or a `GitError` in case of a mismatch in expected size or any other reading error.
     ///
     pub fn decompress_data(
-        &mut self,
         pack: &mut (impl BufRead + Send),
         expected_size: usize,
     ) -> Result<(Vec<u8>, usize), GitError> {
@@ -246,7 +245,6 @@ impl Pack {
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
     pub fn decode_pack_object(
-        &mut self,
         pack: &mut (impl BufRead + Send),
         offset: &mut usize,
     ) -> Result<CacheObject, GitError> {
@@ -267,7 +265,7 @@ impl Pack {
 
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                let (data, raw_size) = self.decompress_data(pack, size)?;
+                let (data, raw_size) = Pack::decompress_data(pack, size)?;
                 *offset += raw_size;
                 Ok(CacheObject::new_for_undeltified(t, data, init_offset))
             }
@@ -275,7 +273,7 @@ impl Pack {
                 let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
                 *offset += bytes;
 
-                let (data, raw_size) = self.decompress_data(pack, size)?;
+                let (data, raw_size) = Pack::decompress_data(pack, size)?;
                 *offset += raw_size;
 
                 // Count the base object offset: the current offset - delta offset
@@ -311,7 +309,7 @@ impl Pack {
                 // Offset is incremented by 20 bytes
                 *offset += SHA1::SIZE;
 
-                let (data, raw_size) = self.decompress_data(pack, size)?;
+                let (data, raw_size) = Pack::decompress_data(pack, size)?;
                 *offset += raw_size;
 
                 let mut reader = Cursor::new(&data);
@@ -382,7 +380,7 @@ impl Pack {
                 thread::yield_now();
             }
             let r: Result<CacheObject, GitError> =
-                self.decode_pack_object(&mut reader, &mut offset);
+                Pack::decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(mut obj) => {
                     obj.set_mem_recorder(self.cache_objs_mem.clone());
@@ -728,8 +726,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::new(None, None, None, true);
-        let result = p.decompress_data(&mut cursor, expected_size);
+        let result = Pack::decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
                 assert_eq!(bytes_read, compressed_size);
