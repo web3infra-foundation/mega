@@ -36,5 +36,5 @@ enum MegaMrReviewer {
     Id,
     MrId,
     CampsiteID,
-    Approved
+    Approved,
 }

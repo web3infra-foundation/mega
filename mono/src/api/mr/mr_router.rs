@@ -4,14 +4,17 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use utoipa_axum::{router::OpenApiRouter, routes};
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
 use jupiter::service::mr_service::MRService;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::mr::model::{
+    ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload, ReviewersResponse,
+};
 use crate::api::{
     api_common::{
         self,
@@ -25,7 +28,6 @@ use crate::api::{
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
 use crate::{api::error::ApiError, server::http_server::MR_TAG};
-use crate::api::mr::model::{ReviewerPayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewersResponse};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -509,12 +511,13 @@ async fn add_reviewers(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
+    tag = MR_TAG
 )]
 async fn remove_reviewers(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ReviewerPayload>,
-) -> Result<Json<CommonResult<(String)>>, ApiError> {
+) -> Result<Json<CommonResult<String>>, ApiError> {
     let mr_id = state
         .mr_stg()
         .get_mr(&link)
@@ -530,7 +533,6 @@ async fn remove_reviewers(
 
     Ok(Json(CommonResult::success(None)))
 }
-
 
 #[utoipa::path(
     get,
@@ -560,18 +562,20 @@ async fn list_reviewers(
         .list_reviewers(mr_id)
         .await?
         .into_iter()
-        .map(|r| ReviewerInfo{
+        .map(|r| ReviewerInfo {
             campsite_id: r.campsite_id,
             approved: r.approved,
         })
         .collect();
-
 
     Ok(Json(CommonResult::success(Some(ReviewersResponse {
         result: reviewers,
     }))))
 }
 
+/// Change the reviewer state
+///
+/// the function get user's campsite_id from the login user info automatically
 #[utoipa::path(
     post,
     params (
@@ -605,9 +609,6 @@ async fn change_reviewer_state(
 
     Ok(Json(CommonResult::success(None)))
 }
-
-
-
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
     let mut roots: Vec<MuiTreeNode> = Vec::new();

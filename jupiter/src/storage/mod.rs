@@ -6,6 +6,7 @@ pub mod init;
 pub mod issue_storage;
 pub mod lfs_db_storage;
 pub mod mono_storage;
+pub(crate) mod mr_reviewer_storage;
 pub mod mr_storage;
 pub mod note_storage;
 pub mod raw_db_storage;
@@ -13,7 +14,6 @@ pub mod relay_storage;
 pub mod stg_common;
 pub mod user_storage;
 pub mod vault_storage;
-pub(crate) mod mr_reviewer_storage;
 
 use std::sync::{Arc, LazyLock, Weak};
 
@@ -182,7 +182,7 @@ impl Storage {
     pub fn note_storage(&self) -> NoteStorage {
         self.app_service.note_storage.clone()
     }
-    
+
     pub fn reviewer_storage(&self) -> MrReviewerStorage {
         self.app_service.reviewer_storage.clone()
     }

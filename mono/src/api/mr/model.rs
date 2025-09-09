@@ -10,12 +10,12 @@ pub struct ReviewerPayload {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ReviewersResponse {
-    pub result: Vec<ReviewerInfo>
+    pub result: Vec<ReviewerInfo>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ChangeReviewerStatePayload {
-    pub state: bool
+    pub state: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]

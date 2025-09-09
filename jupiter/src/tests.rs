@@ -1,9 +1,9 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 
+use common::config::Config;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
-use common::config::Config;
 
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
@@ -15,8 +15,8 @@ use crate::storage::note_storage::NoteStorage;
 use crate::storage::{
     conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
     issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage,
-    mr_storage::MrStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
-    user_storage::UserStorage, vault_storage::VaultStorage, mr_reviewer_storage::MrReviewerStorage,
+    mr_reviewer_storage::MrReviewerStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
+    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 use crate::storage::{AppService, Storage};
 

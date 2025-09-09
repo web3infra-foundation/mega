@@ -1,11 +1,11 @@
-use sea_orm::ColumnTrait;
-use sea_orm::QueryFilter;
-use std::ops::Deref;
-use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use callisto::entity_ext::generate_id;
 use callisto::mega_mr_reviewer;
 use common::errors::MegaError;
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use sea_orm::ColumnTrait;
+use sea_orm::QueryFilter;
+use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
+use std::ops::Deref;
 
 #[derive(Clone)]
 pub struct MrReviewerStorage {
@@ -20,11 +20,7 @@ impl Deref for MrReviewerStorage {
 }
 
 impl MrReviewerStorage {
-    pub async fn add_reviewers(
-        &self,
-        mr_id: i64,
-        reviewers: Vec<String>,
-    ) -> Result<(), MegaError> {
+    pub async fn add_reviewers(&self, mr_id: i64, reviewers: Vec<String>) -> Result<(), MegaError> {
         for reviewer in reviewers {
             let new_reviewer = mega_mr_reviewer::Model {
                 id: generate_id(),
@@ -60,7 +56,10 @@ impl MrReviewerStorage {
         Ok(())
     }
 
-    pub async fn list_reviewers(&self, mr_id: i64) -> Result<Vec<mega_mr_reviewer::Model>, MegaError> {
+    pub async fn list_reviewers(
+        &self,
+        mr_id: i64,
+    ) -> Result<Vec<mega_mr_reviewer::Model>, MegaError> {
         let reviewers = mega_mr_reviewer::Entity::find()
             .filter(mega_mr_reviewer::Column::MrId.eq(mr_id))
             .all(self.get_connection())
@@ -97,8 +96,7 @@ impl MrReviewerStorage {
             tracing::error!("{}", e);
             MegaError::with_message(format!("fail to update reviewer {}", reviewer.clone()))
         })?;
-        
+
         Ok(())
     }
-
 }
