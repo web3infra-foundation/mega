@@ -440,7 +440,7 @@ impl SmartProtocol {
                         let matched_user = user_storage.find_user_by_email(&author_email).await?;
                         
                         if let Some(user) = matched_user {
-                            (Some(user.id.to_string()), false)
+                            (Some(user.name.clone()), false)
                         } else {
                             // Mark as anonymous since we can't match the email
                             (None, true)
@@ -460,7 +460,7 @@ impl SmartProtocol {
                     let matched_user = user_storage.find_user_by_email(&author_email).await?;
                     
                     if let Some(user) = matched_user {
-                        (Some(user.id.to_string()), false)
+                        (Some(user.name.clone()), false)
                     } else {
                         (None, true)
                     }
@@ -472,7 +472,7 @@ impl SmartProtocol {
             let matched_user = user_storage.find_user_by_email(&author_email).await?;
 
             if let Some(user) = matched_user {
-                (Some(user.id.to_string()), false)
+                (Some(user.name.clone()), false)
             } else {
                 (None, true)
             }

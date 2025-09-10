@@ -68,8 +68,7 @@ pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> 
     };
 
     pub fn mega_routers() -> OpenApiRouter<MegaApiServiceState> {
-        OpenApiRouter::new()
-            .merge(github_router::routers())
+        OpenApiRouter::new().merge(github_router::routers())
     }
 
     // add RequestDecompressionLayer for handle gzip encode

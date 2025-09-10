@@ -52,7 +52,7 @@ async fn get_commit_binding(
                     Some(UserInfo {
                         id: user.id.to_string(),
                         username: user.name.clone(),
-                        display_name: Some(user.name.clone()), // Use name as display_name since display_name field doesn't exist
+                        display_name: Some(user.name.clone()), // Use name as display_name (fallback if no separate display name is available)
                         avatar_url: Some(user.avatar_url.clone()),
                         email: user.email.clone(),
                     })
