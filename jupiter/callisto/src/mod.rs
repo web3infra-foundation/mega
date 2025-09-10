@@ -36,6 +36,7 @@ pub mod notes;
 pub mod path_check_configs;
 pub mod raw_blob;
 pub mod reactions;
+pub mod commit_auths;
 pub mod relay_lfs_info;
 pub mod relay_node;
 pub mod relay_nostr_event;

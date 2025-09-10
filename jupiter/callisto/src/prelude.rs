@@ -32,6 +32,7 @@ pub use super::mq_storage::Entity as MqStorage;
 pub use super::notes::Entity as Notes;
 pub use super::path_check_configs::Entity as PathCheckConfigs;
 pub use super::raw_blob::Entity as RawBlob;
+pub use super::commit_auths::Entity as CommitAuths;
 pub use super::reactions::Entity as Reactions;
 pub use super::relay_lfs_info::Entity as RelayLfsInfo;
 pub use super::relay_node::Entity as RelayNode;

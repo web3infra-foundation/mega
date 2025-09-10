@@ -143,6 +143,17 @@ impl UserStorage {
             None => Ok(false),
         }
     }
+
+    pub async fn find_user_by_token(&self, token: &str) -> Result<Option<String>, MegaError> {
+        let res = access_token::Entity::find()
+            .filter(access_token::Column::Token.eq(token))
+            .one(self.get_connection())
+            .await?;
+        match res {
+            Some(token_model) => Ok(Some(token_model.username)),
+            None => Ok(None),
+        }
+    }
 }
 
 #[cfg(test)]
