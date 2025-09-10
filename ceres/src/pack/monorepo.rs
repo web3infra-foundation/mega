@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
     str::FromStr,
@@ -58,6 +59,14 @@ pub struct MonoRepo {
 impl RepoHandler for MonoRepo {
     fn is_monorepo(&self) -> bool {
         true
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
     }
 
     async fn head_hash(&self) -> (String, Vec<Refs>) {

@@ -44,6 +44,10 @@ pub mod monorepo;
 pub trait RepoHandler: Any + Send + Sync + 'static {
     fn is_monorepo(&self) -> bool;
 
+    fn as_any(&self) -> &dyn Any;
+
+    fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
     async fn receiver_handler(
@@ -88,8 +92,12 @@ pub trait RepoHandler: Any + Send + Sync + 'static {
                 }
             }
         }
+        self.attach_import().await
+    }
+
+    async fn attach_import(&self) -> Result<(), GitError> {
         if !self.is_monorepo() {
-            if let Some(import_repo) = (&self as &dyn Any).downcast_ref::<ImportRepo>() {
+            if let Some(import_repo) = self.as_any().downcast_ref::<ImportRepo>() {
                 return import_repo.attach_to_monorepo_parent().await;
             }
         }
@@ -248,15 +256,5 @@ pub trait RepoHandler: Any + Send + Sync + 'static {
         if let Some(sender) = sender {
             sender.send(tree.into()).await.unwrap();
         }
-    }
-}
-
-impl dyn RepoHandler {
-    pub fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    pub fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
-        self
     }
 }

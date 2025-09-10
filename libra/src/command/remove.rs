@@ -23,6 +23,9 @@ pub struct RemoveArgs {
     /// force removal, skip validation
     #[clap(short, long)]
     pub force: bool,
+    /// show what would be removed without actually removing
+    #[clap(long)]
+    pub dry_run: bool,
 }
 
 pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
@@ -42,6 +45,53 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
         let error_msg = format!("not removing '{}' recursively without -r", dirs[0]);
         println!("fatal: {error_msg}");
         return Err(GitError::CustomError(error_msg));
+    }
+
+    // In dry-run mode, show what would be removed but don't actually remove anything
+    if args.dry_run {
+        println!("Would remove the following:");
+        for path_str in args.pathspec.iter() {
+            let path = PathBuf::from(path_str);
+            let path_wd = path.to_workdir().to_string_or_panic();
+
+            if dirs.contains(path_str) {
+                // dir - find all files in this directory that are tracked
+                let entries = index.tracked_entries(0);
+                // Create directory prefix with proper path separator for cross-platform compatibility
+                let dir_prefix = if path_wd.is_empty() {
+                    String::new()
+                } else if path_wd.ends_with(std::path::MAIN_SEPARATOR) {
+                    path_wd.clone()
+                } else {
+                    format!("{}{}", path_wd, std::path::MAIN_SEPARATOR)
+                };
+                for entry in entries.iter() {
+                    if entry.name.starts_with(&dir_prefix) {
+                        println!("rm '{}'", entry.name.bright_yellow());
+                    }
+                }
+                if !args.cached {
+                    println!("rm directory '{}'", path_str.bright_yellow());
+                }
+            } else {
+                // file
+                if args.force {
+                    // In force mode: always try to remove (matches actual execution logic)
+                    // - If tracked, would be removed from index
+                    // - If not tracked, would still be processed (and filesystem file deleted if not cached)
+                    if index.tracked(&path_wd, 0) {
+                        println!("rm '{}'", path_wd.bright_yellow());
+                    } else {
+                        // Even untracked files are processed in force mode
+                        println!("rm '{}'", path_wd.bright_yellow());
+                    }
+                } else if index.tracked(&path_wd, 0) {
+                    // Normal mode - only show if tracked (matches actual execution logic)
+                    println!("rm '{}'", path_wd.bright_yellow());
+                }
+            }
+        }
+        return Ok(());
     }
 
     for path_str in args.pathspec.iter() {
