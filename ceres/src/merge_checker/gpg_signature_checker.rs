@@ -44,7 +44,7 @@ impl Checker for GpgSignatureChecker {
 
             Err(e) => {
                 res.status = ConditionResult::PASSED;
-                res.message = format!("Error during GPG signature verification: {}", e);
+                res.message = format!("Error during GPG signature verification: {e}");
             }
         };
 
@@ -123,7 +123,7 @@ impl GpgSignatureChecker {
         signature
             .verify(&public_key, message.as_bytes())
             .map_err(|e| {
-                MegaError::with_message(format!("Signature verification failed: {}", e))
+                MegaError::with_message(format!("Signature verification failed: {e}"))
             })?;
 
         Ok(())
