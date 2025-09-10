@@ -491,7 +491,7 @@ impl ClientStorage {
                 }
                 Some(buf) => buf,
             };
-            
+
             let pack_cursor = Cursor::new(pack_file_buf);
             let mut pack_reader = BufReader::new(pack_cursor);
             pack_reader.seek(io::SeekFrom::Start(offset))?;

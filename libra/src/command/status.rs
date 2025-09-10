@@ -10,9 +10,9 @@ use crate::command::calc_file_blob_hash;
 use crate::internal::head::Head;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::{path, util};
+use clap::Parser;
 use mercury::internal::index::Index;
 use std::io::Write;
-use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
 pub struct StatusArgs {
@@ -50,11 +50,11 @@ impl Changes {
  * 1. unstaged
  * 2. staged to be committed
  */
- pub async fn execute_to(args: StatusArgs,writer: &mut impl Write) {
+pub async fn execute_to(args: StatusArgs, writer: &mut impl Write) {
     if !util::check_repo_exist() {
         return;
     }
-    
+
     // Do not output branch info in porcelain mode
     if !args.porcelain {
         match Head::current().await {
@@ -69,8 +69,8 @@ impl Changes {
         if Head::current_commit().await.is_none() {
             writeln!(writer, "\nNo commits yet\n").unwrap();
         }
-    }    
-    
+    }
+
     // to cur_dir relative path
     let staged = changes_to_be_committed().await.to_relative();
     let unstaged = changes_to_be_staged().to_relative();
@@ -81,9 +81,8 @@ impl Changes {
         return;
     }
 
-
     if staged.is_empty() && unstaged.is_empty() {
-        writeln!(writer,"nothing to commit, working tree clean").unwrap();
+        writeln!(writer, "nothing to commit, working tree clean").unwrap();
         return;
     }
 
@@ -92,15 +91,15 @@ impl Changes {
         println!("  use \"libra restore --staged <file>...\" to unstage");
         staged.deleted.iter().for_each(|f| {
             let str = format!("\tdeleted: {}", f.display());
-            writeln!(writer,"{}", str.bright_green()).unwrap();
+            writeln!(writer, "{}", str.bright_green()).unwrap();
         });
         staged.modified.iter().for_each(|f| {
             let str = format!("\tmodified: {}", f.display());
-            writeln!(writer,"{}", str.bright_green()).unwrap();
+            writeln!(writer, "{}", str.bright_green()).unwrap();
         });
         staged.new.iter().for_each(|f| {
             let str = format!("\tnew file: {}", f.display());
-            writeln!(writer,"{}", str.bright_green()).unwrap();
+            writeln!(writer, "{}", str.bright_green()).unwrap();
         });
     }
 
@@ -110,11 +109,11 @@ impl Changes {
         println!("  use \"libra restore <file>...\" to discard changes in working directory");
         unstaged.deleted.iter().for_each(|f| {
             let str = format!("\tdeleted: {}", f.display());
-            writeln!(writer,"{}", str.bright_red()).unwrap();
+            writeln!(writer, "{}", str.bright_red()).unwrap();
         });
         unstaged.modified.iter().for_each(|f| {
             let str = format!("\tmodified: {}", f.display());
-            writeln!(writer,"{}", str.bright_red()).unwrap();
+            writeln!(writer, "{}", str.bright_red()).unwrap();
         });
     }
     if !unstaged.new.is_empty() {
@@ -122,7 +121,7 @@ impl Changes {
         println!("  use \"libra add <file>...\" to include in what will be committed");
         unstaged.new.iter().for_each(|f| {
             let str = format!("\t{}", f.display());
-            writeln!(writer,"{}", str.bright_red()).unwrap();
+            writeln!(writer, "{}", str.bright_red()).unwrap();
         });
     }
 }
@@ -138,7 +137,7 @@ pub fn output_porcelain(staged: &Changes, unstaged: &Changes, writer: &mut impl 
     for file in &staged.deleted {
         writeln!(writer, "D  {}", file.display()).unwrap();
     }
-    
+
     // Output unstaged changes
     for file in &unstaged.modified {
         writeln!(writer, " M {}", file.display()).unwrap();
@@ -146,12 +145,11 @@ pub fn output_porcelain(staged: &Changes, unstaged: &Changes, writer: &mut impl 
     for file in &unstaged.deleted {
         writeln!(writer, " D {}", file.display()).unwrap();
     }
-    
+
     // Output untracked files
     for file in &unstaged.new {
         writeln!(writer, "?? {}", file.display()).unwrap();
     }
-
 }
 
 pub async fn execute(args: StatusArgs) {

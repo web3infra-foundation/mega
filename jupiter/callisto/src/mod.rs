@@ -3,6 +3,7 @@
 pub mod prelude;
 
 pub mod access_token;
+pub mod builds;
 pub mod check_result;
 pub mod entity_ext;
 pub mod git_blob;
