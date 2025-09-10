@@ -24,6 +24,7 @@ pub use super::mega_commit::Entity as MegaCommit;
 pub use super::mega_conversation::Entity as MegaConversation;
 pub use super::mega_issue::Entity as MegaIssue;
 pub use super::mega_mr::Entity as MegaMr;
+pub use super::mega_mr_reviewer::Entity as MegaMrReviewer;
 pub use super::mega_refs::Entity as MegaRefs;
 pub use super::mega_tag::Entity as MegaTag;
 pub use super::mega_tree::Entity as MegaTree;

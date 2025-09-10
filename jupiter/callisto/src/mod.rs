@@ -27,6 +27,7 @@ pub mod mega_commit;
 pub mod mega_conversation;
 pub mod mega_issue;
 pub mod mega_mr;
+pub mod mega_mr_reviewer;
 pub mod mega_refs;
 pub mod mega_tag;
 pub mod mega_tree;
