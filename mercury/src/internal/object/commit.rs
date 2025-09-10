@@ -147,60 +147,60 @@ impl ObjectTrait for Commit {
     where
         Self: Sized,
     {
-        let mut headers = data;
-        let mut message_start = 0;
+        let mut commit = data;
+        // Find the tree id and remove it from the data
+        let tree_end = commit.find_byte(0x0a).unwrap();
+        let tree_id: SHA1 = SHA1::from_str(
+            String::from_utf8(commit[5..tree_end].to_owned()) // 5 is the length of "tree "
+                .unwrap()
+                .as_str(),
+        )
+        .unwrap();
+        let binding = commit[tree_end + 1..].to_vec(); // Move past the tree id
+        commit = &binding;
 
-        // Find the blank line that separates headers from the message
-        if let Some(pos) = headers.find(b"\n\n") {
-            message_start = pos + 2;
-            headers = &headers[..pos];
-        } else {
-            // If no blank line, the whole data is headers, no message
-        }
+        // Find the parent commit ids and remove them from the data
+        let author_begin = commit.find("author").unwrap();
+        // Find all parent commit ids
+        // The parent commit ids are all the lines that start with "parent "
+        // We can use find_iter to find all occurrences of "parent "
+        // and then extract the SHA1 hashes from them.
+        let parent_commit_ids: Vec<SHA1> = commit[..author_begin]
+            .find_iter("parent")
+            .map(|parent| {
+                let parent_end = commit[parent..].find_byte(0x0a).unwrap();
+                SHA1::from_str(
+                    // 7 is the length of "parent "
+                    String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
+                        .unwrap()
+                        .as_str(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let binding = commit[author_begin..].to_vec();
+        commit = &binding;
 
-        let mut tree_id: Option<SHA1> = None;
-        let mut parent_commit_ids: Vec<SHA1> = Vec::new();
-        let mut author: Option<Signature> = None;
-        let mut committer: Option<Signature> = None;
+        // Find the author and committer and remove them from the data
+        // 0x0a is the newline character
+        let author =
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
-        for line in headers.lines() {
-            if let Some(tree_str) = line.strip_prefix(b"tree ") {
-                tree_id = Some(
-                    SHA1::from_str(tree_str.to_str().map_err(|e| {
-                        GitError::InvalidCommit(format!("Invalid UTF-8 in tree SHA: {}", e))
-                    })?)
-                    .map_err(|e| GitError::InvalidCommit(format!("Invalid tree SHA: {}", e)))?,
-                );
-            } else if let Some(parent_str) = line.strip_prefix(b"parent ") {
-                parent_commit_ids.push(
-                    SHA1::from_str(parent_str.to_str().map_err(|e| {
-                        GitError::InvalidCommit(format!("Invalid UTF-8 in parent SHA: {}", e))
-                    })?)
-                    .map_err(|e| GitError::InvalidCommit(format!("Invalid parent SHA: {}", e)))?,
-                );
-            } else if line.starts_with(b"author ") {
-                author = Some(Signature::from_data(line.to_vec()).map_err(|e| {
-                    GitError::InvalidCommit(format!("Invalid author signature: {}", e))
-                })?);
-            } else if line.starts_with(b"committer ") {
-                committer = Some(Signature::from_data(line.to_vec()).map_err(|e| {
-                    GitError::InvalidCommit(format!("Invalid committer signature: {}", e))
-                })?);
-            }
-        }
+        let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
+        commit = &binding;
+        let committer =
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
-        let message = if message_start > 0 {
-            String::from_utf8_lossy(&data[message_start..]).to_string()
-        } else {
-            String::new()
+        // The rest is the message
+        let message = unsafe {
+            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
         };
-
         Ok(Commit {
             id: hash,
-            tree_id: tree_id.ok_or(GitError::InvalidCommit("Missing tree".to_string()))?,
+            tree_id,
             parent_commit_ids,
-            author: author.ok_or(GitError::InvalidCommit("Missing author".to_string()))?,
-            committer: committer.ok_or(GitError::InvalidCommit("Missing committer".to_string()))?,
+            author,
+            committer,
             message,
         })
     }
@@ -285,5 +285,61 @@ impl From<git_commit::Model> for Commit {
             value.committer,
             value.content,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_from_bytes_with_gpgsig() {
+        let raw_commit = br#"tree 341e54913a3a43069f2927cc0f703e5a9f730df1
+author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
+committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iQJNBAABCAA3FiEEs4MaYUV7JcjxsVMPyqxGczTZ6K4FAmjBMC4ZHGJlbmphbWlu
+ Ljc0N0BvdXRsb29rLmNvbQAKCRDKrEZzNNnorj73EADNpsyLAHsB3NgoeH+uy9Vq
+ G2+LRtlvqv3QMK7vbQUadXHlQYWk25SIk+WJ1kG1AnUy5fqOrLSDTA1ny+qwpH8O
+ +2sKCF/S1wlzqGWjCcRH5/ir9srsGIn9HbNqBjmU22NJ6Dt2jnqoUvtWfPwyqwWg
+ VpjYlj390cFdXTpH5hMvtlmUQB+zCSKtWQW2Ur64h/UsGtllARlACi+KHQQmA2/p
+ FLWNddvfJQpPM597DkGohQTD68g0PqOBhUkOHduHq7VHy68DVW+07bPNXK8JhJ8S
+ 4dyV1sZwcVcov0GcKl0wUbEqzy4gf+zV7DQhkfrSRQMBdo5vCWahYj1AbgaTiu8a
+ hscshYDuWWqpxBU/+nCxOPskV29uUG1sRyXp3DqmKJZpnO9CVdw3QaVrqnMEeh2S
+ t/wYRI9aI1A+Mi/DETom5ifTVygMkK+3m1h7pAMOlblFEdZx2sDXPRG2IEUcatr4
+ Jb2+7PUJQXxUQnwHC7xHHxRh6a2h8TfEJfSoEyrgzxZ0CRxJ6XMJaJu0UwZ2xMsx
+ Lgmeu6miB/imwxz5R5RL2yVHbgllSlO5l12AIeBaPoarKXYPSALigQnKCXu5OM3x
+ Jq5qsSGtxdr6S1VgLyYHR4o69bQjzBp9K47J3IXqvrpo/ZiO/6Mspk2ZRWhGj82q
+ e3qERPp5b7+hA+M7jKPyJg==
+ =UeLf
+ -----END PGP SIGNATURE-----
+
+test parse commit from bytes
+"#;
+
+        let hash = SHA1::from_str("57d7685c60213a9da465cf900f31933be3a7ee39").unwrap();
+        let commit = Commit::from_bytes(raw_commit, hash).unwrap();
+
+        assert_eq!(
+            commit.id,
+            SHA1::from_str("57d7685c60213a9da465cf900f31933be3a7ee39").unwrap()
+        );
+
+        assert_eq!(
+            commit.tree_id,
+            SHA1::from_str("341e54913a3a43069f2927cc0f703e5a9f730df1").unwrap()
+        );
+
+        assert_eq!(commit.author.name, "benjamin.747");
+        assert_eq!(commit.author.email, "benjamin.747@outlook.com");
+
+        assert_eq!(commit.committer.name, "benjamin.747");
+
+        // check message content（must contains gpgsig and content）
+        assert!(commit.message.contains("-----BEGIN PGP SIGNATURE-----"));
+        assert!(commit.message.contains("-----END PGP SIGNATURE-----"));
+        assert!(commit.message.contains("test parse commit from bytes"));
     }
 }
