@@ -11,10 +11,12 @@ use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob}
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::utils::{generate_id, MEGA_BRANCH_NAME};
-use mercury::internal::object::MegaObjectModel;
+use mercury::internal::object::{MegaObjectModel, ObjectTrait};
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::storage::commit_binding_storage::CommitBindingStorage;
+use crate::storage::user_storage::UserStorage;
 use crate::utils::converter::MegaModelConverter;
 
 #[derive(Clone)]
@@ -39,6 +41,18 @@ struct GitObjects {
 }
 
 impl MonoStorage {
+    pub fn user_storage(&self) -> UserStorage {
+        UserStorage {
+            base: self.base.clone(),
+        }
+    }
+
+    pub fn commit_binding_storage(&self) -> CommitBindingStorage {
+        CommitBindingStorage {
+            base: self.base.clone(),
+        }
+    }
+
     pub async fn save_ref(
         &self,
         path: &str,
@@ -137,6 +151,7 @@ impl MonoStorage {
         &self,
         commit_id: &str,
         entry_list: Vec<Entry>,
+        authenticated_username: Option<String>,
     ) -> Result<(), MegaError> {
         let git_objects = Arc::new(Mutex::new(GitObjects {
             commits: Vec::new(),
@@ -146,15 +161,24 @@ impl MonoStorage {
             tags: Vec::new(),
         }));
 
+        // Collect commits for binding processing
+        let commits_to_process = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+
         stream::iter(entry_list)
             .for_each_concurrent(None, |entry| {
                 let git_objects = git_objects.clone();
+                let commits_to_process = commits_to_process.clone();
                 async move {
                     let raw_obj = entry.process_entry();
                     let model = raw_obj.convert_to_mega_model();
                     let mut git_objects = git_objects.lock().unwrap();
                     match model {
                         MegaObjectModel::Commit(commit) => {
+                            // Store for binding processing
+                            if let Ok(commit_obj) = mercury::internal::object::commit::Commit::from_bytes(&entry.data, entry.hash) {
+                                let mut commits = commits_to_process.lock().unwrap();
+                                commits.push((commit_obj.id.to_string(), commit_obj.author.email.clone()));
+                            }
                             git_objects.commits.push(commit.into_active_model())
                         }
                         MegaObjectModel::Tree(mut tree) => {
@@ -183,6 +207,61 @@ impl MonoStorage {
         self.batch_save_model(git_objects.raw_blobs).await.unwrap();
         self.batch_save_model(git_objects.tags).await.unwrap();
 
+        // Process commit author bindings after saving objects
+        let commits_to_process = Arc::try_unwrap(commits_to_process)
+            .expect("Failed to unwrap Arc")
+            .into_inner()
+            .unwrap();
+        
+        if !commits_to_process.is_empty() {
+            self.process_commit_bindings(&commits_to_process, authenticated_username.as_deref()).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Process commit author bindings
+    async fn process_commit_bindings(&self, commits: &[(String, String)], authenticated_username: Option<&str>) -> Result<(), MegaError> {
+        let user_storage = self.user_storage();
+        let commit_binding_storage = self.commit_binding_storage();
+
+        for (commit_sha, author_email) in commits {
+            // Try to find user by authenticated username first
+            let matched_username = if let Some(username) = authenticated_username {
+                // If authenticated username is available, use it to find user
+                match user_storage.find_user_by_name(username).await {
+                    Ok(Some(_user)) => {
+                        tracing::info!("Found user for username: {}", username);
+                        Some(username.to_string())
+                    }
+                    Ok(None) => {
+                        tracing::warn!("Authenticated username {} not found in user table", username);
+                        None
+                    }
+                    Err(e) => {
+                        tracing::error!("Error finding user by username {}: {}", username, e);
+                        None
+                    }
+                }
+            } else {
+                // No authenticated username, commit will be anonymous
+                tracing::info!("No authenticated username available for commit {}", commit_sha);
+                None
+            };
+            
+            let is_anonymous = matched_username.is_none();
+
+            // Save or update binding
+            if let Err(e) = commit_binding_storage
+                .upsert_binding(commit_sha, author_email, matched_username, is_anonymous)
+                .await
+            {
+                tracing::error!("Failed to save commit binding for {}: {}", commit_sha, e);
+                // Continue processing other commits even if one fails
+            } else {
+                tracing::info!("Processed binding for commit {} with email {} (anonymous: {})", commit_sha, author_email, is_anonymous);
+            }
+        }
         Ok(())
     }
 
