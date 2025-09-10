@@ -30,7 +30,10 @@ impl QdrantNode {
                 log::info!("Collection '{}' already exists", self.collection_name);
             }
             Ok(false) => {
-                log::info!("Collection '{}' does not exist, creating...", self.collection_name);
+                log::info!(
+                    "Collection '{}' does not exist, creating...",
+                    self.collection_name
+                );
                 if let Err(e) = self
                     .client
                     .create_collection(
@@ -45,7 +48,10 @@ impl QdrantNode {
                     )
                     .await
                 {
-                    log::error!("Failed to create collection '{}': {e}", self.collection_name);
+                    log::error!(
+                        "Failed to create collection '{}': {e}",
+                        self.collection_name
+                    );
                 }
             }
             Err(e) => {
@@ -53,7 +59,6 @@ impl QdrantNode {
             }
         }
     }
-    
 
     // async fn ensure_collection(&self) {
     //     if self

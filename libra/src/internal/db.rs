@@ -210,7 +210,7 @@ mod tests {
         }
         let conn = create_database(db_path).await.unwrap();
         assert!(Path::new(db_path).exists());
-        
+
         let result = create_database(db_path).await;
         assert!(result.is_err());
 

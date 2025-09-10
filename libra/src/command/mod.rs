@@ -38,8 +38,6 @@ use std::io;
 use std::io::Write;
 use std::path::Path;
 
-
-
 // impl load for all objects
 pub fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
 where

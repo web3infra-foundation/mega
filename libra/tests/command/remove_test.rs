@@ -497,7 +497,7 @@ async fn test_remove_dry_run_cached() {
 
     // Verify the file still exists in both filesystem and index
     assert!(file_path.exists(), "File should still exist in filesystem");
-    
+
     // Verify file doesn't appear as deleted in changes
     let changes = changes_to_be_staged();
     assert!(
@@ -548,8 +548,14 @@ async fn test_remove_dry_run_recursive() {
     assert!(file1.exists(), "File 1 should still exist after dry-run");
     assert!(file2.exists(), "File 2 should still exist after dry-run");
     assert!(file3.exists(), "File 3 should still exist after dry-run");
-    assert!(PathBuf::from("test_dir").exists(), "Directory should still exist");
-    assert!(PathBuf::from("test_dir/subdir").exists(), "Subdirectory should still exist");
+    assert!(
+        PathBuf::from("test_dir").exists(),
+        "Directory should still exist"
+    );
+    assert!(
+        PathBuf::from("test_dir/subdir").exists(),
+        "Subdirectory should still exist"
+    );
 
     // Verify files are still tracked by checking they don't appear as deleted
     let changes = changes_to_be_staged();
