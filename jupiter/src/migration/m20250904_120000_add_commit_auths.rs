@@ -19,7 +19,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(CommitAuths::CommitSha).string().not_null())
                     .col(ColumnDef::new(CommitAuths::AuthorEmail).string().not_null())
-                    .col(ColumnDef::new(CommitAuths::MatchedUserId).string().null())
+                    .col(ColumnDef::new(CommitAuths::MatchedUsername).string().null())
                     .col(
                         ColumnDef::new(CommitAuths::IsAnonymous)
                             .boolean()
@@ -79,7 +79,7 @@ enum CommitAuths {
     Id,
     CommitSha,
     AuthorEmail,
-    MatchedUserId,
+    MatchedUsername,
     IsAnonymous,
     MatchedAt,
     CreatedAt,

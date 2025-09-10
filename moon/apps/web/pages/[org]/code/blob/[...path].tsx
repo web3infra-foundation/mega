@@ -56,11 +56,7 @@ function BlobPage() {
 
             <div style={codeStyle}>
               <div className='m-2'>
-                <CommitHistory 
-                  flag={'details'} 
-                  info={commitInfo} 
-                  commitSha={commitInfo.hash} 
-                />
+                <CommitHistory flag={'details'} info={commitInfo} />
               </div>
               <CodeContent fileContent={fileContent} path={path} />
             </div>

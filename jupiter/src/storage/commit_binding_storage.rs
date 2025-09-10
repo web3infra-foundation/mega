@@ -1,5 +1,5 @@
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use callisto::commit_auths::Column::{AuthorEmail, CommitSha};
+use callisto::commit_auths::Column::{CommitSha};
 use callisto::commit_auths::{ActiveModel, Entity};
 use common::errors::MegaError;
 use sea_orm::{
@@ -28,7 +28,7 @@ impl CommitBindingStorage {
         &self,
         sha: &str,
         author_email: &str,
-        matched_user_id: Option<String>,
+        matched_username: Option<String>,
         is_anonymous: bool,
     ) -> Result<(), MegaError> {
         let now = chrono::Utc::now().naive_utc();
@@ -36,7 +36,7 @@ impl CommitBindingStorage {
             id: ActiveValue::Set(Uuid::new_v4().to_string()),
             commit_sha: ActiveValue::Set(sha.to_string()),
             author_email: ActiveValue::Set(author_email.to_string()),
-            matched_user_id: ActiveValue::Set(matched_user_id.clone()),
+            matched_username: ActiveValue::Set(matched_username.clone()),
             is_anonymous: ActiveValue::Set(is_anonymous),
             matched_at: ActiveValue::Set(Some(now)),
             created_at: ActiveValue::Set(now),
@@ -47,13 +47,12 @@ impl CommitBindingStorage {
         // Simple upsert: try find then insert/update
         let existing = Entity::find()
             .filter(CommitSha.eq(sha.to_string()))
-            .filter(AuthorEmail.eq(author_email.to_string()))
             .one(conn)
             .await?;
 
         if let Some(e) = existing {
             let mut am = e.into_active_model();
-            am.matched_user_id = ActiveValue::Set(matched_user_id.clone());
+            am.matched_username = ActiveValue::Set(matched_username.clone());
             am.is_anonymous = ActiveValue::Set(is_anonymous);
             am.matched_at = ActiveValue::Set(Some(now));
             am.update(conn).await?;

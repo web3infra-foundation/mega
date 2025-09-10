@@ -117,5 +117,5 @@ This part of the API, prefixed with /api/v1, is primarily for fetching Git raw o
     ```bash
     curl -X PUT ${MEGA_URL}/api/v1/commits/<commit_sha>/binding \
       -H "Content-Type: application/json" \
-      -d '{"user_id": "<user_id>", "is_anonymous": false}'
+      -d '{"username": "<username>", "is_anonymous": false}'
     ```

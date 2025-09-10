@@ -235,10 +235,17 @@ impl SmartProtocol {
                     && token == auth_config.test_user_token
                 {
                     // For test user, create a basic PushUserInfo
-                    if let Ok(user_auth) = self.create_user_auth_extractor() {
-                        if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
-                            self.authenticated_user = Some(user_info);
-                            return true;
+                    match self.create_user_auth_extractor() {
+                        Ok(user_auth) => {
+                            if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
+                                self.authenticated_user = Some(user_info);
+                                return true;
+                            } else {
+                                tracing::warn!("Failed to extract user info for test user: {}", username);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to create user auth extractor for test user: {}", e);
                         }
                     }
                     return true;
@@ -252,10 +259,17 @@ impl SmartProtocol {
                 
                 if token_valid {
                     // Extract user information for valid token
-                    if let Ok(user_auth) = self.create_user_auth_extractor() {
-                        if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
-                            self.authenticated_user = Some(user_info);
-                            return true;
+                    match self.create_user_auth_extractor() {
+                        Ok(user_auth) => {
+                            if let Ok(user_info) = user_auth.extract_user_from_username(username).await {
+                                self.authenticated_user = Some(user_info);
+                                return true;
+                            } else {
+                                tracing::warn!("Failed to extract user info for username: {}", username);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to create user auth extractor: {}", e);
                         }
                     }
                 }

@@ -357,7 +357,7 @@ erDiagram
 | id               | VARCHAR     | PRIMARY KEY |                                                  |
 | commit_sha       | VARCHAR     | NOT NULL    | Git commit SHA hash                              |
 | author_email     | VARCHAR     | NOT NULL    | Original author email from commit                |
-| matched_user_id  | VARCHAR     | NULL        | User ID that this commit is bound to             |
+| matched_username  | VARCHAR     | NULL        | Username that this commit is bound to             |
 | is_anonymous     | BOOLEAN     | NOT NULL    | Whether the commit should be treated as anonymous |
 | matched_at       | TIMESTAMP   | NULL        | When the binding was created/updated             |
 | created_at       | TIMESTAMP   | NOT NULL    | When the record was created                      |

@@ -15,7 +15,7 @@ pub struct CommitBinding {
     pub id: String,
     pub commit_sha: String,
     pub author_email: String,
-    pub matched_user_id: Option<String>,
+    pub matched_username: Option<String>,
     pub is_anonymous: bool,
     pub matched_at: Option<String>,
     pub created_at: String,

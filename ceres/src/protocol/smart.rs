@@ -362,13 +362,6 @@ impl SmartProtocol {
         let repo_handler = self.repo_handler().await?;
         let commit_binding_storage = self.storage.commit_binding_storage();
 
-        // Get authenticated user info - if not authenticated, mark as anonymous
-        let (_user_id, _is_anonymous) = if let Some(user_info) = &self.authenticated_user {
-            (Some(user_info.user_id), false)
-        } else {
-            (None, true)
-        };
-
         // Extract author email from commit based on repo type
         let author_email = if repo_handler.is_monorepo() {
             // For monorepo, get from mono storage
@@ -431,36 +424,46 @@ impl SmartProtocol {
         // Enhanced user matching logic based on authentication status
         let (final_user_id, is_anonymous) = if let Some(authenticated_user) = &self.authenticated_user {
             // User is authenticated - check if commit author email belongs to them
-            if let Ok(user_auth) = self.create_user_auth_extractor() {
-                let email_belongs_to_user = user_auth
-                    .verify_email_ownership(authenticated_user.user_id, &author_email)
-                    .await
-                    .unwrap_or(false);
+            match self.create_user_auth_extractor() {
+                Ok(user_auth) => {
+                    let email_belongs_to_user = user_auth
+                        .verify_email_ownership(&authenticated_user.username, &author_email)
+                        .await
+                        .unwrap_or(false);
 
-                if email_belongs_to_user {
-                    // Author email belongs to authenticated user
-                    (Some(authenticated_user.user_id.to_string()), false)
-                } else {
-                    // Author email doesn't belong to authenticated user - try general matching
+                    if email_belongs_to_user {
+                        // Author email belongs to authenticated user
+                        (Some(authenticated_user.username.clone()), false)
+                    } else {
+                        // Author email doesn't belong to authenticated user - try general matching
+                        let user_storage = self.storage.user_storage();
+                        let matched_user = user_storage.find_user_by_email(&author_email).await?;
+                        
+                        if let Some(user) = matched_user {
+                            (Some(user.id.to_string()), false)
+                        } else {
+                            // Mark as anonymous since we can't match the email
+                            (None, true)
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Log the error from create_user_auth_extractor for debugging
+                    tracing::warn!(
+                        "Failed to create user auth extractor for commit binding: {}. \
+                         Falling back to email-based matching.", 
+                        e
+                    );
+                    
+                    // Fallback to email-based matching if auth extractor fails
                     let user_storage = self.storage.user_storage();
                     let matched_user = user_storage.find_user_by_email(&author_email).await?;
                     
                     if let Some(user) = matched_user {
                         (Some(user.id.to_string()), false)
                     } else {
-                        // Mark as anonymous since we can't match the email
                         (None, true)
                     }
-                }
-            } else {
-                // Fallback to email-based matching if auth extractor fails
-                let user_storage = self.storage.user_storage();
-                let matched_user = user_storage.find_user_by_email(&author_email).await?;
-                
-                if let Some(user) = matched_user {
-                    (Some(user.id.to_string()), false)
-                } else {
-                    (None, true)
                 }
             }
         } else {

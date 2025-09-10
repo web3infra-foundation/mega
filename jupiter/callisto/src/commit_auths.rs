@@ -12,9 +12,9 @@ pub struct Model {
     pub commit_sha: String,
     #[sea_orm(column_type = "Text")]
     pub author_email: String,
-    // matched_user_id links to user.id (bigint) stored as string to be flexible
+    // matched_username links to user.username (text) stored as string to be flexible
     #[sea_orm(column_type = "Text", nullable)]
-    pub matched_user_id: Option<String>,
+    pub matched_username: Option<String>,
     pub is_anonymous: bool,
     pub matched_at: Option<DateTime>,
     pub created_at: DateTime,

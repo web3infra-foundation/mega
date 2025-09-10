@@ -4,39 +4,38 @@ use crate::server::http_server::GIT_TAG;
 use axum::{
     extract::{Path, State},
     Json,
-    routing::get,
 };
 use common::model::CommonResult;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateCommitBindingRequest {
-    pub user_id: Option<String>,
+    pub username: Option<String>,
     pub is_anonymous: bool,
 }
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
-    OpenApiRouter::new().nest(
-        "/commits",
-        OpenApiRouter::new()
-            .route("/{sha}/binding", get(get_commit_binding).put(update_commit_binding))
-    )
+    OpenApiRouter::new()
+        .routes(routes!(get_commit_binding))
+        .routes(routes!(update_commit_binding))
 }
 
 /// Get commit binding information by commit SHA
 #[utoipa::path(
     get,
-    path = "/{sha}",
+    path = "/commits/{sha}/binding",
     params(
         ("sha" = String, Path, description = "Git commit SHA hash")
     ),
     responses(
-        (status = 200, body = CommonResult<CommitBindingResponse>, content_type = "application/json"),
+        (status = 200, description = "Get commit binding information successfully", 
+         body = CommonResult<CommitBindingResponse>, content_type = "application/json"),
         (status = 404, description = "Commit binding not found")
     ),
     tag = GIT_TAG
 )]
+#[axum::debug_handler]
 async fn get_commit_binding(
     State(state): State<MonoApiServiceState>,
     Path(sha): Path<String>,
@@ -47,20 +46,16 @@ async fn get_commit_binding(
     match commit_binding_storage.find_by_sha(&sha).await {
         Ok(Some(binding_model)) => {
             // Try to get user information if not anonymous
-            let user_info = if !binding_model.is_anonymous && binding_model.matched_user_id.is_some() {
-                let user_id_str = binding_model.matched_user_id.as_ref().unwrap();
-                if let Ok(user_id) = user_id_str.parse::<i64>() {
-                    if let Ok(Some(user)) = user_storage.find_user_by_id(user_id).await {
-                        Some(UserInfo {
-                            id: user.id.to_string(),
-                            username: user.name.clone(),
-                            display_name: Some(user.name.clone()), // Use name as display_name since display_name field doesn't exist
-                            avatar_url: Some(user.avatar_url.clone()),
-                            email: user.email.clone(),
-                        })
-                    } else {
-                        None
-                    }
+            let user_info = if !binding_model.is_anonymous && binding_model.matched_username.is_some() {
+                let username = binding_model.matched_username.as_ref().unwrap();
+                if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
+                    Some(UserInfo {
+                        id: user.id.to_string(),
+                        username: user.name.clone(),
+                        display_name: Some(user.name.clone()), // Use name as display_name since display_name field doesn't exist
+                        avatar_url: Some(user.avatar_url.clone()),
+                        email: user.email.clone(),
+                    })
                 } else {
                     None
                 }
@@ -72,7 +67,7 @@ async fn get_commit_binding(
                 id: binding_model.id,
                 commit_sha: binding_model.commit_sha,
                 author_email: binding_model.author_email.clone(),
-                matched_user_id: binding_model.matched_user_id,
+                matched_username: binding_model.matched_username,
                 is_anonymous: binding_model.is_anonymous,
                 matched_at: binding_model.matched_at.map(|dt| dt.and_utc().to_rfc3339()),
                 created_at: binding_model.created_at.and_utc().to_rfc3339(),
@@ -81,7 +76,7 @@ async fn get_commit_binding(
 
             // Prepare display information
             let (display_name, avatar_url, is_verified_user) = if binding_model.is_anonymous {
-                ("匿名提交".to_string(), None, false)
+                ("Anonymous".to_string(), None, false)
             } else if let Some(ref user) = user_info {
                 (
                     user.display_name.clone().unwrap_or(user.username.clone()),
@@ -90,7 +85,7 @@ async fn get_commit_binding(
                 )
             } else {
                 // Fallback for cases where user is matched but user info is not available
-                (binding_model.author_email.split('@').next().unwrap_or("未知用户").to_string(), None, false)
+                (binding_model.author_email.split('@').next().unwrap_or(&binding_model.author_email).to_string(), None, false)
             };
 
             Ok(Json(CommonResult::success(Some(CommitBindingResponse {
@@ -102,7 +97,7 @@ async fn get_commit_binding(
         }
         Ok(None) => Ok(Json(CommonResult::success(Some(CommitBindingResponse {
             binding: None,
-            display_name: "匿名提交".to_string(),
+            display_name: "Anonymous".to_string(),
             avatar_url: None,
             is_verified_user: false,
         })))),
@@ -119,18 +114,20 @@ async fn get_commit_binding(
 /// Update commit binding information
 #[utoipa::path(
     put,
-    path = "/{sha}/binding",
+    path = "/commits/{sha}/binding",
     params(
         ("sha" = String, Path, description = "Git commit SHA hash")
     ),
     request_body = UpdateCommitBindingRequest,
     responses(
-        (status = 200, body = CommonResult<CommitBindingResponse>, content_type = "application/json"),
+        (status = 200, description = "Update commit binding information successfully",
+         body = CommonResult<CommitBindingResponse>, content_type = "application/json"),
         (status = 404, description = "Commit not found"),
         (status = 400, description = "Invalid request")
     ),
     tag = GIT_TAG
 )]
+#[axum::debug_handler]
 async fn update_commit_binding(
     State(state): State<MonoApiServiceState>,
     Path(sha): Path<String>,
@@ -152,19 +149,15 @@ async fn update_commit_binding(
 
     // Validate user if not anonymous
     if !request.is_anonymous {
-        if let Some(ref user_id_str) = request.user_id {
-            if let Ok(user_id) = user_id_str.parse::<i64>() {
-                let user_exists = user_storage.find_user_by_id(user_id).await
-                    .map_err(|e| ApiError::from(anyhow::anyhow!("User validation failed: {}", e)))?;
-                
-                if user_exists.is_none() {
-                    return Err(ApiError::from(anyhow::anyhow!("User not found: {}", user_id)));
-                }
-            } else {
-                return Err(ApiError::from(anyhow::anyhow!("Invalid user ID format: {}", user_id_str)));
+        if let Some(ref username) = request.username {
+            let user_exists = user_storage.find_user_by_name(username).await
+                .map_err(|e| ApiError::from(anyhow::anyhow!("User validation failed: {}", e)))?;
+            
+            if user_exists.is_none() {
+                return Err(ApiError::from(anyhow::anyhow!("User not found: {}", username)));
             }
         } else {
-            return Err(ApiError::from(anyhow::anyhow!("User ID required when not anonymous")));
+            return Err(ApiError::from(anyhow::anyhow!("Username required when not anonymous")));
         }
     }
 
@@ -172,7 +165,7 @@ async fn update_commit_binding(
     commit_binding_storage.upsert_binding(
         &sha,
         &author_email,
-        request.user_id.clone(),
+        request.username.clone(),
         request.is_anonymous,
     ).await
     .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update binding: {}", e)))?;

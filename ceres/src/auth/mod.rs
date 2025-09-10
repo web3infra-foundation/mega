@@ -5,7 +5,6 @@ use jupiter::storage::user_storage::UserStorage;
 /// User authentication information extracted from Git push process
 #[derive(Debug, Clone)]
 pub struct PushUserInfo {
-    pub user_id: i64,
     pub username: String,
     pub primary_email: String,
     pub all_emails: Vec<String>, // User's email collection
@@ -18,7 +17,7 @@ pub trait UserAuthExtractor {
     async fn extract_user_from_token(&self, access_token: &str) -> Result<PushUserInfo, MegaError>;
     
     /// Verify if email belongs to the authenticated user
-    async fn verify_email_ownership(&self, user_id: i64, email: &str) -> Result<bool, MegaError>;
+    async fn verify_email_ownership(&self, username: &str, email: &str) -> Result<bool, MegaError>;
     
     /// Extract user information from username (for cases where token is already validated)
     async fn extract_user_from_username(&self, username: &str) -> Result<PushUserInfo, MegaError>;
@@ -37,16 +36,11 @@ impl DefaultUserAuthExtractor {
 
 impl UserAuthExtractor for DefaultUserAuthExtractor {
     async fn extract_user_from_token(&self, access_token: &str) -> Result<PushUserInfo, MegaError> {
-        // Find token in database to get username
-        let tokens = self.user_storage.list_all_tokens().await?;
+        // Find username by token
+        let username = self.user_storage.find_user_by_token(access_token).await?
+            .ok_or_else(|| MegaError::with_message("Invalid or expired access token"))?;
         
-        for token_model in tokens {
-            if token_model.token == access_token {
-                return self.extract_user_from_username(&token_model.username).await;
-            }
-        }
-        
-        Err(MegaError::with_message("Invalid or expired access token"))
+        self.extract_user_from_username(&username).await
     }
     
     async fn extract_user_from_username(&self, username: &str) -> Result<PushUserInfo, MegaError> {
@@ -59,16 +53,15 @@ impl UserAuthExtractor for DefaultUserAuthExtractor {
         let all_emails = vec![user.email.clone()];
         
         Ok(PushUserInfo {
-            user_id: user.id,
             username: user.name.clone(),
             primary_email: user.email.clone(),
             all_emails,
         })
     }
     
-    async fn verify_email_ownership(&self, user_id: i64, email: &str) -> Result<bool, MegaError> {
+    async fn verify_email_ownership(&self, username: &str, email: &str) -> Result<bool, MegaError> {
         // Get user information
-        let user = self.user_storage.find_user_by_id(user_id).await?
+        let user = self.user_storage.find_user_by_name(username).await?
             .ok_or_else(|| MegaError::with_message("User not found"))?;
         
         // Check if email matches primary email
