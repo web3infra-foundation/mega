@@ -206,33 +206,37 @@ pub trait ApiHandler: Send + Sync {
     /// # Errors
     ///
     /// Returns a `GitError` if the path does not exist.
-    async fn search_tree_for_update(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
+    async fn search_tree_for_update(&self, path: &Path) -> Result<Vec<Arc<Tree>>, GitError> {
+        // strip repo root prefix
         let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
-        let mut search_tree = root_tree.clone();
-        let mut update_tree = vec![root_tree];
+
+        // init state
+        let mut current_tree = Arc::new(root_tree.clone());
+        let mut update_chain = vec![Arc::new(root_tree)];
 
         for component in relative_path.components() {
             // root tree already found
             if component != Component::RootDir {
                 let target_name = component.as_os_str().to_str().unwrap();
-                let search_res = search_tree
+
+                // lookup child
+                let search_res = current_tree
                     .tree_items
                     .iter()
-                    .find(|x| x.name == target_name);
-
-                if let Some(search_res) = search_res {
-                    let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
-                    search_tree = res.clone();
-                    update_tree.push(res);
-                } else {
-                    return Err(GitError::CustomError(
-                        "Path not exist, please create path first!".to_string(),
-                    ));
-                }
+                    .find(|x| x.name == target_name)
+                    .ok_or_else(|| {
+                        GitError::CustomError(format!(
+                            "Path '{}' not exist, please create path first!",
+                            target_name
+                        ))
+                    })?;
+                // fetch next tree
+                current_tree = Arc::new(self.get_tree_by_hash(&search_res.id.to_string()).await);
+                update_chain.push(current_tree.clone());
             }
         }
-        Ok((update_tree, search_tree))
+        Ok(update_chain)
     }
 
     /// Searches for a tree by a given path.

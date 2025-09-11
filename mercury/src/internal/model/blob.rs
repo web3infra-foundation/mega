@@ -31,13 +31,13 @@ impl From<&Blob> for git_blob::Model {
     }
 }
 
-impl From<Blob> for raw_blob::Model {
-    fn from(value: Blob) -> Self {
+impl From<&Blob> for raw_blob::Model {
+    fn from(value: &Blob) -> Self {
         raw_blob::Model {
             id: generate_id(),
             sha1: value.id.to_string(),
             storage_type: StorageTypeEnum::Database,
-            data: Some(value.data),
+            data: Some(value.data.clone()),
             content: None,
             file_type: None,
             local_path: None,
