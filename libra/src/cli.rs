@@ -121,6 +121,13 @@ pub enum Stash {
         #[arg(help = "The stash to drop")]
         stash: Option<String>,
     },
+     #[command(about = "Create a branch from a stash")]
+    Branch {
+        #[arg(help = "The stash to create branch from (default: the latest stash)")]
+        stash: Option<String>,
+        #[arg(help = "The branch name to create")]
+        branch: String,
+    },
 }
 
 /// The main function is the entry point of the Libra application.

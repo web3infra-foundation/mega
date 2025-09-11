@@ -59,20 +59,25 @@ achieving unified management.
 - [x] `add`
 - [x] `rm`
 - [x] `status`
+- [x] `stash`
 - [x] `commit`
 - [x] `log`
-- [ ] `tag`
+- [x] `tag`
 - [x] `switch`
 - [x] `restore`
-- [ ] `reset`
+- [x] `reset`
+- [x] `revert`
 - [x] `branch`
 - [x] `diff`
 - [x] `merge`
-- [ ] `rebase`
+- [x] `rebase`
+- [x] `reflog`
 - [x] `index-pack`
 - [x] `remote`
 - [x] `lfs`
-- [ ] `config`
+- [x] `config`
+- [x] `checkout`
+- [x] `cherry_pick`
 #### Remote
 - [x] `push`
 - [x] `pull`
