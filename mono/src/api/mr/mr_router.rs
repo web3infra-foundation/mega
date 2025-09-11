@@ -277,7 +277,6 @@ async fn mr_detail(
     ),
     tag = MR_TAG
 )]
-#[axum::debug_handler]
 async fn mr_files_changed_by_page(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
@@ -347,7 +346,6 @@ async fn mr_files_list(
     ),
     tag = MR_TAG
 )]
-#[axum::debug_handler]
 async fn merge_box(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
