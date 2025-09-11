@@ -64,6 +64,17 @@ pub struct LatestCommitInfo {
     pub author: UserInfo,
     pub committer: UserInfo,
     pub status: String,
+    pub binding_info: Option<CommitBindingInfo>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct CommitBindingInfo {
+    pub matched_username: Option<String>,
+    pub is_anonymous: bool,
+    pub is_verified_user: bool,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub author_email: String,
 }
 
 impl From<Commit> for LatestCommitInfo {
@@ -84,6 +95,7 @@ impl From<Commit> for LatestCommitInfo {
             author,
             committer,
             status: "success".to_string(),
+            binding_info: None, // Will be populated at API layer
         }
     }
 }
