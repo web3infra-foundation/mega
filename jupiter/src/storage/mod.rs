@@ -1,4 +1,5 @@
 pub mod base_storage;
+pub mod commit_binding_storage;
 pub mod conversation_storage;
 pub mod git_db_storage;
 pub mod gpg_storage;
@@ -25,10 +26,10 @@ use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
-    git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
-    lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mr_storage::MrStorage,
-    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
-    vault_storage::VaultStorage,
+    commit_binding_storage::CommitBindingStorage, git_db_storage::GitDbStorage,
+    gpg_storage::GpgStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
+    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
+    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -50,6 +51,7 @@ pub struct AppService {
     pub conversation_storage: ConversationStorage,
     pub lfs_file_storage: Arc<dyn LfsFileStorage>,
     pub note_storage: NoteStorage,
+    pub commit_binding_storage: CommitBindingStorage,
     pub reviewer_storage: MrReviewerStorage,
 }
 
@@ -70,6 +72,7 @@ impl AppService {
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
             note_storage: NoteStorage { base: mock.clone() },
+            commit_binding_storage: CommitBindingStorage { base: mock.clone() },
             reviewer_storage: MrReviewerStorage { base: mock.clone() },
         })
     }
@@ -101,6 +104,7 @@ impl Storage {
         let conversation_storage = ConversationStorage { base: base.clone() };
         let lfs_file_storage = lfs_storage::init(config.lfs.clone(), connection.clone()).await;
         let note_storage = NoteStorage { base: base.clone() };
+        let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = MrReviewerStorage { base: base.clone() };
 
         let app_service = AppService {
@@ -117,6 +121,7 @@ impl Storage {
             conversation_storage,
             lfs_file_storage,
             note_storage,
+            commit_binding_storage,
             reviewer_storage,
         };
         Storage {
@@ -181,6 +186,10 @@ impl Storage {
 
     pub fn note_storage(&self) -> NoteStorage {
         self.app_service.note_storage.clone()
+    }
+
+    pub fn commit_binding_storage(&self) -> CommitBindingStorage {
+        self.app_service.commit_binding_storage.clone()
     }
 
     pub fn reviewer_storage(&self) -> MrReviewerStorage {

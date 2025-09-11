@@ -93,7 +93,7 @@ impl MegaModelConverter {
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());
-                let raw_blob: raw_blob::Model = blob.to_owned().into();
+                let raw_blob: raw_blob::Model = blob.into();
                 self.raw_blobs.borrow_mut().insert(blob.id, raw_blob.into());
             }
         }

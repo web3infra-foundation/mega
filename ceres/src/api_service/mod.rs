@@ -21,7 +21,8 @@ use mercury::{
 use tokio::sync::Mutex;
 
 use crate::model::git::{
-    CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
+    CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
+    TreeHashItem,
 };
 
 pub mod import_api_service;
@@ -104,7 +105,65 @@ pub trait ApiHandler: Send + Sync {
             ));
         };
         let commit = self.get_tree_relate_commit(tree.id, path).await?;
-        Ok(commit.into())
+        let mut commit_info: LatestCommitInfo = commit.into();
+
+        // Build commit binding information
+        commit_info.binding_info = self.build_commit_binding_info(&commit_info.oid).await?;
+
+        Ok(commit_info)
+    }
+
+    /// Build commit binding information for a given commit SHA
+    async fn build_commit_binding_info(
+        &self,
+        commit_sha: &str,
+    ) -> Result<Option<CommitBindingInfo>, GitError> {
+        let storage = self.get_context();
+        let commit_binding_storage = storage.commit_binding_storage();
+        let user_storage = storage.user_storage();
+
+        if let Ok(Some(binding_model)) = commit_binding_storage.find_by_sha(commit_sha).await {
+            // Get user information if not anonymous
+            let user_info =
+                if !binding_model.is_anonymous && binding_model.matched_username.is_some() {
+                    let username = binding_model.matched_username.as_ref().unwrap();
+                    if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
+                        Some((user.name.clone(), user.avatar_url.clone()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+            let (display_name, avatar_url, is_verified_user) = if binding_model.is_anonymous {
+                ("Anonymous".to_string(), None, false)
+            } else if let Some((username, avatar)) = user_info {
+                (username, Some(avatar), true)
+            } else {
+                (
+                    binding_model
+                        .author_email
+                        .split('@')
+                        .next()
+                        .unwrap_or(&binding_model.author_email)
+                        .to_string(),
+                    None,
+                    false,
+                )
+            };
+
+            Ok(Some(CommitBindingInfo {
+                matched_username: binding_model.matched_username,
+                is_anonymous: binding_model.is_anonymous,
+                is_verified_user,
+                display_name,
+                avatar_url,
+                author_email: binding_model.author_email,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_tree_info(&self, path: &Path) -> Result<Vec<TreeBriefItem>, GitError> {
@@ -206,33 +265,37 @@ pub trait ApiHandler: Send + Sync {
     /// # Errors
     ///
     /// Returns a `GitError` if the path does not exist.
-    async fn search_tree_for_update(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
+    async fn search_tree_for_update(&self, path: &Path) -> Result<Vec<Arc<Tree>>, GitError> {
+        // strip repo root prefix
         let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
-        let mut search_tree = root_tree.clone();
-        let mut update_tree = vec![root_tree];
+
+        // init state
+        let mut current_tree = Arc::new(root_tree.clone());
+        let mut update_chain = vec![Arc::new(root_tree)];
 
         for component in relative_path.components() {
             // root tree already found
             if component != Component::RootDir {
                 let target_name = component.as_os_str().to_str().unwrap();
-                let search_res = search_tree
+
+                // lookup child
+                let search_res = current_tree
                     .tree_items
                     .iter()
-                    .find(|x| x.name == target_name);
-
-                if let Some(search_res) = search_res {
-                    let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
-                    search_tree = res.clone();
-                    update_tree.push(res);
-                } else {
-                    return Err(GitError::CustomError(
-                        "Path not exist, please create path first!".to_string(),
-                    ));
-                }
+                    .find(|x| x.name == target_name)
+                    .ok_or_else(|| {
+                        GitError::CustomError(format!(
+                            "Path '{}' not exist, please create path first!",
+                            target_name
+                        ))
+                    })?;
+                // fetch next tree
+                current_tree = Arc::new(self.get_tree_by_hash(&search_res.id.to_string()).await);
+                update_chain.push(current_tree.clone());
             }
         }
-        Ok((update_tree, search_tree))
+        Ok(update_chain)
     }
 
     /// Searches for a tree by a given path.

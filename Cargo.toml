@@ -160,6 +160,7 @@ zstd-sys = "2.0.15+zstd.1.5.7"
 quickcheck = "1.0.3"
 directories = "6.0.0"
 dotenv = "0.15"
+ahash = "0.8.12"
 
 [profile.release]
 debug = true

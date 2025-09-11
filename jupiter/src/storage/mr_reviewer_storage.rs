@@ -56,6 +56,7 @@ impl MrReviewerStorage {
         for reviewer in reviewers {
             mega_mr_reviewer::Entity::delete_many()
                 .filter(mega_mr_reviewer::Column::MrLink.eq(mr_link))
+                .filter(mega_mr_reviewer::Column::Username.eq(reviewer.clone()))
                 .exec(self.get_connection())
                 .await
                 .map_err(|e| {
@@ -103,6 +104,7 @@ impl MrReviewerStorage {
     ) -> Result<(), MegaError> {
         let mut rev: mega_mr_reviewer::ActiveModel = mega_mr_reviewer::Entity::find()
             .filter(mega_mr_reviewer::Column::MrLink.eq(mr_link))
+            .filter(mega_mr_reviewer::Column::Username.eq(reviewer_username)
             .one(self.get_connection())
             .await
             .map_err(|e| {
@@ -119,6 +121,7 @@ impl MrReviewerStorage {
         rev.update(self.get_connection()).await.map_err(|e| {
             tracing::error!("{}", e);
             MegaError::with_message(format!("fail to update reviewer {}", reviewer_username))
+
         })?;
 
         Ok(())

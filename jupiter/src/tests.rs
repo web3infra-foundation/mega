@@ -13,10 +13,11 @@ use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::gpg_storage::GpgStorage;
 use crate::storage::note_storage::NoteStorage;
 use crate::storage::{
-    conversation_storage::ConversationStorage, git_db_storage::GitDbStorage,
-    issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage,
-    mr_reviewer_storage::MrReviewerStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
-    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+    commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
+    git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
+    mono_storage::MonoStorage, mr_reviewer_storage::MrReviewerStorage, mr_storage::MrStorage,
+    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
+    vault_storage::VaultStorage,
 };
 use crate::storage::{AppService, Storage};
 
@@ -59,6 +60,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         conversation_storage: ConversationStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
         note_storage: NoteStorage { base: base.clone() },
+        commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: MrReviewerStorage { base: base.clone() },
     };
 
