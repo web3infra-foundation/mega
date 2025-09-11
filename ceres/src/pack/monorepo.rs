@@ -158,7 +158,9 @@ impl RepoHandler for MonoRepo {
         } else {
             String::new()
         };
-        storage.save_entry(&commit_id, entry_list, self.username.clone()).await
+        storage
+            .save_entry(&commit_id, entry_list, self.username.clone())
+            .await
     }
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {

@@ -13,16 +13,16 @@ use ceres::{
     api_service::ApiHandler,
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
-        TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse, CommitBindingInfo,
+        TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
     },
 };
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    commit::commit_router, conversation::conv_router, error::ApiError, gpg::gpg_router, 
-    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, 
-    user::user_router, MonoApiServiceState,
+    commit::commit_router, conversation::conv_router, error::ApiError, gpg::gpg_router,
+    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, user::user_router,
+    MonoApiServiceState,
 };
 use crate::server::http_server::GIT_TAG;
 
@@ -125,67 +125,23 @@ async fn get_latest_commit(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
     let query_path: std::path::PathBuf = query.path.into();
-    let import_dir = state.storage.config().monorepo.import_dir.clone(); 
-    let mut commit_info = if let Ok(rest) = query_path.strip_prefix(import_dir) {
+    let import_dir = state.storage.config().monorepo.import_dir.clone();
+    if let Ok(rest) = query_path.strip_prefix(import_dir) {
         if rest.components().count() == 1 {
             let res = state
                 .monorepo()
                 .get_latest_commit(query_path.clone())
                 .await?;
-            res
-        } else {
-            let res = state
-                .api_handler(&query_path)
-                .await?
-                .get_latest_commit(query_path)
-                .await?;
-            res
+            return Ok(Json(res));
         }
-    } else {
-        let res = state
-            .api_handler(&query_path)
-            .await?
-            .get_latest_commit(query_path)
-            .await?;
-        res
-    };
-
-    // Query commit binding information
-    let commit_binding_storage = state.storage.commit_binding_storage();
-    let user_storage = state.storage.user_storage();
-    
-    if let Ok(Some(binding_model)) = commit_binding_storage.find_by_sha(&commit_info.oid).await {
-        // Get user information if not anonymous
-        let user_info = if !binding_model.is_anonymous && binding_model.matched_username.is_some() {
-            let username = binding_model.matched_username.as_ref().unwrap();
-            if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
-                Some((user.name.clone(), user.avatar_url.clone()))
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let (display_name, avatar_url, is_verified_user) = if binding_model.is_anonymous {
-            ("Anonymous".to_string(), None, false)
-        } else if let Some((username, avatar)) = user_info {
-            (username, Some(avatar), true)
-        } else {
-            (binding_model.author_email.split('@').next().unwrap_or(&binding_model.author_email).to_string(), None, false)
-        };
-
-        commit_info.binding_info = Some(CommitBindingInfo {
-            matched_username: binding_model.matched_username,
-            is_anonymous: binding_model.is_anonymous,
-            is_verified_user,
-            display_name,
-            avatar_url,
-            author_email: binding_model.author_email,
-        });
     }
 
-    Ok(Json(commit_info))
+    let res = state
+        .api_handler(&query_path)
+        .await?
+        .get_latest_commit(query_path)
+        .await?;
+    Ok(Json(res))
 }
 
 /// Get tree brief info

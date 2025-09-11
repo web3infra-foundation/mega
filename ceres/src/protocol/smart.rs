@@ -422,7 +422,9 @@ impl SmartProtocol {
         }
 
         // Enhanced user matching logic based on authentication status
-        let (final_user_id, is_anonymous) = if let Some(authenticated_user) = &self.authenticated_user {
+        let (final_user_id, is_anonymous) = if let Some(authenticated_user) =
+            &self.authenticated_user
+        {
             // User is authenticated - check if commit author email belongs to them
             match self.create_user_auth_extractor() {
                 Ok(user_auth) => {
@@ -438,7 +440,7 @@ impl SmartProtocol {
                         // Author email doesn't belong to authenticated user - try general matching
                         let user_storage = self.storage.user_storage();
                         let matched_user = user_storage.find_user_by_email(&author_email).await?;
-                        
+
                         if let Some(user) = matched_user {
                             (Some(user.name.clone()), false)
                         } else {
@@ -451,14 +453,14 @@ impl SmartProtocol {
                     // Log the error from create_user_auth_extractor for debugging
                     tracing::warn!(
                         "Failed to create user auth extractor for commit binding: {}. \
-                         Falling back to email-based matching.", 
+                         Falling back to email-based matching.",
                         e
                     );
-                    
+
                     // Fallback to email-based matching if auth extractor fails
                     let user_storage = self.storage.user_storage();
                     let matched_user = user_storage.find_user_by_email(&author_email).await?;
-                    
+
                     if let Some(user) = matched_user {
                         (Some(user.name.clone()), false)
                     } else {

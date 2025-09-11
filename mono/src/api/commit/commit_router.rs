@@ -6,8 +6,8 @@ use axum::{
     Json,
 };
 use common::model::CommonResult;
-use utoipa_axum::{router::OpenApiRouter, routes};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateCommitBindingRequest {
@@ -16,10 +16,8 @@ pub struct UpdateCommitBindingRequest {
 }
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
-    OpenApiRouter::new()
-        .routes(routes!(update_commit_binding))
+    OpenApiRouter::new().routes(routes!(update_commit_binding))
 }
-
 /// Update commit binding information
 #[utoipa::path(
     put,
@@ -46,44 +44,71 @@ async fn update_commit_binding(
     let user_storage = state.storage.user_storage();
 
     // First check if commit binding exists
-    let existing_binding = commit_binding_storage.find_by_sha(&sha).await
+    let existing_binding = commit_binding_storage
+        .find_by_sha(&sha)
+        .await
         .map_err(|e| ApiError::from(anyhow::anyhow!("Database query failed: {}", e)))?;
 
     let author_email = if let Some(ref binding) = existing_binding {
         binding.author_email.clone()
     } else {
         // If no binding exists, we need the author email - this could be passed in request or derived from git
-        return Err(ApiError::from(anyhow::anyhow!("No existing binding found for commit {}", sha)));
+        return Err(ApiError::from(anyhow::anyhow!(
+            "No existing binding found for commit {}",
+            sha
+        )));
     };
 
     // Validate user if not anonymous
     if !request.is_anonymous {
         if let Some(ref username) = request.username {
-            let user_exists = user_storage.find_user_by_name(username).await
+            let user_exists = user_storage
+                .find_user_by_name(username)
+                .await
                 .map_err(|e| ApiError::from(anyhow::anyhow!("User validation failed: {}", e)))?;
-            
+
             if user_exists.is_none() {
-                return Err(ApiError::from(anyhow::anyhow!("User not found: {}", username)));
+                return Err(ApiError::from(anyhow::anyhow!(
+                    "User not found: {}",
+                    username
+                )));
             }
         } else {
-            return Err(ApiError::from(anyhow::anyhow!("Username required when not anonymous")));
+            return Err(ApiError::from(anyhow::anyhow!(
+                "Username required when not anonymous"
+            )));
         }
     }
 
     // Update the binding
-    commit_binding_storage.upsert_binding(
-        &sha,
-        &author_email,
-        request.username.clone(),
-        request.is_anonymous,
-    ).await
-    .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update binding: {}", e)))?;
+    commit_binding_storage
+        .upsert_binding(
+            &sha,
+            &author_email,
+            request.username.clone(),
+            request.is_anonymous,
+        )
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update binding: {}", e)))?;
 
-    // Return success response
+    // Prepare response with updated information
+    let (display_name, avatar_url, is_verified_user) = if request.is_anonymous {
+        ("Anonymous".to_string(), None, false)
+    } else if let Some(ref username) = request.username {
+        // Get user info for verified response
+        if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
+            (user.name.clone(), Some(user.avatar_url.clone()), true)
+        } else {
+            (username.clone(), None, true)
+        }
+    } else {
+        ("Anonymous".to_string(), None, false)
+    };
+
+    // Return success response with complete information
     Ok(Json(CommonResult::success(Some(CommitBindingResponse {
-        binding: None, // Simplified response
-        display_name: request.username.unwrap_or("Anonymous".to_string()),
-        avatar_url: None,
-        is_verified_user: !request.is_anonymous,
+        display_name,
+        avatar_url,
+        is_verified_user,
     }))))
 }

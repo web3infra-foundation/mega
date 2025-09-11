@@ -105,7 +105,7 @@ This part of the API, prefixed with /api/v1, is primarily for fetching Git raw o
     ```bash
     curl -X GET ${MEGA_URL}/api/v1/count-objs?repo_path=<path/to/repo>
     ```
-
+    
 6. Update commit binding to associate a commit with a specific user or mark as anonymous
 
     ```bash

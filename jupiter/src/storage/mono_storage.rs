@@ -175,9 +175,17 @@ impl MonoStorage {
                     match model {
                         MegaObjectModel::Commit(commit) => {
                             // Store for binding processing
-                            if let Ok(commit_obj) = mercury::internal::object::commit::Commit::from_bytes(&entry.data, entry.hash) {
+                            if let Ok(commit_obj) =
+                                mercury::internal::object::commit::Commit::from_bytes(
+                                    &entry.data,
+                                    entry.hash,
+                                )
+                            {
                                 let mut commits = commits_to_process.lock().unwrap();
-                                commits.push((commit_obj.id.to_string(), commit_obj.author.email.clone()));
+                                commits.push((
+                                    commit_obj.id.to_string(),
+                                    commit_obj.author.email.clone(),
+                                ));
                             }
                             git_objects.commits.push(commit.into_active_model())
                         }
@@ -212,16 +220,21 @@ impl MonoStorage {
             .expect("Failed to unwrap Arc")
             .into_inner()
             .unwrap();
-        
+
         if !commits_to_process.is_empty() {
-            self.process_commit_bindings(&commits_to_process, authenticated_username.as_deref()).await?;
+            self.process_commit_bindings(&commits_to_process, authenticated_username.as_deref())
+                .await?;
         }
 
         Ok(())
     }
 
     /// Process commit author bindings
-    async fn process_commit_bindings(&self, commits: &[(String, String)], authenticated_username: Option<&str>) -> Result<(), MegaError> {
+    async fn process_commit_bindings(
+        &self,
+        commits: &[(String, String)],
+        authenticated_username: Option<&str>,
+    ) -> Result<(), MegaError> {
         let user_storage = self.user_storage();
         let commit_binding_storage = self.commit_binding_storage();
 
@@ -235,7 +248,10 @@ impl MonoStorage {
                         Some(username.to_string())
                     }
                     Ok(None) => {
-                        tracing::warn!("Authenticated username {} not found in user table", username);
+                        tracing::warn!(
+                            "Authenticated username {} not found in user table",
+                            username
+                        );
                         None
                     }
                     Err(e) => {
@@ -245,10 +261,13 @@ impl MonoStorage {
                 }
             } else {
                 // No authenticated username, commit will be anonymous
-                tracing::info!("No authenticated username available for commit {}", commit_sha);
+                tracing::info!(
+                    "No authenticated username available for commit {}",
+                    commit_sha
+                );
                 None
             };
-            
+
             let is_anonymous = matched_username.is_none();
 
             // Save or update binding
@@ -259,7 +278,12 @@ impl MonoStorage {
                 tracing::error!("Failed to save commit binding for {}: {}", commit_sha, e);
                 // Continue processing other commits even if one fails
             } else {
-                tracing::info!("Processed binding for commit {} with email {} (anonymous: {})", commit_sha, author_email, is_anonymous);
+                tracing::info!(
+                    "Processed binding for commit {} with email {} (anonymous: {})",
+                    commit_sha,
+                    author_email,
+                    is_anonymous
+                );
             }
         }
         Ok(())

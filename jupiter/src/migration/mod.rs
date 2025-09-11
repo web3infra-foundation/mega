@@ -57,6 +57,7 @@ mod m20250903_013904_create_task_table;
 mod m20250903_071928_add_issue_refs;
 mod m20250904_120000_add_commit_auths;
 mod m20250904_074945_modify_tasks_and_builds;
+mod m20250904_120000_add_commit_auths;
 mod m20250905_163011_add_mr_reviewer;
 /// Creates a primary key column definition with big integer type.
 ///
