@@ -9,10 +9,11 @@ def update_repo_sync_result(crate_name, version, mega_url, status: SyncStatusEnu
     try:
         record = db.query(RepoSyncResult).filter_by(crate_name=crate_name).first()
         if record:
-            record.version = version
+            if record.version is None or vparse(version) > vparse(record.version):
+                record.version = version
+                record.mega_url = mega_url
             record.status = status
             record.err_message = err_message
-            record.mega_url = mega_url
             record.updated_at = datetime.utcnow()
         else:
             record = RepoSyncResult(

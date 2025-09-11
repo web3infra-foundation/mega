@@ -3,6 +3,7 @@ use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use qdrant_client::Qdrant;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::fs;
 
 use crate::utils::CodeItem;
 
@@ -59,7 +60,7 @@ impl QdrantNode {
             }
         }
     }
-
+    
     // async fn ensure_collection(&self) {
     //     if self
     //         .client
@@ -118,6 +119,13 @@ impl Action for QdrantNode {
                 processed_count += 1;
                 if processed_count % 100 == 0 {
                     log::info!("Processed {processed_count} items");
+                    // 保存当前ID到文件
+                    let current_id = self.id_counter.load(Ordering::SeqCst);
+                    if let Err(e) = fs::write("/opt/data/last_id.json", current_id.to_string()) {
+                        log::error!("Failed to save ID to file: {e}");
+                    } else {
+                        log::info!("Saved current ID {} to file", current_id);
+                    }
                 }
             }
             out_channels.broadcast(Content::new(())).await;
