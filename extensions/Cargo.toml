@@ -1,0 +1,26 @@
+[workspace]
+members = [
+  "cratespro_common/data_transporter",
+  "cratespro_common/database",
+  "cratespro_common/database/entity",
+  "cratespro_common/model",              # internal info struct,such as `crate info` `library info` `app info`
+  "cratespro_common/repo_import",        # extract repo and import data into tugraph
+  "cratespro_common/search",
+  "cratespro_common/tudriver",           # tugraph client, deal with the quary from router
+  "import_tugraph",
+]
+
+resolver = "2" # use resolver of version 2
+
+[workspace.dependencies]
+# internal (项目内部依赖)
+data_transporter = { path = "cratespro_common/data_transporter" }
+model = { path = "cratespro_common/model" }
+repo_import = { path = "cratespro_common/repo_import" }
+search = { path = "cratespro_common/search" }
+tudriver = { path = "cratespro_common/tudriver" }
+database = { path = "cratespro_common/database" }
+entity = { path = "cratespro_common/database/entity" }
+import_tugraph = {path = "import_tugraph"}
+
+# third-party (所有第三方依赖, 按字母表排序, 均保留1个小数点)
