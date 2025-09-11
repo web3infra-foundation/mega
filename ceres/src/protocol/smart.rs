@@ -460,7 +460,6 @@ impl SmartProtocol {
                     // Fallback to email-based matching if auth extractor fails
                     let user_storage = self.storage.user_storage();
                     let matched_user = user_storage.find_user_by_email(&author_email).await?;
-
                     if let Some(user) = matched_user {
                         (Some(user.name.clone()), false)
                     } else {

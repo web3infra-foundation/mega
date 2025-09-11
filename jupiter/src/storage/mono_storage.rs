@@ -314,13 +314,38 @@ impl MonoStorage {
     }
 
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
-        let mega_commits: Vec<mega_commit::Model> =
-            commits.into_iter().map(mega_commit::Model::from).collect();
-        let mut save_models = Vec::new();
-        for mega_commit in mega_commits {
-            save_models.push(mega_commit.into_active_model());
-        }
+        let save_models: Vec<mega_commit::ActiveModel> = commits
+            .into_iter()
+            .map(mega_commit::Model::from)
+            .map(|m| m.into_active_model())
+            .collect();
         self.batch_save_model(save_models).await.unwrap();
+        Ok(())
+    }
+
+    pub async fn save_mega_blobs(
+        &self,
+        blobs: Vec<&Blob>,
+        commit_id: &str,
+    ) -> Result<(), MegaError> {
+        let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
+            .clone()
+            .into_iter()
+            .map(mega_blob::Model::from)
+            .map(|mut m| {
+                m.commit_id = commit_id.to_owned();
+                m.into_active_model()
+            })
+            .collect();
+        self.batch_save_model(mega_blobs).await.unwrap();
+
+        let raw_blobs: Vec<raw_blob::ActiveModel> = blobs
+            .into_iter()
+            .map(raw_blob::Model::from)
+            .map(|m| m.into_active_model())
+            .collect();
+        self.batch_save_model(raw_blobs).await.unwrap();
+
         Ok(())
     }
 

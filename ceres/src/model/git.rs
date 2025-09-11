@@ -8,7 +8,7 @@ use mercury::internal::object::{
     tree::{TreeItem, TreeItemMode},
 };
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(PartialEq, Eq, Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateFileInfo {
     /// can be a file or directory
     pub is_directory: bool,
@@ -17,6 +17,22 @@ pub struct CreateFileInfo {
     pub path: String,
     // pub import_dir: bool,
     pub content: Option<String>,
+}
+
+impl CreateFileInfo {
+    pub fn commit_msg(&self) -> String {
+        if self.is_directory {
+            format!("\n create new directory {}", self.name)
+        } else {
+            format!("\n create new file {}", self.name)
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize, ToSchema, Clone)]
+pub enum ContentType {
+    File,
+    Directory,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
