@@ -165,10 +165,26 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// Only verify the shared_mode
 #[cfg(target_os = "windows")]
 fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
-    if shared_mode != "umask" {
-        eprintln!("Warning: --shared is ignored on Windows.");
+    match shared_mode {
+        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {}   // Valid string input
+        mode if mode.starts_with('0') && mode.len() == 4 => {
+            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) {  //Valid perm input
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("invalid shared mode: {}", mode),
+                ));
+            }
+        }
+        other => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Invalid shared mode: {}", other),
+            ))
+        }
     }
     Ok(())
 }
