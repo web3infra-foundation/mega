@@ -12,7 +12,8 @@ use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::utils::{generate_id, MEGA_BRANCH_NAME};
 use mercury::internal::object::{MegaObjectModel, ObjectTrait};
-use mercury::internal::{object::blob::Blob, object::commit::Commit, pack::entry::Entry};
+use mercury::internal::{object::commit::Commit, pack::entry::Entry};
+use mercury::internal::object::blob::Blob;
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;

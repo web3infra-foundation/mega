@@ -122,9 +122,7 @@ impl GpgSignatureChecker {
 
         signature
             .verify(&public_key, message.as_bytes())
-            .map_err(|e| {
-                MegaError::with_message(format!("Signature verification failed: {e}"))
-            })?;
+            .map_err(|e| MegaError::with_message(format!("Signature verification failed: {e}")))?;
 
         Ok(())
     }

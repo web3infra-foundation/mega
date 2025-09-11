@@ -3,6 +3,7 @@
 pub use super::access_token::Entity as AccessToken;
 pub use super::builds::Entity as Builds;
 pub use super::check_result::Entity as CheckResult;
+pub use super::commit_auths::Entity as CommitAuths;
 pub use super::git_blob::Entity as GitBlob;
 pub use super::git_commit::Entity as GitCommit;
 pub use super::git_issue::Entity as GitIssue;
@@ -32,7 +33,6 @@ pub use super::mq_storage::Entity as MqStorage;
 pub use super::notes::Entity as Notes;
 pub use super::path_check_configs::Entity as PathCheckConfigs;
 pub use super::raw_blob::Entity as RawBlob;
-pub use super::commit_auths::Entity as CommitAuths;
 pub use super::reactions::Entity as Reactions;
 pub use super::relay_lfs_info::Entity as RelayLfsInfo;
 pub use super::relay_node::Entity as RelayNode;

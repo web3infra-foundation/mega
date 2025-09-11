@@ -1,5 +1,5 @@
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use callisto::commit_auths::Column::{CommitSha};
+use callisto::commit_auths::Column::CommitSha;
 use callisto::commit_auths::{ActiveModel, Entity};
 use common::errors::MegaError;
 use sea_orm::{

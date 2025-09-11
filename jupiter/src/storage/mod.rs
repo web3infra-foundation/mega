@@ -188,7 +188,6 @@ impl Storage {
         self.app_service.note_storage.clone()
     }
 
-
     pub fn commit_binding_storage(&self) -> CommitBindingStorage {
         self.app_service.commit_binding_storage.clone()
     }

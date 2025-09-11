@@ -15,8 +15,8 @@ use crate::storage::note_storage::NoteStorage;
 use crate::storage::{
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mr_reviewer_storage::MrReviewerStorage, mono_storage::MonoStorage, mr_storage::MrStorage, 
-    raw_db_storage::RawDbStorage,relay_storage::RelayStorage, user_storage::UserStorage, 
+    mono_storage::MonoStorage, mr_reviewer_storage::MrReviewerStorage, mr_storage::MrStorage,
+    raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
     vault_storage::VaultStorage,
 };
 use crate::storage::{AppService, Storage};
