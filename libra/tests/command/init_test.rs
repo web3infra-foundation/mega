@@ -1,3 +1,5 @@
+use futures::io;
+
 use super::*;
 // use std::fs::File;
 use std::fs;
@@ -33,6 +35,7 @@ async fn test_init() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -80,6 +83,7 @@ async fn test_init_template() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: Some(template_dir.path().to_str().unwrap().to_string()),
+        shared: None,
     };
 
     // Run the init function
@@ -137,6 +141,7 @@ async fn test_init_with_invalid_template_path() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: Some(invalid_template_path.to_string()),
+        shared: None,
     };
 
     // Run the init function and expect it to return an error
@@ -170,6 +175,7 @@ async fn test_init_bare() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -191,6 +197,7 @@ async fn test_init_bare_with_existing_repo() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     init(init_args).await.unwrap(); // Execute init for bare repository
 
@@ -202,6 +209,7 @@ async fn test_init_bare_with_existing_repo() {
             repo_directory: target_dir.to_str().unwrap().to_string(),
             quiet: false,
             template: None,
+            shared: None,
         };
         init(args).await
     };
@@ -227,6 +235,7 @@ async fn test_init_with_initial_branch() {
         repo_directory: temp_path.path().to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -275,6 +284,7 @@ async fn test_invalid_branch_name(branch_name: &str) {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -299,6 +309,7 @@ async fn test_init_with_directory() {
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -329,6 +340,7 @@ async fn test_init_with_invalid_directory() {
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -370,6 +382,7 @@ async fn test_init_with_unauthorized_directory() {
         repo_directory: test_dir.to_str().unwrap().to_owned(),
         quiet: false,
         template: None,
+        shared: None,
     };
     // Run the init function
     let result = init(args).await;
@@ -394,6 +407,7 @@ async fn test_init_quiet() {
         repo_directory: target_dir.to_str().unwrap().to_string(),
         quiet: true,
         template: None,
+        shared: None,
     };
     // Run the init function
     init(args).await.unwrap();
@@ -404,4 +418,84 @@ async fn test_init_quiet() {
 
     // Verify the contents of the other directory
     verify_init(libra_dir.as_path());
+}
+
+/// Test the init function with the --shared flag
+async fn test_valid_shared_mode(shared_mode: &str) {
+    let target_dir = tempdir().unwrap().keep();
+
+    let args = InitArgs{
+        bare: false,
+        initial_branch: None,
+        repo_directory: target_dir.to_str().unwrap().to_string(),
+        quiet: false,
+        template: None,
+        shared: Some(shared_mode.to_string()),
+    };
+    // Run the init function
+    init(args).await.unwrap();
+    // Verify that the '.libra' directory exists
+    let libra_dir = target_dir.join(".libra");
+    assert!(libra_dir.exists(), ".libra directory does not exist");
+    // Check shared mode of '.libra' directory (Only Unix like os)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // Verify the mode of pre-commit.sh
+        let perms = std::fs::metadata(libra_dir.join("hooks/pre-commit.sh")).unwrap().permissions().mode();
+        match shared_mode {
+            "true" | "group" => assert_eq!(perms & 0o777, 0o775),
+            "all" | "world" | "everybody" => assert_eq!(perms & 0o777, 0o777),
+            "false" | "umask" => (),
+            mode if mode.starts_with('0') => {
+                let expected = u32::from_str_radix(&mode[1..], 8).unwrap();
+                assert_eq!(perms & 0o777, expected);
+            }
+            _ => panic!("Unsupported shared mode"),
+        }
+    }
+}
+
+async fn test_invalid_share_mode(shared_mode: &str) {
+    let target_dir = tempdir().unwrap().keep();
+    let args = InitArgs {
+        bare: false,
+        initial_branch: None,
+        repo_directory: target_dir.to_str().unwrap().to_string(),
+        quiet: false,
+        template: None,
+        shared: Some(shared_mode.to_string()),
+    };
+
+    let result = init(args).await;
+    let err = result.unwrap_err();
+
+    // Verify the type of error
+    assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+}
+
+#[tokio::test]
+#[serial]
+/// Test the init function with valid shared mode
+async fn test_init_with_valid_shared_mode() {
+    // Test all types of valid shared modes
+    test_valid_shared_mode("true").await;
+    test_valid_shared_mode("false").await;
+    test_valid_shared_mode("umask").await;
+    test_valid_shared_mode("group").await;
+    test_valid_shared_mode("all").await;
+    test_valid_shared_mode("world").await;
+    test_valid_shared_mode("everybody").await;
+    test_valid_shared_mode("0777").await;
+}
+
+#[tokio::test]
+#[serial]
+/// Test the init function with invalid shared mode
+async fn test_init_with_invalid_shared_mode() {
+    test_invalid_share_mode("invaild").await;
+    test_invalid_share_mode("mygroup").await;
+    test_invalid_share_mode("1234").await;
+    test_invalid_share_mode("0888").await;
+    test_invalid_share_mode("12345").await;
 }
