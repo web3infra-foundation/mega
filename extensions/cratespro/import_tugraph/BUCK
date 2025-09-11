@@ -1,0 +1,30 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+filegroup(
+    name = "import-tugraph-0.1.0.crate",
+    srcs = [
+        "src/cli.rs",
+        "src/core_controller.rs",
+        "src/main.rs",
+    ],
+)
+
+pkg_deps = [
+    "//project/crates-pro:repo_import",
+    "//third-party:dotenvy",
+    "//third-party:futures-util",
+    "//third-party:serde_json",
+    "//third-party:structopt",
+    "//third-party:tokio",
+    "//third-party:tracing",
+    "//third-party:tracing-subscriber",
+]
+
+cargo.rust_binary(
+    name = "import_tugraph",
+    srcs = [":import-tugraph-0.1.0.crate"],
+    crate_root = "import-tugraph-0.1.0.crate/src/main.rs",
+    edition = "2024",
+    deps = pkg_deps,
+    visibility = ["PUBLIC"],
+)
