@@ -6,9 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/cratespro-**'
-      - 'extensions/cratespro_common'
-      - 'extensions/import_tugraph'
-
+      - 'extensions/cratespro'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -20,12 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        project:
-          - extensions
     defaults:
       run:
-        working-directory: ${{ matrix.project }}
+        working-directory: extensions/cratespro
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -51,4 +46,4 @@ jobs:
 
       - name: Run cargo test
         run: |
-          cargo test --manifest-path extensions/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path extensions/cratespro/Cargo.toml --all-features --no-fail-fast -- --nocapture
