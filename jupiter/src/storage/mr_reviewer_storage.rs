@@ -104,7 +104,7 @@ impl MrReviewerStorage {
     ) -> Result<(), MegaError> {
         let mut rev: mega_mr_reviewer::ActiveModel = mega_mr_reviewer::Entity::find()
             .filter(mega_mr_reviewer::Column::MrLink.eq(mr_link))
-            .filter(mega_mr_reviewer::Column::Username.eq(reviewer_username)
+            .filter(mega_mr_reviewer::Column::Username.eq(reviewer_username))
             .one(self.get_connection())
             .await
             .map_err(|e| {
