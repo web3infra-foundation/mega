@@ -38,13 +38,14 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
+use callisto::{mega_mr, mega_tree};
 use common::errors::MegaError;
 use common::model::Pagination;
 use jupiter::storage::base_storage::StorageConnector;
@@ -61,6 +62,16 @@ use neptune::neptune_engine::Diff;
 #[derive(Clone)]
 pub struct MonoApiService {
     pub storage: Storage,
+}
+
+pub struct TreeUpdateResult {
+    pub updated_trees: Vec<Tree>,
+    pub ref_updates: Vec<RefUpdate>,
+}
+
+pub enum RefUpdate {
+    Update { path: String, tree_id: SHA1 },
+    Delete { path: String },
 }
 
 #[async_trait]
@@ -80,16 +91,15 @@ impl ApiHandler for MonoApiService {
     /// Returns `Ok(())` on success, or a `GitError` on failure.
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-        let path = PathBuf::from(file_info.path);
+        let path = PathBuf::from(&file_info.path);
         let mut save_trees = vec![];
 
-        // Search for the tree to update and get its tree items
-        let (update_trees, search_tree) = self.search_tree_for_update(&path).await?;
-        let mut t_items = search_tree.tree_items;
+        let mut update_chain = self.search_tree_for_update(&path).await?;
+        let mut target_items = update_chain.pop().unwrap().tree_items.clone();
 
         // Create a new tree item based on whether it's a directory or file
-        let new_item = if file_info.is_directory {
-            if t_items
+        let (new_item, blob) = if file_info.is_directory {
+            if target_items
                 .iter()
                 .any(|x| x.mode == TreeItemMode::Tree && x.name == file_info.name)
             {
@@ -101,53 +111,51 @@ impl ApiHandler for MonoApiService {
                 id: blob.id,
                 name: String::from(".gitkeep"),
             };
-            let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
-            save_trees.push(child_tree.clone());
-            TreeItem {
-                mode: TreeItemMode::Tree,
-                id: child_tree.id,
-                name: file_info.name.clone(),
-            }
+            let new_dir_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+            save_trees.push(new_dir_tree.clone());
+            (
+                TreeItem {
+                    mode: TreeItemMode::Tree,
+                    id: new_dir_tree.id,
+                    name: file_info.name.clone(),
+                },
+                blob,
+            )
         } else {
-            let content = file_info.content.unwrap();
-            let blob = Blob::from_content(&content);
-            let mega_blob: mega_blob::ActiveModel = Into::<mega_blob::Model>::into(&blob).into();
-            let raw_blob: raw_blob::ActiveModel =
-                Into::<raw_blob::Model>::into(blob.clone()).into();
-
-            storage.batch_save_model(vec![mega_blob]).await.unwrap();
-            storage.batch_save_model(vec![raw_blob]).await.unwrap();
-            TreeItem {
-                mode: TreeItemMode::Blob,
-                id: blob.id,
-                name: file_info.name.clone(),
-            }
+            let blob = Blob::from_content(&file_info.content.clone().unwrap());
+            (
+                TreeItem {
+                    mode: TreeItemMode::Blob,
+                    id: blob.id,
+                    name: file_info.name.clone(),
+                },
+                blob,
+            )
         };
-        // Add the new item to the tree items and create a new tree
-        t_items.push(new_item);
-        let p_tree = Tree::from_tree_items(t_items).unwrap();
 
-        // Create a commit for the new tree
-        let refs = storage.get_ref("/").await.unwrap().unwrap();
-        let commit = Commit::from_tree_id(
-            p_tree.id,
-            vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
-            &format!("\ncreate file {} commit", file_info.name),
-        );
+        // Add the new item to the tree items and create a new tree
+        target_items.push(new_item);
+        let target_tree = Tree::from_tree_items(target_items).unwrap();
 
         // Update the parent tree with the new commit
-        let commit_id = self.update_parent_tree(path, update_trees, commit).await?;
-        save_trees.push(p_tree);
+        let update_result = self.build_result_by_chain(path, update_chain, target_tree.id)?;
+        save_trees.push(target_tree);
+
+        let new_commit_id = self
+            .apply_update_result(&update_result, &file_info.commit_msg())
+            .await?;
+
+        storage.save_mega_blobs(vec![&blob], &new_commit_id).await?;
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|save_t| {
                 let mut tree_model: mega_tree::Model = save_t.into();
-                tree_model.commit_id.clone_from(&commit_id);
+                tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
             .collect();
-        storage.batch_save_model(save_trees).await.unwrap();
+        storage.batch_save_model(save_trees).await?;
 
         Ok(())
     }
@@ -269,7 +277,7 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), MegaError> {
+    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -284,13 +292,10 @@ impl MonoApiService {
             if mr.path != "/" {
                 let path = PathBuf::from(mr.path.clone());
                 // because only parent tree is needed so we skip current directory
-                let (tree_vec, _) = self
-                    .search_tree_for_update(path.parent().unwrap())
-                    .await
-                    .unwrap();
-                self.update_parent_tree(path, tree_vec, commit)
-                    .await
-                    .unwrap();
+                let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
+                let result = self.build_result_by_chain(path, update_chain, commit.tree_id)?;
+                self.apply_update_result(&result, "mr merge generated commit")
+                    .await?;
                 // remove refs start with path except mr type
                 storage.remove_none_mr_refs(&mr.path).await.unwrap();
                 // TODO: self.clean_dangling_commits().await;
@@ -308,88 +313,113 @@ impl MonoApiService {
                 .await
                 .unwrap();
         } else {
-            return Err(MegaError::with_message("ref hash conflict"));
+            return Err(GitError::CustomError("ref hash conflict".to_owned()));
         }
         Ok(())
     }
 
-    async fn update_parent_tree(
+    /// Traverse parent trees and update them with the new commit's tree hash.
+    /// This function only prepares updated trees and optionally a new parent commit.
+    pub fn build_result_by_chain(
         &self,
         mut path: PathBuf,
-        mut tree_vec: Vec<Tree>,
-        commit: Commit,
-    ) -> Result<String, GitError> {
-        let storage = self.storage.mono_storage();
-        let mut save_trees = Vec::new();
-        let mut p_commit_id = String::new();
+        mut update_chain: Vec<Arc<Tree>>,
+        mut updated_tree_hash: SHA1,
+    ) -> Result<TreeUpdateResult, GitError> {
+        let mut updated_trees = Vec::new();
+        let mut ref_updates = Vec::new();
 
-        let mut target_hash = commit.tree_id;
-
-        while let Some(mut tree) = tree_vec.pop() {
+        while let Some(tree) = update_chain.pop() {
             let cloned_path = path.clone();
-            let name = cloned_path.file_name().unwrap().to_str().unwrap();
+            let name = cloned_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?;
             path.pop();
 
-            let index = tree.tree_items.iter().position(|x| x.name == name).unwrap();
-            tree.tree_items[index].id = target_hash;
-            let new_tree = Tree::from_tree_items(tree.tree_items).unwrap();
-            target_hash = new_tree.id;
+            let new_tree = self.update_tree_hash(tree, name, updated_tree_hash)?;
+            updated_tree_hash = new_tree.id;
+            updated_trees.push(new_tree);
 
-            let model: mega_tree::Model = new_tree.into();
-            save_trees.push(model);
+            let path_str = path.to_string_lossy().to_string();
+            if path == Path::new("/") {
+                ref_updates.push(RefUpdate::Update {
+                    path: path_str,
+                    tree_id: updated_tree_hash,
+                });
+            } else {
+                ref_updates.push(RefUpdate::Delete { path: path_str });
+            }
+        }
 
-            let p_ref = storage.get_ref(path.to_str().unwrap()).await.unwrap();
-            if let Some(mut p_ref) = p_ref {
-                if path == Path::new("/") {
-                    let p_commit = Commit::new(
-                        commit.author.clone(),
-                        commit.committer.clone(),
-                        target_hash,
-                        vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
-                        &commit.message,
-                    );
-                    p_commit_id = p_commit.id.to_string();
-                    // update p_ref
-                    p_ref.ref_commit_hash = p_commit.id.to_string();
-                    p_ref.ref_tree_hash = target_hash.to_string();
-                    storage.update_ref(p_ref).await.unwrap();
-                    storage.save_mega_commits(vec![p_commit]).await.unwrap();
-                } else {
-                    storage.remove_ref(p_ref).await.unwrap();
+        Ok(TreeUpdateResult {
+            updated_trees,
+            ref_updates,
+        })
+    }
+
+    pub async fn apply_update_result(
+        &self,
+        result: &TreeUpdateResult,
+        commit_msg: &str,
+    ) -> Result<String, GitError> {
+        let storage = self.storage.mono_storage();
+        let mut new_commit_id = String::new();
+
+        for update in &result.ref_updates {
+            match update {
+                RefUpdate::Update { path, tree_id } => {
+                    // update can only be root path
+                    if let Some(mut p_ref) = storage.get_ref(path).await? {
+                        let commit = Commit::from_tree_id(
+                            *tree_id,
+                            vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
+                            commit_msg,
+                        );
+                        new_commit_id = commit.id.to_string();
+                        p_ref.ref_commit_hash = new_commit_id.clone();
+                        p_ref.ref_tree_hash = tree_id.to_string();
+                        storage.update_ref(p_ref).await?;
+                        storage.save_mega_commits(vec![commit]).await?;
+                    }
+                }
+                RefUpdate::Delete { path } => {
+                    if let Some(p_ref) = storage.get_ref(path).await? {
+                        storage.remove_ref(p_ref).await?;
+                    }
                 }
             }
         }
-        let save_trees: Vec<mega_tree::ActiveModel> = save_trees
+
+        let save_trees: Vec<mega_tree::ActiveModel> = result
+            .updated_trees
+            .clone()
             .into_iter()
-            .map(|mut x| {
-                p_commit_id.clone_into(&mut x.commit_id);
-                x.into()
+            .map(|save_t| {
+                let mut tree_model: mega_tree::Model = save_t.into();
+                tree_model.commit_id.clone_from(&new_commit_id);
+                tree_model.into()
             })
             .collect();
+        storage.batch_save_model(save_trees).await?;
 
-        storage.batch_save_model(save_trees).await.unwrap();
-        Ok(p_commit_id)
+        Ok(new_commit_id)
     }
 
-    pub async fn content_diff(&self, mr_link: &str) -> Result<Vec<DiffItem>, GitError> {
-        let stg = self.storage.mr_storage();
-        let mr =
-            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-                GitError::CustomError(format!("Merge request not found: {mr_link}"))
-            })?;
-
-        let old_blobs = self
-            .get_commit_blobs(&mr.from_hash)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
-        let new_blobs = self
-            .get_commit_blobs(&mr.to_hash)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
-
-        let diff_output = self.get_diff_by_blobs(old_blobs, new_blobs).await?;
-
-        Ok(diff_output)
+    fn update_tree_hash(
+        &self,
+        tree: Arc<Tree>,
+        name: &str,
+        target_hash: SHA1,
+    ) -> Result<Tree, GitError> {
+        let index = tree
+            .tree_items
+            .iter()
+            .position(|item| item.name == name)
+            .ok_or_else(|| GitError::CustomError(format!("Tree item '{}' not found", name)))?;
+        let mut items = tree.tree_items.clone();
+        items[index].id = target_hash;
+        Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
     }
 
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
