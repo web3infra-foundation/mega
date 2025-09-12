@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/cratespro-**'
-      - 'extensions/cratespro'
+      - 'extensions/cratespro/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
