@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/cratespro-**'
-      - 'extensions/cratespro'
+      - 'extensions/cratespro/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,8 +16,6 @@ jobs:
   clippy:
     name: Clippy Check
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     defaults:
       run:
         working-directory: extensions/cratespro
