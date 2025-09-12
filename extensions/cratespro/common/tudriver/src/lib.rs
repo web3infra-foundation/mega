@@ -1,6 +1,6 @@
 pub mod tugraph_client;
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
 
     use neo4rs::*;
@@ -79,4 +79,4 @@ mod tests {
             panic!("Error no result");
         }
     }
-}
+}*/

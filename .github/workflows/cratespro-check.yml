@@ -16,8 +16,6 @@ jobs:
   clippy:
     name: Clippy Check
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     defaults:
       run:
         working-directory: extensions/cratespro
