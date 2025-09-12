@@ -20,15 +20,15 @@ impl Deref for MrReviewerStorage {
 }
 
 impl MrReviewerStorage {
-    pub fn new(&self, mr_link: &str, username: &str) -> mega_mr_reviewer::Model {
+    pub fn new_reviewer(&self, mr_link: &str, username: &str) -> mega_mr_reviewer::Model {
         let now = chrono::Utc::now().naive_utc();
         mega_mr_reviewer::Model {
             id: generate_id(),
             mr_link: mr_link.to_string(),
             approved: false,
             username: username.to_string(),
-            created_at: now.clone(),
-            updated_at: now.clone(),
+            created_at: now,
+            updated_at: now,
         }
     }
 
@@ -38,7 +38,7 @@ impl MrReviewerStorage {
         reviewers: Vec<String>,
     ) -> Result<(), MegaError> {
         for reviewer in reviewers {
-            let new_reviewer = self.new(mr_link, &reviewer);
+            let new_reviewer = self.new_reviewer(mr_link, &reviewer);
             let a_model: mega_mr_reviewer::ActiveModel = new_reviewer.into_active_model();
             a_model.insert(self.get_connection()).await.map_err(|e| {
                 tracing::error!("{}", e);
