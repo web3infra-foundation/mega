@@ -18,7 +18,6 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaMrReviewer::Username)
                             .string()
                             .not_null()
-                            .unique_key()
                             .default("".to_string()),
                     )
                     .to_owned(),
