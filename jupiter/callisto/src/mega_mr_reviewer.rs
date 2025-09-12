@@ -9,7 +9,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub approved: bool,
-    #[sea_orm(unique)]
     pub username: String,
     pub mr_link: String,
     pub created_at: DateTime,
