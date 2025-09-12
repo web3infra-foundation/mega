@@ -9,6 +9,7 @@ mod tests {
     /// This is the test to test whether the Tugraph is setup.
     #[tokio::test]
     async fn test_tugraph_setup() {
+        dotenvy::dotenv().ok();
         let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").unwrap();
         let tugraph_user_name = env::var("TUGRAPH_USER_NAME").unwrap();
         let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").unwrap();
