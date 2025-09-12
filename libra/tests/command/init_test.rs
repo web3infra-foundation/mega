@@ -1,5 +1,3 @@
-use futures::io;
-
 use super::*;
 // use std::fs::File;
 use std::fs;
@@ -424,7 +422,7 @@ async fn test_init_quiet() {
 async fn test_valid_shared_mode(shared_mode: &str) {
     let target_dir = tempdir().unwrap().keep();
 
-    let args = InitArgs{
+    let args = InitArgs {
         bare: false,
         initial_branch: None,
         repo_directory: target_dir.to_str().unwrap().to_string(),
@@ -471,7 +469,7 @@ async fn test_invalid_share_mode(shared_mode: &str) {
     let err = result.unwrap_err();
 
     // Verify the type of error
-    assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
 }
 
 #[tokio::test]
@@ -493,7 +491,7 @@ async fn test_init_with_valid_shared_mode() {
 #[serial]
 /// Test the init function with invalid shared mode
 async fn test_init_with_invalid_shared_mode() {
-    test_invalid_share_mode("invaild").await;
+    test_invalid_share_mode("invalid").await;
     test_invalid_share_mode("mygroup").await;
     test_invalid_share_mode("1234").await;
     test_invalid_share_mode("0888").await;

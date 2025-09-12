@@ -129,7 +129,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
     // Help function: recursively set permission bits for all files and dirs
-    fn set_recursive(dir: &Path, mode: u32) ->io::Result<()> {
+    fn set_recursive(dir: &Path, mode: u32) -> io::Result<()> {
         for entry in walkdir::WalkDir::new(dir) {
             let entry = entry?;
             let path = entry.path();
