@@ -2,6 +2,7 @@
 from datetime import datetime
 from .database import SessionLocal
 from .model import RepoSyncResult, SyncStatusEnum
+from packaging.version import parse as vparse
 
 def update_repo_sync_result(crate_name, version, mega_url, status: SyncStatusEnum, err_message=None):
     """插入或更新 repo_sync_result 表"""
