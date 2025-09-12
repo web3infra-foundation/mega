@@ -1,0 +1,21 @@
+[package]
+name = "database"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+name = "database"
+path = "src/lib.rs"
+
+
+[dependencies]
+entity = { workspace = true }
+model = { workspace = true }
+
+tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sea-orm = { version = "1.1", features = ["sqlx-postgres"] }
+chrono = "0.4"
+futures = "0.3"
