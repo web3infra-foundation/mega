@@ -53,6 +53,7 @@ url = { workspace = true }
 ignore = { workspace = true }
 tempfile = { workspace = true }
 serial_test = { workspace = true }
+walkdir = { workspace = true }
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = { workspace = true }
