@@ -58,6 +58,12 @@ impl mega_conversation::Model {
         username: &str,
     ) -> Self {
         let now = chrono::Utc::now().naive_utc();
+        let resolved = if conv_type == ConvTypeEnum::Review {
+            Some(false)
+        } else {
+            None
+        };
+
         Self {
             id: generate_id(),
             link: link.to_owned(),
@@ -66,6 +72,7 @@ impl mega_conversation::Model {
             created_at: now,
             updated_at: now,
             username: username.to_owned(),
+            resolved,
         }
     }
 }

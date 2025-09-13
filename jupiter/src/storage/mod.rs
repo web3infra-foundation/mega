@@ -191,6 +191,7 @@ impl Storage {
     pub fn commit_binding_storage(&self) -> CommitBindingStorage {
         self.app_service.commit_binding_storage.clone()
     }
+
     pub fn reviewer_storage(&self) -> MrReviewerStorage {
         self.app_service.reviewer_storage.clone()
     }
