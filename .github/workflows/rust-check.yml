@@ -1,12 +1,12 @@
-name: CratesPro Extensions Check, Test and Lints
+name: Rust Extensions Check, Test and Lints
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - '.github/workflows/cratespro-**'
-      - 'extensions/cratespro/**'
+      - '.github/workflows/rust-**'
+      - 'extensions/rust/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: extensions/cratespro
+        working-directory: extensions/rust
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -44,4 +44,4 @@ jobs:
 
       - name: Run cargo test
         run: |
-          cargo test --manifest-path extensions/cratespro/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path extensions/rust/Cargo.toml --all-features --no-fail-fast -- --nocapture
