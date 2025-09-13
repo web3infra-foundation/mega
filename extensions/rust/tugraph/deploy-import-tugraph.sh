@@ -19,9 +19,9 @@ IMAGE_NAME=localhost:30500/crates-pro-import-tugraph:local-$TIMESTAMP
 ### Preparation: Sync source directories
 rsync --delete --archive $CRATESPRO_DIR/ $INFRA_DIR/project/crates-pro --exclude="/.git" --exclude="/buck-out" --exclude="/build" --exclude="/target"
 rsync --delete --archive $CODE_DIR/ $INFRA_DIR/project/crates-pro/import_tugraph
-rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/repo_import/ $INFRA_DIR/project/crates-pro/repo_import/
-rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/database/ $INFRA_DIR/project/crates-pro/database/
-rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/model/ $INFRA_DIR/project/crates-pro/model/
+rsync --delete --archive $MEGA_DIR/extensions/rust/common/repo_import/ $INFRA_DIR/project/crates-pro/repo_import/
+rsync --delete --archive $MEGA_DIR/extensions/rust/common/database/ $INFRA_DIR/project/crates-pro/database/
+rsync --delete --archive $MEGA_DIR/extensions/rust/common/model/ $INFRA_DIR/project/crates-pro/model/
 ### Step 1: Compile, then copy artifacts to $BUILD_DIR
 cd $INFRA_DIR
 buck2 build //project/crates-pro/import_tugraph:import_tugraph --out $BUILD_DIR/import_tugraph

@@ -7,7 +7,7 @@ members = [
   "common/repo_import",        # extract repo and import data into tugraph
   "common/search",
   "common/tudriver",           # tugraph client, deal with the quary from router
-  "import_tugraph",
+  "tugraph",
 ]
 
 resolver = "2" # use resolver of version 2
@@ -21,6 +21,6 @@ search = { path = "common/search" }
 tudriver = { path = "common/tudriver" }
 database = { path = "common/database" }
 entity = { path = "common/database/entity" }
-import_tugraph = {path = "import_tugraph"}
+import_tugraph = {path = "tugraph"}
 
 # third-party (所有第三方依赖, 按字母表排序, 均保留1个小数点)
