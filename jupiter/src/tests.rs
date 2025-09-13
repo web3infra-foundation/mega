@@ -62,7 +62,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         note_storage: NoteStorage { base: base.clone() },
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: MrReviewerStorage { base: base.clone() },
-
     };
 
     apply_migrations(&connection, true).await.unwrap();
