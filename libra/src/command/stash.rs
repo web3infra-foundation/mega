@@ -29,7 +29,7 @@ pub async fn execute(stash_cmd: Stash) {
         Stash::List => list().await,
         Stash::Apply { stash } => apply(stash).await,
         Stash::Drop { stash } => drop_stash(stash).await,
-        Stash::Branch { stash, branch } => branch(stash, branch).await,
+        Stash::Branch { stash, branch_name } => branch(stash, branch_name).await,
     };
 
     if let Err(e) = result {
@@ -180,88 +180,43 @@ async fn apply(stash: Option<String>) -> Result<(), String> {
     do_apply(stash).await?;
     Ok(())
 }
+
 async fn branch(stash: Option<String>, branch_name: String) -> Result<(), String> {
-    // 🔍 Check 1: Verify stash exists
-    if !has_stash() {
-        return Err("fatal: No stash entries found".to_string());
-    }
-
-    // 🔍 Check 2: Parse and validate stash reference
-    let (stash_index, stash_commit_hash) = resolve_stash_to_commit_hash(stash)?;
-
-    // 🔍 Check 3 & 4: Validate branch name and check if it already exists
-    if let Err(e) = validate_and_check_branch(&branch_name).await {
-        return Err(e);
-    }
-
-    // 🎯 CORRECT LOGIC: Create branch directly from stash commit
-    println!("Creating branch '{}' from stash@{{{}}}", branch_name, stash_index);
     
-    // Create branch pointing to the stash commit itself, not its parent
-    match crate::internal::branch::update_branch(
-        &branch_name, 
-        &stash_commit_hash.to_string(), 
-        None
-    ).await {
-        Ok(_) => {},
-        Err(e) => {
-            eprintln!("error: Failed to create branch '{}': {}", branch_name, e);
-            return Err(format!("fatal: Failed to create branch '{}': {}", branch_name, e));
-        },
-    }
+    let (stash_index, stash_commit_hash_str) = resolve_stash_to_commit_hash(stash)?; 
 
-    // 🎯 CORRECT LOGIC: Switch to the new branch
+    println!("Creating branch '{}' from stash@{{{}}}", branch_name, stash_index);
+
+    
+   let git_dir = util::try_get_storage_path(None).map_err(|e| e.to_string())?;
+
+    let stash_commit_hash = SHA1::from_str(&stash_commit_hash_str)?;
+
+    let stash_commit_data = object::read_git_object(&git_dir, &stash_commit_hash)
+        .map_err(|e| format!("Failed to read stash commit: {}", e))?;
+
+    let stash_commit = Commit::from_bytes(&stash_commit_data, stash_commit_hash)
+        .map_err(|e| format!("Failed to parse stash commit: {}", e))?;
+    
+    // Step 2: Get base commit (first parent of stash commit)
+    let base_commit_hash = stash_commit.parent_commit_ids.first()
+        .ok_or("Stash commit is malformed: no base parent")?;
+    
+    // Step 3: Create the new branch at the base commit
+    crate::command::branch::create_branch(branch_name.clone(), Some(base_commit_hash.to_string())).await;
+
     println!("Switching to branch '{}'", branch_name);
-    match command::switch::execute(command::switch::SwitchArgs {
-        branch: branch_name.clone(),
-        create: false,
-        force: false,
-        guess: false,
-    }).await {
-        Ok(_) => {},
-        Err(e) => {
-            eprintln!("error: Failed to switch to branch '{}': {}", branch_name, e);
 
-            // Rollback: Delete the created branch to maintain consistency
-            if let Err(rollback_err) = crate::internal::branch::delete(&branch_name).await {
-                eprintln!("error: Failed to rollback branch deletion: {}", rollback_err);
-            }
+    crate::command::switch::switch_to_branch(branch_name.clone()).await;
 
-            return Err(format!("fatal: Failed to switch to branch '{}': {}", branch_name, e));
-        },
-    }
-
-    // 🎯 CORRECT LOGIC: Drop the stash (changes are now in the branch)
-    println!("Dropping stash@{{{}}}", stash_index);
-    if let Err(e) = drop_stash(Some(format!("stash@{{{}}}", stash_index))).await {
-        eprintln!("warning: Failed to drop stash: {}", e);
-        return Err(format!("non-fatal: Failed to drop stash@{{{}}}. Please clean up manually.", stash_index));
-    }
+    pop(Some(format!("stash@{{{}}}", stash_index))).await?;
 
     // 🎉 Success message
     println!("Successfully created branch '{}' from stash@{{{}}}", branch_name, stash_index);
-    println!("Branch '{}' is now checked out and stash has been dropped.", branch_name);
-    
     Ok(())
 }
 
-// New helper function to combine branch validation and existence check
 
-async fn validate_and_check_branch(branch_name: &str) -> Result<(), String> {
-    
-    if !crate::command::branch::is_valid_git_branch_name(branch_name) {
-        return Err(format!("fatal: '{}' is not a valid branch name", branch_name));
-    }
-    
-  
-    if crate::internal::branch::exists(branch_name).await {
-        return Err(format!("fatal: A branch named '{}' already exists", branch_name));
-    }
-    Ok(())
-}
-
-/// Helper function containing the core logic for applying a stash.
-/// Returns true on success, false on failure.
 async fn do_apply(stash: Option<String>) -> Result<(), String> {
     let (index, hash_str) = resolve_stash_to_commit_hash(stash)?;
     let stash_commit_hash = SHA1::from_str(&hash_str).map_err(|e| e.to_string())?;

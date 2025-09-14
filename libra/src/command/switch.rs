@@ -117,7 +117,7 @@ async fn switch_to_commit(commit_hash: SHA1) {
     println!("HEAD is now at {}", &commit_hash.to_string()[..7]);
 }
 
-async fn switch_to_branch(branch_name: String) {
+pub async fn switch_to_branch(branch_name: String) {
     let db = get_db_conn_instance().await;
 
     let target_branch = match Branch::find_branch_with_conn(db, &branch_name, None).await {

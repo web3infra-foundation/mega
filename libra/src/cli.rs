@@ -126,7 +126,7 @@ pub enum Stash {
         #[arg(help = "The stash to create branch from (default: the latest stash)")]
         stash: Option<String>,
         #[arg(help = "The branch name to create")]
-        branch: String,
+        branch_name: String,
     },
 }
 
