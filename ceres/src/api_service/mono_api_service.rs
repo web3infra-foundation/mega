@@ -580,7 +580,7 @@ impl MonoApiService {
 
     pub async fn get_sorted_changed_file_list(
         &self,
-        mr_link: &str
+        mr_link: &str,
     ) -> Result<Vec<String>, MegaError> {
         let mr = self
             .storage
@@ -588,18 +588,10 @@ impl MonoApiService {
             .get_mr(mr_link)
             .await
             .unwrap()
-            .ok_or_else(
-                || { MegaError::with_message("Error getting ")} 
-            )?;
+            .ok_or_else(|| MegaError::with_message("Error getting "))?;
 
-        let old_files = self
-            .get_commit_blobs(
-                &mr.from_hash.clone()
-            ).await?;
-        let new_files = self
-            .get_commit_blobs(
-                &mr.to_hash.clone()
-            ).await?;
+        let old_files = self.get_commit_blobs(&mr.from_hash.clone()).await?;
+        let new_files = self.get_commit_blobs(&mr.to_hash.clone()).await?;
 
         // calculate pages
         let sorted_changed_files = self
@@ -609,7 +601,7 @@ impl MonoApiService {
             .iter()
             .map(|f| f.path().to_string_lossy().to_string())
             .collect();
-        
+
         Ok(file_paths)
     }
 
