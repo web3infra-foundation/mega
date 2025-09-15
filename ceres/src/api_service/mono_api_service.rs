@@ -975,7 +975,6 @@ mod test {
 
     #[test]
     fn test_file_lists_with_roots() {
-        // 模拟一组文件路径（全是 String 类型）
         let all_files = vec![
             "src/main.rs".to_string(),
             "src/utils/math.rs".to_string(),
@@ -984,8 +983,6 @@ mod test {
         ];
 
         let root: Option<&str> = None;
-
-        // --- 测试 case 1: path = None，应该保留所有路径 ---
         let filtered_none: Vec<String> = all_files
             .iter()
             .filter(|file_path| {
@@ -1001,7 +998,6 @@ mod test {
         assert_eq!(filtered_none.len(), 4);
         assert_eq!(filtered_none, all_files);
 
-        // --- 测试 case 2: path = Some("src/utils") ---
         let filtered_some: Vec<String> = all_files
             .iter()
             .filter(|file_path| {
