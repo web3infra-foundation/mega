@@ -5,7 +5,7 @@ pub struct VerifyMrPayload {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ReviewerPayload {
-    pub reviewers: Vec<String>,
+    pub reviewer_usernames: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
@@ -19,7 +19,13 @@ pub struct ChangeReviewerStatePayload {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct ChangeReviewStatePayload {
+    pub review_id: i64,
+    pub new_state: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ReviewerInfo {
-    pub campsite_id: String,
+    pub username: String,
     pub approved: bool,
 }

@@ -1,11 +1,10 @@
 use std::ops::Deref;
 
-use sea_orm::prelude::Expr;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter};
-
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_conversation, reactions};
 use common::errors::MegaError;
+use sea_orm::prelude::Expr;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
 
 use crate::model::conv_dto::ConvWithReactions;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -105,6 +104,38 @@ impl ConversationStorage {
             .filter(reactions::Column::Username.eq(username))
             .exec(self.get_connection())
             .await?;
+        Ok(())
+    }
+
+    pub async fn change_review_state(
+        &self,
+        mr_link: &str,
+        review_id: &i64,
+        username: &str,
+        state: bool,
+    ) -> Result<(), MegaError> {
+        let mut conversation = mega_conversation::Entity::find()
+            .filter(mega_conversation::Column::Id.eq(*review_id))
+            .filter(mega_conversation::Column::ConvType.eq(ConvTypeEnum::Review))
+            .filter(mega_conversation::Column::Username.eq(username))
+            .filter(mega_conversation::Column::Link.eq(mr_link))
+            .one(self.get_connection())
+            .await
+            .map_err(|e| {
+                tracing::error!("Error finding conversation: {e}");
+                e
+            })?
+            .ok_or_else(|| MegaError::with_message("No conversation found"))?
+            .into_active_model();
+
+        conversation.resolved = Set(Some(state));
+        conversation.updated_at = Set(chrono::Utc::now().naive_utc());
+
+        conversation
+            .update(self.get_connection())
+            .await
+            .map_err(|e| MegaError::with_message(format!("Error updating conversation: {e}")))?;
+
         Ok(())
     }
 }

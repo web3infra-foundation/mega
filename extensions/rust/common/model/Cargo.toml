@@ -1,0 +1,16 @@
+[package]
+name = "model"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+entity = { workspace = true }
+
+# third-party (第三方依赖, 不写具体版本号, 具体版本只在根目录 Cargo.toml 中出现)
+chrono = "0.4"
+sea-orm = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+utoipa = { version = "5.3", features = ["actix_extras"] }

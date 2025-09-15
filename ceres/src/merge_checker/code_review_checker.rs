@@ -57,12 +57,10 @@ impl Checker for CodeReviewChecker {
 
 impl CodeReviewChecker {
     async fn verify_mr(&self, mr_link: &str) -> Result<(), MegaError> {
-        let mr_id = self.storage.mr_storage().get_mr(mr_link).await?.unwrap().id;
-
         let reviewers = self
             .storage
             .reviewer_storage()
-            .list_reviewers(mr_id)
+            .list_reviewers(mr_link)
             .await?;
 
         let mut err_message = String::new();

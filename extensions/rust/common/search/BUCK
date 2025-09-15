@@ -1,0 +1,26 @@
+filegroup(
+    name = "search-0.1.0.crate",
+    srcs = [
+        "src/ai.rs",
+        "src/crates_search.rs",
+        "src/embedding.rs",
+        "src/lib.rs",
+        "src/search_prepare.rs"
+    ],
+)
+
+rust_library(
+    name = "search",
+    srcs = [":search-0.1.0.crate"],
+    crate_root = "search-0.1.0.crate/src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party:pgvector",
+        "//third-party:reqwest",
+        "//third-party:serde",
+        "//third-party:semver",
+        "//third-party:serde_json",
+        "//third-party:tokio-postgres",
+    ],
+    visibility = ["PUBLIC"],
+)

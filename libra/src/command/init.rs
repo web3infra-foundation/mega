@@ -41,6 +41,18 @@ pub struct InitArgs {
     /// Suppress all output
     #[clap(long, short = 'q', required = false)]
     pub quiet: bool,
+
+    /// Specify repository sharing mode
+    ///
+    /// Supported values:
+    /// - `umask`: Default behavior (permissions depend on the user's umask).
+    /// - `group`: Makes the repository group-writable so multiple users
+    ///   in the same group can collaborate more easily.
+    /// - `all`: Makes the repository readable by all users on the system.
+    ///
+    /// Note: On Windows, this option is ignored.
+    #[clap(long, required = false, value_name = "MODE")]
+    pub shared: Option<String>,
 }
 
 /// Execute the init function
@@ -106,6 +118,72 @@ fn copy_template(src: &Path, dst: &Path) -> io::Result<()> {
         } else if !dest_path.exists() {
             // Only copy if the file does not already exist
             fs::copy(entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Apply repository with sharing mode
+#[cfg(not(target_os = "windows"))]
+fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Help function: recursively set permission bits for all files and dirs
+    fn set_recursive(dir: &Path, mode: u32) -> io::Result<()> {
+        for entry in walkdir::WalkDir::new(dir) {
+            let entry = entry?;
+            let path = entry.path();
+            let metadata = fs::metadata(path)?;
+            let mut perms = metadata.permissions();
+            perms.set_mode(mode);
+            fs::set_permissions(path, perms)?;
+        }
+        Ok(())
+    }
+    // Match the shared_mode argument and apply permissions accordingly
+    match shared_mode {
+        "false" | "umask" => {}   // default
+        "true" | "group" => set_recursive(root_dir, 0o2775)?,
+        "all" | "world" | "everybody" => set_recursive(root_dir, 0o2777)?,
+        mode if mode.starts_with('0') && mode.len() == 4 => {
+            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) {
+                set_recursive(root_dir, bits)?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("invalid shared mode: {}", mode),
+                ));
+            }
+        }
+        other => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Invalid shared mode: {}", other),
+            ))
+        }
+    }
+    Ok(())
+}
+
+/// Only verify the shared_mode
+#[cfg(target_os = "windows")]
+fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
+    match shared_mode {
+        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {}   // Valid string input
+        mode if mode.starts_with('0') && mode.len() == 4 => {
+            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) {  //Valid perm input
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("invalid shared mode: {}", mode),
+                ));
+            }
+        }
+        other => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Invalid shared mode: {}", other),
+            ))
         }
     }
     Ok(())
@@ -251,6 +329,12 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
+
+    // Apply shared permissions if requested
+    if let Some(shared_mode) = &args.shared {
+        apply_shared(&root_dir, shared_mode)?;
+    }
+    
     if !args.quiet {
         let repo_type = if args.bare { "bare " } else { "" };
         println!(
