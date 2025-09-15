@@ -41,6 +41,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(merge_no_auth))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
+            .routes(routes!(mr_mui_tree))
             .routes(routes!(mr_files_changed_by_page))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
@@ -50,7 +51,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(add_reviewers))
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
-
             .routes(routes!(change_reviewer_state))
             .routes(routes!(change_review_resolve_state)),
     )
@@ -267,6 +267,26 @@ async fn mr_detail(
     Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "MR link"),
+    ),
+    path = "/{link}/mui-tree",
+    responses(
+        (status = 200, body = CommonResult<Vec<MuiTreeNode>>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn mr_mui_tree(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
+    let files = state.monorepo().get_sorted_changed_file_list(&link).await?;
+    let mui_trees = build_forest(files);
+    Ok(Json(CommonResult::success(Some(mui_trees))))
+}
+
 /// Get Merge Request file changed list in Pagination
 #[utoipa::path(
     post,
@@ -285,14 +305,11 @@ async fn mr_files_changed_by_page(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
-    let (items, changed_files_path, total) = state
+    let (items, total) = state
         .monorepo()
         .paged_content_diff(&link, json.pagination)
         .await?;
-
-    let mui_trees = build_forest(changed_files_path);
     let res = CommonResult::success(Some(FilesChangedPage {
-        mui_trees,
         page: CommonPage { total, items },
     }));
     Ok(Json(res))
