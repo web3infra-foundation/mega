@@ -56,7 +56,6 @@ impl From<MRDetails> for MRDetailRes {
 
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedPage {
-    pub mui_trees: Vec<MuiTreeNode>,
     pub page: CommonPage<DiffItem>,
 }
 
