@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from '@primer/octicons-react'
 import { useAtom } from 'jotai'
 
+import { BuildDTO, TaskInfoDTO } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
 import { buildIdAtom } from '@/components/Issues/utils/store'
-import { TaskResult } from '@/hooks/SSE/useGetMrTask'
 
-import { Status, statusMapAtom } from './store'
+import { Status } from './store'
 
 export const mocks = [
   {
@@ -45,7 +45,7 @@ export const mocks = [
   }
 ]
 
-export const Task = ({ list }: { list: TaskResult[] }) => {
+export const Task = ({ list }: { list: TaskInfoDTO }) => {
   const [extend, setExtend] = useState(false)
 
   // list = mocks
@@ -58,15 +58,15 @@ export const Task = ({ list }: { list: TaskResult[] }) => {
       >
         {extend ? <ChevronRightIcon size={16} /> : <ChevronDownIcon size={16} />}
         <div className='flex flex-col justify-center'>
-          <span className='font-weight fz-[14px] text-[#1f2328]'>Task</span>
-          <span className='fz-[12px] font-light text-[#59636e]'>side title</span>
+          <span className='font-weight fz-[14px] text-[#1f2328]'>{list.task_name}</span>
+          <span className='fz-[12px] font-light text-[#59636e]'>{list.created_at}</span>
         </div>
         {/* {extend && list} */}
       </div>
       {!extend && list && (
         <div className='fz-[14px] border-b pl-4 font-medium text-[#0969da]'>
-          {list.map((i) => (
-            <TaskItem key={i.build_id} task={i} />
+          {list.build_list.map((i) => (
+            <TaskItem key={i.id} build={i} />
           ))}
         </div>
       )}
@@ -74,8 +74,8 @@ export const Task = ({ list }: { list: TaskResult[] }) => {
   )
 }
 
-export const TaskItem = ({ task }: { task: TaskResult }) => {
-  const [statusMap] = useAtom(statusMapAtom)
+export const TaskItem = ({ build }: { build: BuildDTO }) => {
+  // const [statusMap] = useAtom(statusMapAtom)
 
   const [_, setBuildId] = useAtom(buildIdAtom)
   const handleClick = (build_id: string) => {
@@ -89,12 +89,13 @@ export const TaskItem = ({ task }: { task: TaskResult }) => {
   return (
     <>
       <div
-        onClick={() => handleClick(task.build_id)}
+        onClick={() => handleClick(build.id)}
         className='!fz-[14px] flex !h-[37px] items-center gap-2'
-        key={task.build_id}
+        key={build.id}
       >
-        {identifyStatus(statusMap.get(task.build_id)?.status || Status.NotFound)}
-        <span className='cursor-pointer hover:text-[#1f2328]'>{task.build_id}</span>
+        {/* {identifyStatus(statusMap.get(build.id)?.status || Status.NotFound)} */}
+        {identifyStatus(build.status || Status.NotFound)}
+        <span className='cursor-pointer hover:text-[#1f2328]'>{build.id}</span>
       </div>
     </>
   )
