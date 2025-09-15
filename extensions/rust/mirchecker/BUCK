@@ -1,0 +1,36 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+filegroup(
+    name = "analysis-mirchecker-0.1.0.crate",
+    srcs = [
+        "src/main.rs",
+        "src/model.rs",
+    ],
+)
+
+pkg_deps = [
+    "//third-party:anyhow",
+    "//third-party:chrono",
+    "//third-party:clap",
+    "//third-party:dotenvy",
+    "//third-party:git2",
+    "//third-party:rdkafka",
+    "//third-party:serde",
+    "//third-party:serde_json",
+    "//third-party:tempfile",
+    "//third-party:tokio",
+    "//third-party:tokio-postgres",
+    "//third-party:tokio-process",
+    "//third-party:tracing",
+    "//third-party:tracing-subscriber",
+    "//third-party:url",
+]
+
+cargo.rust_binary(
+    name = "analysis_mirchecker",
+    srcs = [":analysis-mirchecker-0.1.0.crate"],
+    crate_root = "analysis-mirchecker-0.1.0.crate/src/main.rs",
+    edition = "2024",
+    deps = pkg_deps,
+    visibility = ["PUBLIC"],
+)
