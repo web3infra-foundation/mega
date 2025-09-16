@@ -79,7 +79,7 @@ impl GitObject {
         match self {
             GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into()),
             GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into()),
-            GitObject::Blob(blob) => MegaObjectModel::Blob((&blob).into(), blob.into()),
+            GitObject::Blob(blob) => MegaObjectModel::Blob((&blob).into(), (&blob).into()),
             GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into()),
         }
     }
@@ -88,7 +88,7 @@ impl GitObject {
         match self {
             GitObject::Commit(commit) => GitObjectModel::Commit(commit.into()),
             GitObject::Tree(tree) => GitObjectModel::Tree(tree.into()),
-            GitObject::Blob(blob) => GitObjectModel::Blob((&blob).into(), blob.into()),
+            GitObject::Blob(blob) => GitObjectModel::Blob((&blob).into(), (&blob).into()),
             GitObject::Tag(tag) => GitObjectModel::Tag(tag.into()),
         }
     }

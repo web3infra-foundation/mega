@@ -1,0 +1,19 @@
+rust_library(
+    name = "database",
+    srcs = [
+        "src/lib.rs",
+    ],
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//project/crates-pro:entity",
+        "//project/crates-pro:model",
+        "//third-party:tracing",
+        "//third-party:serde",
+        "//third-party:serde_json",
+        "//third-party:sea-orm",
+        "//third-party:chrono",
+        "//third-party:futures",
+    ],
+    visibility = ["PUBLIC"],
+)

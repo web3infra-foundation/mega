@@ -28,7 +28,7 @@ impl ChangeDirGuard {
     /// * A `ChangeDirGuard` instance that will change the directory back to the original one when dropped.
     ///
     pub fn new(new_dir: impl AsRef<Path>) -> Self {
-        let old_dir = env::current_dir().unwrap();
+        let old_dir = env::current_dir().unwrap_or_else(|_| find_cargo_dir());
         env::set_current_dir(new_dir).unwrap();
         Self { old_dir }
     }
@@ -107,6 +107,7 @@ pub async fn setup_with_new_libra_in(temp_path: impl AsRef<Path>) {
         repo_directory: temp_path.as_ref().to_str().unwrap().to_string(),
         quiet: false,
         template: None,
+        shared: None,
     };
     command::init::init(args).await.unwrap();
 }

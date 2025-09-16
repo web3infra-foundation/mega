@@ -10,7 +10,6 @@ delta = { path = "delta" }
 sapling-zstdelta = { path = "zstdelta" }
 common = { workspace = true }
 callisto = { workspace = true }
-
 flate2 = { workspace = true, features = ["zlib"] } # enable linking against the libz(C lib); better performance
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
@@ -37,7 +36,8 @@ encoding_rs = { workspace = true }
 rayon = { workspace = true }
 reqwest = { workspace = true }
 ring = { workspace = true }
-serde_json.workspace = true
+serde_json = { workspace = true }
+ahash = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

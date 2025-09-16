@@ -1,0 +1,17 @@
+rust_library(
+    name = "tudriver",
+    srcs = [
+        "src/lib.rs",
+        "src/tugraph_client.rs",
+    ],
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party:base64",
+        "//third-party:neo4rs",
+        "//third-party:serde_json",
+        "//third-party:tokio",
+        "//third-party:tracing",
+    ],
+    visibility = ["PUBLIC"],
+)

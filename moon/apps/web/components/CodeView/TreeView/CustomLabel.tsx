@@ -10,7 +10,7 @@ interface CustomLabelProps {
 }
 
 // Custom label component used to render each node in the tree structure
-export function CustomLabel({ icon: Icon, children, onClick, ...other }: CustomLabelProps) {
+export function CustomLabel({ icon: Icon, children, ...other }: CustomLabelProps) {
   return (
     <TreeItemLabel
       {...other}
@@ -22,15 +22,11 @@ export function CustomLabel({ icon: Icon, children, onClick, ...other }: CustomL
       {Icon && (
         <Box component={Icon} className="labelIcon" color="inherit" sx={{ mr: 1, fontSize: '1.2rem' }} />
       )}
-      <TreeItemLabel 
-        sx={{fontSize: '14px', cursor: 'pointer'}} 
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick?.(e);
-        }}
+      <div
+        style={{fontSize: '14px', cursor: 'pointer'}}
       >
         {children}
-      </TreeItemLabel>
+      </div>
     </TreeItemLabel>
   );
 }

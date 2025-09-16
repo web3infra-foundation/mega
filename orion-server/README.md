@@ -71,14 +71,42 @@ curl -X POST http://localhost:8004/task \
         "mr": "123"
     }'
 ```
-#### 3. Query Task Status
+#### 3. Start Build Task
+
+- **`POST /task-build/{id}`**
+    Start a build task that was previously created.
+    - **Request Body:**
+        ```json
+        {
+            "repo": "string",
+            "buck_hash": "string",
+            "buckconfig_hash": "string",
+            "args": ["string", ...],      // optional
+            "mr": "string"                // optional, Merge Request number
+        }
+        ```
+    - **Response:**
+        ```json
+        {
+            "task_id": "string",
+            "build_id": "string",
+            "client_id": "string",
+            "status": "dispatched"
+        }
+        ```
+    - **Errors:**
+        - `{ "message": "Invalid task ID format" }` if ID is invalid.
+        - `{ "message": "Task ID does not exist" }` if task not found.
+        - `{ "message": "No available workers at the moment" }` if no build agents are available.
+
+#### 4. Query Task Status
 
 - **`GET /task-status/{id}`**
     Query the status of a build task by its ID.
     - **Response:**
         ```json
         {
-            "status": "Building|Interrupted|Failed|Completed|NotFound",
+            "status": "Building|Interrupted|Failed|Completed|NotFound|Pending",
             "exit_code": 0,                // optional
             "message": "string"            // optional
         }
@@ -88,23 +116,18 @@ curl -X POST http://localhost:8004/task \
         - `404 Not Found` if task does not exist
         - `400 Bad Request` if ID is invalid
 
-#### 4. Real-time Task Output (Logs)
+#### 5. Get Task Build IDs
 
-- **`GET /task-output/{id}`**
-    Streams real-time build logs for a task using Server-Sent Events (SSE).
+- **`GET /task-build-list/{id}`**
+    Get a list of build IDs associated with a task.
     - **Response:**
-        - SSE stream of log lines as they are produced.
-        - If the log file does not exist:
-            `data: Task output file not found`
-
-#### 5. Query Builds by Merge Request
-
-- **`GET /mr-task/{mr}`**
-    Query historical build records by Merge Request (MR) number.
-    - **Response:**
-        - `200 OK` with a JSON array of build records if found.
-        - `404 Not Found` with `{ "message": "No builds found for the given MR" }` if none.
-        - `500 Internal Server Error` on database errors.
+        ```json
+        ["build_id1", "build_id2", ...]
+        ```
+    - **Status Codes:**
+        - `200 OK` if found
+        - `404 Not Found` if task does not exist
+        - `400 Bad Request` if ID is invalid
 
 **Example:**
 ```bash
@@ -115,7 +138,56 @@ curl -X GET http://localhost:8004/mr-task/123
 - All endpoints except `/ws` are intended for HTTP clients (frontends, automation, etc.).
 - WebSocket clients must implement the protocol defined in `orion::ws::WSMessage` for task handling and reporting.
 - SSE endpoints require clients to support Server-Sent Events.
-#### 6. Query Historical Task Logs
+#### 6. Query Builds by Merge Request
+
+- **`GET /mr-task/{mr}`**
+    Query historical build records by Merge Request (MR) number.
+    - **Response:**
+        - `200 OK` with a JSON array of build records if found:
+          ```json
+          [
+            {
+              "task_id": "string",
+              "build_ids": ["string", ...],
+              "output_files": ["string", ...],
+              "exit_code": 0,
+              "start_at": "2023-01-01T00:00:00Z",
+              "end_at": "2023-01-01T00:00:00Z",
+              "repo_name": "string",
+              "target": "string",
+              "arguments": "string",
+              "mr": "string"
+            }
+          ]
+          ```
+        - `404 Not Found` with `{ "message": "No builds found for the given MR" }` if none.
+        - `500 Internal Server Error` on database errors.
+
+#### 7. Query Builds with Status by Merge Request
+
+- **`GET /tasks/{mr}`**
+    Query all tasks with their current status by Merge Request (MR) number.
+    - **Response:**
+        - `200 OK` with a JSON array of build records with status if found:
+          ```json
+          [
+            {
+              "build_id": ["string", ...],
+              "output_files": ["string", ...],
+              "exit_code": 0,
+              "start_at": "2023-01-01T00:00:00Z",
+              "end_at": "2023-01-01T00:00:00Z",
+              "repo_name": "string",
+              "target": "string",
+              "arguments": "string",
+              "mr": "string",
+              "status": "Building|Interrupted|Failed|Completed|NotFound|Pending"
+            }
+          ]
+          ```
+        - `500 Internal Server Error` on database errors.
+
+#### 8. Query Historical Task Logs
 
 - **`GET /task-history-output/{id}`**
     Provides the ability to read historical task logs, supporting either retrieving the **entire log at once** or **retrieving by line segments**.
@@ -133,7 +205,10 @@ curl -X GET http://localhost:8004/mr-task/123
     - **Responses:**
         - `200 OK` → Returns the log content in JSON:
             ```json
-            { "data": "log content..." }
+            { 
+              "data": ["line1", "line2", "..."], 
+              "len": 100 
+            }
             ```
           - `400 Bad Request` → Invalid parameters:
             ```json
@@ -156,7 +231,7 @@ curl -X GET http://localhost:8004/mr-task/123
         ```bash
         curl -X GET "http://localhost:8004/task-history-output/abc123?type=segment&offset=100&limit=50"
         ```
-#### 7. Real-time Task Output via SSE
+#### 9. Real-time Task Output via SSE
 
 - **`GET /task-output/{id}`**
     Streams the build output logs for a specific task in real time using Server-Sent Events (SSE).

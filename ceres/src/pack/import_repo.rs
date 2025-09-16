@@ -1,8 +1,12 @@
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     path::PathBuf,
     str::FromStr,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use async_trait::async_trait;
@@ -39,11 +43,18 @@ pub struct ImportRepo {
 
 #[async_trait]
 impl RepoHandler for ImportRepo {
-
     fn is_monorepo(&self) -> bool {
         false
     }
-    
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
+    }
+
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage

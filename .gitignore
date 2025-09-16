@@ -41,3 +41,6 @@ monobean/resources/lib
 
 # Temporary test cache dir
 /tests/.cache_tmp
+
+## local python version file
+.python-version

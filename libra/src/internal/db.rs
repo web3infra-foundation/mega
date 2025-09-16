@@ -170,7 +170,7 @@ mod tests {
     use tests::reference::ConfigKind;
 
     use super::*;
-    use std::{fs, path::PathBuf};
+    use std::fs;
 
     /// TestDbPath is a helper struct create and delete test database file
     struct TestDbPath(String);
@@ -183,16 +183,17 @@ mod tests {
     }
     impl TestDbPath {
         async fn new(name: &str) -> Self {
-            let mut db_path = PathBuf::from("/tmp/test_db");
+            let mut db_path = std::env::temp_dir();
+            db_path.push("test_db");
             if !db_path.exists() {
-                let _ = fs::create_dir(&db_path);
+                let _ = fs::create_dir_all(&db_path);
             }
             db_path.push(name);
-            db_path.to_str().unwrap().to_string();
+            let db_path_str = db_path.to_str().unwrap().to_string();
             if db_path.exists() {
                 let _ = fs::remove_file(&db_path);
             }
-            let rt = TestDbPath(db_path.to_str().unwrap().to_string());
+            let rt = TestDbPath(db_path_str);
             create_database(rt.0.as_str()).await.unwrap();
             rt
         }
@@ -200,17 +201,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_database() {
-        // didn't use TestDbPath, because TestDbPath use create_database to work.
-        let db_path = "/tmp/test_create_database.db";
+        let mut db_path_buf = std::env::temp_dir();
+        db_path_buf.push("test_create_database.db");
+        let db_path = db_path_buf.to_str().unwrap();
+
         if Path::new(db_path).exists() {
             fs::remove_file(db_path).unwrap();
         }
-        let result = create_database(db_path).await;
-        assert!(result.is_ok(), "create_database failed: {result:?}");
+        let conn = create_database(db_path).await.unwrap();
         assert!(Path::new(db_path).exists());
+
         let result = create_database(db_path).await;
         assert!(result.is_err());
-        // fs::remove_file(db_path).unwrap();
+
+        conn.close().await.unwrap();
+        fs::remove_file(db_path).unwrap();
     }
 
     #[tokio::test]
@@ -306,6 +311,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_reference_check() {
         // test reference check
         let test_db = TestDbPath::new("test_reference_check.db").await;

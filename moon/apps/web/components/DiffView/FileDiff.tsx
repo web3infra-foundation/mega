@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 
-import { CommonResultFilesChangedPage, DiffItem } from '@gitmono/types/generated'
+import { CommonResultFilesChangedPage } from '@gitmono/types/generated'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 
+import { DiffItem } from './parsedDiffs'
 import StableTreeView from './StableTreeView'
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
@@ -92,7 +93,7 @@ export default function FileDiff({
     file: { path: string; lang: string; diff: string }
     instance: DiffFile | null
   }) => {
-    if (instance){
+    if (instance) {
       return (
         <DiffView
           diffFile={instance}
@@ -102,7 +103,7 @@ export default function FileDiff({
           diffViewHighlight
         />
       )
-    }else if (file.lang === 'binary') {
+    } else if (file.lang === 'binary') {
       return <div className='p-2 text-center'>Binary file</div>
     } else if (file.diff === 'EMPTY_DIFF_MARKER\n') {
       return <div className='p-2 text-center'>No change</div>
@@ -114,9 +115,9 @@ export default function FileDiff({
   return (
     <div className='mt-3 flex font-sans'>
       <div className='sticky top-5 h-[85vh] w-[300px] overflow-y-auto rounded-lg p-2'>
-        {treeData?.mui_trees && (
+        {(treeData as any)?.mui_trees && (
           <StableTreeView
-            treeData={treeData?.mui_trees}
+            treeData={(treeData as any)?.mui_trees}
             handleClick={(file) => {
               setSelectedPath(file)
               setExpandedMap((prev) => ({ ...prev, [file]: true }))

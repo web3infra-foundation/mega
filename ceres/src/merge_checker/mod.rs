@@ -1,15 +1,19 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::merge_checker::commit_message_checker::CommitMessageChecker;
+use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
+use crate::merge_checker::mr_sync_checker::MrSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
 use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
 
-use crate::merge_checker::mr_sync_checker::MrSyncChecker;
-
+mod code_review_checker;
+mod commit_message_checker;
+mod gpg_signature_checker;
 pub mod mr_sync_checker;
 
 #[async_trait]
@@ -28,6 +32,34 @@ pub enum CheckType {
     MergeConflict,
     CiStatus,
     CodeReview,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub enum ConditionResult {
+    FAILED,
+    PASSED,
+}
+
+impl fmt::Display for ConditionResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ConditionResult::FAILED => "FAILED",
+            ConditionResult::PASSED => "PASSED",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for ConditionResult {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "PASSED" => Ok(ConditionResult::PASSED),
+            "FAILED" => Ok(ConditionResult::FAILED),
+            _ => Err(()),
+        }
+    }
 }
 
 impl CheckType {
@@ -87,22 +119,47 @@ impl From<CheckType> for CheckTypeEnum {
 #[derive(Debug)]
 pub struct CheckResult {
     pub check_type_code: CheckType,
-    pub status: String,
+    pub status: ConditionResult,
     pub message: String,
 }
 
 pub struct CheckerRegistry {
     checkers: HashMap<CheckType, Box<dyn Checker>>,
     storage: Arc<Storage>,
+    #[allow(dead_code)]
+    username: String,
 }
 
 impl CheckerRegistry {
-    pub fn new(storage: Arc<Storage>) -> Self {
+    pub fn new(storage: Arc<Storage>, username: String) -> Self {
         let mut r = CheckerRegistry {
             checkers: HashMap::new(),
             storage: storage.clone(),
+            username,
         };
-        r.register(CheckType::MrSync, Box::new(MrSyncChecker { storage }));
+        r.register(
+            CheckType::MrSync,
+            Box::new(MrSyncChecker {
+                storage: storage.clone(),
+            }),
+        );
+        r.register(
+            CheckType::GpgSignature,
+            Box::new(GpgSignatureChecker {
+                storage: storage.clone(),
+            }),
+        );
+        r.register(
+            CheckType::CodeReview,
+            Box::new(code_review_checker::CodeReviewChecker {
+                storage: storage.clone(),
+            }),
+        );
+        r.register(
+            CheckType::CommitMessage,
+            Box::new(CommitMessageChecker),
+        );
+
         r
     }
 
@@ -127,7 +184,7 @@ impl CheckerRegistry {
                     &mr_info.link,
                     &mr_info.to_hash,
                     res.check_type_code.into(),
-                    &res.status,
+                    &res.status.to_string(),
                     &res.message,
                 );
                 save_models.push(model);

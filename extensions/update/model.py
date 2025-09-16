@@ -16,7 +16,7 @@ class SyncStatusEnum(str, enum.Enum):
     ANALYSED = "Analysed"
 
 class RepoSyncResult(Base):
-    __tablename__ = "repo_sync_result"
+    __tablename__ = "repo_sync_result_test"
 
     id = Column(Integer, primary_key=True, index=True)
     crate_name = Column(String, unique=True, nullable=False)   # 唯一约束

@@ -195,7 +195,6 @@ impl ObjectTrait for Commit {
         let message = unsafe {
             String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
         };
-
         Ok(Commit {
             id: hash,
             tree_id,
@@ -286,5 +285,61 @@ impl From<git_commit::Model> for Commit {
             value.committer,
             value.content,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_from_bytes_with_gpgsig() {
+        let raw_commit = br#"tree 341e54913a3a43069f2927cc0f703e5a9f730df1
+author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
+committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iQJNBAABCAA3FiEEs4MaYUV7JcjxsVMPyqxGczTZ6K4FAmjBMC4ZHGJlbmphbWlu
+ Ljc0N0BvdXRsb29rLmNvbQAKCRDKrEZzNNnorj73EADNpsyLAHsB3NgoeH+uy9Vq
+ G2+LRtlvqv3QMK7vbQUadXHlQYWk25SIk+WJ1kG1AnUy5fqOrLSDTA1ny+qwpH8O
+ +2sKCF/S1wlzqGWjCcRH5/ir9srsGIn9HbNqBjmU22NJ6Dt2jnqoUvtWfPwyqwWg
+ VpjYlj390cFdXTpH5hMvtlmUQB+zCSKtWQW2Ur64h/UsGtllARlACi+KHQQmA2/p
+ FLWNddvfJQpPM597DkGohQTD68g0PqOBhUkOHduHq7VHy68DVW+07bPNXK8JhJ8S
+ 4dyV1sZwcVcov0GcKl0wUbEqzy4gf+zV7DQhkfrSRQMBdo5vCWahYj1AbgaTiu8a
+ hscshYDuWWqpxBU/+nCxOPskV29uUG1sRyXp3DqmKJZpnO9CVdw3QaVrqnMEeh2S
+ t/wYRI9aI1A+Mi/DETom5ifTVygMkK+3m1h7pAMOlblFEdZx2sDXPRG2IEUcatr4
+ Jb2+7PUJQXxUQnwHC7xHHxRh6a2h8TfEJfSoEyrgzxZ0CRxJ6XMJaJu0UwZ2xMsx
+ Lgmeu6miB/imwxz5R5RL2yVHbgllSlO5l12AIeBaPoarKXYPSALigQnKCXu5OM3x
+ Jq5qsSGtxdr6S1VgLyYHR4o69bQjzBp9K47J3IXqvrpo/ZiO/6Mspk2ZRWhGj82q
+ e3qERPp5b7+hA+M7jKPyJg==
+ =UeLf
+ -----END PGP SIGNATURE-----
+
+test parse commit from bytes
+"#;
+
+        let hash = SHA1::from_str("57d7685c60213a9da465cf900f31933be3a7ee39").unwrap();
+        let commit = Commit::from_bytes(raw_commit, hash).unwrap();
+
+        assert_eq!(
+            commit.id,
+            SHA1::from_str("57d7685c60213a9da465cf900f31933be3a7ee39").unwrap()
+        );
+
+        assert_eq!(
+            commit.tree_id,
+            SHA1::from_str("341e54913a3a43069f2927cc0f703e5a9f730df1").unwrap()
+        );
+
+        assert_eq!(commit.author.name, "benjamin.747");
+        assert_eq!(commit.author.email, "benjamin.747@outlook.com");
+
+        assert_eq!(commit.committer.name, "benjamin.747");
+
+        // check message content（must contains gpgsig and content）
+        assert!(commit.message.contains("-----BEGIN PGP SIGNATURE-----"));
+        assert!(commit.message.contains("-----END PGP SIGNATURE-----"));
+        assert!(commit.message.contains("test parse commit from bytes"));
     }
 }

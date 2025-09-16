@@ -1,8 +1,10 @@
 use crate::model::builds;
+use chrono::FixedOffset;
 use dashmap::DashMap;
 use orion::ws::WSMessage;
 use rand::Rng;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
+use sea_orm::ActiveModelTrait;
+use sea_orm::{ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -14,20 +16,21 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Request payload for creating a new build task
-#[derive(Debug, Clone, Deserialize, ToSchema)]
 #[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
-    pub repo: String,
     pub buck_hash: String,
     pub buckconfig_hash: String,
     pub args: Option<Vec<String>>,
-    pub mr: Option<String>,
 }
 
 /// Pending task waiting for dispatch
 #[derive(Debug, Clone)]
 pub struct PendingTask {
     pub task_id: Uuid,
+    pub build_id: Uuid,
+    pub repo: String,
+    pub mr: i64,
     pub request: BuildRequest,
     pub target: String,
     pub created_at: Instant,
@@ -71,7 +74,7 @@ impl TaskQueue {
         }
     }
 
-    /// Add task to the end of queue
+    /// Add task-bound build to the end of queue
     pub fn enqueue(&mut self, task: PendingTask) -> Result<(), String> {
         // Check if queue is full
         if self.queue.len() >= self.config.max_queue_size {
@@ -82,12 +85,12 @@ impl TaskQueue {
         Ok(())
     }
 
-    /// Remove task from the front of queue
+    /// Remove task-bound build from the front of queue
     pub fn dequeue(&mut self) -> Option<PendingTask> {
         self.queue.pop_front()
     }
 
-    /// Clean up expired tasks
+    /// Clean up expired task-bound build
     pub fn cleanup_expired(&mut self) -> Vec<PendingTask> {
         let now = Instant::now();
         let mut expired_tasks = Vec::new();
@@ -126,12 +129,13 @@ pub struct TaskQueueStats {
 
 /// Information about an active build task
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct BuildInfo {
     pub repo: String,
     pub target: String,
     pub args: Option<Vec<String>>,
     pub start_at: DateTimeUtc,
-    pub mr: Option<String>,
+    pub mr: String,
     pub _worker_id: String,
     pub log_file: Arc<Mutex<std::fs::File>>,
 }
@@ -169,8 +173,8 @@ pub struct TaskScheduler {
 /// Log segment read result
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct LogSegment {
-    /// Task id / log file name
-    pub task_id: String,
+    /// build id / log file name
+    pub build_id: String,
     /// Requested starting offset
     pub offset: u64,
     /// Bytes actually read
@@ -222,26 +226,32 @@ impl TaskScheduler {
     #[allow(dead_code)]
     async fn read_log_segment(
         &self,
-        task_id: &str,
+        build_id: &str,
         offset: u64,
         max_len: usize,
     ) -> Result<LogSegment, LogReadError> {
-        read_log_segment_raw(task_id, offset, max_len).await
+        read_log_segment_raw(build_id, offset, max_len).await
     }
 
-    /// Add task to queue
+    /// Add task-bound build to queue
     pub async fn enqueue_task(
         &self,
+        task_id: Uuid,
         request: BuildRequest,
         target: String,
+        repo: String,
+        mr: i64,
     ) -> Result<Uuid, String> {
-        let task_id = Uuid::now_v7();
+        let build_id = Uuid::now_v7();
 
         let pending_task = PendingTask {
             task_id,
+            build_id,
             request,
             target,
             created_at: Instant::now(),
+            repo,
+            mr,
         };
 
         {
@@ -251,7 +261,7 @@ impl TaskScheduler {
 
         // Notify that there's a new task to process
         self.task_notifier.notify_one();
-        Ok(task_id)
+        Ok(build_id)
     }
 
     /// Get queue statistics
@@ -260,7 +270,7 @@ impl TaskScheduler {
         queue.get_stats()
     }
 
-    /// Clean up expired tasks
+    /// Clean up expired task-bound builds
     pub async fn cleanup_expired_tasks(&self) -> Vec<PendingTask> {
         let mut queue = self.pending_tasks.lock().await;
         queue.cleanup_expired()
@@ -282,7 +292,7 @@ impl TaskScheduler {
             .collect()
     }
 
-    /// Try to dispatch queued tasks (concurrent safe)
+    /// Try to dispatch queued task-bound builds (concurrent safe)
     pub async fn process_pending_tasks(&self) {
         // Get available workers
         let idle_workers = self.get_idle_workers();
@@ -342,12 +352,13 @@ impl TaskScheduler {
         let chosen_id = idle_workers[chosen_index].clone();
 
         // Create log file
-        let log_file = match create_log_file(&pending_task.task_id.to_string()) {
+        let log_file = match create_log_file(&pending_task.build_id.to_string()) {
             Ok(file) => Arc::new(Mutex::new(file)),
             Err(e) => {
                 tracing::error!(
-                    "Failed to create log file for task {}: {}",
+                    "Failed to create log file for task {}/{}: {}",
                     pending_task.task_id,
+                    pending_task.build_id,
                     e
                 );
                 return Err(format!("Failed to create log file: {e}"));
@@ -356,51 +367,54 @@ impl TaskScheduler {
 
         // Create build information
         let build_info = BuildInfo {
-            repo: pending_task.request.repo.clone(),
+            repo: pending_task.repo.clone(),
             target: pending_task.target.clone(),
             args: pending_task.request.args.clone(),
             start_at: chrono::Utc::now(),
-            mr: pending_task.request.mr.clone(),
+            mr: pending_task.mr.to_string(),
             _worker_id: chosen_id.clone(),
             log_file,
         };
 
-        // Save to database
-        let model = builds::ActiveModel {
-            build_id: Set(pending_task.task_id),
-            output_file: Set(format!("{}/{}", get_build_log_dir(), pending_task.task_id)),
+        // Insert build record
+        let _ = builds::ActiveModel {
+            id: Set(pending_task.build_id),
+            task_id: Set(pending_task.task_id),
             exit_code: Set(None),
-            start_at: Set(build_info.start_at.naive_utc()),
+            start_at: Set(build_info
+                .start_at
+                .with_timezone(&FixedOffset::east_opt(0).unwrap())),
             end_at: Set(None),
-            repo_name: Set(build_info.repo.clone()),
-            target: Set(build_info.target.clone()),
-            arguments: Set(build_info.args.clone().unwrap_or_default().join(" ")),
-            mr: Set(build_info.mr.clone().unwrap_or_default()),
-        };
-
-        if let Err(e) = model.insert(&self.conn).await {
-            tracing::error!("Failed to insert queued task into DB: {}", e);
-            return Err(format!("Failed to create task in database: {e}"));
+            repo: Set(build_info.repo.clone()),
+            target: Set("//...".to_string()),
+            args: Set(build_info.args.clone()),
+            output_file: Set(format!("{}/{}", get_build_log_dir(), pending_task.build_id)),
+            created_at: Set(build_info
+                .start_at
+                .with_timezone(&FixedOffset::east_opt(0).unwrap())),
         }
+        .insert(&self.conn)
+        .await;
 
         // Create WebSocket message
         let msg = WSMessage::Task {
-            id: pending_task.task_id.to_string(),
-            repo: pending_task.request.repo,
+            id: pending_task.build_id.to_string(),
+            repo: pending_task.repo,
             target: pending_task.target,
             args: pending_task.request.args,
-            mr: pending_task.request.mr.unwrap_or_default(),
+            mr: pending_task.mr.to_string(),
         };
 
         // Send task to worker
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
-                worker.status = WorkerStatus::Busy(pending_task.task_id.to_string());
+                worker.status = WorkerStatus::Busy(pending_task.build_id.to_string());
                 self.active_builds
-                    .insert(pending_task.task_id.to_string(), build_info);
+                    .insert(pending_task.build_id.to_string(), build_info);
                 tracing::info!(
-                    "Queued task {} dispatched to worker {}",
+                    "Queued task {}/{} dispatched to worker {}",
                     pending_task.task_id,
+                    pending_task.build_id,
                     chosen_id
                 );
                 Ok(())
@@ -460,7 +474,12 @@ impl TaskScheduler {
 
                     // Log expired task information
                     for task in expired_tasks {
-                        tracing::debug!("Expired task: {} ({})", task.task_id, task.request.repo);
+                        tracing::debug!(
+                            "Expired build: {}/{} ({})",
+                            task.task_id,
+                            task.build_id,
+                            task.repo
+                        );
                     }
                 }
             }
@@ -481,11 +500,11 @@ impl TaskScheduler {
 /// Read a segment of a task log file.
 /// Returns metadata and data slice (UTF-8 lossy converted).
 pub async fn read_log_segment_raw(
-    task_id: &str,
+    build_id: &str,
     offset: u64,
     max_len: usize,
 ) -> Result<LogSegment, LogReadError> {
-    let log_path = format!("{}/{}", get_build_log_dir(), task_id);
+    let log_path = format!("{}/{}", get_build_log_dir(), build_id);
     let path = std::path::Path::new(&log_path);
     if !path.exists() {
         return Err(LogReadError::NotFound);
@@ -500,7 +519,7 @@ pub async fn read_log_segment_raw(
     // Fast path: only metadata
     if max_len == 0 || offset == size {
         return Ok(LogSegment {
-            task_id: task_id.to_string(),
+            build_id: build_id.to_string(),
             offset,
             len: 0,
             data: String::new(),
@@ -527,7 +546,7 @@ pub async fn read_log_segment_raw(
     let eof = next_offset >= size;
 
     Ok(LogSegment {
-        task_id: task_id.to_string(),
+        build_id: build_id.to_string(),
         offset,
         len: read_bytes,
         data,
@@ -599,8 +618,8 @@ pub fn get_build_log_dir() -> &'static str {
 }
 
 /// Create log file
-pub fn create_log_file(task_id: &str) -> Result<std::fs::File, std::io::Error> {
-    let log_path = format!("{}/{}", get_build_log_dir(), task_id);
+pub fn create_log_file(build_id: &str) -> Result<std::fs::File, std::io::Error> {
+    let log_path = format!("{}/{}", get_build_log_dir(), build_id);
     let path = std::path::Path::new(&log_path);
 
     // Ensure parent directory exists
@@ -629,28 +648,30 @@ mod tests {
         // Create test tasks
         let task1 = PendingTask {
             task_id: Uuid::now_v7(),
+            build_id: Uuid::now_v7(),
             request: BuildRequest {
-                repo: "test1".to_string(),
                 buck_hash: "hash1".to_string(),
                 buckconfig_hash: "config1".to_string(),
                 args: None,
-                mr: None,
             },
             target: "target1".to_string(),
             created_at: Instant::now(),
+            repo: "/test/repo".to_string(),
+            mr: 123456,
         };
 
         let task2 = PendingTask {
             task_id: Uuid::now_v7(),
+            build_id: Uuid::now_v7(),
             request: BuildRequest {
-                repo: "test2".to_string(),
                 buck_hash: "hash2".to_string(),
                 buckconfig_hash: "config2".to_string(),
                 args: None,
-                mr: None,
             },
             target: "target2".to_string(),
             created_at: Instant::now(),
+            repo: "/test2/repo".to_string(),
+            mr: 123457,
         };
 
         // Test FIFO behavior
@@ -658,12 +679,12 @@ mod tests {
         assert!(queue.enqueue(task2.clone()).is_ok());
 
         let dequeued1 = queue.dequeue().unwrap();
-        assert_eq!(dequeued1.task_id, task1.task_id);
-        assert_eq!(dequeued1.request.repo, "test1");
+        assert_eq!(dequeued1.build_id, task1.build_id);
+        assert_eq!(dequeued1.repo, "/test/repo");
 
         let dequeued2 = queue.dequeue().unwrap();
-        assert_eq!(dequeued2.task_id, task2.task_id);
-        assert_eq!(dequeued2.request.repo, "test2");
+        assert_eq!(dequeued2.build_id, task2.build_id);
+        assert_eq!(dequeued2.repo, "/test2/repo");
     }
 
     /// Test queue capacity limit
@@ -678,15 +699,16 @@ mod tests {
 
         let task = PendingTask {
             task_id: Uuid::now_v7(),
+            build_id: Uuid::now_v7(),
             request: BuildRequest {
-                repo: "test".to_string(),
                 buck_hash: "hash".to_string(),
                 buckconfig_hash: "config".to_string(),
                 args: None,
-                mr: None,
             },
             target: "target".to_string(),
             created_at: Instant::now(),
+            repo: "/test/repo".to_string(),
+            mr: 123456,
         };
 
         // Fill queue to capacity
@@ -704,19 +726,19 @@ mod tests {
         unsafe {
             std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
         }
-        let task_id = "segment-test";
-        let mut file = create_log_file(task_id).unwrap();
+        let build_id = "segment-test";
+        let mut file = create_log_file(build_id).unwrap();
         write!(file, "Hello World! This is a test log.").unwrap();
 
         // Read first 5 bytes
-        let seg = read_log_segment_raw(task_id, 0, 5).await.unwrap();
+        let seg = read_log_segment_raw(build_id, 0, 5).await.unwrap();
         assert_eq!(seg.offset, 0);
         assert_eq!(seg.len, 5);
         assert_eq!(seg.data, "Hello");
         assert!(!seg.eof);
 
         // Read next bytes
-        let seg2 = read_log_segment_raw(task_id, seg.next_offset, 100)
+        let seg2 = read_log_segment_raw(build_id, seg.next_offset, 100)
             .await
             .unwrap();
         assert!(seg2.data.starts_with(" World"));
@@ -728,9 +750,9 @@ mod tests {
         unsafe {
             std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
         }
-        let task_id = "segment-oob";
-        let _ = create_log_file(task_id).unwrap();
-        let res = read_log_segment_raw(task_id, 10, 10).await;
+        let build_id = "segment-oob";
+        let _ = create_log_file(build_id).unwrap();
+        let res = read_log_segment_raw(build_id, 10, 10).await;
         assert!(matches!(res, Err(LogReadError::OffsetOutOfRange { .. })));
     }
 }

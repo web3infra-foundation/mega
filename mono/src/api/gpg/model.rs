@@ -6,7 +6,6 @@ use utoipa::ToSchema;
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NewGpgRequest {
     pub gpg_content: String,
-    pub expires_days: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

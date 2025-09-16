@@ -40,7 +40,7 @@ enum Commands {
     #[command(about = "Restore working tree files")]
     Restore(command::restore::RestoreArgs),
     #[command(about = "Show the working tree status")]
-    Status,
+    Status(command::status::StatusArgs),
     #[command(
         subcommand,
         about = "Stash the changes in a dirty working directory away"
@@ -52,6 +52,8 @@ enum Commands {
     Log(command::log::LogArgs),
     #[command(about = "List, create, or delete branches")]
     Branch(command::branch::BranchArgs),
+    #[command(about = "Create a new tag")]
+    Tag(command::tag::TagArgs),
     #[command(about = "Record changes to the repository")]
     Commit(command::commit::CommitArgs),
     #[command(about = "Switch branches")]
@@ -151,11 +153,12 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Restore(args) => command::restore::execute(args).await,
-        Commands::Status => command::status::execute().await,
+        Commands::Status(args) => command::status::execute(args).await,
         Commands::Stash(cmd) => command::stash::execute(cmd).await,
         Commands::Lfs(cmd) => command::lfs::execute(cmd).await,
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Branch(args) => command::branch::execute(args).await,
+        Commands::Tag(args) => command::tag::execute(args).await,
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Rebase(args) => command::rebase::execute(args).await,

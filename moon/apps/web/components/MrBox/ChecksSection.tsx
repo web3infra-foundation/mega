@@ -1,5 +1,11 @@
 import * as Collapsible from '@radix-ui/react-collapsible';
-import { ArrowDownIcon, ArrowUpIcon, AlertIcon, CheckIcon, ClockIcon, WarningTriangleIcon } from "@gitmono/ui";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  AlertIcon,
+  CheckIcon,
+  LoadingSpinner
+} from "@gitmono/ui";
 import { useEffect, useMemo, useState } from 'react';
 import { MergeCheckItem } from './components/MergeCheckItem';
 import type { TaskData, AdditionalCheckItem, AdditionalCheckStatus } from './types/mergeCheck.config';
@@ -10,6 +16,7 @@ interface ChecksSectionProps {
   onStatusChange: (hasFailures: boolean) => void;
   additionalChecks?: AdditionalCheckItem[];
 }
+
 interface CheckStatusProps {
   hasFailures: boolean;
   failureCount: number;
@@ -17,10 +24,12 @@ interface CheckStatusProps {
   successCount: number;
   open: boolean;
 }
+
 interface CheckGroupProps {
   title: string;
   checks: TaskData[];
 }
+
 interface CheckListProps {
   groupedChecks: {
     failing: TaskData[];
@@ -29,17 +38,17 @@ interface CheckListProps {
   };
 }
 
-const CheckStatus = ({hasFailures, failureCount, inProgressCount, successCount, open}: CheckStatusProps) => {
+const CheckStatus = ({ hasFailures, failureCount, inProgressCount, successCount, open }: CheckStatusProps) => {
   let statusInfo: string[] = []
 
   if (failureCount > 0) {
-    statusInfo.push(`${failureCount} failed`)
+    statusInfo.push(`${ failureCount } failed`)
   }
   if (inProgressCount > 0) {
-    statusInfo.push(`${inProgressCount} in progress`)
+    statusInfo.push(`${ inProgressCount } in progress`)
   }
   if (successCount > 0) {
-    statusInfo.push(`${successCount} successful`)
+    statusInfo.push(`${ successCount } successful`)
   }
   if (statusInfo.length === 0) {
     statusInfo.push('No checks have run yet')
@@ -47,17 +56,18 @@ const CheckStatus = ({hasFailures, failureCount, inProgressCount, successCount, 
 
   return (
     <div className="flex w-full px-3 py-0 items-center">
-      {hasFailures? <AlertIcon className="h-5 w-5 mr-3 text-yellow-600"/> : <CheckIcon className="h-5 w-5 mr-3 text-green-700"/>}
+      { hasFailures? <AlertIcon className="h-5 w-5 mr-3 text-yellow-600"/> :
+        <CheckIcon className="h-5 w-5 mr-3 text-green-700"/> }
       <div>
         <p className="font-semibold">
-          {hasFailures ? 'Some checks were not successful' : 'All checks have passed'}
+          { hasFailures? 'Some checks were not successful' : 'All checks have passed' }
         </p>
         <p className="text-sm text-gray-600">
-          {statusInfo.join(', ')}
+          { statusInfo.join(', ') }
         </p>
       </div>
       <button className="justify-self-end ml-auto">
-        {open ? <ArrowUpIcon /> : <ArrowDownIcon />}
+        { open? <ArrowUpIcon/> : <ArrowDownIcon/> }
       </button>
     </div>
   )
@@ -65,18 +75,18 @@ const CheckStatus = ({hasFailures, failureCount, inProgressCount, successCount, 
 
 const CheckGroup = ({ title, checks }: CheckGroupProps) => (
   <div className="mb-2">
-    <h4 className="text-xs font-bold text-gray-500 uppercase px-2 py-1">{title} ({checks.length})</h4>
+    <h4 className="text-xs font-bold text-gray-500 uppercase px-2 py-1">{ title } ({ checks.length })</h4>
     <div>
-      {checks.map(check => <MergeCheckItem key={check.build_id} check={check} />)}
+      { checks.map(check => <MergeCheckItem key={ check.build_id } check={ check }/>) }
     </div>
   </div>
 );
 
-const CheckList = ({groupedChecks}: CheckListProps) => (
+const CheckList = ({ groupedChecks }: CheckListProps) => (
   <div className="border-t mt-2 pt-2 max-h-[300px] overflow-y-auto">
-    {groupedChecks.failing.length > 0 && <CheckGroup title="Failing" checks={groupedChecks.failing} />}
-    {groupedChecks.pending.length > 0 && <CheckGroup title="In progress" checks={groupedChecks.pending} />}
-    {groupedChecks.success.length > 0 && <CheckGroup title="Successful" checks={groupedChecks.success} />}
+    { groupedChecks.failing.length > 0 && <CheckGroup title="Failing" checks={ groupedChecks.failing }/> }
+    { groupedChecks.pending.length > 0 && <CheckGroup title="In progress" checks={ groupedChecks.pending }/> }
+    { groupedChecks.success.length > 0 && <CheckGroup title="Successful" checks={ groupedChecks.success }/> }
   </div>
 )
 
@@ -86,47 +96,36 @@ interface AdditionalCheckItemProps {
 
 const getStatusIcon = (status: AdditionalCheckStatus) => {
   switch (status) {
-    case 'Success':
-      return <CheckIcon className="w-4 h-4 text-green-600" />;
-    case 'Failure':
-      return <AlertIcon className="w-4 h-4 text-red-600" />;
-    case 'Warning':
-      return <WarningTriangleIcon className="w-4 h-4 text-yellow-600" />;
-    case 'Pending':
-      return <ClockIcon className="w-4 h-4 text-gray-500" />;
+    case 'PASSED':
+      return <CheckIcon className="w-4 h-4 text-green-600"/>;
+    case 'FAILED':
+      return <AlertIcon className="w-4 h-4 text-red-600"/>;
     default:
-      return <ClockIcon className="w-4 h-4 text-gray-500" />;
+      return <LoadingSpinner/>;
   }
 };
 
 const AdditionalCheckItemComponent = ({ check }: AdditionalCheckItemProps) => (
   <div className="flex items-start px-2 py-2 border-b border-gray-100 last:border-b-0">
     <div className="flex-shrink-0 mr-3 mt-0.5">
-      {getStatusIcon(check.status)}
+      { getStatusIcon(check.result) }
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between">
         <h5 className="text-sm font-medium text-gray-900">
-          {ADDITIONAL_CHECK_LABELS[check.type]}
+          { ADDITIONAL_CHECK_LABELS[check.type] }
         </h5>
-        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-          check.status === 'Success' ? 'bg-green-100 text-green-800' :
-          check.status === 'Failure' ? 'bg-red-100 text-red-800' :
-          check.status === 'Warning' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-gray-100 text-gray-800'
-        }`}>
-          {check.status}
+        <span className={ `text-xs px-2 py-1 rounded-full font-medium ${
+          check.result === 'PASSED'? 'bg-green-100 text-green-800' :
+            check.result === 'FAILED'? 'bg-red-100 text-red-800' :
+              'bg-gray-100 text-gray-800'
+        }` }>
+          { check.result.toLowerCase() }
         </span>
       </div>
-      {check.message && (
-        <p className="text-sm text-gray-600 mt-1">{check.message}</p>
-      )}
-      {check.errors && check.errors.length > 0 && (
+      { check.result === 'FAILED' && (
         <ul className="text-sm text-red-600 mt-1 list-disc list-inside">
-          {check.errors.map((error, index) => (
-            // eslint-disable-next-line react/no-array-index-key
-            <li key={index}>{error}</li>
-          ))}
+          <li className="list-inside">{ check.message }</li>
         </ul>
       )}
     </div>
@@ -145,12 +144,12 @@ const AdditionalChecksSection = ({ additionalChecks }: AdditionalChecksSectionPr
   return (
     <div className="border-t mt-2 pt-2">
       <h4 className="text-xs font-bold text-gray-500 uppercase px-2 py-1 mb-2">
-        Additional Checks ({additionalChecks.length})
+        Additional Checks ({ additionalChecks.length })
       </h4>
       <div className="space-y-1">
-        {additionalChecks.map(check => (
-          <AdditionalCheckItemComponent key={check.message} check={check} />
-        ))}
+        { additionalChecks.map(check => (
+          <AdditionalCheckItemComponent key={ check.message } check={ check }/>
+        )) }
       </div>
     </div>
   );
@@ -186,26 +185,26 @@ export function ChecksSection({ checks, onStatusChange, additionalChecks }: Chec
   return (
     <>
       <Collapsible.Root
-        open={open}
-        onOpenChange={setOpen}
+        open={ open }
+        onOpenChange={ setOpen }
       >
-        {/* CheckStatus 部分 */}
+        {/* CheckStatus 部分 */ }
         <Collapsible.Trigger
           className="w-full hover:bg-gray-100 rounded-md cursor-pointer flex"
         >
           <CheckStatus
-            hasFailures={hasFailures}
-            failureCount={failureCount}
-            inProgressCount={inProgressCount}
-            successCount={successCount}
-            open={open}
+            hasFailures={ hasFailures }
+            failureCount={ failureCount }
+            inProgressCount={ inProgressCount }
+            successCount={ successCount }
+            open={ open }
           />
         </Collapsible.Trigger>
 
-        {/* CheckList 部分 */}
+        {/* CheckList 部分 */ }
         <Collapsible.Content>
-          <CheckList groupedChecks={groupedChecks} />
-          <AdditionalChecksSection additionalChecks={additionalChecks || []} />
+          <CheckList groupedChecks={ groupedChecks }/>
+          <AdditionalChecksSection additionalChecks={ additionalChecks || [] }/>
         </Collapsible.Content>
       </Collapsible.Root>
 

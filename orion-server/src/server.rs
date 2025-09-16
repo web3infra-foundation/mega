@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::routing::get;
+use chrono::{FixedOffset, Utc};
 use http::{HeaderValue, Method};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
@@ -15,23 +16,21 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{self, AppState};
-use crate::model::builds;
+use crate::model::{builds, tasks};
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
     paths(
         api::task_handler,
-        api::task_status_handler,
+        api::task_build_list_handler,
         api::task_output_handler,
         api::task_history_output_handler,
-        api::task_query_by_mr,
         api::tasks_handler,
     ),
     components(
         schemas(
             crate::scheduler::BuildRequest,
             crate::scheduler::LogSegment,
-            api::TaskStatus,
             api::TaskStatusEnum,
             api::BuildDTO,
             api::TaskInfoDTO
@@ -111,7 +110,7 @@ async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
     let schema = Schema::new(builder);
     let statement = builder.build(
         schema
-            .create_table_from_entity(builds::Entity)
+            .create_table_from_entity(tasks::Entity)
             .if_not_exists(),
     );
     trans.execute(statement).await?;
@@ -168,10 +167,12 @@ async fn start_health_check_task(state: AppState) {
 
                     let update_res = builds::Entity::update_many()
                         .set(builds::ActiveModel {
-                            end_at: Set(Some(chrono::Utc::now().naive_utc())),
+                            end_at: Set(Some(
+                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                            )),
                             ..Default::default()
                         })
-                        .filter(builds::Column::BuildId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
+                        .filter(builds::Column::TaskId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
                         .exec(&state.conn)
                         .await;
 

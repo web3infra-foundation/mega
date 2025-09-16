@@ -1,4 +1,40 @@
 ---
 title: The [tag] Command
-description:
+description: Create, list, delete, or show tag objects
 ---
+
+### Usage
+
+libra tag [OPTIONS] [NAME]
+
+### Arguments
+
+-   `[NAME]`
+    The name of the tag to create, show, or delete.
+
+### Description
+
+The `libra tag` command is used to manage tag objects. Tags can be used to mark specific points in history as being important.
+
+If no arguments are provided, or if the `--list` option is used, it will list all existing tags.
+
+-   To show the details of an existing tag, provide the tag name: `libra tag <tag-name>`
+-   To create a new annotated tag, provide a name and a message: `libra tag <tag-name> -m "Your tag message"`
+-   To delete an existing tag, provide the tag name and the delete flag: `libra tag <tag-name> -d`
+
+### Options
+
+-   `-l`, `--list`
+    List all tags.
+-   `-d`, `--delete`
+    Delete a tag.
+-   `-m`, `--message <MESSAGE>`
+    Create an annotated tag with the given message. If not provided, the command will show tag details instead of creating a new one.
+-   `-h`, `--help`
+    Print help
+
+<Note type="note" title="Note">
+    All parameters should align with Git’s behavior as closely as possible, but
+    there may be some differences. Refs https://git-scm.com/docs/git-tag for
+    more information.
+</Note>

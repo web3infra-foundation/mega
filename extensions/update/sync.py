@@ -17,6 +17,20 @@ from .database import Base,engine
 from .do_utils import load_processed_from_db, update_repo_sync_result
 from .kafka_message_model import CrateTypeEnum, MessageKindEnum, MessageModel, RepoSyncModel, SourceOfDataEnum
 from .model import SyncStatusEnum
+import atexit
+import threading
+import time
+
+
+import concurrent.futures
+from dotenv import load_dotenv
+
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
+# 并发下载配置
+ENABLE_CONCURRENCY = os.environ.get("ENABLE_CONCURRENCY", "false").lower() == "true"
+MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "8"))
 
 
 # 仓库和目录
@@ -78,7 +92,7 @@ def clone_or_update_index():
 
 
 def get_all_files(index_dir):
-    """遍历目录，返回所有crate文件信息"""
+    """遍历目录，返回所有 crate 文件信息，并存储 crate 对应的 json 文件前缀目录"""
     crates = {}
     print(f"正在扫描目录：{index_dir}")
     
@@ -103,11 +117,17 @@ def get_all_files(index_dir):
                                 crate_name = data["name"]
                                 version = data["vers"]
                                 checksum = data["cksum"]
-                                
+
+                                # 计算前缀目录，例如 "wi/na"
+                                prefix_dir = str(Path(file_path).relative_to(index_dir).parent)
+
                                 if crate_name not in crates:
-                                    crates[crate_name] = []
+                                    crates[crate_name] = {
+                                        "prefix_dir": prefix_dir,  # 记录前缀目录
+                                        "versions": []
+                                    }
                                 
-                                crates[crate_name].append({
+                                crates[crate_name]["versions"].append({
                                     "version": version,
                                     "description": data.get("desc", ""),
                                     "checksum": checksum
@@ -125,9 +145,17 @@ def get_all_files(index_dir):
 
     except Exception as e:
         print(f"遍历目录失败：{e}")
+    
+    # 打印结果
+    print("\n===== Crates 信息 =====")
+    for crate, info in crates.items():
+        print(f"crate: {crate}")
+        print(f"  prefix_dir: {info['prefix_dir']}")
+        for v in info["versions"]:
+            print(f"    - version: {v['version']}, checksum: {v['checksum']}, desc: {v['description']}")
+    print("========================\n")
         
     return crates
-
 
 def calculate_sha256(file_path):
     """
@@ -148,58 +176,95 @@ def calculate_sha256(file_path):
 
 def download_crate(crate_name, version, checksum):
     """
-    下载指定的 crate 包并验证校验和
-    
-    Args:
-        crate_name (str): crate 的名称
-        version (str): crate 的版本
-        checksum (str): 期望的 SHA-256 校验和
-    
-    Returns:
-        bool: 下载是否成功
+    下载指定的 crate 包（暂不验证校验和）
+    返回 (success, crate_name, version, checksum)
     """
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     crate_dir = os.path.join(DOWNLOAD_DIR, crate_name)
     os.makedirs(crate_dir, exist_ok=True)
-    
+
     url = f"https://static.crates.io/crates/{crate_name}/{crate_name}-{version}.crate"
     save_path = os.path.join(crate_dir, f"{crate_name}-{version}.crate")
-    
+
+    # 如果文件已存在，直接返回成功（跳过校验和验证）
     if os.path.exists(save_path):
-        actual_checksum = calculate_sha256(save_path)
-        if actual_checksum == checksum:
-            print(f"文件已存在且校验和正确，跳过下载：{crate_name}-{version}.crate")
-            return True
-        else:
-            print(f"文件已存在但校验和不匹配，将重新下载：{crate_name}-{version}.crate")
-            os.remove(save_path)
-    
+        print(f"文件已存在，跳过下载：{crate_name}-{version}.crate")
+        return True, crate_name, version, checksum
+
     for attempt in range(MAX_RETRIES):
         try:
-            subprocess.run([
-                "wget",
-                "-O", save_path,
-                url
-            ], check=True)
-            
-            actual_checksum = calculate_sha256(save_path)
-            if actual_checksum == checksum:
-                print(f"成功下载并验证：{crate_name}-{version}.crate")
-                return True
-            else:
-                print(f"校验和不匹配，尝试重新下载 (尝试 {attempt + 1}/{MAX_RETRIES})")
-                os.remove(save_path)
-                continue
-                
+            subprocess.run(
+                ["wget", "-O", save_path, url],
+                check=True
+            )
+
+            # 注释掉校验和验证部分
+            # actual_checksum = calculate_sha256(save_path)
+            # if actual_checksum == checksum:
+            print(f"成功下载：{crate_name}-{version}.crate")
+            return True, crate_name, version, checksum
+            # else:
+            #     print(f"校验和不匹配，尝试重新下载 (尝试 {attempt + 1}/{MAX_RETRIES})")
+            #     os.remove(save_path)
+            #     continue
+
         except subprocess.CalledProcessError as e:
             print(f"下载失败 {crate_name}-{version}.crate: {e}")
             if attempt < MAX_RETRIES - 1:
                 print(f"尝试重新下载 (尝试 {attempt + 1}/{MAX_RETRIES})")
                 continue
-            return False
-    
+            return False, crate_name, version, checksum
+
     print(f"达到最大重试次数，下载失败：{crate_name}-{version}.crate")
-    return False
+    return False, crate_name, version, checksum
+
+def download_crate_with_checksum(crate_name, version, checksum):
+    """
+    下载指定的 crate 包并验证校验和
+    返回 (success, crate_name, version, checksum)
+    """
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    crate_dir = os.path.join(DOWNLOAD_DIR, crate_name)
+    os.makedirs(crate_dir, exist_ok=True)
+
+    url = f"https://static.crates.io/crates/{crate_name}/{crate_name}-{version}.crate"
+    save_path = os.path.join(crate_dir, f"{crate_name}-{version}.crate")
+
+    if os.path.exists(save_path):
+        actual_checksum = calculate_sha256(save_path)
+        if actual_checksum == checksum:
+            print(f"文件已存在且校验和正确，跳过下载：{crate_name}-{version}.crate")
+            return True, crate_name, version, checksum
+        else:
+            print(f"文件已存在但校验和不匹配，将重新下载：{crate_name}-{version}.crate")
+            os.remove(save_path)
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            subprocess.run(
+                ["wget", "-O", save_path, url],
+                check=True
+            )
+
+            actual_checksum = calculate_sha256(save_path)
+            if actual_checksum == checksum:
+                print(f"成功下载并验证：{crate_name}-{version}.crate")
+                return True, crate_name, version, checksum
+            else:
+                print(f"校验和不匹配，尝试重新下载 (尝试 {attempt + 1}/{MAX_RETRIES})")
+                os.remove(save_path)
+                continue
+
+        except subprocess.CalledProcessError as e:
+            print(f"下载失败 {crate_name}-{version}.crate: {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"尝试重新下载 (尝试 {attempt + 1}/{MAX_RETRIES})")
+                continue
+            return False, crate_name, version, checksum
+
+    print(f"达到最大重试次数，下载失败：{crate_name}-{version}.crate")
+    return False, crate_name, version, checksum
+
 
 
 def decompress_crate(crate_path, extract_to=None):
@@ -302,6 +367,17 @@ def add_and_commit(repo_path, version, author_name="Mega", author_email="admin@m
     # 添加所有文件
     subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
 
+    # 检查是否有变动
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=repo_path
+    )
+    has_changes = result.returncode != 0  # 0 表示无变动
+
+    if not has_changes:
+        print(f"[DEBUG] {repo_path} 无新变动，跳过 commit")
+        return
+
     # 判断是否已有 commit
     result = subprocess.run(
         ["git", "rev-parse", "--verify", "HEAD"],
@@ -355,24 +431,6 @@ def git_push(repo_dir, mega_url, branch="master"):
         print("Some tags already exist in remote, continuing...")
 
 
-def send_kafka_message(broker, topic, message_dict):
-    """发送Kafka消息"""
-    producer = KafkaProducer(
-        bootstrap_servers=[broker],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-    producer.send(topic, message_dict)
-    producer.flush()
-
-def send_kafka_message_json(broker, topic, message_dict):
-    """发送Kafka消息"""
-    producer = KafkaProducer(
-        bootstrap_servers=[broker],
-        # 直接编码为字节，不进行 JSON 序列化
-        value_serializer=lambda v: v.encode('utf-8')
-    )
-    producer.send(topic, message_dict)
-    producer.flush()
 
 def remove_extension(path):
     """去掉文件扩展名"""
@@ -380,70 +438,331 @@ def remove_extension(path):
 
 
 def download_all_crates():
-    """下载所有crate包"""
-    crates = get_all_files("/opt/data/tmp")
+    """下载所有 crate 包，并在下载后立即 push 和发送消息"""
+    crates = get_all_files(CLONE_DIR)
     print(f"找到 {len(crates)} 个 crate。")
-    
-    downloaded = {}
-    for name, versions in crates.items():
-        for ver_info in versions:
-            version = ver_info["version"]
-            checksum = ver_info["checksum"]
-            success = download_crate(name, version, checksum)
-            if success:
-                downloaded.setdefault(name, []).append((version, checksum))
 
     processed = load_processed_from_db()
-    for name, version_checksum_list in downloaded.items():
-        version_checksum_list.sort(key=lambda x: vparse(x[0]))
-        
-        processed_entry = processed.get(name)
-        latest_version = processed_entry["latest_version"] if processed_entry else None
-        repo_id = processed_entry["id"] if processed_entry else None
-        print(f"latest_version: {latest_version}")
-        print(f"repo_id: {repo_id}")
 
-        if latest_version:
-            new_versions = [
-                (v, cksum) for v, cksum in version_checksum_list 
-                if vparse(v) > vparse(latest_version)
-            ]
-        else:
-            new_versions = version_checksum_list
+    if ENABLE_CONCURRENCY:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = []
+            for name, info in crates.items():
+                prefix_dir = info["prefix_dir"]
+                versions = info["versions"]
+
+                processed_entry = processed.get(name)
+                latest_version = processed_entry["latest_version"] if processed_entry else None
+                repo_id = processed_entry["id"] if processed_entry else None
+
+                for ver_info in versions:
+                    version = ver_info["version"]
+                    checksum = ver_info["checksum"]
+                    if latest_version and vparse(version) <= vparse(latest_version):
+                        continue
+
+                    futures.append(
+                        executor.submit(
+                            _download_and_process,
+                            name, version, checksum, repo_id, prefix_dir
+                        )
+                    )
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"任务执行异常: {e}")
+    else:
+        for name, info in crates.items():
+            prefix_dir = info["prefix_dir"]
+            versions = info["versions"]
+
+            processed_entry = processed.get(name)
+            latest_version = processed_entry["latest_version"] if processed_entry else None
+            repo_id = processed_entry["id"] if processed_entry else None
+
+            for ver_info in versions:
+                version = ver_info["version"]
+                checksum = ver_info["checksum"]
+                if latest_version and vparse(version) <= vparse(latest_version):
+                    continue
+
+                _download_and_process(name, version, checksum, repo_id, prefix_dir)
+
+
+
+def _download_and_process(crate_name, version, checksum, repo_id, prefix_dir):
+    """下载并立即 push、发消息"""
+    success, _, _, _ = download_crate(crate_name, version, checksum)
+    if not success:
+        print(f"[ERROR] 下载 {crate_name}-{version} 失败，跳过")
+        return
+
+    try:
+        process_and_upload(
+            crate_name=crate_name,
+            version=version,
+            checksum=checksum,
+            mega_url=MEGA_URL,
+            kafka_broker=KAFKA_BROKER,
+            kafka_topic=KAFKA_TOPIC,
+            repo_id=repo_id,
+            prefix_dir=prefix_dir  # <- 传递前缀
+        )
+    except Exception as e:
+        print(f"[ERROR] 处理 {crate_name}-{version} 失败: {e}")
+
+
+# def download_all_crates():
+#     """下载所有crate包"""
+#     crates = get_all_files(CLONE_DIR)
+#     print(f"找到 {len(crates)} 个 crate。")
+    
+#     downloaded = {}
+#     tasks = []
+
+#     if ENABLE_CONCURRENCY:
+#         print(f"启用并发下载，线程数={MAX_WORKERS}")
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+#             for name, versions in crates.items():
+#                 for ver_info in versions:
+#                     version = ver_info["version"]
+#                     checksum = ver_info["checksum"]
+#                     tasks.append(
+#                         executor.submit(download_crate, name, version, checksum)
+#                     )
+#             # 收集结果
+#             for future in concurrent.futures.as_completed(tasks):
+#                 try:
+#                     success, name, version, checksum = future.result()
+#                     if success:
+#                         downloaded.setdefault(name, []).append((version, checksum))
+#                 except Exception as e:
+#                     print(f"任务执行异常: {e}")
+#     else:
+#         print("按顺序下载（未启用并发）")
+#         for name, versions in crates.items():
+#             for ver_info in versions:
+#                 version = ver_info["version"]
+#                 checksum = ver_info["checksum"]
+#                 success = download_crate(name, version, checksum)
+#                 if success:
+#                     downloaded.setdefault(name, []).append((version, checksum))
+
+#     # 后续逻辑不变
+#     processed = load_processed_from_db()
+#     for name, version_checksum_list in downloaded.items():
+#         version_checksum_list.sort(key=lambda x: vparse(x[0]))
         
-        if not new_versions:
-            print(f"{name} crate 未更新，  (最新版本: {latest_version})")
-            continue
+#         processed_entry = processed.get(name)
+#         latest_version = processed_entry["latest_version"] if processed_entry else None
+#         repo_id = processed_entry["id"] if processed_entry else None
+
+#         if latest_version:
+#             new_versions = [
+#                 (v, cksum) for v, cksum in version_checksum_list 
+#                 if vparse(v) > vparse(latest_version)
+#             ]
+#         else:
+#             new_versions = version_checksum_list
         
-        print(f"处理并上传 crate {name} 的 {len(new_versions)} 个新版本")
-        for v, cksum in new_versions:
-            process_and_upload(
-                crate_name=name,
-                version=v,
-                checksum=cksum,
-                mega_url=MEGA_URL,
-                kafka_broker=KAFKA_BROKER,
-                kafka_topic=KAFKA_TOPIC,
-                repo_id=repo_id,
-            )
+#         if not new_versions:
+#             print(f"{name} crate 未更新，  (最新版本: {latest_version})")
+#             continue
+        
+#         print(f"处理并上传 crate {name} 的 {len(new_versions)} 个新版本")
+#         for v, cksum in new_versions:
+#             try:
+#                 process_and_upload(
+#                     crate_name=name,
+#                     version=v,
+#                     checksum=cksum,
+#                     mega_url=MEGA_URL,
+#                     kafka_broker=KAFKA_BROKER,
+#                     kafka_topic=KAFKA_TOPIC,
+#                     repo_id=repo_id,
+#                 )
+#             except FileNotFoundError as e:
+#                 print(f"[ERROR] {e}, 跳过该版本")
+#                 continue
+#             except Exception as e:
+#                 print(f"[ERROR] 上传 {name} {v} 失败: {e}")
+#                 continue
+
+
+# def download_all_crates():
+#     """下载所有crate包"""
+#     crates = get_all_files(CLONE_DIR)
+#     print(f"找到 {len(crates)} 个 crate。")
+    
+#     downloaded = {}
+#     for name, versions in crates.items():
+#         for ver_info in versions:
+#             version = ver_info["version"]
+#             checksum = ver_info["checksum"]
+#             success = download_crate(name, version, checksum)
+#             if success:
+#                 downloaded.setdefault(name, []).append((version, checksum))
+
+#     processed = load_processed_from_db()
+#     for name, version_checksum_list in downloaded.items():
+#         version_checksum_list.sort(key=lambda x: vparse(x[0]))
+        
+#         processed_entry = processed.get(name)
+#         latest_version = processed_entry["latest_version"] if processed_entry else None
+#         repo_id = processed_entry["id"] if processed_entry else None
+#         print(f"latest_version: {latest_version}")
+#         print(f"repo_id: {repo_id}")
+
+#         if latest_version:
+#             new_versions = [
+#                 (v, cksum) for v, cksum in version_checksum_list 
+#                 if vparse(v) > vparse(latest_version)
+#             ]
+#         else:
+#             new_versions = version_checksum_list
+        
+#         if not new_versions:
+#             print(f"{name} crate 未更新，  (最新版本: {latest_version})")
+#             continue
+        
+#         print(f"处理并上传 crate {name} 的 {len(new_versions)} 个新版本")
+#         for v, cksum in new_versions:
+#             process_and_upload(
+#                 crate_name=name,
+#                 version=v,
+#                 checksum=cksum,
+#                 mega_url=MEGA_URL,
+#                 kafka_broker=KAFKA_BROKER,
+#                 kafka_topic=KAFKA_TOPIC,
+#                 repo_id=repo_id,
+#             )
     
 
+def send_kafka_message(topic, message_dict: dict):
+    """发送 dict，自动转 JSON"""
+    p = init_kafka_producer()
+    try:
+        p.send(topic, message_dict)
+    except Exception as e:
+        print(f"[Kafka] Failed to send to {topic}: {e}")
 
-def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, kafka_topic, repo_id):
+# def send_kafka_message_raw(topic, message_str: str):
+#     """发送原始 JSON 字符串"""
+#     p = init_kafka_producer()
+#     try:
+#         # 注意这里要禁用二次 json.dumps，因为 producer 已经有 value_serializer
+#         p.send(topic, json.loads(message_str))
+#     except Exception as e:
+#         print(f"[Kafka] Failed to send raw to {topic}: {e}")
+
+
+def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, kafka_topic, repo_id, prefix_dir):
+    """处理 crate：解压、commit、push，并发送 Kafka 消息"""
+    
+    print(f"\n[DEBUG] 开始处理 crate: {crate_name}-{version}")
+    print(f"[DEBUG] checksum: {checksum}")
+    print(f"[DEBUG] prefix_dir: {prefix_dir}")
+
     crate_file = os.path.join(DOWNLOAD_DIR, crate_name, f"{crate_name}-{version}.crate")
-    repo_dir = os.path.join(DOWNLOAD_DIR, crate_name, crate_name)
+    print(f"[DEBUG] crate_file path: {crate_file}")
+
+    if not prefix_dir:
+        raise ValueError(f"{crate_name} {version} 缺少 index 前缀目录信息")
+    
+    repo_dir = os.path.join(DOWNLOAD_DIR, crate_name, version)
+    print(f"[DEBUG] repo_dir: {repo_dir}")
+
     crate_entry = os.path.join(DOWNLOAD_DIR, crate_name)
 
+    # 初始化仓库 + 解压
     init_or_clean_repo(repo_dir)
     decompress_crate(crate_file, crate_entry)
-    
+
     uncompress_path = remove_extension(crate_file)
     copy_files(uncompress_path, repo_dir)
     shutil.rmtree(uncompress_path)
 
     add_and_commit(repo_dir, version)
 
-    mega_url_crate = f"{mega_url}/third-party/crates/{crate_name}"
+    mega_url_crate = f"{mega_url}/third-party/rust/crates/{prefix_dir}/{crate_name}/{version}"
+    print(f"[DEBUG] git push URL: {mega_url_crate}")
+
+    # push
+    try:
+        git_push(repo_dir, mega_url_crate)
+        push_status = SyncStatusEnum.SUCCEED
+        err_msg = None
+        print(f"[DEBUG] push 成功: {crate_name}-{version}")
+    except Exception as e:
+        print(f"[ERROR] Push failed: {e}")
+        push_status = SyncStatusEnum.FAILED
+        err_msg = str(e)
+
+    # 更新数据库
+    print(f"[DEBUG] 更新数据库: {crate_name}-{version}, status={push_status}")
+    update_repo_sync_result(
+        crate_name=crate_name,
+        version=version,
+        mega_url=mega_url_crate,
+        status=push_status,
+        err_message=err_msg
+    )
+
+    # 构造 Kafka 消息
+    print(f"[DEBUG] 发送 Kafka 消息: topic={kafka_topic}, crate={crate_name}-{version}")
+    db_model = RepoSyncModel(
+        id=repo_id or 0,
+        crate_name=crate_name,
+        github_url=None,
+        mega_url=mega_url_crate,
+        crate_type=CrateTypeEnum.LIB,
+        status=push_status,
+        err_message=err_msg
+    )
+
+    message = MessageModel(
+        db_model=db_model,
+        message_kind=MessageKindEnum.MEGA,
+        source_of_data=SourceOfDataEnum.CRATESIO,
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        extra_field=None
+    )
+    send_kafka_message(kafka_topic, message.model_dump())
+
+    index_message = {
+        "crate_name": crate_name,
+        "crate_version": version,
+        "cksum": checksum,
+        "data_source": "Cratesio",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "version": "",
+        "uuid": str(uuid.uuid4())
+    }
+    print(f"[DEBUG] 发送 Kafka index 消息: {index_message}")
+    send_kafka_message(KAFKA_TOPIC_INDEX, index_message)
+
+
+
+def process_and_upload_old(crate_name, version, checksum, mega_url, kafka_broker, kafka_topic, repo_id, prefix_dir):
+    """处理 crate：解压、commit、push，并发送 Kafka 消息
+       prefix_dir 是 crate 在 index 中的前缀目录，如 "wi/na"
+    """
+    crate_file = os.path.join(DOWNLOAD_DIR, crate_name, f"{crate_name}-{version}.crate")  # 下载的 .crate 文件
+
+    # 直接使用 prefix_dir 构造 index 路径，不再遍历 CLONE_DIR
+    if not prefix_dir:
+        raise ValueError(f"{crate_name} {version} 缺少 index 前缀目录信息")
+
+    repo_dir = os.path.join(DOWNLOAD_DIR, crate_name, version)
+
+    init_or_clean_repo(repo_dir)  # 会保留 .git
+    decompress_crate(crate_file, repo_dir)
+
+    add_and_commit(repo_dir, version)
+
+    mega_url_crate = f"{mega_url}/third-party/rust/crates/{prefix_dir}/{crate_name}/{version}"
     print(f"git push to {mega_url_crate}")
     try:
         git_push(repo_dir, mega_url_crate)
@@ -454,8 +773,6 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
         push_status = SyncStatusEnum.FAILED
         err_msg = str(e)
 
-    push_status = SyncStatusEnum.SUCCEED
-    err_msg = None
     # 更新数据库
     update_repo_sync_result(
         crate_name=crate_name,
@@ -482,28 +799,66 @@ def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, ka
         db_model=db_model,
         message_kind=MessageKindEnum.MEGA,
         source_of_data=SourceOfDataEnum.CRATESIO,
-        timestamp=datetime.utcnow().isoformat()  + "Z",
+        timestamp=datetime.utcnow().isoformat() + "Z",
         extra_field=None
     )
 
-    send_kafka_message_json(kafka_broker, kafka_topic, message.model_dump_json())
+    send_kafka_message(kafka_topic, message.model_dump())
 
     index_message = {
         "crate_name": crate_name,
         "crate_version": version,
         "cksum": checksum,
         "data_source": "Cratesio",
-        "timestamp": datetime.utcnow().isoformat()  + "Z" ,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "",
         "uuid": str(uuid.uuid4())
     }
-    send_kafka_message(kafka_broker, KAFKA_TOPIC_INDEX, index_message)
+    send_kafka_message(KAFKA_TOPIC_INDEX, index_message)
+
 
 
 
 # 初始化数据库表（确保第一次运行能建表）
 Base.metadata.create_all(bind=engine)
 
+producer = None
+producer_lock = threading.Lock()
+flush_interval = 5
+
+def _periodic_flush():
+    """后台线程定期 flush KafkaProducer"""
+    global producer
+    while True:
+        time.sleep(flush_interval)
+        try:
+            if producer is not None:
+                producer.flush()
+                # print("Kafka producer flushed")
+        except Exception as e:
+            print(f"[Kafka] Flush failed: {e}")
+
+def init_kafka_producer():
+    """初始化全局 Kafka producer（线程安全）"""
+    global producer
+    if producer is None:  
+        with producer_lock:
+            if producer is None:  # double-checked locking
+                producer = KafkaProducer(
+                    bootstrap_servers=[KAFKA_BROKER],
+                    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                    retries=5,
+                    linger_ms=20,       # 延迟 20ms 批量发送
+                    batch_size=64*1024  # 批量大小 64KB
+                )
+
+                # 启动后台 flush 线程
+                t = threading.Thread(target=_periodic_flush, daemon=True)
+                t.start()
+          
+                atexit.register(lambda: producer.flush())
+                atexit.register(lambda: producer.close())
+    return producer
 
 def main():
     """主函数，协调整个下载过程"""
