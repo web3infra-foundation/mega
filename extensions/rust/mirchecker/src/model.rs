@@ -49,5 +49,5 @@ pub struct MessageModel {
     pub message_kind: MessageKind,
     pub source_of_data: SourceOfData,
     pub timestamp: DateTime<Utc>, // 消息发送时的时间戳
-    pub extra_field: Option<String>,      // 可以添加额外字段
+    pub extra_field: Option<String>,      // Can add extra field
 }
