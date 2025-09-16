@@ -15,6 +15,7 @@ import { cn } from '@gitmono/ui/utils'
 import { EMPTY_HTML } from '@/atoms/markdown'
 import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
+import TitleInput from '@/components/Issues/TitleInput'
 import {
   splitFun,
   useAssigneesSelector,
@@ -49,8 +50,6 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-import TitleInput from '@/components/Issues/TitleInput'
-
 
 export interface MRDetail {
   status: string
@@ -378,7 +377,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
           )}
           <div>
             <TabLayout>
-              {tab === 'check' && <Checks mr={id} />}
+              {tab === 'check' && <Checks mr={item_id} />}
               {tab === 'conversation' && <Conversation />}
               {tab === 'filechange' && <FileChange />}
             </TabLayout>

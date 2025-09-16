@@ -1,9 +1,14 @@
+import {
+  GetTaskBuildListByIdData,
+  GetTaskHistoryOutputByIdData,
+  GetTaskHistoryOutputByIdParams,
+  GetTasksByMrData
+} from '@gitmono/types/generated'
+
 import { SSEPATH } from '@/components/MrView/hook/useSSM'
 
-import { HTTPLogRes } from './useGetHTTPLog'
-
-export const fetchTask = async (mr: string) => {
-  const res = await fetch(`/sse/mr-task/${mr}`, {
+export const fetchTask = async (mr: number): Promise<GetTasksByMrData> => {
+  const res = await fetch(`${SSEPATH}/tasks/${mr}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
@@ -44,9 +49,27 @@ export const MrTaskStatus = async (mr: string) => {
   return res.json()
 }
 
-export const HttpTaskRes = async (taskId: string, offset: number, len: number): Promise<HTTPLogRes> => {
-  const res = await fetch(`${SSEPATH}task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
-  // const res = await fetch(`/sse/task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
+export const HttpTaskRes = async (payload: GetTaskHistoryOutputByIdParams): Promise<GetTaskHistoryOutputByIdData> => {
+  const res = await fetch(
+    `${SSEPATH}task-history-output/${payload.id}?type=${payload.type}?offset=${payload.offset}&limit=${payload.limit}`,
+    {
+      // const res = await fetch(`/sse/task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+
+  if (!res.ok) {
+    throw new Error(`HTTP error ${res.status}`)
+  }
+  return res.json()
+}
+
+export const fetchAllbuildList = async (id: string): Promise<GetTaskBuildListByIdData> => {
+  const res = await fetch(`${SSEPATH}task-build-list/${id}`, {
+    // const res = await fetch(`/sse/task-output-segment/${taskId}?offset=${offset}&len=${len}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
