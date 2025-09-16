@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
+use ceres::model::git::TreeQuery;
 use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
@@ -13,8 +14,7 @@ use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::mr::model::{
-    ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
-    ReviewersResponse,
+    ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload, ReviewersResponse
 };
 use crate::api::{
     api_common::{
@@ -271,6 +271,7 @@ async fn mr_detail(
     get,
     params(
         ("link", description = "MR link"),
+        TreeQuery,
     ),
     path = "/{link}/mui-tree",
     responses(
@@ -280,9 +281,12 @@ async fn mr_detail(
 )]
 async fn mr_mui_tree(
     Path(link): Path<String>,
+    Query(query): Query<TreeQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
-    let files = state.monorepo().get_sorted_changed_file_list(&link).await?;
+    let path = query.path.clone();
+
+    let files = state.monorepo().get_sorted_changed_file_list(&link, Some(&path)).await?;
     let mui_trees = build_forest(files);
     Ok(Json(CommonResult::success(Some(mui_trees))))
 }

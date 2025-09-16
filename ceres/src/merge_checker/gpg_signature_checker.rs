@@ -43,7 +43,7 @@ impl Checker for GpgSignatureChecker {
             }
 
             Err(e) => {
-                res.status = ConditionResult::PASSED;
+                res.status = ConditionResult::FAILED;
                 res.message = format!("Error during GPG signature verification: {e}");
             }
         };
