@@ -102,3 +102,21 @@ s3_bucket = "gitmono"
 s3_region = "ap-southeast-2"
 s3_access_key_id = ""
 s3_secret_access_key = ""
+
+[blame]
+# Configuration for blame functionality and large file handling
+# Maximum number of lines before considering a file as large
+max_lines_threshold = 1000
+
+# Maximum file size in bytes before considering a file as large
+# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB
+max_size_threshold = "1MB"
+
+# Default chunk size for streaming operations when processing large files
+default_chunk_size = 100
+
+# Maximum number of commits to process in memory at once during blame traversal
+max_commits_in_memory = 50
+
+# Enable caching of intermediate blame results for better performance
+enable_caching = true

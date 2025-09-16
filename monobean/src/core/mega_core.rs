@@ -624,6 +624,7 @@ mod tests {
             pack: PackConfig::default(),
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
+            blame: BlameConfig::default(),
             oauth: None,
             build: BuildConfig::default(),
         };

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use jupiter::storage::Storage;
+
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
@@ -18,6 +19,7 @@ use mercury::internal::object::tree::TreeItemMode;
 use tokio::sync::Mutex;
 
 use crate::api_service::{ApiHandler, GitObjectCache};
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 
@@ -141,6 +143,17 @@ impl ApiHandler for ImportApiService {
             }
             None => Ok(HashMap::new()),
         }
+    }
+
+    async fn get_file_blame(
+        &self,
+        _file_path: &str,
+        _ref_name: Option<&str>,
+        _query: BlameQuery,
+    ) -> Result<BlameResult, GitError> {
+        Err(GitError::CustomError(
+            "Import directory does not support blame functionality".to_string(),
+        ))
     }
 }
 

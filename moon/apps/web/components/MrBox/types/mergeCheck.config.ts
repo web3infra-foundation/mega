@@ -1,3 +1,5 @@
+import { CheckType, Condition, ConditionResult } from "@gitmono/types";
+
 export interface TaskData {
   "arguments": string,
   "build_id": string,
@@ -15,26 +17,18 @@ export type GetApiTasksData = TaskData[]
 
 export type GroupStatus = 'Success' | 'Failure' | 'Pending';
 
-export type AdditionalCheckStatus = 'Success' | 'Failure' | 'Pending' | 'Warning';
+export type AdditionalCheckStatus = ConditionResult;
 
-export interface AdditionalCheckItem {
-  type: AdditionalCheckType;
-  status: AdditionalCheckStatus;
-  message?: string;
-  errors?: string[];
-}
+export type AdditionalCheckItem = Condition
 
-export type AdditionalCheckType = 
-  | 'GPG_SIGNATURE'
-  | 'BRANCH_PROTECTION'
-  | 'COMMIT_MESSAGE_FORMAT'
-  | 'PR_UPDATE_STATUS'
-  | 'CONFLICT_DETECTION';
+export type AdditionalCheckType = CheckType
 
 export const ADDITIONAL_CHECK_LABELS: Record<AdditionalCheckType, string> = {
-  GPG_SIGNATURE: 'GPG 签名验证',
-  BRANCH_PROTECTION: '分支保护规则',
-  COMMIT_MESSAGE_FORMAT: '提交信息规范',
-  PR_UPDATE_STATUS: 'PR 更新状态',
-  CONFLICT_DETECTION: '冲突检测'
+  [CheckType.GpgSignature]: 'GPG签名验证',
+  [CheckType.BranchProtection]: '分支保护',
+  [CheckType.CommitMessage]: '提交信息规范',
+  [CheckType.CiStatus]: 'CI状态',
+  [CheckType.MrSync]: 'Mr同步状态',
+  [CheckType.MergeConflict]: '合并冲突检测',
+  [CheckType.CodeReview]: '代码审查状态'
 };
