@@ -10,10 +10,6 @@ pub struct Model {
     pub crate_type: CrateType,
     pub status: RepoSyncStatus,
     pub err_message: Option<String>,
-    //pub created_at: DateTime<Utc>,
-    //pub updated_at: DateTime<Utc>,
-    //pub message_kind: MessageKind,
-    //pub sourc_of_data: SourceOfData,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
