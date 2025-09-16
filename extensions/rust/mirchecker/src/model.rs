@@ -45,7 +45,7 @@ pub enum SourceOfData {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageModel {
-    pub db_model: Model, // 包装数据库 Model
+    pub db_model: Model, // Wraps the database Model
     pub message_kind: MessageKind,
     pub source_of_data: SourceOfData,
     pub timestamp: DateTime<Utc>, // 消息发送时的时间戳
