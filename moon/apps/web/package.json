@@ -130,6 +130,7 @@
     "react-timeago": "catalog:",
     "react-tweet": "catalog:",
     "react-use-measure": "catalog:",
+    "react-virtuoso": "^4.14.0",
     "react-wrap-balancer": "catalog:",
     "remeda": "catalog:",
     "slugify": "catalog:",
