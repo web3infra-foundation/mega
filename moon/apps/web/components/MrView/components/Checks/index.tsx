@@ -1,35 +1,66 @@
-import { useEffect } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 import { useAtom } from 'jotai'
 
-import { LoadingSpinner } from '@gitmono/ui/Spinner'
-
 import { buildIdAtom } from '@/components/Issues/utils/store'
-import { HttpTaskRes } from '@/hooks/SSE/ssmRequest'
+import { fetchAllbuildList, HttpTaskRes } from '@/hooks/SSE/ssmRequest'
+import { useGetMrTask } from '@/hooks/SSE/useGetMrTask'
+
 // import { TaskResult } from '@/hooks/SSE/useGetMrTask'
-import { useGetMrTaskStatus } from '@/hooks/SSE/useGetMrTaskStatus'
 
 import { useTaskSSE } from '../../hook/useSSM'
 import { statusMapAtom } from './cpns/store'
 import { Task } from './cpns/Task'
 
-const Checks = ({ mr }: { mr: string }) => {
+const Checks = ({ mr }: { mr: number }) => {
   // const { data } = useGetMrTask(mr)
   const [buildid, _setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
+  const tasksId = useRef<string[]>([])
+  const allBUildIds = useRef<string[]>([])
   // 获取所有构建任务
-  const { data: status } = useGetMrTaskStatus(mr)
+  // const { data: status } = useGetMrTaskStatus(mr)
+  const { data: tasks } = useGetMrTask(mr)
+
+  tasks && (tasksId.current = tasks.map((i) => i.task_id))
+
+  const establish = async () => {
+    const statusList = await Promise.allSettled(tasksId.current.map(async (i) => fetchAllbuildList(i)))
+
+    allBUildIds.current = statusList
+      .map((i) => {
+        if (i.status === 'fulfilled' && i.value) {
+          return i.value
+        }
+        return []
+      })
+      .flat()
+
+    allBUildIds.current.map((id) => setEventSource(id))
+  }
+
+  // 进入页面建立连接
+
+  // const { data: tasks } = useGetMrTask(2816411452522757)
+
+  // 进入页面建立所有连接
+  // 进入页面时先获取所有的构建任务
+  // useEffect(()=>{
+  //   const {} =
+  // },[])
 
   useEffect(() => {
+    if (!allBUildIds.current.length) return
+    establish()
     // 构建日志id与日志映射，同时获取已存在日志
-    if (!status) return
+
     // setBuildId((prev) => prev ?? status[0].build_id)
     const fetchLogs = async () => {
       const logsResult = await Promise.allSettled(
-        status.map(async (i) => {
-          statusMap.set(i.build_id, i)
-          const res = await HttpTaskRes(i.build_id, 0, 4096)
+        allBUildIds.current.map(async (id) => {
+          // statusMap.set(i.build_id, i)
+          const res = await HttpTaskRes({ id, type: 'full' })
 
           return res
         })
@@ -53,15 +84,15 @@ const Checks = ({ mr }: { mr: string }) => {
       statusMap.clear()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
+  }, [])
 
   // 页面加载时建立连接
-  useEffect(() => {
-    if (status?.length) {
-      status.map((i) => setEventSource(i.build_id))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
+  // useEffect(() => {
+  //   if (status?.length) {
+  //     status.map((i) => setEventSource(i.build_id))
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [status])
 
   return (
     <>
@@ -74,22 +105,24 @@ const Checks = ({ mr }: { mr: string }) => {
         <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
           {/* left side */}
           <div className='h-full w-[40%] border-r'>
-            {status && <Task list={status} />}
+            {/* {mockTasksList && mockTasksList.map((t) => <Task key={t.task_id} list={t} />)} */}
+            {tasks && tasks.map((t) => <Task key={t.task_id} list={t} />)}
             {/* <Task list={status as TaskResult[]} /> */}
           </div>
           {/* right side */}
           <div className='flex-1'>
             {
-              logsMap[buildid] && eventSourcesRef.current[buildid] ? (
+              logsMap[buildid] && eventSourcesRef.current[buildid] && (
                 <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
-              ) : eventSourcesRef.current[buildid] ? (
-                <div></div>
-              ) : (
-                // <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
-                <div className='flex h-full flex-1 items-center justify-center'>
-                  <LoadingSpinner />
-                </div>
               )
+              // : eventSourcesRef.current[buildid] ? (
+              //   <div></div>
+              // ) : (
+              //   // <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+              //   <div className='flex h-full flex-1 items-center justify-center'>
+              //     <LoadingSpinner />
+              //   </div>
+              // )
 
               // loading && (
               //   <div className='flex h-full flex-1 items-center justify-center'>
@@ -104,5 +137,4 @@ const Checks = ({ mr }: { mr: string }) => {
   )
 }
 
-// export default memo(Checks)
-export default Checks
+export default memo(Checks)

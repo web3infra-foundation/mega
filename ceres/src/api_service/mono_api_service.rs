@@ -581,6 +581,7 @@ impl MonoApiService {
     pub async fn get_sorted_changed_file_list(
         &self,
         mr_link: &str,
+        path: Option<&str>,
     ) -> Result<Vec<String>, MegaError> {
         let mr = self
             .storage
@@ -600,6 +601,13 @@ impl MonoApiService {
         let file_paths: Vec<String> = sorted_changed_files
             .iter()
             .map(|f| f.path().to_string_lossy().to_string())
+            .filter(|file_path| {
+                if let Some(prefix) = path {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
             .collect();
 
         Ok(file_paths)
@@ -963,6 +971,53 @@ mod test {
         assert_eq!(old_blobs.len(), 1);
         assert_eq!(new_blobs.len(), 0);
         assert_eq!(old_blobs[0].0, PathBuf::from("deleted_file.txt"));
+    }
+
+    #[test]
+    fn test_file_lists_with_roots() {
+        let all_files = vec![
+            "src/main.rs".to_string(),
+            "src/utils/math.rs".to_string(),
+            "src/utils/io.rs".to_string(),
+            "README.md".to_string(),
+        ];
+
+        let root: Option<&str> = None;
+        let filtered_none: Vec<String> = all_files
+            .iter()
+            .filter(|file_path| {
+                if let Some(prefix) = root {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        assert_eq!(filtered_none.len(), 4);
+        assert_eq!(filtered_none, all_files);
+
+        let filtered_some: Vec<String> = all_files
+            .iter()
+            .filter(|file_path| {
+                if let Some(prefix) = Some("src/utils") {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        assert_eq!(filtered_some.len(), 2);
+        assert_eq!(
+            filtered_some,
+            vec![
+                "src/utils/math.rs".to_string(),
+                "src/utils/io.rs".to_string()
+            ]
+        );
     }
 
     #[test]

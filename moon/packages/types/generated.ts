@@ -4989,6 +4989,13 @@ export type GetApiMrMergeBoxData = CommonResultMergeBoxRes
 
 export type PostApiMrMergeNoAuthData = CommonResultString
 
+export type GetApiMrMuiTreeParams = {
+  oid?: string | null
+  path?: string
+  /** MR link */
+  link: string
+}
+
 export type GetApiMrMuiTreeData = CommonResultVecMuiTreeNode
 
 export type DeleteApiMrRemoveReviewersData = CommonResultString
@@ -14272,11 +14279,12 @@ It's for local testing purposes.
 
       return {
         baseKey: dataTaggedQueryKey<GetApiMrMuiTreeData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrMuiTreeData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
+        requestKey: (params: GetApiMrMuiTreeParams) => dataTaggedQueryKey<GetApiMrMuiTreeData>([base, params]),
+        request: ({ link, ...query }: GetApiMrMuiTreeParams, params: RequestParams = {}) =>
           this.request<GetApiMrMuiTreeData>({
             path: `/api/v1/mr/${link}/mui-tree`,
             method: 'GET',
+            query: query,
             ...params
           })
       }
