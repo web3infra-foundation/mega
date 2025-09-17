@@ -8,6 +8,8 @@ members = [
   "common/search",
   "common/tudriver",           # tugraph client, deal with the quary from router
   "tugraph",
+  "sensleak",
+  "mirchecker",
 ]
 
 resolver = "2" # use resolver of version 2
@@ -22,5 +24,7 @@ tudriver = { path = "common/tudriver" }
 database = { path = "common/database" }
 entity = { path = "common/database/entity" }
 import_tugraph = {path = "tugraph"}
+sensleak_analysis = {path = "sensleak"}
+mirchecker_analysis = {path = "mirchecker"}
 
 # third-party (所有第三方依赖, 按字母表排序, 均保留1个小数点)
