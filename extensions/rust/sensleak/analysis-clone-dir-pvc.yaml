@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cratespro-analysis-clone-dir-pv
+  labels:
+    app: cratespro-analysis-clone-dir
+spec:
+  capacity:
+    storage: 100Gi
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteMany  # 允许多个容器同时读写
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    type: Directory
+    path: /mnt/data/analysis-clone-dir
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: analysis-clone-dir-pvc
+  namespace: crates-pro
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: local-path
+  selector:
+    matchLabels:
+      app: cratespro-analysis-clone-dir
