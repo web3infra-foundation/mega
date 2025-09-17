@@ -32,7 +32,9 @@ export default function EcosystemCVEPage() {
     const fetchCVEList = async () => {
       try {
         setLoading(true)
-        const response = await fetch('http://cratespro.gitmega.nju:8080/api/cvelist')
+        const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+        
+        const response = await fetch(`${apiBaseUrl}/api/cvelist`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch CVE data')
