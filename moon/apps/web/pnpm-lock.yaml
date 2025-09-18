@@ -1,0 +1,44 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@gitmono/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@gitmono/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@gitmono/regex':
+        specifier: workspace:*
+        version: link:../../packages/regex
+      '@gitmono/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      tinycolor2:
+        specifier: ^1.6.0
+        version: 1.6.0
+    devDependencies:
+      '@gitmono/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-gitmono
+      '@gitmono/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      '@gitmono/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+
+packages:
+
+  tinycolor2@1.6.0:
+    resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==}
+
+snapshots:
+
+  tinycolor2@1.6.0: {}
