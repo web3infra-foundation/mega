@@ -160,7 +160,7 @@ impl ApiHandler for MonoApiService {
         Ok(())
     }
 
-    fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
+    fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
         Ok(path.to_path_buf())
     }
 
