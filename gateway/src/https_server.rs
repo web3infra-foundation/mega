@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use axum::routing::get;
 use axum::{http, Router};
 use clap::Args;
 
 use context::AppContext;
 use quinn::rustls;
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -53,6 +56,7 @@ pub async fn http_server(context: AppContext, options: HttpOptions) {
 pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> Router {
     let state = ProtocolApiState {
         storage: storage.clone(),
+        shared: Arc::new(Mutex::new(0)),
     };
 
     let mono_api_state = MonoApiServiceState {

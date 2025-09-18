@@ -121,7 +121,6 @@ impl MrReviewerStorage {
         rev.update(self.get_connection()).await.map_err(|e| {
             tracing::error!("{}", e);
             MegaError::with_message(format!("fail to update reviewer {}", reviewer_username))
-
         })?;
 
         Ok(())

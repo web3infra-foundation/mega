@@ -29,4 +29,3 @@ pub struct ReviewerInfo {
     pub username: String,
     pub approved: bool,
 }
-
