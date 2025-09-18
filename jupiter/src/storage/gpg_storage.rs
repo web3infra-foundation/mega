@@ -82,14 +82,14 @@ impl GpgStorage {
     }
 
     pub async fn list_user_gpg(&self, user_id: String) -> Result<Vec<gpg_key::Model>, MegaError> {
-        let now = Utc::now().naive_utc(); 
+        let now = Utc::now().naive_utc();
 
         let res: Vec<gpg_key::Model> = gpg_key::Entity::find()
             .filter(gpg_key::Column::UserId.eq(user_id))
             .filter(
                 Expr::col(gpg_key::Column::ExpiresAt)
                     .is_null()
-                    .or(Expr::col(gpg_key::Column::ExpiresAt).gt(now))
+                    .or(Expr::col(gpg_key::Column::ExpiresAt).gt(now)),
             )
             .all(self.get_connection())
             .await
@@ -110,14 +110,11 @@ fn test_create_key() {
     let fingerprint = format!("{:?}", pk.fingerprint()).to_uppercase();
     let created_at = pk.created_at().naive_utc();
     let expires_at = pk.expires_at().map(|t| t.naive_utc());
-    
-    print!("{}",fingerprint);
-    print!("{}",created_at);
+
+    print!("{}", fingerprint);
+    print!("{}", created_at);
 
     assert_eq!(key_id, "42FF407836735DBD");
-    assert_eq!(
-        fingerprint,
-        "C59ED2DBB2531850A4F3E82942FF407836735DBD"
-    );
+    assert_eq!(fingerprint, "C59ED2DBB2531850A4F3E82942FF407836735DBD");
     assert!(expires_at.is_none());
 }

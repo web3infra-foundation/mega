@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analysis-sensleak
+  namespace: crates-pro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analysis-sensleak
+  template:
+    metadata:
+      labels:
+        app: analysis-sensleak
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: container-0
+        image: localhost:30500/cratespro-analysis-sensleak:local-20250905-1633
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAFKA_BROKER
+          value: "my-kafka.kafka.svc.cluster.local:9092"
+        - name: PG_HOST
+          value: "postgresql-test1.postgresql.svc.cluster.local"
+        - name: PG_PORT
+          value: "5432"
+        - name: CLONE_DIR
+          value: "/tmp/analysis-repos"
+        volumeMounts:
+        - mountPath: /tmp/analysis-repos
+          name: clone-dir-volume
+      volumes:
+      - name: clone-dir-volume
+        persistentVolumeClaim:
+          claimName: analysis-clone-dir-pvc
