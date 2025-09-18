@@ -591,6 +591,7 @@ impl P2PClient {
             storage: self.storage.clone(),
             repo,
             command_list: vec![],
+            shared: Arc::new(Mutex::new(0)),
         };
         match import_repo.full_pack(vec![]).await {
             Ok(s) => Ok(s.into_inner()),

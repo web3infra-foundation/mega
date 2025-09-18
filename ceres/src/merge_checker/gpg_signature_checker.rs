@@ -117,7 +117,8 @@ impl GpgSignatureChecker {
         signature: &str,
         message: &str,
     ) -> Result<(), MegaError> {
-        let (signature, _) = StandaloneSignature::from_string(&normalize_signature_block(signature))?;
+        let (signature, _) =
+            StandaloneSignature::from_string(&normalize_signature_block(signature))?;
         let (keys, _) = SignedPublicKey::from_armor_many(public_key.as_bytes())?;
         let header = format!("commit {}\0", message.len());
         let msg_bytes = [header.as_bytes(), message.as_bytes()].concat();
@@ -165,7 +166,7 @@ fn extract_from_commit_content(msg_gpg: &str) -> (&str, Option<&str>) {
 
 #[test]
 fn test_extract_signature_from_commits() {
-    let cm= r#"tree 341e54913a3a43069f2927cc0f703e5a9f730df1
+    let cm = r#"tree 341e54913a3a43069f2927cc0f703e5a9f730df1
     author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
     committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
     gpgsig -----BEGIN PGP SIGNATURE-----
@@ -193,10 +194,7 @@ fn test_extract_signature_from_commits() {
     let sig = sig.expect("unable to parse");
     print!("{msg}\n{sig}");
 
-    assert_eq!(
-        msg,
-        "test parse commit from bytes\n    "
-    );
+    assert_eq!(msg, "test parse commit from bytes\n    ");
 
     assert_eq!(
         sig,
