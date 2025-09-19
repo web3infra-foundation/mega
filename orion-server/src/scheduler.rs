@@ -6,6 +6,7 @@ use rand::Rng;
 use sea_orm::ActiveModelTrait;
 use sea_orm::{ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -387,7 +388,7 @@ impl TaskScheduler {
             end_at: Set(None),
             repo: Set(build_info.repo.clone()),
             target: Set("//...".to_string()),
-            args: Set(build_info.args.clone()),
+            args: Set(build_info.args.as_ref().map(|v| json!(v))),
             output_file: Set(format!("{}/{}", get_build_log_dir(), pending_task.build_id)),
             created_at: Set(build_info
                 .start_at
