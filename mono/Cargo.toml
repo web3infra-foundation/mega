@@ -55,6 +55,7 @@ oauth2 = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
 async-trait = { workspace = true }
 time = { workspace = true, features = ["serde"] }
+sea-orm = { workspace = true, features = ["macros"] }
 
 http = { workspace = true }
 cedar-policy = { workspace = true }
@@ -63,6 +64,8 @@ utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
 neptune = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
 
 
 

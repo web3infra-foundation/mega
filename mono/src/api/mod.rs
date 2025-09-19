@@ -35,6 +35,7 @@ pub mod lfs;
 pub mod mr;
 pub mod notes;
 pub mod oauth;
+pub mod tag;
 pub mod user;
 
 pub type GithubClient<

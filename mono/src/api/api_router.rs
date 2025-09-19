@@ -21,7 +21,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
     commit::commit_router, conversation::conv_router, error::ApiError, gpg::gpg_router,
-    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, user::user_router,
+    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, tag::tag_router, user::user_router,
     MonoApiServiceState,
 };
 use crate::server::http_server::GIT_TAG;
@@ -47,6 +47,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(conv_router::routers())
         .merge(note_router::routers())
         .merge(commit_router::routers())
+        .merge(tag_router::routers())
 }
 
 /// Get blob file as string
