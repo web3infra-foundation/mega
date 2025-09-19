@@ -4,6 +4,7 @@ use chrono::Utc;
 use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue::Set, ConnectionTrait};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 use crate::scheduler::BuildRequest;
 
@@ -18,8 +19,8 @@ pub struct Model {
     pub end_at: Option<DateTimeWithTimeZone>,
     pub repo: String,
     pub target: String,
-    #[sea_orm(column_type = "JsonBinary")]
-    pub args: Option<Vec<String>>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub args: Option<Value>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
 }
@@ -50,7 +51,7 @@ impl Model {
         task_id: Uuid,
         repo: String,
         target: String,
-        args: Option<Vec<String>>,
+        args: Option<Value>,
     ) -> ActiveModel {
         let now = Utc::now().into();
         let build_id = Uuid::now_v7();
@@ -76,7 +77,7 @@ impl Model {
         build: BuildRequest,
         db: &impl ConnectionTrait,
     ) -> Result<Model, DbErr> {
-        let build_model = Self::create_build(task_id, repo, target, build.args);
+        let build_model = Self::create_build(task_id, repo, target, build.args.map(|a| json!(a)));
         build_model.insert(db).await
     }
 }
