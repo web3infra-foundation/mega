@@ -1,4 +1,5 @@
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+#[allow(dead_code)]
 pub struct VerifyMrPayload {
     pub assignees: Vec<String>,
 }

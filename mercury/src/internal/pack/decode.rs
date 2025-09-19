@@ -478,7 +478,7 @@ impl Pack {
     /// <br> Attention: It will consume the `pack` and return in a JoinHandle.
     pub fn decode_async(
         mut self,
-        mut pack: (impl BufRead + Send + 'static),
+        mut pack: impl BufRead + Send + 'static,
         sender: UnboundedSender<Entry>,
     ) -> JoinHandle<Pack> {
         thread::spawn(move || {
