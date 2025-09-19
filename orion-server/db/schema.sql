@@ -1,31 +1,37 @@
 -- Orion schema (no CREATE DATABASE here)
--- Tasks table - represents a user's build request
-CREATE TABLE IF NOT EXISTS public.tasks (
-  id UUID PRIMARY KEY,
-  mr_id BIGINT NOT NULL,
-  task_name TEXT,
-  template JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+
+-- Table Definition
+CREATE TABLE "public"."tasks" (
+    "id" uuid NOT NULL,
+    "mr_id" int8 NOT NULL,
+    "task_name" varchar,
+    "template" jsonb,
+    "created_at" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS idx_tasks_mr ON public.tasks (mr_id);
-
-CREATE INDEX IF NOT EXISTS idx_tasks_start_at ON public.tasks (created_at);
-
--- Builds table - represents individual builds belonging to a task
-CREATE TABLE IF NOT EXISTS public.builds (
-  id UUID PRIMARY KEY,
-  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  exit_code INT,
-  start_at TIMESTAMPTZ NOT NULL,
-  end_at TIMESTAMPTZ,
-  repo TEXT NOT NULL,
-  target TEXT NOT NULL,
-  args TEXT [] DEFAULT NULL,
-  output_file TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+-- Table Definition
+CREATE TABLE "public"."builds" (
+    "id" uuid NOT NULL,
+    "task_id" uuid NOT NULL,
+    "exit_code" int4,
+    "start_at" timestamptz NOT NULL,
+    "end_at" timestamptz,
+    "repo" varchar NOT NULL,
+    "target" varchar NOT NULL,
+    "args" jsonb,
+    "output_file" varchar NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS idx_builds_task_id ON public.builds (task_id);
 
-CREATE INDEX IF NOT EXISTS idx_builds_start_at ON public.builds (start_at);
+
+-- Indices
+CREATE INDEX idx_tasks_created_at ON public.tasks USING btree (created_at);
+ALTER TABLE "public"."builds" ADD FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE CASCADE;
+
+
+-- Indices
+CREATE INDEX idx_builds_task_id ON public.builds USING btree (task_id);
+CREATE INDEX idx_builds_start_at ON public.builds USING btree (start_at);
