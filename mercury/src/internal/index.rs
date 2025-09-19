@@ -205,6 +205,12 @@ pub struct Index {
 }
 
 impl Index {
+    pub fn new() -> Self {
+        Index {
+            entries: BTreeMap::new(),
+        }
+    }
+    
     fn check_header(file: &mut impl Read) -> Result<u32, GitError> {
         let mut magic = [0; 4];
         file.read_exact(&mut magic)?;
@@ -222,12 +228,6 @@ impl Index {
 
         let entries = file.read_u32::<BigEndian>()?;
         Ok(entries)
-    }
-
-    pub fn new() -> Self {
-        Index {
-            entries: BTreeMap::new(),
-        }
     }
 
     pub fn size(&self) -> usize {
@@ -397,6 +397,12 @@ impl Index {
                 SystemTime::now()
             }
         }
+    }
+}
+
+impl Default for Index {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
