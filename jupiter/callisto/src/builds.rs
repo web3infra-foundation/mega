@@ -14,7 +14,8 @@ pub struct Model {
     pub end_at: Option<DateTimeWithTimeZone>,
     pub repo: String,
     pub target: String,
-    pub args: Option<Vec<String>>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub args: Option<Json>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
 }
