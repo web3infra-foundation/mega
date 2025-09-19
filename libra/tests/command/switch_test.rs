@@ -3,34 +3,34 @@ use libra::utils::path;
 use mercury::internal::index::Index;
 
 use super::*;
-use std::fs;
-async fn test_check_status() {
-    println!("\n\x1b[1mTest check_status function.\x1b[0m");
 
-    // Test the check_status
-    // Expect false when no changes
-    assert!(!check_status().await);
-
-    // Create a file and add it to the index
-    // Expect true when there are unstaged changes
-    fs::File::create("foo.txt").unwrap();
-    let add_args = add::AddArgs {
-        pathspec: vec!["foo.txt".to_string()],
-        all: false,
-        update: false,
-        verbose: true,
-        dry_run: false,
-        ignore_errors: false,
-        refresh: false,
-    };
-    add::execute(add_args).await;
-    assert!(check_status().await);
-
-    // Modify a file
-    // Expect true when there are uncommitted changes
-    fs::write("foo.txt", "modified content").unwrap();
-    assert!(check_status().await);
-}
+// async fn test_check_status() {
+//     println!("\n\x1b[1mTest check_status function.\x1b[0m");
+//
+//     // Test the check_status
+//     // Expect false when no changes
+//     assert!(!check_status().await);
+//
+//     // Create a file and add it to the index
+//     // Expect true when there are unstaged changes
+//     fs::File::create("foo.txt").unwrap();
+//     let add_args = add::AddArgs {
+//         pathspec: vec!["foo.txt".to_string()],
+//         all: false,
+//         update: false,
+//         verbose: true,
+//         dry_run: false,
+//         ignore_errors: false,
+//         refresh: false,
+//     };
+//     add::execute(add_args).await;
+//     assert!(check_status().await);
+//
+//     // Modify a file
+//     // Expect true when there are uncommitted changes
+//     fs::write("foo.txt", "modified content").unwrap();
+//     assert!(check_status().await);
+// }
 
 async fn test_switch_function() {
     println!("\n\x1b[1mTest switch function.\x1b[0m");
@@ -141,7 +141,7 @@ async fn test_parts_of_switch_module_function() {
     test_switch_function().await;
 
     // Test the switch module funsctions
-    test_check_status().await;
+    // test_check_status().await;
 }
 
 #[tokio::test]

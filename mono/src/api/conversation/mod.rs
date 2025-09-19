@@ -117,7 +117,7 @@ impl From<ConvTypeEnum> for ConvType {
             ConvTypeEnum::Reopen => ConvType::Reopen,
             ConvTypeEnum::Label => ConvType::Label,
             ConvTypeEnum::Assignee => ConvType::Assignee,
-            ConvTypeEnum::Mention => ConvType::Mention
+            ConvTypeEnum::Mention => ConvType::Mention,
         }
     }
 }

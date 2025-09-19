@@ -1,20 +1,21 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { BaseStyles, TextInput, ThemeProvider } from '@primer/react'
+import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import { toast } from 'react-hot-toast'
 
 import { ConversationItem } from '@gitmono/types/generated'
-import { Button, LoadingSpinner, UIText } from '@gitmono/ui'
+import { Button, LoadingSpinner } from '@gitmono/ui'
 import { PicturePlusIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
 import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
+import TitleInput from '@/components/Issues/TitleInput'
 import {
   splitFun,
   useAssigneesSelector,
@@ -29,6 +30,7 @@ import { editIdAtom, FALSE_EDIT_VAL, mridAtom, refreshAtom } from '@/components/
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { TabLayout } from '@/components/Layout/TabLayout'
 import { MemberAvatar } from '@/components/MemberAvatar'
+import { MergeBox } from '@/components/MrBox/MergeBox'
 import { tabAtom } from '@/components/MrView/components/Checks/cpns/store'
 import TimelineItems from '@/components/MrView/TimelineItems'
 import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
@@ -37,9 +39,7 @@ import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionP
 import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent'
 import { useScope } from '@/contexts/scope'
 import { usePostMRAssignees } from '@/hooks/issues/usePostMRAssignees'
-import { usePostMrTitle } from '@/hooks/MR/usePostMrTitle'
 import { useGetMrDetail } from '@/hooks/useGetMrDetail'
-import { useMrFilesChanged } from '@/hooks/useMrFilesChanged'
 import { usePostMrClose } from '@/hooks/usePostMrClose'
 import { usePostMrComment } from '@/hooks/usePostMrComment'
 import { usePostMRLabels } from '@/hooks/usePostMRLabels'
@@ -49,7 +49,6 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-import { MergeBox } from "@/components/MrBox/MergeBox";
 
 export interface MRDetail {
   status: string
@@ -70,33 +69,11 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const { closeHint, needComment, handleChange } = useChange({ title: 'Close Merge Request' })
   const { mutate: mrAssignees } = usePostMRAssignees()
   const { mutate: mrLabels } = usePostMRLabels()
-  const [isEdit, setIsEdit] = useState(false)
-  const [editTitle, setEditTitle] = useState(mrDetail?.title)
-  const [loading, setLoading] = useState(false)
   const Checks = dynamic(() => import('@/components/MrView/components/Checks'))
-  const [page, _setPage] = useState(1)
 
   if (mrDetail) {
     mrDetail.status = mrDetail.status.toLowerCase()
   }
-
-  const { data: MrFilesChangedData, isLoading: fileChgIsLoading } = useMrFilesChanged(id, {
-    additional: 'string', 
-    pagination: {
-      page,
-      per_page: 10,
-    },
-  })
-  const { mutate: modifyTitle } = usePostMrTitle()
-
-  // const { mutate: approveMr, isPending: mrMergeIsPending } = usePostMrMerge(id)
-  // const handleMrApprove = () => {
-  //   approveMr(undefined, {
-  //     onSuccess: () => {
-  //       router.push(`/${scope}/mr`)
-  //     }
-  //   })
-  // }
 
   const [_, setEditId] = useAtom(editIdAtom)
   const [refresh, setRefresh] = useAtom(refreshAtom)
@@ -225,25 +202,6 @@ const MRDetailPage: PageWithLayout<any> = () => {
     }
   })
 
-  const handleSave = () => {
-    if (editTitle === mrDetail?.title || editTitle === '') {
-      apiErrorToast(new Error('Nothing Changed or is Empty'))
-      return
-    }
-    setLoading(true)
-    modifyTitle(
-      { link: id, data: { content: editTitle as string } },
-      {
-        onError: (err) => apiErrorToast(err),
-        onSuccess: async () => await refetch({ throwOnError: true }),
-        onSettled: () => {
-          setIsEdit(false)
-          setLoading(false)
-        }
-      }
-    )
-  }
-
   const [tab] = useAtom(tabAtom)
   const Conversation = () => (
     <div className='flex gap-40'>
@@ -256,24 +214,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
           mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
-          {/*<div className='flex'>*/}
-          {/*  {mrDetail && mrDetail.status === 'open' && (*/}
-          {/*    <Button*/}
-          {/*      disabled={!login || mrMergeIsPending}*/}
-          {/*      onClick={handleMrApprove}*/}
-          {/*      aria-label='Merge MR'*/}
-          {/*      className={cn(buttonClasses)}*/}
-          {/*      loading={mrMergeIsPending}*/}
-          {/*    >*/}
-          {/*      Merge MR*/}
-          {/*    </Button>*/}
-          {/*  )}*/}
-          {/*</div>*/}
-          <div className='w-full'>
-            {mrDetail && mrDetail.status === 'open' && (
-              <MergeBox prId={id} />
-            )}
-          </div>
+          <div className='w-full'>{mrDetail && mrDetail.status === 'open' && <MergeBox prId={id} />}</div>
           <h2>Add a comment</h2>
           <input {...dropzone.getInputProps()} />
           <div className='rounded-lg border p-6'>
@@ -405,15 +346,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
   )
   const FileChange = () => (
     <>
-      {fileChgIsLoading ? (
-        <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
-          <LoadingSpinner />
-        </div>
-        ) : MrFilesChangedData?.data?.page.items ? (
-          <FileDiff diffs={MrFilesChangedData.data.page.items} treeData={MrFilesChangedData.data} />
-        ) : (
-        <div>No files changed</div>
-      )}
+        <FileDiff id={id} />
     </>
   )
 
@@ -421,46 +354,12 @@ const MRDetailPage: PageWithLayout<any> = () => {
     <ThemeProvider>
       <BaseStyles>
         <div className='h-screen overflow-auto p-6'>
-          <div className='mb-2 w-[70%]'>
-            {!isEdit && (
-              <>
-                <div className='flex w-full items-center justify-between'>
-                  <UIText size='text-2xl' weight='font-bold' className='-tracking-[1px] lg:flex'>
-                    {`${mrDetail?.title || ''}`}
-                    <span>&nbsp;</span>
-                    <span className='font-light !text-[#59636e]'>${id}</span>
-                  </UIText>
-                  <Button
-                    onClick={() => {
-                      setEditTitle(mrDetail?.title)
-                      setIsEdit(true)
-                    }}
-                  >
-                    Edit
-                  </Button>
-                </div>
-              </>
-            )}
-            {isEdit && (
-              <>
-                <div className='flex w-full items-center justify-between gap-2'>
-                  <TextInput
-                    value={editTitle || ''}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className='new-issue-input no-border-input w-[80%]'
-                    trailingVisual={() => (loading ? <LoadingSpinner /> : '')}
-                  />
-                  <div className='flex gap-4'>
-                    <Button onClick={handleSave}>Save</Button>
-                    <Button onClick={() => setIsEdit(false)}>Cancel</Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {mrDetail && (
+            <TitleInput title={mrDetail.title} whoami='mr' id={id} callback={() => refetch({ throwOnError: true })} />
+          )}
           <div>
             <TabLayout>
-              {tab === 'check' && <Checks mr={id} />}
+              {tab === 'check' && <Checks mr={item_id} />}
               {tab === 'conversation' && <Conversation />}
               {tab === 'filechange' && <FileChange />}
             </TabLayout>

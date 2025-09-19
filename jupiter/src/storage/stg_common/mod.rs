@@ -131,6 +131,7 @@ mod tests {
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
             username: String::from("benjamin_747"),
+            resolved: None,
         };
 
         let item_labels = vec![(issue.clone(), vec![label])];

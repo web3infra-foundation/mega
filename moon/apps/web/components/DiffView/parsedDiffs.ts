@@ -1,4 +1,7 @@
-import { DiffItem } from "@gitmono/types/generated"
+export interface DiffItem {
+  data: string
+  path: string
+}
 
 const extensionToLangMap: Record<string, string> = {
   // Note that the key here is lowercase

@@ -1,19 +1,22 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
-use utoipa_axum::{router::OpenApiRouter, routes};
-
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
+use ceres::model::git::TreeQuery;
 use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
 use jupiter::service::mr_service::MRService;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::mr::model::{
+    ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
+    ReviewersResponse,
+};
 use crate::api::{
     api_common::{
         self,
@@ -22,7 +25,7 @@ use crate::api::{
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{Condition, FilesChangedList, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
+    mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
 use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
@@ -39,14 +42,18 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(merge_no_auth))
             .routes(routes!(close_mr))
             .routes(routes!(reopen_mr))
+            .routes(routes!(mr_mui_tree))
             .routes(routes!(mr_files_changed_by_page))
-            .routes(routes!(mr_files_changed))
             .routes(routes!(mr_files_list))
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
             .routes(routes!(edit_title))
-            .routes(routes!(verify_mr_signature)),
+            .routes(routes!(add_reviewers))
+            .routes(routes!(remove_reviewers))
+            .routes(routes!(list_reviewers))
+            .routes(routes!(change_reviewer_state))
+            .routes(routes!(change_review_resolve_state)),
     )
 }
 
@@ -261,31 +268,31 @@ async fn mr_detail(
     Ok(Json(CommonResult::success(Some(mr_details))))
 }
 
-/// Get List of All Changed Files in Merge Request
 #[utoipa::path(
     get,
     params(
         ("link", description = "MR link"),
+        TreeQuery,
     ),
-    path = "/{link}/files-changed",
+    path = "/{link}/mui-tree",
     responses(
-        (status = 200, body = CommonResult<FilesChangedList>, content_type = "application/json")
+        (status = 200, body = CommonResult<Vec<MuiTreeNode>>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
-async fn mr_files_changed(
+async fn mr_mui_tree(
     Path(link): Path<String>,
+    Query(query): Query<TreeQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    let diff_res = state.monorepo().content_diff(&link).await?;
+) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
+    let path = query.path.clone();
 
-    let paths = diff_res.iter().map(|i| i.path.clone()).collect();
-    let mui_trees = build_forest(paths);
-    let res = CommonResult::success(Some(FilesChangedList {
-        mui_trees,
-        content: diff_res,
-    }));
-    Ok(Json(res))
+    let files = state
+        .monorepo()
+        .get_sorted_changed_file_list(&link, Some(&path))
+        .await?;
+    let mui_trees = build_forest(files);
+    Ok(Json(CommonResult::success(Some(mui_trees))))
 }
 
 /// Get Merge Request file changed list in Pagination
@@ -301,20 +308,16 @@ async fn mr_files_changed(
     ),
     tag = MR_TAG
 )]
-#[axum::debug_handler]
 async fn mr_files_changed_by_page(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
-    let (items, changed_files_path, total) = state
+    let (items, total) = state
         .monorepo()
         .paged_content_diff(&link, json.pagination)
         .await?;
-
-    let mui_trees = build_forest(changed_files_path);
     let res = CommonResult::success(Some(FilesChangedPage {
-        mui_trees,
         page: CommonPage { total, items },
     }));
     Ok(Json(res))
@@ -371,7 +374,6 @@ async fn mr_files_list(
     ),
     tag = MR_TAG
 )]
-#[axum::debug_handler]
 async fn merge_box(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
@@ -419,15 +421,25 @@ async fn save_comment(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
-    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    let conv_type = if state
+        .storage
+        .reviewer_storage()
+        .is_reviewer(&link, &user.username)
+        .await?
+    {
+        // If user is the reviewer for this mr, then the comment if of type review
+        ConvTypeEnum::Review
+    } else {
+        ConvTypeEnum::Comment
+    };
+
     state
         .conv_stg()
         .add_conversation(
-            &model.link,
+            &link,
             &user.username,
             Some(payload.content.clone()),
-            ConvTypeEnum::Comment,
+            conv_type,
         )
         .await?;
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
@@ -493,22 +505,151 @@ async fn assignees(
 }
 
 #[utoipa::path(
-    get,
-    params(
-        ("link", description = "MR link"),
+    post,
+    params (
+        ("link", description = "the mr link")
     ),
-    path = "/{link}/verify-signature",
+    path = "/{link}/add-reviewers",
+    request_body = ReviewerPayload,
     responses(
-        (status = 200, body = CommonResult<HashMap<String, bool>>, content_type = "application/json")
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
     tag = MR_TAG
 )]
-async fn verify_mr_signature(
+async fn add_reviewers(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<HashMap<String, bool>>>, ApiError> {
-    let res = state.monorepo().verify_mr(&link).await?;
-    Ok(Json(CommonResult::success(Some(res))))
+    Json(payload): Json<ReviewerPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .storage
+        .reviewer_storage()
+        .add_reviewers(&link, payload.reviewer_usernames)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+#[utoipa::path(
+    delete,
+    params (
+        ("link", description = "the mr link"),
+    ),
+    path = "/{link}/remove-reviewers",
+    request_body = ReviewerPayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn remove_reviewers(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ReviewerPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .storage
+        .reviewer_storage()
+        .remove_reviewers(&link, payload.reviewer_usernames)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+#[utoipa::path(
+    get,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/reviewers",
+    responses(
+        (status = 200, body = CommonResult<ReviewersResponse>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn list_reviewers(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<ReviewersResponse>>, ApiError> {
+    let reviewers = state
+        .storage
+        .reviewer_storage()
+        .list_reviewers(&link)
+        .await?
+        .into_iter()
+        .map(|r| ReviewerInfo {
+            username: r.username,
+            approved: r.approved,
+        })
+        .collect();
+
+    Ok(Json(CommonResult::success(Some(ReviewersResponse {
+        result: reviewers,
+    }))))
+}
+
+/// Change the reviewer state
+///
+/// the function get user's campsite_id from the login user info automatically
+#[utoipa::path(
+    post,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/reviewer-new-state",
+    request_body = ChangeReviewerStatePayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn change_reviewer_state(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ChangeReviewerStatePayload>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    state
+        .storage
+        .reviewer_storage()
+        .reviewer_change_state(&link, &user.username, payload.state)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+#[utoipa::path(
+    post,
+    params (
+        ("link", description = "the mr link")
+    ),
+    path = "/{link}/review_resolve",
+    request_body (
+        content = ChangeReviewStatePayload,
+    ),
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn change_review_resolve_state(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Path(link): Path<String>,
+    Json(payload): Json<ChangeReviewStatePayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .storage
+        .conversation_storage()
+        .change_review_state(
+            &link,
+            &payload.review_id,
+            &user.campsite_user_id,
+            payload.new_state,
+        )
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
 }
 
 fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
@@ -536,7 +677,6 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 #[cfg(test)]
 mod test {
     use crate::api::mr::mr_router::build_forest;
-    use crate::api::mr::FilesChangedList;
     use neptune::model::diff_model::DiffItem;
     use std::collections::HashMap;
 
@@ -659,19 +799,13 @@ mod test {
         assert!(root_labels.contains(&"src"));
         assert!(root_labels.contains(&"README.md"));
 
-        let content = vec![DiffItem {
+        let content = [DiffItem {
             data: sample_diff_output.to_string(),
             path: "diff_output.txt".to_string(),
         }];
 
-        // Test the complete response structure
-        let files_changed_list = FilesChangedList { mui_trees, content };
-
-        assert!(!files_changed_list.mui_trees.is_empty());
-        assert_eq!(
-            files_changed_list.content.first().unwrap().data,
-            sample_diff_output
-        );
+        assert!(!mui_trees.is_empty());
+        assert_eq!(content.first().unwrap().data, sample_diff_output);
     }
 
     #[test]

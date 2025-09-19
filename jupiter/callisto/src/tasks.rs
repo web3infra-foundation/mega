@@ -7,21 +7,24 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "tasks")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub task_id: Uuid,
-    #[sea_orm(column_type = "JsonBinary")]
-    pub build_ids: Json,
-    #[sea_orm(column_type = "JsonBinary")]
-    pub output_files: Json,
-    pub exit_code: Option<i32>,
-    pub start_at: DateTimeWithTimeZone,
-    pub end_at: Option<DateTimeWithTimeZone>,
-    pub repo_name: String,
-    pub target: String,
-    pub arguments: String,
-    pub mr: String,
+    pub id: Uuid,
+    pub mr_id: i64,
+    pub task_name: Option<String>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub template: Option<Json>,
+    pub created_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::builds::Entity")]
+    Builds,
+}
+
+impl Related<super::builds::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Builds.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

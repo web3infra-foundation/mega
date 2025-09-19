@@ -3045,6 +3045,16 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
+export type ChangeReviewStatePayload = {
+  new_state: boolean
+  /** @format int64 */
+  review_id: number
+}
+
+export type ChangeReviewerStatePayload = {
+  state: boolean
+}
+
 export enum CheckType {
   GpgSignature = 'GpgSignature',
   BranchProtection = 'BranchProtection',
@@ -3053,6 +3063,21 @@ export enum CheckType {
   MergeConflict = 'MergeConflict',
   CiStatus = 'CiStatus',
   CodeReview = 'CodeReview'
+}
+
+export type CommitBindingInfo = {
+  author_email: string
+  avatar_url?: string | null
+  display_name: string
+  is_anonymous: boolean
+  is_verified_user: boolean
+  matched_username?: string | null
+}
+
+export type CommitBindingResponse = {
+  avatar_url?: string | null
+  display_name: string
+  is_verified_user: boolean
 }
 
 export type CommonPageDiffItem = {
@@ -3065,6 +3090,16 @@ export type CommonPageDiffItem = {
    * @min 0
    */
   total: number
+}
+
+export type CommonResultCommitBindingResponse = {
+  data?: {
+    avatar_url?: string | null
+    display_name: string
+    is_verified_user: boolean
+  }
+  err_message: string
+  req_result: boolean
 }
 
 export type CommonResultCommonPageItemRes = {
@@ -3118,26 +3153,10 @@ export type CommonResultCommonPageLabelItem = {
   req_result: boolean
 }
 
-export type CommonResultFilesChangedList = {
-  data?: {
-    content: DiffItem[]
-    mui_trees: MuiTreeNode[]
-  }
-  err_message: string
-  req_result: boolean
-}
-
 export type CommonResultFilesChangedPage = {
   data?: {
-    mui_trees: MuiTreeNode[]
     page: CommonPageDiffItem
   }
-  err_message: string
-  req_result: boolean
-}
-
-export type CommonResultHashMapStringBool = {
-  data?: Record<string, boolean>
   err_message: string
   req_result: boolean
 }
@@ -3193,6 +3212,14 @@ export type CommonResultMRDetailRes = {
 export type CommonResultMergeBoxRes = {
   data?: {
     merge_requirements?: null | MergeRequirements
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultReviewersResponse = {
+  data?: {
+    result: ReviewerInfo[]
   }
   err_message: string
   req_result: boolean
@@ -3275,6 +3302,16 @@ export type CommonResultVecMrFilesRes = {
   req_result: boolean
 }
 
+export type CommonResultVecMuiTreeNode = {
+  data?: {
+    children?: any[] | null
+    id: string
+    label: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecTreeCommitItem = {
   data?: {
     commit_id: string
@@ -3333,7 +3370,8 @@ export enum ConvType {
   Closed = 'Closed',
   Reopen = 'Reopen',
   Label = 'Label',
-  Assignee = 'Assignee'
+  Assignee = 'Assignee',
+  Mention = 'Mention'
 }
 
 export type ConversationItem = {
@@ -3358,24 +3396,13 @@ export type CreateFileInfo = {
   path: string
 }
 
-export type DiffItem = {
-  data: string
-  path: string
-}
-
 export type FileTreeItem = {
   /** @min 0 */
   total_count: number
   tree_items: TreeBriefItem[]
 }
 
-export type FilesChangedList = {
-  content: DiffItem[]
-  mui_trees: MuiTreeNode[]
-}
-
 export type FilesChangedPage = {
-  mui_trees: MuiTreeNode[]
   page: CommonPageDiffItem
 }
 
@@ -3448,6 +3475,7 @@ export type LabelUpdatePayload = {
 
 export type LatestCommitInfo = {
   author: UserInfo
+  binding_info?: null | CommitBindingInfo
   committer: UserInfo
   date: string
   oid: string
@@ -3525,8 +3553,6 @@ export type MuiTreeNode = {
 }
 
 export type NewGpgRequest = {
-  /** @format int32 */
-  expires_days?: number | null
   gpg_content: string
 }
 
@@ -3594,6 +3620,19 @@ export enum RequirementsState {
   MERGEABLE = 'MERGEABLE'
 }
 
+export type ReviewerInfo = {
+  approved: boolean
+  username: string
+}
+
+export type ReviewerPayload = {
+  reviewer_usernames: string[]
+}
+
+export type ReviewersResponse = {
+  result: ReviewerInfo[]
+}
+
 export type ShowResponse = {
   description_html: string
   /** @format int32 */
@@ -3627,6 +3666,11 @@ export type TreeResponse = {
   tree_items: TreeBriefItem[]
 }
 
+export type UpdateCommitBindingRequest = {
+  is_anonymous: boolean
+  username?: string | null
+}
+
 export type UpdateRequest = {
   description_html: string
   /** @format int32 */
@@ -3637,6 +3681,94 @@ export type UpdateRequest = {
 export type UserInfo = {
   avatar_url: string
   display_name: string
+}
+
+/** Data transfer object for build information in API responses */
+export type BuildDTO = {
+  args?: any[] | null
+  created_at: string
+  end_at?: string | null
+  /** @format int32 */
+  exit_code?: number | null
+  id: string
+  output_file: string
+  repo: string
+  start_at: string
+  /** Enumeration of possible task statuses */
+  status: TaskStatusEnum
+  target: string
+  task_id: string
+}
+
+/** Request payload for creating a new build task */
+export type BuildRequest = {
+  args?: any[] | null
+  buck_hash: string
+  buckconfig_hash: string
+}
+
+/** Log segment read result */
+export type LogSegment = {
+  /** build id / log file name */
+  build_id: string
+  /** UTF-8 (lossy) decoded data slice */
+  data: string
+  /** Whether we reached end of file */
+  eof: boolean
+  /**
+   * Total file size in bytes
+   * @format int64
+   * @min 0
+   */
+  file_size: number
+  /**
+   * Bytes actually read
+   * @min 0
+   */
+  len: number
+  /**
+   * Next offset (offset + len)
+   * @format int64
+   * @min 0
+   */
+  next_offset: number
+  /**
+   * Requested starting offset
+   * @format int64
+   * @min 0
+   */
+  offset: number
+}
+
+/** Task information including current status */
+export type TaskInfoDTO = {
+  build_list: BuildDTO[]
+  created_at: string
+  /** @format int64 */
+  mr_id: number
+  task_id: string
+  task_name?: string | null
+  template?: any
+}
+
+/** Request structure for creating a task */
+export type TaskRequest = {
+  builds: BuildRequest[]
+  /** @format int64 */
+  mr: number
+  repo: string
+  task_name?: string | null
+  template?: any
+}
+
+/** Enumeration of possible task statuses */
+export enum TaskStatusEnum {
+  Pending = 'Pending',
+  Building = 'Building',
+  Interrupted = 'Interrupted',
+  Failed = 'Failed',
+  Completed = 'Completed',
+  NotFound = 'NotFound'
 }
 
 export type PostActivityViewsData = UserNotificationCounts
@@ -4778,6 +4910,8 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
+export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
+
 export type DeleteApiConversationReactionsByIdData = CommonResultString
 
 export type PostApiConversationByCommentIdData = CommonResultString
@@ -4837,13 +4971,13 @@ export type PostApiMrLabelsData = CommonResultString
 
 export type PostApiMrListData = CommonResultCommonPageItemRes
 
+export type PostApiMrAddReviewersData = CommonResultString
+
 export type PostApiMrCloseData = CommonResultString
 
 export type PostApiMrCommentData = CommonResultString
 
 export type GetApiMrDetailData = CommonResultMRDetailRes
-
-export type GetApiMrFilesChangedData = CommonResultFilesChangedList
 
 export type PostApiMrFilesChangedData = CommonResultFilesChangedPage
 
@@ -4855,11 +4989,26 @@ export type GetApiMrMergeBoxData = CommonResultMergeBoxRes
 
 export type PostApiMrMergeNoAuthData = CommonResultString
 
+export type GetApiMrMuiTreeParams = {
+  oid?: string | null
+  path?: string
+  /** MR link */
+  link: string
+}
+
+export type GetApiMrMuiTreeData = CommonResultVecMuiTreeNode
+
+export type DeleteApiMrRemoveReviewersData = CommonResultString
+
 export type PostApiMrReopenData = CommonResultString
 
-export type PostApiMrTitleData = CommonResultString
+export type PostApiMrReviewResolveData = CommonResultString
 
-export type GetApiMrVerifySignatureData = CommonResultHashMapStringBool
+export type PostApiMrReviewerNewStateData = CommonResultString
+
+export type GetApiMrReviewersData = CommonResultReviewersResponse
+
+export type PostApiMrTitleData = CommonResultString
 
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
@@ -4912,6 +5061,37 @@ export type PostApiUserTokenGenerateData = CommonResultString
 export type GetApiUserTokenListData = CommonResultVecListToken
 
 export type DeleteApiUserTokenByKeyIdData = CommonResultString
+
+export type PostTaskData = any
+
+export type GetTaskBuildListByIdData = string[]
+
+export type GetTaskHistoryOutputByIdParams = {
+  /**
+   * The type of log retrieval: "full" indicates full retrieval, while "segment" indicates retrieval of segments.
+   * @example "full"
+   */
+  type: string
+  /**
+   * Start line number (1-based)
+   * @format int64
+   * @min 0
+   */
+  offset?: number
+  /**
+   * Max number of lines to return
+   * @min 0
+   */
+  limit?: number
+  /** Build ID whose log to read */
+  id: string
+}
+
+export type GetTaskHistoryOutputByIdData = any
+
+export type GetTaskOutputByIdData = any
+
+export type GetTasksByMrData = TaskInfoDTO[]
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -5196,6 +5376,32 @@ function dataTaggedQueryKey(key: unknown) {
  * @version 2.0.0
  */
 export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
+  /**
+ * No description
+ *
+ * @tags api
+ * @name PostTask
+ * @summary Creates new build tasks based on the builds count in TaskRequest and either assigns them immediately or queues them for later processing
+Returns task ID and status information upon successful creation
+ * @request POST:/task
+ */
+  postTask = () => {
+    const base = 'POST:/task' as const
+
+    return {
+      baseKey: dataTaggedQueryKey<PostTaskData>([base]),
+      requestKey: () => dataTaggedQueryKey<PostTaskData>([base]),
+      request: (data: TaskRequest, params: RequestParams = {}) =>
+        this.request<PostTaskData>({
+          path: `/task`,
+          method: 'POST',
+          body: data,
+          type: ContentType.Json,
+          ...params
+        })
+    }
+  }
+
   organizations = {
     /**
      * No description
@@ -13219,6 +13425,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
+     * @tags git
+     * @name PutApiCommitsBinding
+     * @summary Update commit binding information
+     * @request PUT:/api/v1/commits/{sha}/binding
+     */
+    putApiCommitsBinding: () => {
+      const base = 'PUT:/api/v1/commits/{sha}/binding' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiCommitsBindingData>([base]),
+        requestKey: (sha: string) => dataTaggedQueryKey<PutApiCommitsBindingData>([base, sha]),
+        request: (sha: string, data: UpdateCommitBindingRequest, params: RequestParams = {}) =>
+          this.request<PutApiCommitsBindingData>({
+            path: `/api/v1/commits/${sha}/binding`,
+            method: 'PUT',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags conversation
      * @name DeleteApiConversationReactionsById
      * @summary Delete conversation reactions
@@ -13827,6 +14058,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * No description
      *
      * @tags merge_request
+     * @name PostApiMrAddReviewers
+     * @request POST:/api/v1/mr/{link}/add-reviewers
+     */
+    postApiMrAddReviewers: () => {
+      const base = 'POST:/api/v1/mr/{link}/add-reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrAddReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrAddReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrAddReviewersData>({
+            path: `/api/v1/mr/${link}/add-reviewers`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
      * @name PostApiMrClose
      * @summary Close Merge Request
      * @request POST:/api/v1/mr/{link}/close
@@ -13888,29 +14143,6 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (link: string, params: RequestParams = {}) =>
           this.request<GetApiMrDetailData>({
             path: `/api/v1/mr/${link}/detail`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
-     * @name GetApiMrFilesChanged
-     * @summary Get List of All Changed Files in Merge Request
-     * @request GET:/api/v1/mr/{link}/files-changed
-     */
-    getApiMrFilesChanged: () => {
-      const base = 'GET:/api/v1/mr/{link}/files-changed' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiMrFilesChangedData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesChangedData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiMrFilesChangedData>({
-            path: `/api/v1/mr/${link}/files-changed`,
             method: 'GET',
             ...params
           })
@@ -14039,6 +14271,53 @@ It's for local testing purposes.
      * No description
      *
      * @tags merge_request
+     * @name GetApiMrMuiTree
+     * @request GET:/api/v1/mr/{link}/mui-tree
+     */
+    getApiMrMuiTree: () => {
+      const base = 'GET:/api/v1/mr/{link}/mui-tree' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrMuiTreeData>([base]),
+        requestKey: (params: GetApiMrMuiTreeParams) => dataTaggedQueryKey<GetApiMrMuiTreeData>([base, params]),
+        request: ({ link, ...query }: GetApiMrMuiTreeParams, params: RequestParams = {}) =>
+          this.request<GetApiMrMuiTreeData>({
+            path: `/api/v1/mr/${link}/mui-tree`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name DeleteApiMrRemoveReviewers
+     * @request DELETE:/api/v1/mr/{link}/remove-reviewers
+     */
+    deleteApiMrRemoveReviewers: () => {
+      const base = 'DELETE:/api/v1/mr/{link}/remove-reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiMrRemoveReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<DeleteApiMrRemoveReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<DeleteApiMrRemoveReviewersData>({
+            path: `/api/v1/mr/${link}/remove-reviewers`,
+            method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
      * @name PostApiMrReopen
      * @summary Reopen Merge Request
      * @request POST:/api/v1/mr/{link}/reopen
@@ -14053,6 +14332,77 @@ It's for local testing purposes.
           this.request<PostApiMrReopenData>({
             path: `/api/v1/mr/${link}/reopen`,
             method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewResolve
+     * @request POST:/api/v1/mr/{link}/review_resolve
+     */
+    postApiMrReviewResolve: () => {
+      const base = 'POST:/api/v1/mr/{link}/review_resolve' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewResolveData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewResolveData>([base, link]),
+        request: (link: string, data: ChangeReviewStatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewResolveData>({
+            path: `/api/v1/mr/${link}/review_resolve`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description the function get user's campsite_id from the login user info automatically
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewerNewState
+     * @summary Change the reviewer state
+     * @request POST:/api/v1/mr/{link}/reviewer-new-state
+     */
+    postApiMrReviewerNewState: () => {
+      const base = 'POST:/api/v1/mr/{link}/reviewer-new-state' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewerNewStateData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewerNewStateData>([base, link]),
+        request: (link: string, data: ChangeReviewerStatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewerNewStateData>({
+            path: `/api/v1/mr/${link}/reviewer-new-state`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrReviewers
+     * @request GET:/api/v1/mr/{link}/reviewers
+     */
+    getApiMrReviewers: () => {
+      const base = 'GET:/api/v1/mr/{link}/reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrReviewersData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrReviewersData>({
+            path: `/api/v1/mr/${link}/reviewers`,
+            method: 'GET',
             ...params
           })
       }
@@ -14078,28 +14428,6 @@ It's for local testing purposes.
             method: 'POST',
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
-     * @name GetApiMrVerifySignature
-     * @request GET:/api/v1/mr/{link}/verify-signature
-     */
-    getApiMrVerifySignature: () => {
-      const base = 'GET:/api/v1/mr/{link}/verify-signature' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiMrVerifySignatureData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrVerifySignatureData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiMrVerifySignatureData>({
-            path: `/api/v1/mr/${link}/verify-signature`,
-            method: 'GET',
             ...params
           })
       }
@@ -14434,6 +14762,103 @@ It's for local testing purposes.
           this.request<DeleteApiUserTokenByKeyIdData>({
             path: `/api/v1/user/token/${keyId}`,
             method: 'DELETE',
+            ...params
+          })
+      }
+    }
+  }
+  id = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTaskBuildListById
+     * @request GET:/task-build-list/{id}
+     */
+    getTaskBuildListById: () => {
+      const base = 'GET:/task-build-list/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskBuildListByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetTaskBuildListByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetTaskBuildListByIdData>({
+            path: `/task-build-list/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskHistoryOutputById
+ * @summary Provides the ability to read historical task logs
+supporting either retrieving the entire log at once or segmenting it by line count.
+ * @request GET:/task-history-output/{id}
+ */
+    getTaskHistoryOutputById: () => {
+      const base = 'GET:/task-history-output/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base]),
+        requestKey: (params: GetTaskHistoryOutputByIdParams) =>
+          dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base, params]),
+        request: ({ id, ...query }: GetTaskHistoryOutputByIdParams, params: RequestParams = {}) =>
+          this.request<GetTaskHistoryOutputByIdData>({
+            path: `/task-history-output/${id}`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskOutputById
+ * @summary Streams build output logs in real-time using Server-Sent Events (SSE)
+Continuously monitors the log file and streams new content as it becomes available
+ * @request GET:/task-output/{id}
+ */
+    getTaskOutputById: () => {
+      const base = 'GET:/task-output/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskOutputByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetTaskOutputByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetTaskOutputByIdData>({
+            path: `/task-output/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  mr = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTasksByMr
+     * @summary Return all tasks with their current status (combining /mr-task and /task-status logic)
+     * @request GET:/tasks/{mr}
+     */
+    getTasksByMr: () => {
+      const base = 'GET:/tasks/{mr}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTasksByMrData>([base]),
+        requestKey: (mr: number) => dataTaggedQueryKey<GetTasksByMrData>([base, mr]),
+        request: (mr: number, params: RequestParams = {}) =>
+          this.request<GetTasksByMrData>({
+            path: `/tasks/${mr}`,
+            method: 'GET',
             ...params
           })
       }

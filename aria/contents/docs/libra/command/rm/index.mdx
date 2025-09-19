@@ -24,8 +24,54 @@ that.)
 -   `--cached`<br/>
     Use this option to unstage and remove paths only from the index. Working tree files, whether modified or not, will be left alone.
 
+-   `--dry-run`<br/>
+    Don't actually remove any files; instead just show if they exist in the index and would otherwise be removed by the command. This option is useful for previewing what files would be removed before actually executing the removal. It works with all other options (`--cached`, `--recursive`, `--force`) to show exactly what the actual command would do.
+
 -   `-r`, `--recursive`<br/>
     Allow recursive removal when a leading directory name is given.
 
 -   `-f`, `--force`<br/>
     Force removal even if the specified paths are not tracked. This skips validation checks and deletes files or directories regardless of their index status.
+
+### Examples
+
+#### Basic Usage
+```bash
+# Remove a file from both index and working tree
+libra rm file.txt
+
+# Remove multiple files
+libra rm file1.txt file2.txt
+```
+
+#### Using --cached
+```bash
+# Remove from index only, keep in working tree
+libra rm --cached file.txt
+```
+
+#### Using --dry-run
+```bash
+# Preview what would be removed
+libra rm --dry-run file1.txt file2.txt
+
+# Preview cached removal
+libra rm --dry-run --cached *.txt
+
+# Preview recursive directory removal
+libra rm --dry-run -r old_directory/
+```
+
+The `--dry-run` option will output something like:
+```
+Would remove the following:
+rm 'file1.txt'
+rm 'file2.txt'
+```
+
+#### Recursive Removal
+```bash
+# Remove entire directory recursively (preview first!)
+libra rm --dry-run -r directory/
+libra rm -r directory/
+```

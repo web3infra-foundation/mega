@@ -1,16 +1,37 @@
 -- Orion schema (no CREATE DATABASE here)
-CREATE TABLE IF NOT EXISTS public.tasks (
-  task_id     UUID PRIMARY KEY,
-  build_ids   JSONB NOT NULL,
-  output_files JSONB NOT NULL,
-  exit_code   INTEGER,
-  start_at    TIMESTAMPTZ NOT NULL,
-  end_at      TIMESTAMPTZ,
-  repo_name   TEXT NOT NULL,
-  target      TEXT NOT NULL,
-  arguments   TEXT NOT NULL,
-  mr          TEXT NOT NULL
+
+-- Table Definition
+CREATE TABLE "public"."tasks" (
+    "id" uuid NOT NULL,
+    "mr_id" int8 NOT NULL,
+    "task_name" varchar,
+    "template" jsonb,
+    "created_at" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS idx_tasks_mr ON public.tasks (mr);
-CREATE INDEX IF NOT EXISTS idx_tasks_start_at ON public.tasks (start_at);
+-- Table Definition
+CREATE TABLE "public"."builds" (
+    "id" uuid NOT NULL,
+    "task_id" uuid NOT NULL,
+    "exit_code" int4,
+    "start_at" timestamptz NOT NULL,
+    "end_at" timestamptz,
+    "repo" varchar NOT NULL,
+    "target" varchar NOT NULL,
+    "args" jsonb,
+    "output_file" varchar NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
+);
+
+
+
+-- Indices
+CREATE INDEX idx_tasks_created_at ON public.tasks USING btree (created_at);
+ALTER TABLE "public"."builds" ADD FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE CASCADE;
+
+
+-- Indices
+CREATE INDEX idx_builds_task_id ON public.builds USING btree (task_id);
+CREATE INDEX idx_builds_start_at ON public.builds USING btree (start_at);

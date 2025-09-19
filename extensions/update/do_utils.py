@@ -2,6 +2,7 @@
 from datetime import datetime
 from .database import SessionLocal
 from .model import RepoSyncResult, SyncStatusEnum
+from packaging.version import parse as vparse
 
 def update_repo_sync_result(crate_name, version, mega_url, status: SyncStatusEnum, err_message=None):
     """插入或更新 repo_sync_result 表"""
@@ -9,10 +10,11 @@ def update_repo_sync_result(crate_name, version, mega_url, status: SyncStatusEnu
     try:
         record = db.query(RepoSyncResult).filter_by(crate_name=crate_name).first()
         if record:
-            record.version = version
+            if record.version is None or vparse(version) > vparse(record.version):
+                record.version = version
+                record.mega_url = mega_url
             record.status = status
             record.err_message = err_message
-            record.mega_url = mega_url
             record.updated_at = datetime.utcnow()
         else:
             record = RepoSyncResult(

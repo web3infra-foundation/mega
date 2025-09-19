@@ -12,9 +12,6 @@ pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
     SHA1::from_stream(file)
 }
 
-
-
-
 /// A lightweight wrapper that counts bytes read from the underlying reader.
 /// replace deflate.intotal() in decompress_data
 pub struct CountingReader<R> {
@@ -46,7 +43,7 @@ impl<R: BufRead> BufRead for CountingReader<R> {
     }
 
     fn consume(&mut self, amt: usize) {
-        self.bytes_read += amt as u64; 
+        self.bytes_read += amt as u64;
         self.inner.consume(amt);
     }
 }

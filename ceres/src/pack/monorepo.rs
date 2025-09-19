@@ -141,6 +141,12 @@ impl RepoHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
+    async fn post_receive_pack(&self) -> Result<(), MegaError> {
+        self.save_or_update_mr().await?;
+        self.post_mr_operation().await?;
+        Ok(())
+    }
+
     async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
@@ -149,7 +155,9 @@ impl RepoHandler for MonoRepo {
         } else {
             String::new()
         };
-        storage.save_entry(&commit_id, entry_list).await
+        storage
+            .save_entry(&commit_id, entry_list, self.username.clone())
+            .await
     }
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {

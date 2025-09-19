@@ -8,7 +8,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
-use crate::pack::monorepo::MonoRepo;
+use crate::auth::UserAuthExtractor;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::ZERO_ID;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -251,15 +251,11 @@ impl SmartProtocol {
             }
             add_pkt_line_string(&mut report_status, command.get_status());
         }
-        if repo_handler.is_monorepo() {
-            let any = repo_handler.into_any();
-            if let Ok(monorepo) = any.downcast::<MonoRepo>() {
-                //3.1 update MR
-                monorepo.save_or_update_mr().await.unwrap();
-                //3.2 post operation
-                monorepo.post_mr_operation().await.unwrap();
-            }
-        }
+        //3. post_receive_pack
+        repo_handler.post_receive_pack().await?;
+
+        // 4. Process commit bindings for successful ref updates
+        self.process_commit_bindings().await;
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
         let length = report_status.len();
@@ -332,6 +328,163 @@ impl SmartProtocol {
             read_until_white_space(pkt_line),
         )
     }
+
+    /// Process commit bindings for successfully pushed commits
+    async fn process_commit_bindings(&self) {
+        for command in &self.command_list {
+            // Only process successful branch updates (not tags or failed commands)
+            if command.ref_type == RefTypeEnum::Branch
+                && command.status == "ok"
+                && command.new_id != ZERO_ID
+            {
+                if let Err(e) = self.bind_commit_to_user(&command.new_id).await {
+                    tracing::warn!("Failed to bind commit {} to user: {}", command.new_id, e);
+                    // Don't fail the push on binding errors
+                }
+            }
+        }
+    }
+
+    /// Bind a single commit to a user based on authenticated user and author email
+    async fn bind_commit_to_user(
+        &self,
+        commit_sha: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let repo_handler = self.repo_handler().await?;
+        let commit_binding_storage = self.storage.commit_binding_storage();
+
+        // Extract author email from commit based on repo type
+        let author_email = if repo_handler.is_monorepo() {
+            // For monorepo, get from mono storage
+            let commit = self
+                .storage
+                .mono_storage()
+                .get_commit_by_hash(commit_sha)
+                .await?;
+
+            if let Some(commit_model) = commit {
+                // Extract author email from commit (assuming author field contains "Name <email>" format)
+                if let Some(author) = &commit_model.author {
+                    extract_email_from_author(author)
+                } else {
+                    return Ok(()); // Skip if no author info
+                }
+            } else {
+                return Ok(()); // Skip if commit not found
+            }
+        } else {
+            // For import repo, we need to find the repo_id first
+            let import_dir = self.storage.config().monorepo.import_dir.clone();
+            if !self.path.starts_with(import_dir) {
+                return Ok(()); // Skip if not in import directory
+            }
+
+            let path_str = self.path.to_str().unwrap();
+            let repo = self
+                .storage
+                .git_db_storage()
+                .find_git_repo_exact_match(path_str)
+                .await?;
+
+            if let Some(repo) = repo {
+                let commit = self
+                    .storage
+                    .git_db_storage()
+                    .get_commit_by_hash(repo.id, commit_sha)
+                    .await?;
+
+                if let Some(commit_model) = commit {
+                    // Extract author email from commit
+                    if let Some(author) = &commit_model.author {
+                        extract_email_from_author(author)
+                    } else {
+                        return Ok(()); // Skip if no author info
+                    }
+                } else {
+                    return Ok(()); // Skip if commit not found
+                }
+            } else {
+                return Ok(()); // Skip if repo not found
+            }
+        };
+
+        if author_email.is_empty() {
+            return Ok(()); // Skip if no valid email
+        }
+
+        // Enhanced user matching logic based on authentication status
+        let (final_user_id, is_anonymous) = if let Some(authenticated_user) =
+            &self.authenticated_user
+        {
+            // User is authenticated - check if commit author email belongs to them
+            match self.create_user_auth_extractor() {
+                Ok(user_auth) => {
+                    let email_belongs_to_user = user_auth
+                        .verify_email_ownership(&authenticated_user.username, &author_email)
+                        .await
+                        .unwrap_or(false);
+
+                    if email_belongs_to_user {
+                        // Author email belongs to authenticated user
+                        (Some(authenticated_user.username.clone()), false)
+                    } else {
+                        // Author email doesn't belong to authenticated user - try general matching
+                        let user_storage = self.storage.user_storage();
+                        let matched_user = user_storage.find_user_by_email(&author_email).await?;
+
+                        if let Some(user) = matched_user {
+                            (Some(user.name.clone()), false)
+                        } else {
+                            // Mark as anonymous since we can't match the email
+                            (None, true)
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Log the error from create_user_auth_extractor for debugging
+                    tracing::warn!(
+                        "Failed to create user auth extractor for commit binding: {}. \
+                         Falling back to email-based matching.",
+                        e
+                    );
+
+                    // Fallback to email-based matching if auth extractor fails
+                    let user_storage = self.storage.user_storage();
+                    let matched_user = user_storage.find_user_by_email(&author_email).await?;
+                    if let Some(user) = matched_user {
+                        (Some(user.name.clone()), false)
+                    } else {
+                        (None, true)
+                    }
+                }
+            }
+        } else {
+            // No authenticated user - try to match by email only
+            let user_storage = self.storage.user_storage();
+            let matched_user = user_storage.find_user_by_email(&author_email).await?;
+
+            if let Some(user) = matched_user {
+                (Some(user.name.clone()), false)
+            } else {
+                (None, true)
+            }
+        };
+
+        // Upsert the binding
+        commit_binding_storage
+            .upsert_binding(commit_sha, &author_email, final_user_id, is_anonymous)
+            .await?;
+
+        tracing::info!(
+            "Bound commit {} (author: {}) to user: {:?} (authenticated: {})",
+            commit_sha,
+            author_email,
+            if is_anonymous { "anonymous" } else { "matched" },
+            self.authenticated_user.is_some()
+        );
+
+        Ok(())
+    }
 }
 
 fn read_until_white_space(bytes: &mut Bytes) -> String {
@@ -400,10 +553,26 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
     (pkt_length, pkt_line)
 }
 
+/// Extract email address from Git author string (format: "Name <email>")
+fn extract_email_from_author(author: &str) -> String {
+    if let Some(start) = author.rfind('<') {
+        if let Some(end) = author.rfind('>') {
+            if start < end {
+                return author[start + 1..end].trim().to_string();
+            }
+        }
+    }
+    String::new()
+}
+
 #[cfg(test)]
 pub mod test {
     use bytes::{Bytes, BytesMut};
     use callisto::sea_orm_active_enums::RefTypeEnum;
+    use futures::future;
+    use std::process::Command;
+    use tempfile::TempDir;
+    use tokio::task;
 
     use crate::protocol::import_refs::{CommandType, RefCommand};
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
@@ -484,5 +653,66 @@ pub mod test {
             mock.capabilities,
             vec![Capability::ReportStatusv2, Capability::SideBand64k]
         );
+    }
+
+    async fn init_and_push(repo_name: &str) -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let repo_path = tmp.path().join(repo_name);
+        std::fs::create_dir_all(&repo_path)?;
+
+        let remote_url = format!("http://localhost:8000/third-party/{}", repo_name);
+
+        // 1. git init
+        Command::new("git")
+            .arg("init")
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 2. add a file
+        std::fs::write(repo_path.join("README.md"), format!("# {}\n", repo_name))?;
+
+        // 3. git add .
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 4. git commit
+        Command::new("git")
+            .args(["commit", "-m", "init commit"])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 5. git remote add
+        Command::new("git")
+            .args(["remote", "add", "origin", &remote_url])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 6. git push
+        Command::new("git")
+            .args(["push", "origin", "master"])
+            .current_dir(&repo_path)
+            .status()?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 32)]
+    #[ignore]
+    async fn test_dynamic_repos_push() -> anyhow::Result<()> {
+        let repo_count = 64;
+        let repo_names: Vec<String> = (1..=repo_count).map(|i| format!("repo{}", i)).collect();
+
+        // push
+        let tasks = repo_names.into_iter().map(|name| {
+            task::spawn(async move {
+                init_and_push(&name).await.unwrap();
+            })
+        });
+
+        future::join_all(tasks).await;
+
+        Ok(())
     }
 }

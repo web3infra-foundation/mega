@@ -8,7 +8,7 @@ use mercury::internal::object::{
     tree::{TreeItem, TreeItemMode},
 };
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(PartialEq, Eq, Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateFileInfo {
     /// can be a file or directory
     pub is_directory: bool,
@@ -17,6 +17,22 @@ pub struct CreateFileInfo {
     pub path: String,
     // pub import_dir: bool,
     pub content: Option<String>,
+}
+
+impl CreateFileInfo {
+    pub fn commit_msg(&self) -> String {
+        if self.is_directory {
+            format!("\n create new directory {}", self.name)
+        } else {
+            format!("\n create new file {}", self.name)
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize, ToSchema, Clone)]
+pub enum ContentType {
+    File,
+    Directory,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -48,6 +64,17 @@ pub struct LatestCommitInfo {
     pub author: UserInfo,
     pub committer: UserInfo,
     pub status: String,
+    pub binding_info: Option<CommitBindingInfo>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct CommitBindingInfo {
+    pub matched_username: Option<String>,
+    pub is_anonymous: bool,
+    pub is_verified_user: bool,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub author_email: String,
 }
 
 impl From<Commit> for LatestCommitInfo {
@@ -68,6 +95,7 @@ impl From<Commit> for LatestCommitInfo {
             author,
             committer,
             status: "success".to_string(),
+            binding_info: None, // Will be populated at API layer
         }
     }
 }

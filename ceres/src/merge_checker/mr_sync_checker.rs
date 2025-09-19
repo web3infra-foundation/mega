@@ -6,7 +6,7 @@ use serde::Deserialize;
 use common::errors::MegaError;
 use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
 
-use crate::merge_checker::{CheckResult, CheckType, Checker};
+use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 
 pub struct MrSyncChecker {
     pub storage: Arc<Storage>,
@@ -30,13 +30,12 @@ impl Checker for MrSyncChecker {
         let params = MrSyncParams::from_value(params).expect("parse params err");
         let mut res = CheckResult {
             check_type_code: CheckType::MrSync,
-            status: String::from("PENDING"),
+            status: ConditionResult::FAILED,
             message: String::new(),
         };
         if params.mr_from == params.current {
-            res.status = String::from("PASSED");
+            res.status = ConditionResult::PASSED;
         } else {
-            res.status = String::from("FAILED");
             res.message =
                 String::from("The pull request must not have any unresolved merge conflicts");
         }

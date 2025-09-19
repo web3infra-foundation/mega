@@ -13,6 +13,10 @@ use crate::utils::path_ext::PathExt;
 
 use ignore::{gitignore::Gitignore, Match};
 
+use crate::internal::branch::Branch;
+use crate::internal::head::Head;
+use crate::internal::tag;
+
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
 pub const ATTRIBUTES: &str = ".libra_attributes";
@@ -292,24 +296,72 @@ pub fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
-/// extend hash, panic if not valid or ambiguous
-pub async fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
-    let storage = objects_storage();
-
-    let commits = storage.search(commit_base).await;
-    if commits.is_empty() {
-        return Err(format!("fatal: invalid reference: {commit_base}"));
-    } else if commits.len() > 1 {
-        return Err(format!("fatal: ambiguous argument: {commit_base}"));
+/// Resolve a string to a commit SHA1.
+/// The string can be a branch name, a tag name, or a commit hash prefix.
+/// Order of resolution:
+/// 1. HEAD
+/// 2. Local Branch
+/// 3. Tag
+/// 4. Commit hash prefix
+pub async fn get_commit_base(name: &str) -> Result<SHA1, String> {
+    // 1. Check for HEAD
+    if name.to_uppercase() == "HEAD" {
+        if let Some(commit_id) = Head::current_commit().await {
+            return Ok(commit_id);
+        } else {
+            return Err("fatal: HEAD does not point to a commit".to_string());
+        }
     }
-    if !storage.is_object_type(&commits[0], ObjectType::Commit) {
-        Err(format!(
+
+    // 2. Check for a local branch
+    if let Some(branch) = Branch::find_branch(name, None).await {
+        return Ok(branch.commit);
+    }
+
+    // Added: detect remote branch in remote/branch format
+    if let Some((remote, branch_name)) = name.split_once('/') {
+        if !remote.is_empty() && !branch_name.is_empty() {
+            if let Some(branch) = Branch::find_branch(branch_name, Some(remote)).await {
+                return Ok(branch.commit);
+            }
+        }
+    }
+
+    // 3. Check for a tag
+    if let Ok(Some((_tag_object, commit))) = tag::find_tag_and_commit(name).await {
+        // The find_tag_and_commit function already dereferences annotated tags for us.
+        return Ok(commit.id);
+    }
+
+    // 4. Check for a hash prefix
+    let storage = objects_storage();
+    let commits = storage.search(name).await;
+    if commits.is_empty() {
+        return Err(format!("fatal: invalid reference: {}", name));
+    } else if commits.len() > 1 {
+        return Err(format!("fatal: ambiguous argument: {}", name));
+    }
+
+    let object_id = commits[0];
+    let object_type = storage
+        .get_object_type(&object_id)
+        .map_err(|e| format!("fatal: could not read object type for {}: {}", name, e))?;
+
+    match object_type {
+        ObjectType::Commit => Ok(object_id),
+        ObjectType::Tag => {
+            // Manually dereference tag if search returned a tag object directly
+            let tag_obj: mercury::internal::object::tag::Tag =
+                match crate::command::load_object(&object_id) {
+                    Ok(obj) => obj,
+                    Err(e) => return Err(format!("fatal: failed to load tag object: {}", e)),
+                };
+            Ok(tag_obj.object_hash)
+        }
+        _ => Err(format!(
             "fatal: reference is not a commit: {}, is {}",
-            commit_base,
-            storage.get_object_type(&commits[0]).unwrap()
-        ))
-    } else {
-        Ok(commits[0])
+            name, object_type
+        )),
     }
 }
 

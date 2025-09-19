@@ -16,6 +16,7 @@ pub struct Model {
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub username: String,
+    pub resolved: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

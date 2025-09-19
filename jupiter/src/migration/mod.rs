@@ -55,6 +55,11 @@ mod m20250828_092459_remove_gpg_table;
 mod m20250828_092729_create_standalone_table;
 mod m20250903_013904_create_task_table;
 mod m20250903_071928_add_issue_refs;
+mod m20250904_074945_modify_tasks_and_builds;
+mod m20250904_120000_add_commit_auths;
+mod m20250905_163011_add_mr_reviewer;
+mod m20250910_153212_add_username_to_reviewer;
+
 /// Creates a primary key column definition with big integer type.
 ///
 /// # Arguments
@@ -97,10 +102,13 @@ impl MigratorTrait for Migrator {
             Box::new(m20250828_092729_create_standalone_table::Migration),
             Box::new(m20250903_013904_create_task_table::Migration),
             Box::new(m20250903_071928_add_issue_refs::Migration),
+            Box::new(m20250904_120000_add_commit_auths::Migration),
+            Box::new(m20250904_074945_modify_tasks_and_builds::Migration),
+            Box::new(m20250905_163011_add_mr_reviewer::Migration),
+            Box::new(m20250910_153212_add_username_to_reviewer::Migration),
         ]
     }
 }
-
 /// Applies database migrations to the given database connection.
 ///
 /// # Arguments

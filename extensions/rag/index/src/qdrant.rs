@@ -3,6 +3,7 @@ use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use qdrant_client::Qdrant;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::fs;
 
 use crate::utils::CodeItem;
 
@@ -25,24 +26,60 @@ impl QdrantNode {
     }
 
     async fn ensure_collection(&self) {
-        if self
-            .client
-            .create_collection(
-                qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
-                    .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
-                        1024,
-                        qdrant_client::qdrant::Distance::Cosine,
-                    ))
-                    .quantization_config(
-                        qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
-                    ),
-            )
-            .await
-            .is_err()
-        {
-            println!("Collection already exists or error occurred");
+        match self.client.collection_exists(&self.collection_name).await {
+            Ok(true) => {
+                log::info!("Collection '{}' already exists", self.collection_name);
+            }
+            Ok(false) => {
+                log::info!(
+                    "Collection '{}' does not exist, creating...",
+                    self.collection_name
+                );
+                if let Err(e) = self
+                    .client
+                    .create_collection(
+                        qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
+                            .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
+                                1024,
+                                qdrant_client::qdrant::Distance::Cosine,
+                            ))
+                            .quantization_config(
+                                qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
+                            ),
+                    )
+                    .await
+                {
+                    log::error!(
+                        "Failed to create collection '{}': {e}",
+                        self.collection_name
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to check collection existence: {e}");
+            }
         }
     }
+    
+    // async fn ensure_collection(&self) {
+    //     if self
+    //         .client
+    //         .create_collection(
+    //             qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
+    //                 .vectors_config(qdrant_client::qdrant::VectorParamsBuilder::new(
+    //                     1024,
+    //                     qdrant_client::qdrant::Distance::Cosine,
+    //                 ))
+    //                 .quantization_config(
+    //                     qdrant_client::qdrant::ScalarQuantizationBuilder::default(),
+    //                 ),
+    //         )
+    //         .await
+    //         .is_err()
+    //     {
+    //         println!("Collection already exists or error occurred");
+    //     }
+    // }
 }
 
 #[async_trait]
@@ -82,6 +119,13 @@ impl Action for QdrantNode {
                 processed_count += 1;
                 if processed_count % 100 == 0 {
                     log::info!("Processed {processed_count} items");
+                    // 保存当前ID到文件
+                    let current_id = self.id_counter.load(Ordering::SeqCst);
+                    if let Err(e) = fs::write("/opt/data/last_id.json", current_id.to_string()) {
+                        log::error!("Failed to save ID to file: {e}");
+                    } else {
+                        log::info!("Saved current ID {} to file", current_id);
+                    }
                 }
             }
             out_channels.broadcast(Content::new(())).await;
