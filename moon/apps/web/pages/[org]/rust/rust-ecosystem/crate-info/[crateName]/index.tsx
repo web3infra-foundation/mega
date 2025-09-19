@@ -67,6 +67,12 @@ const CratePage = () => {
     const [_packageCurrentPage, _setPackageCurrentPage] = useState(1);
     const [_depCurrentPage, _setDepCurrentPage] = useState(1);
     const [_versions, _setVersions] = useState<string[]>([]);
+    const [senseleakData, setSenseleakData] = useState<any>(null);
+    const [senseleakLoading, setSenseleakLoading] = useState(false);
+    const [senseleakError, setSenseleakError] = useState<string | null>(null);
+    const [unsafecheckerData, setUnsafecheckerData] = useState<any>(null);
+    const [unsafecheckerLoading, setUnsafecheckerLoading] = useState(false);
+    const [unsafecheckerError, setUnsafecheckerError] = useState<string | null>(null);
     // const itemsPerPage = 1;
 
     // 从查询参数或URL参数中获取crate信息
@@ -79,6 +85,60 @@ const CratePage = () => {
 
     
     // const basePath = `/${nsfront}/${nsbehind}/${name}/${version}`;
+
+    // 获取 Senseleak 数据
+    useEffect(() => {
+        const fetchSenseleakData = async () => {
+            try {
+                setSenseleakLoading(true);
+                setSenseleakError(null);
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+
+                const response = await fetch(`${apiBaseUrl}/api/crates/crates/ruru/ruru/0.9.3/senseleak`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch senseleak data');
+                }
+                
+                const data = await response.json();
+
+                setSenseleakData(data);
+            } catch (err) {
+                setSenseleakError('Failed to load senseleak data');
+            } finally {
+                setSenseleakLoading(false);
+            }
+        };
+
+        fetchSenseleakData();
+    }, []);
+
+    // 获取 Unsafechecker 数据
+    useEffect(() => {
+        const fetchUnsafecheckerData = async () => {
+            try {
+                setUnsafecheckerLoading(true);
+                setUnsafecheckerError(null);
+                
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+                const response = await fetch(`${apiBaseUrl}/api/crates/crates/ruru/ruru/0.9.3/unsafechecker`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch unsafechecker data');
+                }
+                
+                const data = await response.json();
+
+                setUnsafecheckerData(data);
+            } catch (err) {
+                setUnsafecheckerError('Failed to load unsafechecker data');
+            } finally {
+                setUnsafecheckerLoading(false);
+            }
+        };
+
+        fetchUnsafecheckerData();
+    }, []);
 
     useEffect(() => {
         // 使用静态数据替代API调用
@@ -618,6 +678,58 @@ const CratePage = () => {
                                     <p className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
                                         Web scraping made simple.
                                     </p>
+                                </div>
+
+                                {/* Senseleak */}
+                                <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        Senseleak
+                                    </h3>
+                                    {senseleakLoading ? (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            Loading...
+                                        </p>
+                                    ) : senseleakError ? (
+                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            {senseleakError}
+                                        </p>
+                                    ) : senseleakData ? (
+                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            <pre className="whitespace-pre-wrap break-words">
+                                                {JSON.stringify(senseleakData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            No data available
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Unsafechecker */}
+                                <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        Unsafechecker
+                                    </h3>
+                                    {unsafecheckerLoading ? (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            Loading...
+                                        </p>
+                                    ) : unsafecheckerError ? (
+                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            {unsafecheckerError}
+                                        </p>
+                                    ) : unsafecheckerData ? (
+                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            <pre className="whitespace-pre-wrap break-words">
+                                                {JSON.stringify(unsafecheckerData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            No data available
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Owners */}
