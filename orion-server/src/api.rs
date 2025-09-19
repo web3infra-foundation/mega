@@ -20,7 +20,7 @@ use orion::ws::WSMessage;
 use rand::Rng;
 use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::convert::Infallible;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -783,7 +783,7 @@ pub struct BuildDTO {
     pub end_at: Option<String>,
     pub repo: String,
     pub target: String,
-    pub args: Option<Vec<String>>,
+    pub args: Option<Value>,
     pub output_file: String,
     pub created_at: String,
     pub status: TaskStatusEnum,
@@ -800,7 +800,7 @@ impl BuildDTO {
             end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
             repo: model.repo,
             target: model.target,
-            args: model.args,
+            args: model.args.map(|v| json!(v)),
             output_file: model.output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             status,
