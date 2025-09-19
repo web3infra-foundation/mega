@@ -212,11 +212,11 @@ export default function FileDiff({ id }: {
         ) : (
           <Virtuoso
             ref={ virtuosoRef }
-            style={{ height: '80vh' }}
+            style={{ height: '76vh', paddingBottom: '20px' }}
             totalCount={ parsedFiles.length }
             itemContent={ DiffItem }
             endReached={ loadMoreDiffs }
-            components={ { Footer: () => (isFileChangeLoading && <LoadingSpinner/>) } }
+            components={ { Footer: () => (isFileChangeLoading && <LoadingSpinner />) } }
             increaseViewportBy={ 350 }
           />
         ) }
