@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use callisto::{git_blob, mega_blob, raw_blob, sea_orm_active_enums::StorageTypeEnum};
-use common::utils::generate_id;
 
+use crate::internal::model::generate_id;
 use crate::{hash::SHA1, internal::object::blob::Blob};
 
 impl From<&Blob> for mega_blob::Model {

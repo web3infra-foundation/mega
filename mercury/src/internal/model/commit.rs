@@ -1,6 +1,6 @@
 use callisto::{git_commit, mega_commit};
-use common::utils::generate_id;
 
+use crate::internal::model::generate_id;
 use crate::internal::{
     object::{commit::Commit, ObjectTrait},
     pack::entry::Entry,

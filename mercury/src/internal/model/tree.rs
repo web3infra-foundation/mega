@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use callisto::{git_tree, mega_tree};
-use common::utils::generate_id;
 
+use crate::internal::model::generate_id;
 use crate::internal::object::tree::Tree;
 use crate::{hash::SHA1, internal::object::ObjectTrait};
 

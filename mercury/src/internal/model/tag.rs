@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use callisto::{git_tag, mega_tag};
-use common::utils::generate_id;
 
+use crate::internal::model::generate_id;
 use crate::{
     hash::SHA1,
     internal::object::{signature::Signature, tag::Tag, types::ObjectType},

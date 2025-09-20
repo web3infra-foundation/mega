@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 delta = { path = "delta" }
 sapling-zstdelta = { path = "zstdelta" }
-common = { workspace = true }
 callisto = { workspace = true }
+idgenerator = { workspace = true }
 flate2 = { workspace = true, features = ["zlib"] } # enable linking against the libz(C lib); better performance
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
