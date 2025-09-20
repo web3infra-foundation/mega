@@ -80,6 +80,18 @@ impl From<pgp::errors::Error> for MegaError {
     }
 }
 
+impl From<mercury::errors::GitError> for MegaError {
+    fn from(err: mercury::errors::GitError) -> MegaError {
+        MegaError::new(err.into(), 1)
+    }
+}
+
+impl From<MegaError> for mercury::errors::GitError {
+    fn from(err: MegaError) -> mercury::errors::GitError {
+        mercury::errors::GitError::CustomError(format!("MegaError: {}", err))
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum GitLFSError {
     #[error("Something went wrong in Git LFS: {0}")]

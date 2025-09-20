@@ -68,7 +68,9 @@ pub struct MegaModelConverter {
 impl MegaModelConverter {
     fn traverse_from_root(&self) {
         let root_tree = &self.root_tree;
-        let mut mega_tree: mega_tree::Model = root_tree.to_owned().into();
+        let sea_tree: mercury::internal::model::sea_models::mega_tree::Model =
+            mercury::internal::model::sea_models::mega_tree::Model::from(root_tree.to_owned());
+        let mut mega_tree: mega_tree::Model = callisto::mega_tree::Model::from(sea_tree);
         mega_tree.commit_id = self.commit.id.to_string();
         self.mega_trees
             .borrow_mut()
@@ -80,7 +82,11 @@ impl MegaModelConverter {
         for item in &tree.tree_items {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
-                let mut mega_tree: mega_tree::Model = child_tree.to_owned().into();
+                let sea_tree: mercury::internal::model::sea_models::mega_tree::Model =
+                    mercury::internal::model::sea_models::mega_tree::Model::from(
+                        child_tree.to_owned(),
+                    );
+                let mut mega_tree: mega_tree::Model = callisto::mega_tree::Model::from(sea_tree);
                 mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
@@ -88,12 +94,16 @@ impl MegaModelConverter {
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model = blob.into();
+                let sea_blob: mercury::internal::model::sea_models::mega_blob::Model =
+                    mercury::internal::model::sea_models::mega_blob::Model::from(blob);
+                let mut mega_blob: mega_blob::Model = callisto::mega_blob::Model::from(sea_blob);
                 mega_blob.commit_id = self.commit.id.to_string();
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());
-                let raw_blob: raw_blob::Model = blob.into();
+                let sea_raw: mercury::internal::model::sea_models::raw_blob::Model =
+                    mercury::internal::model::sea_models::raw_blob::Model::from(blob);
+                let raw_blob: raw_blob::Model = callisto::raw_blob::Model::from(sea_raw);
                 self.raw_blobs.borrow_mut().insert(blob.id, raw_blob.into());
             }
         }

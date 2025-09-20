@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 callisto = { workspace = true }
+mercury = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

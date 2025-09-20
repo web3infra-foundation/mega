@@ -10,6 +10,7 @@ name = "jupiter"
 path = "src/lib.rs"
 
 [dependencies]
+bincode = { workspace = true }
 callisto = { workspace = true }
 common = { workspace = true }
 mercury = { workspace = true }

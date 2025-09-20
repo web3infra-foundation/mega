@@ -8,8 +8,7 @@ edition = "2021"
 [dependencies]
 delta = { path = "delta" }
 sapling-zstdelta = { path = "zstdelta" }
-common = { workspace = true }
-callisto = { workspace = true }
+idgenerator = { workspace = true }
 flate2 = { workspace = true, features = ["zlib"] } # enable linking against the libz(C lib); better performance
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
@@ -24,7 +23,7 @@ uuid = { workspace = true, features = ["v4"] }
 threadpool = { workspace = true }
 num_cpus = { workspace = true }
 dashmap = { workspace = true }
-tokio = {workspace = true }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt-multi-thread"] }
 lru-mem = { workspace = true }
 bincode = { workspace = true , features = ["serde"] }
 byteorder = { workspace = true }
@@ -38,6 +37,7 @@ reqwest = { workspace = true }
 ring = { workspace = true }
 serde_json = { workspace = true }
 ahash = { workspace = true }
+sea-orm = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
