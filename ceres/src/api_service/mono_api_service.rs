@@ -221,7 +221,7 @@ impl ApiHandler for MonoApiService {
             .unwrap();
         Ok(commits
             .into_iter()
-            .map(|x| jupiter::adapter::mega_commit_to_commit(x))
+            .map(jupiter::adapter::mega_commit_to_commit)
             .collect())
     }
 

@@ -89,7 +89,7 @@ impl ApiHandler for ImportApiService {
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap();
-        commit.map(|x| jupiter::adapter::git_commit_to_commit(x))
+        commit.map(jupiter::adapter::git_commit_to_commit)
     }
 
     async fn get_tree_relate_commit(
@@ -124,7 +124,7 @@ impl ApiHandler for ImportApiService {
             .unwrap();
         Ok(commits
             .into_iter()
-            .map(|x| jupiter::adapter::git_commit_to_commit(x))
+            .map(jupiter::adapter::git_commit_to_commit)
             .collect())
     }
 

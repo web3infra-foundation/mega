@@ -179,7 +179,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| jupiter::adapter::git_commit_to_commit(x))
+            .map(jupiter::adapter::git_commit_to_commit)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
