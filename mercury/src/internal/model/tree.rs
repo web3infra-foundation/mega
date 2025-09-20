@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
-use callisto::{git_tree, mega_tree};
+use crate::internal::model::sea_models::{git_tree as sea_git_tree, mega_tree as sea_mega_tree};
 
 use crate::internal::model::generate_id;
 use crate::internal::object::tree::Tree;
 use crate::{hash::SHA1, internal::object::ObjectTrait};
 
-impl From<Tree> for mega_tree::Model {
+impl From<Tree> for sea_mega_tree::Model {
     fn from(value: Tree) -> Self {
-        mega_tree::Model {
+        sea_mega_tree::Model {
             id: generate_id(),
             tree_id: value.id.to_string(),
             sub_trees: value.to_data().unwrap(),
@@ -19,9 +19,9 @@ impl From<Tree> for mega_tree::Model {
     }
 }
 
-impl From<Tree> for git_tree::Model {
+impl From<Tree> for sea_git_tree::Model {
     fn from(value: Tree) -> Self {
-        git_tree::Model {
+        sea_git_tree::Model {
             id: generate_id(),
             repo_id: 0,
             tree_id: value.id.to_string(),
@@ -32,14 +32,14 @@ impl From<Tree> for git_tree::Model {
     }
 }
 
-impl From<mega_tree::Model> for Tree {
-    fn from(value: mega_tree::Model) -> Self {
+impl From<sea_mega_tree::Model> for Tree {
+    fn from(value: sea_mega_tree::Model) -> Self {
         Tree::from_bytes(&value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
 
-impl From<git_tree::Model> for Tree {
-    fn from(value: git_tree::Model) -> Self {
+impl From<sea_git_tree::Model> for Tree {
+    fn from(value: sea_git_tree::Model) -> Self {
         Tree::from_bytes(&value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
