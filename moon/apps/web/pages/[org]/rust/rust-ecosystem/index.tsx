@@ -7,12 +7,14 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useRouter } from 'next/router'
 
 interface CVEItem {
-  cve_id: string
-  url: string
+  id: string
+  subtitle: string
   description: string
-  crate_name: string
-  start_version: string
-  end_version: string
+  // 可选字段，因为实际API可能不返回这些
+  url?: string
+  crate_name?: string
+  start_version?: string
+  end_version?: string
 }
 
 interface CVEData {
@@ -32,7 +34,7 @@ export default function RustEcosystemPage() {
       try {
         setLoading(true)
         const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
-        
+
         const response = await fetch(`${apiBaseUrl}/api/cvelist`)
 
         if (!response.ok) {
@@ -64,8 +66,9 @@ export default function RustEcosystemPage() {
       { text: '已修复', color: 'green' }
     ]
     
-    // 根据索引和CVE ID生成"随机"标签
-    const tagIndex = (index + cve.cve_id.length) % tags.length
+    // 根据索引和CVE ID生成"随机"标签，添加安全检查
+    const cveIdLength = cve?.id?.length || 0
+    const tagIndex = (index + cveIdLength) % tags.length
     const tag = tags[tagIndex]
     
     return {
@@ -366,20 +369,20 @@ export default function RustEcosystemPage() {
                   )}
                   
                   {/* CVE列表 */}
-                  {!loading && !error && cveList.slice(0, 8).map((item, idx) => {
+                  {!loading && !error && cveList && cveList.length > 0 && cveList.slice(0, 8).map((item, idx) => {
                     const itemWithTag = getCVEWithTag(item, idx)
                     
                     return (
-                      <div key={item.cve_id} style={{ position: 'relative' }}>
+                      <div key={item.id} style={{ position: 'relative' }}>
                         <div
                           className="flex flex-col md:flex-row md:items-center justify-between pb-4 min-h-[51px] md:min-h-[51px] md:items-center px-2" // 原px-8，改为px-2让内容更宽
                         >
                           <div className="flex flex-col md:flex-row md:items-center gap-2 flex-1">
                             <span 
                               className="font-medium text-lg text-gray-900 cursor-pointer hover:text-blue-600"
-                              onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info/${item.cve_id}`)}
+                              onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${item.id}`)}
                             >
-                              {item.cve_id}
+                              {item.id}
                             </span>
                             {itemWithTag.tag && (
                               <span className={`ml-2 px-2 py-0.5 rounded bg-${itemWithTag.tag.color}-50 text-xs text-${itemWithTag.tag.color}-600 font-semibold`}>
@@ -408,11 +411,18 @@ export default function RustEcosystemPage() {
                                 <strong>描述：</strong>{item.description}
                               </div>
                               <div className="mb-2">
-                                <strong>影响的包：</strong>{item.crate_name}
+                                <strong>副标题：</strong>{item.subtitle}
                               </div>
-                              <div className="mb-2">
-                                <strong>影响版本：</strong>{item.start_version} - {item.end_version}
-                              </div>
+                              {item.crate_name && (
+                                <div className="mb-2">
+                                  <strong>影响的包：</strong>{item.crate_name}
+                                </div>
+                              )}
+                              {item.start_version && item.end_version && (
+                                <div className="mb-2">
+                                  <strong>影响版本：</strong>{item.start_version} - {item.end_version}
+                                </div>
+                              )}
                             </div>
                             <div className="flex justify-end">
                               <button
@@ -433,7 +443,7 @@ export default function RustEcosystemPage() {
                                   outline: 'none',
                                   cursor: 'pointer',
                                 }}
-                                onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info/${item.cve_id}`)}
+                                onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${item.id}`)}
                               >
                                 Details
                               </button>
