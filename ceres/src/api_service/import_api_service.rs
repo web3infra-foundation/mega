@@ -9,7 +9,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use common::errors::MegaError;
-use jupiter::adapter::{git_commit_to_commit, git_tree_to_tree};
 use jupiter::storage::Storage;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;

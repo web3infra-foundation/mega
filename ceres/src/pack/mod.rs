@@ -25,10 +25,7 @@ use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
     internal::{
-        object::{
-            blob::Blob,
-            tree::{Tree, TreeItemMode},
-        },
+        object::tree::{Tree, TreeItemMode},
         pack::entry::Entry,
     },
 };

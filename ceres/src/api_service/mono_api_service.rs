@@ -48,7 +48,6 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_mr, mega_tree};
 use common::errors::MegaError;
 use common::model::Pagination;
-use jupiter::adapter::{mega_commit_to_commit, mega_tree_to_tree, tree_to_mega_tree};
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;

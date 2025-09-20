@@ -22,7 +22,6 @@ use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
 };
-use jupiter::adapter::{mega_commit_to_commit, mega_tree_to_tree, tree_to_mega_tree};
 use jupiter::storage::Storage;
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
@@ -197,7 +196,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| jupiter::adapter::mega_commit_to_commit(x))
+            .map(jupiter::adapter::mega_commit_to_commit)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
@@ -288,7 +287,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| jupiter::adapter::mega_tree_to_tree(x))
+            .map(jupiter::adapter::mega_tree_to_tree)
             .collect())
     }
 

@@ -22,7 +22,7 @@ use jupiter::storage::{base_storage::StorageConnector, Storage};
 use mercury::{
     errors::GitError,
     internal::{
-        object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree},
+        object::{commit::Commit, tag::Tag, tree::Tree},
         pack::entry::Entry,
     },
 };
@@ -277,7 +277,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| jupiter::adapter::git_tree_to_tree(x))
+            .map(jupiter::adapter::git_tree_to_tree)
             .collect())
     }
 
