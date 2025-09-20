@@ -7,7 +7,8 @@ impl From<mercury::internal::model::sea_models::git_commit::Model> for crate::gi
             repo_id: model.repo_id as i64, // Convert i32 to i64
             commit_id: model.commit_id,
             tree: model.tree,
-            parents_id: serde_json::from_str(&model.parents_id).unwrap_or(serde_json::Value::Array(vec![])),
+            parents_id: serde_json::from_str(&model.parents_id)
+                .unwrap_or(serde_json::Value::Array(vec![])),
             author: model.author,
             committer: model.committer,
             content: model.content,
@@ -16,7 +17,9 @@ impl From<mercury::internal::model::sea_models::git_commit::Model> for crate::gi
     }
 }
 
-impl From<mercury::internal::model::sea_models::git_commit::ActiveModel> for crate::git_commit::ActiveModel {
+impl From<mercury::internal::model::sea_models::git_commit::ActiveModel>
+    for crate::git_commit::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::git_commit::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -29,10 +32,10 @@ impl From<mercury::internal::model::sea_models::git_commit::ActiveModel> for cra
             tree: model.tree,
             parents_id: match model.parents_id {
                 sea_orm::ActiveValue::Set(val) => sea_orm::ActiveValue::Set(
-                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![]))
+                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![])),
                 ),
                 sea_orm::ActiveValue::Unchanged(val) => sea_orm::ActiveValue::Unchanged(
-                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![]))
+                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![])),
                 ),
                 sea_orm::ActiveValue::NotSet => sea_orm::ActiveValue::NotSet,
             },
@@ -54,7 +57,8 @@ impl From<mercury::internal::model::sea_models::mega_commit::Model> for crate::m
             id: model.id,
             commit_id: model.commit_id,
             tree: model.tree,
-            parents_id: serde_json::from_str(&model.parents_id).unwrap_or(serde_json::Value::Array(vec![])),
+            parents_id: serde_json::from_str(&model.parents_id)
+                .unwrap_or(serde_json::Value::Array(vec![])),
             author: model.author,
             committer: model.committer,
             content: model.content,
@@ -63,7 +67,9 @@ impl From<mercury::internal::model::sea_models::mega_commit::Model> for crate::m
     }
 }
 
-impl From<mercury::internal::model::sea_models::mega_commit::ActiveModel> for crate::mega_commit::ActiveModel {
+impl From<mercury::internal::model::sea_models::mega_commit::ActiveModel>
+    for crate::mega_commit::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::mega_commit::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -71,10 +77,10 @@ impl From<mercury::internal::model::sea_models::mega_commit::ActiveModel> for cr
             tree: model.tree,
             parents_id: match model.parents_id {
                 sea_orm::ActiveValue::Set(val) => sea_orm::ActiveValue::Set(
-                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![]))
+                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![])),
                 ),
                 sea_orm::ActiveValue::Unchanged(val) => sea_orm::ActiveValue::Unchanged(
-                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![]))
+                    serde_json::from_str(&val).unwrap_or(serde_json::Value::Array(vec![])),
                 ),
                 sea_orm::ActiveValue::NotSet => sea_orm::ActiveValue::NotSet,
             },
@@ -106,7 +112,9 @@ impl From<mercury::internal::model::sea_models::mega_tree::Model> for crate::meg
     }
 }
 
-impl From<mercury::internal::model::sea_models::mega_tree::ActiveModel> for crate::mega_tree::ActiveModel {
+impl From<mercury::internal::model::sea_models::mega_tree::ActiveModel>
+    for crate::mega_tree::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::mega_tree::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -135,9 +143,18 @@ impl From<mercury::internal::model::sea_models::mega_blob::Model> for crate::meg
     }
 }
 
-impl From<mercury::internal::model::sea_models::mega_blob::ActiveModel> for crate::mega_blob::ActiveModel {
+impl From<mercury::internal::model::sea_models::mega_blob::ActiveModel>
+    for crate::mega_blob::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::mega_blob::ActiveModel) -> Self {
-        Self { id: model.id, blob_id: model.blob_id, commit_id: model.commit_id, name: model.name, size: model.size, created_at: model.created_at }
+        Self {
+            id: model.id,
+            blob_id: model.blob_id,
+            commit_id: model.commit_id,
+            name: model.name,
+            size: model.size,
+            created_at: model.created_at,
+        }
     }
 }
 
@@ -166,7 +183,9 @@ impl From<mercury::internal::model::sea_models::raw_blob::Model> for crate::raw_
     }
 }
 
-impl From<mercury::internal::model::sea_models::raw_blob::ActiveModel> for crate::raw_blob::ActiveModel {
+impl From<mercury::internal::model::sea_models::raw_blob::ActiveModel>
+    for crate::raw_blob::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::raw_blob::ActiveModel) -> Self {
         let map_storage = |s: String| match s.as_str() {
             "database" | "Database" => crate::sea_orm_active_enums::StorageTypeEnum::Database,
@@ -181,7 +200,9 @@ impl From<mercury::internal::model::sea_models::raw_blob::ActiveModel> for crate
             file_type: model.file_type,
             storage_type: match model.storage_type {
                 sea_orm::ActiveValue::Set(v) => sea_orm::ActiveValue::Set(map_storage(v)),
-                sea_orm::ActiveValue::Unchanged(v) => sea_orm::ActiveValue::Unchanged(map_storage(v)),
+                sea_orm::ActiveValue::Unchanged(v) => {
+                    sea_orm::ActiveValue::Unchanged(map_storage(v))
+                }
                 sea_orm::ActiveValue::NotSet => sea_orm::ActiveValue::NotSet,
             },
             data: model.data,
@@ -210,7 +231,9 @@ impl From<mercury::internal::model::sea_models::mega_tag::Model> for crate::mega
     }
 }
 
-impl From<mercury::internal::model::sea_models::mega_tag::ActiveModel> for crate::mega_tag::ActiveModel {
+impl From<mercury::internal::model::sea_models::mega_tag::ActiveModel>
+    for crate::mega_tag::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::mega_tag::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -241,7 +264,9 @@ impl From<mercury::internal::model::sea_models::git_tree::Model> for crate::git_
     }
 }
 
-impl From<mercury::internal::model::sea_models::git_tree::ActiveModel> for crate::git_tree::ActiveModel {
+impl From<mercury::internal::model::sea_models::git_tree::ActiveModel>
+    for crate::git_tree::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::git_tree::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -274,7 +299,9 @@ impl From<mercury::internal::model::sea_models::git_blob::Model> for crate::git_
     }
 }
 
-impl From<mercury::internal::model::sea_models::git_blob::ActiveModel> for crate::git_blob::ActiveModel {
+impl From<mercury::internal::model::sea_models::git_blob::ActiveModel>
+    for crate::git_blob::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::git_blob::ActiveModel) -> Self {
         Self {
             id: model.id,
@@ -310,7 +337,9 @@ impl From<mercury::internal::model::sea_models::git_tag::Model> for crate::git_t
     }
 }
 
-impl From<mercury::internal::model::sea_models::git_tag::ActiveModel> for crate::git_tag::ActiveModel {
+impl From<mercury::internal::model::sea_models::git_tag::ActiveModel>
+    for crate::git_tag::ActiveModel
+{
     fn from(model: mercury::internal::model::sea_models::git_tag::ActiveModel) -> Self {
         Self {
             id: model.id,

@@ -1,8 +1,8 @@
 pub mod blob;
 pub mod commit;
+pub mod sea_models;
 pub mod tag;
 pub mod tree;
-pub mod sea_models;
 
 use idgenerator::IdInstance;
 

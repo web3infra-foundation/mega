@@ -1,7 +1,9 @@
 use std::str::FromStr;
 
-use crate::internal::model::sea_models::{git_blob as sea_git_blob, mega_blob as sea_mega_blob, raw_blob as sea_raw_blob};
 use crate::internal::model::generate_id;
+use crate::internal::model::sea_models::{
+    git_blob as sea_git_blob, mega_blob as sea_mega_blob, raw_blob as sea_raw_blob,
+};
 use crate::{hash::SHA1, internal::object::blob::Blob};
 
 impl From<&Blob> for sea_mega_blob::Model {

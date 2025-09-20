@@ -228,8 +228,8 @@ pub trait RepoHandler: Send + Sync + 'static {
         if let Some(sender) = sender {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
-                let blob: Blob = b.into();
-                sender.send(blob.into()).await.unwrap();
+                let blob = jupiter::adapter::raw_blob_to_blob(b);
+                sender.send(Entry::from(blob)).await.unwrap();
             }
         }
 
@@ -239,7 +239,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            sender.send(tree.into()).await.unwrap();
+            sender.send(Entry::from(tree)).await.unwrap();
         }
     }
 }

@@ -6,7 +6,7 @@ use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
 use lru_mem::{HeapSize, MemSize};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use threadpool::ThreadPool;
 
 use crate::internal::pack::entry::Entry;

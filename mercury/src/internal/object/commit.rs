@@ -16,7 +16,9 @@ use std::str::FromStr;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-use crate::internal::model::sea_models::{git_commit as sea_git_commit, mega_commit as sea_mega_commit};
+use crate::internal::model::sea_models::{
+    git_commit as sea_git_commit, mega_commit as sea_mega_commit,
+};
 use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;

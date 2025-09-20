@@ -15,8 +15,8 @@ use std::{
 use sha1::Digest;
 
 use crate::internal::model::sea_models::{
-    git_blob as sea_git_blob, git_commit as sea_git_commit, git_tag as sea_git_tag, 
-    git_tree as sea_git_tree, mega_blob as sea_mega_blob, mega_commit as sea_mega_commit, 
+    git_blob as sea_git_blob, git_commit as sea_git_commit, git_tag as sea_git_tag,
+    git_tree as sea_git_tree, mega_blob as sea_mega_blob, mega_commit as sea_mega_commit,
     mega_tag as sea_mega_tag, mega_tree as sea_mega_tree, raw_blob as sea_raw_blob,
 };
 

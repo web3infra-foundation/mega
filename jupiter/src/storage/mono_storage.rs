@@ -302,10 +302,15 @@ impl MonoStorage {
             tracing::info!("Monorepo Directory Already Inited, skip init process!");
             return;
         }
-    let converter = MegaModelConverter::init(mono_config);
-    // explicit conversion: Commit -> mercury sea_model -> callisto model
-    let sea_commit: mercury::internal::model::sea_models::mega_commit::Model = mercury::internal::model::sea_models::mega_commit::Model::from(converter.commit.clone());
-    let commit: mega_commit::Model = <callisto::mega_commit::Model as From<mercury::internal::model::sea_models::mega_commit::Model>>::from(sea_commit);
+        let converter = MegaModelConverter::init(mono_config);
+        // explicit conversion: Commit -> mercury sea_model -> callisto model
+        let sea_commit: mercury::internal::model::sea_models::mega_commit::Model =
+            mercury::internal::model::sea_models::mega_commit::Model::from(
+                converter.commit.clone(),
+            );
+        let commit: mega_commit::Model = <callisto::mega_commit::Model as From<
+            mercury::internal::model::sea_models::mega_commit::Model,
+        >>::from(sea_commit);
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())
             .await
@@ -327,8 +332,11 @@ impl MonoStorage {
         let save_models: Vec<mega_commit::ActiveModel> = commits
             .into_iter()
             .map(|c| {
-                let sea: mercury::internal::model::sea_models::mega_commit::Model = mercury::internal::model::sea_models::mega_commit::Model::from(c);
-                <callisto::mega_commit::Model as From<mercury::internal::model::sea_models::mega_commit::Model>>::from(sea)
+                let sea: mercury::internal::model::sea_models::mega_commit::Model =
+                    mercury::internal::model::sea_models::mega_commit::Model::from(c);
+                <callisto::mega_commit::Model as From<
+                    mercury::internal::model::sea_models::mega_commit::Model,
+                >>::from(sea)
             })
             .map(|m| m.into_active_model())
             .collect();
@@ -345,8 +353,11 @@ impl MonoStorage {
             .clone()
             .into_iter()
             .map(|b| {
-                let sea: mercury::internal::model::sea_models::mega_blob::Model = mercury::internal::model::sea_models::mega_blob::Model::from(b);
-                let mut m: callisto::mega_blob::Model = <callisto::mega_blob::Model as From<mercury::internal::model::sea_models::mega_blob::Model>>::from(sea);
+                let sea: mercury::internal::model::sea_models::mega_blob::Model =
+                    mercury::internal::model::sea_models::mega_blob::Model::from(b);
+                let mut m: callisto::mega_blob::Model = <callisto::mega_blob::Model as From<
+                    mercury::internal::model::sea_models::mega_blob::Model,
+                >>::from(sea);
                 m.commit_id = commit_id.to_owned();
                 m.into_active_model()
             })
@@ -356,8 +367,11 @@ impl MonoStorage {
         let raw_blobs: Vec<raw_blob::ActiveModel> = blobs
             .into_iter()
             .map(|b| {
-                let sea: mercury::internal::model::sea_models::raw_blob::Model = mercury::internal::model::sea_models::raw_blob::Model::from(b);
-                <callisto::raw_blob::Model as From<mercury::internal::model::sea_models::raw_blob::Model>>::from(sea)
+                let sea: mercury::internal::model::sea_models::raw_blob::Model =
+                    mercury::internal::model::sea_models::raw_blob::Model::from(b);
+                <callisto::raw_blob::Model as From<
+                    mercury::internal::model::sea_models::raw_blob::Model,
+                >>::from(sea)
             })
             .map(|m| m.into_active_model())
             .collect();
