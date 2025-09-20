@@ -150,7 +150,7 @@ fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
         let end = caps.get(0).unwrap().end();
 
         let mut commit = String::new();
-        commit.push_str(&msg_gpg[..start-1]); 
+        commit.push_str(&msg_gpg[..start.saturating_sub(1)]); 
         commit.push_str(&msg_gpg[end..]);   
 
         while commit.starts_with('\n') {
