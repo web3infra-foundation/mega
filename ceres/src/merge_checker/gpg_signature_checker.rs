@@ -119,7 +119,7 @@ impl GpgSignatureChecker {
             .0;
         let bytes = message.as_bytes();
         sig.signature
-            .verify(&pub_key, &bytes[..])
+            .verify(&pub_key, bytes)
             .map_err(|e| MegaError::with_message(format!("Signature verification failed: {e}")))?;
 
         Ok(())
@@ -170,7 +170,7 @@ fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
 }
 
 #[test]
-fn test_extract_signature_from_commits() {
+fn test_commits_verification() {
     let cm = r#"tree 52a266a58f2c028ad7de4dfd3a72fdf76b0d4e24
 author AidCheng <cn.aiden.cheng@gmail.com> 1758211153 +0100
 committer AidCheng <cn.aiden.cheng@gmail.com> 1758211153 +0100
@@ -275,29 +275,8 @@ F5MtAwnDBeT2Qg==
         .0;
     let bytes = msg.as_bytes();
     sig.signature
-        .verify(&pub_key, &bytes[..])
+        .verify(&pub_key, bytes)
         .expect("unable to verify");
 
     assert!(true);
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use std::fs;
-
-//     use super::*;
-//     #[tokio::test]
-//     async fn test_verify_key() {
-//         let pub_key_file = "pk.key";
-//         let sig = fs::read_to_string("sig.txt").unwrap();
-//         let sig = StandaloneSignature::from_string(&sig).unwrap().0;
-
-//         let data = fs::read_to_string("commit.txt").unwrap().as_bytes().to_vec();
-
-//         // Verify the signature using the public key
-//         let key_string = fs::read_to_string(pub_key_file).expect("Failed to load public key");
-//         let public_key = SignedPublicKey::from_string(&key_string).unwrap().0;
-
-//         sig.signature.verify(&public_key, &data[..]).unwrap();    
-//     }
-// }
