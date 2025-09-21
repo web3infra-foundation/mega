@@ -63,22 +63,24 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        storage
-            .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        jupiter::adapter::git_tree_to_tree(
+            storage
+                .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.storage
-            .git_db_storage()
-            .get_tree_by_hash(self.repo.repo_id, hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        jupiter::adapter::git_tree_to_tree(
+            self.storage
+                .git_db_storage()
+                .get_tree_by_hash(self.repo.repo_id, hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
@@ -87,7 +89,7 @@ impl ApiHandler for ImportApiService {
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap();
-        commit.map(|x| x.into())
+        commit.map(jupiter::adapter::git_commit_to_commit)
     }
 
     async fn get_tree_relate_commit(
@@ -120,7 +122,10 @@ impl ApiHandler for ImportApiService {
             .get_commits_by_hashes(self.repo.repo_id, &c_hashes)
             .await
             .unwrap();
-        Ok(commits.into_iter().map(|x| x.into()).collect())
+        Ok(commits
+            .into_iter()
+            .map(jupiter::adapter::git_commit_to_commit)
+            .collect())
     }
 
     async fn item_to_commit_map(
@@ -295,11 +300,12 @@ impl ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        storage
-            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        jupiter::adapter::git_commit_to_commit(
+            storage
+                .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 }
