@@ -1,38 +1,34 @@
 use std::cmp::min;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::str::FromStr;
 
+use crate::command::load_object;
+use crate::internal::branch::Branch;
+use crate::internal::head::Head;
 use clap::Parser;
 use colored::Colorize;
-
 #[cfg(unix)]
 use std::io::Write;
 #[cfg(unix)]
 use std::process::{Command, Stdio};
 
-use crate::command::load_object;
-use crate::internal::branch::Branch;
-use crate::internal::head::Head;
-use crate::utils::object_ext::TreeExt;
-use crate::utils::util;
-use common::utils::parse_commit_msg;
-
 use mercury::hash::SHA1;
 use mercury::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use neptune::Diff;
+use std::collections::VecDeque;
+use std::str::FromStr;
 
-/// Command line arguments for `log`
+use crate::utils::object_ext::TreeExt;
+use crate::utils::util;
+use common::utils::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output
     #[clap(short, long)]
     pub number: Option<usize>,
-
     /// Shorthand for --pretty=oneline --abbrev-commit
     #[clap(long)]
     pub oneline: bool,
-
     /// Show diffs for each commit (like git -p)
     #[clap(short = 'p', long = "patch")]
     pub patch: bool,
@@ -42,11 +38,11 @@ pub struct LogArgs {
     pathspec: Vec<String>,
 }
 
-/// Get all reachable commits from the given commit hash
-/// **didn't consider the order of the commits**
+///  Get all reachable commits from the given commit hash
+///  **didn't consider the order of the commits**
 pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     let mut queue = VecDeque::new();
-    let mut commit_set: HashSet<String> = HashSet::new();
+    let mut commit_set: HashSet<String> = HashSet::new(); // to avoid duplicate commits because of circular reference
     let mut reachable_commits: Vec<Commit> = Vec::new();
     queue.push_back(commit_hash);
 
@@ -55,27 +51,24 @@ pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
         let commit_id_hash = SHA1::from_str(&commit_id).unwrap();
         let commit = load_object::<Commit>(&commit_id_hash)
             .expect("fatal: storage broken, object not found");
-
         if commit_set.contains(&commit_id) {
             continue;
         }
-        commit_set.insert(commit_id.clone());
+        commit_set.insert(commit_id);
 
-        for parent_commit_id in &commit.parent_commit_ids {
+        let parent_commit_ids = commit.parent_commit_ids.clone();
+        for parent_commit_id in parent_commit_ids {
             queue.push_back(parent_commit_id.to_string());
         }
-
         reachable_commits.push(commit);
     }
-
     reachable_commits
 }
 
-/// Execute the log command
 pub async fn execute(args: LogArgs) {
     #[cfg(unix)]
-    let mut process = Command::new("less")
-        .arg("-R")
+    let mut process = Command::new("less") // create a pipe to less
+        .arg("-R") // raw control characters
         .arg("-F")
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
@@ -84,6 +77,7 @@ pub async fn execute(args: LogArgs) {
 
     let head = Head::current().await;
 
+    // 检查当前分支是否有提交
     if let Head::Branch(branch_name) = head.to_owned() {
         let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
@@ -109,17 +103,20 @@ pub async fn execute(args: LogArgs) {
         let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
         let message = if args.oneline {
-            // Short hash
+            // Oneline format
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
 
             let mut ref_info = Vec::new();
+
+            // HEAD -> current branch
             if let Head::Branch(ref current_branch) = head {
                 if branches.contains(current_branch) {
                     ref_info.push(format!("HEAD -> {}", current_branch.green()));
                 }
             }
 
+            // 其他分支
             let other_branches: Vec<String> = branches
                 .iter()
                 .filter(|b| match &head {
@@ -148,6 +145,7 @@ pub async fn execute(args: LogArgs) {
             );
 
             if output_number == 1 {
+                // HEAD info
                 let mut refs = vec![];
                 let current_branch = if let Head::Branch(name) = head.to_owned() {
                     refs.push(format!("{} -> {}", "HEAD".blue(), name.green()));
@@ -162,11 +160,13 @@ pub async fn execute(args: LogArgs) {
                     .filter(|&b| current_branch.as_ref() != Some(b))
                     .map(|b| b.green().to_string())
                     .collect();
-
                 refs.extend(other_branches);
-                message = format!("{} ({})", message, refs.join(", "));
+
+                let ref_info = format!(" ({})", refs.join(", "));
+                message = format!("{message}{ref_info}");
             } else if !branches.is_empty() {
-                message = format!("{} ({})", message, branches.join(", ").green());
+                let branch_info = format!(" ({})", branches.join(", "));
+                message = format!("{}{}", message, branch_info.green());
             }
 
             message.push_str(&format!("\nAuthor: {}", commit.author));
@@ -201,7 +201,8 @@ pub async fn execute(args: LogArgs) {
     }
 }
 
-/// Map commit hashes to branch names
+
+/// Create a map of commit hashes to branch names
 async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
     let all_branches = Branch::list_branches(None).await;
     let mut commit_to_branches: HashMap<SHA1, Vec<String>> = HashMap::new();
@@ -211,17 +212,24 @@ async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
             Some(remote) => format!("{}/{}", remote, branch.name),
             None => branch.name,
         };
-        commit_to_branches.entry(branch.commit).or_default().push(branch_name);
+
+        commit_to_branches
+            .entry(branch.commit)
+            .or_default()
+            .push(branch_name);
     }
 
     commit_to_branches
 }
 
-/// Generate diff for a commit
+/// Generate unified diff between commit and its first parent (or empty tree)
 async fn generate_diff(commit: &Commit, paths: Vec<PathBuf>) -> String {
+    // prepare old and new blobs
+    // new_blobs from commit tree
     let tree = load_object::<Tree>(&commit.tree_id).unwrap();
     let new_blobs: Vec<(PathBuf, SHA1)> = tree.get_plain_items();
 
+    // old_blobs from first parent if exists
     let old_blobs: Vec<(PathBuf, SHA1)> = if !commit.parent_commit_ids.is_empty() {
         let parent = &commit.parent_commit_ids[0];
         let parent_hash = SHA1::from_str(&parent.to_string()).unwrap();
@@ -248,7 +256,6 @@ async fn generate_diff(commit: &Commit, paths: Vec<PathBuf>) -> String {
         read_content,
     )
     .await;
-
     let mut out = String::new();
     for d in diffs {
         out.push_str(&d.data);
