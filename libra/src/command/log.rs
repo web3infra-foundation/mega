@@ -1,10 +1,15 @@
 use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
+use crate::utils::object_ext::TreeExt;
+use crate::utils::util;
+use common::utils::parse_commit_msg;
+
 use clap::Parser;
 use colored::Colorize;
 #[cfg(unix)]
@@ -15,20 +20,18 @@ use std::process::{Command, Stdio};
 use mercury::hash::SHA1;
 use mercury::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use neptune::Diff;
-use std::collections::VecDeque;
-use std::str::FromStr;
 
-use crate::utils::object_ext::TreeExt;
-use crate::utils::util;
-use common::utils::parse_commit_msg;
+/// Command line arguments for `log`
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output
     #[clap(short, long)]
     pub number: Option<usize>,
+
     /// Shorthand for --pretty=oneline --abbrev-commit
     #[clap(long)]
     pub oneline: bool,
+
     /// Show diffs for each commit (like git -p)
     #[clap(short = 'p', long = "patch")]
     pub patch: bool,
@@ -38,8 +41,8 @@ pub struct LogArgs {
     pathspec: Vec<String>,
 }
 
-///  Get all reachable commits from the given commit hash
-///  **didn't consider the order of the commits**
+/// Get all reachable commits from the given commit hash
+/// **didn't consider the order of the commits**
 pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     let mut queue = VecDeque::new();
     let mut commit_set: HashSet<String> = HashSet::new(); // to avoid duplicate commits because of circular reference
@@ -65,6 +68,7 @@ pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     reachable_commits
 }
 
+/// Execute the log command
 pub async fn execute(args: LogArgs) {
     #[cfg(unix)]
     let mut process = Command::new("less") // create a pipe to less
@@ -76,6 +80,7 @@ pub async fn execute(args: LogArgs) {
         .expect("failed to execute process");
 
     let head = Head::current().await;
+
     // check if the current branch has any commits
     if let Head::Branch(branch_name) = head.to_owned() {
         let branch = Branch::find_branch(&branch_name, None).await;
@@ -87,6 +92,7 @@ pub async fn execute(args: LogArgs) {
     let commit_hash = Head::current_commit().await.unwrap().to_string();
 
     let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
+
     // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
@@ -94,6 +100,7 @@ pub async fn execute(args: LogArgs) {
 
     let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
+
     for commit in reachable_commits {
         if output_number >= max_output_number {
             break;
@@ -106,20 +113,19 @@ pub async fn execute(args: LogArgs) {
         let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
         let message = if args.oneline {
-            // Oneline format: <short_hash> <commit_message_first_line>
+            // Oneline format: <short_hash> <commit_message_first_line> (branch info)
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
-            if !branches.is_empty() {
-                let branch_info = format!(" ({})", branches.join(", "));
-                format!(
-                    "{} {}{}",
-                    short_hash.yellow().bold(),
-                    msg,
-                    branch_info.green()
-                )
+
+            // 分支信息
+            let branch_info = if !branches.is_empty() {
+                format!(" ({})", branches.join(", ")).green().to_string()
             } else {
-                format!("{} {}", short_hash.yellow(), msg)
-            }
+                String::new()
+            };
+
+            // 格式化输出
+            format!("{} {}{}", short_hash.yellow().bold(), msg, branch_info)
         } else {
             // Default detailed format
             let mut message = format!(
@@ -157,13 +163,14 @@ pub async fn execute(args: LogArgs) {
                 message = format!("{message}{ref_info}");
             } else if !branches.is_empty() {
                 // Show branch info for other commits that are branch heads
-                let branch_info = format!(" ({})", branches.join(", "));
-                message = format!("{}{}", message, branch_info.green());
+                let branch_info = format!(" ({})", branches.join(", ")).green();
+                message = format!("{}{}", message, branch_info);
             }
 
             message.push_str(&format!("\nAuthor: {}", commit.author));
             let (msg, _) = parse_commit_msg(&commit.message);
             message.push_str(&format!("\n{msg}\n"));
+
             // If patch requested, compute diff between this commit and its first parent
             if args.patch {
                 let patch_output = generate_diff(&commit, paths.clone()).await;
@@ -186,6 +193,7 @@ pub async fn execute(args: LogArgs) {
             println!("{message}");
         }
     }
+
     #[cfg(unix)]
     {
         let _ = process.wait().expect("failed to wait on child");
@@ -246,6 +254,7 @@ async fn generate_diff(commit: &Commit, paths: Vec<PathBuf>) -> String {
         read_content,
     )
     .await;
+
     let mut out = String::new();
     for d in diffs {
         out.push_str(&d.data);
