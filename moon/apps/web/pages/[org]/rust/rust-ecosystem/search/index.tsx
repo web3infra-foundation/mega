@@ -5,128 +5,85 @@ import { useState, useEffect, useCallback } from 'react'
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useRouter } from 'next/router'
 
-// 模拟搜索结果数据 - 移到组件外部
-const mockSearchResults = [
-    {
-      id: 1,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 2,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 3,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 4,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 5,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 6,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 7,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 8,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 9,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    },
-    {
-      id: 10,
-      type: 'NuGet',
-      name: 'Text',
-      details: 'Package 1.0.6 Published October 22, 2021',
-      description: 'A simple text processing library for .NET applications',
-      version: '1.0.6',
-      publishedDate: '2021-10-22',
-      downloads: 15420,
-      stars: 45
-    }
-  ]
+interface SearchItem {
+  name: string
+  version: string
+  date: string
+  nsfront: string
+  nsbehind: string
+}
+
+interface QueryData {
+  total_page: number
+  items: SearchItem[]
+}
+
+interface SearchData {
+  code: number
+  message: string
+  data: QueryData
+}
 
 export default function SearchResultsPage() {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('All')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<SearchItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [totalResults, setTotalResults] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const router = useRouter()
 
-  const performSearch = useCallback(async (_query: string) => {
-    setSearchResults(mockSearchResults)
+  const performSearch = useCallback(async (query: string, page: number = 1) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      setTotalResults(0)
+      setTotalPages(1)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+      
+      const response = await fetch(`${apiBaseUrl}/api/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          pagination: {
+            page: page,
+            per_page: 20
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch search results')
+      }
+      
+      const data: SearchData = await response.json()
+      
+      if (data.code === 200) {
+        setSearchResults(data.data.items || [])
+        setTotalResults(data.data.items.length)
+        setTotalPages(data.data.total_page || 1)
+        setCurrentPage(page)
+      } else {
+        throw new Error(data.message || '搜索失败')
+      }
+    } catch (err) {
+      setError('搜索失败，请稍后重试')
+      setSearchResults([])
+      setTotalResults(0)
+      setTotalPages(1)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -136,7 +93,7 @@ export default function SearchResultsPage() {
       setSearch(q as string)
       performSearch(q as string)
     }
-  }, [router.query, performSearch])
+  }, [router.query, performSearch, search])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -145,6 +102,28 @@ export default function SearchResultsPage() {
         pathname: router.pathname,
         query: { ...router.query, q: search.trim() }
       })
+      performSearch(search.trim())
+    }
+  }
+
+  // 当activeTab改变时重新搜索
+  useEffect(() => {
+    if (search.trim()) {
+      setCurrentPage(1) // 重置页码
+      performSearch(search.trim(), 1) // 切换标签时重置到第一页
+    }
+  }, [activeTab, performSearch, search])
+
+  // 分页处理函数
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      performSearch(search.trim(), currentPage - 1)
+    }
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      performSearch(search.trim(), currentPage + 1)
     }
   }
 
@@ -285,14 +264,30 @@ export default function SearchResultsPage() {
                       letterSpacing: '0'
                     }}
                   >
-                    Total 56 results
+                    Total {totalResults} results
                   </span>
                 </div>
 
-                <div className="space-y-0">
-                  {searchResults.map((item, index) => (
+                {/* 加载状态 */}
+                {loading && (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="text-gray-500">搜索中...</div>
+                  </div>
+                )}
+                
+                {/* 错误状态 */}
+                {error && (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="text-red-500">{error}</div>
+                  </div>
+                )}
+                
+                {/* 搜索结果列表 */}
+                {!loading && !error && searchResults.length > 0 && (
+                  <div className="space-y-0">
+                    {searchResults.map((item, index) => (
                       <div
-                        key={item.id}
+                        key={`${item.name}-${item.version}-${item.nsfront}-${item.nsbehind}`}
                         className="transition-colors cursor-pointer"
                         style={{ 
                           display: 'flex',
@@ -315,44 +310,64 @@ export default function SearchResultsPage() {
                       >
                         <div className="flex flex-col space-y-2">
                           <span className="text-sm text-gray-500">
-                            {item.type}
+                            {item.nsfront}/{item.nsbehind}
                           </span>
                           <h3 
                             className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
                             onClick={() => router.push({
-                              pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/${item.name}`,
+                              pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/`,
                               query: { 
                                 crateName: item.name,
-                                version: item.version || '1.0.0'
+                                version: item.version || '1.0.0',
+                                nsfront: item.nsfront,
+                                nsbehind: item.nsbehind
                               }
                             })}
                           >
                             {item.name}
                           </h3>
                           <p className="text-sm text-gray-500">
-                            {item.details}
+                            Version {item.version} {item.date && `• Published ${item.date}`}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
+                )}
 
-                {/* 分页 */}
-                <div className="flex justify-center items-center space-x-4 mt-8 mb-8">
-                  <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Previous
-                  </button>
-                  <span className="text-lg font-bold text-gray-900">1</span>
-                  <button className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    Next
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
+                {/* 无结果状态 */}
+                {!loading && !error && searchResults.length === 0 && search.trim() && (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="text-gray-500">未找到相关结果</div>
+                  </div>
+                )}
+
+                {/* 分页 - 只在有结果时显示 */}
+                {!loading && !error && searchResults.length > 0 && totalPages > 1 && (
+                  <div className="flex justify-center items-center space-x-4 mt-8 mb-8">
+                    <button 
+                      onClick={handlePreviousPage}
+                      disabled={currentPage <= 1}
+                      className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Previous
+                    </button>
+                    <span className="text-lg font-bold text-gray-900">{currentPage} / {totalPages}</span>
+                    <button 
+                      onClick={handleNextPage}
+                      disabled={currentPage >= totalPages}
+                      className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -369,3 +384,4 @@ SearchResultsPage.getProviders = (page: any, pageProps: any) => {
     </AuthAppProviders>
   )
 }
+
