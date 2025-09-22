@@ -83,7 +83,7 @@ const CratePage = () => {
     const [error, setError] = useState<string | null>(null);
     const [_packageCurrentPage, _setPackageCurrentPage] = useState(1);
     const [_depCurrentPage, _setDepCurrentPage] = useState(1);
-    const [_versions, _setVersions] = useState<string[]>([]);
+    const [versions, setVersions] = useState<string[]>([]);
     const [senseleakData, setSenseleakData] = useState<any>(null);
     const [senseleakLoading, setSenseleakLoading] = useState(false);
     const [senseleakError, setSenseleakError] = useState<string | null>(null);
@@ -178,7 +178,7 @@ const CratePage = () => {
                 const data: cratesInfo = await response.json();
 
                 setResults(data);
-                _setVersions(data.versions);
+                setVersions(data.versions);
             } catch (err) {
                 setError('Failed to load crate information');
             } finally {
@@ -229,7 +229,7 @@ const CratePage = () => {
             <Head>
                 <title>Crate Info - {crateName || 'Crate'}</title>
             </Head>
-            <CrateInfoLayout>
+            <CrateInfoLayout versions={versions}>
                 <div className="flex justify-center pb-8">
                     <div className="w-[1370px] px-8 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">

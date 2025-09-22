@@ -9,13 +9,22 @@ import { MagnifyingGlassIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/
 import CrateInfoLayout from '../layout';
 import Image from 'next/image';
 
-interface Dependency {
-    id: string;
-    name: string;
+interface DependencyCrateInfo {
+    crate_name: string;
     version: string;
-    relation: 'Direct' | 'Indirect';
+    relation: string;
     license: string;
     dependencies: number;
+}
+
+interface DependencyInfo {
+    direct_count: number;
+    indirect_count: number;
+    data: DependencyCrateInfo[];
+}
+
+interface Dependency extends DependencyCrateInfo {
+    id: string;
     expanded?: boolean;
     description?: string;
     published?: string;
@@ -27,95 +36,56 @@ const DependenciesPage = () => {
     const [dependencies, setDependencies] = useState<Dependency[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
     const version = (router.query.version as string) || params?.version as string || "1.2.01";
     const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
-    // const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
 
+    // 从 API 获取依赖数据
     useEffect(() => {
-        // 模拟依赖数据
-        const mockDependencies: Dependency[] = [
-            {
-                id: '1',
-                name: 'cheerio',
-                version: '1.1.3.0',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 21,
-                expanded: false
-            },
-            {
-                id: '2',
-                name: 'Text',
-                version: '1.1.1.0',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 216,
-                expanded: true,
-                description: 'The fast, flexible & elegant library for parsing and manipulating HTML and XML.',
-                published: 'June 8, 2025'
-            },
-            {
-                id: '3',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 68,
-                expanded: false
-            },
-            {
-                id: '4',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 23,
-                expanded: false
-            },
-            {
-                id: '5',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 1299,
-                expanded: false
-            },
-            {
-                id: '6',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 99,
-                expanded: false
-            },
-            {
-                id: '7',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 66,
-                expanded: false
-            },
-            {
-                id: '8',
-                name: 'Text',
-                version: 'Subtitle',
-                relation: 'Direct',
-                license: 'MIT',
-                dependencies: 666,
-                expanded: false
+        const fetchDependencies = async () => {
+            if (!crateName || !version || !nsfront || !nsbehind) return;
+            
+            try {
+                setLoading(true);
+                setError(null);
+                
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/dependencies`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch dependencies');
+                }
+                
+                const data: DependencyInfo = await response.json();
+                
+                // 转换 API 数据为前端需要的格式
+                const transformedDependencies: Dependency[] = data.data.map((dep, index) => ({
+                    id: `${dep.crate_name}-${dep.version}-${index}`,
+                    crate_name: dep.crate_name,
+                    version: dep.version,
+                    relation: dep.relation as 'Direct' | 'Indirect',
+                    license: dep.license,
+                    dependencies: dep.dependencies,
+                    expanded: false,
+                    description: `Dependency for ${dep.crate_name}`,
+                    published: 'Unknown'
+                }));
+                
+                setDependencies(transformedDependencies);
+            } catch (err) {
+                setError('Failed to load dependencies');
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        // 直接设置数据，不使用加载延迟
-        setDependencies(mockDependencies);
-    }, [crateName, version]);
+        fetchDependencies();
+    }, [crateName, version, nsfront, nsbehind]);
 
     const toggleExpanded = (id: string) => {
         setDependencies(prev =>
@@ -126,12 +96,20 @@ const DependenciesPage = () => {
     };
 
     const filteredDependencies = dependencies.filter(dep =>
-        dep.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dep.crate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dep.version.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const handleNavigateToGraph = () => {
-        router.push(`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies/graph`);
+        router.push({
+            pathname: `/${nsfront}/rust/rust-ecosystem/crate-info/dependencies/graph`,
+            query: {
+                crateName: crateName,
+                version: version,
+                nsfront: nsfront,
+                nsbehind: nsbehind
+            }
+        });
     };
 
     return (
@@ -222,9 +200,24 @@ const DependenciesPage = () => {
                                 </div>
                             </div>
 
+                            {/* 加载状态 */}
+                            {loading && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-gray-500">Loading dependencies...</div>
+                                </div>
+                            )}
+                            
+                            {/* 错误状态 */}
+                            {error && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-red-500">{error}</div>
+                                </div>
+                            )}
+
                             {/* 表格视图内容 */}
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
+                            {!loading && !error && (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
                                     <thead style={{ background: '#ffffff00' }}>
                                         <tr>
                                             <th className="px-6 py-3 text-left w-1/3">
@@ -336,7 +329,7 @@ const DependenciesPage = () => {
                                                             </button>
                                                             <div>
                                                                 <div className="text-sm font-medium text-gray-900">
-                                                                    {dependency.name}
+                                                                    {dependency.crate_name}
                                                                 </div>
                                                                 <div className="text-sm text-gray-500">
                                                                     {dependency.version}
@@ -472,7 +465,8 @@ const DependenciesPage = () => {
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* 分页功能区 */}
