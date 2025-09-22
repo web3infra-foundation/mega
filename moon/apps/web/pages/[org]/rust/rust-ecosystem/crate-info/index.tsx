@@ -40,17 +40,33 @@ export interface cratesInfo {
     },
     "cves": Array<{
         "id": string,
-        "cratename": string,
+        "subtitle": string,
+        "reported": string,
+        "issued": string,
+        "package": string,
+        "ttype": string,
+        "keywords": string,
+        "aliases": string,
+        "reference": string,
         "patched": string,
-        "aliases": string[],
-        "small_desc": string,
+        "unaffected": string,
+        "description": string,
+        "url": string,
     }>,
     "dep_cves": Array<{
         "id": string,
-        "cratename": string,
+        "subtitle": string,
+        "reported": string,
+        "issued": string,
+        "package": string,
+        "ttype": string,
+        "keywords": string,
+        "aliases": string,
+        "reference": string,
         "patched": string,
-        "aliases": string[],
-        "small_desc": string,
+        "unaffected": string,
+        "description": string,
+        "url": string,
     }>,
     "license": string,
     "github_url": string,
@@ -63,73 +79,141 @@ const CratePage = () => {
     const params = useParams();
     const router = useRouter();
     const [results, setResults] = useState<cratesInfo | null>(null);
-    const [error, _setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [_packageCurrentPage, _setPackageCurrentPage] = useState(1);
     const [_depCurrentPage, _setDepCurrentPage] = useState(1);
     const [_versions, _setVersions] = useState<string[]>([]);
+    const [senseleakData, setSenseleakData] = useState<any>(null);
+    const [senseleakLoading, setSenseleakLoading] = useState(false);
+    const [senseleakError, setSenseleakError] = useState<string | null>(null);
+    const [unsafecheckerData, setUnsafecheckerData] = useState<any>(null);
+    const [unsafecheckerLoading, setUnsafecheckerLoading] = useState(false);
+    const [unsafecheckerError, setUnsafecheckerError] = useState<string | null>(null);
     // const itemsPerPage = 1;
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "example-crate";
     const version = (router.query.version as string) || params?.version as string || "1.0.0";
-    const nsfront = params?.nsfront as string || router.query.org as string;
-    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
-    const name = params?.name as string || crateName;
+    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+    const name = crateName;
     
 
     
     // const basePath = `/${nsfront}/${nsbehind}/${name}/${version}`;
 
+    // 获取 Senseleak 数据
     useEffect(() => {
-        // 使用静态数据替代API调用
-        const mockData: cratesInfo = {
-            crate_name: crateName || "example-crate",
-            description: "A comprehensive Rust crate for web development and security analysis",
-            dependencies: {
-                direct: 15,
-                indirect: 45
-            },
-            dependents: {
-                direct: 23,
-                indirect: 67
-            },
-            cves: [
-                {
-                    id: "CVE-2023-1234",
-                    cratename: "example-crate",
-                    patched: "1.2.0",
-                    aliases: ["GHSA-abc123"],
-                    small_desc: "Buffer overflow vulnerability in parsing module"
-                },
-                {
-                    id: "CVE-2023-5678",
-                    cratename: "example-crate",
-                    patched: "1.1.5",
-                    aliases: ["GHSA-def456"],
-                    small_desc: "SQL injection vulnerability in query builder"
+        const fetchSenseleakData = async () => {
+            try {
+                setSenseleakLoading(true);
+                setSenseleakError(null);
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/senseleak`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch senseleak data');
                 }
-            ],
-            dep_cves: [
-                {
-                    id: "CVE-2023-9012",
-                    cratename: "dependency-crate",
-                    patched: "2.0.1",
-                    aliases: ["GHSA-ghi789"],
-                    small_desc: "Memory leak in network module"
-                }
-            ],
-            license: "MIT License",
-            github_url: "https://github.com/example/example-crate",
-            doc_url: "https://docs.rs/example-crate",
-            versions: ["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]
+                
+                const data = await response.json();
+
+                setSenseleakData(data);
+            } catch (err) {
+                setSenseleakError('Failed to load senseleak data');
+            } finally {
+                setSenseleakLoading(false);
+            }
         };
 
-        // 直接设置数据，不使用加载延迟
-        setResults(mockData);
-        _setVersions(mockData.versions);
-    }, [crateName]);
+        if (crateName && version && nsfront && nsbehind) {
+            fetchSenseleakData();
+        }
+    }, [crateName, version, nsfront, nsbehind]);
 
-    if (error) return <p>Error: {error}</p>;
+    // 获取 Unsafechecker 数据
+    useEffect(() => {
+        const fetchUnsafecheckerData = async () => {
+            try {
+                setUnsafecheckerLoading(true);
+                setUnsafecheckerError(null);
+                
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/unsafechecker`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch unsafechecker data');
+                }
+                
+                const data = await response.json();
+
+                setUnsafecheckerData(data);
+            } catch (err) {
+                setUnsafecheckerError('Failed to load unsafechecker data');
+            } finally {
+                setUnsafecheckerLoading(false);
+            }
+        };
+
+        if (crateName && version && nsfront && nsbehind) {
+            fetchUnsafecheckerData();
+        }
+    }, [crateName, version, nsfront, nsbehind]);
+
+    // 获取crate信息
+    useEffect(() => {
+        const fetchCrateInfo = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch crate information');
+                }
+                
+                const data: cratesInfo = await response.json();
+
+                setResults(data);
+                _setVersions(data.versions);
+            } catch (err) {
+                setError('Failed to load crate information');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (crateName && version && nsfront && nsbehind) {
+            fetchCrateInfo();
+        }
+    }, [crateName, version, nsfront, nsbehind]);
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-gray-500">加载中...</div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-red-500">错误: {error}</div>
+            </div>
+        );
+    }
+
+    if (!results) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-gray-500">未找到crate信息</div>
+            </div>
+        );
+    }
 
     // const _getCurrentPageItems = (items: CVE[], currentPage: number) => {
 
@@ -193,20 +277,22 @@ const CratePage = () => {
 
                                      {/* 安全公告列表 */}
                                      <div className="space-y-4">
-                                         {/* 第一个公告 */}
-                                         <div className="flex justify-between items-start py-3 border-b border-gray-100">
-                                             <div className="flex-1">
-                                                 <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] mb-1">
-                                                     Unsoundness of AtomicCell&lt;*64&gt; arithmetics
-                                                 </p>
-                                                 <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[14px] font-normal">
-                                                     RUSTSEC-2022-0041
-                                                 </p>
+                                         {/* CVE列表 */}
+                                         {results.cves.slice(0, 3).map((cve) => (
+                                             <div key={cve.id} className="flex justify-between items-start py-3 border-b border-gray-100">
+                                                 <div className="flex-1">
+                                                     <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] mb-1">
+                                                         {cve.subtitle || cve.description}
+                                                     </p>
+                                                     <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[14px] font-normal">
+                                                         {cve.id}
+                                                     </p>
+                                                 </div>
+                                                 <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
+                                                     MORE DETAILS
+                                                 </button>
                                              </div>
-                                             <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
-                                                 MORE DETAILS
-                                             </button>
-                                         </div>
+                                         ))}
 
                                          {/* SIMILAR ADVISORIES 标题 */}
                                          <div className="py-1 pl-6">
@@ -215,40 +301,22 @@ const CratePage = () => {
                                              </p>
                                          </div>
 
-                                         {/* 第二个公告 */}
-                                         <div className="flex justify-between items-start py-3 border-b border-gray-100 pl-6">
-                                             <div className="flex-1">
-                                                 <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] mb-1">
-                                                     Unsoundness of AtomicCell&lt;*64&gt;
-                                                 </p>
-                                                 <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[14px] font-normal">
-                                                     RUSTSEC-2022-0041
-                                                 </p>
-                                             </div>
-                                             <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
-                                                 MORE DETAILS
-                                             </button>
-                                         </div>
-
-                                         {/* 第三个公告 */}
-                                         <div className="flex justify-between items-start py-3">
-                                             <div className="flex-1">
-                                                 <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] mb-1">
-                                                     crossbeam-utils Unsoundness of AtomicCell&lt;{'{i,u}'}64&gt; arithmetics on 32-bit targets that support Atomic{'{I,U}'}64
-                                                 </p>
-                                                 <div className="flex items-center gap-2 mb-1">
-                                                     <span className="bg-[#FD5656] text-white text-[10px] font-['HarmonyOS_Sans_SC'] font-normal px-2 py-1 rounded-full">
-                                                         8.1 HIGH
-                                                     </span>
+                                         {/* 依赖CVE列表 */}
+                                         {results.dep_cves.slice(0, 2).map((cve) => (
+                                             <div key={cve.id} className="flex justify-between items-start py-3 border-b border-gray-100 pl-6">
+                                                 <div className="flex-1">
+                                                     <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] mb-1">
+                                                         {cve.subtitle || cve.description}
+                                                     </p>
+                                                     <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[14px] font-normal">
+                                                         {cve.id}
+                                                     </p>
                                                  </div>
-                                                 <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[14px] font-normal">
-                                                     GHSA-qc84-gqf4-9926
-                                                 </p>
+                                                 <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
+                                                     MORE DETAILS
+                                                 </button>
                                              </div>
-                                             <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
-                                                 MORE DETAILS
-                                             </button>
-                                         </div>
+                                         ))}
                                      </div>
                                  </div>
 
@@ -312,7 +380,7 @@ const CratePage = () => {
                                                 LICENSES
                                             </p>
                                             <div className="text-[36px] font-['HarmonyOS_Sans_SC'] font-bold text-[#333333]">
-                                                MIT
+                                                {results.license || 'Unknown'}
                                             </div>
                                         </div>
 
@@ -363,7 +431,7 @@ const CratePage = () => {
                                                       >
                                                           BSD-2-Clause
                                                       </div>
-                                                                                                             <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">55</div>
+                                                  <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">55</div>
                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
                                                            <div
                                                                className="h-full bg-[#4B68FF] rounded-lg"
@@ -401,10 +469,10 @@ const CratePage = () => {
                                     </div>
                                 </div>
 
-                                                                 {/* Dependencies */}
+                            {/* Dependencies */}
                                  <div className="space-y-6">
                                      {/* Dependencies 内容 */}
-                                     {results && (results.dependencies.direct + results.dependencies.indirect) > 0 ? (
+                                     {results && results.dependencies && (results.dependencies.direct + results.dependencies.indirect) > 0 ? (
                                          <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
                                              {/* 卡片头部 */}
                                              <div className="flex justify-between items-center mb-6">
@@ -502,7 +570,7 @@ const CratePage = () => {
                                                                  {/* Dependents */}
                                  <div className="space-y-6">
                                      {/* Dependents 内容 */}
-                                     {results && (results.dependents.direct + results.dependents.indirect) > 0 ? (
+                                     {results && results.dependents && (results.dependents.direct + results.dependents.indirect) > 0 ? (
                                          <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
                                              {/* 卡片头部 */}
                                              <div className="flex justify-between items-center mb-6">
@@ -616,8 +684,60 @@ const CratePage = () => {
                                         Description
                                     </h3>
                                     <p className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
-                                        Web scraping made simple.
+                                        {results.description || 'No description available'}
                                     </p>
+                                </div>
+
+                                {/* Senseleak */}
+                                <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        Senseleak
+                                    </h3>
+                                    {senseleakLoading ? (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            Loading...
+                                        </p>
+                                    ) : senseleakError ? (
+                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            {senseleakError}
+                                        </p>
+                                    ) : senseleakData ? (
+                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            <pre className="whitespace-pre-wrap break-words">
+                                                {JSON.stringify(senseleakData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            No data available
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Unsafechecker */}
+                                <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        Unsafechecker
+                                    </h3>
+                                    {unsafecheckerLoading ? (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            Loading...
+                                        </p>
+                                    ) : unsafecheckerError ? (
+                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            {unsafecheckerError}
+                                        </p>
+                                    ) : unsafecheckerData ? (
+                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            <pre className="whitespace-pre-wrap break-words">
+                                                {JSON.stringify(unsafecheckerData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            No data available
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Owners */}
@@ -625,14 +745,20 @@ const CratePage = () => {
                                     <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
                                         Owners
                                     </h3>
-                                    <a
-                                        href="https://registry.npmjs.org/tokio/0.1.2"
-                                        className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline break-all"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        https://registry.npmjs.org/tokio/0.1.2
-                                    </a>
+                                    {results.github_url ? (
+                                        <a
+                                            href={results.github_url}
+                                            className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline break-all"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            {results.github_url}
+                                        </a>
+                                    ) : (
+                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            No GitHub URL available
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Links */}
@@ -641,39 +767,37 @@ const CratePage = () => {
                                         Links
                                     </h3>
                                     <div className="space-y-2">
-                                        <div>
-                                            <span className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">ORIGIN:</span>
-                                            <a
-                                                href="https://registry.npmjs.org/tokio/0.1.2"
-                                                className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline block break-all"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                https://registry.npmjs.org/tokio/0.1.2
-                                            </a>
-                                        </div>
-                                        <div>
-                                            <span className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">HOMEPAGE:</span>
-                                            <a
-                                                href="https://registry.npmjs.org/tokio/0.1.2"
-                                                className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline block break-all"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                https://registry.npmjs.org/tokio/0.1.2
-                                            </a>
-                                        </div>
-                                        <div>
-                                            <span className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">REPO:</span>
-                                            <a
-                                                href="https://registry.npmjs.org/tokio/0.1.2"
-                                                className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline block break-all"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                https://registry.npmjs.org/tokio/0.1.2
-                                            </a>
-                                        </div>
+                                        {results.github_url && (
+                                            <div>
+                                                <span className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">REPO:</span>
+                                                <a
+                                                    href={results.github_url}
+                                                    className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline block break-all"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {results.github_url}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {results.doc_url && (
+                                            <div>
+                                                <span className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">DOCS:</span>
+                                                <a
+                                                    href={results.doc_url}
+                                                    className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline block break-all"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {results.doc_url}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {!results.github_url && !results.doc_url && (
+                                            <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
+                                                No links available
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
