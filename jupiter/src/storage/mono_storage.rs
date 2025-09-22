@@ -188,18 +188,25 @@ impl MonoStorage {
                                     commit_obj.author.email.clone(),
                                 ));
                             }
-                            git_objects.commits.push(commit.into_active_model())
+                            let c = callisto::mega_commit::Model::from(commit);
+                            git_objects.commits.push(c.into_active_model())
                         }
                         MegaObjectModel::Tree(mut tree) => {
                             commit_id.clone_into(&mut tree.commit_id);
-                            git_objects.trees.push(tree.into_active_model());
+                            let t = callisto::mega_tree::Model::from(tree);
+                            git_objects.trees.push(t.into_active_model());
                         }
                         MegaObjectModel::Blob(mut blob, raw) => {
                             commit_id.clone_into(&mut blob.commit_id);
-                            git_objects.blobs.push(blob.clone().into_active_model());
-                            git_objects.raw_blobs.push(raw.into_active_model());
+                            let b = callisto::mega_blob::Model::from(blob.clone());
+                            git_objects.blobs.push(b.into_active_model());
+                            let r = callisto::raw_blob::Model::from(raw);
+                            git_objects.raw_blobs.push(r.into_active_model());
                         }
-                        MegaObjectModel::Tag(tag) => git_objects.tags.push(tag.into_active_model()),
+                        MegaObjectModel::Tag(tag) => {
+                            let tg = callisto::mega_tag::Model::from(tag);
+                            git_objects.tags.push(tg.into_active_model())
+                        }
                     }
                 }
             })
@@ -296,7 +303,14 @@ impl MonoStorage {
             return;
         }
         let converter = MegaModelConverter::init(mono_config);
-        let commit: mega_commit::Model = converter.commit.into();
+        // explicit conversion: Commit -> mercury sea_model -> callisto model
+        let sea_commit: mercury::internal::model::sea_models::mega_commit::Model =
+            mercury::internal::model::sea_models::mega_commit::Model::from(
+                converter.commit.clone(),
+            );
+        let commit: mega_commit::Model = <callisto::mega_commit::Model as From<
+            mercury::internal::model::sea_models::mega_commit::Model,
+        >>::from(sea_commit);
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())
             .await
@@ -317,7 +331,13 @@ impl MonoStorage {
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
         let save_models: Vec<mega_commit::ActiveModel> = commits
             .into_iter()
-            .map(mega_commit::Model::from)
+            .map(|c| {
+                let sea: mercury::internal::model::sea_models::mega_commit::Model =
+                    mercury::internal::model::sea_models::mega_commit::Model::from(c);
+                <callisto::mega_commit::Model as From<
+                    mercury::internal::model::sea_models::mega_commit::Model,
+                >>::from(sea)
+            })
             .map(|m| m.into_active_model())
             .collect();
         self.batch_save_model(save_models).await.unwrap();
@@ -332,8 +352,12 @@ impl MonoStorage {
         let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
             .clone()
             .into_iter()
-            .map(mega_blob::Model::from)
-            .map(|mut m| {
+            .map(|b| {
+                let sea: mercury::internal::model::sea_models::mega_blob::Model =
+                    mercury::internal::model::sea_models::mega_blob::Model::from(b);
+                let mut m: callisto::mega_blob::Model = <callisto::mega_blob::Model as From<
+                    mercury::internal::model::sea_models::mega_blob::Model,
+                >>::from(sea);
                 m.commit_id = commit_id.to_owned();
                 m.into_active_model()
             })
@@ -342,7 +366,13 @@ impl MonoStorage {
 
         let raw_blobs: Vec<raw_blob::ActiveModel> = blobs
             .into_iter()
-            .map(raw_blob::Model::from)
+            .map(|b| {
+                let sea: mercury::internal::model::sea_models::raw_blob::Model =
+                    mercury::internal::model::sea_models::raw_blob::Model::from(b);
+                <callisto::raw_blob::Model as From<
+                    mercury::internal::model::sea_models::raw_blob::Model,
+                >>::from(sea)
+            })
             .map(|m| m.into_active_model())
             .collect();
         self.batch_save_model(raw_blobs).await.unwrap();

@@ -142,7 +142,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     }
     // Match the shared_mode argument and apply permissions accordingly
     match shared_mode {
-        "false" | "umask" => {}   // default
+        "false" | "umask" => {} // default
         "true" | "group" => set_recursive(root_dir, 0o2775)?,
         "all" | "world" | "everybody" => set_recursive(root_dir, 0o2777)?,
         mode if mode.starts_with('0') && mode.len() == 4 => {
@@ -167,12 +167,11 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
 
 /// Only verify the shared_mode
 #[cfg(target_os = "windows")]
-fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
+fn apply_shared(_root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     match shared_mode {
-        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {}   // Valid string input
+        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {} // Valid string input
         mode if mode.starts_with('0') && mode.len() == 4 => {
-            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) {  //Valid perm input
-            } else {
+            if u32::from_str_radix(&mode[1..], 8).is_err() { //Valid perm input
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("invalid shared mode: {}", mode),
@@ -334,7 +333,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     if let Some(shared_mode) = &args.shared {
         apply_shared(&root_dir, shared_mode)?;
     }
-    
+
     if !args.quiet {
         let repo_type = if args.bare { "bare " } else { "" };
         println!(
