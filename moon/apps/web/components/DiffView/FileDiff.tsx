@@ -73,7 +73,7 @@ export default function FileDiff({ id }: {
 
   const { fileChanged: MrFilesChangedData, isLoading: isFileChangeLoading } = useGetMrFileChanged(id, {
     page,
-    per_page: 50
+    per_page: 100
   })
 
   useEffect(() => {
@@ -94,7 +94,6 @@ export default function FileDiff({ id }: {
   const fileDiff = useMemo(() => {
     const allItems: DiffItem[] = []
 
-    // 按页面顺序合并数据
     for (let i = 1; i <= page; i++) {
       const pageData = pageDataMap.get(i)
 
@@ -115,9 +114,28 @@ export default function FileDiff({ id }: {
 
   const fileRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const toggleExpanded = (path: string) => {
     setExpandedMap((prev) => ({ ...prev, [path]: !prev[path] }))
   }
+
+  const scrollToFile = useCallback((filePath: string) => {
+    // Find if the file exists in current rendered files
+    const fileExists = parsedFiles.some(file => file.file.path === filePath)
+
+    if (fileExists) {
+      toggleExpanded(filePath)
+
+      // Use setTimeout to ensure DOM is updated after expansion
+      setTimeout(() => {
+        const fileElement = fileRefs.current[filePath]
+
+        if (fileElement) {
+          fileElement.scrollIntoView({ behavior: 'smooth' })
+        }
+      }, 100)
+    }
+  }, [parsedFiles, toggleExpanded])
 
   const hasMoreData = useMemo(() => {
     return fileDiff.length < totalCount
@@ -201,7 +219,7 @@ export default function FileDiff({ id }: {
   return (
     <div className='mt-3 flex font-sans'>
       <div className='sticky top-5 h-[80vh] w-[300px] overflow-y-auto rounded-lg p-2'>
-        <FileTree link={id}/>
+        <FileTree link={id} onFileClick={scrollToFile}/>
       </div>
 
       <div className='flex-1 px-4 w-full h-full'>
