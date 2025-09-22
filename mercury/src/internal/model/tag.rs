@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
-use crate::internal::model::sea_models::{git_tag as sea_git_tag, mega_tag as sea_mega_tag};
+use callisto::{git_tag, mega_tag};
+use common::utils::generate_id;
 
-use crate::internal::model::generate_id;
 use crate::{
     hash::SHA1,
     internal::object::{signature::Signature, tag::Tag, types::ObjectType},
 };
 
-impl From<Tag> for sea_mega_tag::Model {
+impl From<Tag> for mega_tag::Model {
     fn from(value: Tag) -> Self {
-        sea_mega_tag::Model {
+        mega_tag::Model {
             id: generate_id(),
             tag_id: value.id.to_string(),
             object_id: value.object_hash.to_string(),
@@ -23,9 +23,9 @@ impl From<Tag> for sea_mega_tag::Model {
     }
 }
 
-impl From<Tag> for sea_git_tag::Model {
+impl From<Tag> for git_tag::Model {
     fn from(value: Tag) -> Self {
-        sea_git_tag::Model {
+        git_tag::Model {
             id: generate_id(),
             repo_id: 0,
             tag_id: value.id.to_string(),
@@ -39,8 +39,8 @@ impl From<Tag> for sea_git_tag::Model {
     }
 }
 
-impl From<sea_mega_tag::Model> for Tag {
-    fn from(value: sea_mega_tag::Model) -> Self {
+impl From<mega_tag::Model> for Tag {
+    fn from(value: mega_tag::Model) -> Self {
         Self {
             id: SHA1::from_str(&value.tag_id).expect("Invalid tag_id in database"),
             object_hash: SHA1::from_str(&value.object_id).unwrap(),
@@ -52,8 +52,8 @@ impl From<sea_mega_tag::Model> for Tag {
     }
 }
 
-impl From<sea_git_tag::Model> for Tag {
-    fn from(value: sea_git_tag::Model) -> Self {
+impl From<git_tag::Model> for Tag {
+    fn from(value: git_tag::Model) -> Self {
         Self {
             id: SHA1::from_str(&value.tag_id).unwrap(),
             object_hash: SHA1::from_str(&value.object_id).unwrap(),

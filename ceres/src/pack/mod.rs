@@ -25,7 +25,10 @@ use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
     internal::{
-        object::tree::{Tree, TreeItemMode},
+        object::{
+            blob::Blob,
+            tree::{Tree, TreeItemMode},
+        },
         pack::entry::Entry,
     },
 };
@@ -225,8 +228,8 @@ pub trait RepoHandler: Send + Sync + 'static {
         if let Some(sender) = sender {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
-                let blob = jupiter::adapter::raw_blob_to_blob(b);
-                sender.send(Entry::from(blob)).await.unwrap();
+                let blob: Blob = b.into();
+                sender.send(blob.into()).await.unwrap();
             }
         }
 
@@ -236,7 +239,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            sender.send(Entry::from(tree)).await.unwrap();
+            sender.send(tree.into()).await.unwrap();
         }
     }
 }

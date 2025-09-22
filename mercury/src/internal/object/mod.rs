@@ -14,10 +14,8 @@ use std::{
 
 use sha1::Digest;
 
-use crate::internal::model::sea_models::{
-    git_blob as sea_git_blob, git_commit as sea_git_commit, git_tag as sea_git_tag,
-    git_tree as sea_git_tree, mega_blob as sea_mega_blob, mega_commit as sea_mega_commit,
-    mega_tag as sea_mega_tag, mega_tree as sea_mega_tree, raw_blob as sea_raw_blob,
+use callisto::{
+    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob,
 };
 
 use crate::internal::object::types::ObjectType;
@@ -63,17 +61,17 @@ pub enum GitObject {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum GitObjectModel {
-    Commit(sea_git_commit::Model),
-    Tree(sea_git_tree::Model),
-    Blob(sea_git_blob::Model, sea_raw_blob::Model),
-    Tag(sea_git_tag::Model),
+    Commit(git_commit::Model),
+    Tree(git_tree::Model),
+    Blob(git_blob::Model, raw_blob::Model),
+    Tag(git_tag::Model),
 }
 
 pub enum MegaObjectModel {
-    Commit(sea_mega_commit::Model),
-    Tree(sea_mega_tree::Model),
-    Blob(sea_mega_blob::Model, sea_raw_blob::Model),
-    Tag(sea_mega_tag::Model),
+    Commit(mega_commit::Model),
+    Tree(mega_tree::Model),
+    Blob(mega_blob::Model, raw_blob::Model),
+    Tag(mega_tag::Model),
 }
 
 impl GitObject {

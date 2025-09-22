@@ -440,10 +440,7 @@ async fn test_valid_shared_mode(shared_mode: &str) {
     {
         use std::os::unix::fs::PermissionsExt;
         // Verify the mode of pre-commit.sh
-        let perms = std::fs::metadata(libra_dir.join("hooks/pre-commit.sh"))
-            .unwrap()
-            .permissions()
-            .mode();
+        let perms = std::fs::metadata(libra_dir.join("hooks/pre-commit.sh")).unwrap().permissions().mode();
         match shared_mode {
             "true" | "group" => assert_eq!(perms & 0o777, 0o775),
             "all" | "world" | "everybody" => assert_eq!(perms & 0o777, 0o777),
