@@ -9,11 +9,16 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 import CrateInfoLayout from '../layout';
 import Image from 'next/image';
 
-interface VersionInfo {
-    id: string;
+interface Versionpage {
     version: string;
-    published: string;
+    updated_at: string;
+    downloads: string;
     dependents: number;
+}
+
+interface VersionInfo extends Versionpage {
+    id: string;
+    published: string;
 }
 
 const VersionsPage = () => {
@@ -22,94 +27,70 @@ const VersionsPage = () => {
     const [versions, setVersions] = useState<VersionInfo[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const itemsPerPage = 10;
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
+    const version = (router.query.version as string) || params?.version as string || "1.2.01";
+    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
 
+    // 从 API 获取版本数据
     useEffect(() => {
-        // 模拟版本数据
-        const mockVersions: VersionInfo[] = [
-            {
-                id: '1',
-                version: '1.45.1',
-                published: 'May 24, 2025',
-                dependents: 19934
-            },
-            {
-                id: '2',
-                version: '1.45.0',
-                published: 'May 6, 2025',
-                dependents: 9921
-            },
-            {
-                id: '3',
-                version: '1.44.2',
-                published: 'April 6, 2025',
-                dependents: 3
-            },
-            {
-                id: '4',
-                version: '1.44.1',
-                published: 'April 6, 2025',
-                dependents: 6
-            },
-            {
-                id: '5',
-                version: '1.44.0',
-                published: 'April 5, 2025',
-                dependents: 0
-            },
-            {
-                id: '6',
-                version: '1.43.1',
-                published: 'March 13, 2025',
-                dependents: 82
-            },
-            {
-                id: '7',
-                version: '1.43.0',
-                published: 'March 10, 2025',
-                dependents: 992
-            },
-            {
-                id: '8',
-                version: '1.42.1',
-                published: 'March 3, 2025',
-                dependents: 666
-            },
-            {
-                id: '9',
-                version: '1.42.0',
-                published: 'January 13, 2025',
-                dependents: 0
-            },
-            {
-                id: '10',
-                version: '1.41.1',
-                published: 'November 7, 2024',
-                dependents: 0
-            }
-        ];
-
-        // 排序版本
-        const sortedVersions = [...mockVersions].sort((a, b) => {
-            const aVersion = a.version.split('.').map(Number);
-            const bVersion = b.version.split('.').map(Number);
+        const fetchVersions = async () => {
+            if (!crateName || !version || !nsfront || !nsbehind) return;
             
-            for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
-                const aPart = aVersion[i] || 0;
-                const bPart = bVersion[i] || 0;
+            try {
+                setLoading(true);
+                setError(null);
                 
-                if (aPart !== bPart) {
-                    return sortOrder === 'desc' ? bPart - aPart : aPart - bPart;
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/versions`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch versions');
                 }
-            }
-            return 0;
-        });
+                
+                const data: Versionpage[] = await response.json();
+                
+                // 转换 API 数据为前端需要的格式
+                const transformedVersions: VersionInfo[] = data.map((ver, index) => ({
+                    id: `${ver.version}-${index}`,
+                    version: ver.version,
+                    published: ver.updated_at,
+                    dependents: ver.dependents,
+                    updated_at: ver.updated_at,
+                    downloads: ver.downloads
+                }));
 
-        setVersions(sortedVersions);
-    }, [sortOrder]);
+                // 排序版本
+                const sortedVersions = [...transformedVersions].sort((a, b) => {
+                    const aVersion = a.version.split('.').map(Number);
+                    const bVersion = b.version.split('.').map(Number);
+                    
+                    for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
+                        const aPart = aVersion[i] || 0;
+                        const bPart = bVersion[i] || 0;
+                        
+                        if (aPart !== bPart) {
+                            return sortOrder === 'desc' ? bPart - aPart : aPart - bPart;
+                        }
+                    }
+                    return 0;
+                });
+
+                setVersions(sortedVersions);
+            } catch (err) {
+                setError('Failed to load versions');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchVersions();
+    }, [crateName, version, nsfront, nsbehind, sortOrder]);
 
     const handleSort = () => {
         setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
@@ -146,10 +127,25 @@ const VersionsPage = () => {
             <CrateInfoLayout>
                 <div className="flex justify-center">
                     <div className="w-[1370px] px-8 py-4">
+                        {/* 加载状态 */}
+                        {loading && (
+                            <div className="flex justify-center items-center py-8">
+                                <div className="text-gray-500">Loading versions...</div>
+                            </div>
+                        )}
+                        
+                        {/* 错误状态 */}
+                        {error && (
+                            <div className="flex justify-center items-center py-8">
+                                <div className="text-red-500">{error}</div>
+                            </div>
+                        )}
+
                         {/* 表格 */}
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
+                        {!loading && !error && (
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
                                     <thead style={{ background: 'rgb(241,241,245)' }}>
                                         <tr>
                                             <th className="px-6 py-3 text-left w-1/3">
@@ -284,8 +280,9 @@ const VersionsPage = () => {
                                         ))}
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* 分页功能区 */}
                         <div className="w-full flex justify-center mt-8">

@@ -7,9 +7,10 @@ import { VersionSelectorDropdown } from '../../../../../components/Rust/VersionS
 
 interface CrateInfoLayoutProps {
     children: React.ReactNode;
+    versions?: string[];
 }
 
-const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
+const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutProps) => {
     const router = useRouter();
     const params = useParams();
     
@@ -30,7 +31,6 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
     // 版本选择相关状态
     const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
     const [selectedVersion, setSelectedVersion] = useState<string>(version);
-    const [versions] = useState<string[]>(["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]);
     
     // 根据当前路径确定activeTab
     const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>('overview');
