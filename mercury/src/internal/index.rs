@@ -210,7 +210,7 @@ impl Index {
             entries: BTreeMap::new(),
         }
     }
-
+    
     fn check_header(file: &mut impl Read) -> Result<u32, GitError> {
         let mut magic = [0; 4];
         file.read_exact(&mut magic)?;

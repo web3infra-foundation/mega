@@ -16,14 +16,13 @@ use std::str::FromStr;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-use crate::internal::model::sea_models::{
-    git_commit as sea_git_commit, mega_commit as sea_mega_commit,
-};
 use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
 use bincode::{Decode, Encode};
 use bstr::ByteSlice;
+use callisto::git_commit;
+use callisto::mega_commit;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -243,7 +242,7 @@ impl ObjectTrait for Commit {
 fn commit_from_model(
     commit_id: &str,
     tree: &str,
-    parents_id: &str,
+    parents_id: &serde_json::Value,
     author: Option<String>,
     committer: Option<String>,
     message: Option<String>,
@@ -251,10 +250,11 @@ fn commit_from_model(
     Commit {
         id: SHA1::from_str(commit_id).unwrap(),
         tree_id: SHA1::from_str(tree).unwrap(),
-        parent_commit_ids: serde_json::from_str::<Vec<String>>(parents_id)
+        parent_commit_ids: parents_id
+            .as_array()
             .unwrap()
             .iter()
-            .map(|id| SHA1::from_str(id).unwrap())
+            .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
             .collect(),
         author: Signature::from_data(author.unwrap().into()).unwrap(),
         committer: Signature::from_data(committer.unwrap().into()).unwrap(),
@@ -262,8 +262,8 @@ fn commit_from_model(
     }
 }
 
-impl From<sea_mega_commit::Model> for Commit {
-    fn from(value: sea_mega_commit::Model) -> Self {
+impl From<mega_commit::Model> for Commit {
+    fn from(value: mega_commit::Model) -> Self {
         commit_from_model(
             &value.commit_id,
             &value.tree,
@@ -275,8 +275,8 @@ impl From<sea_mega_commit::Model> for Commit {
     }
 }
 
-impl From<sea_git_commit::Model> for Commit {
-    fn from(value: sea_git_commit::Model) -> Self {
+impl From<git_commit::Model> for Commit {
+    fn from(value: git_commit::Model) -> Self {
         commit_from_model(
             &value.commit_id,
             &value.tree,

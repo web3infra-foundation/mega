@@ -132,26 +132,21 @@ impl GitDbStorage {
 
                     match model {
                         GitObjectModel::Commit(mut commit) => {
-                            commit.repo_id = repo_id as i32;
-                            let c = callisto::git_commit::Model::from(commit);
-                            git_objects.commits.push(c.into_active_model())
+                            commit.repo_id = repo_id;
+                            git_objects.commits.push(commit.into_active_model())
                         }
                         GitObjectModel::Tree(mut tree) => {
-                            tree.repo_id = repo_id as i32;
-                            let t = callisto::git_tree::Model::from(tree.clone());
-                            git_objects.trees.push(t.into_active_model());
+                            tree.repo_id = repo_id;
+                            git_objects.trees.push(tree.clone().into_active_model());
                         }
                         GitObjectModel::Blob(mut blob, raw) => {
-                            blob.repo_id = repo_id as i32;
-                            let b = callisto::git_blob::Model::from(blob.clone());
-                            git_objects.blobs.push(b.into_active_model());
-                            let r = callisto::raw_blob::Model::from(raw);
-                            git_objects.raw_blobs.push(r.into_active_model());
+                            blob.repo_id = repo_id;
+                            git_objects.blobs.push(blob.clone().into_active_model());
+                            git_objects.raw_blobs.push(raw.into_active_model());
                         }
                         GitObjectModel::Tag(mut tag) => {
-                            tag.repo_id = repo_id as i32;
-                            let tg = callisto::git_tag::Model::from(tag);
-                            git_objects.tags.push(tg.into_active_model())
+                            tag.repo_id = repo_id;
+                            git_objects.tags.push(tag.into_active_model())
                         }
                     }
                 }

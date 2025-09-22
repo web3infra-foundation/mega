@@ -6,47 +6,12 @@ use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
 use lru_mem::{HeapSize, MemSize};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 
 use crate::internal::pack::entry::Entry;
 use crate::internal::pack::utils;
 use crate::{hash::SHA1, internal::object::types::ObjectType};
-
-// 为Arc<AtomicUsize>实现Serialize和Deserialize
-#[derive(Debug, Clone)]
-struct SerializableAtomicUsize(usize);
-
-impl Serialize for SerializableAtomicUsize {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u64(self.0 as u64)
-    }
-}
-
-impl<'de> Deserialize<'de> for SerializableAtomicUsize {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = u64::deserialize(deserializer)? as usize;
-        Ok(SerializableAtomicUsize(value))
-    }
-}
-
-impl From<Arc<AtomicUsize>> for SerializableAtomicUsize {
-    fn from(arc_atomic: Arc<AtomicUsize>) -> Self {
-        SerializableAtomicUsize(arc_atomic.load(Ordering::Relaxed))
-    }
-}
-
-impl From<SerializableAtomicUsize> for Arc<AtomicUsize> {
-    fn from(serializable: SerializableAtomicUsize) -> Self {
-        Arc::new(AtomicUsize::new(serializable.0))
-    }
-}
 
 // /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
@@ -119,7 +84,6 @@ pub struct CacheObject {
     pub(crate) info: CacheObjectInfo,
     pub offset: usize,
     pub data_decompressed: Vec<u8>,
-    #[serde(skip)]
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
