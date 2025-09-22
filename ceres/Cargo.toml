@@ -19,6 +19,7 @@ neptune = { workspace = true }
 bellatrix = { workspace = true }
 
 anyhow = { workspace = true }
+# Use 0.16.0 version for GPG Verification
 pgp = { version = "0.16.0" }
 tokio = { workspace = true, features = ["net", "process"] }
 tokio-stream = { workspace = true }
