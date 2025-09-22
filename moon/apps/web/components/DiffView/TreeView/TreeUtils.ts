@@ -64,19 +64,22 @@ export const convertToTreeData = (responseData: any): MuiTreeNode[] => {
   }
 
   // Handle the new API format where responseData is the tree structure directly
-  const convertNode = (node: any): MuiTreeNode => {
+  const convertNode = (node: any, parentPath: string = ''): MuiTreeNode => {
+    // Build the full path by combining parent path with current node label
+    const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label
+
     return {
       id: node.id,
       label: node.label,
-      path: node.id, // Use id as path for compatibility
+      path: fullPath, // Use the full file path instead of just node.id
       content_type: node.children? 'directory' : 'file',
-      children: node.children? node.children.map(convertNode) : undefined
+      children: node.children? node.children.map((child: any) => convertNode(child, fullPath)) : undefined
     };
   };
 
   // Convert the tree structure
   if (Array.isArray(responseData)) {
-    const result = responseData.map(convertNode);
+    const result = responseData.map((node: any) => convertNode(node, ''));
 
     return sortProjectsByType(result);
   }
