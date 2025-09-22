@@ -93,7 +93,7 @@ export default function SearchResultsPage() {
       setSearch(q as string)
       performSearch(q as string)
     }
-  }, [router.query, performSearch, search])
+  }, [router.query, performSearch])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,6 +168,22 @@ export default function SearchResultsPage() {
                   style={{ transform: 'translate(20px, 1px)' }}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    // 阻止可能导致页面刷新的键盘事件
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation()
+                      return
+                    }
+                    // 阻止 Enter 键在输入框中的默认行为，让表单处理
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSearch(e)
+                    }
+                  }}
+                  onKeyUp={(e) => {
+                    // 确保键盘事件不会冒泡
+                    e.stopPropagation()
+                  }}
                 />
               </div>
             </form>
