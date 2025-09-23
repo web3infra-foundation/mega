@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::merge_checker::commit_message_checker::CommitMessageChecker;
 use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
 use crate::merge_checker::mr_sync_checker::MrSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
@@ -11,6 +12,7 @@ use common::errors::MegaError;
 use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
 
 mod code_review_checker;
+mod commit_message_checker;
 mod gpg_signature_checker;
 pub mod mr_sync_checker;
 
@@ -153,6 +155,7 @@ impl CheckerRegistry {
                 storage: storage.clone(),
             }),
         );
+        r.register(CheckType::CommitMessage, Box::new(CommitMessageChecker));
 
         r
     }

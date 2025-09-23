@@ -296,6 +296,8 @@ pub struct DbConfig {
     pub db_url: String,
     pub max_connection: u32,
     pub min_connection: u32,
+    pub acquire_timeout: u64,
+    pub connect_timeout: u64,
     pub sqlx_logging: bool,
 }
 
@@ -305,8 +307,10 @@ impl Default for DbConfig {
             db_type: String::from("sqlite"),
             db_path: mega_base().join("mega.db"),
             db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
-            max_connection: 32,
-            min_connection: 16,
+            max_connection: 16,
+            min_connection: 8,
+            acquire_timeout: 5,
+            connect_timeout: 5,
             sqlx_logging: false,
         }
     }

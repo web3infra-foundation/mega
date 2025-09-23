@@ -19,7 +19,8 @@ neptune = { workspace = true }
 bellatrix = { workspace = true }
 
 anyhow = { workspace = true }
-pgp = { workspace = true }
+# Use 0.16.0 version for GPG Verification
+pgp = { version = "0.16.0" }
 tokio = { workspace = true, features = ["net", "process"] }
 tokio-stream = { workspace = true }
 axum = { workspace = true }
@@ -39,3 +40,6 @@ base64 = { workspace = true }
 http = { workspace = true }
 regex = "1.11.1"
 sea-orm = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

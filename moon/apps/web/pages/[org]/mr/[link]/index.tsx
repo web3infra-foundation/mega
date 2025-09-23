@@ -15,6 +15,7 @@ import { cn } from '@gitmono/ui/utils'
 import { EMPTY_HTML } from '@/atoms/markdown'
 import FileDiff from '@/components/DiffView/FileDiff'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
+import TitleInput from '@/components/Issues/TitleInput'
 import {
   splitFun,
   useAssigneesSelector,
@@ -39,7 +40,6 @@ import { SimpleNoteContent, SimpleNoteContentRef } from '@/components/SimpleNote
 import { useScope } from '@/contexts/scope'
 import { usePostMRAssignees } from '@/hooks/issues/usePostMRAssignees'
 import { useGetMrDetail } from '@/hooks/useGetMrDetail'
-import { useMrFilesChanged } from '@/hooks/useMrFilesChanged'
 import { usePostMrClose } from '@/hooks/usePostMrClose'
 import { usePostMrComment } from '@/hooks/usePostMrComment'
 import { usePostMRLabels } from '@/hooks/usePostMRLabels'
@@ -49,8 +49,6 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-import TitleInput from '@/components/Issues/TitleInput'
-
 
 export interface MRDetail {
   status: string
@@ -72,19 +70,10 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const { mutate: mrAssignees } = usePostMRAssignees()
   const { mutate: mrLabels } = usePostMRLabels()
   const Checks = dynamic(() => import('@/components/MrView/components/Checks'))
-  const [page, _setPage] = useState(1)
 
   if (mrDetail) {
     mrDetail.status = mrDetail.status.toLowerCase()
   }
-
-  const { data: MrFilesChangedData, isLoading: fileChgIsLoading } = useMrFilesChanged(id, {
-    additional: 'string',
-    pagination: {
-      page,
-      per_page: 10
-    }
-  })
 
   const [_, setEditId] = useAtom(editIdAtom)
   const [refresh, setRefresh] = useAtom(refreshAtom)
@@ -357,15 +346,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
   )
   const FileChange = () => (
     <>
-      {fileChgIsLoading ? (
-        <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
-          <LoadingSpinner />
-        </div>
-      ) : MrFilesChangedData?.data?.page.items ? (
-        <FileDiff diffs={MrFilesChangedData.data.page.items} treeData={MrFilesChangedData.data} />
-      ) : (
-        <div>No files changed</div>
-      )}
+        <FileDiff id={id} />
     </>
   )
 
@@ -378,7 +359,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
           )}
           <div>
             <TabLayout>
-              {tab === 'check' && <Checks mr={id} />}
+              {tab === 'check' && <Checks mr={item_id} />}
               {tab === 'conversation' && <Conversation />}
               {tab === 'filechange' && <FileChange />}
             </TabLayout>

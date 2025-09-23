@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [".env.*"],
+  "globalEnv": ["NEXT_PUBLIC_CRATES_PRO_URL"],
   "tasks": {
     "dev": {
       "cache": false,

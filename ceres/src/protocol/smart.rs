@@ -9,7 +9,6 @@ use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
 use crate::auth::UserAuthExtractor;
-use crate::pack::monorepo::MonoRepo;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::ZERO_ID;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -252,19 +251,11 @@ impl SmartProtocol {
             }
             add_pkt_line_string(&mut report_status, command.get_status());
         }
+        //3. post_receive_pack
+        repo_handler.post_receive_pack().await?;
 
         // 4. Process commit bindings for successful ref updates
         self.process_commit_bindings().await;
-
-        if repo_handler.is_monorepo() {
-            let any = repo_handler.into_any();
-            if let Ok(monorepo) = any.downcast::<MonoRepo>() {
-                //3.1 update MR
-                monorepo.save_or_update_mr().await.unwrap();
-                //3.2 post operation
-                monorepo.post_mr_operation().await.unwrap();
-            }
-        }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
         let length = report_status.len();
@@ -578,6 +569,10 @@ fn extract_email_from_author(author: &str) -> String {
 pub mod test {
     use bytes::{Bytes, BytesMut};
     use callisto::sea_orm_active_enums::RefTypeEnum;
+    use futures::future;
+    use std::process::Command;
+    use tempfile::TempDir;
+    use tokio::task;
 
     use crate::protocol::import_refs::{CommandType, RefCommand};
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
@@ -658,5 +653,66 @@ pub mod test {
             mock.capabilities,
             vec![Capability::ReportStatusv2, Capability::SideBand64k]
         );
+    }
+
+    async fn init_and_push(repo_name: &str) -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let repo_path = tmp.path().join(repo_name);
+        std::fs::create_dir_all(&repo_path)?;
+
+        let remote_url = format!("http://localhost:8000/third-party/{}", repo_name);
+
+        // 1. git init
+        Command::new("git")
+            .arg("init")
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 2. add a file
+        std::fs::write(repo_path.join("README.md"), format!("# {}\n", repo_name))?;
+
+        // 3. git add .
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 4. git commit
+        Command::new("git")
+            .args(["commit", "-m", "init commit"])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 5. git remote add
+        Command::new("git")
+            .args(["remote", "add", "origin", &remote_url])
+            .current_dir(&repo_path)
+            .status()?;
+
+        // 6. git push
+        Command::new("git")
+            .args(["push", "origin", "master"])
+            .current_dir(&repo_path)
+            .status()?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 32)]
+    #[ignore]
+    async fn test_dynamic_repos_push() -> anyhow::Result<()> {
+        let repo_count = 64;
+        let repo_names: Vec<String> = (1..=repo_count).map(|i| format!("repo{}", i)).collect();
+
+        // push
+        let tasks = repo_names.into_iter().map(|name| {
+            task::spawn(async move {
+                init_and_push(&name).await.unwrap();
+            })
+        });
+
+        future::join_all(tasks).await;
+
+        Ok(())
     }
 }

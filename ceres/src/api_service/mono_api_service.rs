@@ -162,7 +162,7 @@ impl ApiHandler for MonoApiService {
         Ok(())
     }
 
-    fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
+    fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
         Ok(path.to_path_buf())
     }
 
@@ -731,7 +731,7 @@ impl MonoApiService {
         &self,
         mr_link: &str,
         page: Pagination,
-    ) -> Result<(Vec<DiffItem>, Vec<String>, u64), GitError> {
+    ) -> Result<(Vec<DiffItem>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
@@ -754,10 +754,6 @@ impl MonoApiService {
         let sorted_changed_files = self
             .mr_files_list(old_blobs.clone(), new_blobs.clone())
             .await?;
-        let file_paths: Vec<String> = sorted_changed_files
-            .iter()
-            .map(|f| f.path().to_string_lossy().to_string())
-            .collect();
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
@@ -785,7 +781,7 @@ impl MonoApiService {
         // calculate total pages
         let total = sorted_changed_files.len().div_ceil(per_page);
 
-        Ok((diff_output, file_paths, total as u64))
+        Ok((diff_output, total as u64))
     }
 
     async fn get_diff_by_blobs(
@@ -878,6 +874,41 @@ impl MonoApiService {
                 }
             }
         }
+    }
+
+    pub async fn get_sorted_changed_file_list(
+        &self,
+        mr_link: &str,
+        path: Option<&str>,
+    ) -> Result<Vec<String>, MegaError> {
+        let mr = self
+            .storage
+            .mr_storage()
+            .get_mr(mr_link)
+            .await
+            .unwrap()
+            .ok_or_else(|| MegaError::with_message("Error getting "))?;
+
+        let old_files = self.get_commit_blobs(&mr.from_hash.clone()).await?;
+        let new_files = self.get_commit_blobs(&mr.to_hash.clone()).await?;
+
+        // calculate pages
+        let sorted_changed_files = self
+            .mr_files_list(old_files.clone(), new_files.clone())
+            .await?;
+        let file_paths: Vec<String> = sorted_changed_files
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .filter(|file_path| {
+                if let Some(prefix) = path {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        Ok(file_paths)
     }
 
     pub async fn mr_files_list(
@@ -1238,6 +1269,53 @@ mod test {
         assert_eq!(old_blobs.len(), 1);
         assert_eq!(new_blobs.len(), 0);
         assert_eq!(old_blobs[0].0, PathBuf::from("deleted_file.txt"));
+    }
+
+    #[test]
+    fn test_file_lists_with_roots() {
+        let all_files = vec![
+            "src/main.rs".to_string(),
+            "src/utils/math.rs".to_string(),
+            "src/utils/io.rs".to_string(),
+            "README.md".to_string(),
+        ];
+
+        let root: Option<&str> = None;
+        let filtered_none: Vec<String> = all_files
+            .iter()
+            .filter(|file_path| {
+                if let Some(prefix) = root {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        assert_eq!(filtered_none.len(), 4);
+        assert_eq!(filtered_none, all_files);
+
+        let filtered_some: Vec<String> = all_files
+            .iter()
+            .filter(|file_path| {
+                if let Some(prefix) = Some("src/utils") {
+                    file_path.starts_with(prefix)
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        assert_eq!(filtered_some.len(), 2);
+        assert_eq!(
+            filtered_some,
+            vec![
+                "src/utils/math.rs".to_string(),
+                "src/utils/io.rs".to_string()
+            ]
+        );
     }
 
     #[test]

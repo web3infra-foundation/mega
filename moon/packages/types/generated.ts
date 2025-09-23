@@ -3045,6 +3045,12 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
+export type ChangeReviewStatePayload = {
+  new_state: boolean
+  /** @format int64 */
+  review_id: number
+}
+
 export type ChangeReviewerStatePayload = {
   state: boolean
 }
@@ -3059,6 +3065,21 @@ export enum CheckType {
   CodeReview = 'CodeReview'
 }
 
+export type CommitBindingInfo = {
+  author_email: string
+  avatar_url?: string | null
+  display_name: string
+  is_anonymous: boolean
+  is_verified_user: boolean
+  matched_username?: string | null
+}
+
+export type CommitBindingResponse = {
+  avatar_url?: string | null
+  display_name: string
+  is_verified_user: boolean
+}
+
 export type CommonPageDiffItem = {
   items: {
     data: string
@@ -3069,6 +3090,16 @@ export type CommonPageDiffItem = {
    * @min 0
    */
   total: number
+}
+
+export type CommonResultCommitBindingResponse = {
+  data?: {
+    avatar_url?: string | null
+    display_name: string
+    is_verified_user: boolean
+  }
+  err_message: string
+  req_result: boolean
 }
 
 export type CommonResultCommonPageItemRes = {
@@ -3124,7 +3155,6 @@ export type CommonResultCommonPageLabelItem = {
 
 export type CommonResultFilesChangedPage = {
   data?: {
-    mui_trees: MuiTreeNode[]
     page: CommonPageDiffItem
   }
   err_message: string
@@ -3272,6 +3302,16 @@ export type CommonResultVecMrFilesRes = {
   req_result: boolean
 }
 
+export type CommonResultVecMuiTreeNode = {
+  data?: {
+    children?: any[] | null
+    id: string
+    label: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecTreeCommitItem = {
   data?: {
     commit_id: string
@@ -3363,7 +3403,6 @@ export type FileTreeItem = {
 }
 
 export type FilesChangedPage = {
-  mui_trees: MuiTreeNode[]
   page: CommonPageDiffItem
 }
 
@@ -3436,6 +3475,7 @@ export type LabelUpdatePayload = {
 
 export type LatestCommitInfo = {
   author: UserInfo
+  binding_info?: null | CommitBindingInfo
   committer: UserInfo
   date: string
   oid: string
@@ -3582,11 +3622,11 @@ export enum RequirementsState {
 
 export type ReviewerInfo = {
   approved: boolean
-  campsite_id: string
+  username: string
 }
 
 export type ReviewerPayload = {
-  reviewers: string[]
+  reviewer_usernames: string[]
 }
 
 export type ReviewersResponse = {
@@ -3624,6 +3664,11 @@ export type TreeHashItem = {
 export type TreeResponse = {
   file_tree: Record<string, FileTreeItem>
   tree_items: TreeBriefItem[]
+}
+
+export type UpdateCommitBindingRequest = {
+  is_anonymous: boolean
+  username?: string | null
 }
 
 export type UpdateRequest = {
@@ -4865,6 +4910,8 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
+export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
+
 export type DeleteApiConversationReactionsByIdData = CommonResultString
 
 export type PostApiConversationByCommentIdData = CommonResultString
@@ -4924,6 +4971,8 @@ export type PostApiMrLabelsData = CommonResultString
 
 export type PostApiMrListData = CommonResultCommonPageItemRes
 
+export type PostApiMrAddReviewersData = CommonResultString
+
 export type PostApiMrCloseData = CommonResultString
 
 export type PostApiMrCommentData = CommonResultString
@@ -4940,15 +4989,24 @@ export type GetApiMrMergeBoxData = CommonResultMergeBoxRes
 
 export type PostApiMrMergeNoAuthData = CommonResultString
 
+export type GetApiMrMuiTreeParams = {
+  oid?: string | null
+  path?: string
+  /** MR link */
+  link: string
+}
+
+export type GetApiMrMuiTreeData = CommonResultVecMuiTreeNode
+
+export type DeleteApiMrRemoveReviewersData = CommonResultString
+
 export type PostApiMrReopenData = CommonResultString
+
+export type PostApiMrReviewResolveData = CommonResultString
 
 export type PostApiMrReviewerNewStateData = CommonResultString
 
 export type GetApiMrReviewersData = CommonResultReviewersResponse
-
-export type PostApiMrReviewersData = CommonResultString
-
-export type DeleteApiMrReviewersData = CommonResultString
 
 export type PostApiMrTitleData = CommonResultString
 
@@ -13367,6 +13425,31 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
+     * @tags git
+     * @name PutApiCommitsBinding
+     * @summary Update commit binding information
+     * @request PUT:/api/v1/commits/{sha}/binding
+     */
+    putApiCommitsBinding: () => {
+      const base = 'PUT:/api/v1/commits/{sha}/binding' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiCommitsBindingData>([base]),
+        requestKey: (sha: string) => dataTaggedQueryKey<PutApiCommitsBindingData>([base, sha]),
+        request: (sha: string, data: UpdateCommitBindingRequest, params: RequestParams = {}) =>
+          this.request<PutApiCommitsBindingData>({
+            path: `/api/v1/commits/${sha}/binding`,
+            method: 'PUT',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags conversation
      * @name DeleteApiConversationReactionsById
      * @summary Delete conversation reactions
@@ -13975,6 +14058,30 @@ Returns task ID and status information upon successful creation
      * No description
      *
      * @tags merge_request
+     * @name PostApiMrAddReviewers
+     * @request POST:/api/v1/mr/{link}/add-reviewers
+     */
+    postApiMrAddReviewers: () => {
+      const base = 'POST:/api/v1/mr/{link}/add-reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrAddReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrAddReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrAddReviewersData>({
+            path: `/api/v1/mr/${link}/add-reviewers`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
      * @name PostApiMrClose
      * @summary Close Merge Request
      * @request POST:/api/v1/mr/{link}/close
@@ -14164,6 +14271,53 @@ It's for local testing purposes.
      * No description
      *
      * @tags merge_request
+     * @name GetApiMrMuiTree
+     * @request GET:/api/v1/mr/{link}/mui-tree
+     */
+    getApiMrMuiTree: () => {
+      const base = 'GET:/api/v1/mr/{link}/mui-tree' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrMuiTreeData>([base]),
+        requestKey: (params: GetApiMrMuiTreeParams) => dataTaggedQueryKey<GetApiMrMuiTreeData>([base, params]),
+        request: ({ link, ...query }: GetApiMrMuiTreeParams, params: RequestParams = {}) =>
+          this.request<GetApiMrMuiTreeData>({
+            path: `/api/v1/mr/${link}/mui-tree`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name DeleteApiMrRemoveReviewers
+     * @request DELETE:/api/v1/mr/{link}/remove-reviewers
+     */
+    deleteApiMrRemoveReviewers: () => {
+      const base = 'DELETE:/api/v1/mr/{link}/remove-reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiMrRemoveReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<DeleteApiMrRemoveReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<DeleteApiMrRemoveReviewersData>({
+            path: `/api/v1/mr/${link}/remove-reviewers`,
+            method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
      * @name PostApiMrReopen
      * @summary Reopen Merge Request
      * @request POST:/api/v1/mr/{link}/reopen
@@ -14178,6 +14332,30 @@ It's for local testing purposes.
           this.request<PostApiMrReopenData>({
             path: `/api/v1/mr/${link}/reopen`,
             method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewResolve
+     * @request POST:/api/v1/mr/{link}/review_resolve
+     */
+    postApiMrReviewResolve: () => {
+      const base = 'POST:/api/v1/mr/{link}/review_resolve' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewResolveData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewResolveData>([base, link]),
+        request: (link: string, data: ChangeReviewStatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewResolveData>({
+            path: `/api/v1/mr/${link}/review_resolve`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
             ...params
           })
       }
@@ -14225,54 +14403,6 @@ It's for local testing purposes.
           this.request<GetApiMrReviewersData>({
             path: `/api/v1/mr/${link}/reviewers`,
             method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
-     * @name PostApiMrReviewers
-     * @request POST:/api/v1/mr/{link}/reviewers
-     */
-    postApiMrReviewers: () => {
-      const base = 'POST:/api/v1/mr/{link}/reviewers' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiMrReviewersData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewersData>([base, link]),
-        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
-          this.request<PostApiMrReviewersData>({
-            path: `/api/v1/mr/${link}/reviewers`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags merge_request
-     * @name DeleteApiMrReviewers
-     * @request DELETE:/api/v1/mr/{link}/reviewers
-     */
-    deleteApiMrReviewers: () => {
-      const base = 'DELETE:/api/v1/mr/{link}/reviewers' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<DeleteApiMrReviewersData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<DeleteApiMrReviewersData>([base, link]),
-        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
-          this.request<DeleteApiMrReviewersData>({
-            path: `/api/v1/mr/${link}/reviewers`,
-            method: 'DELETE',
-            body: data,
-            type: ContentType.Json,
             ...params
           })
       }

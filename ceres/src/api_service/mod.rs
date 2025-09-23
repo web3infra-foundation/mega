@@ -64,7 +64,7 @@ pub trait ApiHandler: Send + Sync {
         context.raw_db_storage().get_raw_blob_by_hash(hash).await
     }
 
-    fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
+    fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError>;
 
     async fn get_root_tree(&self) -> Tree;
 
@@ -391,8 +391,8 @@ pub trait ApiHandler: Send + Sync {
     /// # Errors
     ///
     /// Returns a `GitError` if an error occurs during the search or tree creation process.
-    async fn search_and_create_tree(&self, path: &Path) -> Result<VecDeque<Tree>, GitError> {
-        let relative_path = self.strip_relative(path)?;
+    async fn search_and_create_tree(&self, path: &Path) -> Result<VecDeque<Tree>, MegaError> {
+        let relative_path = self.strip_relative(path).unwrap();
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         let mut update_item_tree = VecDeque::new();
