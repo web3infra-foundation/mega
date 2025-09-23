@@ -17,6 +17,8 @@
   #__next {
     /* @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-auto; */
     @apply isolate flex min-h-[100svh] flex-1 flex-col overflow-auto;
+    @apply isolate flex min-h-[100svh] flex-1 flex-col overflow-auto h-screen ;
+
     -webkit-app-region: no-drag;
   }
 
