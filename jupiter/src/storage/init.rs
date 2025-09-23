@@ -122,7 +122,7 @@ async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection,
     let db_url = db_config.db_url.to_owned();
     log::info!("Connecting to database: {db_url}");
 
-    let opt = setup_option(db_url);
+    let opt = setup_option(db_config);
     Database::connect(opt).await.map_err(|e| e.into())
 }
 
@@ -135,21 +135,21 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     let db_url = format!("sqlite://{}", db_config.db_path.to_string_lossy());
     log::info!("Connecting to database: {db_url}");
 
-    let opt = setup_option(db_url);
+    let opt = setup_option(db_config);
     let conn = Database::connect(opt).await?;
 
     Ok(conn)
 }
 
-fn setup_option(db_url: impl Into<String>) -> ConnectOptions {
-    let mut opt = ConnectOptions::new(db_url);
-    opt.max_connections(5)
-        .min_connections(1)
-        .acquire_timeout(Duration::from_secs(1))
-        .connect_timeout(Duration::from_secs(1))
+fn setup_option(db_config: &DbConfig) -> ConnectOptions {
+    let mut opt = ConnectOptions::new(db_config.db_url.clone());
+    opt.max_connections(db_config.max_connection)
+        .min_connections(db_config.min_connection)
+        .acquire_timeout(Duration::from_secs(db_config.acquire_timeout))
+        .connect_timeout(Duration::from_secs(db_config.connect_timeout))
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
-        .sqlx_logging(true)
+        .sqlx_logging(db_config.sqlx_logging)
         .sqlx_logging_level(log::LevelFilter::Debug);
     opt
 }
