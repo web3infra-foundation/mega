@@ -20,6 +20,7 @@ common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
+mercury = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
@@ -65,7 +66,7 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
 neptune = { workspace = true }
 sha2 = "0.10"
-hex = "0.4"
+git2 = "0.20.0"
 
 
 

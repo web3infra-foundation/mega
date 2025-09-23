@@ -11,10 +11,9 @@ use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob}
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::utils::{generate_id, MEGA_BRANCH_NAME};
+use mercury::internal::object::blob::Blob;
 use mercury::internal::object::{MegaObjectModel, ObjectTrait};
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
-use mercury::internal::object::types::ObjectType;
-use mercury::internal::object::blob::Blob;
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;
@@ -405,91 +404,6 @@ impl MonoStorage {
             .all(self.get_connection())
             .await
             .unwrap())
-    }
-
-    /// Get tags by their object_id (could be tag object id or commit id depending on storage semantics)
-    pub async fn get_tags_by_hash(
-        &self,
-        hashes: Vec<String>,
-    ) -> Result<Vec<mega_tag::Model>, MegaError> {
-        Ok(mega_tag::Entity::find()
-            .filter(mega_tag::Column::ObjectId.is_in(hashes))
-            .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
-    /// Batch save tag active models
-    pub async fn save_mega_tags(&self, tags: Vec<mega_tag::ActiveModel>) -> Result<(), MegaError> {
-        self.batch_save_model::<mega_tag::Entity, _>(tags).await?;
-        Ok(())
-    }
-
-    /// Atomically write a loose git object to a given objects directory.
-    ///
-    /// - `objects_dir` should point to the repository-specific `objects` directory (e.g. 
-    ///    `/.../<repo>/.mega/objects` or similar). Caller is responsible for computing the path.
-    /// - `oid` is the object id (SHA1). `data` is the raw object payload (the bytes after header).
-    ///
-    /// This function will create parent directories as needed, write to a temporary file in the
-    /// destination directory, fsync the file, then rename it into place for atomicity.
-    pub async fn write_loose_object_atomic(
-        &self,
-        objects_dir: &std::path::Path,
-        oid: &mercury::hash::SHA1,
-        content: &[u8],
-        obj_type: ObjectType,
-    ) -> Result<std::path::PathBuf, MegaError> {
-        use std::io::Write;
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        // compute object path like ClientStorage: <objects_dir>/<first2>/<rest>
-        let oid_str = oid.to_string();
-        let dir = objects_dir.join(&oid_str[0..2]);
-        let file_name = &oid_str[2..];
-        let dest_path = dir.join(file_name);
-
-        // ensure dir exists
-        if let Err(e) = tokio::fs::create_dir_all(&dir).await {
-            return Err(MegaError::IoError(format!("create_dir_all failed: {}", e)));
-        }
-
-        // build full content with header: "<type> <size>\0" + content
-        let header = format!("{} {}\0", obj_type, content.len());
-        let full = [header.as_bytes().to_vec(), content.to_vec()].concat();
-
-        // compress with zlib
-        let compressed = match tokio::task::spawn_blocking(move || {
-            // use flate2 to compress
-            let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-            encoder.write_all(&full)?;
-            encoder.finish().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-        })
-        .await
-        {
-            Ok(Ok(b)) => b,
-            Ok(Err(e)) => return Err(MegaError::IoError(format!("compress failed: {}", e))),
-            Err(e) => return Err(MegaError::IoError(format!("spawn_blocking failed: {}", e))),
-        };
-
-        // write to temp file in same directory
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-        let tmp_name = format!(["tmp-{}-{}"], oid_str, now);
-        let tmp_path = dir.join(&tmp_name);
-
-        // write file
-        if let Err(e) = tokio::fs::write(&tmp_path, &compressed).await {
-            return Err(MegaError::IoError(format!("write tmp file failed: {}", e)));
-        }
-
-        // rename into place (atomic on POSIX)
-        if let Err(e) = tokio::fs::rename(&tmp_path, &dest_path).await {
-            // attempt cleanup of tmp
-            let _ = tokio::fs::remove_file(&tmp_path).await;
-            return Err(MegaError::IoError(format!("rename to dest failed: {}", e)));
-        }
-
-        Ok(dest_path)
     }
 }
 

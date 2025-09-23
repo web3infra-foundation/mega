@@ -41,11 +41,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::api_service::ApiHandler;
+use crate::api_service::TagInfo;
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_mr, mega_tree};
+use callisto::{mega_mr, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::Pagination;
 use jupiter::storage::base_storage::StorageConnector;
@@ -58,6 +59,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, Set};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -274,9 +276,305 @@ impl ApiHandler for MonoApiService {
             None => Ok(HashMap::new()),
         }
     }
+    // helper to convert mega_tag model into TagInfo (defined on MonoApiService below)
+
+    async fn create_tag(
+        &self,
+        path: Option<String>,
+        name: String,
+        target: Option<String>,
+        tagger_name: Option<String>,
+        tagger_email: Option<String>,
+        message: Option<String>,
+    ) -> Result<TagInfo, GitError> {
+        let mono_storage = self.storage.mono_storage();
+
+        let is_annotated = message.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
+        let tagger_info = match (tagger_name, tagger_email) {
+            (Some(n), Some(e)) => format!("{} <{}>", n, e),
+            (Some(n), None) => n,
+            (None, Some(e)) => e,
+            (None, None) => "unknown".to_string(),
+        };
+
+        // resolve target commit presence
+        if let Some(ref t) = target {
+            if mono_storage.get_commit_by_hash(t).await.unwrap().is_none() {
+                return Err(GitError::CustomError(format!(
+                    "[code:404] Target commit '{}' not found",
+                    t
+                )));
+            }
+        }
+
+        let full_ref = format!("refs/tags/{}", name.clone());
+
+        // Prevent duplicate tag/ref creation: check annotated table and refs first.
+        match mega_tag::Entity::find()
+            .filter(mega_tag::Column::TagName.eq(name.clone()))
+            .one(mono_storage.get_connection())
+            .await
+        {
+            Ok(Some(_)) => {
+                return Err(GitError::CustomError(format!(
+                    "[code:400] Tag '{}' already exists",
+                    name
+                )));
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::error!("DB error while checking tag existence: {}", e);
+                return Err(GitError::CustomError("[code:500] DB error".to_string()));
+            }
+        }
+
+        if let Ok(Some(_)) = mono_storage.get_ref_by_name(&full_ref).await {
+            return Err(GitError::CustomError(format!(
+                "[code:400] Tag '{}' already exists",
+                name
+            )));
+        }
+        if is_annotated {
+            // build mercury tag object
+            let tagger_sig = mercury::internal::object::signature::Signature::new(
+                mercury::internal::object::signature::SignatureType::Tagger,
+                tagger_info.clone(),
+                String::new(),
+            );
+            let mercury_tag = mercury::internal::object::tag::Tag::new(
+                mercury::hash::SHA1::from_str(target.as_ref().unwrap())
+                    .map_err(|_| GitError::InvalidCommitObject)?,
+                mercury::internal::object::types::ObjectType::Commit,
+                name.clone(),
+                tagger_sig,
+                message.clone().unwrap_or_default(),
+            );
+
+            let tag_id_hex = mercury_tag.id.to_string();
+            let object_id = target.unwrap_or_else(|| "HEAD".to_string());
+
+            let new_tag = mega_tag::ActiveModel {
+                id: Set(common::utils::generate_id()),
+                tag_id: Set(tag_id_hex.clone()),
+                object_id: Set(object_id.clone()),
+                object_type: Set("commit".to_string()),
+                tag_name: Set(name.clone()),
+                tagger: Set(tagger_info.clone()),
+                message: Set(message.clone().unwrap_or_default()),
+                created_at: Set(chrono::Utc::now().naive_utc()),
+            };
+
+            match new_tag.insert(mono_storage.get_connection()).await {
+                Ok(saved_tag) => {
+                    // try to write ref; if ref write fails, rollback DB insert
+                    let path_str = path.unwrap_or_else(|| "/".to_string());
+                    let tree_hash = common::utils::ZERO_ID.to_string();
+                    if let Err(e) = mono_storage
+                        .save_ref(
+                            &path_str,
+                            Some(full_ref.clone()),
+                            &object_id,
+                            &tree_hash,
+                            false,
+                        )
+                        .await
+                    {
+                        // attempt to remove DB record
+                        if let Err(del_e) = saved_tag.delete(mono_storage.get_connection()).await {
+                            tracing::error!(
+                                "Failed to rollback tag DB record after ref write failure: {}",
+                                del_e
+                            );
+                        }
+                        tracing::error!("Failed to write ref after DB insert: {}", e);
+                        return Err(GitError::CustomError(
+                            "[code:500] Failed to write ref".to_string(),
+                        ));
+                    }
+                    Ok(self.tag_model_to_info(saved_tag))
+                }
+                Err(e) => {
+                    tracing::error!("DB insert error when creating annotated tag: {}", e);
+                    Err(GitError::CustomError(
+                        "[code:500] DB insert error".to_string(),
+                    ))
+                }
+            }
+        } else {
+            // lightweight tag: do NOT insert into DB, only write ref
+            let path_str = path.unwrap_or_else(|| "/".to_string());
+            let object_id = target.clone().unwrap_or_default();
+            let tree_hash = common::utils::ZERO_ID.to_string();
+            mono_storage
+                .save_ref(
+                    &path_str,
+                    Some(full_ref.clone()),
+                    &object_id,
+                    &tree_hash,
+                    false,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to write lightweight tag ref: {}", e);
+                    GitError::CustomError(
+                        "[code:500] Failed to write lightweight tag ref".to_string(),
+                    )
+                })?;
+            Ok(TagInfo {
+                name: name.clone(),
+                tag_id: object_id.clone(),
+                object_id: object_id.clone(),
+                object_type: "commit".to_string(),
+                tagger: tagger_info.clone(),
+                message: message.clone().unwrap_or_default(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            })
+        }
+    }
+
+    async fn list_tags(&self, repo_path: Option<String>) -> Result<Vec<TagInfo>, GitError> {
+        let mono_storage = self.storage.mono_storage();
+        // annotated tags from DB
+        let mut result: Vec<TagInfo> = match mega_tag::Entity::find()
+            .all(mono_storage.get_connection())
+            .await
+        {
+            Ok(tags) => tags
+                .into_iter()
+                .map(|t| self.tag_model_to_info(t))
+                .collect(),
+            Err(e) => {
+                tracing::error!("DB error while listing tags: {}", e);
+                return Err(GitError::CustomError("[code:500] DB error".to_string()));
+            }
+        };
+        // lightweight refs from refs table under path
+        let repo_path = repo_path.unwrap_or_else(|| "/".to_string());
+        if let Ok(refs) = mono_storage.get_refs(&repo_path).await {
+            for r in refs {
+                if r.ref_name.starts_with("refs/tags/") {
+                    let tag_name = r.ref_name.trim_start_matches("refs/tags/").to_string();
+                    // skip if annotated exists
+                    if result.iter().any(|t| t.name == tag_name) {
+                        continue;
+                    }
+                    result.push(TagInfo {
+                        name: tag_name.clone(),
+                        tag_id: r.ref_commit_hash.clone(),
+                        object_id: r.ref_commit_hash.clone(),
+                        object_type: "commit".to_string(),
+                        tagger: "".to_string(),
+                        message: "".to_string(),
+                        created_at: chrono::Utc::now().to_rfc3339(),
+                    });
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    async fn get_tag(
+        &self,
+        repo_path: Option<String>,
+        name: String,
+    ) -> Result<Option<TagInfo>, GitError> {
+        let mono_storage = self.storage.mono_storage();
+        // check annotated DB first
+        match mega_tag::Entity::find()
+            .filter(mega_tag::Column::TagName.eq(name.clone()))
+            .one(mono_storage.get_connection())
+            .await
+        {
+            Ok(Some(tag)) => return Ok(Some(self.tag_model_to_info(tag))),
+            Ok(None) => {}
+            Err(e) => {
+                tracing::error!("DB error while getting tag: {}", e);
+                return Err(GitError::CustomError("[code:500] DB error".to_string()));
+            }
+        }
+        // check refs for lightweight tag
+        let _repo_path = repo_path.unwrap_or_else(|| "/".to_string());
+        let full_ref = format!("refs/tags/{}", name.clone());
+        if let Ok(Some(r)) = mono_storage.get_ref_by_name(&full_ref).await {
+            return Ok(Some(TagInfo {
+                name: name.clone(),
+                tag_id: r.ref_commit_hash.clone(),
+                object_id: r.ref_commit_hash.clone(),
+                object_type: "commit".to_string(),
+                tagger: "".to_string(),
+                message: "".to_string(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            }));
+        }
+        Ok(None)
+    }
+
+    async fn delete_tag(&self, repo_path: Option<String>, name: String) -> Result<(), GitError> {
+        let mono_storage = self.storage.mono_storage();
+        // check annotated in DB first
+        match mega_tag::Entity::find()
+            .filter(mega_tag::Column::TagName.eq(name.clone()))
+            .one(mono_storage.get_connection())
+            .await
+        {
+            Ok(Some(tag)) => {
+                // remove ref if exists
+                let full_ref = format!("refs/tags/{}", name.clone());
+                if let Ok(Some(r)) = mono_storage.get_ref_by_name(&full_ref).await {
+                    mono_storage.remove_ref(r).await.map_err(|e| {
+                        tracing::error!("Failed to remove ref while deleting annotated tag: {}", e);
+                        GitError::CustomError("[code:500] Failed to remove ref".to_string())
+                    })?;
+                }
+                tag.delete(mono_storage.get_connection())
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("DB delete error when deleting annotated tag: {}", e);
+                        GitError::CustomError("[code:500] DB delete error".to_string())
+                    })?;
+                Ok(())
+            }
+            Ok(None) => {
+                // try delete lightweight ref
+                let _repo_path = repo_path.unwrap_or_else(|| "/".to_string());
+                let full_ref = format!("refs/tags/{}", name.clone());
+                // find ref by name and remove
+                if let Ok(Some(r)) = mono_storage.get_ref_by_name(&full_ref).await {
+                    mono_storage.remove_ref(r).await.map_err(|e| {
+                        tracing::error!(
+                            "Failed to remove ref while deleting lightweight tag: {}",
+                            e
+                        );
+                        GitError::CustomError("[code:500] Failed to remove ref".to_string())
+                    })?;
+                    Ok(())
+                } else {
+                    Err(GitError::CustomError(
+                        "[code:404] Tag not found".to_string(),
+                    ))
+                }
+            }
+            Err(e) => {
+                tracing::error!("DB error while deleting tag: {}", e);
+                Err(GitError::CustomError("[code:500] DB error".to_string()))
+            }
+        }
+    }
 }
 
 impl MonoApiService {
+    // helper to convert mega_tag model into TagInfo
+    fn tag_model_to_info(&self, tag: mega_tag::Model) -> TagInfo {
+        TagInfo {
+            name: tag.tag_name,
+            tag_id: tag.tag_id,
+            object_id: tag.object_id,
+            object_type: tag.object_type,
+            tagger: tag.tagger,
+            message: tag.message,
+            created_at: tag.created_at.and_utc().to_rfc3339(),
+        }
+    }
     pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();

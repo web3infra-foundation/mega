@@ -50,7 +50,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(add_reviewers))
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
-
             .routes(routes!(change_reviewer_state))
             .routes(routes!(change_review_resolve_state)),
     )
