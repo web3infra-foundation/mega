@@ -139,8 +139,7 @@ fn normalize_signature_block(sig_block: &str) -> String {
 }
 
 fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
-    const SIG_PATTERN: &str =
-        r"gpgsig (-----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
+    const SIG_PATTERN: &str = r"gpgsig (-----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
     let sig_regex = Regex::new(SIG_PATTERN).unwrap();
 
     if let Some(caps) = sig_regex.captures(msg_gpg) {
@@ -150,8 +149,8 @@ fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
         let end = caps.get(0).unwrap().end();
 
         let mut commit = String::new();
-        commit.push_str(&msg_gpg[..start.saturating_sub(1)]); 
-        commit.push_str(&msg_gpg[end..]);   
+        commit.push_str(&msg_gpg[..start.saturating_sub(1)]);
+        commit.push_str(&msg_gpg[end..]);
 
         while commit.starts_with('\n') {
             commit = commit[1..].to_string();
@@ -196,14 +195,17 @@ Signed-off-by: AidCheng <cn.aiden.cheng@gmail.com>"#;
     let sig = sig.expect("unable to parse");
     println!("{msg}\n{sig}");
 
-    assert_eq!(msg, r#"tree 52a266a58f2c028ad7de4dfd3a72fdf76b0d4e24
+    assert_eq!(
+        msg,
+        r#"tree 52a266a58f2c028ad7de4dfd3a72fdf76b0d4e24
 author AidCheng <cn.aiden.cheng@gmail.com> 1758211153 +0100
 committer AidCheng <cn.aiden.cheng@gmail.com> 1758211153 +0100
 
 test
 
 Signed-off-by: AidCheng <cn.aiden.cheng@gmail.com>
-"#);
+"#
+    );
 
     assert_eq!(
         sig,

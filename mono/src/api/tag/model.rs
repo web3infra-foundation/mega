@@ -15,8 +15,6 @@ pub struct CreateTagRequest {
     pub tagger_email: Option<String>,
     /// Tag message (if provided creates annotated tag, otherwise creates lightweight tag)
     pub message: Option<String>,
-    /// Path context (optional, used to determine repository mode)
-    pub path_context: Option<String>,
 }
 
 /// Tag information response

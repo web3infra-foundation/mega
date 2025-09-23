@@ -299,11 +299,19 @@ impl ApiHandler for MonoApiService {
 
         // resolve target commit presence
         if let Some(ref t) = target {
-            if mono_storage.get_commit_by_hash(t).await.unwrap().is_none() {
-                return Err(GitError::CustomError(format!(
-                    "[code:404] Target commit '{}' not found",
-                    t
-                )));
+            match mono_storage.get_commit_by_hash(t).await {
+                Ok(commit_opt) => {
+                    if commit_opt.is_none() {
+                        return Err(GitError::CustomError(format!(
+                            "[code:404] Target commit '{}' not found",
+                            t
+                        )));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("DB error while fetching commit by hash: {}", e);
+                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
+                }
             }
         }
 

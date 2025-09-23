@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use jupiter::storage::base_storage::StorageConnector;
 use common::errors::MegaError;
+use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
@@ -166,12 +166,15 @@ impl ApiHandler for ImportApiService {
         };
 
         if let Some(ref t) = target {
-            if git_storage
-                .get_commit_by_hash(self.repo.repo_id, t)
-                .await
-                .unwrap()
-                .is_none()
-            {
+            let commit_result = git_storage.get_commit_by_hash(self.repo.repo_id, t).await;
+            let commit = match commit_result {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("DB error while fetching commit by hash: {}", e);
+                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
+                }
+            };
+            if commit.is_none() {
                 return Err(GitError::CustomError(format!(
                     "[code:404] Target commit '{}' not found",
                     t
@@ -250,10 +253,7 @@ impl ApiHandler for ImportApiService {
                         created_at: chrono::Utc::now().naive_utc(),
                         updated_at: chrono::Utc::now().naive_utc(),
                     };
-                    if let Err(e) = git_storage
-                        .save_ref(self.repo.repo_id, import_ref.into())
-                        .await
-                    {
+                    if let Err(e) = git_storage.save_ref(self.repo.repo_id, import_ref).await {
                         if let Err(del_e) = saved.delete(git_storage.get_connection()).await {
                             tracing::error!(
                                 "Failed to rollback git_tag DB record after ref write failure: {}",
@@ -296,7 +296,7 @@ impl ApiHandler for ImportApiService {
                 updated_at: chrono::Utc::now().naive_utc(),
             };
             git_storage
-                .save_ref(self.repo.repo_id, import_ref.into())
+                .save_ref(self.repo.repo_id, import_ref)
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to write import ref for lightweight tag: {}", e);
@@ -455,7 +455,7 @@ impl ApiHandler for ImportApiService {
                     })?;
                 Ok(())
             }
-            Err(e) => Err(GitError::CustomError(format!("DB error: {}", e))),
+            Err(e) => Err(GitError::CustomError(format!("[code:500] DB error: {}", e))),
         }
     }
 }
