@@ -120,25 +120,34 @@ impl Commit {
         Commit::new(author, committer, tree_id, parent_commit_ids, message)
     }
 
-    /// Formats the commit message by extracting the first line of the message.
-    /// If the message contains a PGP signature, it will return the first line after the signature.
+    /// Formats the commit message by extracting the first meaningful line.
+    ///
+    /// If the message contains a PGP signature, it returns the first non-empty line
+    /// after the signature block. Otherwise, it returns the first non-empty line
+    /// in the message. If no such line exists, it returns the original message.
     pub fn format_message(&self) -> String {
-        let mut has_signature = false;
-        for line in self.message.lines() {
-            if has_signature && !line.trim().is_empty() {
-                return line.to_owned();
-            }
-            if line.contains("-----END PGP SIGNATURE-----") {
-                has_signature = true;
-            }
+        let mut lines = self.message.lines();
+
+        // If a PGP signature is present, skip lines until after the signature ends
+        if let Some(pos) = self
+            .message
+            .lines()
+            .position(|line| line.contains("-----END PGP SIGNATURE-----"))
+        {
+            return self
+                .message
+                .lines()
+                .skip(pos + 1)
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.to_owned())
+                .unwrap_or_else(|| self.message.clone());
         }
-        // does not have pgp, find first line has data
-        for line in self.message.lines() {
-            if !line.trim().is_empty() {
-                return line.to_owned();
-            }
-        }
-        self.message.clone()
+
+        // Return the first non-empty line from the start
+        lines
+            .find(|line| !line.trim().is_empty())
+            .map(|line| line.to_owned())
+            .unwrap_or_else(|| self.message.clone())
     }
 }
 
@@ -293,8 +302,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    #[test]
-    fn test_from_bytes_with_gpgsig() {
+    fn basic_commit() -> Commit {
         let raw_commit = br#"tree 341e54913a3a43069f2927cc0f703e5a9f730df1
 author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
 committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
@@ -320,7 +328,12 @@ test parse commit from bytes
 "#;
 
         let hash = SHA1::from_str("57d7685c60213a9da465cf900f31933be3a7ee39").unwrap();
-        let commit = Commit::from_bytes(raw_commit, hash).unwrap();
+        Commit::from_bytes(raw_commit, hash).unwrap()
+    }
+
+    #[test]
+    fn test_from_bytes_with_gpgsig() {
+        let commit = basic_commit();
 
         assert_eq!(
             commit.id,
@@ -341,5 +354,11 @@ test parse commit from bytes
         assert!(commit.message.contains("-----BEGIN PGP SIGNATURE-----"));
         assert!(commit.message.contains("-----END PGP SIGNATURE-----"));
         assert!(commit.message.contains("test parse commit from bytes"));
+    }
+
+    #[test]
+    fn test_format_message_with_pgp_signature() {
+        let commit = basic_commit();
+        assert_eq!(commit.format_message(), "test parse commit from bytes");
     }
 }
