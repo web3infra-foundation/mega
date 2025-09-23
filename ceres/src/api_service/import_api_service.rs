@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use common::errors::MegaError;
 use jupiter::storage::Storage;
 
 use mercury::errors::GitError;
@@ -41,12 +42,12 @@ impl ApiHandler for ImportApiService {
         ));
     }
 
-    fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
+    fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
         if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
             Ok(relative_path.to_path_buf())
         } else {
-            Err(GitError::CustomError(
-                "The full path does not start with the base path.".to_string(),
+            Err(MegaError::with_message(
+                "The full path does not start with the base path.",
             ))
         }
     }

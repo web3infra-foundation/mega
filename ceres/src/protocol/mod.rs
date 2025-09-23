@@ -4,7 +4,7 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 use base64::engine::general_purpose;
 use base64::prelude::*;
 use http::{HeaderMap, HeaderValue};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
@@ -31,6 +31,7 @@ pub struct SmartProtocol {
     pub command_list: Vec<RefCommand>,
     pub service_type: Option<ServiceType>,
     pub storage: Storage,
+    pub shared: Arc<Mutex<u32>>,
     pub username: Option<String>,
     pub authenticated_user: Option<PushUserInfo>,
 }
@@ -133,7 +134,12 @@ pub struct RefUpdateRequest {
 }
 
 impl SmartProtocol {
-    pub fn new(path: PathBuf, storage: Storage, transport_protocol: TransportProtocol) -> Self {
+    pub fn new(
+        path: PathBuf,
+        storage: Storage,
+        shared: Arc<Mutex<u32>>,
+        transport_protocol: TransportProtocol,
+    ) -> Self {
         SmartProtocol {
             transport_protocol,
             capabilities: Vec::new(),
@@ -141,6 +147,7 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
+            shared,
             username: None,
             authenticated_user: None,
         }
@@ -155,6 +162,7 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
+            shared: Arc::new(Mutex::new(0)),
             username: None,
             authenticated_user: None,
         }
@@ -184,6 +192,7 @@ impl SmartProtocol {
                 storage: self.storage.clone(),
                 repo,
                 command_list: self.command_list.clone(),
+                shared: self.shared.clone(),
             }))
         } else {
             let mut res = MonoRepo {

@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     collections::{HashMap, HashSet},
     path::PathBuf,
     str::FromStr,
@@ -11,7 +10,10 @@ use std::{
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use tokio::sync::mpsc::{self};
+use tokio::sync::{
+    mpsc::{self},
+    Mutex,
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
@@ -39,20 +41,13 @@ pub struct ImportRepo {
     pub storage: Storage,
     pub repo: Repo,
     pub command_list: Vec<RefCommand>,
+    pub shared: Arc<Mutex<u32>>,
 }
 
 #[async_trait]
 impl RepoHandler for ImportRepo {
     fn is_monorepo(&self) -> bool {
         false
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
-        self
     }
 
     async fn head_hash(&self) -> (String, Vec<Refs>) {
@@ -65,6 +60,11 @@ impl RepoHandler for ImportRepo {
         let refs: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
 
         self.find_head_hash(refs)
+    }
+
+    async fn post_receive_pack(&self) -> Result<(), MegaError> {
+        let _guard = self.shared.lock().await;
+        self.attach_to_monorepo_parent().await
     }
 
     async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
@@ -324,17 +324,18 @@ impl RepoHandler for ImportRepo {
 
 impl ImportRepo {
     // attach import repo to monorepo parent tree
-    pub(crate) async fn attach_to_monorepo_parent(&self) -> Result<(), GitError> {
-        let iter = self
+    pub(crate) async fn attach_to_monorepo_parent(&self) -> Result<(), MegaError> {
+        // 1. find branch command
+        let commit_id = match self
             .command_list
-            .clone()
-            .into_iter()
-            .find(|c| c.ref_type == RefTypeEnum::Branch);
-        if iter.is_none() {
-            return Ok(());
-        }
-        let commit_id = iter.unwrap().new_id;
+            .iter()
+            .find(|c| c.ref_type == RefTypeEnum::Branch)
+        {
+            Some(cmd) => cmd.new_id.clone(),
+            None => return Ok(()),
+        };
 
+        // 2. search and create tree
         let path = PathBuf::from(self.repo.repo_path.clone());
         let mono_api_service = MonoApiService {
             storage: self.storage.clone(),
@@ -342,22 +343,33 @@ impl ImportRepo {
         let storage = self.storage.mono_storage();
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
-        let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
+        // 3. get root ref
+        let mut root_ref = storage
+            .get_ref("/")
+            .await?
+            .ok_or_else(|| MegaError::with_message("root ref not found"))?;
+
+        // 4. get latest commit
         let latest_commit: Commit = self
             .storage
             .git_db_storage()
             .get_commit_by_hash(self.repo.repo_id, &commit_id)
-            .await
-            .unwrap()
-            .unwrap()
+            .await?
+            .ok_or_else(|| MegaError::with_message(format!("commit {} not found", commit_id)))?
             .into();
+
+        // 5. generate commit
         let commit_msg = latest_commit.format_message();
         let new_commit = Commit::from_tree_id(
-            save_trees.back().unwrap().id,
+            save_trees
+                .back()
+                .ok_or_else(|| MegaError::with_message("no tree generated"))?
+                .id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
             &format!("\n{commit_msg}"),
         );
 
+        // 6. batch save tree
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|tree| {
@@ -366,13 +378,14 @@ impl ImportRepo {
                 model.into()
             })
             .collect();
+        storage.batch_save_model(save_trees).await?;
 
-        storage.batch_save_model(save_trees).await.unwrap();
-
+        // 7. update ref & save commit
         root_ref.ref_commit_hash = new_commit.id.to_string();
         root_ref.ref_tree_hash = new_commit.tree_id.to_string();
-        storage.update_ref(root_ref).await.unwrap();
-        storage.save_mega_commits(vec![new_commit]).await.unwrap();
+        storage.update_ref(root_ref).await?;
+        storage.save_mega_commits(vec![new_commit]).await?;
+
         Ok(())
     }
 }

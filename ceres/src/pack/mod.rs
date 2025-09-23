@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     collections::HashSet,
     pin::Pin,
     sync::{
@@ -15,10 +14,7 @@ use sysinfo::System;
 use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{
-    pack::import_repo::ImportRepo,
-    protocol::import_refs::{RefCommand, Refs},
-};
+use crate::protocol::import_refs::{RefCommand, Refs};
 use callisto::raw_blob;
 use common::{
     config::PackConfig,
@@ -41,12 +37,8 @@ pub mod import_repo;
 pub mod monorepo;
 
 #[async_trait]
-pub trait RepoHandler: Any + Send + Sync + 'static {
+pub trait RepoHandler: Send + Sync + 'static {
     fn is_monorepo(&self) -> bool;
-
-    fn as_any(&self) -> &dyn Any;
-
-    fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
 
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
@@ -92,17 +84,10 @@ pub trait RepoHandler: Any + Send + Sync + 'static {
                 }
             }
         }
-        self.attach_import().await
-    }
-
-    async fn attach_import(&self) -> Result<(), GitError> {
-        if !self.is_monorepo() {
-            if let Some(import_repo) = self.as_any().downcast_ref::<ImportRepo>() {
-                return import_repo.attach_to_monorepo_parent().await;
-            }
-        }
         Ok(())
     }
+
+    async fn post_receive_pack(&self) -> Result<(), MegaError>;
 
     async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError>;
 

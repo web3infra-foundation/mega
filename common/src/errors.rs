@@ -102,6 +102,12 @@ pub enum ProtocolError {
     Disabled,
 }
 
+impl From<MegaError> for ProtocolError {
+    fn from(err: MegaError) -> ProtocolError {
+        ProtocolError::InvalidInput(err.error.unwrap().to_string())
+    }
+}
+
 impl IntoResponse for ProtocolError {
     fn into_response(self) -> Response {
         let (status, message) = match self {

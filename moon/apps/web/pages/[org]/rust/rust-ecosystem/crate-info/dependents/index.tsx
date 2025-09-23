@@ -8,13 +8,20 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 // import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import CrateInfoLayout from '../layout';
 
-interface Dependent {
-    id: string;
-    name: string;
+interface DependentData {
+    crate_name: string;
     version: string;
-    relation: 'Direct' | 'Indirect';
-    license?: string;
-    dependencies?: number;
+    relation: string;
+}
+
+interface DependentInfo {
+    direct_count: number;
+    indirect_count: number;
+    data: DependentData[];
+}
+
+interface Dependent extends DependentData {
+    id: string;
     expanded?: boolean;
     description?: string;
     published?: string;
@@ -25,38 +32,63 @@ const DependentsPage = () => {
     const router = useRouter();
     const [dependents, setDependents] = useState<Dependent[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    // const [viewMode, setViewMode] = useState<'table' | 'graph'>('table');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [stats, setStats] = useState({ direct: 0, indirect: 0 });
     const searchTerm = '';
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
     const version = (router.query.version as string) || params?.version as string || "1.2.01";
+    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
 
+    // 从 API 获取 dependents 数据
     useEffect(() => {
-        // 模拟dependents数据 - 显示使用当前包的其他包
-        const mockDependents: Dependent[] = [
-            {
-                id: '1',
-                name: 'github-random-star',
-                version: '1.0.2',
-                relation: 'Direct',
-                expanded: false
-            },
-            {
-                id: '2',
-                name: 'github-random-star',
-                version: '1.0.1',
-                relation: 'Direct',
-                expanded: false
+        const fetchDependents = async () => {
+            if (!crateName || !version || !nsfront || !nsbehind) return;
+            
+            try {
+                setLoading(true);
+                setError(null);
+                
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/dependents`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch dependents');
+                }
+                
+                const data: DependentInfo = await response.json();
+                
+                // 转换 API 数据为前端需要的格式
+                const transformedDependents: Dependent[] = data.data.map((dep, index) => ({
+                    id: `${dep.crate_name}-${dep.version}-${index}`,
+                    crate_name: dep.crate_name,
+                    version: dep.version,
+                    relation: dep.relation as 'Direct' | 'Indirect',
+                    expanded: false,
+                    description: `Dependent package: ${dep.crate_name}`,
+                    published: 'Unknown'
+                }));
+                
+                setDependents(transformedDependents);
+                setStats({
+                    direct: data.direct_count,
+                    indirect: data.indirect_count
+                });
+            } catch (err) {
+                setError('Failed to load dependents');
+            } finally {
+                setLoading(false);
             }
-        ];
+        };
 
-        // 直接设置数据，不使用加载延迟
-        setDependents(mockDependents);
-    }, [crateName, version]);
+        fetchDependents();
+    }, [crateName, version, nsfront, nsbehind]);
 
     const filteredDependents = dependents.filter(dep =>
-        dep.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dep.crate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dep.version.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -122,7 +154,7 @@ const DependentsPage = () => {
                                             lineHeight: '20px',
                                             letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
                                         }}>
-                                            26
+                                            {stats.direct}
                                         </span>
                                         <span style={{
                                             display: '-webkit-box',
@@ -138,7 +170,7 @@ const DependentsPage = () => {
                                             lineHeight: '20px',
                                             letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
                                         }}>
-                                            12
+                                            {stats.indirect}
                                         </span>
                                     </div>
                                     
@@ -147,22 +179,43 @@ const DependentsPage = () => {
                                         <div className="h-2 rounded-lg overflow-hidden" style={{ marginTop: '-2px', backgroundColor: 'rgb(238,238,241)' }}>
                                             <div
                                                 className="h-full rounded-lg"
-                                                style={{ width: '68%', backgroundColor: 'rgb(61,98,220)' }}
+                                                style={{ 
+                                                    width: stats.direct + stats.indirect > 0 ? `${(stats.direct / (stats.direct + stats.indirect)) * 100}%` : '0%', 
+                                                    backgroundColor: 'rgb(61,98,220)' 
+                                                }}
                                             />
                                         </div>
                                         <div className="h-2 rounded-lg overflow-hidden" style={{ marginTop: '18px', backgroundColor: 'rgb(238,238,241)' }}>
                                             <div
                                                 className="h-full rounded-lg"   
-                                                style={{ width: '32%', backgroundColor: 'rgb(61,98,220)' }}
+                                                style={{ 
+                                                    width: stats.direct + stats.indirect > 0 ? `${(stats.indirect / (stats.direct + stats.indirect)) * 100}%` : '0%', 
+                                                    backgroundColor: 'rgb(61,98,220)' 
+                                                }}
                                             />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* 加载状态 */}
+                            {loading && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-gray-500">Loading dependents...</div>
+                                </div>
+                            )}
+                            
+                            {/* 错误状态 */}
+                            {error && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-red-500">{error}</div>
+                                </div>
+                            )}
+
                             {/* 表格 - 在面板内部 */}
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
+                            {!loading && !error && (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
                                     <thead style={{ background: '#ffffff00' }}>
                                         <tr>
                                             <th className="px-6 py-3 text-left " style={{ marginRight : '20px', marginLeft: '-12px' }}>
@@ -237,7 +290,7 @@ const DependentsPage = () => {
                                                                  letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
                                                              }}
                                                          >
-                                                             {dependent.name}
+                                                             {dependent.crate_name}
                                                          </div>
                                                     </td>                                        
                                                       <td className="px-6 py-4 whitespace-nowrap text-right" style={{ paddingLeft: '300px' }}>
@@ -308,7 +361,8 @@ const DependentsPage = () => {
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* 分页功能区 */}

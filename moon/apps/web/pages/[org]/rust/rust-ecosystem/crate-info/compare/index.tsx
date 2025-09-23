@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -9,24 +9,80 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 // import { ArrowsRightLeftIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import CrateInfoLayout from '../layout';
 
+// API 响应接口
+interface CrateInfo {
+    crate_name: string;
+    description: string;
+    dependencies: {
+        direct: number;
+        indirect: number;
+    };
+    dependents: {
+        direct: number;
+        indirect: number;
+    };
+    cves: Array<{
+        id: string;
+        subtitle: string;
+        reported: string;
+        issued: string;
+        package: string;
+        ttype: string;
+        keywords: string;
+        aliases: string;
+        reference: string;
+        patched: string;
+        unaffected: string;
+        description: string;
+        url: string;
+    }>;
+    dep_cves: Array<{
+        id: string;
+        subtitle: string;
+        reported: string;
+        issued: string;
+        package: string;
+        ttype: string;
+        keywords: string;
+        aliases: string;
+        reference: string;
+        patched: string;
+        unaffected: string;
+        description: string;
+        url: string;
+    }>;
+    license: string;
+    github_url: string;
+    doc_url: string;
+    versions: string[];
+}
+
+// 比较用的版本数据接口
 interface VersionData {
     version: string;
     published: string;
     description: string;
-    licenses: {
-        primary: string;
-        dependencies: string[];
+    license: string;
+    github_url: string;
+    doc_url: string;
+    dependencies: {
+        direct: number;
+        indirect: number;
     };
-    securityAdvisories: {
-        inDependencies: Array<{
-            id: string;
-            description: string;
-            severity?: string;
-        }>;
+    dependents: {
+        direct: number;
+        indirect: number;
     };
-    dependencies: Array<{
-        name: string;
-        version: string;
+    cves: Array<{
+        id: string;
+        subtitle: string;
+        description: string;
+        highlighted?: 'added' | 'removed' | 'updated';
+    }>;
+    dep_cves: Array<{
+        id: string;
+        subtitle: string;
+        description: string;
         highlighted?: 'added' | 'removed' | 'updated';
     }>;
 }
@@ -36,67 +92,164 @@ const ComparePage = () => {
     const router = useRouter();
     const [leftVersion, setLeftVersion] = useState<VersionData | null>(null);
     const [rightVersion, setRightVersion] = useState<VersionData | null>(null);
-    const [selectedLeftVersion, setSelectedLeftVersion] = useState('1.2.01');
-    const [selectedRightVersion, setSelectedRightVersion] = useState('1.2.01');
+    const [selectedLeftVersion, setSelectedLeftVersion] = useState('');
+    const [selectedRightVersion, setSelectedRightVersion] = useState('');
     const [isSwapped, setIsSwapped] = useState(false);
     const [isLeftVersionDialogOpen, setIsLeftVersionDialogOpen] = useState(false);
     const [isRightVersionDialogOpen, setIsRightVersionDialogOpen] = useState(false);
-    const [versions] = useState<string[]>(["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]);
+    const [versions, setVersions] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
+    const version = (router.query.version as string) || params?.version as string || "1.2.01";
+    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
 
+    // 从 API 获取版本数据
+    const fetchVersionData = useCallback(async (version: string): Promise<VersionData | null> => {
+        try {
+            const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+            const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}`);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch data for version ${version}`);
+            }
+            
+            const data: CrateInfo = await response.json();
+            
+            // 转换 API 数据为比较用的格式
+            return {
+                version: version,
+                published: 'Unknown', // API 中没有发布时间，使用默认值
+                description: data.description || 'No description available',
+                license: data.license || 'Unknown',
+                github_url: data.github_url || '',
+                doc_url: data.doc_url || '',
+                dependencies: data.dependencies,
+                dependents: data.dependents,
+                cves: data.cves.map(cve => ({
+                    id: cve.id,
+                    subtitle: cve.subtitle || cve.description,
+                    description: cve.description,
+                    highlighted: undefined // 将在比较时设置
+                })),
+                dep_cves: data.dep_cves.map(cve => ({
+                    id: cve.id,
+                    subtitle: cve.subtitle || cve.description,
+                    description: cve.description,
+                    highlighted: undefined // 将在比较时设置
+                }))
+            };
+        } catch (err) {
+            return null;
+        }
+    }, [nsfront, nsbehind, crateName]);
+
+    // 比较两个版本的数据并标记差异
+    const compareVersions = (left: VersionData, right: VersionData) => {
+        const leftWithHighlights = { ...left };
+        const rightWithHighlights = { ...right };
+
+        // 比较 CVE 数据 (In the Dependencies 部分)
+        const leftCveIds = new Set(left.cves.map(cve => cve.id));
+        const rightCveIds = new Set(right.cves.map(cve => cve.id));
+
+        leftWithHighlights.cves = left.cves.map(cve => ({
+            ...cve,
+            highlighted: rightCveIds.has(cve.id) ? undefined : 'removed'
+        }));
+
+        rightWithHighlights.cves = right.cves.map(cve => ({
+            ...cve,
+            highlighted: leftCveIds.has(cve.id) ? undefined : 'added'
+        }));
+
+        // 比较依赖 CVE 数据 (Dependencies 部分)
+        const leftDepCveIds = new Set(left.dep_cves.map(cve => cve.id));
+        const rightDepCveIds = new Set(right.dep_cves.map(cve => cve.id));
+
+        leftWithHighlights.dep_cves = left.dep_cves.map(cve => ({
+            ...cve,
+            highlighted: rightDepCveIds.has(cve.id) ? undefined : 'removed'
+        }));
+
+        rightWithHighlights.dep_cves = right.dep_cves.map(cve => ({
+            ...cve,
+            highlighted: leftDepCveIds.has(cve.id) ? undefined : 'added'
+        }));
+
+        return { leftWithHighlights, rightWithHighlights };
+    };
+
+    // 获取版本列表并设置默认版本
     useEffect(() => {
-        // 模拟版本数据
-        const getMockVersionData = (version: string, isLeftCard: boolean = false): VersionData => ({
-            version,
-            published: version === '1.2.01' ? 'March7, 2025' : 'March7, 2025',
-            description: 'An event-driven,non-blocking I/O platform for writing asynchronous I/O backed applications.',
-            licenses: {
-                primary: 'MIT',
-                dependencies: [
-                    '0BSD OR Apache-2.0 OR MIT',
-                    ...(version === '1.2.01' ? ['Apache-2.0', 'Apache-2.0 OR BSD-2-Clause OR MIT', 'Apache-2.0 OR BSL-1.0'] : []),
-                    'Apache-2.0 OR LGPL-2.1-or-later OR MIT',
-                    'Unicode-3.0 AND (Apache-2.0 OR MIT)'
-                ]
-            },
-            securityAdvisories: {
-                inDependencies: [
-                    {
-                        id: 'request',
-                        description: 'Server-Side Request Forgery In Request',
-                        severity: '2.88.2'
-                    },
-                    {
-                        id: 'GHSA-p8p7-x288-28g6',
-                        description: 'Server-Side Request Forgery In Request'
-                    },
-                    {
-                        id: 'tough-cookie',
-                        description: 'Server-Side Request Forgery In Request',
-                        severity: '2.5.1'
-                    },
-                    {
-                        id: 'GHSA-p8p7-x288-28g6',
-                        description: 'Server-Side Request Forgery In Request'
-                    }
-                ]
-            },
-            dependencies: [
-                { name: 'abab', version: '2.0.6' },
-                { name: 'acorn', version: '5.7.4', highlighted: (version === '1.2.01' && isLeftCard) ? 'added' : undefined },
-                { name: 'acorn-globals', version: '6.4.2' },
-                { name: 'ajv', version: '6.12.6' },
-                { name: 'acorn', version: '5.7.4' },
-                { name: 'abab', version: '2.0.6' },
-                { name: 'browser-process-hrtime-addsvj', version: '6.4.2' }
-            ]
-        });
+        const fetchVersions = async () => {
+            try {
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch versions');
+                }
+                
+                const data: CrateInfo = await response.json();
 
-        setLeftVersion(getMockVersionData(selectedLeftVersion, true));
-        setRightVersion(getMockVersionData(selectedRightVersion, false));
-    }, [selectedLeftVersion, selectedRightVersion]);
+                const versionList = data.versions || [];
+
+                setVersions(versionList);
+                
+                // 设置默认版本：右边是最新版本（索引0），左边是次新版本（索引1）
+                if (versionList.length >= 2) {
+                    setSelectedRightVersion(versionList[0]); // 最新版本
+                    setSelectedLeftVersion(versionList[1]);  // 次新版本
+                } else if (versionList.length === 1) {
+                    // 如果只有一个版本，左右都设置为同一个版本
+                    setSelectedRightVersion(versionList[0]);
+                    setSelectedLeftVersion(versionList[0]);
+                }
+            } catch (err) {
+                setError('Failed to load versions');
+            }
+        };
+
+        if (crateName && version && nsfront && nsbehind) {
+            fetchVersions();
+        }
+    }, [crateName, version, nsfront, nsbehind]);
+
+    // 获取和比较版本数据
+    useEffect(() => {
+        const fetchAndCompareVersions = async () => {
+            if (!selectedLeftVersion || !selectedRightVersion) return;
+            
+            setLoading(true);
+            setError(null);
+            
+            try {
+                const [leftData, rightData] = await Promise.all([
+                    fetchVersionData(selectedLeftVersion),
+                    fetchVersionData(selectedRightVersion)
+                ]);
+
+                if (leftData && rightData) {
+                    const { leftWithHighlights, rightWithHighlights } = compareVersions(leftData, rightData);
+
+                    setLeftVersion(leftWithHighlights);
+                    setRightVersion(rightWithHighlights);
+                } else {
+                    setError('Failed to load version data');
+                }
+            } catch (err) {
+                setError('Failed to compare versions');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAndCompareVersions();
+    }, [selectedLeftVersion, selectedRightVersion, fetchVersionData]);
 
     const handleSwapVersions = () => {
         setIsSwapped(!isSwapped);
@@ -333,15 +486,43 @@ const ComparePage = () => {
 
     const getHighlightColor = (type?: 'added' | 'removed' | 'updated') => {
         switch (type) {
-            case 'added': return 'rgb(234,141,143)'; // 粉色（红色），acorn使用
-            case 'removed': return 'rgb(234,141,143)'; // 红色  
-            case 'updated': return 'rgb(232,192,97)'; // 橙色
+            case 'added': return '#65BA74'; // 绿色 - 新增
+            case 'removed': return '#E5484D'; // 红色 - 移除
+            case 'updated': return '#F59E0B'; // 橙色 - 更新
             default: return 'transparent';
         }
     };
 
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-gray-500">Loading comparison data...</div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-red-500">Error: {error}</div>
+            </div>
+        );
+    }
+
+    if (!selectedLeftVersion || !selectedRightVersion) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-gray-500">Loading versions...</div>
+            </div>
+        );
+    }
+
     if (!leftVersion || !rightVersion) {
-        return <div>Loading...</div>;
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-gray-500">No version data available</div>
+            </div>
+        );
     }
 
     return (
@@ -517,15 +698,18 @@ const ComparePage = () => {
                                                 className="font-medium"
                                                 style={{
                                                     alignSelf: 'stretch',
-                                                    color: '#00071b80',
                                                     fontFamily: '"HarmonyOS Sans SC"',
                                                     fontSize: '16px',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    lineHeight: '20px'
+                                                    lineHeight: '20px',
+                                                    backgroundColor: leftVersion.license !== rightVersion.license ? getHighlightColor('updated') : 'transparent',
+                                                    color: leftVersion.license !== rightVersion.license ? 'white' : '#00071b80',
+                                                    padding: leftVersion.license !== rightVersion.license ? '4px 8px' : '0',
+                                                    borderRadius: leftVersion.license !== rightVersion.license ? '4px' : '0'
                                                 }}
                                             >
-                                                {leftVersion.licenses.primary}
+                                                {leftVersion.license}
                                             </div>
                                         </div>
                                         <div>
@@ -543,45 +727,22 @@ const ComparePage = () => {
                                             >
                                                 DEPENDENCY LICENSES
                                             </div>
-                                                                                         <div className="space-y-1">
-                                                 {leftVersion.licenses.dependencies.map((license) => (
-                                                     <div 
-                                                         key={`left-license-${license}`}
-                                                        className="p-1 text-sm"
-                                                                                                                                                                         style={{ 
-                                                            backgroundColor: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? 'rgb(234,141,143)' : 'transparent',
-                                                            color: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? 'white' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px',
-                                                            marginLeft: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? '-20px' : '0',
-                                                            marginRight: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? '-20px' : '0',
-                                                            paddingLeft: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? '20px' : '0',
-                                                            paddingRight: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? '20px' : '0',
-                                                            borderRadius: license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' ? '0' : '4px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between'
-                                                        }}
-                                                    >
-                                                        <span>{license}</span>
-                                                        {license === 'Apache-2.0' && selectedLeftVersion === '1.2.01' && (
-                                                            <svg 
-                                                                fill="currentColor" 
-                                                                viewBox="0 0 20 20"
-                                                                style={{
-                                                                    width: '16px',
-                                                                    height: '16px',
-                                                                    color: 'white'
-                                                                }}
-                                                            >
-                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                            </svg>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                            <div className="space-y-1">
+                                                <div 
+                                                    className="p-1 text-sm"
+                                                    style={{ 
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '16px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px',
+                                                        color: '#00071b80'
+                                                    }}
+                                                >
+                                                    Dependencies: {leftVersion.dependencies.direct + leftVersion.dependencies.indirect} total
+                                                    <br />
+                                                    Direct: {leftVersion.dependencies.direct}, Indirect: {leftVersion.dependencies.indirect}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -618,103 +779,89 @@ const ComparePage = () => {
                                         >
                                             IN THE DEPENDENCIES
                                         </div>
-                                                                                 <div className="space-y-2">
-                                             {leftVersion.securityAdvisories.inDependencies.map((advisory, index) => (
-                                                 <div 
-                                                     key={`left-advisory-${advisory.id}-${advisory.description}`}
-                                                    className="p-2 rounded"
-                                                                                                         style={{ 
-                                                         backgroundColor: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? 'rgb(234,141,143)' : 'transparent',
-                                                         color: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? 'white' : '#333333',
-                                                         display: 'flex',
-                                                         alignItems: 'center',
-                                                         justifyContent: 'space-between',
-                                                         marginLeft: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '-20px' : '0',
-                                                         marginRight: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '-20px' : '0',
-                                                         paddingLeft: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '20px' : '8px',
-                                                         paddingRight: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '20px' : '8px',
-                                                         borderRadius: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '0' : '4px',
-                                                         lineHeight: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '20px' : 'normal',
-                                                         height: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '30px' : 'auto'
-                                                     }}
-                                                >
+                                        <div className="space-y-2">
+                                            {leftVersion.cves.length > 0 ? (
+                                                leftVersion.cves.map((cve) => (
                                                     <div 
-                                                        style={{
+                                                        key={`left-cve-${cve.id}`}
+                                                        className="p-2 rounded"
+                                                        style={{ 
+                                                            backgroundColor: cve.highlighted ? getHighlightColor(cve.highlighted) : 'transparent',
+                                                            color: cve.highlighted ? 'white' : '#333333',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'space-between',
-                                                            width: '100%'
+                                                            padding: cve.highlighted ? '8px 12px' : '8px',
+                                                            borderRadius: cve.highlighted ? '4px' : '0'
                                                         }}
                                                     >
                                                         <div 
-                                                            className="font-medium text-sm"
                                                             style={{
-                                                                color: advisory.id.startsWith('GHSA-') ? '#002bb7c4' : '#00071b80',
-                                                                fontFamily: '"HarmonyOS Sans SC"',
-                                                                fontSize: advisory.id.startsWith('GHSA-') ? '14px' : '16px',
-                                                                fontStyle: 'normal',
-                                                                fontWeight: 400,
-                                                                lineHeight: '20px',
-                                                                ...(advisory.id.startsWith('GHSA-') && {
-                                                                    display: '-webkit-box',
-                                                                    WebkitBoxOrient: 'vertical',
-                                                                    WebkitLineClamp: 1,
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                })
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                width: '100%'
                                                             }}
                                                         >
-                                                            {advisory.id}
-                                                        </div>
-                                                        {advisory.severity && (
                                                             <div 
-                                                                className="text-sm"
-                                                                style={{ 
+                                                                className="font-medium text-sm"
+                                                                style={{
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
                                                                     fontFamily: '"HarmonyOS Sans SC"',
-                                                                    color: '#80838d',
                                                                     fontSize: '14px',
                                                                     fontStyle: 'normal',
                                                                     fontWeight: 400,
                                                                     lineHeight: '20px'
                                                                 }}
                                                             >
-                                                                {advisory.severity}
+                                                                {cve.id}
                                                             </div>
-                                                        )}
-                                                        {advisory.id !== 'request' && advisory.id !== 'tough-cookie' && (
                                                             <div 
-                                                                className="text-sm text-blue-600 hover:underline cursor-pointer"
+                                                                className="text-sm"
                                                                 style={{ 
-                                                                    color: advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 ? '#fcfcfd' : '#00071b80',
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
                                                                     fontFamily: '"HarmonyOS Sans SC"',
-                                                                    fontSize: '16px',
+                                                                    fontSize: '14px',
                                                                     fontStyle: 'normal',
                                                                     fontWeight: 400,
                                                                     lineHeight: '20px',
-                                                                    textTransform: 'capitalize',
                                                                     marginLeft: '16px'
                                                                 }}
                                                             >
-                                                                {advisory.description}
+                                                                {cve.subtitle}
                                                             </div>
+                                                        </div>
+                                                        {cve.highlighted && (
+                                                            <svg 
+                                                                fill="currentColor" 
+                                                                viewBox="0 0 20 20"
+                                                                style={{
+                                                                    width: '16px',
+                                                                    height: '16px',
+                                                                    color: 'white',
+                                                                    marginLeft: '8px'
+                                                                }}
+                                                            >
+                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                            </svg>
                                                         )}
                                                     </div>
-                                                    {advisory.id === 'GHSA-p8p7-x288-28g6' && index === 1 && (
-                                                        <svg 
-                                                            fill="currentColor" 
-                                                            viewBox="0 0 20 20"
-                                                            style={{
-                                                                width: '16px',
-                                                                height: '16px',
-                                                                color: 'white'
-                                                            }}
-                                                        >
-                                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                        </svg>
-                                                    )}
+                                                ))
+                                            ) : (
+                                                <div 
+                                                    className="p-2 text-sm"
+                                                    style={{ 
+                                                        color: '#00071b80',
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '14px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px'
+                                                    }}
+                                                >
+                                                    No security advisories in dependencies
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -735,71 +882,90 @@ const ComparePage = () => {
                                     >
                                         Dependencies
                                     </h3>
-                                                                         <div className="space-y-1">
-                                         {leftVersion.dependencies.map((dep) => (
-                                                                                          <div 
-                                                  key={`left-dep-${dep.name}-${dep.version}`}
-                                                 className="flex justify-between items-center p-2 rounded"
-                                                 style={{ 
-                                                     backgroundColor: getHighlightColor(dep.highlighted),
-                                                     color: dep.highlighted ? 'white' : '#333333',
-                                                     display: 'flex',
-                                                     alignItems: 'center',
-                                                     justifyContent: 'space-between',
-                                                     marginLeft: dep.highlighted ? '-20px' : '0',
-                                                     marginRight: dep.highlighted ? '-20px' : '0',
-                                                     paddingLeft: dep.highlighted ? '20px' : '8px',
-                                                     paddingRight: dep.highlighted ? '20px' : '8px',
-                                                     borderRadius: dep.highlighted ? '0' : '4px',
-                                                     lineHeight: dep.highlighted ? '20px' : 'normal',
-                                                     height: dep.highlighted ? '30px' : 'auto'
-                                                 }}
-                                             >
-                                                <div className="flex justify-between items-center flex-1">
-                                                    <span 
-                                                        className="text-sm cursor-pointer hover:underline"
+                                                                         <div className="space-y-2">
+                                            {leftVersion.dep_cves.length > 0 ? (
+                                                leftVersion.dep_cves.map((cve) => (
+                                                    <div 
+                                                        key={`left-dep-cve-${cve.id}`}
+                                                        className="p-2 rounded"
                                                         style={{ 
-                                                            color: dep.highlighted ? 'white' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px'
+                                                            backgroundColor: cve.highlighted ? getHighlightColor(cve.highlighted) : 'transparent',
+                                                            color: cve.highlighted ? 'white' : '#333333',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            padding: cve.highlighted ? '8px 12px' : '8px',
+                                                            borderRadius: cve.highlighted ? '4px' : '0'
                                                         }}
                                                     >
-                                                        {dep.name}
-                                                    </span>
-                                                    <span 
-                                                        className="text-sm"
-                                                        style={{ 
-                                                            color: dep.highlighted ? '#ffffff' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px'
-                                                        }}
-                                                    >
-                                                        {dep.version}
-                                                    </span>
+                                                        <div 
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                width: '100%'
+                                                            }}
+                                                        >
+                                                            <div 
+                                                                className="font-medium text-sm"
+                                                                style={{
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
+                                                                    fontFamily: '"HarmonyOS Sans SC"',
+                                                                    fontSize: '14px',
+                                                                    fontStyle: 'normal',
+                                                                    fontWeight: 400,
+                                                                    lineHeight: '20px'
+                                                                }}
+                                                            >
+                                                                {cve.id}
+                                                            </div>
+                                                            <div 
+                                                                className="text-sm"
+                                                                style={{ 
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
+                                                                    fontFamily: '"HarmonyOS Sans SC"',
+                                                                    fontSize: '14px',
+                                                                    fontStyle: 'normal',
+                                                                    fontWeight: 400,
+                                                                    lineHeight: '20px',
+                                                                    marginLeft: '16px'
+                                                                }}
+                                                            >
+                                                                {cve.subtitle}
+                                                            </div>
+                                                        </div>
+                                                        {cve.highlighted && (
+                                                            <svg 
+                                                                fill="currentColor" 
+                                                                viewBox="0 0 20 20"
+                                                                style={{
+                                                                    width: '16px',
+                                                                    height: '16px',
+                                                                    color: 'white',
+                                                                    marginLeft: '8px'
+                                                                }}
+                                                            >
+                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div 
+                                                    className="p-2 text-sm"
+                                                    style={{ 
+                                                        color: '#00071b80',
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '14px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px'
+                                                    }}
+                                                >
+                                                    No dependency security advisories
                                                 </div>
-                                                {dep.highlighted && (
-                                                    <svg 
-                                                        fill="currentColor" 
-                                                        viewBox="0 0 20 20"
-                                                        style={{
-                                                            width: '16px',
-                                                            height: '16px',
-                                                            color: 'white',
-                                                            marginLeft: '8px'
-                                                        }}
-                                                    >
-                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                    </svg>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
+                                            )}
+                                        </div>
                                 </div>
                             </div>
 
@@ -958,15 +1124,18 @@ const ComparePage = () => {
                                                 className="font-medium"
                                                 style={{
                                                     alignSelf: 'stretch',
-                                                    color: '#00071b80',
                                                     fontFamily: '"HarmonyOS Sans SC"',
                                                     fontSize: '16px',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    lineHeight: '20px'
+                                                    lineHeight: '20px',
+                                                    backgroundColor: leftVersion.license !== rightVersion.license ? getHighlightColor('updated') : 'transparent',
+                                                    color: leftVersion.license !== rightVersion.license ? 'white' : '#00071b80',
+                                                    padding: leftVersion.license !== rightVersion.license ? '4px 8px' : '0',
+                                                    borderRadius: leftVersion.license !== rightVersion.license ? '4px' : '0'
                                                 }}
                                             >
-                                                {rightVersion.licenses.primary}
+                                                {rightVersion.license}
                                             </div>
                                         </div>
                                         <div>
@@ -984,45 +1153,22 @@ const ComparePage = () => {
                                             >
                                                 DEPENDENCY LICENSES
                                             </div>
-                                                                                         <div className="space-y-1">
-                                                 {rightVersion.licenses.dependencies.map((license) => (
-                                                     <div 
-                                                         key={`right-license-${license}`}
-                                                        className="p-1 text-sm"
-                                                        style={{ 
-                                                            backgroundColor: license === 'Apache-2.0 OR BSL-1.0' && selectedRightVersion === '1.2.01' ? 'rgb(232,192,97)' : 'transparent',
-                                                            color: license === 'Apache-2.0 OR BSL-1.0' && selectedRightVersion === '1.2.01' ? '#ffffff' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px',
-                                                            marginLeft: '-20px',
-                                                            marginRight: '-20px',
-                                                            paddingLeft: '20px',
-                                                            paddingRight: '20px',
-                                                            borderRadius: '0',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between'
-                                                        }}
-                                                    >
-                                                        <span>{license}</span>
-                                                                                                                 {license === 'Apache-2.0 OR BSL-1.0' && selectedRightVersion === '1.2.01' && (
-                                                             <svg 
-                                                                 fill="currentColor" 
-                                                                 viewBox="0 0 20 20"
-                                                                 style={{
-                                                                     width: '16px',
-                                                                     height: '16px',
-                                                                     color: 'white'
-                                                                 }}
-                                                             >
-                                                                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                             </svg>
-                                                         )}
-                                                    </div>
-                                                ))}
+                                            <div className="space-y-1">
+                                                <div 
+                                                    className="p-1 text-sm"
+                                                    style={{ 
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '16px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px',
+                                                        color: '#00071b80'
+                                                    }}
+                                                >
+                                                    Dependencies: {rightVersion.dependencies.direct + rightVersion.dependencies.indirect} total
+                                                    <br />
+                                                    Direct: {rightVersion.dependencies.direct}, Indirect: {rightVersion.dependencies.indirect}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1059,80 +1205,89 @@ const ComparePage = () => {
                                         >
                                             IN THE DEPENDENCIES
                                         </div>
-                                                                                 <div className="space-y-2">
-                                             {rightVersion.securityAdvisories.inDependencies.map((advisory) => (
-                                                 <div 
-                                                     key={`right-advisory-${advisory.id}-${advisory.description}`}
-                                                    className="p-2 rounded"
-                                                    style={{ 
-                                                        backgroundColor: 'transparent',
-                                                        color: '#333333'
-                                                    }}
-                                                >
+                                        <div className="space-y-2">
+                                            {rightVersion.cves.length > 0 ? (
+                                                rightVersion.cves.map((cve) => (
                                                     <div 
-                                                        style={{
+                                                        key={`right-cve-${cve.id}`}
+                                                        className="p-2 rounded"
+                                                        style={{ 
+                                                            backgroundColor: cve.highlighted ? getHighlightColor(cve.highlighted) : 'transparent',
+                                                            color: cve.highlighted ? 'white' : '#333333',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'space-between',
-                                                            width: '100%'
+                                                            padding: cve.highlighted ? '8px 12px' : '8px',
+                                                            borderRadius: cve.highlighted ? '4px' : '0'
                                                         }}
                                                     >
                                                         <div 
-                                                            className="font-medium text-sm"
                                                             style={{
-                                                                color: advisory.id.startsWith('GHSA-') ? '#002bb7c4' : '#00071b80',
-                                                                fontFamily: '"HarmonyOS Sans SC"',
-                                                                fontSize: advisory.id.startsWith('GHSA-') ? '14px' : '16px',
-                                                                fontStyle: 'normal',
-                                                                fontWeight: 400,
-                                                                lineHeight: '20px',
-                                                                ...(advisory.id.startsWith('GHSA-') && {
-                                                                    display: '-webkit-box',
-                                                                    WebkitBoxOrient: 'vertical',
-                                                                    WebkitLineClamp: 1,
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    letterSpacing: 'var(--Typography-Letter-spacing-2, 0)'
-                                                                })
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                width: '100%'
                                                             }}
                                                         >
-                                                            {advisory.id}
-                                                        </div>
-                                                        {advisory.severity && (
                                                             <div 
-                                                                className="text-sm"
-                                                                style={{ 
+                                                                className="font-medium text-sm"
+                                                                style={{
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
                                                                     fontFamily: '"HarmonyOS Sans SC"',
-                                                                    color: '#80838d',
                                                                     fontSize: '14px',
                                                                     fontStyle: 'normal',
                                                                     fontWeight: 400,
                                                                     lineHeight: '20px'
                                                                 }}
                                                             >
-                                                                {advisory.severity}
+                                                                {cve.id}
                                                             </div>
-                                                        )}
-                                                        {advisory.id !== 'request' && advisory.id !== 'tough-cookie' && (
                                                             <div 
-                                                                className="text-sm text-blue-600 hover:underline cursor-pointer"
+                                                                className="text-sm"
                                                                 style={{ 
-                                                                    color: '#00071b80',
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
                                                                     fontFamily: '"HarmonyOS Sans SC"',
-                                                                    fontSize: '16px',
+                                                                    fontSize: '14px',
                                                                     fontStyle: 'normal',
                                                                     fontWeight: 400,
                                                                     lineHeight: '20px',
-                                                                    textTransform: 'capitalize',
                                                                     marginLeft: '16px'
                                                                 }}
                                                             >
-                                                                {advisory.description}
+                                                                {cve.subtitle}
                                                             </div>
+                                                        </div>
+                                                        {cve.highlighted && (
+                                                            <svg 
+                                                                fill="currentColor" 
+                                                                viewBox="0 0 20 20"
+                                                                style={{
+                                                                    width: '16px',
+                                                                    height: '16px',
+                                                                    color: 'white',
+                                                                    marginLeft: '8px'
+                                                                }}
+                                                            >
+                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                            </svg>
                                                         )}
                                                     </div>
+                                                ))
+                                            ) : (
+                                                <div 
+                                                    className="p-2 text-sm"
+                                                    style={{ 
+                                                        color: '#00071b80',
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '14px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px'
+                                                    }}
+                                                >
+                                                    No security advisories in dependencies
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -1153,51 +1308,90 @@ const ComparePage = () => {
                                     >
                                         Dependencies
                                     </h3>
-                                                                         <div className="space-y-1">
-                                         {rightVersion.dependencies.map((dep) => (
-                                             <div 
-                                                 key={`right-dep-${dep.name}-${dep.version}`}
-                                                className="flex justify-between items-center p-2 rounded"
-                                                style={{ 
-                                                    backgroundColor: 'transparent',
-                                                    color: '#333333',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    padding: '8px'
-                                                }}
-                                            >
-                                                <div className="flex justify-between items-center flex-1">
-                                                    <span 
-                                                        className="text-sm cursor-pointer hover:underline"
+                                                                         <div className="space-y-2">
+                                            {rightVersion.dep_cves.length > 0 ? (
+                                                rightVersion.dep_cves.map((cve) => (
+                                                    <div 
+                                                        key={`right-dep-cve-${cve.id}`}
+                                                        className="p-2 rounded"
                                                         style={{ 
-                                                            color: dep.highlighted ? 'white' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px'
+                                                            backgroundColor: cve.highlighted ? getHighlightColor(cve.highlighted) : 'transparent',
+                                                            color: cve.highlighted ? 'white' : '#333333',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            padding: cve.highlighted ? '8px 12px' : '8px',
+                                                            borderRadius: cve.highlighted ? '4px' : '0'
                                                         }}
                                                     >
-                                                        {dep.name}
-                                                    </span>
-                                                    <span 
-                                                        className="text-sm"
-                                                        style={{ 
-                                                            color: dep.highlighted ? '#ffffff' : '#00071b80',
-                                                            fontFamily: '"HarmonyOS Sans SC"',
-                                                            fontSize: '16px',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            lineHeight: '20px'
-                                                        }}
-                                                    >
-                                                        {dep.version}
-                                                    </span>
+                                                        <div 
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                width: '100%'
+                                                            }}
+                                                        >
+                                                            <div 
+                                                                className="font-medium text-sm"
+                                                                style={{
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
+                                                                    fontFamily: '"HarmonyOS Sans SC"',
+                                                                    fontSize: '14px',
+                                                                    fontStyle: 'normal',
+                                                                    fontWeight: 400,
+                                                                    lineHeight: '20px'
+                                                                }}
+                                                            >
+                                                                {cve.id}
+                                                            </div>
+                                                            <div 
+                                                                className="text-sm"
+                                                                style={{ 
+                                                                    color: cve.highlighted ? 'white' : '#00071b80',
+                                                                    fontFamily: '"HarmonyOS Sans SC"',
+                                                                    fontSize: '14px',
+                                                                    fontStyle: 'normal',
+                                                                    fontWeight: 400,
+                                                                    lineHeight: '20px',
+                                                                    marginLeft: '16px'
+                                                                }}
+                                                            >
+                                                                {cve.subtitle}
+                                                            </div>
+                                                        </div>
+                                                        {cve.highlighted && (
+                                                            <svg 
+                                                                fill="currentColor" 
+                                                                viewBox="0 0 20 20"
+                                                                style={{
+                                                                    width: '16px',
+                                                                    height: '16px',
+                                                                    color: 'white',
+                                                                    marginLeft: '8px'
+                                                                }}
+                                                            >
+                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div 
+                                                    className="p-2 text-sm"
+                                                    style={{ 
+                                                        color: '#00071b80',
+                                                        fontFamily: '"HarmonyOS Sans SC"',
+                                                        fontSize: '14px',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        lineHeight: '20px'
+                                                    }}
+                                                >
+                                                    No dependency security advisories
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                            )}
+                                        </div>
                                 </div>
                             </div>
                         </div>

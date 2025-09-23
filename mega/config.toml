@@ -26,11 +26,21 @@ db_path = "${base_dir}/mega.db"
 # database connection url
 db_url = ""
 
-# db max connection, setting it to twice the number of CPU cores would be appropriate.
-max_connection = 32
+# Maximum number of database connections in the pool.
+# A good rule of thumb is to set this to ~2 × CPU cores.
+max_connection = 16
 
-# db min connection, setting it to the number of CPU cores would be appropriate.
-min_connection = 16
+# Minimum number of database connections maintained in the pool.
+# Typically set to ~1 × CPU cores to ensure baseline concurrency.
+min_connection = 8
+
+# Timeout (in seconds) for acquiring a connection from the pool.
+# If exceeded, the request will fail.
+acquire_timeout = 3
+
+# Timeout (in seconds) for establishing a new database connection.
+# If exceeded, the connection attempt will fail.
+connect_timeout = 3
 
 # Whether to disabling SQLx Log
 sqlx_logging = false
@@ -61,6 +71,14 @@ admin = "admin"
 
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release"]
+
+[build]
+
+# enable build system trigger
+enable_build = false
+
+# build system url
+orion_server = "https://orion.gitmega.com"
 
 [pack]
 # The maximum memory used by decode

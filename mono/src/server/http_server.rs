@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use axum::body::Body;
@@ -13,6 +14,7 @@ use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
 use time::Duration;
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::decompression::RequestDecompressionLayer;
@@ -37,11 +39,15 @@ use context::AppContext;
 #[derive(Clone)]
 pub struct ProtocolApiState {
     pub storage: Storage,
+    pub shared: Arc<Mutex<u32>>,
 }
 
 impl ProtocolApiState {
     fn new(storage: Storage) -> Self {
-        Self { storage }
+        Self {
+            storage,
+            shared: Arc::new(Mutex::new(0)),
+        }
     }
 }
 
@@ -171,6 +177,7 @@ pub async fn get_method_router(
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
             state.storage.clone(),
+            state.shared.clone(),
             TransportProtocol::Http,
         );
         crate::git_protocol::http::git_info_refs(params, pack_protocol).await
@@ -190,6 +197,7 @@ pub async fn post_method_router(
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
             state.storage.clone(),
+            state.shared.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
@@ -198,6 +206,7 @@ pub async fn post_method_router(
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
             state.storage.clone(),
+            state.shared.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
