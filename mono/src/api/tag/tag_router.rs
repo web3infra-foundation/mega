@@ -170,15 +170,15 @@ async fn create_tag(
     };
 
     // dispatch to repo-specific handler via ApiHandler using path_context if provided
-    let repo_path = req.path_context.clone().unwrap_or_else(|| "/".to_string());
+    let repo_path_ref = req.path_context.as_deref().unwrap_or("/");
     let api = state
-        .api_handler(std::path::Path::new(&repo_path))
+        .api_handler(std::path::Path::new(repo_path_ref))
         .await
         .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
 
     let tag_info = api
         .create_tag(
-            Some(repo_path.clone()),
+            Some(repo_path_ref.to_string()),
             req.name.clone(),
             Some(resolved_target),
             req.tagger_name.clone(),
@@ -216,17 +216,17 @@ async fn list_tags(
     Json(json): Json<common::model::PageParams<String>>,
 ) -> Result<Json<CommonResult<TagListResponse>>, ApiError> {
     let pagination = json.pagination;
-    let repo_path = if json.additional.trim().is_empty() {
-        "/".to_string()
+    let repo_path_ref = if json.additional.trim().is_empty() {
+        "/"
     } else {
-        json.additional.clone()
+        json.additional.as_str()
     };
     let api = state
-        .api_handler(std::path::Path::new(&repo_path))
+        .api_handler(std::path::Path::new(repo_path_ref))
         .await
         .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
     let (tags, total) = api
-        .list_tags(Some(repo_path.clone()), pagination)
+        .list_tags(Some(repo_path_ref.to_string()), pagination)
         .await
         .map_err(|e| map_ceres_error(e, "Failed to list tags"))?;
     let tag_responses: Vec<TagResponse> = tags

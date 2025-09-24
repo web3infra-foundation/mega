@@ -162,9 +162,7 @@ impl ApiHandler for ImportApiService {
         };
 
         // validate target commit if provided
-        if let Err(e) = self.validate_target_commit(target.as_ref()).await {
-            return Err(e);
-        }
+        self.validate_target_commit(target.as_ref()).await?;
 
         let full_ref = format!("refs/tags/{}", name.clone());
         // Prevent duplicate tag/ref creation: check annotated table and refs first.
@@ -416,17 +414,13 @@ impl ImportApiService {
         match git_storage.insert_tag(new_model).await {
             Ok(saved) => {
                 // write import ref; rollback handled inside helper
-                if let Err(e) = self
-                    .write_import_ref_with_rollback(
-                        full_ref.clone(),
-                        object_id.clone(),
-                        self.repo.repo_id,
-                        &name,
-                    )
-                    .await
-                {
-                    return Err(e);
-                }
+                self.write_import_ref_with_rollback(
+                    full_ref.clone(),
+                    object_id.clone(),
+                    self.repo.repo_id,
+                    &name,
+                )
+                .await?;
                 Ok(TagInfo {
                     name: saved.tag_name,
                     tag_id: saved.tag_id,
@@ -699,7 +693,7 @@ impl ImportApiService {
         message: Option<String>,
     ) -> git_tag::Model {
         git_tag::Model {
-            id: 0,
+            id: common::utils::generate_id(),
             repo_id: self.repo.repo_id,
             tag_id: tag_id_hex,
             object_id,

@@ -300,9 +300,7 @@ impl ApiHandler for MonoApiService {
         };
 
         // validate target commit presence
-        if let Err(e) = self.validate_target_commit_mono(target.as_ref()).await {
-            return Err(e);
-        }
+        self.validate_target_commit_mono(target.as_ref()).await?;
 
         let full_ref = format!("refs/tags/{}", name.clone());
 
@@ -374,7 +372,7 @@ impl ApiHandler for MonoApiService {
             .collect();
 
         // lightweight refs from refs table under path
-        let repo_path = repo_path.unwrap_or_else(|| "/".to_string());
+        let repo_path = repo_path.as_deref().unwrap_or("/");
         let mut lightweight_refs: Vec<TagInfo> = vec![];
         if let Ok(refs) = mono_storage.get_refs(&repo_path).await {
             for r in refs {
