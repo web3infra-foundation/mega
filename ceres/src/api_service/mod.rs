@@ -20,6 +20,7 @@ use mercury::{
 };
 use tokio::sync::Mutex;
 
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
     CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
@@ -239,6 +240,13 @@ pub trait ApiHandler: Send + Sync {
 
     /// Delete a tag by name under the repository context represented by `repo_path`.
     async fn delete_tag(&self, repo_path: Option<String>, name: String) -> Result<(), GitError>;
+    /// Get blame information for a file
+    async fn get_file_blame(
+        &self,
+        file_path: &str,
+        ref_name: Option<&str>,
+        query: BlameQuery,
+    ) -> Result<BlameResult, GitError>;
 
     /// the dir's hash as same as old,file's hash is the content hash
     /// may think about change dir'hash as the content

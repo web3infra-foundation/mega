@@ -16,6 +16,7 @@ use common::model::TagInfo;
 use jupiter::storage::Storage;
 
 use crate::api_service::{ApiHandler, GitObjectCache};
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
@@ -373,6 +374,17 @@ impl ApiHandler for ImportApiService {
             }
             Err(e) => Err(GitError::CustomError(format!("[code:500] DB error: {}", e))),
         }
+    }
+  
+    async fn get_file_blame(
+        &self,
+        _file_path: &str,
+        _ref_name: Option<&str>,
+        _query: BlameQuery,
+    ) -> Result<BlameResult, GitError> {
+        Err(GitError::CustomError(
+            "Import directory does not support blame functionality".to_string(),
+        ))
     }
 }
 

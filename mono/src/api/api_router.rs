@@ -9,8 +9,11 @@ use axum::{
 };
 use http::StatusCode;
 
+use anyhow::Result;
+
 use ceres::{
     api_service::ApiHandler,
+    model::blame::{BlameRequest, BlameResult},
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
         TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
@@ -32,6 +35,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(create_file))
         .routes(routes!(get_latest_commit))
         .routes(routes!(get_tree_commit_info))
+        .routes(routes!(get_file_blame))
         .routes(routes!(get_tree_content_hash))
         .routes(routes!(get_tree_dir_hash))
         .routes(routes!(path_can_be_cloned))
@@ -369,4 +373,60 @@ async fn path_can_be_cloned(
         true
     };
     Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Get blame information for a file
+#[utoipa::path(
+    get,
+    path = "/blame",
+    params(
+        BlameRequest
+    ),
+    responses(
+        (status = 200, body = CommonResult<BlameResult>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
+async fn get_file_blame(
+    Query(params): Query<BlameRequest>,
+    State(state): State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<BlameResult>>, ApiError> {
+    tracing::info!(
+        "Getting blame for file: {} at ref: {}",
+        params.path,
+        params.refs
+    );
+
+    // Validate input parameters
+    if params.path.is_empty() {
+        return Err(ApiError::from(anyhow::anyhow!("File path cannot be empty")));
+    }
+
+    // Use refs parameter if provided, otherwise use None to let the service handle defaults
+    let ref_name = if params.refs.is_empty() {
+        None
+    } else {
+        Some(params.refs.as_str())
+    };
+    
+    // Call the business logic in ceres module
+    match state
+        .api_handler(params.path.as_ref())
+        .await?
+        .get_file_blame(&params.path, ref_name, params.query)
+        .await
+    {
+        Ok(result) => {
+            tracing::info!(
+                "Blame completed for {} lines in file: {}",
+                result.lines.len(),
+                params.path
+            );
+            Ok(Json(CommonResult::success(Some(result))))
+        }
+        Err(e) => {
+            tracing::error!("Blame operation failed for {}: {}", params.path, e);
+            Err(ApiError::from(anyhow::anyhow!("Blame failed: {}", e)))
+        }
+    }
 }
