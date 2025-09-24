@@ -10,3 +10,4 @@ path-absolutize = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true }
 serde = { workspace = true }
+diffs = { workspace = true }
