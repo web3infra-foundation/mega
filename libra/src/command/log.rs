@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::command::load_object;
 use crate::internal::branch::Branch;
+use crate::internal::config::Config;
 use crate::internal::head::Head;
 use clap::Parser;
 use colored::Colorize;
@@ -32,10 +33,76 @@ pub struct LogArgs {
     /// Show diffs for each commit (like git -p)
     #[clap(short = 'p', long = "patch")]
     pub patch: bool,
+    /// Print out ref names of any commits that are shown
+    #[clap(
+        long,
+        default_missing_value = "short",
+        require_equals = true,
+        num_args = 0..=1,
+    )]
+    pub decorate: Option<String>,
+    /// Do not print out ref names of any commits that are shown
+    #[clap(long)]
+    pub no_decorate: bool,
 
     /// Files to limit diff output (only used with -p)
     #[clap(requires = "patch", value_name = "PATHS")]
     pathspec: Vec<String>,
+}
+
+enum DecorateOptions {
+    No,
+    Short,
+    Full,
+}
+
+fn str_to_decorate_option(s: &str) -> Result<DecorateOptions, String> {
+    match s {
+        "no" => Ok(DecorateOptions::No),
+        "short" => Ok(DecorateOptions::Short),
+        "full" => Ok(DecorateOptions::Full),
+        "auto" => {
+            if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+                Ok(DecorateOptions::Short)
+            } else {
+                Ok(DecorateOptions::No)
+            }
+        }
+        _ => Err(s.to_owned()),
+    }
+}
+
+async fn determine_decorate_option(args: &LogArgs) -> Result<DecorateOptions, String> {
+    let arg_deco = args
+        .decorate
+        .as_ref()
+        .map(|s| str_to_decorate_option(s))
+        .transpose()?;
+
+    if arg_deco.is_some() && args.no_decorate {
+        let mut args_os = std::env::args_os().peekable();
+        while let Some(arg) = args_os.next() {
+            if arg == "--no-decorate" {
+                return Ok(arg_deco.unwrap());
+            } else if arg.to_str().unwrap_or_default().starts_with("--decorate") {
+                return Ok(DecorateOptions::No);
+            };
+        }
+    } else if arg_deco.is_some() {
+        return Ok(arg_deco.unwrap());
+    } else if args.no_decorate {
+        return Ok(DecorateOptions::No);
+    };
+
+    if let Some(config_deco) = Config::get("log", None, "decorate")
+        .await
+        .map(|s| str_to_decorate_option(&s).ok())
+        .flatten()
+    {
+        Ok(config_deco)
+    } else {
+        str_to_decorate_option("auto")
+    }
 }
 
 ///  Get all reachable commits from the given commit hash
@@ -66,6 +133,15 @@ pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
 }
 
 pub async fn execute(args: LogArgs) {
+    let decorate_option = determine_decorate_option(&args)
+        .await
+        .expect("fatal: invalid --decorate option");
+    // println!("{}", match decorate_option {
+    //     DecorateOptions::Full => "full",
+    //     DecorateOptions::Short => "short",
+    //     DecorateOptions::No => "no",
+    // });
+
     #[cfg(unix)]
     let mut process = Command::new("less") // create a pipe to less
         .arg("-R") // raw control characters
