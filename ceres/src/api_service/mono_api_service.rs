@@ -58,14 +58,10 @@ use callisto::{mega_mr, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 
+use jupiter::service::blame_service::BlameService;
 use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
-
-use crate::api_service::ApiHandler;
-use crate::model::git::CreateFileInfo;
-use crate::model::mr::MrDiffFile;
-use jupiter::service::blame_service::BlameService;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -509,7 +505,9 @@ impl ApiHandler for MonoApiService {
 
         // Validate input parameters
         if file_path.is_empty() {
-            return Err(GitError::CustomError("File path cannot be empty".to_string()));
+            return Err(GitError::CustomError(
+                "File path cannot be empty".to_string(),
+            ));
         }
 
         // Use refs parameter if provided, otherwise use "main" as default
