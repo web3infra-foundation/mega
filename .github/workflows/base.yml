@@ -60,9 +60,6 @@ jobs:
           - os: ubuntu
             runs-on: [self-hosted, Linux, X64]
             home: /home/github
-          - os: macos
-            runs-on: [self-hosted, macOS, ARM64]
-            home: "/Users/eli"
           - os: windows
             runs-on: windows-latest
             home: "C:\\Users\\runneradmin"
@@ -115,10 +112,6 @@ jobs:
             runs-on: [self-hosted, Linux, X64]
             self-hosted: true
             home: /home/github
-          - os: macos
-            runs-on: [self-hosted, macOS, ARM64]
-            self-hosted: true
-            home: "/Users/eli"
           - os: windows
             runs-on: windows-latest
             self-hosted: true
