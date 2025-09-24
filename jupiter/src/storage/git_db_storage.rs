@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 
 use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
 use common::errors::MegaError;
+use common::model::Pagination;
 use mercury::internal::object::GitObjectModel;
 use mercury::internal::pack::entry::Entry;
 
@@ -336,6 +337,64 @@ impl GitDbStorage {
             .all(self.get_connection())
             .await
             .unwrap())
+    }
+
+    /// Paginated annotated tags for a given import repo id.
+    pub async fn list_tags_by_repo_with_page(
+        &self,
+        repo_id: i64,
+        page: Pagination,
+    ) -> Result<(Vec<git_tag::Model>, u64), MegaError> {
+        let paginator = git_tag::Entity::find()
+            .filter(git_tag::Column::RepoId.eq(repo_id))
+            .order_by_asc(git_tag::Column::TagName)
+            .paginate(self.get_connection(), page.per_page);
+        let num_items = paginator.num_items().await?;
+        Ok(paginator
+            .fetch_page(page.page.saturating_sub(1))
+            .await
+            .map(|m| (m, num_items))?)
+    }
+
+    /// Find single tag by repo id and tag name
+    pub async fn get_tag_by_repo_and_name(
+        &self,
+        repo_id: i64,
+        name: &str,
+    ) -> Result<Option<git_tag::Model>, MegaError> {
+        let res = git_tag::Entity::find()
+            .filter(git_tag::Column::RepoId.eq(repo_id))
+            .filter(git_tag::Column::TagName.eq(name.to_string()))
+            .one(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
+    /// Insert a single tag model
+    pub async fn insert_tag(&self, tag: git_tag::Model) -> Result<git_tag::Model, MegaError> {
+        let am: git_tag::ActiveModel = tag.clone().into();
+        git_tag::Entity::insert(am)
+            .exec(self.get_connection())
+            .await?;
+        // load saved model back by tag_id
+        let model = git_tag::Entity::find()
+            .filter(git_tag::Column::TagId.eq(tag.tag_id.clone()))
+            .one(self.get_connection())
+            .await?;
+        match model {
+            Some(m) => Ok(m),
+            None => Err(MegaError::with_message("Failed to load inserted tag")),
+        }
+    }
+
+    /// Delete a tag by repo id and name
+    pub async fn delete_tag(&self, repo_id: i64, name: &str) -> Result<(), MegaError> {
+        git_tag::Entity::delete_many()
+            .filter(git_tag::Column::RepoId.eq(repo_id))
+            .filter(git_tag::Column::TagName.eq(name.to_string()))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
     }
 
     pub async fn get_obj_count_by_repo_id(&self, repo_id: i64) -> usize {

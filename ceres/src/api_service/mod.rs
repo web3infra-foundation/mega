@@ -24,7 +24,7 @@ use crate::model::git::{
     CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
 };
-use serde::{Deserialize, Serialize};
+use common::model::{Pagination, TagInfo};
 
 pub mod import_api_service;
 pub mod mono_api_service;
@@ -41,17 +41,7 @@ impl GitObjectCache {
     }
 }
 
-/// Lightweight tag info type shared between ceres and mono HTTP layer.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagInfo {
-    pub name: String,
-    pub tag_id: String,
-    pub object_id: String,
-    pub object_type: String,
-    pub tagger: String,
-    pub message: String,
-    pub created_at: String,
-}
+// TagInfo moved to `common::model::TagInfo`
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
@@ -220,11 +210,11 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError>;
 
     // Tag related operations shared across mono/import implementations.
-    /// Create a tag in the repository context represented by `path`.
+    /// Create a tag in the repository context represented by `repo_path`.
     /// Returns TagInfo on success.
     async fn create_tag(
         &self,
-        path: Option<String>,
+        repo_path: Option<String>,
         name: String,
         target: Option<String>,
         tagger_name: Option<String>,
@@ -233,7 +223,12 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<TagInfo, GitError>;
 
     /// List tags under the repository context represented by `repo_path`.
-    async fn list_tags(&self, repo_path: Option<String>) -> Result<Vec<TagInfo>, GitError>;
+    /// Returns (items, total_count) according to Pagination.
+    async fn list_tags(
+        &self,
+        repo_path: Option<String>,
+        pagination: Pagination,
+    ) -> Result<(Vec<TagInfo>, u64), GitError>;
 
     /// Get a tag by name under the repository context represented by `repo_path`.
     async fn get_tag(

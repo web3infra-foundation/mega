@@ -1,34 +1,20 @@
-use crate::api::{error::ApiError, tag::model::*, MonoApiServiceState};
-use crate::server::http_server::GIT_TAG;
+use std::path::Path as StdPath;
+
 use anyhow::anyhow;
 use axum::{
     extract::{Path, State},
     Json,
 };
-use callisto::import_refs;
-use common::model::CommonResult;
-use git2;
-use jupiter::storage::base_storage::StorageConnector;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use std::path::Path as StdPath;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-// Map ceres-style coded errors like "[code:404] message" into ApiError with proper status.
-fn map_ceres_error<D: std::fmt::Display>(err: D, ctx: &str) -> ApiError {
-    let s = err.to_string();
-    if s.starts_with("[code:") {
-        if let Some(pos) = s.find(']') {
-            let code_owned = s[6..pos].to_string();
-            let msg_owned = s[pos + 1..].trim().to_string();
-            match code_owned.as_str() {
-                "400" => return ApiError::bad_request(anyhow!(msg_owned)),
-                "404" => return ApiError::not_found(anyhow!(msg_owned)),
-                _ => return ApiError::internal(anyhow!(msg_owned)),
-            }
-        }
-    }
-    ApiError::from(anyhow!(format!("{}: {}", ctx, s)))
-}
+use common::model::{CommonResult, PageParams};
+
+use crate::api::{
+    error::{map_ceres_error, ApiError},
+    tag::model::*,
+    MonoApiServiceState,
+};
+use crate::server::http_server::GIT_TAG;
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -74,14 +60,12 @@ async fn resolve_target_commit_id(
                     return Ok(r.ref_git_id);
                 }
                 // fallback: any import ref for repo
-                match import_refs::Entity::find()
-                    .filter(import_refs::Column::RepoId.eq(repo_model.id))
-                    .one(git.get_connection())
-                    .await
-                {
-                    Ok(Some(r)) => return Ok(r.ref_git_id),
-                    _ => return Ok("HEAD".to_string()),
+                if let Ok(refs) = git.get_ref(repo_model.id).await {
+                    if let Some(r) = refs.into_iter().next() {
+                        return Ok(r.ref_git_id);
+                    }
                 }
+                return Ok("HEAD".to_string());
             }
             // If db lookup did not find a repo despite prefix, fall through to mono logic
         } else {
@@ -108,44 +92,47 @@ async fn resolve_target_commit_id(
 
 // Validate tag name against a conservative subset of Git ref rules.
 fn validate_tag_name(name: &str) -> Result<(), ApiError> {
-    // Use git2 to validate that "refs/tags/<name>" is a valid refname per libgit2/git rules.
+    // Basic checks that don't require iterating characters
     if name.is_empty() {
         return Err(ApiError::bad_request(anyhow!("Tag name must not be empty")));
     }
 
-    let full_ref = format!("refs/tags/{}", name);
-    // git2::Reference::is_valid_name returns true if the name is a valid refname
-    if !git2::Reference::is_valid_name(&full_ref) {
-        return Err(ApiError::bad_request(anyhow!(format!(
-            "Tag name '{}' is not a valid git ref name",
-            name
-        ))));
-    }
-
-    // Additionally, reject names that would be problematic in our app: empty components, leading/trailing dots/slashes
     if name.len() > 255 {
         return Err(ApiError::bad_request(anyhow!("Tag name is too long")));
     }
 
-    // libgit2 allows many things; keep an extra guard against embedded NULs and control chars
-    if name.chars().any(|c| c == '\0' || c.is_control()) {
+    if name.contains("..") || name.contains("@{") {
         return Err(ApiError::bad_request(anyhow!(
-            "Tag name contains invalid control characters"
+            "Tag name contains reserved sequence '..' or '@{{'"
         )));
     }
 
-    // Disallow consecutive slashes which can be valid in git but confusing for our path logic
     if name.contains("//") {
         return Err(ApiError::bad_request(anyhow!(
             "Tag name must not contain '//'"
         )));
     }
 
-    // Disallow names ending with ".lock"
     if name.ends_with(".lock") {
         return Err(ApiError::bad_request(anyhow!(
             "Tag name must not end with '.lock'"
         )));
+    }
+
+    // Single-pass character validation: forbidden chars, NUL, control chars
+    let forbidden = [' ', '~', '^', ':', '?', '*', '[', '\\'];
+    for c in name.chars() {
+        if forbidden.contains(&c) {
+            return Err(ApiError::bad_request(anyhow!(format!(
+                "Tag name '{}' contains forbidden character '{}'",
+                name, c
+            ))));
+        }
+        if c == '\0' || c.is_control() {
+            return Err(ApiError::bad_request(anyhow!(
+                "Tag name contains invalid control characters"
+            )));
+        }
     }
 
     Ok(())
@@ -170,21 +157,20 @@ async fn create_tag(
 ) -> Result<Json<CommonResult<TagResponse>>, ApiError> {
     // We ignore query path_context for tag creation; use request target commit directly.
     validate_tag_name(&req.name)?;
-    // Resolve target commit: if caller provided a target, use it; otherwise use mono root ref.
+    // Resolve target commit: if caller provided a target, use it; otherwise resolve using optional path_context.
     let resolved_target = if let Some(t) = req.target.as_deref() {
         if t != "HEAD" && !t.is_empty() {
             t.to_string()
         } else {
-            // fallback to mono root
-            resolve_target_commit_id(&state, None, None).await?
+            // fallback: resolve using provided path_context if any
+            resolve_target_commit_id(&state, req.path_context.as_deref(), None).await?
         }
     } else {
-        resolve_target_commit_id(&state, None, None).await?
+        resolve_target_commit_id(&state, req.path_context.as_deref(), None).await?
     };
 
-    // dispatch to repo-specific handler via ApiHandler (use root path for resolution)
-    // Determine repo_path string to pass the repo selection down
-    let repo_path = "/".to_string();
+    // dispatch to repo-specific handler via ApiHandler using path_context if provided
+    let repo_path = req.path_context.clone().unwrap_or_else(|| "/".to_string());
     let api = state
         .api_handler(std::path::Path::new(&repo_path))
         .await
@@ -216,8 +202,9 @@ async fn create_tag(
 
 /// List all Tags
 #[utoipa::path(
-    get,
-    path = "/tags",
+    post,
+    path = "/tags/list",
+    request_body = PageParams<String>,
     responses(
         (status = 200, body = CommonResult<TagListResponse>, content_type = "application/json")
     ),
@@ -226,15 +213,20 @@ async fn create_tag(
 
 async fn list_tags(
     State(state): State<MonoApiServiceState>,
+    Json(json): Json<common::model::PageParams<String>>,
 ) -> Result<Json<CommonResult<TagListResponse>>, ApiError> {
-    let repo_path = "/".to_string();
+    let pagination = json.pagination;
+    let repo_path = if json.additional.trim().is_empty() {
+        "/".to_string()
+    } else {
+        json.additional.clone()
+    };
     let api = state
         .api_handler(std::path::Path::new(&repo_path))
         .await
         .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
-
-    let tags = api
-        .list_tags(Some(repo_path.clone()))
+    let (tags, total) = api
+        .list_tags(Some(repo_path.clone()), pagination)
         .await
         .map_err(|e| map_ceres_error(e, "Failed to list tags"))?;
     let tag_responses: Vec<TagResponse> = tags
@@ -251,8 +243,8 @@ async fn list_tags(
         .collect();
 
     let response = TagListResponse {
-        total: tag_responses.len(),
-        tags: tag_responses,
+        total,
+        items: tag_responses,
     };
     Ok(Json(CommonResult::success(Some(response))))
 }

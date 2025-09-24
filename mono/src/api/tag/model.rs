@@ -1,3 +1,4 @@
+use common::model::CommonPage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -9,6 +10,8 @@ pub struct CreateTagRequest {
     /// Target commit SHA (optional, defaults to current HEAD)
     #[serde(alias = "target_commit")]
     pub target: Option<String>,
+    /// Optional path context to indicate which repo or path this tag applies to
+    pub path_context: Option<String>,
     /// Tagger name
     pub tagger_name: Option<String>,
     /// Tagger email
@@ -36,14 +39,8 @@ pub struct TagResponse {
     pub created_at: String,
 }
 
-/// Tag list response
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct TagListResponse {
-    /// Tag list
-    pub tags: Vec<TagResponse>,
-    /// Total count
-    pub total: usize,
-}
+/// Tag list response (paged)
+pub type TagListResponse = CommonPage<TagResponse>;
 
 /// Delete tag response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

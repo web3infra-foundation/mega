@@ -1,29 +1,24 @@
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::{Component, Path, PathBuf};
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
 use async_trait::async_trait;
-use common::errors::MegaError;
-use jupiter::storage::base_storage::StorageConnector;
-use jupiter::storage::Storage;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::Tree;
-use mercury::internal::object::tree::TreeItem;
-use mercury::internal::object::tree::TreeItemMode;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::collections::VecDeque;
-use std::path::Component;
-use std::path::Path;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
-use crate::api_service::TagInfo;
+use common::errors::MegaError;
+use common::model::TagInfo;
+use jupiter::storage::Storage;
+
 use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, Set};
 
 #[derive(Clone)]
 pub struct ImportApiService {
@@ -149,7 +144,7 @@ impl ApiHandler for ImportApiService {
 
     async fn create_tag(
         &self,
-        _path: Option<String>,
+        _repo_path: Option<String>,
         name: String,
         target: Option<String>,
         tagger_name: Option<String>,
@@ -165,29 +160,15 @@ impl ApiHandler for ImportApiService {
             (None, None) => "unknown".to_string(),
         };
 
-        if let Some(ref t) = target {
-            let commit_result = git_storage.get_commit_by_hash(self.repo.repo_id, t).await;
-            let commit = match commit_result {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("DB error while fetching commit by hash: {}", e);
-                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
-                }
-            };
-            if commit.is_none() {
-                return Err(GitError::CustomError(format!(
-                    "[code:404] Target commit '{}' not found",
-                    t
-                )));
-            }
+        // validate target commit if provided
+        if let Err(e) = self.validate_target_commit(target.as_ref()).await {
+            return Err(e);
         }
 
         let full_ref = format!("refs/tags/{}", name.clone());
         // Prevent duplicate tag/ref creation: check annotated table and refs first.
-        match git_tag::Entity::find()
-            .filter(git_tag::Column::RepoId.eq(self.repo.repo_id))
-            .filter(git_tag::Column::TagName.eq(name.clone()))
-            .one(git_storage.get_connection())
+        match git_storage
+            .get_tag_by_repo_and_name(self.repo.repo_id, &name)
             .await
         {
             Ok(Some(_)) => {
@@ -212,139 +193,60 @@ impl ApiHandler for ImportApiService {
             }
         }
         if is_annotated {
-            let tag_target = SHA1::from_str(target.as_ref().unwrap())
-                .map_err(|_| GitError::InvalidCommitObject)?;
-            let mercury_tag = mercury::internal::object::tag::Tag::new(
-                tag_target,
-                mercury::internal::object::types::ObjectType::Commit,
-                name.clone(),
-                mercury::internal::object::signature::Signature::new(
-                    mercury::internal::object::signature::SignatureType::Tagger,
-                    tagger_info.clone(),
-                    String::new(),
-                ),
-                message.clone().unwrap_or_default(),
-            );
-            let tag_id_hex = mercury_tag.id.to_string();
-            let object_id = target.unwrap_or_else(|| "HEAD".to_string());
-
-            let new_tag = git_tag::ActiveModel {
-                repo_id: Set(self.repo.repo_id),
-                tag_id: Set(tag_id_hex.clone()),
-                object_id: Set(object_id.clone()),
-                object_type: Set("commit".to_string()),
-                tag_name: Set(name.clone()),
-                tagger: Set(tagger_info.clone()),
-                message: Set(message.clone().unwrap_or_default()),
-                created_at: Set(chrono::Utc::now().naive_utc()),
-                ..Default::default()
-            };
-
-            match new_tag.insert(git_storage.get_connection()).await {
-                Ok(saved) => {
-                    // try to save import ref; on failure rollback DB insert
-                    let import_ref = import_refs::Model {
-                        id: common::utils::generate_id(),
-                        repo_id: self.repo.repo_id,
-                        ref_name: full_ref.clone(),
-                        ref_git_id: object_id.clone(),
-                        ref_type: callisto::sea_orm_active_enums::RefTypeEnum::Tag,
-                        default_branch: false,
-                        created_at: chrono::Utc::now().naive_utc(),
-                        updated_at: chrono::Utc::now().naive_utc(),
-                    };
-                    if let Err(e) = git_storage.save_ref(self.repo.repo_id, import_ref).await {
-                        if let Err(del_e) = saved.delete(git_storage.get_connection()).await {
-                            tracing::error!(
-                                "Failed to rollback git_tag DB record after ref write failure: {}",
-                                del_e
-                            );
-                        }
-                        tracing::error!("Failed to write import ref after DB insert: {}", e);
-                        return Err(GitError::CustomError(
-                            "[code:500] Failed to write import ref".to_string(),
-                        ));
-                    }
-                    Ok(TagInfo {
-                        name: saved.tag_name,
-                        tag_id: saved.tag_id,
-                        object_id: saved.object_id,
-                        object_type: saved.object_type,
-                        tagger: saved.tagger,
-                        message: saved.message,
-                        created_at: saved.created_at.and_utc().to_rfc3339(),
-                    })
-                }
-                Err(e) => {
-                    tracing::error!("DB insert error when creating annotated git tag: {}", e);
-                    Err(GitError::CustomError(
-                        "[code:500] DB insert error".to_string(),
-                    ))
-                }
-            }
-        } else {
-            // lightweight: only write import ref
-            let object_id = target.clone().unwrap_or_default();
-            let import_ref = import_refs::Model {
-                id: common::utils::generate_id(),
-                repo_id: self.repo.repo_id,
-                ref_name: full_ref.clone(),
-                ref_git_id: object_id.clone(),
-                ref_type: callisto::sea_orm_active_enums::RefTypeEnum::Tag,
-                default_branch: false,
-                created_at: chrono::Utc::now().naive_utc(),
-                updated_at: chrono::Utc::now().naive_utc(),
-            };
-            git_storage
-                .save_ref(self.repo.repo_id, import_ref)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to write import ref for lightweight tag: {}", e);
-                    GitError::CustomError("[code:500] Failed to write import ref".to_string())
-                })?;
-            Ok(TagInfo {
-                name: name.clone(),
-                tag_id: object_id.clone(),
-                object_id: object_id.clone(),
-                object_type: "commit".to_string(),
-                tagger: tagger_info.clone(),
-                message: message.clone().unwrap_or_default(),
-                created_at: chrono::Utc::now().to_rfc3339(),
-            })
+            return self
+                .create_annotated_tag(&git_storage, full_ref, name, target, tagger_info, message)
+                .await;
         }
+
+        // lightweight
+        self.create_lightweight_tag(&git_storage, full_ref, name, target, tagger_info)
+            .await
     }
 
-    async fn list_tags(&self, _repo_path: Option<String>) -> Result<Vec<TagInfo>, GitError> {
+    async fn list_tags(
+        &self,
+        _repo_path: Option<String>,
+        pagination: common::model::Pagination,
+    ) -> Result<(Vec<TagInfo>, u64), GitError> {
         let git_storage = self.storage.git_db_storage();
-        // annotated tags
-        let mut result: Vec<TagInfo> =
-            match git_storage.get_tags_by_repo_id(self.repo.repo_id).await {
-                Ok(tags) => tags
-                    .into_iter()
-                    .map(|t| TagInfo {
-                        name: t.tag_name,
-                        tag_id: t.tag_id,
-                        object_id: t.object_id,
-                        object_type: t.object_type,
-                        tagger: t.tagger,
-                        message: t.message,
-                        created_at: t.created_at.and_utc().to_rfc3339(),
-                    })
-                    .collect(),
-                Err(e) => {
-                    tracing::error!("DB error while listing git tags: {}", e);
-                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
-                }
-            };
-        // lightweight from import_refs
+        // annotated tags: fetch paged annotated tags from storage
+        let (annotated_tags_page, annotated_total) = match git_storage
+            .list_tags_by_repo_with_page(self.repo.repo_id, pagination.clone())
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("DB error while listing git tags: {}", e);
+                return Err(GitError::CustomError("[code:500] DB error".to_string()));
+            }
+        };
+
+        // map annotated page into TagInfo
+        let mut result: Vec<TagInfo> = annotated_tags_page
+            .into_iter()
+            .map(|t| TagInfo {
+                name: t.tag_name,
+                tag_id: t.tag_id,
+                object_id: t.object_id,
+                object_type: t.object_type,
+                tagger: t.tagger,
+                message: t.message,
+                created_at: t.created_at.and_utc().to_rfc3339(),
+            })
+            .collect();
+
+        // lightweight refs
+        let mut lightweight_refs: Vec<TagInfo> = vec![];
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await {
             for r in refs {
                 if r.ref_name.starts_with("refs/tags/") {
                     let tag_name = r.ref_name.trim_start_matches("refs/tags/").to_string();
+                    // skip if annotated exists (anywhere)
+                    // Note: we only have the annotated page in memory; to avoid duplicate names we check by tag_name against annotated page and will accept duplicates only if not present.
                     if result.iter().any(|t| t.name == tag_name) {
                         continue;
                     }
-                    result.push(TagInfo {
+                    lightweight_refs.push(TagInfo {
                         name: tag_name.clone(),
                         tag_id: r.ref_git_id.clone(),
                         object_id: r.ref_git_id.clone(),
@@ -356,7 +258,24 @@ impl ApiHandler for ImportApiService {
                 }
             }
         }
-        Ok(result)
+
+        // total is annotated_total + lightweight_refs.len()
+        let total = annotated_total + lightweight_refs.len() as u64;
+
+        // fill page: annotated page items come first, then lightweight refs to make up page size
+        let per_page = if pagination.per_page == 0 {
+            20
+        } else {
+            pagination.per_page
+        } as usize;
+        if result.len() < per_page {
+            let need = per_page - result.len();
+            for r in lightweight_refs.into_iter().take(need) {
+                result.push(r);
+            }
+        }
+
+        Ok((result, total))
     }
 
     async fn get_tag(
@@ -365,11 +284,9 @@ impl ApiHandler for ImportApiService {
         name: String,
     ) -> Result<Option<TagInfo>, GitError> {
         let git_storage = self.storage.git_db_storage();
-        // annotated first
-        match git_tag::Entity::find()
-            .filter(git_tag::Column::RepoId.eq(self.repo.repo_id))
-            .filter(git_tag::Column::TagName.eq(name.clone()))
-            .one(git_storage.get_connection())
+        // annotated first: use jupiter git_storage helper
+        match git_storage
+            .get_tag_by_repo_and_name(self.repo.repo_id, &name)
             .await
         {
             Ok(Some(tag)) => {
@@ -411,14 +328,12 @@ impl ApiHandler for ImportApiService {
 
     async fn delete_tag(&self, _repo_path: Option<String>, name: String) -> Result<(), GitError> {
         let git_storage = self.storage.git_db_storage();
-        // annotated first
-        match git_tag::Entity::find()
-            .filter(git_tag::Column::RepoId.eq(self.repo.repo_id))
-            .filter(git_tag::Column::TagName.eq(name.clone()))
-            .one(git_storage.get_connection())
+        // annotated first: use jupiter helpers
+        match git_storage
+            .get_tag_by_repo_and_name(self.repo.repo_id, &name)
             .await
         {
-            Ok(Some(tag)) => {
+            Ok(Some(_tag)) => {
                 // remove import ref if exists
                 let full_ref = format!("refs/tags/{}", name.clone());
                 git_storage
@@ -431,7 +346,8 @@ impl ApiHandler for ImportApiService {
                         );
                         GitError::CustomError("[code:500] Failed to remove import ref".to_string())
                     })?;
-                tag.delete(git_storage.get_connection())
+                git_storage
+                    .delete_tag(self.repo.repo_id, &name)
                     .await
                     .map_err(|e| {
                         tracing::error!("DB delete error when deleting annotated git tag: {}", e);
@@ -461,6 +377,99 @@ impl ApiHandler for ImportApiService {
 }
 
 impl ImportApiService {
+    async fn create_annotated_tag(
+        &self,
+        git_storage: &jupiter::storage::git_db_storage::GitDbStorage,
+        full_ref: String,
+        name: String,
+        target: Option<String>,
+        tagger_info: String,
+        message: Option<String>,
+    ) -> Result<TagInfo, GitError> {
+        // build mercury tag and models
+        let (tag_id_hex, object_id) = self.build_mercury_tag(
+            name.clone(),
+            target.clone(),
+            tagger_info.clone(),
+            message.clone(),
+        )?;
+
+        let new_model = self.build_git_tag_model(
+            tag_id_hex.clone(),
+            object_id.clone(),
+            name.clone(),
+            tagger_info.clone(),
+            message.clone(),
+        );
+        match git_storage.insert_tag(new_model).await {
+            Ok(saved) => {
+                // write import ref; rollback handled inside helper
+                if let Err(e) = self
+                    .write_import_ref_with_rollback(
+                        full_ref.clone(),
+                        object_id.clone(),
+                        self.repo.repo_id,
+                        &name,
+                    )
+                    .await
+                {
+                    return Err(e);
+                }
+                Ok(TagInfo {
+                    name: saved.tag_name,
+                    tag_id: saved.tag_id,
+                    object_id: saved.object_id,
+                    object_type: saved.object_type,
+                    tagger: saved.tagger,
+                    message: saved.message,
+                    created_at: saved.created_at.and_utc().to_rfc3339(),
+                })
+            }
+            Err(e) => {
+                tracing::error!("DB insert error when creating annotated git tag: {}", e);
+                Err(GitError::CustomError(
+                    "[code:500] DB insert error".to_string(),
+                ))
+            }
+        }
+    }
+
+    async fn create_lightweight_tag(
+        &self,
+        git_storage: &jupiter::storage::git_db_storage::GitDbStorage,
+        full_ref: String,
+        name: String,
+        target: Option<String>,
+        tagger_info: String,
+    ) -> Result<TagInfo, GitError> {
+        let object_id = target.clone().unwrap_or_default();
+        let import_ref = import_refs::Model {
+            id: common::utils::generate_id(),
+            repo_id: self.repo.repo_id,
+            ref_name: full_ref.clone(),
+            ref_git_id: object_id.clone(),
+            ref_type: callisto::sea_orm_active_enums::RefTypeEnum::Tag,
+            default_branch: false,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        git_storage
+            .save_ref(self.repo.repo_id, import_ref)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to write import ref for lightweight tag: {}", e);
+                GitError::CustomError("[code:500] Failed to write import ref".to_string())
+            })?;
+        Ok(TagInfo {
+            name: name.clone(),
+            tag_id: object_id.clone(),
+            object_id: object_id.clone(),
+            object_type: "commit".to_string(),
+            tagger: tagger_info.clone(),
+            message: String::new(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+        })
+    }
     /// Traverses the commit history starting from a given commit, looking for the earliest commit
     /// (based on committer timestamp) where the target `TreeItem` is reachable at the given path.
     ///
@@ -616,5 +625,110 @@ impl ImportApiService {
             .unwrap()
             .unwrap()
             .into()
+    }
+}
+
+impl ImportApiService {
+    async fn validate_target_commit(&self, target: Option<&String>) -> Result<(), GitError> {
+        if let Some(ref t) = target {
+            let git_storage = self.storage.git_db_storage();
+            match git_storage.get_commit_by_hash(self.repo.repo_id, t).await {
+                Ok(c) => {
+                    if c.is_none() {
+                        return Err(GitError::CustomError(format!(
+                            "[code:404] Target commit '{}' not found",
+                            t
+                        )));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("DB error while fetching commit by hash: {}", e);
+                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn build_mercury_tag(
+        &self,
+        name: String,
+        target: Option<String>,
+        tagger_info: String,
+        message: Option<String>,
+    ) -> Result<(String, String), GitError> {
+        let tag_target = target
+            .as_ref()
+            .ok_or(GitError::InvalidCommitObject)
+            .and_then(|t| SHA1::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
+        let mercury_tag = mercury::internal::object::tag::Tag::new(
+            tag_target,
+            mercury::internal::object::types::ObjectType::Commit,
+            name.clone(),
+            mercury::internal::object::signature::Signature::new(
+                mercury::internal::object::signature::SignatureType::Tagger,
+                tagger_info.clone(),
+                String::new(),
+            ),
+            message.clone().unwrap_or_default(),
+        );
+        Ok((
+            mercury_tag.id.to_string(),
+            target.unwrap_or_else(|| "HEAD".to_string()),
+        ))
+    }
+
+    fn build_git_tag_model(
+        &self,
+        tag_id_hex: String,
+        object_id: String,
+        name: String,
+        tagger_info: String,
+        message: Option<String>,
+    ) -> git_tag::Model {
+        git_tag::Model {
+            id: 0,
+            repo_id: self.repo.repo_id,
+            tag_id: tag_id_hex,
+            object_id,
+            object_type: "commit".to_string(),
+            tag_name: name,
+            tagger: tagger_info,
+            message: message.unwrap_or_default(),
+            created_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+
+    async fn write_import_ref_with_rollback(
+        &self,
+        full_ref: String,
+        object_id: String,
+        repo_id: i64,
+        tag_name: &str,
+    ) -> Result<(), GitError> {
+        let git_storage = self.storage.git_db_storage();
+        let import_ref = import_refs::Model {
+            id: common::utils::generate_id(),
+            repo_id,
+            ref_name: full_ref.clone(),
+            ref_git_id: object_id.clone(),
+            ref_type: callisto::sea_orm_active_enums::RefTypeEnum::Tag,
+            default_branch: false,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        if let Err(e) = git_storage.save_ref(repo_id, import_ref).await {
+            if let Err(del_e) = git_storage.delete_tag(repo_id, tag_name).await {
+                tracing::error!(
+                    "Failed to rollback git_tag DB record after ref write failure: {}",
+                    del_e
+                );
+            }
+            tracing::error!("Failed to write import ref after DB insert: {}", e);
+            return Err(GitError::CustomError(
+                "[code:500] Failed to write import ref".to_string(),
+            ));
+        }
+        Ok(())
     }
 }

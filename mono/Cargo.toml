@@ -20,11 +20,9 @@ common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
-mercury = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
-
 anyhow = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
@@ -56,8 +54,6 @@ oauth2 = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
 async-trait = { workspace = true }
 time = { workspace = true, features = ["serde"] }
-sea-orm = { workspace = true, features = ["macros"] }
-
 http = { workspace = true }
 cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
@@ -65,8 +61,6 @@ utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 uuid = { workspace = true, features = ["v4"] }
 neptune = { workspace = true }
-sha2 = "0.10"
-git2 = "0.20.0"
 
 
 
