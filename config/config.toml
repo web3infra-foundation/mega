@@ -28,11 +28,21 @@ db_path = "${base_dir}/mega.db"
 db_url = "postgres://mono:mono@localhost:5432/mono"
 #db_url = "postgres://mono:mono@127.0.0.1:5432/mono"
 
-# db max connection, setting it to twice the number of CPU cores would be appropriate.
+# Maximum number of database connections in the pool.
+# A good rule of thumb is to set this to ~2 × CPU cores.
 max_connection = 16
 
-# db min connection, setting it to the number of CPU cores would be appropriate.
+# Minimum number of database connections maintained in the pool.
+# Typically set to ~1 × CPU cores to ensure baseline concurrency.
 min_connection = 8
+
+# Timeout (in seconds) for acquiring a connection from the pool.
+# If exceeded, the request will fail.
+acquire_timeout = 3
+
+# Timeout (in seconds) for establishing a new database connection.
+# If exceeded, the connection attempt will fail.
+connect_timeout = 3
 
 # Whether to disabling SQLx Log
 sqlx_logging = false
@@ -129,4 +139,26 @@ cookie_domain = "localhost"
 campsite_api_domain = "http://api.gitmono.test:3001"
 
 # allowed cors origins
-allowed_cors_origins = ["http://local.gitmega.com", "https://app.gitmega.com", "http://app.gitmono.test"]
+allowed_cors_origins = [
+    "http://local.gitmega.com",
+    "https://app.gitmega.com",
+    "http://app.gitmono.test",
+]
+
+[blame]
+# Configuration for blame functionality and large file handling
+# Maximum number of lines before considering a file as large
+max_lines_threshold = 1000
+
+# Maximum file size in bytes before considering a file as large
+# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB
+max_size_threshold = "1MB"
+
+# Default chunk size for streaming operations when processing large files
+default_chunk_size = 100
+
+# Maximum number of commits to process in memory at once during blame traversal
+max_commits_in_memory = 50
+
+# Enable caching of intermediate blame results for better performance
+enable_caching = true

@@ -1,5 +1,5 @@
 "use client";
-import React, {  useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useParams } from 'next/navigation';
 import { useRouter } from 'next/router';
@@ -9,19 +9,66 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import CrateInfoLayout from '../../layout';
 import DependencyGraph from '@/components/Rust/Graph/DependencyGraph';
 
+interface Deptree {
+    name_and_version: string;
+    cve_count: number;
+    direct_dependency: Deptree[];
+}
+
 const DependenciesGraphPage = () => {
     const params = useParams();
     const router = useRouter();
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
+    const [graphData, setGraphData] = useState<Deptree | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     // 从查询参数或URL参数中获取crate信息
     const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
-    // const version = (router.query.version as string) || params?.version as string || "1.2.01";
-    const nsfront = params?.nsfront as string || router.query.org as string;
+    const version = (router.query.version as string) || params?.version as string || "1.2.01";
+    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
+    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+
+    // 从 API 获取图形数据
+    useEffect(() => {
+        const fetchGraphData = async () => {
+            if (!crateName || !version || !nsfront || !nsbehind) return;
+            
+            try {
+                setLoading(true);
+                setError(null);
+                
+                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
+                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/dependencies/graphpage`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch graph data');
+                }
+                
+                const data: Deptree = await response.json();
+
+                setGraphData(data);
+            } catch (err) {
+                setError('Failed to load graph data');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchGraphData();
+    }, [crateName, version, nsfront, nsbehind]);
 
     const handleBackToTable = () => {
-        router.push(`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies`);
+        router.push({
+            pathname: `/${nsfront}/rust/rust-ecosystem/crate-info/dependencies`,
+            query: {
+                crateName: crateName,
+                version: version,
+                nsfront: nsfront,
+                nsbehind: nsbehind
+            }
+        });
     };
 
     return (
@@ -112,10 +159,33 @@ const DependenciesGraphPage = () => {
                                 </div>
                             </div>
 
+                            {/* 加载状态 */}
+                            {loading && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-gray-500">Loading graph data...</div>
+                                </div>
+                            )}
+                            
+                            {/* 错误状态 */}
+                            {error && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-red-500">{error}</div>
+                                </div>
+                            )}
+
                             {/* 图形视图内容 */}
-                            <div className="w-full h-full p-6" style={{ height: '100%', width: '100%' }}>
-                                <DependencyGraph />
-                            </div>
+                            {!loading && !error && graphData && (
+                                <div className="w-full h-full p-6" style={{ height: '100%', width: '100%' }}>
+                                    <DependencyGraph data={graphData} />
+                                </div>
+                            )}
+
+                            {/* 无数据状态 */}
+                            {!loading && !error && !graphData && (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="text-gray-500">No graph data available</div>
+                                </div>
+                            )}
                         </div>
 
                         {/* 分页功能区 */}

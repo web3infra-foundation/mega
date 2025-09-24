@@ -41,6 +41,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::api_service::ApiHandler;
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
@@ -58,6 +59,8 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
+
+use jupiter::service::blame_service::BlameService;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -150,9 +153,8 @@ impl ApiHandler for MonoApiService {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|save_t| {
-                let commit_id = new_commit_id.clone();
-                let tree_model: mega_tree::Model =
-                    jupiter::adapter::tree_to_mega_tree(save_t, &commit_id);
+                let mut tree_model: mega_tree::Model = save_t.into();
+                tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
             .collect();
@@ -169,29 +171,27 @@ impl ApiHandler for MonoApiService {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
 
-        jupiter::adapter::mega_tree_to_tree(
-            storage
-                .get_tree_by_hash(&refs.ref_tree_hash)
-                .await
-                .unwrap()
-                .unwrap(),
-        )
+        storage
+            .get_tree_by_hash(&refs.ref_tree_hash)
+            .await
+            .unwrap()
+            .unwrap()
+            .into()
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        jupiter::adapter::mega_tree_to_tree(
-            self.storage
-                .mono_storage()
-                .get_tree_by_hash(hash)
-                .await
-                .unwrap()
-                .unwrap(),
-        )
+        self.storage
+            .mono_storage()
+            .get_tree_by_hash(hash)
+            .await
+            .unwrap()
+            .unwrap()
+            .into()
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
         match self.storage.mono_storage().get_commit_by_hash(hash).await {
-            Ok(Some(commit)) => Some(jupiter::adapter::mega_commit_to_commit(commit)),
+            Ok(Some(commit)) => Some(commit.into()),
             _ => None,
         }
     }
@@ -203,13 +203,12 @@ impl ApiHandler for MonoApiService {
             .await
             .unwrap()
             .unwrap();
-        Ok(jupiter::adapter::mega_commit_to_commit(
-            storage
-                .get_commit_by_hash(&tree_info.commit_id)
-                .await
-                .unwrap()
-                .unwrap(),
-        ))
+        Ok(storage
+            .get_commit_by_hash(&tree_info.commit_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into())
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -219,10 +218,7 @@ impl ApiHandler for MonoApiService {
             .get_commits_by_hashes(&c_hashes)
             .await
             .unwrap();
-        Ok(commits
-            .into_iter()
-            .map(jupiter::adapter::mega_commit_to_commit)
-            .collect())
+        Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
     async fn item_to_commit_map(
@@ -281,6 +277,100 @@ impl ApiHandler for MonoApiService {
             None => Ok(HashMap::new()),
         }
     }
+
+    /// Get blame information for a file
+    async fn get_file_blame(
+        &self,
+        file_path: &str,
+        ref_name: Option<&str>,
+        query: BlameQuery,
+    ) -> Result<BlameResult, GitError> {
+        tracing::info!(
+            "Getting blame for file: {} at ref: {:?}",
+            file_path,
+            ref_name
+        );
+
+        // Validate input parameters
+        if file_path.is_empty() {
+            return Err(GitError::CustomError("File path cannot be empty".to_string()));
+        }
+
+        // Use refs parameter if provided, otherwise use "main" as default
+        let ref_name = if let Some(ref_name) = ref_name {
+            if ref_name.is_empty() {
+                "main"
+            } else {
+                ref_name
+            }
+        } else {
+            "main"
+        };
+
+        // Use Jupiter's blame service
+        let blame_service = BlameService::new(Arc::new(self.storage.clone()));
+
+        // Convert API query to DTO query
+        let dto_query: jupiter::model::blame_dto::BlameQuery = query.into();
+
+        // 🔍 Step 1: Check if it is a large file
+        let is_large_file = match blame_service
+            .check_if_large_file(file_path, Some(ref_name))
+            .await
+        {
+            Ok(is_large) => is_large,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to check file size for {}: {}, using normal processing",
+                    file_path,
+                    e
+                );
+                false
+            }
+        };
+
+        tracing::info!(
+            "File {} is {} file, using {} processing",
+            file_path,
+            if is_large_file { "large" } else { "normal" },
+            if is_large_file {
+                "streaming"
+            } else {
+                "standard"
+            }
+        );
+
+        // 🚀 Step 2: Select the processing method based on file size
+        let blame_result = if is_large_file {
+            // Large file: Use streaming processing
+            tracing::info!("Using streaming processing for large file: {}", file_path);
+            blame_service
+                .get_file_blame_streaming_auto(file_path, Some(ref_name), dto_query)
+                .await
+        } else {
+            // Normal file: Use standard processing
+            tracing::info!("Using standard processing for normal file: {}", file_path);
+            blame_service
+                .get_file_blame(file_path, Some(ref_name), Some(dto_query))
+                .await
+        };
+
+        match blame_result {
+            Ok(result_from_service) => {
+                tracing::info!(
+                    "Blame completed for {} lines in file: {}",
+                    result_from_service.lines.len(),
+                    file_path
+                );
+                // Convert DTO result to API result
+                Ok(result_from_service.into())
+            }
+            Err(e) => {
+                tracing::error!("Blame operation failed for {}: {}", file_path, e);
+                Err(e)
+            }
+        }
+    }
 }
 
 impl MonoApiService {
@@ -289,13 +379,12 @@ impl MonoApiService {
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
         if mr.from_hash == refs.ref_commit_hash {
-            let commit: Commit = jupiter::adapter::mega_commit_to_commit(
-                storage
-                    .get_commit_by_hash(&mr.to_hash)
-                    .await
-                    .unwrap()
-                    .unwrap(),
-            );
+            let commit: Commit = storage
+                .get_commit_by_hash(&mr.to_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
 
             if mr.path != "/" {
                 let path = PathBuf::from(mr.path.clone());
@@ -404,9 +493,8 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let commit_id = new_commit_id.clone();
-                let tree_model: mega_tree::Model =
-                    jupiter::adapter::tree_to_mega_tree(save_t, &commit_id);
+                let mut tree_model: mega_tree::Model = save_t.into();
+                tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
             .collect();
@@ -667,7 +755,7 @@ impl MonoApiService {
         if let Some(commit) = commit {
             let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;
             if let Some(tree) = tree {
-                let tree = jupiter::adapter::mega_tree_to_tree(tree);
+                let tree: Tree = tree.into();
                 res = self.traverse_tree(tree).await?;
             }
         }
@@ -688,7 +776,7 @@ impl MonoApiService {
                         .get_tree_by_hash(&item.id.to_string())
                         .await?
                         .unwrap();
-                    stack.push((path.clone(), jupiter::adapter::mega_tree_to_tree(child)));
+                    stack.push((path.clone(), child.into()));
                 } else {
                     result.push((path, item.id));
                 }

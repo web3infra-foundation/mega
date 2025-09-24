@@ -19,7 +19,7 @@ FROM base AS builder
 RUN apt-get update -qq && \
   apt-get install -y build-essential pkg-config python-is-python3 ca-certificates
 WORKDIR /app
-RUN pnpm install turbo@2.0.9 --global
+RUN pnpm install turbo@2.1.2 --global
 COPY . .
 RUN turbo prune @gitmono/web --docker
 WORKDIR /app

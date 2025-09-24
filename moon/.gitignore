@@ -100,3 +100,6 @@ posthog_migration
 posthog_migration_batches
 
 api/gen
+api/Rakefile
+*.rake
+*.rb

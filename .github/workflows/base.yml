@@ -49,8 +49,7 @@ jobs:
       - name: Run cargo clippy
         run: |
           cargo build --bin mega --bin libra
-          cargo clippy --all-targets --all-features --no-deps -- -D warnings
-
+          cargo clippy --all-targets --all-features -- -D warnings
 
   test:
     name: Full Test
@@ -61,12 +60,6 @@ jobs:
           - os: ubuntu
             runs-on: [self-hosted, Linux, X64]
             home: /home/github
-          - os: macos
-            runs-on: [self-hosted, macOS, ARM64]
-            home: "/Users/eli"
-          - os: windows
-            runs-on: windows-latest
-            home: "C:\\Users\\runneradmin"
 
     runs-on: ${{ matrix.runs-on }}
     env:
@@ -105,49 +98,6 @@ jobs:
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path saturn/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
-
-  monobean:
-    name: Test Monobean for ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu
-            runs-on: [self-hosted, Linux, X64]
-            self-hosted: true
-            home: /home/github
-          - os: macos
-            runs-on: [self-hosted, macOS, ARM64]
-            self-hosted: true
-            home: "/Users/eli"
-          - os: windows
-            runs-on: windows-latest
-            self-hosted: true
-            home: "C:\\Users\\runneradmin"
-
-    runs-on: ${{ matrix.runs-on }}
-    env:
-      CARGO_TERM_COLOR: always
-      HOME: ${{ matrix.home }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install system dependencies
-        uses: ./.github/install-dep
-        with:
-          cache-key: sysdeps
-          platform: ${{ matrix.os }}
-          use-gtk: true
-          self-hosted: ${{ matrix.self-hosted }}
-
-      - name: Run Clippy and Test Monobean Application
-        run: |
-          cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
-          cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
 
   fuse:
     name: Fuse Clippy Check

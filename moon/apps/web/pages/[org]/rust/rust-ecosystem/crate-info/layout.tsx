@@ -3,13 +3,14 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useParams } from 'next/navigation';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { VersionSelectorDropdown } from '../../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
+import { VersionSelectorDropdown } from '../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
 
 interface CrateInfoLayoutProps {
     children: React.ReactNode;
+    versions?: string[];
 }
 
-const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
+const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutProps) => {
     const router = useRouter();
     const params = useParams();
     
@@ -30,7 +31,6 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
     // 版本选择相关状态
     const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
     const [selectedVersion, setSelectedVersion] = useState<string>(version);
-    const [versions] = useState<string[]>(["1.0.0", "1.1.0", "1.2.0", "2.0.0", "0.2.01", "0.2.02", "0.1.06", "0.1.05"]);
     
     // 根据当前路径确定activeTab
     const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>('overview');
@@ -68,12 +68,12 @@ const CrateInfoLayoutComponent = ({ children }: CrateInfoLayoutProps) => {
     }, [router]);
 
     const navigationTabs = useMemo(() => [
-        { id: 'overview', label: 'overview', href: `/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}?crateName=${crateName}&version=${version}` },
-        { id: 'dependencies', label: 'dependencies', href: `/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies?crateName=${crateName}&version=${version}` },
-        { id: 'dependents', label: 'dependents', href: `/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependents?crateName=${crateName}&version=${version}` },
-        { id: 'compare', label: 'compare', href: `/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/compare?crateName=${crateName}&version=${version}` },
-        { id: 'versions', label: 'versions', href: `/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/versions?crateName=${crateName}&version=${version}` }
-    ], [nsfront, crateName, version]);
+        { id: 'overview', label: 'overview', href: `/${nsfront}/rust/rust-ecosystem/crate-info?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
+        { id: 'dependencies', label: 'dependencies', href: `/${nsfront}/rust/rust-ecosystem/crate-info/dependencies?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
+        { id: 'dependents', label: 'dependents', href: `/${nsfront}/rust/rust-ecosystem/crate-info/dependents?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
+        { id: 'compare', label: 'compare', href: `/${nsfront}/rust/rust-ecosystem/crate-info/compare?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
+        { id: 'versions', label: 'versions', href: `/${nsfront}/rust/rust-ecosystem/crate-info/versions?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` }
+    ], [nsfront, crateName, version, router.query.nsbehind]);
 
     return (
         <div className="h-screen bg-[#F4F4F5] flex flex-col">
