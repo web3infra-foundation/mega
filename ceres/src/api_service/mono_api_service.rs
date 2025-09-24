@@ -374,7 +374,7 @@ impl ApiHandler for MonoApiService {
         // lightweight refs from refs table under path
         let repo_path = repo_path.as_deref().unwrap_or("/");
         let mut lightweight_refs: Vec<TagInfo> = vec![];
-        if let Ok(refs) = mono_storage.get_refs(&repo_path).await {
+        if let Ok(refs) = mono_storage.get_refs(repo_path).await {
             for r in refs {
                 if r.ref_name.starts_with("refs/tags/") {
                     let tag_name = r.ref_name.trim_start_matches("refs/tags/").to_string();
