@@ -155,10 +155,7 @@ impl CheckerRegistry {
                 storage: storage.clone(),
             }),
         );
-        r.register(
-            CheckType::CommitMessage,
-            Box::new(CommitMessageChecker),
-        );
+        r.register(CheckType::CommitMessage, Box::new(CommitMessageChecker));
 
         r
     }

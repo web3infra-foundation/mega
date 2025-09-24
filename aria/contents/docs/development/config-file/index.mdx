@@ -56,11 +56,21 @@ description: Config `config.toml` file for the Mega project.
       # database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
       db_url = "postgres://mono:mono@localhost:5432/mono"
 
-      # db max connection, setting it to twice the number of CPU cores would be appropriate.
+      # Maximum number of database connections in the pool.
+      # A good rule of thumb is to set this to ~2 × CPU cores.
       max_connection = 16
 
-      # db min connection, setting it to the number of CPU cores would be appropriate.
+      # Minimum number of database connections maintained in the pool.
+      # Typically set to ~1 × CPU cores to ensure baseline concurrency.
       min_connection = 8
+
+      # Timeout (in seconds) for acquiring a connection from the pool.
+      # If exceeded, the request will fail.
+      acquire_timeout = 5
+
+      # Timeout (in seconds) for establishing a new database connection.
+      # If exceeded, the connection attempt will fail.
+      connect_timeout = 5
 
       # Whether to disabling SQLx Log
       sqlx_logging = false

@@ -1,4 +1,5 @@
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+#[allow(dead_code)]
 pub struct VerifyMrPayload {
     pub assignees: Vec<String>,
 }
@@ -15,13 +16,13 @@ pub struct ReviewersResponse {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ChangeReviewerStatePayload {
-    pub state: bool,
+    pub approved: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ChangeReviewStatePayload {
-    pub review_id: i64,
-    pub new_state: bool,
+    pub conversation_id: i64,
+    pub resolved: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
@@ -29,4 +30,3 @@ pub struct ReviewerInfo {
     pub username: String,
     pub approved: bool,
 }
-

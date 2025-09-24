@@ -1,0 +1,62 @@
+[[rules]]
+description = "11111111111"
+id = "stripe-access-token"
+keywords = ["adafruit"]
+regex = '''(?i)(?:adafruit)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:=|\|\|:|<=|=>|:)(?:'|\"|\s|=|\x60){0,5}([a-z0-9_-]{32})(?:['|\"|\n|\r|\s|\x60|;]|$)'''
+
+[[rules]]
+description = "Generic API Key"
+entropy = 3.5
+id = "generic-api-key"
+keywords = [
+    "key",
+    "api",
+    "token",
+    "secret",
+    "client",
+    "passwd",
+    "password",
+    "auth",
+    "access",
+]
+regex = '''(?i)(?:key|api|token|secret|client|passwd|password|auth|access)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:=|\|\|:|<=|=>|:)(?:'|\"|\s|=|\x60){0,5}([0-9a-z\-_.=]{10,150})(?:['|\"|\n|\r|\s|\x60|;]|$)'''
+secretGroup = 1
+
+[[rules]]
+description = "Digit"
+id = "key"
+keywords = ["1212"]
+regex = '\d+'
+secretGroup = 1
+
+[rules.allowlist]
+regexTarget = "line"
+stopwords = ["token"]
+
+[[rules]]
+description = "Adafruit API Key"
+id = "adafruit-api-key"
+keywords = ["adafruit"]
+regex = '''(?i)(?:adafruit)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:=|\|\|:|<=|=>|:)(?:'|\"|\s|=|\x60){0,5}([a-z0-9_-]{32})(?:['|\"|\n|\r|\s|\x60|;]|$)'''
+
+[[rules]]
+description = "Adafruit API Key"
+id = "adafruit-api-key"
+keywords = ["adafruit"]
+regex = '''(?i)(?:adafruit)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:=|\|\|:|<=|=>|:)(?:'|\"|\s|=|\x60){0,5}([a-z0-9_-]{32})(?:['|\"|\n|\r|\s|\x60|;]|$)'''
+
+[allowlist]
+description = "global allow lists"
+paths = [
+    "(.*?)(jpg|gif|doc|docx|zip|xls|pdf|bin|svg|socket)$",
+    "gradle.lockfile",
+    "node_modules",
+    "package-lock.json",
+]
+stopwords = ["token"]
+
+[[rules]]
+description = "B emoji static variable"
+id = "b-emoji-variable"
+keywords = ["static", "B"]
+regex = '''static\s+B\s*[:=&'static\s\w]*\s*"🅱️"'''

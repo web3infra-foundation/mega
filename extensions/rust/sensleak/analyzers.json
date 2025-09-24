@@ -1,0 +1,12 @@
+[
+  {
+    "name": "sensleak",
+    "executable": "bin/scan",
+    "args": ["--repo", "{repo_path}", "--config", "{config_file}", "-v", "--pretty", "--report", "{output_file}"],
+    "config_file": "gitleaks.toml",
+    "working_dir": null,
+    "env_vars": null,
+    "timeout": 300,
+    "enabled": true
+  }
+]

@@ -49,7 +49,7 @@ impl From<ItemDetails> for ItemRes {
                 link: model.link,
                 title: model.title,
                 status: format!("{:?}", model.status),
-                author: String::new(),
+                author: model.username,
                 open_timestamp: model.created_at.and_utc().timestamp(),
                 merge_timestamp: model.merge_date.map(|dt| dt.and_utc().timestamp()),
                 closed_at: None,

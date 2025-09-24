@@ -85,6 +85,7 @@ impl server::Handler for SshServer {
         let mut smart_protocol = SmartProtocol::new(
             PathBuf::from(&path),
             self.storage.clone(),
+            Arc::new(Mutex::new(0)),
             TransportProtocol::Ssh,
         );
         match command[0] {
