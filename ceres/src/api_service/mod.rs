@@ -20,6 +20,7 @@ use mercury::{
 };
 use tokio::sync::Mutex;
 
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
     CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
@@ -205,6 +206,14 @@ pub trait ApiHandler: Send + Sync {
         &self,
         path: PathBuf,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError>;
+
+    /// Get blame information for a file
+    async fn get_file_blame(
+        &self,
+        file_path: &str,
+        ref_name: Option<&str>,
+        query: BlameQuery,
+    ) -> Result<BlameResult, GitError>;
 
     /// the dir's hash as same as old,file's hash is the content hash
     /// may think about change dir'hash as the content

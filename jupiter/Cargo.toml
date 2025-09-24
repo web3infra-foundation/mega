@@ -13,6 +13,7 @@ path = "src/lib.rs"
 callisto = { workspace = true }
 common = { workspace = true }
 mercury = { workspace = true }
+neptune = { workspace = true }
 saturn = { workspace = true }
 
 sea-orm = { workspace = true, features = [
