@@ -32,11 +32,11 @@ pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnectio
         .sqlx_logging(true)
         .sqlx_logging_level(log::LevelFilter::Debug);
 
-    let db = Database::connect(opt)
-        .await
-        .expect("Failed to connect to mock database");
+    
 
-    db
+    Database::connect(opt)
+        .await
+        .expect("Failed to connect to mock database")
 }
 
 pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
