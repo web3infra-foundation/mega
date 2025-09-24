@@ -407,7 +407,7 @@ async fn get_file_blame(
     } else {
         Some(params.refs.as_str())
     };
-  
+
     // Convert BlameRequest to BlameQuery
     let query = BlameQuery::from(&params);
 
