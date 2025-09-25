@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use common::{
@@ -16,6 +16,7 @@ use crate::api::mr::model::{
     ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
     ReviewersResponse,
 };
+use crate::api::{MonoApiServiceState, mr::FilesChangedPage};
 use crate::api::{
     api_common::{
         self,
@@ -27,7 +28,6 @@ use crate::api::{
     mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
 use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -504,7 +504,7 @@ async fn assignees(
     params (
         ("link", description = "the mr link")
     ),
-    path = "/{link}/add-reviewers",
+    path = "/{link}/reviewers",
     request_body = ReviewerPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
@@ -530,7 +530,7 @@ async fn add_reviewers(
     params (
         ("link", description = "the mr link"),
     ),
-    path = "/{link}/remove-reviewers",
+    path = "/{link}/reviewers",
     request_body = ReviewerPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
@@ -591,7 +591,7 @@ async fn list_reviewers(
     params (
         ("link", description = "the mr link")
     ),
-    path = "/{link}/reviewer-approve",
+    path = "/{link}/reviewer/approve",
     request_body = ChangeReviewerStatePayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
@@ -618,7 +618,7 @@ async fn reviewer_approve(
     params (
         ("link", description = "the mr link")
     ),
-    path = "/{link}/resolve-review",
+    path = "/{link}/review/resolve",
     request_body (
         content = ChangeReviewStatePayload,
     ),

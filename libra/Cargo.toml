@@ -1,11 +1,10 @@
 [package]
 name = "libra"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 default = []
-p2p = ["gemini"]
 
 [dependencies]
 http = { workspace = true }
@@ -20,7 +19,6 @@ common = { workspace = true }
 flate2 = { workspace = true } # add features = ["zlib"] if slow
 futures = { workspace = true }
 futures-util = { workspace = true }
-gemini = { workspace = true, optional = true }
 hex = { workspace = true }
 indicatif = { workspace = true }
 lazy_static = { workspace = true }

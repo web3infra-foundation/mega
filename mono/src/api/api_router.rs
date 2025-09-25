@@ -1,11 +1,11 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
+    Json,
     body::Body,
     extract::{Path, Query, State},
     response::{IntoResponse, Response},
     routing::get,
-    Json,
 };
 use http::StatusCode;
 
@@ -13,7 +13,7 @@ use anyhow::Result;
 
 use ceres::{
     api_service::ApiHandler,
-    model::blame::{BlameRequest, BlameResult},
+    model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
         TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
@@ -23,9 +23,9 @@ use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    commit::commit_router, conversation::conv_router, error::ApiError, gpg::gpg_router,
-    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, user::user_router,
-    MonoApiServiceState,
+    MonoApiServiceState, commit::commit_router, conversation::conv_router, error::ApiError,
+    gpg::gpg_router, issue::issue_router, label::label_router, mr::mr_router, notes::note_router,
+    tag::tag_router, user::user_router,
 };
 use crate::server::http_server::GIT_TAG;
 
@@ -51,6 +51,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(conv_router::routers())
         .merge(note_router::routers())
         .merge(commit_router::routers())
+        .merge(tag_router::routers())
 }
 
 /// Get blob file as string
@@ -130,14 +131,14 @@ async fn get_latest_commit(
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
     let query_path: std::path::PathBuf = query.path.into();
     let import_dir = state.storage.config().monorepo.import_dir.clone();
-    if let Ok(rest) = query_path.strip_prefix(import_dir) {
-        if rest.components().count() == 1 {
-            let res = state
-                .monorepo()
-                .get_latest_commit(query_path.clone())
-                .await?;
-            return Ok(Json(res));
-        }
+    if let Ok(rest) = query_path.strip_prefix(import_dir)
+        && rest.components().count() == 1
+    {
+        let res = state
+            .monorepo()
+            .get_latest_commit(query_path.clone())
+            .await?;
+        return Ok(Json(res));
     }
 
     let res = state
@@ -407,12 +408,15 @@ async fn get_file_blame(
     } else {
         Some(params.refs.as_str())
     };
-    
+
+    // Convert BlameRequest to BlameQuery
+    let query = BlameQuery::from(&params);
+
     // Call the business logic in ceres module
     match state
         .api_handler(params.path.as_ref())
         .await?
-        .get_file_blame(&params.path, ref_name, params.query)
+        .get_file_blame(&params.path, ref_name, query)
         .await
     {
         Ok(result) => {

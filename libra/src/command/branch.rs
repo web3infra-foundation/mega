@@ -126,10 +126,10 @@ async fn delete_branch(branch_name: String) {
         .unwrap_or_else(|| panic!("fatal: branch '{branch_name}' not found"));
     let head = Head::current().await;
 
-    if let Head::Branch(name) = head {
-        if name == branch_name {
-            panic!("fatal: Cannot delete the branch '{branch_name}' which you are currently on");
-        }
+    if let Head::Branch(name) = head
+        && name == branch_name
+    {
+        panic!("fatal: Cannot delete the branch '{branch_name}' which you are currently on");
     }
 
     Branch::delete_branch(&branch_name, None).await;

@@ -142,7 +142,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     }
     // Match the shared_mode argument and apply permissions accordingly
     match shared_mode {
-        "false" | "umask" => {}   // default
+        "false" | "umask" => {} // default
         "true" | "group" => set_recursive(root_dir, 0o2775)?,
         "all" | "world" | "everybody" => set_recursive(root_dir, 0o2777)?,
         mode if mode.starts_with('0') && mode.len() == 4 => {
@@ -159,7 +159,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Invalid shared mode: {}", other),
-            ))
+            ));
         }
     }
     Ok(())
@@ -169,9 +169,9 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
 #[cfg(target_os = "windows")]
 fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     match shared_mode {
-        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {}   // Valid string input
+        "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {} // Valid string input
         mode if mode.starts_with('0') && mode.len() == 4 => {
-            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) {  //Valid perm input
+            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) { //Valid perm input
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -183,7 +183,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Invalid shared mode: {}", other),
-            ))
+            ));
         }
     }
     Ok(())
@@ -217,13 +217,15 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     }
 
     // Check if the branch name is valid
-    if let Some(ref branch_name) = args.initial_branch {
-        if !branch::is_valid_git_branch_name(branch_name) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid branch name: '{branch_name}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name."),
-            ));
-        }
+    if let Some(ref branch_name) = args.initial_branch
+        && !branch::is_valid_git_branch_name(branch_name)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "invalid branch name: '{branch_name}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name."
+            ),
+        ));
     }
 
     // Check if the target directory is writable
@@ -334,7 +336,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     if let Some(shared_mode) = &args.shared {
         apply_shared(&root_dir, shared_mode)?;
     }
-    
+
     if !args.quiet {
         let repo_type = if args.bare { "bare " } else { "" };
         println!(

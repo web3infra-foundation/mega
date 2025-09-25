@@ -117,8 +117,21 @@ pub struct IndexEntry {
 }
 impl Display for IndexEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "IndexEntry {{ ctime: {}, mtime: {}, dev: {}, ino: {}, mode: {:o}, uid: {}, gid: {}, size: {}, hash: {}, flags: {:?}, name: {} }}",
-               self.ctime, self.mtime, self.dev, self.ino, self.mode, self.uid, self.gid, self.size, self.hash, self.flags, self.name)
+        write!(
+            f,
+            "IndexEntry {{ ctime: {}, mtime: {}, dev: {}, ino: {}, mode: {:o}, uid: {}, gid: {}, size: {}, hash: {}, flags: {:?}, name: {} }}",
+            self.ctime,
+            self.mtime,
+            self.dev,
+            self.ino,
+            self.mode,
+            self.uid,
+            self.gid,
+            self.size,
+            self.hash,
+            self.flags,
+            self.name
+        )
     }
 }
 
@@ -210,7 +223,7 @@ impl Index {
             entries: BTreeMap::new(),
         }
     }
-    
+
     fn check_header(file: &mut impl Read) -> Result<u32, GitError> {
         let mut magic = [0; 4];
         file.read_exact(&mut magic)?;

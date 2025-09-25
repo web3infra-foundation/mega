@@ -1,6 +1,6 @@
+use common::config::BlameConfig;
 use mercury::hash::SHA1;
 use serde::{Deserialize, Serialize};
-use common::config::BlameConfig;
 
 /// Configuration for handling large files and performance tuning in blame operations.
 ///
@@ -95,7 +95,7 @@ pub struct BlameInfo {
     pub committer_time: i64,
     pub commit_message: String,
     pub commit_summary: String,
-    pub original_line_number: usize, 
+    pub original_line_number: usize,
     // URL fields for frontend navigation
     pub author_avatar_url: String,
     pub commit_detail_url: String,

@@ -161,8 +161,7 @@ mod tests {
 
         {
             let msg = "commit message";
-            let gpg_sig =
-                "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----\n \n \n";
+            let gpg_sig = "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----\n \n \n";
             let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
             let (msg_, _) = parse_commit_msg(&msg_gpg);
             assert_eq!(msg, msg_);

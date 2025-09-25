@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::errors::MegaError;
-use sea_orm::{sea_query::OnConflict, ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, sea_query::OnConflict};
 
 #[async_trait]
 pub trait StorageConnector {

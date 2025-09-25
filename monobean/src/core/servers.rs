@@ -1,8 +1,7 @@
 use crate::error::MonoBeanResult;
 use bytes::BytesMut;
-use common::model::P2pOptions;
 use context::AppContext as MegaContext;
-use gateway::https_server::{app, check_run_with_p2p};
+use gateway::https_server::{app};
 use mono::git_protocol::ssh::SshServer;
 use russh::server::Server;
 use std::collections::HashMap;
@@ -20,13 +19,12 @@ pub(crate) struct SshOptions {
 pub(crate) struct HttpOptions {
     addr: SocketAddr,
     handle: axum_server::Handle,
-    p2p: P2pOptions,
 }
 
 impl HttpOptions {
-    pub fn new(addr: SocketAddr, p2p: P2pOptions) -> Self {
+    pub fn new(addr: SocketAddr) -> Self {
         let handle = axum_server::Handle::default();
-        Self { addr, handle, p2p }
+        Self { addr, handle }
     }
 
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
@@ -34,16 +32,8 @@ impl HttpOptions {
             mega_ctx.storage.clone(),
             self.addr.ip().to_string(),
             self.addr.port(),
-            self.p2p.clone(),
         )
         .await;
-
-        // I don't know why I must manually install it, or it will panic on the next line...
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .expect("Failed to install rustls crypto provider");
-
-        check_run_with_p2p(mega_ctx, self.p2p.clone());
 
         tracing::info!("Starting HTTP server on: {}", self.addr);
         // let tls_config = RustlsConfig::from_pem(cert, key).await;
@@ -73,7 +63,6 @@ impl Default for HttpOptions {
     fn default() -> Self {
         Self::new(
             SocketAddr::new(IpAddr::V4([0, 0, 0, 0].into()), 8080),
-            P2pOptions::default(),
         )
     }
 }

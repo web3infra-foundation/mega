@@ -346,9 +346,10 @@ async fn test_init_with_invalid_directory() {
     // Check for the error
     let err = result.unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput); // Check error type
-    assert!(err
-        .to_string()
-        .contains("The target directory is not a directory")); // Check error message
+    assert!(
+        err.to_string()
+            .contains("The target directory is not a directory")
+    ); // Check error message
 }
 
 #[tokio::test]
@@ -388,9 +389,10 @@ async fn test_init_with_unauthorized_directory() {
     // Check for the error
     let err = result.unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied); // Check error type
-    assert!(err
-        .to_string()
-        .contains("The target directory is read-only")); // Check error message
+    assert!(
+        err.to_string()
+            .contains("The target directory is read-only")
+    ); // Check error message
 }
 
 #[tokio::test]
@@ -440,7 +442,10 @@ async fn test_valid_shared_mode(shared_mode: &str) {
     {
         use std::os::unix::fs::PermissionsExt;
         // Verify the mode of pre-commit.sh
-        let perms = std::fs::metadata(libra_dir.join("hooks/pre-commit.sh")).unwrap().permissions().mode();
+        let perms = std::fs::metadata(libra_dir.join("hooks/pre-commit.sh"))
+            .unwrap()
+            .permissions()
+            .mode();
         match shared_mode {
             "true" | "group" => assert_eq!(perms & 0o777, 0o775),
             "all" | "world" | "everybody" => assert_eq!(perms & 0o777, 0o777),

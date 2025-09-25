@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use callisto::{import_refs, mega_refs, sea_orm_active_enums::RefTypeEnum};
-use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
+use common::utils::{MEGA_BRANCH_NAME, ZERO_ID, generate_id};
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer

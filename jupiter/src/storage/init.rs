@@ -73,13 +73,10 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
 }
 
 fn should_check_port_first(db_url: &str) -> bool {
-    if let Ok(url) = Url::parse(db_url) {
-        if let Some(host) = url.host_str() {
-            return host == "localhost"
-                || host == "127.0.0.1"
-                || host == "::1"
-                || host == "0.0.0.0";
-        }
+    if let Ok(url) = Url::parse(db_url)
+        && let Some(host) = url.host_str()
+    {
+        return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0";
     }
     false
 }
@@ -99,20 +96,20 @@ async fn check_local_postgres_and_connect(
 
 /// Check if any resolved address is reachable within 100ms
 fn is_port_reachable(db_url: &str) -> bool {
-    if let Ok(url) = Url::parse(db_url) {
-        if let (Some(host), Some(port)) = (url.host_str(), url.port()) {
-            if let Ok(addrs) = (host, port).to_socket_addrs() {
-                for addr in addrs {
-                    if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
-                        log::info!("Successfully connected to {}", addr);
-                        return true;
-                    } else {
-                        log::warn!("Failed to connect to {}", addr);
-                    }
+    if let Ok(url) = Url::parse(db_url)
+        && let (Some(host), Some(port)) = (url.host_str(), url.port())
+    {
+        if let Ok(addrs) = (host, port).to_socket_addrs() {
+            for addr in addrs {
+                if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
+                    log::info!("Successfully connected to {}", addr);
+                    return true;
+                } else {
+                    log::warn!("Failed to connect to {}", addr);
                 }
-            } else {
-                log::warn!("Failed to resolve host: {}", host);
             }
+        } else {
+            log::warn!("Failed to resolve host: {}", host);
         }
     }
     false
@@ -160,9 +157,11 @@ pub mod test {
 
     /// Creates a test database connection for unit tests.
     pub fn test_local_db_address() {
-        assert!("postgres://mono:mono@localhost:5432/mono_test"
-            .parse::<Url>()
-            .is_ok());
+        assert!(
+            "postgres://mono:mono@localhost:5432/mono_test"
+                .parse::<Url>()
+                .is_ok()
+        );
 
         // Test localhost variants - should return true
         assert!(should_check_port_first(

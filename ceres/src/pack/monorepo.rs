@@ -3,20 +3,20 @@ use std::{
     path::{Component, Path, PathBuf},
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     vec,
 };
 
 use async_trait::async_trait;
 use tokio::sync::{
-    mpsc::{self},
     RwLock,
+    mpsc::{self},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use bellatrix::{orion_client::OrionBuildRequest, Bellatrix};
+use bellatrix::{Bellatrix, orion_client::OrionBuildRequest};
 use callisto::{entity_ext::generate_link, mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
@@ -34,7 +34,7 @@ use mercury::{
 };
 
 use crate::{
-    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    api_service::{ApiHandler, mono_api_service::MonoApiService},
     merge_checker::CheckerRegistry,
     model::mr::BuckFile,
     pack::RepoHandler,
@@ -426,14 +426,13 @@ impl MonoRepo {
         if res.is_empty() {
             let mut path = Some(mr_path);
             while let Some(p) = path {
-                if p.parent().is_some() {
-                    if let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
-                    {
-                        if let Some(buck) = self.try_extract_buck(tree, mr_path) {
-                            return Ok(vec![buck]);
-                        }
-                    };
-                }
+                if p.parent().is_some()
+                    && let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
+                    && let Some(buck) = self.try_extract_buck(tree, mr_path)
+                {
+                    return Ok(vec![buck]);
+                };
+
                 path = p.parent();
             }
         }

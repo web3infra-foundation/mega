@@ -9,12 +9,10 @@ path = "src/lib.rs"
 
 [features]
 default = []
-p2p = ["gemini"]
 
 [dependencies]
 common = { workspace = true }
 jupiter = { workspace = true }
 vault = { workspace = true }
 
-gemini = { workspace = true, optional = true }
 tokio = "1.45.1"

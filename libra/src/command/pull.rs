@@ -40,7 +40,9 @@ pub async fn execute(args: PullArgs) {
             }
             None => {
                 eprintln!("There is no tracking information for the current branch.");
-                eprintln!("hint: set up a tracking branch with `libra branch --set-upstream-to=<remote>/<branch>`")
+                eprintln!(
+                    "hint: set up a tracking branch with `libra branch --set-upstream-to=<remote>/<branch>`"
+                )
             }
         },
         _ => {

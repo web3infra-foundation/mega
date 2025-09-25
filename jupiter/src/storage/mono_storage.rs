@@ -1,16 +1,17 @@
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder,
-    QuerySelect,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
-use common::utils::{generate_id, MEGA_BRANCH_NAME};
+use common::model::Pagination;
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::{MegaObjectModel, ObjectTrait};
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
@@ -404,6 +405,52 @@ impl MonoStorage {
             .all(self.get_connection())
             .await
             .unwrap())
+    }
+
+    pub async fn get_tag_by_name(&self, name: &str) -> Result<Option<mega_tag::Model>, MegaError> {
+        let res = mega_tag::Entity::find()
+            .filter(mega_tag::Column::TagName.eq(name.to_string()))
+            .one(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
+    pub async fn insert_tag(&self, tag: mega_tag::Model) -> Result<mega_tag::Model, MegaError> {
+        let am: mega_tag::ActiveModel = tag.clone().into();
+        mega_tag::Entity::insert(am)
+            .exec(self.get_connection())
+            .await?;
+        let model = mega_tag::Entity::find()
+            .filter(mega_tag::Column::TagId.eq(tag.tag_id.clone()))
+            .one(self.get_connection())
+            .await?;
+        match model {
+            Some(m) => Ok(m),
+            None => Err(MegaError::with_message("Failed to load inserted tag")),
+        }
+    }
+
+    pub async fn delete_tag_by_name(&self, name: &str) -> Result<(), MegaError> {
+        mega_tag::Entity::delete_many()
+            .filter(mega_tag::Column::TagName.eq(name.to_string()))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
+    }
+
+    /// Paginated annotated tags stored in mega_tag table
+    pub async fn get_tags_by_page(
+        &self,
+        page: Pagination,
+    ) -> Result<(Vec<mega_tag::Model>, u64), MegaError> {
+        let paginator = mega_tag::Entity::find()
+            .order_by_asc(mega_tag::Column::TagName)
+            .paginate(self.get_connection(), page.per_page);
+        let num_items = paginator.num_items().await?;
+        Ok(paginator
+            .fetch_page(page.page.saturating_sub(1))
+            .await
+            .map(|m| (m, num_items))?)
     }
 }
 
