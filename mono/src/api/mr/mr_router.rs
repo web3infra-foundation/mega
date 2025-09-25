@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use common::{
@@ -16,6 +16,7 @@ use crate::api::mr::model::{
     ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
     ReviewersResponse,
 };
+use crate::api::{MonoApiServiceState, mr::FilesChangedPage};
 use crate::api::{
     api_common::{
         self,
@@ -27,7 +28,6 @@ use crate::api::{
     mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::api::{mr::FilesChangedPage, MonoApiServiceState};
 use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

@@ -11,7 +11,7 @@ use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::path_ext::PathExt;
 
-use ignore::{gitignore::Gitignore, Match};
+use ignore::{Match, gitignore::Gitignore};
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
@@ -319,12 +319,12 @@ pub async fn get_commit_base(name: &str) -> Result<SHA1, String> {
     }
 
     // Added: detect remote branch in remote/branch format
-    if let Some((remote, branch_name)) = name.split_once('/') {
-        if !remote.is_empty() && !branch_name.is_empty() {
-            if let Some(branch) = Branch::find_branch(branch_name, Some(remote)).await {
-                return Ok(branch.commit);
-            }
-        }
+    if let Some((remote, branch_name)) = name.split_once('/')
+        && !remote.is_empty()
+        && !branch_name.is_empty()
+        && let Some(branch) = Branch::find_branch(branch_name, Some(remote)).await
+    {
+        return Ok(branch.commit);
     }
 
     // 3. Check for a tag

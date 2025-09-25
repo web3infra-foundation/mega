@@ -8,9 +8,9 @@ use clap::Args;
 use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
-    keys::{ssh_key::rand_core::OsRng, Algorithm, PrivateKey},
-    server::Server,
     Preferred,
+    keys::{Algorithm, PrivateKey, ssh_key::rand_core::OsRng},
+    server::Server,
 };
 
 use common::model::CommonHttpOptions;

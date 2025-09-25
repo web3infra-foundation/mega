@@ -28,6 +28,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: Rustfmt Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: cargo fmt --all -- --check
+
   #
   clippy:
     name: Clippy Check

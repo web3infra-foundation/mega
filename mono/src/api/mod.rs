@@ -1,10 +1,10 @@
 use axum::extract::FromRef;
 use oauth2::{
+    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
     basic::{
         BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
         BasicTokenResponse,
     },
-    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
 };
 use std::path::Path;
 use tower_sessions::MemoryStore;
@@ -12,14 +12,14 @@ use tower_sessions::MemoryStore;
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use ceres::{
     api_service::{
-        import_api_service::ImportApiService, mono_api_service::MonoApiService, ApiHandler,
+        ApiHandler, import_api_service::ImportApiService, mono_api_service::MonoApiService,
     },
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
 use jupiter::storage::{
-    conversation_storage::ConversationStorage, issue_storage::IssueStorage, mr_storage::MrStorage,
-    user_storage::UserStorage, Storage,
+    Storage, conversation_storage::ConversationStorage, issue_storage::IssueStorage,
+    mr_storage::MrStorage, user_storage::UserStorage,
 };
 use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 
@@ -122,20 +122,20 @@ impl MonoApiServiceState {
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
         let import_dir = self.storage.config().monorepo.import_dir.clone();
-        if path.starts_with(&import_dir) && path != import_dir {
-            if let Some(model) = self
+        if path.starts_with(&import_dir)
+            && path != import_dir
+            && let Some(model) = self
                 .storage
                 .git_db_storage()
                 .find_git_repo_like_path(path.to_str().unwrap())
                 .await
                 .unwrap()
-            {
-                let repo: Repo = model.into();
-                return Ok(Box::new(ImportApiService {
-                    storage: self.storage.clone(),
-                    repo,
-                }));
-            }
+        {
+            let repo: Repo = model.into();
+            return Ok(Box::new(ImportApiService {
+                storage: self.storage.clone(),
+                repo,
+            }));
         }
         let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
             storage: self.storage.clone(),
@@ -155,7 +155,7 @@ pub mod util {
 
     use cedar_policy::Context;
     use ceres::api_service::ApiHandler;
-    use saturn::{context::CedarContext, entitystore::EntityStore, util::EntityUid, ActionEnum};
+    use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::EntityUid};
 
     use crate::api::MonoApiServiceState;
 

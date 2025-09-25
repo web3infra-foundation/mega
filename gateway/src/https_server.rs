@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::routing::get;
-use axum::{http, Router};
+use axum::{Router, http};
 use clap::Args;
 
 use context::AppContext;
@@ -13,13 +13,13 @@ use tower_http::trace::TraceLayer;
 
 use common::model::CommonHttpOptions;
 use jupiter::storage::Storage;
-use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
-use mono::server::http_server::{get_method_router, post_method_router, ProtocolApiState};
+use mono::api::lfs::lfs_router;
+use mono::server::http_server::{ProtocolApiState, get_method_router, post_method_router};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::{github_router, MegaApiServiceState};
+use crate::api::{MegaApiServiceState, github_router};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {

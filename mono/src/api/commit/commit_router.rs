@@ -1,9 +1,9 @@
 use super::model::CommitBindingResponse;
-use crate::api::{error::ApiError, MonoApiServiceState};
+use crate::api::{MonoApiServiceState, error::ApiError};
 use crate::server::http_server::GIT_TAG;
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use common::model::CommonResult;
 use serde::{Deserialize, Serialize};
@@ -96,10 +96,9 @@ async fn update_commit_binding(
         ("Anonymous".to_string(), None, false)
     } else if let Some(ref username) = request.username {
         // Get user info for verified response
-        if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
-            (user.name.clone(), Some(user.avatar_url.clone()), true)
-        } else {
-            (username.clone(), None, true)
+        match user_storage.find_user_by_name(username).await {
+            Ok(Some(user)) => (user.name.clone(), Some(user.avatar_url.clone()), true),
+            _ => (username.clone(), None, true),
         }
     } else {
         ("Anonymous".to_string(), None, false)

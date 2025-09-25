@@ -12,8 +12,8 @@ pub mod utils;
 pub mod waitlist;
 pub mod wrapper;
 
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use threadpool::ThreadPool;
 
 use crate::hash::SHA1;

@@ -1,4 +1,4 @@
-use crate::server::ssh_server::{start_server, SshOptions};
+use crate::server::ssh_server::{SshOptions, start_server};
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 use common::errors::MegaResult;
 use context::AppContext;

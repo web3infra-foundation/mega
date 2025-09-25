@@ -3,7 +3,7 @@ use crate::internal::branch::Branch;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
 use crate::internal::reflog;
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext, ReflogError};
+use crate::internal::reflog::{ReflogAction, ReflogContext, ReflogError, with_reflog};
 use crate::utils::object_ext::{BlobExt, TreeExt};
 use crate::utils::{path, util};
 use clap::Parser;
@@ -367,8 +367,8 @@ async fn collect_commits_to_replay(base_id: &SHA1, head_id: &SHA1) -> Result<Vec
             break; // Reached root commit
         }
         current_id = commit.parent_commit_ids[0]; // Follow first parent
-                                                  // TODO: Handle merge commits properly - currently only follows first parent
-                                                  // This may miss commits in complex branch histories
+        // TODO: Handle merge commits properly - currently only follows first parent
+        // This may miss commits in complex branch histories
     }
 
     // Reverse to get chronological order (oldest first)

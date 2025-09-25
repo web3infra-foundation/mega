@@ -31,11 +31,11 @@ where
     C: ColumnTrait + Copy,
     Q: QueryOrder + Sized,
 {
-    if let Some(field) = sort_by {
-        if let Some(column) = columns.get(field) {
-            let order = if asc { Order::Asc } else { Order::Desc };
-            query = query.order_by(*column, order);
-        }
+    if let Some(field) = sort_by
+        && let Some(column) = columns.get(field)
+    {
+        let order = if asc { Order::Asc } else { Order::Desc };
+        query = query.order_by(*column, order);
     }
     query
 }

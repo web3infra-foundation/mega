@@ -5,15 +5,15 @@ use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Duration, Utc};
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use russh::keys::{HashAlg, PublicKey};
 use russh::server::{self, Auth, Msg, Session};
 use russh::{Channel, ChannelId};
 use tokio::io::AsyncReadExt;
 
 use ceres::lfs::lfs_structs::Link;
-use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
+use ceres::protocol::smart::{self};
 use ceres::protocol::{SmartProtocol, TransportProtocol};
 use jupiter::storage::Storage;
 use tokio::sync::Mutex;
@@ -181,11 +181,11 @@ impl server::Handler for SshServer {
         channel: ChannelId,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        if let Some(smart_protocol) = self.smart_protocol.as_mut() {
-            if smart_protocol.service_type.unwrap() == ServiceType::ReceivePack {
-                self.handle_receive_pack(channel, session).await;
-            };
-        }
+        if let Some(smart_protocol) = self.smart_protocol.as_mut()
+            && smart_protocol.service_type.unwrap() == ServiceType::ReceivePack
+        {
+            self.handle_receive_pack(channel, session).await;
+        };
 
         {
             let mut clients = self.clients.lock().await;
