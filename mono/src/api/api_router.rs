@@ -411,7 +411,7 @@ async fn get_file_blame(
 
     // Convert BlameRequest to BlameQuery
     let query = BlameQuery::from(&params);
-    
+
     // Call the business logic in ceres module
     match state
         .api_handler(params.path.as_ref())
