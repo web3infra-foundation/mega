@@ -19,6 +19,10 @@ pub struct StatusArgs {
     /// Output in a machine-readable format
     #[clap(long = "porcelain")]
     pub porcelain: bool,
+
+    /// Give the output in the short-format
+    #[clap(short = 's', long = "short")]
+    pub short: bool,
 }
 
 /// path: to workdir
@@ -55,8 +59,8 @@ pub async fn execute_to(args: StatusArgs, writer: &mut impl Write) {
         return;
     }
 
-    // Do not output branch info in porcelain mode
-    if !args.porcelain {
+    // Do not output branch info in porcelain or short mode
+    if !args.porcelain && !args.short {
         match Head::current().await {
             Head::Detached(commit_hash) => {
                 writeln!(writer, "HEAD detached at {}", &commit_hash.to_string()[..8]).unwrap();
@@ -78,6 +82,12 @@ pub async fn execute_to(args: StatusArgs, writer: &mut impl Write) {
     // Use machine-readable output in porcelain mode
     if args.porcelain {
         output_porcelain(&staged, &unstaged, writer);
+        return;
+    }
+
+    // Use short format output
+    if args.short {
+        output_short_format(&staged, &unstaged, writer).await;
         return;
     }
 
@@ -150,6 +160,160 @@ pub fn output_porcelain(staged: &Changes, unstaged: &Changes, writer: &mut impl 
     for file in &unstaged.new {
         writeln!(writer, "?? {}", file.display()).unwrap();
     }
+}
+
+/// Core logic for generating short format status without color (for testing)
+pub fn generate_short_format_status(
+    staged: &Changes,
+    unstaged: &Changes,
+) -> Vec<(std::path::PathBuf, char, char)> {
+    use std::collections::HashMap;
+
+    // Create a map to track all files and their status
+    let mut file_status: HashMap<PathBuf, (char, char)> = HashMap::new();
+
+    // Process staged changes
+    for file in &staged.new {
+        file_status.insert(file.clone(), ('A', ' '));
+    }
+    for file in &staged.modified {
+        file_status.insert(file.clone(), ('M', ' '));
+    }
+    for file in &staged.deleted {
+        file_status.insert(file.clone(), ('D', ' '));
+    }
+
+    // Helper to process unstaged changes (modified/deleted)
+    fn process_unstaged_changes(
+        files: &[PathBuf],
+        file_status: &mut std::collections::HashMap<PathBuf, (char, char)>,
+        unstaged_char: char,
+    ) {
+        for file in files {
+            let staged_status = file_status.get(file).map(|(s, _)| *s);
+            if let Some(status) = staged_status {
+                // File is both staged and unstaged - keep staged status, update unstaged
+                file_status.insert(file.clone(), (status, unstaged_char));
+            } else {
+                // File is only unstaged
+                file_status.insert(file.clone(), (' ', unstaged_char));
+            }
+        }
+    }
+
+    // Process unstaged changes
+    process_unstaged_changes(&unstaged.modified, &mut file_status, 'M');
+    process_unstaged_changes(&unstaged.deleted, &mut file_status, 'D');
+
+    for file in &unstaged.new {
+        // Untracked files
+        file_status.insert(file.clone(), ('?', '?'));
+    }
+
+    // Sort files by path for consistent output
+    let mut sorted_files: Vec<_> = file_status.iter().collect();
+    sorted_files.sort_by(|a, b| a.0.cmp(b.0));
+
+    sorted_files
+        .into_iter()
+        .map(|(file, (staged_status, unstaged_status))| {
+            (file.clone(), *staged_status, *unstaged_status)
+        })
+        .collect()
+}
+
+pub async fn output_short_format(staged: &Changes, unstaged: &Changes, writer: &mut impl Write) {
+    // Check if colors should be used
+    let use_colors = should_use_colors().await;
+
+    // Get the status information using the core logic
+    let status_list = generate_short_format_status(staged, unstaged);
+
+    // Output the short format
+    for (file, staged_status, unstaged_status) in status_list {
+        if use_colors {
+            let colored_output = format_colored_status(staged_status, unstaged_status, &file);
+            writeln!(writer, "{}", colored_output).unwrap();
+        } else {
+            writeln!(
+                writer,
+                "{}{} {}",
+                staged_status,
+                unstaged_status,
+                file.display()
+            )
+            .unwrap();
+        }
+    }
+}
+
+/// Check if colors should be used based on configuration
+async fn should_use_colors() -> bool {
+    use crate::internal::config::Config;
+    use std::io::{self, IsTerminal};
+
+    // Check color.status.short configuration
+    if let Some(color_setting) = Config::get("color", Some("status"), "short").await {
+        match color_setting.as_str() {
+            "always" => true,
+            "never" | "false" => false,
+            "auto" | "true" => {
+                // Check if output is to a terminal
+                io::stdout().is_terminal()
+            }
+            _ => false,
+        }
+    } else {
+        // Check color.ui configuration as fallback
+        if let Some(color_setting) = Config::get("color", None, "ui").await {
+            match color_setting.as_str() {
+                "always" => true,
+                "never" | "false" => false,
+                "auto" | "true" => {
+                    // Check if output is to a terminal
+                    io::stdout().is_terminal()
+                }
+                _ => false,
+            }
+        } else {
+            // Default to auto (check if terminal)
+            io::stdout().is_terminal()
+        }
+    }
+}
+
+/// Format the status with colors according to Git conventions
+fn format_colored_status(
+    staged_status: char,
+    unstaged_status: char,
+    file: &std::path::Path,
+) -> String {
+    use colored::Colorize;
+
+    // Color the status characters based on Git conventions
+    let colored_staged = match staged_status {
+        'A' => staged_status.to_string().green(),
+        'M' => staged_status.to_string().green(),
+        'D' => staged_status.to_string().red(),
+        'R' => staged_status.to_string().yellow(),
+        'C' => staged_status.to_string().yellow(),
+        'U' => staged_status.to_string().red(),
+        '?' => staged_status.to_string().bright_red(),
+        ' ' => staged_status.to_string().into(),
+        _ => staged_status.to_string().into(),
+    };
+
+    let colored_unstaged = match unstaged_status {
+        'M' => unstaged_status.to_string().red(),
+        'D' => unstaged_status.to_string().red(),
+        'U' => unstaged_status.to_string().red(),
+        '?' => unstaged_status.to_string().bright_red(),
+        '!' => unstaged_status.to_string().bright_red(),
+        ' ' => unstaged_status.to_string().into(),
+        _ => unstaged_status.to_string().into(),
+    };
+
+    format!("{}{} {}", colored_staged, colored_unstaged, file.display())
 }
 
 pub async fn execute(args: StatusArgs) {
