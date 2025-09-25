@@ -44,8 +44,25 @@ pub struct BlameRequest {
     pub refs: String,
     #[serde(default)]
     pub path: String,
-    #[serde(flatten)]
-    pub query: BlameQuery,
+    #[serde(default)]
+    pub start_line: Option<usize>,
+    #[serde(default)]
+    pub end_line: Option<usize>,
+    #[serde(default)]
+    pub page: Option<usize>,
+    #[serde(default)]
+    pub page_size: Option<usize>,
+}
+
+impl From<&BlameRequest> for BlameQuery {
+    fn from(req: &BlameRequest) -> Self {
+        Self {
+            start_line: req.start_line,
+            end_line: req.end_line,
+            page: req.page,
+            page_size: req.page_size,
+        }
+    }
 }
 
 /// Complete blame result for a file

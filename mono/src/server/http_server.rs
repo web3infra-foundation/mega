@@ -21,6 +21,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
+use ceres::model::blame::{BlameInfo, BlameLine, BlameQuery, BlameRequest, BlameResult};
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
@@ -232,7 +233,14 @@ pub const USER_TAG: &str = "user";
     tags(
         (name = GIT_TAG, description = "Git API endpoints"),
         (name = MR_TAG, description = "Merge Request API endpoints")
-    )
+    ),
+    components(schemas(
+        BlameQuery,
+        BlameRequest,
+        BlameResult,
+        BlameLine,
+        BlameInfo,
+    ))
 )]
 struct ApiDoc;
 
