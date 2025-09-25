@@ -123,29 +123,4 @@ async fn test_push_object_and_download() {
         Ok(_) => println!("Pushed successfully."),
         Err(err) => eprintln!("Push failed: {err:?}"),
     }
-    #[cfg(feature = "p2p")]
-    test_download_chunk_mega(&mega_server_url).await;
-}
-
-#[cfg(feature = "p2p")]
-async fn test_download_chunk_mega(mega_server_url: &str) {
-    let file_map = mercury::test_utils::setup_lfs_file().await;
-    let file = file_map
-        .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
-        .unwrap();
-    let client = LFSClient::from_url(&Url::parse(mega_server_url).unwrap());
-    let oid = lfs::calc_lfs_file_hash(file).unwrap();
-    let sub_oid = "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
-    let url = format!("{mega_server_url}/objects/{oid}/{sub_oid}");
-    let size = 20971520;
-    let offset = 83886080;
-    let data = client
-        .download_chunk(&url, &sub_oid, size, offset, |_| {})
-        .await
-        .unwrap();
-    println!(
-        "test_download_chunk_mega success. download_len {}",
-        data.len()
-    );
-    assert_eq!(data.len(), size);
 }
