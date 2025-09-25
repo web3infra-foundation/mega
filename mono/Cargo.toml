@@ -23,7 +23,6 @@ ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
-
 anyhow = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
@@ -55,7 +54,6 @@ oauth2 = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
 async-trait = { workspace = true }
 time = { workspace = true, features = ["serde"] }
-
 http = { workspace = true }
 cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }

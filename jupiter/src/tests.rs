@@ -32,8 +32,6 @@ pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnectio
         .sqlx_logging(true)
         .sqlx_logging_level(log::LevelFilter::Debug);
 
-    
-
     Database::connect(opt)
         .await
         .expect("Failed to connect to mock database")

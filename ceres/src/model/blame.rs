@@ -1,5 +1,5 @@
 //! Blame API models for ceres
-//! 
+//!
 //! This module contains API layer models for Git blame functionality,
 //! including OpenAPI annotations for documentation generation.
 
