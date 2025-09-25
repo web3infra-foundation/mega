@@ -16,7 +16,6 @@ use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
 use common::config::Config;
-use common::model::P2pOptions;
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
@@ -344,7 +343,6 @@ impl MonobeanApplication {
     pub async fn start_mega(&self) {
         let settings = self.settings();
 
-        let bootstrap_node = get_setting!(settings, "bootstrap-node", String);
         let http_addr = get_setting!(settings, "http-address", String);
         let http_port = get_setting!(settings, "http-port", u32);
         let ssh_addr = get_setting!(settings, "ssh-address", String);
@@ -352,18 +350,10 @@ impl MonobeanApplication {
 
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
         let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
-        let p2p_opt = if bootstrap_node.is_empty() {
-            P2pOptions::default()
-        } else {
-            P2pOptions {
-                bootstrap_node: Some(bootstrap_node),
-            }
-        };
 
         self.send_command(MegaStart(
             Option::from(SocketAddr::new(http_addr, http_port as u16)),
             Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
-            p2p_opt,
         ))
         .await;
     }
