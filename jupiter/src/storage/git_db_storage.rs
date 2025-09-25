@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
-use mercury::internal::object::GitObjectModel;
+use crate::adapter::{GitObjectModel, process_entry};
 use mercury::internal::pack::entry::Entry;
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -127,7 +127,7 @@ impl GitDbStorage {
                 let git_objects = git_objects.clone();
 
                 async move {
-                    let raw_obj = entry.process_entry();
+                    let raw_obj = process_entry(entry);
                     let model = raw_obj.convert_to_git_model();
                     let mut git_objects = git_objects.lock().await;
 

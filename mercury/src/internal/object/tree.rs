@@ -226,7 +226,6 @@ impl TreeItem {
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one
 /// for each file or directory in the tree.
 #[derive(Eq, Debug, Clone, Serialize, Deserialize, Encode, Decode)]
-#[non_exhaustive]
 pub struct Tree {
     pub id: SHA1,
     pub tree_items: Vec<TreeItem>,

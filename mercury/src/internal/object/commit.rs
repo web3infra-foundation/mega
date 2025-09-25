@@ -37,7 +37,6 @@ use serde::Serialize;
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
 #[derive(Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
-#[non_exhaustive]
 pub struct Commit {
     pub id: SHA1,
     pub tree_id: SHA1,
@@ -307,7 +306,7 @@ mod tests {
 author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
 committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
 gpgsig -----BEGIN PGP SIGNATURE-----
- 
+
  iQJNBAABCAA3FiEEs4MaYUV7JcjxsVMPyqxGczTZ6K4FAmjBMC4ZHGJlbmphbWlu
  Ljc0N0BvdXRsb29rLmNvbQAKCRDKrEZzNNnorj73EADNpsyLAHsB3NgoeH+uy9Vq
  G2+LRtlvqv3QMK7vbQUadXHlQYWk25SIk+WJ1kG1AnUy5fqOrLSDTA1ny+qwpH8O

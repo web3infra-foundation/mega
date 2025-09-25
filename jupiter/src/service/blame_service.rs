@@ -27,6 +27,9 @@ use neptune::{DiffOperation, compute_diff};
 
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
+use crate::utils::converter::FromMegaModel;
+#[cfg(test)]
+use crate::utils::converter::IntoMegaModel;
 use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 
@@ -625,7 +628,7 @@ impl BlameService {
             .get_tree_by_hash(&tree_id.to_string())
             .await
         {
-            Ok(Some(tree)) => Ok(tree.into()),
+            Ok(Some(tree)) => Ok(Tree::from_mega_model(tree)),
             Ok(None) => Err(GitError::ObjectNotFound("Tree not found".to_string())),
             Err(e) => Err(GitError::CustomError(format!("Failed to get tree: {}", e))),
         }
@@ -641,7 +644,7 @@ impl BlameService {
             .get_commit_by_hash(&commit_id.to_string())
             .await
         {
-            Ok(Some(commit)) => Ok(Some(commit.into())),
+            Ok(Some(commit)) => Ok(Some(Commit::from_mega_model(commit))),
             _ => Ok(None), // Commit not found
         }
     }
@@ -1045,7 +1048,7 @@ enable_https = true
             vec![tree1.clone(), tree2.clone(), tree3.clone()]
                 .into_iter()
                 .map(|tree| {
-                    let mut tree_model: mega_tree::Model = tree.into();
+                    let mut tree_model: mega_tree::Model = tree.into_mega_model();
                     tree_model.commit_id = "test".to_string();
                     tree_model.into()
                 })
