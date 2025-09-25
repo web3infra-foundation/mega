@@ -59,9 +59,8 @@ impl<'a> diffs::Diff for EfficientDiffCollector<'a> {
 
     fn delete(&mut self, old: usize, _new: usize, len: usize) -> Result<(), Self::Error> {
         for i in 0..len {
-            self.operations.push(DiffOperation::Delete {
-                line: old + i + 1,
-            });
+            self.operations
+                .push(DiffOperation::Delete { line: old + i + 1 });
         }
         Ok(())
     }
@@ -88,4 +87,3 @@ pub fn compute_diff(old_lines: &[String], new_lines: &[String]) -> Vec<DiffOpera
         Err(_) => Vec::new(),
     }
 }
-
