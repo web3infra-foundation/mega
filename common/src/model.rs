@@ -11,12 +11,6 @@ pub struct CommonHttpOptions {
     pub port: u16,
 }
 
-#[derive(Args, Clone, Debug, Default)]
-pub struct P2pOptions {
-    #[arg(long)]
-    pub bootstrap_node: Option<String>,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct InfoRefsParams {
     pub service: Option<String>,
