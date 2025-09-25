@@ -1,7 +1,7 @@
 [package]
 name = "mono"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Quanyi Ma <genedna@gmail.com>"]
 keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
@@ -23,7 +23,6 @@ ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
-
 anyhow = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
@@ -55,7 +54,6 @@ oauth2 = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
 async-trait = { workspace = true }
 time = { workspace = true, features = ["serde"] }
-
 http = { workspace = true }
 cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }

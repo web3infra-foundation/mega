@@ -9,7 +9,6 @@ members = [
     "ceres",
     "libra",
     "vault",
-    "aries",
     "saturn",
     "orion",
     "orion-server",
@@ -20,9 +19,9 @@ members = [
     "neptune",
     "scorpio",
 ]
-default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
+default-members = ["mega", "mono", "libra", "orion", "orion-server"]
 resolver = "1"
-exclude = ["scorpio"] 
+exclude = ["scorpio"]
 
 [workspace.dependencies]
 gateway = { path = "gateway" }
@@ -31,7 +30,6 @@ mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
-gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
 mono = { path = "mono" }
@@ -43,7 +41,7 @@ neptune = { path = "neptune" }
 
 #====
 anyhow = "1.0.98"
-serde = {  version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
@@ -59,7 +57,7 @@ async-trait = "0.1.88"
 async-stream = "0.3.6"
 futures = "0.3.31"
 futures-util = "0.3.31"
-axum = { version="0.8.4", features=["macros", "json"] }
+axum = { version = "0.8.4", features = ["macros", "json"] }
 axum-extra = "0.10.1"
 russh = "0.52.1"
 tower-http = "0.6.4"
@@ -103,8 +101,7 @@ base64 = "0.22.1"
 encoding_rs = "0.8.35"
 aws-config = "1.6.3"
 aws-sdk-s3 = "1.90.0"
-quinn = "0.11.8"
-utoipa = {version = "5.3.1", features = ["chrono"]}
+utoipa = { version = "5.3.1", features = ["chrono"] }
 utoipa-axum = "0.2.0"
 utoipa-swagger-ui = "9.0.2"
 tempfile = "3.20.0"
@@ -153,7 +150,6 @@ dagrs = "0.5.0"
 tar = "0.4"
 indexmap = "2.10.0"
 envsubst = "0.2.1"
-rcgen = "0.13.2"
 diffs = "0.5.1"
 libc = "0.2.172"
 zstd-sys = "2.0.15+zstd.1.5.7"

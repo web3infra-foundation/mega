@@ -9,8 +9,8 @@ use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
 use crate::auth::UserAuthExtractor;
-use crate::protocol::import_refs::RefCommand;
 use crate::protocol::ZERO_ID;
+use crate::protocol::import_refs::RefCommand;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
 
 const LF: char = '\n';
@@ -336,11 +336,10 @@ impl SmartProtocol {
             if command.ref_type == RefTypeEnum::Branch
                 && command.status == "ok"
                 && command.new_id != ZERO_ID
+                && let Err(e) = self.bind_commit_to_user(&command.new_id).await
             {
-                if let Err(e) = self.bind_commit_to_user(&command.new_id).await {
-                    tracing::warn!("Failed to bind commit {} to user: {}", command.new_id, e);
-                    // Don't fail the push on binding errors
-                }
+                tracing::warn!("Failed to bind commit {} to user: {}", command.new_id, e);
+                // Don't fail the push on binding errors
             }
         }
     }
@@ -555,13 +554,13 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 
 /// Extract email address from Git author string (format: "Name <email>")
 fn extract_email_from_author(author: &str) -> String {
-    if let Some(start) = author.rfind('<') {
-        if let Some(end) = author.rfind('>') {
-            if start < end {
-                return author[start + 1..end].trim().to_string();
-            }
-        }
+    if let Some(start) = author.rfind('<')
+        && let Some(end) = author.rfind('>')
+        && start < end
+    {
+        return author[start + 1..end].trim().to_string();
     }
+
     String::new()
 }
 
@@ -589,7 +588,9 @@ pub mod test {
     #[test]
     pub fn test_build_smart_reply() {
         let mock = SmartProtocol::mock();
-        let ref_list = vec![String::from("7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n")];
+        let ref_list = vec![String::from(
+            "7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n",
+        )];
         let pkt_line_stream = mock.build_smart_reply(&ref_list, String::from("git-upload-pack"));
         assert_eq!(&pkt_line_stream[..], b"001e# service=git-upload-pack\n000000e87bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n0000")
     }

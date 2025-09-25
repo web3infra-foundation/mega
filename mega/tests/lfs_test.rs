@@ -14,9 +14,9 @@ use std::{env, fs, io, thread};
 use tempfile::TempDir;
 use testcontainers::core::wait::HttpWaitStrategy;
 use testcontainers::{
+    ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, ReuseDirective, WaitFor},
     runners::AsyncRunner,
-    ContainerAsync, GenericImage, ImageExt,
 };
 const LARGE_FILE_SIZE_MB: usize = 60;
 
@@ -125,7 +125,8 @@ fn run_mega_server(data_dir: &Path, http_port: u16) -> ChildGuard {
     }
 
     // env var can be shared between parent and child process
-    env::set_var("MEGA_BASE_DIR", data_dir);
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::set_var("MEGA_BASE_DIR", data_dir) };
 
     let server = Command::new(MEGA.to_str().unwrap())
         .args(["service", "multi", "http", "-p", &format!("{http_port}")])
@@ -263,8 +264,9 @@ fn lfs_split_with_git() {
     assert!(check_git_lfs(), "git lfs is not installed");
 
     let mega_dir = TempDir::new().unwrap();
-    env::set_var("MEGA_authentication__enable_http_auth", "false"); // no need for git
-                                                                    // start mega server at background (new process)
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::set_var("MEGA_authentication__enable_http_auth", "false") }; // no need for git
+    // start mega server at background (new process)
     let mega = run_mega_server(mega_dir.path(), 58001);
     let mega_start_port = 58001;
     let url = &format!("http://localhost:{mega_start_port}/third-party/lfs.git");
@@ -289,10 +291,13 @@ fn lfs_split_with_libra() {
     }
 
     let mega_dir = TempDir::new().unwrap();
-    env::set_var("MEGA_authentication__enable_http_auth", "true");
-    env::set_var("MEGA_authentication__enable_test_user", "true");
-    env::set_var("MEGA_authentication__test_user_name", "mega");
-    env::set_var("MEGA_authentication__test_user_token", "mega");
+    unsafe {
+        env::set_var("MEGA_authentication__enable_http_auth", "true");
+        env::set_var("MEGA_authentication__enable_test_user", "true");
+        env::set_var("MEGA_authentication__test_user_name", "mega");
+        env::set_var("MEGA_authentication__test_user_token", "mega");
+    }
+
     // start mega server at background (new process)
     let mega = run_mega_server(mega_dir.path(), 58002);
 
@@ -300,7 +305,9 @@ fn lfs_split_with_libra() {
     let push_result = libra_lfs_push(url);
     let clone_result = libra_lfs_clone(url);
 
-    env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
+    unsafe {
+        env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
+    }
     println!("{:?}", mega.0);
 
     push_result.expect("Failed to push large file to mega server");

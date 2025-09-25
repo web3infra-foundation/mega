@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Cursor, ErrorKind, Read};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
@@ -18,14 +18,14 @@ use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 
 use super::cache_object::CacheObjectInfo;
-use crate::internal::pack::cache::Caches;
 use crate::internal::pack::cache::_Cache;
+use crate::internal::pack::cache::Caches;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::channel_reader::StreamBufReader;
 use crate::internal::pack::entry::Entry;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
+use crate::internal::pack::{DEFAULT_TMP_DIR, Pack, utils};
 use crate::utils::CountingReader;
 
 /// For the convenience of passing parameters
@@ -338,10 +338,15 @@ impl Pack {
         let time = Instant::now();
         let mut last_update_time = time.elapsed().as_millis();
         let log_info = |_i: usize, pack: &Pack| {
-            tracing::info!("time {:.2} s \t decode: {:?} \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
-                time.elapsed().as_millis() as f64 / 1000.0, _i, pack.pool.queued_count(), pack.caches.queued_tasks(),
+            tracing::info!(
+                "time {:.2} s \t decode: {:?} \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
+                time.elapsed().as_millis() as f64 / 1000.0,
+                _i,
+                pack.pool.queued_count(),
+                pack.caches.queued_tasks(),
                 pack.cache_objs_mem_used() / 1024 / 1024,
-                pack.caches.memory_used() / 1024 / 1024);
+                pack.caches.memory_used() / 1024 / 1024
+            );
         };
         let callback = Arc::new(callback);
 
@@ -454,8 +459,8 @@ impl Pack {
         }
 
         self.pool.join(); // wait for all threads to finish
-                          // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
-                          // So that files != self.number
+        // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
+        // So that files != self.number
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
@@ -664,7 +669,7 @@ impl Pack {
             data_decompressed: result,
             mem_recorder: None,
         } // Canonical form (Complete Object)
-          // Memory recording will happen after this function returns. See `process_delta`
+        // Memory recording will happen after this function returns. See `process_delta`
     }
     pub fn rebuild_zstdelta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         let result = zstdelta::apply(&base_obj.data_decompressed, &delta_obj.data_decompressed)
@@ -676,26 +681,26 @@ impl Pack {
             data_decompressed: result,
             mem_recorder: None,
         } // Canonical form (Complete Object)
-          // Memory recording will happen after this function returns. See `process_delta`
+        // Memory recording will happen after this function returns. See `process_delta`
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::io::prelude::*;
     use std::io::BufReader;
     use std::io::Cursor;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::io::prelude::*;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::{env, path::PathBuf};
 
-    use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use flate2::write::ZlibEncoder;
     use tokio_util::io::ReaderStream;
 
-    use crate::internal::pack::tests::init_logger;
     use crate::internal::pack::Pack;
+    use crate::internal::pack::tests::init_logger;
     use futures_util::TryStreamExt;
 
     #[tokio::test]

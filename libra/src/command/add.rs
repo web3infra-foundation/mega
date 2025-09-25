@@ -64,7 +64,7 @@ pub async fn execute(args: AddArgs) {
 
     // index vs worktree
     let mut changes = status::changes_to_be_staged(); // to workdir
-                                                      // filter paths to fit `pathspec` that user inputs
+    // filter paths to fit `pathspec` that user inputs
     changes.new = util::filter_to_fit_paths(&changes.new, &paths);
     // if `--all` & <pathspec> is given, it will update `index` as well, so no need to filter `deleted` & `modified`
     if args.pathspec.is_empty() || !args.all {

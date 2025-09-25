@@ -2,16 +2,16 @@ use std::{
     collections::HashSet,
     pin::Pin,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{future::join_all, Stream};
+use futures::{Stream, future::join_all};
 use sysinfo::System;
-use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
+use tokio::sync::{Semaphore, mpsc::UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};

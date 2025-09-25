@@ -1,9 +1,9 @@
 use super::ProtocolClient;
 use crate::command::ask_basic_auth;
 use bytes::Bytes;
-use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use ceres::protocol::ServiceType;
 use ceres::protocol::ServiceType::UploadPack;
+use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
@@ -214,7 +214,7 @@ impl HttpsClient {
         &self,
         have: &Vec<String>,
         want: &Vec<String>,
-    ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>>, IoError> {
+    ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>> + use<>, IoError> {
         // POST $GIT_URL/git-upload-pack HTTP/1.0
         let url = self.url.join("git-upload-pack").unwrap();
         let body = generate_upload_pack_content(have, want).await;

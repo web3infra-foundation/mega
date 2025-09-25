@@ -11,12 +11,6 @@ pub struct CommonHttpOptions {
     pub port: u16,
 }
 
-#[derive(Args, Clone, Debug, Default)]
-pub struct P2pOptions {
-    #[arg(long)]
-    pub bootstrap_node: Option<String>,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct InfoRefsParams {
     pub service: Option<String>,
@@ -55,7 +49,7 @@ impl<T> CommonResult<T> {
     }
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Clone)]
 pub struct Pagination {
     pub page: u64,
     pub per_page: u64,
@@ -80,4 +74,15 @@ pub struct PageParams<T> {
 pub struct CommonPage<T> {
     pub total: u64,
     pub items: Vec<T>,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct TagInfo {
+    pub name: String,
+    pub tag_id: String,
+    pub object_id: String,
+    pub object_type: String,
+    pub tagger: String,
+    pub message: String,
+    pub created_at: String,
 }

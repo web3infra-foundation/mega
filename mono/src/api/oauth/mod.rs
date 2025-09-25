@@ -1,12 +1,12 @@
 use anyhow::Context;
 use axum::{
+    RequestPartsExt,
     extract::{FromRef, FromRequestParts, Query, State},
-    http::{header::SET_COOKIE, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header::SET_COOKIE},
     response::{IntoResponse, Redirect, Response},
     routing::get,
-    RequestPartsExt,
 };
-use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader};
+use axum_extra::{TypedHeader, headers, typed_header::TypedHeaderRejectionReason};
 use callisto::user;
 use chrono::{Duration, Utc};
 use http::request::Parts;

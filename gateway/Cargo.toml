@@ -1,7 +1,7 @@
 [package]
 name = "gateway"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,8 +14,7 @@ mono = { workspace = true }
 common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
-gemini = { workspace = true }
-context = { workspace = true , features = ["p2p"]}
+context = { workspace = true }
 
 axum = { workspace = true }
 tower = { workspace = true }
@@ -31,7 +30,6 @@ tower-http = { workspace = true, features = [
 tokio = { workspace = true, features = ["net"] }
 reqwest = { workspace = true, features = ["json"] }
 chrono = { workspace = true }
-quinn = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }

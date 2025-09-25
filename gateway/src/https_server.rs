@@ -1,49 +1,38 @@
 use std::sync::Arc;
 
 use axum::routing::get;
-use axum::{http, Router};
+use axum::{Router, http};
 use clap::Args;
 
 use context::AppContext;
-use quinn::rustls;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use common::model::{CommonHttpOptions, P2pOptions};
+use common::model::CommonHttpOptions;
 use jupiter::storage::Storage;
-use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
-use mono::server::http_server::{get_method_router, post_method_router, ProtocolApiState};
+use mono::api::lfs::lfs_router;
+use mono::server::http_server::{ProtocolApiState, get_method_router, post_method_router};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::{github_router, MegaApiServiceState};
+use crate::api::{MegaApiServiceState, github_router};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
     #[clap(flatten)]
     pub common: CommonHttpOptions,
-
-    #[clap(flatten)]
-    pub p2p: P2pOptions,
 }
 
 pub async fn http_server(context: AppContext, options: HttpOptions) {
     let HttpOptions {
         common: CommonHttpOptions { host, port, .. },
-        p2p,
     } = options.clone();
 
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
-    check_run_with_p2p(context.clone(), options.p2p.clone());
-
-    let app = app(context.storage, host.clone(), port, p2p.clone()).await;
+    let app = app(context.storage, host.clone(), port).await;
 
     let server_url = format!("{host}:{port}");
 
@@ -53,7 +42,7 @@ pub async fn http_server(context: AppContext, options: HttpOptions) {
         .unwrap();
 }
 
-pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> Router {
+pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let state = ProtocolApiState {
         storage: storage.clone(),
         shared: Arc::new(Mutex::new(0)),
@@ -68,7 +57,6 @@ pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> 
 
     let mega_api_state = MegaApiServiceState {
         inner: mono_api_state.clone(),
-        p2p,
     };
 
     pub fn mega_routers() -> OpenApiRouter<MegaApiServiceState> {
@@ -104,28 +92,6 @@ pub async fn app(storage: Storage, host: String, port: u16, p2p: P2pOptions) -> 
         .with_state(state)
         .split_for_parts();
     router
-}
-
-pub fn check_run_with_p2p(context: AppContext, p2p: P2pOptions) {
-    //Mega server join a ztm mesh
-    match p2p.bootstrap_node {
-        Some(bootstrap_node) => {
-            tracing::info!(
-                "The bootstrap node is {}, prepare to join p2p network",
-                bootstrap_node.clone()
-            );
-
-            let client = context.client.wrapped_client();
-            tokio::spawn(async move {
-                if let Err(e) = client.run(bootstrap_node).await {
-                    tracing::error!("P2P client closed:{}", e)
-                }
-            });
-        }
-        None => {
-            tracing::info!("The bootstrap node is not set, prepare to start mega server locally");
-        }
-    };
 }
 
 #[derive(OpenApi)]

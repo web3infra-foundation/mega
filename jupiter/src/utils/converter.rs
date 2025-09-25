@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
 use common::config::MonoConfig;
-use common::utils::{generate_id, MEGA_BRANCH_NAME};
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;

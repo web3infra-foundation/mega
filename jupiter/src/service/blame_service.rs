@@ -13,15 +13,17 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use neptune::{compute_diff, DiffOperation};
 use crate::model::blame_dto::{
-    LargeFileConfig, LineAttribution, FileVersion, 
-    BlameInfo, BlameLine, BlameResult, BlameQuery, BlameCandidate
+    BlameCandidate, BlameInfo, BlameLine, BlameQuery, BlameResult, FileVersion, LargeFileConfig,
+    LineAttribution,
 };
-use crate::storage::{Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage};
+use crate::storage::{
+    Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage,
+};
+use common::config::Config;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
-use common::config::Config;
+use neptune::{DiffOperation, compute_diff};
 
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
@@ -35,7 +37,7 @@ fn map_blame_to_parent(
     diff_ops: &[DiffOperation],
 ) -> Vec<BlameCandidate> {
     use std::collections::HashMap;
-    
+
     let mut parent_candidates = Vec::new();
 
     // Create a mapping from new_line (child commit) to old_line (parent commit)
@@ -56,10 +58,10 @@ fn map_blame_to_parent(
                 original_final_line_number: candidate.original_final_line_number,
             });
         }
-        // If the line doesn't exist in parent (Insert operation), 
+        // If the line doesn't exist in parent (Insert operation),
         // we don't add it to parent_candidates, meaning blame stops here
     }
-    
+
     parent_candidates
 }
 
@@ -95,14 +97,14 @@ impl BlameService {
     /// Create a new BlameService instance using global configuration
     pub fn new(storage: Arc<Storage>) -> Self {
         Self {
-        mono_storage: Arc::new(storage.mono_storage()),
-        raw_db_storage: Arc::new(storage.raw_db_storage()),
-        user_storage: Arc::new(storage.user_storage()),
-        cache: Arc::new(BlameCache::new()),
-        config: storage.config.clone(),
+            mono_storage: Arc::new(storage.mono_storage()),
+            raw_db_storage: Arc::new(storage.raw_db_storage()),
+            user_storage: Arc::new(storage.user_storage()),
+            cache: Arc::new(BlameCache::new()),
+            config: storage.config.clone(),
+        }
     }
-    }
-    
+
     /// Create a mock instance for testing
     pub fn mock() -> Self {
         let storage = Arc::new(Storage::mock());
@@ -110,13 +112,21 @@ impl BlameService {
     }
 
     /// Check if a file is considered large based on configuration
-    pub async fn check_if_large_file(&self, file_path: &str, ref_name: Option<&str>) -> Result<bool, GitError> {
-        tracing::debug!("Checking if file is large: {} at ref: {:?}", file_path, ref_name);
-        
+    pub async fn check_if_large_file(
+        &self,
+        file_path: &str,
+        ref_name: Option<&str>,
+    ) -> Result<bool, GitError> {
+        tracing::debug!(
+            "Checking if file is large: {} at ref: {:?}",
+            file_path,
+            ref_name
+        );
+
         // Resolve the commit to analyze
         let commit = self.resolve_commit(ref_name).await?;
         let file_path_buf = PathBuf::from(file_path);
-        
+
         // Get file blob hash
         let blob_hash = match self.get_file_blob_hash(&file_path_buf, &commit).await? {
             Some(hash) => hash,
@@ -125,12 +135,12 @@ impl BlameService {
                 return Ok(false); // File doesn't exist, not large
             }
         };
-        
+
         // Get blob content to check size and line count
         let content = self.get_blob_content(&blob_hash).await?;
         let content_size = content.len();
         let line_count = content.lines().count();
-        
+
         // Check against thresholds
         let is_large = if let Some(config) = self.config.upgrade() {
             let max_size = config.blame.get_max_size_bytes().unwrap_or(usize::MAX);
@@ -142,9 +152,12 @@ impl BlameService {
 
         tracing::debug!(
             "File {} size: {} bytes, lines: {}, is_large: {}",
-            file_path, content_size, line_count, is_large
+            file_path,
+            content_size,
+            line_count,
+            is_large
         );
-        
+
         Ok(is_large)
     }
 
@@ -156,22 +169,24 @@ impl BlameService {
         query: Option<BlameQuery>,
     ) -> Result<BlameResult, GitError> {
         let file_path = PathBuf::from(file_path);
-        
+
         // Resolve the commit to analyze
         let commit = self.resolve_commit(ref_name).await?;
-        
+
         // Get the file version at this commit (using cache for better performance)
         let current_version = self.get_file_version_cached(&file_path, &commit).await?;
-        
+
         // Build line attributions
-        let attributions = self.build_line_attributions(&file_path, &commit, &current_version).await?;
-        
+        let attributions = self
+            .build_line_attributions(&file_path, &commit, &current_version)
+            .await?;
+
         // Create blame lines with commit information
         let blame_lines = self.create_blame_lines(attributions).await?;
-        
+
         // Apply pagination if requested
         let final_lines = self.apply_pagination(blame_lines, &query);
-        
+
         Ok(BlameResult {
             file_path: file_path.to_string_lossy().to_string(),
             lines: final_lines,
@@ -184,10 +199,10 @@ impl BlameService {
     /// Resolve commit from reference name or use HEAD (with caching)
     async fn resolve_commit(&self, ref_name: Option<&str>) -> Result<Commit, GitError> {
         tracing::debug!("resolve_commit: ref_name={:?}", ref_name);
-        
+
         // 🚀 Step 1: Attempt to fetch from cache
         let cache_key = ref_name.unwrap_or("HEAD").to_string();
-        
+
         {
             let cache = self.cache.commits.read().await;
             if let Some(cached_commit) = cache.get(&cache_key) {
@@ -195,9 +210,12 @@ impl BlameService {
                 return Ok((**cached_commit).clone());
             }
         }
-        
+
         // 🔄 Step 2: Cache miss, fetch from storage
-        tracing::debug!("Cache miss for commit: {}, resolving from storage", cache_key);
+        tracing::debug!(
+            "Cache miss for commit: {}, resolving from storage",
+            cache_key
+        );
         let commit = match ref_name {
             Some(ref_str) => {
                 // Try to get commit by hash first
@@ -213,43 +231,62 @@ impl BlameService {
                     };
                     tracing::debug!("Trying to resolve ref: {}", full_ref_name);
                     match self.mono_storage.get_ref_by_name(&full_ref_name).await {
-                        Ok(Some(commit_id)) => {
-                            self.get_commit_by_hash(&commit_id.ref_commit_hash).await?
-                                .ok_or_else(|| GitError::ObjectNotFound(ref_str.to_string()))
-                        }
+                        Ok(Some(commit_id)) => self
+                            .get_commit_by_hash(&commit_id.ref_commit_hash)
+                            .await?
+                            .ok_or_else(|| GitError::ObjectNotFound(ref_str.to_string())),
                         Ok(None) => {
                             // Fallback to default branch
-                            tracing::debug!("Ref not found by name, falling back to get_ref with root path");
+                            tracing::debug!(
+                                "Ref not found by name, falling back to get_ref with root path"
+                            );
                             match self.mono_storage.get_ref("/").await {
                                 Ok(Some(commit_id)) => {
-                                    tracing::debug!("Found commit via fallback: {}", commit_id.ref_commit_hash);
-                                    self.get_commit_by_hash(&commit_id.ref_commit_hash).await?
-                                        .ok_or_else(|| GitError::ObjectNotFound(ref_str.to_string()))
+                                    tracing::debug!(
+                                        "Found commit via fallback: {}",
+                                        commit_id.ref_commit_hash
+                                    );
+                                    self.get_commit_by_hash(&commit_id.ref_commit_hash)
+                                        .await?
+                                        .ok_or_else(|| {
+                                            GitError::ObjectNotFound(ref_str.to_string())
+                                        })
                                 }
                                 Ok(None) => {
                                     tracing::debug!("No commit found via fallback");
                                     Err(GitError::ObjectNotFound(ref_str.to_string()))
                                 }
-                                Err(e) => Err(GitError::CustomError(format!("Failed to resolve reference: {}", e))),
+                                Err(e) => Err(GitError::CustomError(format!(
+                                    "Failed to resolve reference: {}",
+                                    e
+                                ))),
                             }
                         }
-                        Err(e) => Err(GitError::CustomError(format!("Failed to resolve reference: {}", e))),
+                        Err(e) => Err(GitError::CustomError(format!(
+                            "Failed to resolve reference: {}",
+                            e
+                        ))),
                     }
                 }
             }
             None => {
                 // Use root path to get the default reference
                 match self.mono_storage.get_ref("/").await {
-                    Ok(Some(commit_id)) => {
-                        self.get_commit_by_hash(&commit_id.ref_commit_hash).await?
-                            .ok_or_else(|| GitError::ObjectNotFound("HEAD".to_string()))
-                    }
-                    Ok(None) => Err(GitError::ObjectNotFound("No HEAD or main branch found".to_string())),
-                    Err(e) => Err(GitError::CustomError(format!("Failed to resolve HEAD: {}", e))),
+                    Ok(Some(commit_id)) => self
+                        .get_commit_by_hash(&commit_id.ref_commit_hash)
+                        .await?
+                        .ok_or_else(|| GitError::ObjectNotFound("HEAD".to_string())),
+                    Ok(None) => Err(GitError::ObjectNotFound(
+                        "No HEAD or main branch found".to_string(),
+                    )),
+                    Err(e) => Err(GitError::CustomError(format!(
+                        "Failed to resolve HEAD: {}",
+                        e
+                    ))),
                 }
             }
         };
-        
+
         // 💾 Step 3: Store in cache
         let resolved_commit = commit?;
         {
@@ -257,15 +294,19 @@ impl BlameService {
             cache.insert(cache_key.clone(), Arc::new(resolved_commit.clone()));
             tracing::debug!("Cached commit: {}", cache_key);
         }
-        
+
         Ok(resolved_commit)
     }
 
     /// Get file version at specific commit (with caching)
-    async fn get_file_version(&self, file_path: &PathBuf, commit: &Commit) -> Result<FileVersion, GitError> {
+    async fn get_file_version(
+        &self,
+        file_path: &PathBuf,
+        commit: &Commit,
+    ) -> Result<FileVersion, GitError> {
         // 🚀 Step 1: Attempt to fetch from cache
         let cache_key = format!("{}:{}", commit.id, file_path.display());
-        
+
         {
             let cache = self.cache.file_versions.read().await;
             if let Some(cached_version) = cache.get(&cache_key) {
@@ -273,29 +314,36 @@ impl BlameService {
                 return Ok((**cached_version).clone());
             }
         }
-        
+
         // 🔄 Step 2: Cache miss, fetch from storage
-        tracing::debug!("Cache miss for file version: {}, fetching from storage", cache_key);
-        let blob_hash = self.get_file_blob_hash(file_path, commit).await?
-            .ok_or_else(|| GitError::ObjectNotFound(format!("File not found: {}", file_path.display())))?;
-        
+        tracing::debug!(
+            "Cache miss for file version: {}, fetching from storage",
+            cache_key
+        );
+        let blob_hash = self
+            .get_file_blob_hash(file_path, commit)
+            .await?
+            .ok_or_else(|| {
+                GitError::ObjectNotFound(format!("File not found: {}", file_path.display()))
+            })?;
+
         let content = self.get_blob_content(&blob_hash).await?;
         let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-        
+
         let file_version = FileVersion {
             commit_hash: commit.id,
             blob_hash,
             content,
             lines,
         };
-        
+
         // 💾 Step 3: Store in cache
         {
             let mut cache = self.cache.file_versions.write().await;
             cache.insert(cache_key.clone(), Arc::new(file_version.clone()));
             tracing::debug!("Cached file version: {}", cache_key);
         }
-        
+
         Ok(file_version)
     }
 
@@ -309,7 +357,8 @@ impl BlameService {
         current_version: &FileVersion,
     ) -> Result<Vec<LineAttribution>, GitError> {
         // Initialize final attributions - all lines initially belong to target_commit
-        let mut final_attributions: Vec<LineAttribution> = current_version.lines
+        let mut final_attributions: Vec<LineAttribution> = current_version
+            .lines
             .iter()
             .enumerate()
             .map(|(i, content)| LineAttribution {
@@ -327,7 +376,7 @@ impl BlameService {
                 original_final_line_number: i,
             })
             .collect();
-        
+
         let mut current_commit = target_commit.clone();
 
         // History traversal loop with correct context mapping
@@ -343,22 +392,30 @@ impl BlameService {
             };
 
             // Get file versions for current and parent commits
-            let child_version = self.get_file_version_cached(file_path, &current_commit).await?;
-            let parent_version = match self.get_file_version_cached(file_path, &parent_commit).await {
+            let child_version = self
+                .get_file_version_cached(file_path, &current_commit)
+                .await?;
+            let parent_version = match self
+                .get_file_version_cached(file_path, &parent_commit)
+                .await
+            {
                 Ok(v) => v,
                 Err(_) => {
-                    tracing::debug!("File {} not found in parent commit {}, stopping traversal", 
-                                  file_path.display(), parent_commit.id);
+                    tracing::debug!(
+                        "File {} not found in parent commit {}, stopping traversal",
+                        file_path.display(),
+                        parent_commit.id
+                    );
                     break;
                 }
             };
-            
+
             // Compute diff between parent and child versions
             let diff_ops = self.compute_blame_diff(&parent_version.lines, &child_version.lines);
-            
+
             // Map candidates to parent commit context
             let parent_candidates = map_blame_to_parent(&candidates, &diff_ops);
-            
+
             // Update final attributions for lines that continue to be traced
             for candidate in &parent_candidates {
                 let index = candidate.original_final_line_number - 1;
@@ -367,7 +424,7 @@ impl BlameService {
                     attr.line_number_in_commit = candidate.line_number;
                 }
             }
-            
+
             // Prepare for next iteration
             candidates = parent_candidates;
             current_commit = parent_commit;
@@ -388,7 +445,7 @@ impl BlameService {
         if let Ok(Some(user)) = self.user_storage.find_user_by_email(email).await {
             return user.avatar_url;
         }
-        
+
         // Then try to find user by name
         if let Ok(Some(user)) = self.user_storage.find_user_by_name(name).await {
             return user.avatar_url;
@@ -398,7 +455,10 @@ impl BlameService {
     }
 
     /// Create blame lines with commit information
-    async fn create_blame_lines(&self, attributions: Vec<LineAttribution>) -> Result<Vec<BlameLine>, GitError> {
+    async fn create_blame_lines(
+        &self,
+        attributions: Vec<LineAttribution>,
+    ) -> Result<Vec<BlameLine>, GitError> {
         let mut blame_lines = Vec::new();
 
         for attr in attributions {
@@ -406,20 +466,29 @@ impl BlameService {
             let commit = match self.get_commit_cached(&attr.commit_hash).await {
                 Ok(Some(commit)) => commit,
                 Ok(None) => {
-                    return Err(GitError::ObjectNotFound(format!("Commit not found: {}", attr.commit_hash)));
+                    return Err(GitError::ObjectNotFound(format!(
+                        "Commit not found: {}",
+                        attr.commit_hash
+                    )));
                 }
                 Err(e) => {
-                    tracing::error!("Failed to get commit {}: {}", attr.commit_hash.to_string(), e);
+                    tracing::error!(
+                        "Failed to get commit {}: {}",
+                        attr.commit_hash.to_string(),
+                        e
+                    );
                     return Err(e);
                 }
             };
 
             let author_time = commit.author.timestamp as i64;
             let commit_hash_str = attr.commit_hash.to_string();
-            
+
             // Get real user avatar URL from database
-            let author_avatar_url = self.get_user_avatar_url(&commit.author.email, &commit.author.name).await;
-            
+            let author_avatar_url = self
+                .get_user_avatar_url(&commit.author.email, &commit.author.name)
+                .await;
+
             let blame_info = BlameInfo {
                 commit_hash: commit_hash_str.clone(),
                 commit_short_id: commit_hash_str.chars().take(7).collect(),
@@ -448,7 +517,11 @@ impl BlameService {
     }
 
     /// Apply pagination to blame results
-    fn apply_pagination(&self, blame_lines: Vec<BlameLine>, query: &Option<BlameQuery>) -> Vec<BlameLine> {
+    fn apply_pagination(
+        &self,
+        blame_lines: Vec<BlameLine>,
+        query: &Option<BlameQuery>,
+    ) -> Vec<BlameLine> {
         if let Some(q) = query {
             if let (Some(page), Some(page_size)) = (q.page, q.page_size) {
                 if page == 0 || page_size == 0 {
@@ -463,11 +536,13 @@ impl BlameService {
                 let end = (start + page_size).min(blame_lines.len());
 
                 blame_lines[start..end].to_vec()
-            } 
-            else {
+            } else {
                 let start = q.start_line.unwrap_or(1).saturating_sub(1);
-                let end = q.end_line.unwrap_or(blame_lines.len()).min(blame_lines.len());
-                
+                let end = q
+                    .end_line
+                    .unwrap_or(blame_lines.len())
+                    .min(blame_lines.len());
+
                 if start < blame_lines.len() {
                     blame_lines[start..end].to_vec()
                 } else {
@@ -480,22 +555,32 @@ impl BlameService {
     }
 
     /// Get file blob hash from commit tree
-    async fn get_file_blob_hash(&self, file_path: &PathBuf, commit: &Commit) -> Result<Option<SHA1>, GitError> {
-        tracing::debug!("get_file_blob_hash: commit_id={}, tree_id={}", commit.id, commit.tree_id);
+    async fn get_file_blob_hash(
+        &self,
+        file_path: &PathBuf,
+        commit: &Commit,
+    ) -> Result<Option<SHA1>, GitError> {
+        tracing::debug!(
+            "get_file_blob_hash: commit_id={}, tree_id={}",
+            commit.id,
+            commit.tree_id
+        );
         let tree = self.get_tree_by_hash(&commit.tree_id.to_string()).await?;
-        
-        let path_components: Vec<&str> = file_path.iter()
-            .filter_map(|s| s.to_str())
-            .collect();
-        
-        tracing::debug!("Looking for file: {:?}, path_components: {:?}", file_path, path_components);
+
+        let path_components: Vec<&str> = file_path.iter().filter_map(|s| s.to_str()).collect();
+
+        tracing::debug!(
+            "Looking for file: {:?}, path_components: {:?}",
+            file_path,
+            path_components
+        );
         tracing::debug!("Tree has {} items", tree.tree_items.len());
         for item in &tree.tree_items {
             tracing::debug!("Tree item: name={}, mode={:?}", item.name, item.mode);
         }
-        
+
         let mut current_tree = tree;
-        
+
         // Navigate through directory structure
         for (i, component) in path_components.iter().enumerate() {
             if i == path_components.len() - 1 {
@@ -526,7 +611,7 @@ impl BlameService {
                 }
             }
         }
-        
+
         Ok(None)
     }
 
@@ -534,8 +619,12 @@ impl BlameService {
     async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, GitError> {
         let tree_id = SHA1::from_str(hash)
             .map_err(|e| GitError::InvalidHashValue(format!("Invalid tree hash: {}", e)))?;
-        
-        match self.mono_storage.get_tree_by_hash(&tree_id.to_string()).await {
+
+        match self
+            .mono_storage
+            .get_tree_by_hash(&tree_id.to_string())
+            .await
+        {
             Ok(Some(tree)) => Ok(tree.into()),
             Ok(None) => Err(GitError::ObjectNotFound("Tree not found".to_string())),
             Err(e) => Err(GitError::CustomError(format!("Failed to get tree: {}", e))),
@@ -546,8 +635,12 @@ impl BlameService {
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<Commit>, GitError> {
         let commit_id = SHA1::from_str(hash)
             .map_err(|e| GitError::InvalidHashValue(format!("Invalid commit hash: {}", e)))?;
-        
-        match self.mono_storage.get_commit_by_hash(&commit_id.to_string()).await {
+
+        match self
+            .mono_storage
+            .get_commit_by_hash(&commit_id.to_string())
+            .await
+        {
             Ok(Some(commit)) => Ok(Some(commit.into())),
             _ => Ok(None), // Commit not found
         }
@@ -555,10 +648,13 @@ impl BlameService {
 
     /// Get blob content
     async fn get_blob_content(&self, blob_hash: &SHA1) -> Result<String, GitError> {
-        let blob = self.raw_db_storage.get_raw_blob_by_hash(&blob_hash.to_string()).await
+        let blob = self
+            .raw_db_storage
+            .get_raw_blob_by_hash(&blob_hash.to_string())
+            .await
             .map_err(|e| GitError::CustomError(format!("Failed to get blob: {}", e)))?
             .ok_or_else(|| GitError::ObjectNotFound("Blob not found".to_string()))?;
-        
+
         String::from_utf8(blob.data.unwrap_or_default())
             .map_err(|e| GitError::ConversionError(format!("Invalid UTF-8 in blob: {}", e)))
     }
@@ -571,34 +667,32 @@ impl BlameService {
         query: BlameQuery,
     ) -> Result<BlameResult, GitError> {
         let file_path_buf = PathBuf::from(file_path);
-        
+
         // Resolve the commit to analyze
         let commit = self.resolve_commit(ref_name).await?;
-        
+
         // Get the file version to determine total lines (using cache)
-        let current_version = self.get_file_version_cached(&file_path_buf, &commit).await?;
+        let current_version = self
+            .get_file_version_cached(&file_path_buf, &commit)
+            .await?;
         let total_lines = current_version.lines.len();
-        
+
         // Determine the processing range
         let start_line = query.start_line.unwrap_or(1);
         let end_line = query.end_line.unwrap_or(total_lines);
-        
+
         // Use streaming processing
-        let result = self.get_file_blame_streaming(
-            file_path,
-            ref_name,
-            start_line,
-            end_line,
-            None,
-        ).await?;
-        
+        let result = self
+            .get_file_blame_streaming(file_path, ref_name, start_line, end_line, None)
+            .await?;
+
         // Apply pagination
         let final_lines = if query.page.is_some() || query.page_size.is_some() {
             self.apply_pagination(result.lines, &Some(query.clone()))
         } else {
             result.lines
         };
-        
+
         Ok(BlameResult {
             file_path: result.file_path,
             lines: final_lines,
@@ -618,21 +712,22 @@ impl BlameService {
         chunk_size: Option<usize>,
     ) -> Result<BlameResult, GitError> {
         let file_path_buf = PathBuf::from(file_path);
-        
+
         // Resolve the commit to analyze
         let commit = self.resolve_commit(ref_name).await?;
-        
+
         // Get the file version at this commit to determine optimal chunk size (using cache)
-        let current_version = self.get_file_version_cached(&file_path_buf, &commit).await?;
-        
-        let chunk_size = chunk_size.unwrap_or_else(|| {
-            self.get_optimal_chunk_size(&current_version.lines)
-        });
-        
+        let current_version = self
+            .get_file_version_cached(&file_path_buf, &commit)
+            .await?;
+
+        let chunk_size =
+            chunk_size.unwrap_or_else(|| self.get_optimal_chunk_size(&current_version.lines));
+
         // Validate line range
         let actual_start = start_line.max(1);
         let actual_end = end_line.min(current_version.lines.len());
-        
+
         if actual_start > actual_end {
             return Ok(BlameResult {
                 file_path: file_path_buf.to_string_lossy().to_string(),
@@ -642,24 +737,26 @@ impl BlameService {
                 page_size: None,
             });
         }
-        
+
         // Process in chunks
         let mut all_blame_lines = Vec::new();
-        
+
         for chunk_start in (actual_start..=actual_end).step_by(chunk_size) {
             let chunk_end = (chunk_start + chunk_size - 1).min(actual_end);
-            
+
             let query = BlameQuery {
                 start_line: Some(chunk_start),
                 end_line: Some(chunk_end),
                 page: None,
                 page_size: None,
             };
-            
-            let chunk_result = self.get_file_blame(file_path, ref_name, Some(query)).await?;
+
+            let chunk_result = self
+                .get_file_blame(file_path, ref_name, Some(query))
+                .await?;
             all_blame_lines.extend(chunk_result.lines);
         }
-        
+
         Ok(BlameResult {
             file_path: file_path.to_string(),
             lines: all_blame_lines,
@@ -679,18 +776,20 @@ impl BlameService {
             if content.len() > max_lines {
                 return true;
             }
-            
+
             // Check file size threshold if provided
-            if let Some(size) = file_size {
-                if size > max_bytes {
-                    return true;
-                }
+            if let Some(size) = file_size
+                && size > max_bytes
+            {
+                return true;
             }
         } else {
-            tracing::warn!("Could not upgrade config to check if file is large, defaulting to false.");
+            tracing::warn!(
+                "Could not upgrade config to check if file is large, defaulting to false."
+            );
             return false;
         }
-        
+
         false
     }
 
@@ -713,7 +812,11 @@ impl BlameService {
     }
 
     /// Get file version from cache or storage
-    async fn get_file_version_cached(&self, file_path: &PathBuf, commit: &Commit) -> Result<FileVersion, GitError> {
+    async fn get_file_version_cached(
+        &self,
+        file_path: &PathBuf,
+        commit: &Commit,
+    ) -> Result<FileVersion, GitError> {
         let caching_enabled = if let Some(config) = self.config.upgrade() {
             config.blame.enable_caching
         } else {
@@ -723,22 +826,22 @@ impl BlameService {
 
         if caching_enabled {
             let cache_key = format!("{}:{}", commit.id, file_path.display());
-            
+
             if let Some(cached_version) = self.cache.file_versions.read().await.get(&cache_key) {
                 return Ok((**cached_version).clone());
             }
         }
-        
+
         // Get from storage
         let version = self.get_file_version(file_path, commit).await?;
-        
+
         // Cache the result if caching is enabled
         if caching_enabled {
             let cache_key = format!("{}:{}", commit.id, file_path.display());
             let mut cache = self.cache.file_versions.write().await;
             cache.insert(cache_key, Arc::new(version.clone()));
         }
-        
+
         Ok(version)
     }
 
@@ -761,34 +864,30 @@ impl BlameService {
                 }
             }
         }
-        
+
         // Get from storage
         let commit = self.get_commit_by_hash(&commit_hash.to_string()).await?;
-        
+
         // Cache the result if caching is enabled and commit exists
-        if caching_enabled {
-            if let Some(ref commit_obj) = commit {
-                let cache_key = commit_hash.to_string();
-                let mut cache = self.cache.commits.write().await;
-                cache.insert(cache_key, Arc::new(commit_obj.clone()));
-            }
+        if caching_enabled && let Some(ref commit_obj) = commit {
+            let cache_key = commit_hash.to_string();
+            let mut cache = self.cache.commits.write().await;
+            cache.insert(cache_key, Arc::new(commit_obj.clone()));
         }
-        
+
         Ok(commit)
     }
-
-
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::base_storage::StorageConnector;
+    use mercury::internal::object::blob::Blob;
     use mercury::internal::object::commit::Commit;
     use mercury::internal::object::signature::{Signature, SignatureType};
     use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-    use mercury::internal::object::blob::Blob;
     use serde_json;
-    use crate::storage::base_storage::StorageConnector;
 
     /// A comprehensive blame test with a commit history of three users.
     #[tokio::test]
@@ -796,12 +895,24 @@ mod tests {
         // Create a temporary directory and test storage for isolation.
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let storage = crate::tests::test_storage(temp_dir.path()).await;
-        
+
         // Define test data for three users.
         let users = [
-            ("Zhang Wei", "zhang.wei@example.com", "https://avatar.example.com/zhangwei"),
-            ("Li Na", "li.na@example.com", "https://avatar.example.com/lina"),
-            ("Wang Fang", "wang.fang@example.com", "https://avatar.example.com/wangfang"),
+            (
+                "Zhang Wei",
+                "zhang.wei@example.com",
+                "https://avatar.example.com/zhangwei",
+            ),
+            (
+                "Li Na",
+                "li.na@example.com",
+                "https://avatar.example.com/lina",
+            ),
+            (
+                "Wang Fang",
+                "wang.fang@example.com",
+                "https://avatar.example.com/wangfang",
+            ),
         ];
 
         let content_v1 = r#"app_name = "MegaApp"
@@ -899,54 +1010,92 @@ enable_https = true
         println!("User 1 - {}: {}", users[0].0, users[0].1);
         println!("Commit: {} (Initial config)", commit1.id);
         println!("Time: {}", 1758153600);
-        
+
         println!("\nUser 2 - {}: {}", users[1].0, users[1].1);
         println!("Commit: {} (Update database config)", commit2.id);
         println!("Parent: {}", commit1.id);
         println!("Time: {}", 1758240000);
-        
+
         println!("\nUser 3 - {}: {}", users[2].0, users[2].1);
         println!("Commit: {} (Refactor config)", commit3.id);
         println!("Parent: {}", commit2.id);
         println!("Time: {}", 1758326400);
 
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_blobs(vec![&blob1], &commit1.id.to_string())
+            .await
+            .expect("Failed to save blob1");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_blobs(vec![&blob2], &commit2.id.to_string())
+            .await
+            .expect("Failed to save blob2");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_blobs(vec![&blob3], &commit3.id.to_string())
+            .await
+            .expect("Failed to save blob3");
 
-        
-        storage.app_service.mono_storage.save_mega_blobs(vec![&blob1], &commit1.id.to_string()).await.expect("Failed to save blob1");
-        storage.app_service.mono_storage.save_mega_blobs(vec![&blob2], &commit2.id.to_string()).await.expect("Failed to save blob2");
-        storage.app_service.mono_storage.save_mega_blobs(vec![&blob3], &commit3.id.to_string()).await.expect("Failed to save blob3");
-        
         use callisto::mega_tree;
-        let save_trees: Vec<mega_tree::ActiveModel> = vec![tree1.clone(), tree2.clone(), tree3.clone()]
-            .into_iter()
-            .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into();
-                tree_model.commit_id = "test".to_string();
-                tree_model.into()
-            })
-            .collect();
-        storage.app_service.mono_storage.batch_save_model(save_trees).await.expect("Failed to save trees");
-        
-        storage.app_service.mono_storage.save_mega_commits(vec![commit1.clone()]).await.expect("Failed to save commit1");
-        storage.app_service.mono_storage.save_mega_commits(vec![commit2.clone()]).await.expect("Failed to save commit2");
-        storage.app_service.mono_storage.save_mega_commits(vec![commit3.clone()]).await.expect("Failed to save commit3");
-        
-        storage.app_service.mono_storage.save_ref(
-            "/",
-            None,
-            &commit3.id.to_string(),
-            &tree3.id.to_string(),
-            false,
-        ).await.expect("Failed to save HEAD reference");
-        
+        let save_trees: Vec<mega_tree::ActiveModel> =
+            vec![tree1.clone(), tree2.clone(), tree3.clone()]
+                .into_iter()
+                .map(|tree| {
+                    let mut tree_model: mega_tree::Model = tree.into();
+                    tree_model.commit_id = "test".to_string();
+                    tree_model.into()
+                })
+                .collect();
+        storage
+            .app_service
+            .mono_storage
+            .batch_save_model(save_trees)
+            .await
+            .expect("Failed to save trees");
+
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_commits(vec![commit1.clone()])
+            .await
+            .expect("Failed to save commit1");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_commits(vec![commit2.clone()])
+            .await
+            .expect("Failed to save commit2");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_commits(vec![commit3.clone()])
+            .await
+            .expect("Failed to save commit3");
+
+        storage
+            .app_service
+            .mono_storage
+            .save_ref(
+                "/",
+                None,
+                &commit3.id.to_string(),
+                &tree3.id.to_string(),
+                false,
+            )
+            .await
+            .expect("Failed to save HEAD reference");
+
         // --- Act: Create the service and call the method under test. ---
         let blame_service = BlameService::new(Arc::new(storage.clone()));
-        
-        let blame_result = blame_service.get_file_blame(
-            "app.conf",
-            None,
-            None
-        ).await.expect("Failed to get blame result");
+
+        let blame_result = blame_service
+            .get_file_blame("app.conf", None, None)
+            .await
+            .expect("Failed to get blame result");
 
         // --- Assert: Print the result for visual verification. ---
         let json_output = serde_json::to_string_pretty(&blame_result).unwrap();
@@ -954,7 +1103,13 @@ enable_https = true
         println!("{}", json_output);
 
         // Perform high-level checks to ensure the process was successful.
-        assert!(!blame_result.lines.is_empty(), "Blame result should not be empty");
-        assert_eq!(blame_result.file_path, "app.conf", "File path should be correct");
+        assert!(
+            !blame_result.lines.is_empty(),
+            "Blame result should not be empty"
+        );
+        assert_eq!(
+            blame_result.file_path, "app.conf",
+            "File path should be correct"
+        );
     }
 }

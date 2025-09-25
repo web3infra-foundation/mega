@@ -177,11 +177,9 @@ async fn get_all_config(key: &Key, default: Option<&str>, valuepattern: Option<&
             println!("{value}");
         }
     }
-    if !matched_any {
-        if let Some(default_value) = default {
-            // if no value matches the pattern, print the default value if it's present
-            println!("{default_value}");
-        }
+    if !matched_any && let Some(default_value) = default {
+        // if no value matches the pattern, print the default value if it's present
+        println!("{default_value}");
     }
 }
 

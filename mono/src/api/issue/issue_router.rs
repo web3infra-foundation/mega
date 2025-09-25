@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -9,14 +9,14 @@ use common::model::{CommonPage, CommonResult, PageParams};
 use jupiter::service::issue_service::IssueService;
 
 use crate::api::{
+    MonoApiServiceState,
+    api_common::{self, model::AssigneeUpdatePayload},
+};
+use crate::api::{
     api_common::model::ListPayload,
     conversation::ContentPayload,
     issue::{IssueSuggestions, QueryPayload},
     label::LabelUpdatePayload,
-};
-use crate::api::{
-    api_common::{self, model::AssigneeUpdatePayload},
-    MonoApiServiceState,
 };
 use crate::api::{
     issue::{IssueDetailRes, ItemRes, NewIssue},

@@ -1,10 +1,10 @@
 use crate::api::gpg::model::{GpgKey, NewGpgRequest, RemoveGpgRequest};
 use crate::api::oauth::model::LoginUser;
 use crate::{
-    api::{error::ApiError, MonoApiServiceState},
+    api::{MonoApiServiceState, error::ApiError},
     server::http_server::GPG_TAG,
 };
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use callisto::gpg_key::Model;
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};

@@ -93,11 +93,7 @@ pub fn heuristic_encode_rate_parallel(old_data: &[u8], new_data: &[u8]) -> f64 {
     let match_count: usize = chunks.par_iter().filter(|(a, b)| a == b).count();
 
     let rate = match_count as f64 / chunks.len() as f64;
-    if rate < MIN_DELTA_RATE {
-        0.0
-    } else {
-        rate
-    }
+    if rate < MIN_DELTA_RATE { 0.0 } else { rate }
 }
 
 pub fn encode_rate(old_data: &[u8], new_data: &[u8]) -> f64 {
