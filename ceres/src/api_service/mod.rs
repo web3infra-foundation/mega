@@ -25,6 +25,7 @@ use crate::model::git::{
     CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
 };
+use common::model::{Pagination, TagInfo};
 
 pub mod import_api_service;
 pub mod mono_api_service;
@@ -40,6 +41,8 @@ impl GitObjectCache {
         Arc::new(Mutex::new(GitObjectCache::default()))
     }
 }
+
+// TagInfo moved to `common::model::TagInfo`
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
@@ -207,6 +210,36 @@ pub trait ApiHandler: Send + Sync {
         path: PathBuf,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError>;
 
+    // Tag related operations shared across mono/import implementations.
+    /// Create a tag in the repository context represented by `repo_path`.
+    /// Returns TagInfo on success.
+    async fn create_tag(
+        &self,
+        repo_path: Option<String>,
+        name: String,
+        target: Option<String>,
+        tagger_name: Option<String>,
+        tagger_email: Option<String>,
+        message: Option<String>,
+    ) -> Result<TagInfo, GitError>;
+
+    /// List tags under the repository context represented by `repo_path`.
+    /// Returns (items, total_count) according to Pagination.
+    async fn list_tags(
+        &self,
+        repo_path: Option<String>,
+        pagination: Pagination,
+    ) -> Result<(Vec<TagInfo>, u64), GitError>;
+
+    /// Get a tag by name under the repository context represented by `repo_path`.
+    async fn get_tag(
+        &self,
+        repo_path: Option<String>,
+        name: String,
+    ) -> Result<Option<TagInfo>, GitError>;
+
+    /// Delete a tag by name under the repository context represented by `repo_path`.
+    async fn delete_tag(&self, repo_path: Option<String>, name: String) -> Result<(), GitError>;
     /// Get blame information for a file
     async fn get_file_blame(
         &self,

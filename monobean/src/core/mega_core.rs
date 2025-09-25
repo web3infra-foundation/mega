@@ -8,7 +8,6 @@ use ceres::api_service::mono_api_service::MonoApiService;
 use ceres::api_service::ApiHandler;
 use ceres::protocol::repo::Repo;
 use common::config::Config;
-use common::model::P2pOptions;
 use context::AppContext as MegaContext;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
@@ -41,9 +40,9 @@ pub struct MegaCore {
 /// Mega Backend Related Actions
 #[derive(Debug)]
 pub enum MegaCommands {
-    MegaStart(Option<SocketAddr>, Option<SocketAddr>, P2pOptions),
+    MegaStart(Option<SocketAddr>, Option<SocketAddr>),
     MegaShutdown,
-    MegaRestart(Option<SocketAddr>, Option<SocketAddr>, P2pOptions),
+    MegaRestart(Option<SocketAddr>, Option<SocketAddr>),
     CoreStatus(
         oneshot::Sender<(
             /* core_running: */ bool,
@@ -129,18 +128,18 @@ impl MegaCore {
         // FIXME: for command with callback channel, detect if `send` success.
         tracing::debug!("Processing command: {:?}", cmd);
         match cmd {
-            MegaCommands::MegaStart(http_addr, ssh_addr, p2p_opt) => {
+            MegaCommands::MegaStart(http_addr, ssh_addr) => {
                 tracing::info!("Starting Mega Core");
-                self.launch(http_addr, ssh_addr, p2p_opt).await.unwrap();
+                self.launch(http_addr, ssh_addr).await.unwrap();
             }
             MegaCommands::MegaShutdown => {
                 tracing::info!("Shutting down Mega Core");
                 self.shutdown().await;
             }
-            MegaCommands::MegaRestart(http_addr, ssh_addr, p2p_opt) => {
+            MegaCommands::MegaRestart(http_addr, ssh_addr) => {
                 tracing::info!("Restarting Mega Core");
                 self.shutdown().await;
-                self.launch(http_addr, ssh_addr, p2p_opt).await.unwrap();
+                self.launch(http_addr, ssh_addr).await.unwrap();
             }
             MegaCommands::CoreStatus(sender) => {
                 let core_running = self.is_core_running().await;
@@ -250,7 +249,6 @@ impl MegaCore {
         &self,
         http_addr: Option<SocketAddr>,
         ssh_addr: Option<SocketAddr>,
-        p2p_opt: P2pOptions,
     ) -> MonoBeanResult<()> {
         if self.is_core_running().await {
             let err = "Mega core is already running";
@@ -268,7 +266,7 @@ impl MegaCore {
 
         let http_ctx = inner.clone();
         *self.http_options.write().await = http_addr
-            .map(|addr| HttpOptions::new(addr, p2p_opt))
+            .map(HttpOptions::new)
             .or(None);
         let http_opt = self.http_options.clone();
         tokio::spawn(async move {
@@ -672,7 +670,6 @@ mod tests {
         core.process_command(MegaCommands::MegaStart(
             Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
             None,
-            P2pOptions::default(),
         ))
         .await;
         assert!(core.http_options.read().await.is_some());
@@ -691,7 +688,6 @@ mod tests {
         core.process_command(MegaCommands::MegaStart(
             None,
             Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
-            P2pOptions::default(),
         ))
         .await;
         assert!(core.http_options.read().await.is_none());

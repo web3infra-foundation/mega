@@ -13,7 +13,7 @@ use anyhow::Result;
 
 use ceres::{
     api_service::ApiHandler,
-    model::blame::{BlameRequest, BlameResult},
+    model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
         TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
@@ -24,8 +24,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
     commit::commit_router, conversation::conv_router, error::ApiError, gpg::gpg_router,
-    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, user::user_router,
-    MonoApiServiceState,
+    issue::issue_router, label::label_router, mr::mr_router, notes::note_router, tag::tag_router,
+    user::user_router, MonoApiServiceState,
 };
 use crate::server::http_server::GIT_TAG;
 
@@ -51,6 +51,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(conv_router::routers())
         .merge(note_router::routers())
         .merge(commit_router::routers())
+        .merge(tag_router::routers())
 }
 
 /// Get blob file as string
@@ -407,12 +408,15 @@ async fn get_file_blame(
     } else {
         Some(params.refs.as_str())
     };
+
+    // Convert BlameRequest to BlameQuery
+    let query = BlameQuery::from(&params);
     
     // Call the business logic in ceres module
     match state
         .api_handler(params.path.as_ref())
         .await?
-        .get_file_blame(&params.path, ref_name, params.query)
+        .get_file_blame(&params.path, ref_name, query)
         .await
     {
         Ok(result) => {
