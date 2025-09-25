@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 
 const MAX_CHAIN_LEN: usize = 50;
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate
-                                 //const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
+//const MAX_ZSTDELTA_CHAIN_LEN: usize = 50;
 
 /// A encoder for generating pack files with delta objects.
 pub struct PackEncoder {
@@ -525,7 +525,7 @@ mod tests {
 
     use crate::internal::object::blob::Blob;
     use crate::internal::pack::utils::read_offset_encoding;
-    use crate::internal::pack::{tests::init_logger, Pack};
+    use crate::internal::pack::{Pack, tests::init_logger};
     use crate::time_it;
 
     use super::*;

@@ -1,4 +1,4 @@
-use sea_orm::{sea_query::extension::postgres::Type, DatabaseBackend, EnumIter, Iterable};
+use sea_orm::{DatabaseBackend, EnumIter, Iterable, sea_query::extension::postgres::Type};
 use sea_orm_migration::{prelude::*, schema::*};
 
 #[derive(DeriveMigrationName)]

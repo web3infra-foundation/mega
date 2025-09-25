@@ -7,7 +7,7 @@ use super::{
 };
 use crate::command::status::StatusArgs;
 use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
+use crate::internal::reflog::{ReflogAction, ReflogContext, with_reflog};
 use crate::{
     command::branch,
     internal::{branch::Branch, head::Head},

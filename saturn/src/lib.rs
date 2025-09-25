@@ -112,69 +112,83 @@ mod test {
         let resource: EntityUid = r#"Repository::"project""#.parse().unwrap();
 
         // admin can view repo
-        assert!(app_context
-            .is_authorized(
-                &admin,
-                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &admin,
+                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_ok()
+        );
         // admin can delete repo
-        assert!(app_context
-            .is_authorized(
-                &admin,
-                r#"Action::"deleteRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &admin,
+                    r#"Action::"deleteRepo""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_ok()
+        );
 
         // anyone can view public_repo
-        assert!(app_context
-            .is_authorized(
-                &anyone,
-                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &anyone,
+                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_ok()
+        );
 
-        assert!(app_context
-            .is_authorized(
-                &anyone,
-                r#"Action::"openIssue""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty(),
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &anyone,
+                    r#"Action::"openIssue""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty(),
+                )
+                .is_ok()
+        );
 
         // normal user can't assign issue
-        assert!(app_context
-            .is_authorized(
-                &anyone,
-                r#"Action::"assignIssue""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_err_and(|e| matches!(e, Error::AuthDenied(_))));
-        assert!(app_context
-            .is_authorized(
-                &anyone,
-                r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_err_and(|e| matches!(e, Error::AuthDenied(_))));
+        assert!(
+            app_context
+                .is_authorized(
+                    &anyone,
+                    r#"Action::"assignIssue""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+        );
+        assert!(
+            app_context
+                .is_authorized(
+                    &anyone,
+                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+        );
 
-        assert!(app_context
-            .is_authorized(
-                &maintainer,
-                r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
-                &resource,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &maintainer,
+                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -195,32 +209,38 @@ mod test {
         let private_project: EntityUid = r#"Repository::"/project/bens_private""#.parse().unwrap();
 
         // admin under project should also have permisisons
-        assert!(app_context
-            .is_authorized(
-                &p_admin,
-                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &private_project,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &p_admin,
+                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    &private_project,
+                    Context::empty()
+                )
+                .is_ok()
+        );
 
-        assert!(app_context
-            .is_authorized(
-                &admin,
-                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &private_project,
-                Context::empty()
-            )
-            .is_ok());
+        assert!(
+            app_context
+                .is_authorized(
+                    &admin,
+                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    &private_project,
+                    Context::empty()
+                )
+                .is_ok()
+        );
 
         // not public, should deny
-        assert!(app_context
-            .is_authorized(
-                &anyone,
-                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &private_project,
-                Context::empty()
-            )
-            .is_err_and(|e| matches!(e, Error::AuthDenied(_))));
+        assert!(
+            app_context
+                .is_authorized(
+                    &anyone,
+                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    &private_project,
+                    Context::empty()
+                )
+                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+        );
     }
 }

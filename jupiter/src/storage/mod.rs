@@ -20,7 +20,7 @@ use std::sync::{Arc, LazyLock, Weak};
 
 use common::config::Config;
 
-use crate::lfs_storage::{self, local_storage::LocalStorage, LfsFileStorage};
+use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
 use crate::service::issue_service::IssueService;
 use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;

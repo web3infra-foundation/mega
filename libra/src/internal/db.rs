@@ -63,8 +63,8 @@ static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, &'static DbConn>>> =
 #[allow(dead_code)]
 fn leak_conn(conn: DbConn) -> &'static DbConn {
     let boxed = Box::new(conn);
-    let static_ref = Box::leak(boxed);
-    static_ref
+
+    (Box::leak(boxed)) as _
 }
 
 /// In the test environment, each working directory should have its own database connection.
@@ -82,8 +82,7 @@ pub async fn get_db_conn_instance() -> &'static DbConn {
         connections.insert(current_dir.clone(), Box::leak(boxed_conn));
     }
 
-    let boxed_conn = connections.get(&current_dir).unwrap();
-    boxed_conn
+    (connections.get(&current_dir).unwrap()) as _
     // leak_conn(boxed_conn.deref().clone())
 }
 
@@ -152,13 +151,14 @@ pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
         .map_err(|err| IOError::other(format!("Failed to create database file: {err:?}")))?;
 
     // Connect to the new database and set up the schema.
-    if let Ok(conn) = establish_connection(db_path).await {
-        setup_database_sql(&conn)
-            .await
-            .map_err(|err| IOError::other(format!("Failed to setup database: {err:?}")))?;
-        Ok(conn)
-    } else {
-        Err(IOError::other("Failed to connect to new database."))
+    match establish_connection(db_path).await {
+        Ok(conn) => {
+            setup_database_sql(&conn)
+                .await
+                .map_err(|err| IOError::other(format!("Failed to setup database: {err:?}")))?;
+            Ok(conn)
+        }
+        _ => Err(IOError::other("Failed to connect to new database.")),
     }
 }
 

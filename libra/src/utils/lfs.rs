@@ -1,10 +1,10 @@
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
-use ignore::{gitignore::GitignoreBuilder, Match};
+use ignore::{Match, gitignore::GitignoreBuilder};
 use lazy_static::lazy_static;
 use mercury::internal::index::Index;
 use regex::Regex;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue};
 use ring::digest::{Context, SHA256};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -210,15 +210,14 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     // Start with format `version ...`
     if let Some(data) =
         data.strip_prefix(format!("version {LFS_VERSION}\noid {LFS_HASH_ALGO}:").as_bytes())
+        && data[LFS_OID_LEN] == b'\n'
     {
-        if data[LFS_OID_LEN] == b'\n' {
-            // check `oid` length
-            let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
-            if let Some(data) = data.strip_prefix(format!("{oid}\nsize ").as_bytes()) {
-                let data = String::from_utf8(data[..].to_vec()).unwrap();
-                if let Ok(size) = data.trim_end().parse::<u64>() {
-                    return Some((oid, size));
-                }
+        // check `oid` length
+        let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
+        if let Some(data) = data.strip_prefix(format!("{oid}\nsize ").as_bytes()) {
+            let data = String::from_utf8(data[..].to_vec()).unwrap();
+            if let Ok(size) = data.trim_end().parse::<u64>() {
+                return Some((oid, size));
             }
         }
     }
@@ -258,11 +257,11 @@ pub fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
         if !line.contains("filter=lfs") {
             continue;
         }
-        if let Some(cap) = re.captures(&line) {
-            if let Some(pattern) = cap.get(1) {
-                let pattern = pattern.as_str().replace(r"\ ", " ");
-                patterns.push(pattern);
-            }
+        if let Some(cap) = re.captures(&line)
+            && let Some(pattern) = cap.get(1)
+        {
+            let pattern = pattern.as_str().replace(r"\ ", " ");
+            patterns.push(pattern);
         }
     }
 

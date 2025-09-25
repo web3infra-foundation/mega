@@ -2,13 +2,13 @@ use crate::command::branch;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
+use crate::internal::protocol::ProtocolClient;
 use crate::internal::protocol::https_client::HttpsClient;
 use crate::internal::protocol::lfs_client::LFSClient;
-use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use bytes::BytesMut;
-use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use ceres::protocol::ServiceType::ReceivePack;
+use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use clap::Parser;
 use colored::Colorize;
 use mercury::hash::SHA1;
@@ -279,10 +279,10 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
 fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
     // TODO: skip objs that has been added in caller
     let mut objs = HashSet::new();
-    if let Some(old_tree) = old_tree {
-        if old_tree == new_tree {
-            return objs;
-        }
+    if let Some(old_tree) = old_tree
+        && old_tree == new_tree
+    {
+        return objs;
     }
 
     let new_tree = Tree::load(new_tree);

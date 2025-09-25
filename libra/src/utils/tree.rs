@@ -3,8 +3,8 @@ use std::path::Path;
 
 use mercury::errors::GitError;
 use mercury::internal::index::Index;
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
+use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::utils::object;
 

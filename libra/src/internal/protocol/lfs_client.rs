@@ -1,7 +1,7 @@
 use crate::command;
 use crate::internal::config::Config;
-use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
+use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils::{lfs, util};
 use anyhow::anyhow;
 use ceres::lfs::lfs_structs::{
@@ -72,7 +72,9 @@ impl LFSClient {
         let url = Config::get_current_remote_url().await;
         match url {
             Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
-            None => panic!("fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"),
+            None => panic!(
+                "fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"
+            ),
         }
     }
 
@@ -478,7 +480,9 @@ impl LFSClient {
             println!("Downloaded.");
             Ok(())
         } else {
-            eprintln!("fatal: LFS download failed. Checksum mismatch: {checksum} != {oid}. Fallback to pointer file.");
+            eprintln!(
+                "fatal: LFS download failed. Checksum mismatch: {checksum} != {oid}. Fallback to pointer file."
+            );
             let pointer = lfs::format_pointer_string(oid, size);
             file.set_len(0).await?; // clear
             file.seek(tokio::io::SeekFrom::Start(0)).await?; // ensure

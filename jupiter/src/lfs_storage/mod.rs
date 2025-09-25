@@ -67,6 +67,8 @@ pub async fn init(
     match lfs_config.storage_type {
         StorageType::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, connection)),
         StorageType::AwsS3 => Arc::new(AwsS3Storage::init(lfs_config.aws).await),
-        _ => unreachable!("Not supported value of config `storage_type`, support value can be 'local_fs' or 'aws_s3'"),
+        _ => unreachable!(
+            "Not supported value of config `storage_type`, support value can be 'local_fs' or 'aws_s3'"
+        ),
     }
 }

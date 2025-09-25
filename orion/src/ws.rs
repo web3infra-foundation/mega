@@ -1,4 +1,4 @@
-use crate::api::{buck_build, BuildRequest};
+use crate::api::{BuildRequest, buck_build};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::ops::ControlFlow;
@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::{
-    connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+    MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
 use uuid::Uuid;
 
@@ -200,7 +200,11 @@ async fn process_server_message(
                                 let task_id_uuid = match Uuid::parse_str(&id) {
                                     Ok(uuid) => uuid,
                                     Err(e) => {
-                                        tracing::error!("Failed to parse task id '{}' as Uuid: {}. Aborting task.", id, e);
+                                        tracing::error!(
+                                            "Failed to parse task id '{}' as Uuid: {}. Aborting task.",
+                                            id,
+                                            e
+                                        );
                                         return;
                                     }
                                 };

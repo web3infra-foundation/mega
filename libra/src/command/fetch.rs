@@ -14,7 +14,7 @@ use url::Url;
 
 use crate::command::load_object;
 use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{zero_sha1, Reflog, ReflogAction, ReflogContext, ReflogError, HEAD};
+use crate::internal::reflog::{HEAD, Reflog, ReflogAction, ReflogContext, ReflogError, zero_sha1};
 use crate::utils::util;
 use crate::{
     command::index_pack::{self, IndexPackArgs},
@@ -22,7 +22,7 @@ use crate::{
         branch::Branch,
         config::{Config, RemoteConfig},
         head::Head,
-        protocol::{https_client::HttpsClient, ProtocolClient},
+        protocol::{ProtocolClient, https_client::HttpsClient},
     },
     utils::{self, path_ext::PathExt},
 };

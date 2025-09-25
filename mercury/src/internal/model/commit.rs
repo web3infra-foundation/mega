@@ -2,7 +2,7 @@ use callisto::{git_commit, mega_commit};
 use common::utils::generate_id;
 
 use crate::internal::{
-    object::{commit::Commit, ObjectTrait},
+    object::{ObjectTrait, commit::Commit},
     pack::entry::Entry,
 };
 

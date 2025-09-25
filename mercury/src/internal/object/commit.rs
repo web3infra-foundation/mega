@@ -16,9 +16,9 @@ use std::str::FromStr;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+use crate::internal::object::signature::Signature;
 use bincode::{Decode, Encode};
 use bstr::ByteSlice;
 use callisto::git_commit;

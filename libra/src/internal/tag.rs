@@ -10,13 +10,13 @@ use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
+use mercury::internal::object::ObjectTrait;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::signature::{Signature, SignatureType};
 use mercury::internal::object::tag::Tag as MercuryTag;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
-use mercury::internal::object::ObjectTrait;
 
 // Constants for tag references
 const TAG_REF_PREFIX: &str = "refs/tags/";
