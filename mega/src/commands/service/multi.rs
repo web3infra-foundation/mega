@@ -1,9 +1,6 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
-use common::{
-    errors::MegaResult,
-    model::{CommonHttpOptions, P2pOptions},
-};
+use common::{errors::MegaResult, model::CommonHttpOptions};
 use context::AppContext;
 use gateway::https_server::{self, HttpOptions};
 use mono::server::ssh_server::{self, SshCustom, SshOptions};
@@ -20,9 +17,6 @@ pub struct StartOptions {
 
     #[clap(flatten)]
     pub http: CommonHttpOptions,
-
-    #[clap(flatten)]
-    pub p2p: P2pOptions,
 
     #[clap(flatten)]
     pub ssh: SshCustom,
@@ -47,7 +41,6 @@ pub(crate) async fn exec(context: AppContext, args: &ArgMatches) -> MegaResult {
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {
             common: server_matchers.http.clone(),
-            p2p: server_matchers.p2p,
         };
         tokio::spawn(async move { https_server::http_server(context_clone, http).await })
     } else {
