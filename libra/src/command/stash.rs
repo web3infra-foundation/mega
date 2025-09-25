@@ -10,10 +10,10 @@ use colored::Colorize;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::index::{Index, Time};
+use mercury::internal::object::ObjectTrait;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::signature::Signature;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use mercury::internal::object::ObjectTrait;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -324,13 +324,11 @@ async fn drop_stash(stash: Option<String>) -> Result<(), String> {
         std::fs::write(&stash_log_path, new_content).map_err(|e| e.to_string())?;
 
         // If we dropped the top of the stack, update the main ref
-        if index_to_drop == 0 {
-            if let Some(new_top_line) = lines.first() {
-                if let Some(new_hash) = new_top_line.split(' ').nth(1) {
-                    std::fs::write(&stash_ref_path, format!("{new_hash}\n"))
-                        .map_err(|e| e.to_string())?;
-                }
-            }
+        if index_to_drop == 0
+            && let Some(new_top_line) = lines.first()
+            && let Some(new_hash) = new_top_line.split(' ').nth(1)
+        {
+            std::fs::write(&stash_ref_path, format!("{new_hash}\n")).map_err(|e| e.to_string())?;
         }
     }
     Ok(())
@@ -693,11 +691,11 @@ fn merge_trees(base: &Tree, head: &Tree, stash: &Tree, git_dir: &Path) -> Result
     for (path, base_item) in base_items.iter() {
         if !stash_items.contains_key(path) {
             // File deleted in stash. Check if it was modified in head.
-            if let Some(head_item) = head_items.get(path) {
-                if head_item.id != base_item.id {
-                    conflicts.push(path.clone());
-                    continue;
-                }
+            if let Some(head_item) = head_items.get(path)
+                && head_item.id != base_item.id
+            {
+                conflicts.push(path.clone());
+                continue;
             }
             head_items.remove(path);
         }

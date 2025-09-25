@@ -68,18 +68,24 @@ async fn test_add_multiple_files() {
 
     // Verify all files were added to index
     let changes = changes_to_be_committed().await;
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_1.txt"));
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_2.txt"));
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_3.txt"));
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_1.txt")
+    );
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_2.txt")
+    );
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_3.txt")
+    );
 }
 
 #[tokio::test]
@@ -112,18 +118,24 @@ async fn test_add_all_flag() {
 
     // Verify all files were added to index
     let changes = changes_to_be_committed().await;
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_1.txt"));
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_2.txt"));
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == "test_file_3.txt"));
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_1.txt")
+    );
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_2.txt")
+    );
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == "test_file_3.txt")
+    );
 }
 
 #[tokio::test]
@@ -187,15 +199,19 @@ async fn test_add_update_flag() {
     // Verify only tracked file was updated
     let changes = changes_to_be_staged();
     // Tracked file should not appear in changes (because it was updated in index)
-    assert!(!changes
-        .modified
-        .iter()
-        .any(|x| x.to_str().unwrap() == tracked_file));
+    assert!(
+        !changes
+            .modified
+            .iter()
+            .any(|x| x.to_str().unwrap() == tracked_file)
+    );
     // Untracked file should still be untracked and show as new
-    assert!(changes
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == untracked_file));
+    assert!(
+        changes
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == untracked_file)
+    );
 }
 
 #[tokio::test]
@@ -247,32 +263,44 @@ async fn test_add_with_ignore_patterns() {
     let changes_committed = changes_to_be_committed().await;
 
     // Ignored files should not appear in any status (they are ignored)
-    assert!(!changes_staged
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == ignored_file));
-    assert!(!changes_staged
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == ignored_dir_file));
-    assert!(!changes_committed
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == ignored_file));
-    assert!(!changes_committed
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == ignored_dir_file));
+    assert!(
+        !changes_staged
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == ignored_file)
+    );
+    assert!(
+        !changes_staged
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == ignored_dir_file)
+    );
+    assert!(
+        !changes_committed
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == ignored_file)
+    );
+    assert!(
+        !changes_committed
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == ignored_dir_file)
+    );
 
     // Non-ignored file should not show as new in staged (was added) but should show in committed
-    assert!(!changes_staged
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == tracked_file));
-    assert!(changes_committed
-        .new
-        .iter()
-        .any(|x| x.to_str().unwrap() == tracked_file));
+    assert!(
+        !changes_staged
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == tracked_file)
+    );
+    assert!(
+        changes_committed
+            .new
+            .iter()
+            .any(|x| x.to_str().unwrap() == tracked_file)
+    );
 }
 
 #[tokio::test]

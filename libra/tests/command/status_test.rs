@@ -1,7 +1,7 @@
 use super::*;
+use libra::command::status::StatusArgs;
 use libra::command::status::execute_to as status_execute;
 use libra::command::status::output_porcelain;
-use libra::command::status::StatusArgs;
 use std::fs;
 use std::io::Write;
 #[tokio::test]
@@ -26,22 +26,30 @@ async fn test_changes_to_be_staged() {
     let mut not_ignore_file_1 = fs::File::create("not_ignore_dir/not_ignore.1").unwrap();
 
     let change = changes_to_be_staged();
-    assert!(!change
-        .new
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.0"));
-    assert!(!change
-        .new
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.1"));
-    assert!(change
-        .new
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.0"));
-    assert!(change
-        .new
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.1"));
+    assert!(
+        !change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.0")
+    );
+    assert!(
+        !change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.1")
+    );
+    assert!(
+        change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.0")
+    );
+    assert!(
+        change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.1")
+    );
 
     add::execute(AddArgs {
         pathspec: vec![String::from(".")],
@@ -60,22 +68,30 @@ async fn test_changes_to_be_staged() {
     not_ignore_file_1.write_all(b"foo").unwrap();
 
     let change = changes_to_be_staged();
-    assert!(!change
-        .modified
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.0"));
-    assert!(!change
-        .modified
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.1"));
-    assert!(change
-        .modified
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.0"));
-    assert!(change
-        .modified
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.1"));
+    assert!(
+        !change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.0")
+    );
+    assert!(
+        !change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.1")
+    );
+    assert!(
+        change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.0")
+    );
+    assert!(
+        change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.1")
+    );
 
     fs::remove_dir_all("ignore_dir").unwrap();
     fs::remove_dir_all("not_ignore_dir").unwrap();
@@ -85,22 +101,30 @@ async fn test_changes_to_be_staged() {
     not_ignore_file_1.write_all(b"foo").unwrap();
 
     let change = changes_to_be_staged();
-    assert!(!change
-        .deleted
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.0"));
-    assert!(!change
-        .deleted
-        .iter()
-        .any(|x| x.file_name().unwrap() == "should_ignore.1"));
-    assert!(change
-        .deleted
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.0"));
-    assert!(change
-        .deleted
-        .iter()
-        .any(|x| x.file_name().unwrap() == "not_ignore.1"));
+    assert!(
+        !change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.0")
+    );
+    assert!(
+        !change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == "should_ignore.1")
+    );
+    assert!(
+        change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.0")
+    );
+    assert!(
+        change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == "not_ignore.1")
+    );
 }
 
 #[test]

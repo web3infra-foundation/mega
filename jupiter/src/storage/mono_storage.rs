@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
@@ -11,7 +11,7 @@ use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob}
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::{generate_id, MEGA_BRANCH_NAME};
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::{MegaObjectModel, ObjectTrait};
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};

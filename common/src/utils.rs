@@ -1,6 +1,6 @@
 use idgenerator::IdInstance;
 use regex::Regex;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Ok(s) => s,
@@ -96,7 +96,9 @@ pub fn check_conventional_commits_message(msg: &str) -> bool {
 
         let commit_type = commit_type.unwrap();
         if !RECOMMENDED_TYPES.contains(&commit_type.to_lowercase().as_str()) {
-            println!("`{commit_type}` is not a recommended commit type, refer to https://www.conventionalcommits.org/en/v1.0.0/ for more information");
+            println!(
+                "`{commit_type}` is not a recommended commit type, refer to https://www.conventionalcommits.org/en/v1.0.0/ for more information"
+            );
         }
 
         // println!("{}({}): {}\n{}", commit_type, scope.unwrap_or("None".to_string()), description.unwrap(), body_footer);

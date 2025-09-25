@@ -44,12 +44,12 @@
 use std::collections::HashMap;
 
 use axum::{
+    Json,
     body::Body,
     extract::{Path, Query, State},
     http::{Request, StatusCode},
     response::Response,
     routing::{get, post, put},
-    Json,
 };
 use futures::TryStreamExt;
 use utoipa_axum::router::OpenApiRouter;

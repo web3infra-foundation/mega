@@ -1,10 +1,10 @@
 use common::utils::format_commit_msg;
-use libra::command::branch::execute;
 use libra::command::branch::BranchArgs;
+use libra::command::branch::execute;
 use libra::command::get_target_commit;
-use libra::command::init::init;
 use libra::command::init::InitArgs;
-use libra::command::log::{get_reachable_commits, LogArgs};
+use libra::command::init::init;
+use libra::command::log::{LogArgs, get_reachable_commits};
 use libra::command::save_object;
 use libra::command::status::{changes_to_be_committed, changes_to_be_staged};
 use libra::command::switch::{self, SwitchArgs};

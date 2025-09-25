@@ -59,8 +59,8 @@ use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 
 use jupiter::service::blame_service::BlameService;
-use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::Storage;
+use jupiter::storage::base_storage::StorageConnector;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 
 #[derive(Clone)]

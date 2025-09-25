@@ -4,7 +4,7 @@ use crate::command::{self, branch};
 use crate::internal::branch::Branch;
 use crate::internal::config::{Config, RemoteConfig};
 use crate::internal::head::Head;
-use crate::internal::reflog::{with_reflog, zero_sha1, ReflogAction, ReflogContext};
+use crate::internal::reflog::{ReflogAction, ReflogContext, with_reflog, zero_sha1};
 use crate::utils::path_ext::PathExt;
 use crate::utils::util;
 use clap::Parser;
@@ -30,7 +30,7 @@ pub struct CloneArgs {
 
 pub async fn execute(args: CloneArgs) {
     let mut remote_repo = args.remote_repo; // https://gitee.com/caiqihang2024/image-viewer2.0.git
-                                            // must end with '/' or Url::join will work incorrectly
+    // must end with '/' or Url::join will work incorrectly
     if !remote_repo.ends_with('/') {
         remote_repo.push('/');
     }
@@ -73,11 +73,13 @@ pub async fn execute(args: CloneArgs) {
     }
 
     //check if the branch name is valid
-    if let Some(branch) = args.branch.clone() {
-        if !branch::is_valid_git_branch_name(&branch) {
-            eprintln!("invalid branch name: '{branch}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.");
-            return;
-        }
+    if let Some(branch) = args.branch.clone()
+        && !branch::is_valid_git_branch_name(&branch)
+    {
+        eprintln!(
+            "invalid branch name: '{branch}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name."
+        );
+        return;
     }
 
     // CAUTION: change [current_dir] to the repo directory

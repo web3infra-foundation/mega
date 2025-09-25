@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use jupiter::model::mr_dto::MrInfoDto;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 use common::{errors::MegaError, utils::check_conventional_commits_message};

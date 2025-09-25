@@ -188,11 +188,11 @@ impl Reflog {
 
         Self::insert_single_entry(db, &context, HEAD).await?;
 
-        if let Head::Branch(branch_name) = head {
-            if insert_ref {
-                let full_branch_ref = format!("refs/heads/{branch_name}");
-                Self::insert_single_entry(db, &context, &full_branch_ref).await?;
-            }
+        if let Head::Branch(branch_name) = head
+            && insert_ref
+        {
+            let full_branch_ref = format!("refs/heads/{branch_name}");
+            Self::insert_single_entry(db, &context, &full_branch_ref).await?;
         }
         Ok(())
     }

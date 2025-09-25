@@ -1,7 +1,7 @@
 use http::Method;
 use lazy_static::lazy_static;
-use libra::internal::protocol::lfs_client::LFSClient;
 use libra::internal::protocol::ProtocolClient;
+use libra::internal::protocol::lfs_client::LFSClient;
 use libra::utils::lfs;
 use reqwest::Url;
 use std::env;
@@ -9,9 +9,9 @@ use std::net::TcpStream;
 use std::path::PathBuf;
 use testcontainers::core::wait::HttpWaitStrategy;
 use testcontainers::{
+    ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, ReuseDirective, WaitFor},
     runners::AsyncRunner,
-    ContainerAsync, GenericImage, ImageExt,
 };
 use tokio::time::Duration;
 

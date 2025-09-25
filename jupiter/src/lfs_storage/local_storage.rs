@@ -12,7 +12,7 @@ use common::config::LFSLocalConfig;
 use common::errors::{GitLFSError, MegaError};
 use sea_orm::DatabaseConnection;
 
-use crate::lfs_storage::{transform_path, LfsFileStorage};
+use crate::lfs_storage::{LfsFileStorage, transform_path};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::lfs_db_storage::LfsDbStorage;
 
@@ -144,7 +144,7 @@ fn exist_object(path: PathBuf, object_id: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::lfs_storage::{local_storage::LocalStorage, LfsFileStorage};
+    use crate::lfs_storage::{LfsFileStorage, local_storage::LocalStorage};
 
     #[tokio::test]
     async fn test_content_store() {

@@ -13,9 +13,9 @@ use mercury::{
     errors::GitError,
     hash::SHA1,
     internal::object::{
+        ObjectTrait,
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
-        ObjectTrait,
     },
 };
 use tokio::sync::Mutex;
@@ -67,10 +67,10 @@ pub trait ApiHandler: Send + Sync {
         let Some(tree) = self.search_tree_by_path(path).await.unwrap() else {
             return Ok(vec![]);
         };
-        if let Some(oid) = oid {
-            if oid != tree.id._to_string() {
-                return Ok(vec![]);
-            }
+        if let Some(oid) = oid
+            && oid != tree.id._to_string()
+        {
+            return Ok(vec![]);
         }
         tree.to_data()
     }
@@ -80,22 +80,22 @@ pub trait ApiHandler: Send + Sync {
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit>;
 
     async fn get_tree_relate_commit(&self, t_hash: SHA1, path: PathBuf)
-        -> Result<Commit, GitError>;
+    -> Result<Commit, GitError>;
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
 
     async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<Option<String>, GitError> {
         let filename = file_path.file_name().unwrap().to_str().unwrap();
         let parent = file_path.parent().unwrap();
-        if let Some(tree) = self.search_tree_by_path(parent).await? {
-            if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
-                match self.get_raw_blob_by_hash(&item.id.to_string()).await {
-                    Ok(Some(model)) => {
-                        return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()))
-                    }
-                    _ => return Ok(None),
-                };
-            }
+        if let Some(tree) = self.search_tree_by_path(parent).await?
+            && let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename)
+        {
+            match self.get_raw_blob_by_hash(&item.id.to_string()).await {
+                Ok(Some(model)) => {
+                    return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()));
+                }
+                _ => return Ok(None),
+            };
         }
         return Ok(None);
     }

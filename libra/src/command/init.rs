@@ -159,7 +159,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Invalid shared mode: {}", other),
-            ))
+            ));
         }
     }
     Ok(())
@@ -183,7 +183,7 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Invalid shared mode: {}", other),
-            ))
+            ));
         }
     }
     Ok(())
@@ -217,13 +217,15 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     }
 
     // Check if the branch name is valid
-    if let Some(ref branch_name) = args.initial_branch {
-        if !branch::is_valid_git_branch_name(branch_name) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid branch name: '{branch_name}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name."),
-            ));
-        }
+    if let Some(ref branch_name) = args.initial_branch
+        && !branch::is_valid_git_branch_name(branch_name)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "invalid branch name: '{branch_name}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name."
+            ),
+        ));
     }
 
     // Check if the target directory is writable
