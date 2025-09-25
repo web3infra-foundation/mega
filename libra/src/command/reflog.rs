@@ -1,8 +1,8 @@
 use crate::command::load_object;
-use crate::internal::config;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
-use crate::internal::reflog::{HEAD, Reflog, ReflogError};
+use crate::internal::parse_ref_name;
+use crate::internal::reflog::{Reflog, ReflogError};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use mercury::hash::SHA1;
@@ -91,24 +91,6 @@ async fn handle_show(ref_name: &str, pretty: FormatterKind) {
 
     #[cfg(not(unix))]
     println!("{formatter}")
-}
-
-// `partial_ref_name` is the branch name entered by the user.
-async fn parse_ref_name(partial_ref_name: &str) -> String {
-    if partial_ref_name == HEAD {
-        return HEAD.to_string();
-    }
-    if !partial_ref_name.contains("/") {
-        return format!("refs/heads/{partial_ref_name}");
-    }
-    let (ref_name, _) = partial_ref_name.split_once("/").unwrap();
-    if config::Config::get("remote", Some(ref_name), "url")
-        .await
-        .is_some()
-    {
-        return format!("refs/remotes/{partial_ref_name}");
-    }
-    format!("refs/heads/{partial_ref_name}")
 }
 
 async fn handle_exists(ref_name: &str) {
