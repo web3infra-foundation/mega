@@ -90,6 +90,8 @@ pub struct Config {
     pub pack: PackConfig,
     pub authentication: AuthConfig,
     pub lfs: LFSConfig,
+    #[serde(default)]
+    pub blame: BlameConfig,
     // Not used in mega app
     #[serde(default)]
     pub oauth: Option<OauthConfig>,
@@ -120,6 +122,7 @@ impl Config {
             pack: PackConfig::default(),
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
+            blame: BlameConfig::default(),
             oauth: None,
             build: BuildConfig::default(),
         }
@@ -296,6 +299,8 @@ pub struct DbConfig {
     pub db_url: String,
     pub max_connection: u32,
     pub min_connection: u32,
+    pub acquire_timeout: u64,
+    pub connect_timeout: u64,
     pub sqlx_logging: bool,
 }
 
@@ -305,8 +310,10 @@ impl Default for DbConfig {
             db_type: String::from("sqlite"),
             db_path: mega_base().join("mega.db"),
             db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
-            max_connection: 32,
-            min_connection: 16,
+            max_connection: 16,
+            min_connection: 8,
+            acquire_timeout: 5,
+            connect_timeout: 5,
             sqlx_logging: false,
         }
     }
@@ -599,6 +606,43 @@ impl Default for OauthConfig {
             .map(|s| s.to_string())
             .collect(),
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BlameConfig {
+    /// Maximum number of lines before considering a file as large
+    pub max_lines_threshold: usize,
+    /// Maximum file size in bytes before considering a file as large
+    #[serde(deserialize_with = "string_or_usize")]
+    pub max_size_threshold: String,
+    /// Default chunk size for streaming operations when processing large files
+    pub default_chunk_size: usize,
+    /// Maximum number of commits to process in memory at once during blame traversal
+    pub max_commits_in_memory: usize,
+    /// Enable caching of intermediate blame results for better performance
+    pub enable_caching: bool,
+}
+
+impl Default for BlameConfig {
+    fn default() -> Self {
+        Self {
+            max_lines_threshold: 1000,
+            max_size_threshold: "1MB".to_string(),
+            default_chunk_size: 100,
+            max_commits_in_memory: 50,
+            enable_caching: true,
+        }
+    }
+}
+
+impl BlameConfig {
+    /// Converts the max_size_threshold string to bytes using the same logic as PackConfig
+    pub fn get_max_size_bytes(&self) -> Result<usize, String> {
+        PackConfig::get_size_from_str(&self.max_size_threshold, || {
+            // Default to 8GB total memory for calculation if needed
+            Ok(8 * 1024 * 1024 * 1024)
+        })
     }
 }
 

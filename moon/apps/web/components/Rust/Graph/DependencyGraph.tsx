@@ -8,6 +8,10 @@ export interface GraphDependency {
     direct_dependency?: GraphDependency[];
 }
 
+interface DependencyGraphProps {
+    data?: GraphDependency;
+}
+
 interface DependencyNode extends d3.SimulationNodeDatum {
     id: string;
     color: string;
@@ -19,108 +23,15 @@ interface DependencyLink extends d3.SimulationLinkDatum<DependencyNode> {
     target: DependencyNode;
 }
 
-// 模拟数据生成函数
-const generateMockDependencyData = (): GraphDependency => {
-    const dependencies: GraphDependency[] = [
-        {
-            name_and_version: "tokio-1.35.1",
-            cve_count: 0,
-            direct_dependency: [
-                {
-                    name_and_version: "bytes-1.5.0",
-                    cve_count: 2,
-                    direct_dependency: [
-                        { name_and_version: "serde-1.0.195", cve_count: 1 },
-                        { name_and_version: "log-0.4.20", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "futures-0.3.29",
-                    cve_count: 0,
-                    direct_dependency: [
-                        { name_and_version: "pin-project-1.1.3", cve_count: 0 },
-                        { name_and_version: "futures-core-0.3.29", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "mio-0.8.8",
-                    cve_count: 5,
-                    direct_dependency: [
-                        { name_and_version: "libc-0.2.150", cve_count: 3 },
-                        { name_and_version: "log-0.4.20", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "num_cpus-1.16.0",
-                    cve_count: 0,
-                    direct_dependency: [
-                        { name_and_version: "hermit-abi-0.3.3", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "parking_lot-0.12.1",
-                    cve_count: 8,
-                    direct_dependency: [
-                        { name_and_version: "lock_api-0.4.11", cve_count: 2 },
-                        { name_and_version: "scopeguard-1.2.0", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "signal-hook-registry-1.4.1",
-                    cve_count: 0,
-                    direct_dependency: [
-                        { name_and_version: "libc-0.2.150", cve_count: 3 }
-                    ]
-                },
-                {
-                    name_and_version: "socket2-0.5.5",
-                    cve_count: 12,
-                    direct_dependency: [
-                        { name_and_version: "libc-0.2.150", cve_count: 3 },
-                        { name_and_version: "winapi-0.3.9", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "tracing-0.1.40",
-                    cve_count: 0,
-                    direct_dependency: [
-                        { name_and_version: "tracing-core-0.1.32", cve_count: 0 },
-                        { name_and_version: "log-0.4.20", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "windows-sys-0.48.0",
-                    cve_count: 0,
-                    direct_dependency: [
-                        { name_and_version: "windows-targets-0.48.5", cve_count: 0 }
-                    ]
-                },
-                {
-                    name_and_version: "serde-1.0.195",
-                    cve_count: 1,
-                    direct_dependency: [
-                        { name_and_version: "serde_derive-1.0.195", cve_count: 0 }
-                    ]
-                }
-            ]
-        }
-    ];
-
-    return dependencies[0];
-};
-
-const DependencyGraph: React.FC = () => {
+const DependencyGraph: React.FC<DependencyGraphProps> = ({ data }) => {
     const [graphDependencies, setGraphDependencies] = useState<GraphDependency | null>(null);
     const d3Container = useRef<HTMLDivElement | null>(null);
-    // const params = useParams();
 
     useEffect(() => {
-        // 使用本地模拟数据替代 API 调用
-        const mockData = generateMockDependencyData();
-
-        // console.log('Mock data for graph:', mockData);
-        setGraphDependencies(mockData);
-    }, []);
+        if (data) {
+            setGraphDependencies(data);
+        }
+    }, [data]);
 
     useEffect(() => {
         if (!graphDependencies || d3Container.current === null) return;

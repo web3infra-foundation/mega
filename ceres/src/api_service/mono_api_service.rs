@@ -41,6 +41,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::api_service::ApiHandler;
+use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
@@ -58,6 +59,8 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
+
+use jupiter::service::blame_service::BlameService;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -272,6 +275,100 @@ impl ApiHandler for MonoApiService {
                 Ok(result)
             }
             None => Ok(HashMap::new()),
+        }
+    }
+
+    /// Get blame information for a file
+    async fn get_file_blame(
+        &self,
+        file_path: &str,
+        ref_name: Option<&str>,
+        query: BlameQuery,
+    ) -> Result<BlameResult, GitError> {
+        tracing::info!(
+            "Getting blame for file: {} at ref: {:?}",
+            file_path,
+            ref_name
+        );
+
+        // Validate input parameters
+        if file_path.is_empty() {
+            return Err(GitError::CustomError("File path cannot be empty".to_string()));
+        }
+
+        // Use refs parameter if provided, otherwise use "main" as default
+        let ref_name = if let Some(ref_name) = ref_name {
+            if ref_name.is_empty() {
+                "main"
+            } else {
+                ref_name
+            }
+        } else {
+            "main"
+        };
+
+        // Use Jupiter's blame service
+        let blame_service = BlameService::new(Arc::new(self.storage.clone()));
+
+        // Convert API query to DTO query
+        let dto_query: jupiter::model::blame_dto::BlameQuery = query.into();
+
+        // 🔍 Step 1: Check if it is a large file
+        let is_large_file = match blame_service
+            .check_if_large_file(file_path, Some(ref_name))
+            .await
+        {
+            Ok(is_large) => is_large,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to check file size for {}: {}, using normal processing",
+                    file_path,
+                    e
+                );
+                false
+            }
+        };
+
+        tracing::info!(
+            "File {} is {} file, using {} processing",
+            file_path,
+            if is_large_file { "large" } else { "normal" },
+            if is_large_file {
+                "streaming"
+            } else {
+                "standard"
+            }
+        );
+
+        // 🚀 Step 2: Select the processing method based on file size
+        let blame_result = if is_large_file {
+            // Large file: Use streaming processing
+            tracing::info!("Using streaming processing for large file: {}", file_path);
+            blame_service
+                .get_file_blame_streaming_auto(file_path, Some(ref_name), dto_query)
+                .await
+        } else {
+            // Normal file: Use standard processing
+            tracing::info!("Using standard processing for normal file: {}", file_path);
+            blame_service
+                .get_file_blame(file_path, Some(ref_name), Some(dto_query))
+                .await
+        };
+
+        match blame_result {
+            Ok(result_from_service) => {
+                tracing::info!(
+                    "Blame completed for {} lines in file: {}",
+                    result_from_service.lines.len(),
+                    file_path
+                );
+                // Convert DTO result to API result
+                Ok(result_from_service.into())
+            }
+            Err(e) => {
+                tracing::error!("Blame operation failed for {}: {}", file_path, e);
+                Err(e)
+            }
         }
     }
 }

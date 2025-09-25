@@ -10,7 +10,7 @@ import { useTreeViewApiRef } from "@mui/x-tree-view";
 import { useGetMrFileTree } from "@/hooks/useGetMrFileTree";
 import { usePathname } from "next/navigation";
 
-const FileTree = ({ link }: { link: string }) => {
+const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath: string) => void }) => {
   const apiRef = useTreeViewApiRef();
 
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
@@ -45,6 +45,17 @@ const FileTree = ({ link }: { link: string }) => {
     setExpandedNodes(newExpandedIds);
   }, [expandedNodes, treeAllData, setExpandedNodes]);
 
+  const handleItemClick = (_e: React.SyntheticEvent | null, itemId: string) => {
+    const item = apiRef.current!.getItem(itemId)
+
+    if (item.content_type) {
+      // Call the file click handler if this is a file (not directory)
+      if (item.content_type === 'file' && onFileClick) {
+        onFileClick(item.path || itemId)
+      }
+    }
+  }
+
   const handleFocusItem = (_e: React.SyntheticEvent | null, itemId: string) => {
     const item = apiRef.current!.getItem(itemId)
 
@@ -72,6 +83,7 @@ const FileTree = ({ link }: { link: string }) => {
             apiRef={apiRef}
             items={treeAllData}
             onItemFocus={handleFocusItem}
+            onItemClick={handleItemClick}
             expandedItems={expandedNodes}
             onExpandedItemsChange={handleNodeToggle}
             sx={{ flexGrow: 1, width: '100%', overflow: 'auto' }}
