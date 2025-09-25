@@ -167,6 +167,7 @@ pub async fn execute(args: LogArgs) {
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
     let branch_commits = create_branch_commits_map().await;
+    let tag_commits = create_tag_commits_map().await;
 
     let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
@@ -176,7 +177,9 @@ pub async fn execute(args: LogArgs) {
         }
         output_number += 1;
 
+        // get references
         let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
+        let tags = tag_commits.get(&commit.id).cloned().unwrap_or_default();
 
         // prepare pathspecs for diff if needed
         let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
@@ -286,6 +289,31 @@ async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
     }
 
     commit_to_branches
+}
+
+/// Create a map of commit hashes to tag names
+async fn create_tag_commits_map() -> HashMap<SHA1, Vec<String>> {
+    let all_tags = crate::internal::tag::list().await.expect("fatal: ");
+    let mut commit_to_tags: HashMap<SHA1, Vec<String>> = HashMap::new();
+
+    for tag in all_tags {
+        match tag.object {
+            crate::internal::tag::TagObject::Commit(c) => {
+                commit_to_tags.entry(c.id).or_default().push(tag.name);
+            }
+            crate::internal::tag::TagObject::Tag(t) => {
+                commit_to_tags
+                    .entry(t.object_hash)
+                    .or_default()
+                    .push(tag.name);
+            }
+            _ => {
+                continue;
+            }
+        }
+    };
+
+    commit_to_tags
 }
 
 /// Generate unified diff between commit and its first parent (or empty tree)
