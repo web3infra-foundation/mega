@@ -6,7 +6,7 @@ use super::{
     restore::{self, RestoreArgs},
 };
 use crate::internal::db::get_db_conn_instance;
-use crate::internal::reflog::{with_reflog, zero_sha1, ReflogAction, ReflogContext};
+use crate::internal::reflog::{ReflogAction, ReflogContext, with_reflog, zero_sha1};
 use crate::{
     internal::{branch::Branch, head::Head},
     utils::util,

@@ -40,8 +40,8 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_lfs_client() {
-        use crate::internal::protocol::lfs_client::LFSClient;
         use crate::internal::protocol::ProtocolClient;
+        use crate::internal::protocol::lfs_client::LFSClient;
         use url::Url;
 
         let client = LFSClient::from_url(&Url::parse("https://git.gitmono.org").unwrap());

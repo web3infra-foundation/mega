@@ -346,10 +346,12 @@ async fn test_reset_with_head_reference() {
 
     // Verify index was reset (4.txt should be untracked)
     let unstaged = changes_to_be_staged();
-    assert!(unstaged
-        .new
-        .iter()
-        .any(|path| path.file_name().unwrap() == "4.txt"));
+    assert!(
+        unstaged
+            .new
+            .iter()
+            .any(|path| path.file_name().unwrap() == "4.txt")
+    );
 }
 
 #[tokio::test]

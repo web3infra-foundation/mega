@@ -17,7 +17,7 @@ use jupiter::storage::Storage;
 use repo::Repo;
 
 use crate::auth::{DefaultUserAuthExtractor, PushUserInfo, UserAuthExtractor};
-use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, RepoHandler};
+use crate::pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 
 pub mod import_refs;
 pub mod repo;
@@ -179,7 +179,7 @@ impl SmartProtocol {
             } else {
                 match self.service_type.unwrap() {
                     ServiceType::UploadPack => {
-                        return Err(ProtocolError::NotFound("Repository not found.".to_owned()))
+                        return Err(ProtocolError::NotFound("Repository not found.".to_owned()));
                     }
                     ServiceType::ReceivePack => {
                         let repo = Repo::new(self.path.clone(), false);

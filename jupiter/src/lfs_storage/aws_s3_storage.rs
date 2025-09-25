@@ -1,18 +1,18 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_config::meta::region::RegionProviderChain;
 use aws_config::Region;
+use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_s3::Client;
 use aws_sdk_s3::config::Credentials;
 use aws_sdk_s3::error::ProvideErrorMetadata;
 use aws_sdk_s3::presigning::PresigningConfig;
-use aws_sdk_s3::Client;
 use bytes::Bytes;
 
 use common::config::LFSAwsConfig;
 use common::errors::{GitLFSError, MegaError};
 
-use crate::lfs_storage::{transform_path, LfsFileStorage};
+use crate::lfs_storage::{LfsFileStorage, transform_path};
 
 pub struct AwsS3Storage {
     client: Client,

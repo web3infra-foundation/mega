@@ -2,7 +2,7 @@ use crate::command::load_object;
 use crate::internal::config;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reflog::Model;
-use crate::internal::reflog::{Reflog, ReflogError, HEAD};
+use crate::internal::reflog::{HEAD, Reflog, ReflogError};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use mercury::hash::SHA1;
@@ -185,14 +185,14 @@ async fn delete_single_group(group: &[(&str, usize)]) {
 }
 
 fn parse_reflog_selector(selector: &str) -> Option<(&str, usize)> {
-    if let (Some(at_brace), Some(end_brace)) = (selector.find("@{"), selector.find('}')) {
-        if at_brace < end_brace {
-            let ref_name = &selector[..at_brace];
-            let index_str = &selector[at_brace + 2..end_brace];
+    if let (Some(at_brace), Some(end_brace)) = (selector.find("@{"), selector.find('}'))
+        && at_brace < end_brace
+    {
+        let ref_name = &selector[..at_brace];
+        let index_str = &selector[at_brace + 2..end_brace];
 
-            if let Ok(index) = index_str.parse::<usize>() {
-                return Some((ref_name, index));
-            }
+        if let Ok(index) = index_str.parse::<usize>() {
+            return Some((ref_name, index));
         }
     }
     None

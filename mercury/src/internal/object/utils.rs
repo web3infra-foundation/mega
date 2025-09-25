@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 
-use flate2::{write::ZlibEncoder, Compression};
+use flate2::{Compression, write::ZlibEncoder};
 
 const TYPE_BITS: u8 = 3;
 const VAR_INT_ENCODING_BITS: u8 = 7;

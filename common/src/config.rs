@@ -444,12 +444,13 @@ impl PackConfig {
         }
 
         let ratio_result = size_str.parse::<f64>();
-        if let Ok(ratio) = ratio_result {
-            if ratio > 0.0 && ratio < 1.0 {
-                let total_mem = fn_get_total_capacity()?;
+        if let Ok(ratio) = ratio_result
+            && ratio > 0.0
+            && ratio < 1.0
+        {
+            let total_mem = fn_get_total_capacity()?;
 
-                return Ok((total_mem as f64 * ratio) as usize);
-            }
+            return Ok((total_mem as f64 * ratio) as usize);
         }
 
         // Parse size with units

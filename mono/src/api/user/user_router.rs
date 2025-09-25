@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     routing::get,
-    Json,
 };
-use russh::keys::{parse_public_key_base64, HashAlg};
+use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::{errors::MegaError, model::CommonResult};
 
+use crate::api::MonoApiServiceState;
 use crate::api::user::model::ListSSHKey;
 use crate::api::user::model::ListToken;
-use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
 use crate::{api::user::model::AddSSHKey, server::http_server::USER_TAG};
 

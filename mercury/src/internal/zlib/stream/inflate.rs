@@ -1,7 +1,7 @@
 use std::{io, io::BufRead};
 
 use flate2::{Decompress, FlushDecompress, Status};
-use sha1::{digest::core_api::CoreWrapper, Digest, Sha1};
+use sha1::{Digest, Sha1, digest::core_api::CoreWrapper};
 
 use crate::internal::object::types::ObjectType;
 
@@ -98,7 +98,7 @@ fn read(rd: &mut impl BufRead, state: &mut Decompress, mut dst: &mut [u8]) -> io
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "corrupt deflate stream",
-                ))
+                ));
             }
         }
     }

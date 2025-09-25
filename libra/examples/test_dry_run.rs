@@ -1,5 +1,5 @@
 // Simple test program to verify rm --dry-run functionality
-use libra::command::remove::{execute, RemoveArgs};
+use libra::command::remove::{RemoveArgs, execute};
 use std::fs;
 use std::io::Write;
 use tempfile::TempDir;

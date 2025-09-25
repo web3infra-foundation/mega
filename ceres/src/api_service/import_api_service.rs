@@ -183,13 +183,13 @@ impl ApiHandler for ImportApiService {
             }
         }
 
-        if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await {
-            if refs.iter().any(|r| r.ref_name == full_ref) {
-                return Err(GitError::CustomError(format!(
-                    "[code:400] Tag '{}' already exists",
-                    name
-                )));
-            }
+        if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await
+            && refs.iter().any(|r| r.ref_name == full_ref)
+        {
+            return Err(GitError::CustomError(format!(
+                "[code:400] Tag '{}' already exists",
+                name
+            )));
         }
         if is_annotated {
             return self
@@ -297,7 +297,7 @@ impl ApiHandler for ImportApiService {
                     tagger: tag.tagger,
                     message: tag.message,
                     created_at: tag.created_at.and_utc().to_rfc3339(),
-                }))
+                }));
             }
             Ok(None) => {}
             Err(e) => {

@@ -18,12 +18,12 @@ use crate::model::blame_dto::{
     LineAttribution,
 };
 use crate::storage::{
-    mono_storage::MonoStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage, Storage,
+    Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage,
 };
 use common::config::Config;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
-use neptune::{compute_diff, DiffOperation};
+use neptune::{DiffOperation, compute_diff};
 
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
@@ -778,10 +778,10 @@ impl BlameService {
             }
 
             // Check file size threshold if provided
-            if let Some(size) = file_size {
-                if size > max_bytes {
-                    return true;
-                }
+            if let Some(size) = file_size
+                && size > max_bytes
+            {
+                return true;
             }
         } else {
             tracing::warn!(
@@ -869,12 +869,10 @@ impl BlameService {
         let commit = self.get_commit_by_hash(&commit_hash.to_string()).await?;
 
         // Cache the result if caching is enabled and commit exists
-        if caching_enabled {
-            if let Some(ref commit_obj) = commit {
-                let cache_key = commit_hash.to_string();
-                let mut cache = self.cache.commits.write().await;
-                cache.insert(cache_key, Arc::new(commit_obj.clone()));
-            }
+        if caching_enabled && let Some(ref commit_obj) = commit {
+            let cache_key = commit_hash.to_string();
+            let mut cache = self.cache.commits.write().await;
+            cache.insert(cache_key, Arc::new(commit_obj.clone()));
         }
 
         Ok(commit)
