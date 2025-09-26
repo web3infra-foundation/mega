@@ -9,7 +9,7 @@ use mercury::internal::object::{
 };
 
 #[derive(PartialEq, Eq, Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateFileInfo {
+pub struct CreateEntryInfo {
     /// can be a file or directory
     pub is_directory: bool,
     pub name: String,
@@ -19,7 +19,7 @@ pub struct CreateFileInfo {
     pub content: Option<String>,
 }
 
-impl CreateFileInfo {
+impl CreateEntryInfo {
     pub fn commit_msg(&self) -> String {
         if self.is_directory {
             format!("\n create new directory {}", self.name)

@@ -17,7 +17,7 @@ use jupiter::storage::Storage;
 
 use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::blame::{BlameQuery, BlameResult};
-use crate::model::git::CreateFileInfo;
+use crate::model::git::CreateEntryInfo;
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
 use jupiter::utils::converter::FromGitModel;
@@ -34,9 +34,9 @@ impl ApiHandler for ImportApiService {
         self.storage.clone()
     }
 
-    async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
+    async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<(), GitError> {
         return Err(GitError::CustomError(
-            "import dir does not support create file".to_string(),
+            "import dir does not support create entry".to_string(),
         ));
     }
 
