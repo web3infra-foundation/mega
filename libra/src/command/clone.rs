@@ -132,10 +132,10 @@ async fn setup_repository(
     };
 
     if let Some(branch_name) = branch_to_checkout {
-        let origin_branch =
-            Branch::find_branch_with_conn(db, &branch_name, Some(&remote_config.name))
-                .await
-                .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
+        let remote_tracking_ref = format!("refs/remotes/{}/{}", remote_config.name, branch_name);
+        let origin_branch = Branch::find_branch_with_conn(db, &remote_tracking_ref, None)
+            .await
+            .ok_or_else(|| format!("fatal: remote branch '{}' not found.", branch_name))?;
 
         // Prepare the reflog context *before* the transaction
         let action = ReflogAction::Clone {
