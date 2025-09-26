@@ -289,14 +289,14 @@ async fn issue_suggester(
     Query(payload): Query<QueryPayload>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<IssueSuggestions>>>, ApiError> {
-    let (issues, mrs) = state
+    let (issues, cls) = state
         .storage
         .issue_service
         .get_suggestions(&payload.query)
         .await?;
     let mut res: Vec<IssueSuggestions> = issues.into_iter().map(|m| m.into()).collect();
-    let mut mr_list: Vec<IssueSuggestions> = mrs.into_iter().map(|m| m.into()).collect();
-    res.append(&mut mr_list);
+    let mut cl_list: Vec<IssueSuggestions> = cls.into_iter().map(|m| m.into()).collect();
+    res.append(&mut cl_list);
     res.sort();
     Ok(Json(CommonResult::success(Some(res))))
 }

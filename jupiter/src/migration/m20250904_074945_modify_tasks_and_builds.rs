@@ -15,7 +15,7 @@ impl MigrationTrait for Migration {
                     .table(Tasks::Table)
                     .if_not_exists()
                     .col(ColumnDef::new(Tasks::Id).uuid().not_null().primary_key())
-                    .col(ColumnDef::new(Tasks::MrId).big_integer().not_null())
+                    .col(ColumnDef::new(Tasks::ClId).big_integer().not_null())
                     .col(ColumnDef::new(Tasks::TaskName).string())
                     .col(ColumnDef::new(Tasks::Template).json_binary())
                     .col(
@@ -106,7 +106,7 @@ impl MigrationTrait for Migration {
 enum Tasks {
     Table,
     Id,
-    MrId,
+    ClId,
     TaskName,
     Template,
     CreatedAt,

@@ -54,7 +54,7 @@ mod test {
 
     #[test]
     pub fn test_parse_data_id_from_comment() {
-        let single_ref = r#"<p><span class="link-issue" data-type="linkIssue" data-id="HDQL6ATY" data-label="HDQL6ATY" data-suggestiontype="merge_request">$HDQL6ATY</span> </p>"#;
+        let single_ref = r#"<p><span class="link-issue" data-type="linkIssue" data-id="HDQL6ATY" data-label="HDQL6ATY" data-suggestiontype="change_list">$HDQL6ATY</span> </p>"#;
         let data_id = parse_data_id(single_ref);
         assert_eq!(
             data_id.iter().next(),
@@ -65,7 +65,7 @@ mod test {
         let data_id = parse_data_id(normal_comment);
         assert_eq!(data_id.iter().next(), None);
 
-        let multi_referene = r#"<p>multireference?? <span class="link-issue" data-type="linkIssue" data-id="PIXLXMS9" data-label="PIXLXMS9" data-suggestiontype="issue">$PIXLXMS9</span> <span class="link-issue" data-type="linkIssue" data-id="PIXLXMS9" data-label="PIXLXMS9" data-suggestiontype="issue">$PIXLXMS9</span> <span class="link-issue" data-type="linkIssue" data-id="ZE710J7U" data-label="ZE710J7U" data-suggestiontype="merge_request">$ZE710J7U</span> </p>"#;
+        let multi_referene = r#"<p>multireference?? <span class="link-issue" data-type="linkIssue" data-id="PIXLXMS9" data-label="PIXLXMS9" data-suggestiontype="issue">$PIXLXMS9</span> <span class="link-issue" data-type="linkIssue" data-id="PIXLXMS9" data-label="PIXLXMS9" data-suggestiontype="issue">$PIXLXMS9</span> <span class="link-issue" data-type="linkIssue" data-id="ZE710J7U" data-label="ZE710J7U" data-suggestiontype="change_list">$ZE710J7U</span> </p>"#;
         let data_id = parse_data_id(multi_referene);
         assert_eq!(
             data_id,

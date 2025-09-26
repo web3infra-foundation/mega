@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
-use crate::manager::{mr, ScorpioManager, WorkDir};
+use crate::manager::{cl, ScorpioManager, WorkDir};
 use crate::util::{config, GPath};
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
@@ -20,7 +20,7 @@ const FAIL: &str = "Fail";
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct MountRequest {
     path: String,
-    mr: Option<String>, // mr is the mount request, used for buck2 temp mount.
+    cl: Option<String>, // cl is the mount request, used for buck2 temp mount.
 }
 
 /// Response structure for mount requests.
@@ -37,7 +37,7 @@ struct MountResponse {
 struct MountStatus {
     request_id: String,        // Unique identifier for the mount request
     status: String,            // Current task status: "fetching", "finished", or "error"
-    mount_info: MountRequest,  // Original mount request containing path and mr info
+    mount_info: MountRequest,  // Original mount request containing path and cl info
     result: Option<MountInfo>, // Mount result populated when task completes successfully
 }
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -262,18 +262,18 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
         .map_err(|e| format!("Failed to fetch: {e}"))?;
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
 
-    // Handle merge request (MR) layer if provided
-    if let Some(m) = &req.mr {
-        let mr_store_path = PathBuf::from(&store_path).join("mr");
-        if let Err(e) = mr::build_mr_layer(m, mr_store_path).await {
-            return Err(format!("Failed to build mr layer: {e}"));
+    // Handle change list (CL) layer if provided
+    if let Some(m) = &req.cl {
+        let cl_store_path = PathBuf::from(&store_path).join("cl");
+        if let Err(e) = cl::build_cl_layer(m, cl_store_path).await {
+            return Err(format!("Failed to build cl layer: {e}"));
         }
     }
 
-    // Perform the final overlay mount with MR layer if applicable
+    // Perform the final overlay mount with CL layer if applicable
     state
         .fuse
-        .overlay_mount(inode, store_path, req.mr.is_some())
+        .overlay_mount(inode, store_path, req.cl.is_some())
         .await
         .map_err(|e| format!("Mount process error: {e}"))?;
 

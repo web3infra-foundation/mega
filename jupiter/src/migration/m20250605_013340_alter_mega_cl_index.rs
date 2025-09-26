@@ -7,18 +7,18 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_index(Index::drop().name("idx_mr_path").to_owned())
+            .drop_index(Index::drop().name("idx_cl_path").to_owned())
             .await?;
 
         manager
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_mr_path_link")
+                    .name("idx_cl_path_link")
                     .unique()
-                    .table(MegaMr::Table)
-                    .col(MegaMr::Path)
-                    .col(MegaMr::Link)
+                    .table(MegaCl::Table)
+                    .col(MegaCl::Path)
+                    .col(MegaCl::Link)
                     .to_owned(),
             )
             .await?;
@@ -32,7 +32,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum MegaMr {
+enum MegaCl {
     Table,
     Link,
     Path,

@@ -31,7 +31,7 @@ pub struct PendingTask {
     pub task_id: Uuid,
     pub build_id: Uuid,
     pub repo: String,
-    pub mr: i64,
+    pub cl: i64,
     pub request: BuildRequest,
     pub target: String,
     pub created_at: Instant,
@@ -136,7 +136,7 @@ pub struct BuildInfo {
     pub target: String,
     pub args: Option<Vec<String>>,
     pub start_at: DateTimeUtc,
-    pub mr: String,
+    pub cl: String,
     pub _worker_id: String,
     pub log_file: Arc<Mutex<std::fs::File>>,
 }
@@ -241,7 +241,7 @@ impl TaskScheduler {
         request: BuildRequest,
         target: String,
         repo: String,
-        mr: i64,
+        cl: i64,
     ) -> Result<Uuid, String> {
         let build_id = Uuid::now_v7();
 
@@ -252,7 +252,7 @@ impl TaskScheduler {
             target,
             created_at: Instant::now(),
             repo,
-            mr,
+            cl,
         };
 
         {
@@ -372,7 +372,7 @@ impl TaskScheduler {
             target: pending_task.target.clone(),
             args: pending_task.request.args.clone(),
             start_at: chrono::Utc::now(),
-            mr: pending_task.mr.to_string(),
+            cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
             log_file,
         };
@@ -403,7 +403,7 @@ impl TaskScheduler {
             repo: pending_task.repo,
             target: pending_task.target,
             args: pending_task.request.args,
-            mr: pending_task.mr.to_string(),
+            cl: pending_task.cl.to_string(),
         };
 
         // Send task to worker
@@ -658,7 +658,7 @@ mod tests {
             target: "target1".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
-            mr: 123456,
+            cl: 123456,
         };
 
         let task2 = PendingTask {
@@ -672,7 +672,7 @@ mod tests {
             target: "target2".to_string(),
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
-            mr: 123457,
+            cl: 123457,
         };
 
         // Test FIFO behavior
@@ -709,7 +709,7 @@ mod tests {
             target: "target".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
-            mr: 123456,
+            cl: 123456,
         };
 
         // Fill queue to capacity

@@ -111,7 +111,7 @@ impl MegaModelConverter {
             ref_tree_hash: commit.tree_id.to_string(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
-            is_mr: false,
+            is_cl: false,
         };
 
         let converter = MegaModelConverter {

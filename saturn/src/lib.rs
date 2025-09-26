@@ -13,32 +13,32 @@ pub enum ActionEnum {
     // PushRepo,
     // OpenIssue,
     // ** Maintainer
-    CreateMergeRequest,
+    CreateChangeList,
     EditIssue,
-    EditMergeRequest,
+    EditChangeList,
     AssignIssue,
-    ApproveMergeRequest,
+    ApproveChangeList,
     // ** Admin
     AddMaintainer,
     AddAdmin,
     DeleteRepo,
     DeleteIssue,
-    DeleteMergeRequest,
+    DeleteChangeList,
 }
 
 impl Display for ActionEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            ActionEnum::CreateMergeRequest => "createMergeRequest",
+            ActionEnum::CreateChangeList => "createChangeList",
             ActionEnum::EditIssue => "editIssue",
-            ActionEnum::EditMergeRequest => "editMergeRequest",
+            ActionEnum::EditChangeList => "editChangeList",
             ActionEnum::AssignIssue => "assignIssue",
-            ActionEnum::ApproveMergeRequest => "approveMergeRequest",
+            ActionEnum::ApproveChangeList => "approveChangeList",
             ActionEnum::AddMaintainer => "addMaintainer",
             ActionEnum::AddAdmin => "addAdmin",
             ActionEnum::DeleteRepo => "deleteRepo",
             ActionEnum::DeleteIssue => "deleteIssue",
-            ActionEnum::DeleteMergeRequest => "deleteMergeRequest",
+            ActionEnum::DeleteChangeList => "deleteChangeList",
         };
         write!(f, "{s}")
     }

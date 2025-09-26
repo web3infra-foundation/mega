@@ -32,8 +32,8 @@ pub fn generate_rich_text(content: &str) -> String {
     serde_json::to_string_pretty(&data).expect("Failed to serialize JSON")
 }
 
-pub fn mr_ref_name(mr_link: &str) -> String {
-    format!("refs/mr/{mr_link}")
+pub fn cl_ref_name(cl_link: &str) -> String {
+    format!("refs/cl/{cl_link}") // TODO : api地址修改
 }
 
 /// Format commit message with GPG signature<br>

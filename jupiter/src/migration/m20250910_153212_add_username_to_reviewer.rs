@@ -8,13 +8,13 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Split each alter into individual statements for SQLite compatibility
 
-        // --- mega_mr_reviewer ---
+        // --- mega_cl_reviewer ---
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
+                    .table(MegaClReviewer::Table)
                     .add_column(
-                        ColumnDef::new(MegaMrReviewer::Username)
+                        ColumnDef::new(MegaClReviewer::Username)
                             .string()
                             .not_null()
                             .default("".to_string()),
@@ -26,9 +26,9 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
+                    .table(MegaClReviewer::Table)
                     .add_column(
-                        ColumnDef::new(MegaMrReviewer::MrLink)
+                        ColumnDef::new(MegaClReviewer::ClLink)
                             .string()
                             .not_null()
                             .default("".to_string()),
@@ -40,9 +40,9 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
+                    .table(MegaClReviewer::Table)
                     .add_column(
-                        ColumnDef::new(MegaMrReviewer::CreatedAt)
+                        ColumnDef::new(MegaClReviewer::CreatedAt)
                             .timestamp()
                             .not_null(),
                     )
@@ -53,9 +53,9 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
+                    .table(MegaClReviewer::Table)
                     .add_column(
-                        ColumnDef::new(MegaMrReviewer::UpdatedAt)
+                        ColumnDef::new(MegaClReviewer::UpdatedAt)
                             .timestamp()
                             .not_null(),
                     )
@@ -66,8 +66,8 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::CampsiteID)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::CampsiteID)
                     .to_owned(),
             )
             .await?;
@@ -75,8 +75,8 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::MrId)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::ClId)
                     .to_owned(),
             )
             .await?;
@@ -105,12 +105,12 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Reverse mega_mr_reviewer changes
+        // Reverse mega_cl_reviewer changes
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::Username)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::Username)
                     .to_owned(),
             )
             .await?;
@@ -118,8 +118,8 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::MrLink)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::ClLink)
                     .to_owned(),
             )
             .await?;
@@ -127,8 +127,8 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::CreatedAt)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::CreatedAt)
                     .to_owned(),
             )
             .await?;
@@ -136,8 +136,8 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(MegaMrReviewer::Table)
-                    .drop_column(MegaMrReviewer::UpdatedAt)
+                    .table(MegaClReviewer::Table)
+                    .drop_column(MegaClReviewer::UpdatedAt)
                     .to_owned(),
             )
             .await?;
@@ -147,11 +147,11 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-#[sea_orm(iden = "mega_mr_reviewer")]
-enum MegaMrReviewer {
+#[sea_orm(iden = "mega_cl_reviewer")]
+enum MegaClReviewer {
     Table,
-    MrId,
-    MrLink,
+    ClId,
+    ClLink,
     CampsiteID,
     Username,
     CreatedAt,

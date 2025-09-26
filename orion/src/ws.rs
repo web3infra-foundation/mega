@@ -41,7 +41,7 @@ pub enum WSMessage {
         repo: String,
         target: String,
         args: Option<Vec<String>>,
-        mr: String,
+        cl: String,
     },
 }
 
@@ -193,7 +193,7 @@ async fn process_server_message(
                             repo,
                             target,
                             args,
-                            mr,
+                            cl,
                         } => {
                             tracing::info!("Received task: id={}", id);
                             tokio::spawn(async move {
@@ -215,7 +215,7 @@ async fn process_server_message(
                                         repo,
                                         target,
                                         args,
-                                        mr,
+                                        cl,
                                     },
                                     sender.clone(),
                                 )

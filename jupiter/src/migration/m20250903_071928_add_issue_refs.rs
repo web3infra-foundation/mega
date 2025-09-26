@@ -32,19 +32,19 @@ impl MigrationTrait for Migration {
 
         manager
             .create_table(
-                table_auto(IssueMrReferences::Table)
+                table_auto(IssueClReferences::Table)
                     .if_not_exists()
-                    .col(string(IssueMrReferences::SourceId))
-                    .col(string(IssueMrReferences::TargetId))
+                    .col(string(IssueClReferences::SourceId))
+                    .col(string(IssueClReferences::TargetId))
                     .col(enumeration(
-                        IssueMrReferences::ReferenceType,
+                        IssueClReferences::ReferenceType,
                         Alias::new("reference_type_enum"),
                         ReferenceType::iter(),
                     ))
                     .primary_key(
                         Index::create()
-                            .col(IssueMrReferences::SourceId)
-                            .col(IssueMrReferences::TargetId),
+                            .col(IssueClReferences::SourceId)
+                            .col(IssueClReferences::TargetId),
                     )
                     .to_owned(),
             )
@@ -58,7 +58,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum IssueMrReferences {
+enum IssueClReferences {
     Table,
     SourceId,
     TargetId,

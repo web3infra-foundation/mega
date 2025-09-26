@@ -18,7 +18,7 @@ impl MigrationTrait for Migration {
                             .drop_column("output")
                             .add_column_if_not_exists(text(Builds::OutputFile))
                             .add_column_if_not_exists(text(Builds::Arguments))
-                            .add_column_if_not_exists(text(Builds::Mr))
+                            .add_column_if_not_exists(text(Builds::Cl))
                             .to_owned(),
                     )
                     .await?;
@@ -39,5 +39,5 @@ enum Builds {
     Table,
     OutputFile,
     Arguments,
-    Mr,
+    Cl,
 }

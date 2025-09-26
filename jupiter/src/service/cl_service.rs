@@ -1,27 +1,27 @@
 use crate::{
-    model::mr_dto::MRDetails,
+    model::cl_dto::CLDetails,
     storage::{
         base_storage::{BaseStorage, StorageConnector},
         conversation_storage::ConversationStorage,
-        mr_storage::MrStorage,
+        cl_storage::ClStorage,
     },
 };
 
 use common::errors::MegaError;
 
 #[derive(Clone)]
-pub struct MRService {
-    pub mr_storage: MrStorage,
+pub struct CLService {
+    pub cl_storage: ClStorage,
     pub conversation_storage: ConversationStorage,
 }
 
-impl MRService {
+impl CLService {
     pub fn new(base_storage: BaseStorage) -> Self {
         Self {
             conversation_storage: ConversationStorage {
                 base: base_storage.clone(),
             },
-            mr_storage: MrStorage {
+            cl_storage: ClStorage {
                 base: base_storage.clone(),
             },
         }
@@ -30,21 +30,21 @@ impl MRService {
     pub fn mock() -> Self {
         let mock = BaseStorage::mock();
         Self {
-            mr_storage: MrStorage { base: mock.clone() },
+            cl_storage: ClStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
         }
     }
 
-    pub async fn get_mr_details(
+    pub async fn get_cl_details(
         &self,
         link: &str,
         username: String,
-    ) -> Result<MRDetails, MegaError> {
-        let (mr, labels) = self
-            .mr_storage
-            .get_mr_labels(link)
+    ) -> Result<CLDetails, MegaError> {
+        let (cl, labels) = self
+            .cl_storage
+            .get_cl_labels(link)
             .await?
-            .ok_or_else(|| MegaError::with_message("MR not found"))?;
+            .ok_or_else(|| MegaError::with_message("CL not found"))?;
 
         let conversations = self
             .conversation_storage
@@ -52,13 +52,13 @@ impl MRService {
             .await?;
 
         let (_, assignees) = self
-            .mr_storage
-            .get_mr_assignees(link)
+            .cl_storage
+            .get_cl_assignees(link)
             .await?
-            .unwrap_or((mr.clone(), vec![]));
+            .unwrap_or((cl.clone(), vec![]));
 
-        let res = MRDetails {
-            mr,
+        let res = CLDetails {
+            cl,
             labels,
             conversations,
             assignees,

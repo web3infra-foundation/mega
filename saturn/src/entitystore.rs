@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string_pretty};
 
 use crate::{
-    objects::{Issue, MergeRequest, Repo, User, UserGroup},
+    objects::{Issue, ChangeList, Repo, User, UserGroup},
     util::EntityUid,
 };
 
@@ -13,7 +13,7 @@ use crate::{
 pub struct EntityStore {
     users: HashMap<EntityUid, User>,
     repos: HashMap<EntityUid, Repo>,
-    merge_requests: HashMap<EntityUid, MergeRequest>,
+    change_lists: HashMap<EntityUid, ChangeList>,
     issues: HashMap<EntityUid, Issue>,
     user_groups: HashMap<EntityUid, UserGroup>,
 }
@@ -23,7 +23,7 @@ impl EntityStore {
         Self {
             users: HashMap::new(),
             repos: HashMap::new(),
-            merge_requests: HashMap::new(),
+            change_lists: HashMap::new(),
             issues: HashMap::new(),
             user_groups: HashMap::new(),
         }
@@ -33,7 +33,7 @@ impl EntityStore {
     pub fn as_entities(&self, schema: &Schema) -> Entities {
         let users = self.users.values().map(|user| user.clone().into());
         let repos = self.repos.values().map(|repo| repo.clone().into());
-        let merge_requests = self.merge_requests.values().map(|user| user.clone().into());
+        let merge_requests = self.change_lists.values().map(|user| user.clone().into());
         let issues = self.issues.values().map(|repo| repo.clone().into());
         let user_groups = self.user_groups.values().map(|group| group.clone().into());
         let all = users
@@ -47,7 +47,7 @@ impl EntityStore {
     pub fn merge(&mut self, other: EntityStore) {
         self.users.extend(other.users);
         self.repos.extend(other.repos);
-        self.merge_requests.extend(other.merge_requests);
+        self.change_lists.extend(other.change_lists);
         self.issues.extend(other.issues);
         self.user_groups.extend(other.user_groups);
     }

@@ -33,7 +33,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Tasks::RepoName).string().not_null())
                     .col(ColumnDef::new(Tasks::Target).string().not_null())
                     .col(ColumnDef::new(Tasks::Arguments).string().not_null())
-                    .col(ColumnDef::new(Tasks::Mr).string().not_null())
+                    .col(ColumnDef::new(Tasks::Cl).string().not_null())
                     .to_owned(),
             )
             .await?;
@@ -42,9 +42,9 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_tasks_mr")
+                    .name("idx_tasks_cl")
                     .table(Tasks::Table)
-                    .col(Tasks::Mr)
+                    .col(Tasks::Cl)
                     .to_owned(),
             )
             .await?;
@@ -85,5 +85,5 @@ enum Tasks {
     RepoName,
     Target,
     Arguments,
-    Mr,
+    Cl,
 }

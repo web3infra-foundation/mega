@@ -50,7 +50,7 @@ impl MigrationTrait for Migration {
                 table_auto(CheckResult::Table)
                     .col(pk_bigint(CheckResult::Id))
                     .col(string(CheckResult::Path))
-                    .col(string(CheckResult::MrLink))
+                    .col(string(CheckResult::ClLink))
                     .col(string(CheckResult::CommitId))
                     .col(enumeration(
                         CheckResult::CheckTypeCode,
@@ -68,7 +68,7 @@ impl MigrationTrait for Migration {
                 Index::create()
                     .name("check_res_unique")
                     .table(CheckResult::Table)
-                    .col(CheckResult::MrLink)
+                    .col(CheckResult::ClLink)
                     .col(CheckResult::CheckTypeCode)
                     .unique()
                     .to_owned(),
@@ -112,7 +112,7 @@ pub enum CheckType {
     GpgSignature,
     BranchProtection,
     CommitMessage,
-    MrSync,
+    ClSync,
     MergeConflict,
     CiStatus,
     CodeReview,
@@ -123,7 +123,7 @@ enum CheckResult {
     Table,
     Id,
     Path,
-    MrLink,
+    ClLink,
     CommitId,
     CheckTypeCode,
     Status,

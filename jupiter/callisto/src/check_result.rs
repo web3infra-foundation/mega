@@ -12,7 +12,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub path: String,
-    pub mr_link: String,
+    pub cl_link: String,
     pub commit_id: String,
     pub check_type_code: CheckTypeEnum,
     pub status: String,

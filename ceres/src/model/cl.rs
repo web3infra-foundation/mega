@@ -5,27 +5,27 @@ use serde::{Deserialize, Serialize};
 use mercury::hash::SHA1;
 
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-pub enum MrDiffFile {
+pub enum ClDiffFile {
     New(PathBuf, SHA1),
     Deleted(PathBuf, SHA1),
     // path, old_hash, new_hash
     Modified(PathBuf, SHA1, SHA1),
 }
 
-impl MrDiffFile {
+impl ClDiffFile {
     pub fn path(&self) -> &PathBuf {
         match self {
-            MrDiffFile::New(path, _) => path,
-            MrDiffFile::Deleted(path, _) => path,
-            MrDiffFile::Modified(path, _, _) => path,
+            ClDiffFile::New(path, _) => path,
+            ClDiffFile::Deleted(path, _) => path,
+            ClDiffFile::Modified(path, _, _) => path,
         }
     }
 
     pub fn kind_weight(&self) -> u8 {
         match self {
-            MrDiffFile::New(_, _) => 0,
-            MrDiffFile::Deleted(_, _) => 1,
-            MrDiffFile::Modified(_, _, _) => 2,
+            ClDiffFile::New(_, _) => 0,
+            ClDiffFile::Deleted(_, _) => 1,
+            ClDiffFile::Modified(_, _, _) => 2,
         }
     }
 }

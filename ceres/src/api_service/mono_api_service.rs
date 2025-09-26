@@ -2,14 +2,14 @@
 //!
 //! This module provides the API service implementation for monorepo operations in the Mega system.
 //! The `MonoApiService` struct implements the `ApiHandler` trait to provide comprehensive
-//! monorepo management capabilities including file operations, merge request handling,
+//! monorepo management capabilities including file operations, change list handling,
 //! and Git-like version control functionality.
 //!
 //! ## Key Features
 //!
 //! - **File Management**: Create files and directories within the monorepo structure
 //! - **Tree Operations**: Handle Git tree objects for version control
-//! - **Merge Requests**: Process and merge pull/merge requests with conflict resolution
+//! - **Change List**: Process and merge pull/change lists with conflict resolution
 //! - **Diff Operations**: Generate content differences between commits using libra
 //! - **Commit Management**: Retrieve and manage commit objects and their relationships
 //! - **Storage Integration**: Seamless integration with the underlying storage layer
@@ -18,7 +18,7 @@
 //!
 //! - `MonoApiService`: Main service struct that wraps storage functionality
 //! - `ApiHandler` implementation: Provides standardized API operations
-//! - Merge request processing with automated conflict detection
+//! - Change List processing with automated conflict detection
 //! - Tree traversal and blob extraction utilities
 //!
 //! ## Dependencies
@@ -43,7 +43,7 @@ use std::sync::Arc;
 use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
-use crate::model::mr::MrDiffFile;
+use crate::model::cl::ClDiffFile;
 use async_trait::async_trait;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
@@ -54,7 +54,7 @@ use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_mr, mega_tag, mega_tree};
+use callisto::{mega_cl, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 
@@ -769,39 +769,39 @@ impl MonoApiService {
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
-    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), GitError> {
+    pub async fn merge_cl(&self, username: &str, cl: mega_cl::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-        let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
+        let refs = storage.get_ref(&cl.path).await.unwrap().unwrap();
 
-        if mr.from_hash == refs.ref_commit_hash {
+        if cl.from_hash == refs.ref_commit_hash {
             let commit: Commit = storage
-                .get_commit_by_hash(&mr.to_hash)
+                .get_commit_by_hash(&cl.to_hash)
                 .await
                 .unwrap()
                 .unwrap()
                 .into();
 
-            if mr.path != "/" {
-                let path = PathBuf::from(mr.path.clone());
+            if cl.path != "/" {
+                let path = PathBuf::from(cl.path.clone());
                 // because only parent tree is needed so we skip current directory
                 let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
                 let result = self.build_result_by_chain(path, update_chain, commit.tree_id)?;
-                self.apply_update_result(&result, "mr merge generated commit")
+                self.apply_update_result(&result, "cl merge generated commit")
                     .await?;
-                // remove refs start with path except mr type
-                storage.remove_none_mr_refs(&mr.path).await.unwrap();
+                // remove refs start with path except cl type
+                storage.remove_none_cl_refs(&cl.path).await.unwrap();
                 // TODO: self.clean_dangling_commits().await;
             }
             // add conversation
             self.storage
                 .conversation_storage()
-                .add_conversation(&mr.link, username, None, ConvTypeEnum::Merged)
+                .add_conversation(&cl.link, username, None, ConvTypeEnum::Merged)
                 .await
                 .unwrap();
-            // update mr status last
+            // update cl status last
             self.storage
-                .mr_storage()
-                .merge_mr(mr.clone())
+                .cl_storage()
+                .merge_cl(cl.clone())
                 .await
                 .unwrap();
         } else {
@@ -914,46 +914,46 @@ impl MonoApiService {
         Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
     }
 
-    /// Fetches the content difference for a merge request, paginated by page_id and page_size.
+    /// Fetches the content difference for a change list, paginated by page_id and page_size.
     /// # Arguments
-    /// * `mr_link` - The link to the merge request.
+    /// * `cl_link` - The link to the change list.
     /// * `page_id` - The page number to fetch. (id out of bounds will return empty)
     /// * `page_size` - The number of items per page.
     /// # Returns
-    ///  a `Result` containing `MrDiff` on success or a `GitError` on failure.
+    ///  a `Result` containing `ClDiff` on success or a `GitError` on failure.
     pub async fn paged_content_diff(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         page: Pagination,
     ) -> Result<(Vec<DiffItem>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
         // old and new blobs for comparison
-        let stg = self.storage.mr_storage();
-        let mr =
-            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+        let stg = self.storage.cl_storage();
+        let cl =
+            stg.get_cl(cl_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Change List not found: {cl_link}"))
             })?;
         let old_blobs = self
-            .get_commit_blobs(&mr.from_hash)
+            .get_commit_blobs(&cl.from_hash)
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to get old commit blobs: {e}")))?;
         let new_blobs = self
-            .get_commit_blobs(&mr.to_hash)
+            .get_commit_blobs(&cl.to_hash)
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
 
         // calculate pages
         let sorted_changed_files = self
-            .mr_files_list(old_blobs.clone(), new_blobs.clone())
+            .cl_files_list(old_blobs.clone(), new_blobs.clone())
             .await?;
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
         let end = (start + per_page).min(sorted_changed_files.len());
 
-        let page_slice: &[MrDiffFile] = if start < sorted_changed_files.len() {
+        let page_slice: &[ClDiffFile] = if start < sorted_changed_files.len() {
             let start_idx = start;
             let end_idx = end;
             &sorted_changed_files[start_idx..end_idx]
@@ -1047,7 +1047,7 @@ impl MonoApiService {
 
     fn collect_page_blobs(
         &self,
-        items: &[MrDiffFile],
+        items: &[ClDiffFile],
         old_out: &mut Vec<(PathBuf, SHA1)>,
         new_out: &mut Vec<(PathBuf, SHA1)>,
     ) {
@@ -1056,13 +1056,13 @@ impl MonoApiService {
 
         for item in items {
             match item {
-                MrDiffFile::New(p, h_new) => {
+                ClDiffFile::New(p, h_new) => {
                     new_out.push((p.clone(), *h_new));
                 }
-                MrDiffFile::Deleted(p, h_old) => {
+                ClDiffFile::Deleted(p, h_old) => {
                     old_out.push((p.clone(), *h_old));
                 }
-                MrDiffFile::Modified(p, h_old, h_new) => {
+                ClDiffFile::Modified(p, h_old, h_new) => {
                     old_out.push((p.clone(), *h_old));
                     new_out.push((p.clone(), *h_new));
                 }
@@ -1072,23 +1072,23 @@ impl MonoApiService {
 
     pub async fn get_sorted_changed_file_list(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         path: Option<&str>,
     ) -> Result<Vec<String>, MegaError> {
-        let mr = self
+        let cl = self
             .storage
-            .mr_storage()
-            .get_mr(mr_link)
+            .cl_storage()
+            .get_cl(cl_link)
             .await
             .unwrap()
             .ok_or_else(|| MegaError::with_message("Error getting "))?;
 
-        let old_files = self.get_commit_blobs(&mr.from_hash.clone()).await?;
-        let new_files = self.get_commit_blobs(&mr.to_hash.clone()).await?;
+        let old_files = self.get_commit_blobs(&cl.from_hash.clone()).await?;
+        let new_files = self.get_commit_blobs(&cl.to_hash.clone()).await?;
 
         // calculate pages
         let sorted_changed_files = self
-            .mr_files_list(old_files.clone(), new_files.clone())
+            .cl_files_list(old_files.clone(), new_files.clone())
             .await?;
         let file_paths: Vec<String> = sorted_changed_files
             .iter()
@@ -1105,11 +1105,11 @@ impl MonoApiService {
         Ok(file_paths)
     }
 
-    pub async fn mr_files_list(
+    pub async fn cl_files_list(
         &self,
         old_files: Vec<(PathBuf, SHA1)>,
         new_files: Vec<(PathBuf, SHA1)>,
-    ) -> Result<Vec<MrDiffFile>, MegaError> {
+    ) -> Result<Vec<ClDiffFile>, MegaError> {
         let old_files: HashMap<PathBuf, SHA1> = old_files.into_iter().collect();
         let new_files: HashMap<PathBuf, SHA1> = new_files.into_iter().collect();
         let unions: HashSet<PathBuf> = old_files.keys().chain(new_files.keys()).cloned().collect();
@@ -1119,13 +1119,13 @@ impl MonoApiService {
             let new_hash = new_files.get(&path);
             match (old_hash, new_hash) {
                 (None, None) => {}
-                (None, Some(new)) => res.push(MrDiffFile::New(path, *new)),
-                (Some(old), None) => res.push(MrDiffFile::Deleted(path, *old)),
+                (None, Some(new)) => res.push(ClDiffFile::New(path, *new)),
+                (Some(old), None) => res.push(ClDiffFile::Deleted(path, *old)),
                 (Some(old), Some(new)) => {
                     if old == new {
                         continue;
                     } else {
-                        res.push(MrDiffFile::Modified(path, *old, *new));
+                        res.push(ClDiffFile::Modified(path, *old, *new));
                     }
                 }
             }
@@ -1184,7 +1184,7 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::model::mr::MrDiffFile;
+    use crate::model::cl::ClDiffFile;
     use mercury::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;
@@ -1202,17 +1202,17 @@ mod test {
 
     #[test]
     fn test_paging_calculation_basic() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![
+            ClDiffFile::New(
                 PathBuf::from("file1.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
-            MrDiffFile::Modified(
+            ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
                 SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
-            MrDiffFile::Deleted(
+            ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
                 SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
@@ -1227,7 +1227,7 @@ mod test {
         assert_eq!(start, 0);
         assert_eq!(end, 2);
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1240,21 +1240,21 @@ mod test {
 
     #[test]
     fn test_paging_calculation_second_page() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![
+            ClDiffFile::New(
                 PathBuf::from("file1.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
-            MrDiffFile::Modified(
+            ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
                 SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
-            MrDiffFile::Deleted(
+            ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
                 SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
-            MrDiffFile::New(
+            ClDiffFile::New(
                 PathBuf::from("file4.txt"),
                 SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
             ),
@@ -1269,7 +1269,7 @@ mod test {
         assert_eq!(start, 2);
         assert_eq!(end, 4);
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1284,17 +1284,17 @@ mod test {
 
     #[test]
     fn test_paging_calculation_partial_page() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![
+            ClDiffFile::New(
                 PathBuf::from("file1.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
-            MrDiffFile::Modified(
+            ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
                 SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
-            MrDiffFile::Deleted(
+            ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
                 SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
@@ -1309,7 +1309,7 @@ mod test {
         assert_eq!(start, 0);
         assert_eq!(end, 3);
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1322,7 +1322,7 @@ mod test {
 
     #[test]
     fn test_paging_calculation_out_of_bounds() {
-        let files: Vec<MrDiffFile> = vec![MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![ClDiffFile::New(
             PathBuf::from("file1.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
@@ -1336,7 +1336,7 @@ mod test {
         assert_eq!(start, 4);
         assert_eq!(end, 1); // end is clamped to files.len()
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1349,7 +1349,7 @@ mod test {
 
     #[test]
     fn test_paging_calculation_edge_case_zero_page_size() {
-        let files: Vec<MrDiffFile> = vec![MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![ClDiffFile::New(
             PathBuf::from("file1.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
@@ -1363,7 +1363,7 @@ mod test {
         assert_eq!(start, 0);
         assert_eq!(end, 0);
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1376,12 +1376,12 @@ mod test {
 
     #[test]
     fn test_paging_calculation_zero_page_id() {
-        let files: Vec<MrDiffFile> = vec![
-            MrDiffFile::New(
+        let files: Vec<ClDiffFile> = vec![
+            ClDiffFile::New(
                 PathBuf::from("file1.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
-            MrDiffFile::Modified(
+            ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
                 SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
                 SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
@@ -1397,7 +1397,7 @@ mod test {
         assert_eq!(start, 0);
         assert_eq!(end, 2);
 
-        let page_slice: &[MrDiffFile] = if (start as usize) < files.len() {
+        let page_slice: &[ClDiffFile] = if (start as usize) < files.len() {
             let start_idx = start as usize;
             let end_idx = end as usize;
             &files[start_idx..end_idx]
@@ -1429,7 +1429,7 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![MrDiffFile::New(
+        let files = vec![ClDiffFile::New(
             PathBuf::from("new_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
@@ -1450,7 +1450,7 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![MrDiffFile::Deleted(
+        let files = vec![ClDiffFile::Deleted(
             PathBuf::from("deleted_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
@@ -1518,7 +1518,7 @@ mod test {
             storage: Storage::mock(),
         };
 
-        let files = vec![MrDiffFile::Modified(
+        let files = vec![ClDiffFile::Modified(
             PathBuf::from("modified_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
             SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
@@ -1542,15 +1542,15 @@ mod test {
         };
 
         let files = vec![
-            MrDiffFile::New(
+            ClDiffFile::New(
                 PathBuf::from("new.txt"),
                 SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
-            MrDiffFile::Deleted(
+            ClDiffFile::Deleted(
                 PathBuf::from("deleted.txt"),
                 SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
             ),
-            MrDiffFile::Modified(
+            ClDiffFile::Modified(
                 PathBuf::from("modified.txt"),
                 SHA1::from_str("3333333333333333333333333333333333333333").unwrap(),
                 SHA1::from_str("4444444444444444444444444444444444444444").unwrap(),

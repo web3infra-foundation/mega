@@ -1,17 +1,17 @@
-use callisto::{item_assignees, label, mega_mr, sea_orm_active_enums::MergeStatusEnum};
+use callisto::{item_assignees, label, mega_cl, sea_orm_active_enums::MergeStatusEnum};
 use sea_orm::entity::prelude::*;
 
 use crate::model::conv_dto::ConvWithReactions;
 
-pub struct MRDetails {
+pub struct CLDetails {
     pub username: String,
-    pub mr: mega_mr::Model,
+    pub cl: mega_cl::Model,
     pub conversations: Vec<ConvWithReactions>,
     pub labels: Vec<label::Model>,
     pub assignees: Vec<item_assignees::Model>,
 }
 
-pub struct MrInfoDto {
+pub struct ClInfoDto {
     pub link: String,
     pub title: String,
     pub merge_date: Option<DateTime>,
@@ -24,8 +24,8 @@ pub struct MrInfoDto {
     pub username: String,
 }
 
-impl From<mega_mr::Model> for MrInfoDto {
-    fn from(value: mega_mr::Model) -> Self {
+impl From<mega_cl::Model> for ClInfoDto {
+    fn from(value: mega_cl::Model) -> Self {
         Self {
             link: value.link,
             title: value.title,

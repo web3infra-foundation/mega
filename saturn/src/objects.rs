@@ -76,14 +76,14 @@ impl From<Repo> for Entity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MergeRequest {
+pub struct ChangeList {
     euid: EntityUid,
     repo: EntityUid,
     parents: HashSet<EntityUid>,
 }
 
-impl From<MergeRequest> for Entity {
-    fn from(value: MergeRequest) -> Entity {
+impl From<ChangeList> for Entity {
+    fn from(value: ChangeList) -> Entity {
         let attrs = [("repo", format!("{}", value.repo.as_ref()).parse().unwrap())]
             .into_iter()
             .map(|(x, v)| (x.into(), v))

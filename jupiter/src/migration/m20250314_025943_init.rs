@@ -169,22 +169,22 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(MegaMr::Table)
+                    .table(MegaCl::Table)
                     .if_not_exists()
-                    .col(pk_bigint(MegaMr::Id))
-                    .col(string(MegaMr::Link))
-                    .col(text(MegaMr::Title))
-                    .col(date_time_null(MegaMr::MergeDate))
+                    .col(pk_bigint(MegaCl::Id))
+                    .col(string(MegaCl::Link))
+                    .col(text(MegaCl::Title))
+                    .col(date_time_null(MegaCl::MergeDate))
                     .col(enumeration(
-                        MegaMr::Status,
+                        MegaCl::Status,
                         Alias::new("merge_status_enum"),
                         MergeStatus::iter(),
                     ))
-                    .col(text(MegaMr::Path))
-                    .col(string(MegaMr::FromHash))
-                    .col(string(MegaMr::ToHash))
-                    .col(date_time(MegaMr::CreatedAt))
-                    .col(date_time(MegaMr::UpdatedAt))
+                    .col(text(MegaCl::Path))
+                    .col(string(MegaCl::FromHash))
+                    .col(string(MegaCl::ToHash))
+                    .col(date_time(MegaCl::CreatedAt))
+                    .col(date_time(MegaCl::UpdatedAt))
                     .to_owned(),
             )
             .await?;
@@ -192,10 +192,10 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_mr_path")
+                    .name("idx_cl_path")
                     .unique()
-                    .table(MegaMr::Table)
-                    .col(MegaMr::Path)
+                    .table(MegaCl::Table)
+                    .col(MegaCl::Path)
                     .to_owned(),
             )
             .await?;
@@ -278,7 +278,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("uniq_mref_path")
+                    .name("uniq_clef_path")
                     .unique()
                     .table(MegaRefs::Table)
                     .col(MegaRefs::Path)
@@ -954,7 +954,7 @@ enum MegaTag {
 }
 
 #[derive(DeriveIden)]
-enum MegaMr {
+enum MegaCl {
     Table,
     Id,
     Link,

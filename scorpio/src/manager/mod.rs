@@ -19,7 +19,7 @@ pub mod add;
 pub mod commit;
 pub mod diff;
 pub mod fetch;
-pub mod mr;
+pub mod cl;
 pub mod push;
 pub mod reset;
 pub mod status;

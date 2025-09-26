@@ -2,7 +2,7 @@ use sea_orm::entity::prelude::*;
 
 use crate::{
     entity_ext::generate_id,
-    mega_mr::{self, Entity},
+    mega_cl::{self, Entity},
     sea_orm_active_enums::MergeStatusEnum,
 };
 
@@ -29,7 +29,7 @@ impl Related<crate::label::Entity> for Entity {
     }
 
     fn via() -> Option<RelationDef> {
-        Some(crate::entity_ext::item_labels::Relation::MegaMr.def().rev())
+        Some(crate::entity_ext::item_labels::Relation::MegaCl.def().rev())
     }
 }
 
@@ -51,7 +51,7 @@ impl Related<crate::mega_conversation::Entity> for Entity {
     }
 }
 
-impl mega_mr::Model {
+impl mega_cl::Model {
     pub fn new(
         path: String,
         title: String,

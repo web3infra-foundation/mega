@@ -1,7 +1,7 @@
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 use async_trait::async_trait;
 use common::errors::MegaError;
-use jupiter::model::mr_dto::MrInfoDto;
+use jupiter::model::cl_dto::ClInfoDto;
 use jupiter::storage::Storage;
 use pgp::composed::{Deserializable, SignedPublicKey, StandaloneSignature};
 use regex::Regex;
@@ -15,7 +15,7 @@ pub struct GpgSignatureChecker {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GpgSignatureParams {
-    mr_to: String,
+    cl_to: String,
     committer: String,
 }
 
@@ -35,7 +35,7 @@ impl Checker for GpgSignatureChecker {
             message: String::new(),
         };
 
-        let is_verified = self.verify_mr(&params.mr_to, params.committer).await;
+        let is_verified = self.verify_cl(&params.cl_to, params.committer).await;
         match is_verified {
             Ok(_) => {
                 res.status = ConditionResult::PASSED;
@@ -51,20 +51,20 @@ impl Checker for GpgSignatureChecker {
         res
     }
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<Value, MegaError> {
+    async fn build_params(&self, cl_info: &ClInfoDto) -> Result<Value, MegaError> {
         Ok(serde_json::json!({
-            "mr_to": mr_info.to_hash,
-            "committer": mr_info.username,
+            "cl_to": cl_info.to_hash,
+            "committer": cl_info.username,
         }))
     }
 }
 
 impl GpgSignatureChecker {
-    async fn verify_mr(&self, mr_to: &str, assignee: String) -> Result<(), MegaError> {
+    async fn verify_cl(&self, cl_to: &str, assignee: String) -> Result<(), MegaError> {
         let commit = self
             .storage
             .mono_storage()
-            .get_commit_by_hash(mr_to)
+            .get_commit_by_hash(cl_to)
             .await?
             .ok_or_else(|| MegaError::with_message("Commit not found"))?;
 
@@ -181,7 +181,7 @@ gpgsig -----BEGIN PGP SIGNATURE-----
  tnjstUEJDE2sKztTcics740FZJnXW13MGQZV6HEODYo00zldOUYWqNflTYt8oVmQ
  LrPWncxOVXBKnhs1X+Zh8aJIj5Gnqrl0A8PMRlqSOKMEQzZD0Erd2/Fj+uzemGwl
  EexiTwtuoMBSjAWCTholW8HzvHOoSvSj3fV5bKD7XbWtBaB62rCtqNvqJK2QX8aM
- fSNM3KnloWz+sDFGYnmGacNsn+uqxF517DT/mqJeNMrI2MWGMzuQolHqeNTRSCiq
+ fSNM3KnloWz+sDFGYnmGacNsn+uqxF517DT/mqJeNClI2MWGMzuQolHqeNTRSCiq
  Mvslf2i50W0P8npM+U+JJBIaNGReslK0zlsSwc4X50ReDXJxxi5QvlS0WLEmJIOl
  f58UBUCXm/LEYABTW5xKdEFoSxmpGcZ09G7/O6CvqPVau0gGcqwjl4LP3/496ifz
  jjI4Ah4p
@@ -217,7 +217,7 @@ vNwQlxjD2gDq8MFr8eFIwQCBrHVFx4QrmAnLNhtbnf9fGws//nPEPrzm3bHaRmt4
 tnjstUEJDE2sKztTcics740FZJnXW13MGQZV6HEODYo00zldOUYWqNflTYt8oVmQ
 LrPWncxOVXBKnhs1X+Zh8aJIj5Gnqrl0A8PMRlqSOKMEQzZD0Erd2/Fj+uzemGwl
 EexiTwtuoMBSjAWCTholW8HzvHOoSvSj3fV5bKD7XbWtBaB62rCtqNvqJK2QX8aM
-fSNM3KnloWz+sDFGYnmGacNsn+uqxF517DT/mqJeNMrI2MWGMzuQolHqeNTRSCiq
+fSNM3KnloWz+sDFGYnmGacNsn+uqxF517DT/mqJeNClI2MWGMzuQolHqeNTRSCiq
 Mvslf2i50W0P8npM+U+JJBIaNGReslK0zlsSwc4X50ReDXJxxi5QvlS0WLEmJIOl
 f58UBUCXm/LEYABTW5xKdEFoSxmpGcZ09G7/O6CvqPVau0gGcqwjl4LP3/496ifz
 jjI4Ah4p

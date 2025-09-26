@@ -109,7 +109,7 @@ impl ConversationStorage {
 
     pub async fn change_review_state(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         review_id: &i64,
         username: &str,
         state: bool,
@@ -118,7 +118,7 @@ impl ConversationStorage {
             .filter(mega_conversation::Column::Id.eq(*review_id))
             .filter(mega_conversation::Column::ConvType.eq(ConvTypeEnum::Review))
             .filter(mega_conversation::Column::Username.eq(username))
-            .filter(mega_conversation::Column::Link.eq(mr_link))
+            .filter(mega_conversation::Column::Link.eq(cl_link))
             .one(self.get_connection())
             .await
             .map_err(|e| {

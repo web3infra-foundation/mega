@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                 manager
                     .alter_table(
                         Table::alter()
-                            .table(MegaMr::Table)
+                            .table(MegaCl::Table)
                             .add_column_if_not_exists(
                                 ColumnDef::new(Alias::new("username"))
                                     .string()
@@ -53,7 +53,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum MegaMr {
+enum MegaCl {
     Table,
 }
 

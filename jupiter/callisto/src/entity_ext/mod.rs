@@ -4,7 +4,7 @@ pub mod item_labels;
 pub mod label;
 pub mod mega_conversation;
 pub mod mega_issue;
-pub mod mega_mr;
+pub mod mega_cl;
 pub mod reactions;
 
 use idgenerator::IdInstance;
@@ -54,7 +54,7 @@ mod test {
     #[test]
     fn test_link_generate() {
         let link = generate_link();
-        println!("MR Link: '{link:?}'");
+        println!("CL Link: '{link:?}'");
         assert!(
             link.chars().count() == 8
                 && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())

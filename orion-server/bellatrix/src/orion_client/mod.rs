@@ -5,7 +5,7 @@ pub struct OrionBuildRequest {
     pub repo: String,
     pub buck_hash: String,
     pub buckconfig_hash: String,
-    pub mr: String,
+    pub cl: String,
     pub args: Option<Vec<String>>,
 }
 

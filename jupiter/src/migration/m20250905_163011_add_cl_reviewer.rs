@@ -11,12 +11,12 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(MegaMrReviewer::Table)
+                    .table(MegaClReviewer::Table)
                     .if_not_exists()
-                    .col(pk_bigint(MegaMrReviewer::Id))
-                    .col(big_integer(MegaMrReviewer::MrId))
-                    .col(text(MegaMrReviewer::CampsiteID))
-                    .col(boolean(MegaMrReviewer::Approved))
+                    .col(pk_bigint(MegaClReviewer::Id))
+                    .col(big_integer(MegaClReviewer::ClId))
+                    .col(text(MegaClReviewer::CampsiteID))
+                    .col(boolean(MegaClReviewer::Approved))
                     .to_owned(),
             )
             .await?;
@@ -25,16 +25,16 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(MegaMrReviewer::Table).to_owned())
+            .drop_table(Table::drop().table(MegaClReviewer::Table).to_owned())
             .await
     }
 }
 
 #[derive(DeriveIden)]
-enum MegaMrReviewer {
+enum MegaClReviewer {
     Table,
     Id,
-    MrId,
+    ClId,
     CampsiteID,
     Approved,
 }

@@ -9,14 +9,14 @@ use common::{
     errors::MegaError,
     model::{CommonPage, CommonResult, PageParams},
 };
-use jupiter::service::mr_service::MRService;
+use jupiter::service::cl_service::CLService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::mr::model::{
+use crate::api::cl::model::{
     ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
     ReviewersResponse,
 };
-use crate::api::{MonoApiServiceState, mr::FilesChangedPage};
+use crate::api::{MonoApiServiceState, cl::FilesChangedPage};
 use crate::api::{
     api_common::{
         self,
@@ -25,25 +25,25 @@ use crate::api::{
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
-    mr::{Condition, MRDetailRes, MergeBoxRes, MrFilesRes, MuiTreeNode},
+    cl::{Condition, CLDetailRes, MergeBoxRes, ClFilesRes, MuiTreeNode},
     oauth::model::LoginUser,
 };
-use crate::{api::error::ApiError, server::http_server::MR_TAG};
+use crate::{api::error::ApiError, server::http_server::CL_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
-        "/mr",
+        "/cl",
         OpenApiRouter::new()
-            .routes(routes!(fetch_mr_list))
-            .routes(routes!(mr_detail))
+            .routes(routes!(fetch_cl_list))
+            .routes(routes!(cl_detail))
             .routes(routes!(merge))
             .routes(routes!(merge_box))
             .routes(routes!(merge_no_auth))
-            .routes(routes!(close_mr))
-            .routes(routes!(reopen_mr))
-            .routes(routes!(mr_mui_tree))
-            .routes(routes!(mr_files_changed_by_page))
-            .routes(routes!(mr_files_list))
+            .routes(routes!(close_cl))
+            .routes(routes!(reopen_cl))
+            .routes(routes!(cl_mui_tree))
+            .routes(routes!(cl_files_changed_by_page))
+            .routes(routes!(cl_files_list))
             .routes(routes!(save_comment))
             .routes(routes!(labels))
             .routes(routes!(assignees))
@@ -56,24 +56,24 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     )
 }
 
-/// Reopen Merge Request
+/// Reopen Change List
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/reopen",
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn reopen_mr(
+async fn reopen_cl(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
+    let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
     if model.status == MergeStatusEnum::Closed {
@@ -87,7 +87,7 @@ async fn reopen_mr(
         // .unwrap();
 
         let link = model.link.clone();
-        state.mr_stg().reopen_mr(model).await?;
+        state.cl_stg().reopen_cl(model).await?;
         state
             .conv_stg()
             .add_conversation(
@@ -102,24 +102,24 @@ async fn reopen_mr(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Close Merge Request
+/// Close Change List
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/close",
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn close_mr(
+async fn close_cl(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
+    let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
     if model.status == MergeStatusEnum::Open {
@@ -132,7 +132,7 @@ async fn close_mr(
         // .await
         // .unwrap();
         let link = model.link.clone();
-        state.mr_stg().close_mr(model).await?;
+        state.cl_stg().close_cl(model).await?;
         state
             .conv_stg()
             .add_conversation(
@@ -146,24 +146,24 @@ async fn close_mr(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Approve Merge Request
+/// Approve Change List
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/merge",
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn merge(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
+    let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
     if model.status == MergeStatusEnum::Open {
@@ -176,48 +176,48 @@ async fn merge(
         // )
         // .await
         // .unwrap();
-        state.monorepo().merge_mr(&user.username, model).await?;
+        state.monorepo().merge_cl(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Merge Request without authentication
+/// Change List without authentication
 /// It's for local testing purposes.
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/merge-no-auth",
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn merge_no_auth(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.mr_stg().get_mr(&link).await?;
-    let model = res.ok_or(MegaError::with_message("MR Not Found"))?;
+    let res = state.cl_stg().get_cl(&link).await?;
+    let model = res.ok_or(MegaError::with_message("CL Not Found"))?;
 
     if model.status != MergeStatusEnum::Open {
         return Err(ApiError::from(MegaError::with_message(format!(
-            "MR is not in Open status, current status: {:?}",
+            "CL is not in Open status, current status: {:?}",
             model.status
         ))));
     }
 
     // No authentication required - using default system user
     let default_username = "system";
-    state.monorepo().merge_mr(default_username, model).await?;
+    state.monorepo().merge_cl(default_username, model).await?;
 
     Ok(Json(CommonResult::success(Some(
         "Merge completed successfully".to_string(),
     ))))
 }
 
-/// Fetch MR list
+/// Fetch CL list
 #[utoipa::path(
     post,
     path = "/list",
@@ -225,15 +225,15 @@ async fn merge_no_auth(
     responses(
         (status = 200, body = CommonResult<CommonPage<ItemRes>>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn fetch_mr_list(
+async fn fetch_cl_list(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<ListPayload>>,
 ) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let (items, total) = state
-        .mr_stg()
-        .get_mr_list(json.additional.into(), json.pagination)
+        .cl_stg()
+        .get_cl_list(json.additional.into(), json.pagination)
         .await?;
     let res = CommonPage {
         items: items.into_iter().map(|m| m.into()).collect(),
@@ -246,39 +246,39 @@ async fn fetch_mr_list(
 #[utoipa::path(
     get,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/detail",
     responses(
-        (status = 200, body = CommonResult<MRDetailRes>, content_type = "application/json")
+        (status = 200, body = CommonResult<CLDetailRes>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn mr_detail(
+async fn cl_detail(
     user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<MRDetailRes>>, ApiError> {
-    let mr_service: MRService = state.storage.mr_service.clone();
-    let mr_details: MRDetailRes = mr_service
-        .get_mr_details(&link, user.username)
+) -> Result<Json<CommonResult<CLDetailRes>>, ApiError> {
+    let cl_service: CLService = state.storage.cl_service.clone();
+    let cl_details: CLDetailRes = cl_service
+        .get_cl_details(&link, user.username)
         .await?
         .into();
-    Ok(Json(CommonResult::success(Some(mr_details))))
+    Ok(Json(CommonResult::success(Some(cl_details))))
 }
 
 #[utoipa::path(
     get,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/mui-tree",
     responses(
         (status = 200, body = CommonResult<Vec<MuiTreeNode>>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn mr_mui_tree(
+async fn cl_mui_tree(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
@@ -290,20 +290,20 @@ async fn mr_mui_tree(
     Ok(Json(CommonResult::success(Some(mui_trees))))
 }
 
-/// Get Merge Request file changed list in Pagination
+/// Get Change List file changed list in Pagination
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/files-changed",
     request_body = PageParams<String>,
     responses(
         (status = 200, body = CommonResult<FilesChangedPage>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn mr_files_changed_by_page(
+async fn cl_files_changed_by_page(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
@@ -318,42 +318,42 @@ async fn mr_files_changed_by_page(
     Ok(Json(res))
 }
 
-/// Get Merge Request file list
+/// Get Change List file list
 #[utoipa::path(
     get,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/files-list",
     responses(
-        (status = 200, body = CommonResult<Vec<MrFilesRes>>, content_type = "application/json")
+        (status = 200, body = CommonResult<Vec<ClFilesRes>>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
-async fn mr_files_list(
+async fn cl_files_list(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<MrFilesRes>>>, ApiError> {
-    let mr = state
-        .mr_stg()
-        .get_mr(&link)
+) -> Result<Json<CommonResult<Vec<ClFilesRes>>>, ApiError> {
+    let cl = state
+        .cl_stg()
+        .get_cl(&link)
         .await?
-        .ok_or(MegaError::with_message("MR Not Found"))?;
+        .ok_or(MegaError::with_message("CL Not Found"))?;
 
     let stg = state.monorepo();
-    let old_files = stg.get_commit_blobs(&mr.from_hash).await?;
-    let new_files = stg.get_commit_blobs(&mr.to_hash).await?;
-    let mr_diff_files = stg.mr_files_list(old_files, new_files.clone()).await?;
+    let old_files = stg.get_commit_blobs(&cl.from_hash).await?;
+    let new_files = stg.get_commit_blobs(&cl.to_hash).await?;
+    let cl_diff_files = stg.cl_files_list(old_files, new_files.clone()).await?;
 
-    let mr_base = PathBuf::from(mr.path);
-    let res = mr_diff_files
+    let cl_base = PathBuf::from(cl.path);
+    let res = cl_diff_files
         .into_iter()
         .map(|m| {
-            let mut item: MrFilesRes = m.into();
-            item.path = mr_base.join(item.path).to_string_lossy().to_string();
+            let mut item: ClFilesRes = m.into();
+            item.path = cl_base.join(item.path).to_string_lossy().to_string();
             item
         })
-        .collect::<Vec<MrFilesRes>>();
+        .collect::<Vec<ClFilesRes>>();
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -361,28 +361,28 @@ async fn mr_files_list(
 #[utoipa::path(
     get,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/merge-box",
     responses(
         (status = 200, body = CommonResult<MergeBoxRes>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn merge_box(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<MergeBoxRes>>, ApiError> {
-    let mr = state
-        .mr_stg()
-        .get_mr(&link)
+    let cl = state
+        .cl_stg()
+        .get_cl(&link)
         .await?
-        .ok_or(MegaError::with_message("MR Not Found"))?;
+        .ok_or(MegaError::with_message("CL Not Found"))?;
 
-    let res = match mr.status {
+    let res = match cl.status {
         MergeStatusEnum::Open => {
             let check_res: Vec<Condition> = state
-                .mr_stg()
+                .cl_stg()
                 .get_check_result(&link)
                 .await?
                 .into_iter()
@@ -397,18 +397,18 @@ async fn merge_box(
     Ok(Json(CommonResult::success(Some(res))))
 }
 
-/// Add new comment on Merge Request
+/// Add new comment on Change List
 #[utoipa::path(
     post,
     params(
-        ("link", description = "MR link"),
+        ("link", description = "CL link"),
     ),
     path = "/{link}/comment",
     request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn save_comment(
     user: LoginUser,
@@ -422,7 +422,7 @@ async fn save_comment(
         .is_reviewer(&link, &user.username)
         .await?
     {
-        // If user is the reviewer for this mr, then the comment if of type review
+        // If user is the reviewer for this cl, then the comment if of type review
         ConvTypeEnum::Review
     } else {
         ConvTypeEnum::Comment
@@ -440,18 +440,18 @@ async fn save_comment(
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
-/// Edit MR title
+/// Edit CL title
 #[utoipa::path(
     post,
     params(
-        ("link", description = "A string ID representing a Merge Request"),
+        ("link", description = "A string ID representing a Change List"),
     ),
     path = "/{link}/title",
     request_body = ContentPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn edit_title(
     _: LoginUser,
@@ -459,11 +459,11 @@ async fn edit_title(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.mr_stg().edit_title(&link, &payload.content).await?;
+    state.cl_stg().edit_title(&link, &payload.content).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Update mr related labels
+/// Update cl related labels
 #[utoipa::path(
     post,
     path = "/labels",
@@ -471,17 +471,17 @@ async fn edit_title(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn labels(
     user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(payload): Json<LabelUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    api_common::label_assignee::label_update(user, state, payload, String::from("mr")).await
+    api_common::label_assignee::label_update(user, state, payload, String::from("cl")).await
 }
 
-/// Update MR related assignees
+/// Update CL related assignees
 #[utoipa::path(
     post,
     path = "/assignees",
@@ -489,27 +489,27 @@ async fn labels(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn assignees(
     user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(payload): Json<AssigneeUpdatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    api_common::label_assignee::assignees_update(user, state, payload, String::from("mr")).await
+    api_common::label_assignee::assignees_update(user, state, payload, String::from("cl")).await
 }
 
 #[utoipa::path(
     post,
     params (
-        ("link", description = "the mr link")
+        ("link", description = "the cl link")
     ),
     path = "/{link}/reviewers",
     request_body = ReviewerPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn add_reviewers(
     Path(link): Path<String>,
@@ -528,14 +528,14 @@ async fn add_reviewers(
 #[utoipa::path(
     delete,
     params (
-        ("link", description = "the mr link"),
+        ("link", description = "the cl link"),
     ),
     path = "/{link}/reviewers",
     request_body = ReviewerPayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn remove_reviewers(
     Path(link): Path<String>,
@@ -554,13 +554,13 @@ async fn remove_reviewers(
 #[utoipa::path(
     get,
     params (
-        ("link", description = "the mr link")
+        ("link", description = "the cl link")
     ),
     path = "/{link}/reviewers",
     responses(
         (status = 200, body = CommonResult<ReviewersResponse>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn list_reviewers(
     Path(link): Path<String>,
@@ -589,14 +589,14 @@ async fn list_reviewers(
 #[utoipa::path(
     post,
     params (
-        ("link", description = "the mr link")
+        ("link", description = "the cl link")
     ),
     path = "/{link}/reviewer/approve",
     request_body = ChangeReviewerStatePayload,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn reviewer_approve(
     user: LoginUser,
@@ -616,7 +616,7 @@ async fn reviewer_approve(
 #[utoipa::path(
     post,
     params (
-        ("link", description = "the mr link")
+        ("link", description = "the cl link")
     ),
     path = "/{link}/review/resolve",
     request_body (
@@ -625,7 +625,7 @@ async fn reviewer_approve(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = MR_TAG
+    tag = CL_TAG
 )]
 async fn review_resolve(
     user: LoginUser,
@@ -671,7 +671,7 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 
 #[cfg(test)]
 mod test {
-    use crate::api::mr::mr_router::build_forest;
+    use crate::api::cl::cl_router::build_forest;
     use neptune::model::diff_model::DiffItem;
     use std::collections::HashMap;
 
@@ -744,8 +744,8 @@ mod test {
     }
 
     #[test]
-    fn test_mr_files_changed_logic() {
-        // Test the core logic of mr_files_changed function
+    fn test_cl_files_changed_logic() {
+        // Test the core logic of cl_files_changed function
         // This tests the data transformation logic without needing the full state
 
         let sample_diff_output = r#"diff --git a/src/main.rs b/src/main.rs

@@ -6,21 +6,21 @@ use utoipa::ToSchema;
 
 use crate::merge_checker::commit_message_checker::CommitMessageChecker;
 use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
-use crate::merge_checker::mr_sync_checker::MrSyncChecker;
+use crate::merge_checker::cl_sync_checker::ClSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
-use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
+use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 
 mod code_review_checker;
 mod commit_message_checker;
 mod gpg_signature_checker;
-pub mod mr_sync_checker;
+pub mod cl_sync_checker;
 
 #[async_trait]
 pub trait Checker: Send + Sync {
     async fn run(&self, params: &serde_json::Value) -> CheckResult;
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<serde_json::Value, MegaError>;
+    async fn build_params(&self, cl_info: &ClInfoDto) -> Result<serde_json::Value, MegaError>;
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, ToSchema)]
@@ -28,7 +28,7 @@ pub enum CheckType {
     GpgSignature,
     BranchProtection,
     CommitMessage,
-    MrSync,
+    ClSync,
     MergeConflict,
     CiStatus,
     CodeReview,
@@ -68,7 +68,7 @@ impl CheckType {
             CheckType::GpgSignature => "Gpg signature",
             CheckType::BranchProtection => "Branch protection",
             CheckType::CommitMessage => "Commit message",
-            CheckType::MrSync => "Mr sync",
+            CheckType::ClSync => "Cl sync",
             CheckType::MergeConflict => "Merge conflict",
             CheckType::CiStatus => "Ci status",
             CheckType::CodeReview => "Code review",
@@ -86,8 +86,8 @@ impl CheckType {
             CheckType::CommitMessage => {
                 "Verify whether the commit message follows Conventional Commits or the internal agreed-upon format"
             }
-            CheckType::MrSync => {
-                "Ensure the MR is based on the latest commit of the target branch and determine whether a rebase is required"
+            CheckType::ClSync => {
+                "Ensure the CL is based on the latest commit of the target branch and determine whether a rebase is required"
             }
             CheckType::MergeConflict => {
                 "The pull request must not have any unresolved merge conflicts"
@@ -108,7 +108,7 @@ impl From<CheckTypeEnum> for CheckType {
             CheckTypeEnum::GpgSignature => CheckType::GpgSignature,
             CheckTypeEnum::BranchProtection => CheckType::BranchProtection,
             CheckTypeEnum::CommitMessage => CheckType::CommitMessage,
-            CheckTypeEnum::MrSync => CheckType::MrSync,
+            CheckTypeEnum::ClSync => CheckType::ClSync,
             CheckTypeEnum::MergeConflict => CheckType::MergeConflict,
             CheckTypeEnum::CiStatus => CheckType::CiStatus,
             CheckTypeEnum::CodeReview => CheckType::CodeReview,
@@ -122,7 +122,7 @@ impl From<CheckType> for CheckTypeEnum {
             CheckType::GpgSignature => CheckTypeEnum::GpgSignature,
             CheckType::BranchProtection => CheckTypeEnum::BranchProtection,
             CheckType::CommitMessage => CheckTypeEnum::CommitMessage,
-            CheckType::MrSync => CheckTypeEnum::MrSync,
+            CheckType::ClSync => CheckTypeEnum::ClSync,
             CheckType::MergeConflict => CheckTypeEnum::MergeConflict,
             CheckType::CiStatus => CheckTypeEnum::CiStatus,
             CheckType::CodeReview => CheckTypeEnum::CodeReview,
@@ -152,8 +152,8 @@ impl CheckerRegistry {
             username,
         };
         r.register(
-            CheckType::MrSync,
-            Box::new(MrSyncChecker {
+            CheckType::ClSync,
+            Box::new(ClSyncChecker {
                 storage: storage.clone(),
             }),
         );
@@ -178,22 +178,22 @@ impl CheckerRegistry {
         self.checkers.insert(check_type, checker);
     }
 
-    pub async fn run_checks(&self, mr_info: MrInfoDto) -> Result<(), MegaError> {
+    pub async fn run_checks(&self, cl_info: ClInfoDto) -> Result<(), MegaError> {
         let check_configs = self
             .storage
-            .mr_storage()
-            .get_checks_config_by_path(&mr_info.path)
+            .cl_storage()
+            .get_checks_config_by_path(&cl_info.path)
             .await?;
         let mut save_models = vec![];
 
         for c_config in check_configs {
             if let Some(checker) = self.checkers.get(&c_config.check_type_code.into()) {
-                let params = checker.build_params(&mr_info).await?;
+                let params = checker.build_params(&cl_info).await?;
                 let res = checker.run(&params).await;
                 let model = check_result::Model::new(
-                    &mr_info.path,
-                    &mr_info.link,
-                    &mr_info.to_hash,
+                    &cl_info.path,
+                    &cl_info.link,
+                    &cl_info.to_hash,
                     res.check_type_code.into(),
                     &res.status.to_string(),
                     &res.message,
@@ -202,7 +202,7 @@ impl CheckerRegistry {
             }
         }
         self.storage
-            .mr_storage()
+            .cl_storage()
             .save_check_results(save_models)
             .await?;
         Ok(())

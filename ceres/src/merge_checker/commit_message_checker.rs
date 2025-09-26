@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use jupiter::model::mr_dto::MrInfoDto;
-use serde_json::{Value, json};
+use jupiter::model::cl_dto::ClInfoDto;
+use serde_json::{json, Value};
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 use common::{errors::MegaError, utils::check_conventional_commits_message};
@@ -19,7 +19,7 @@ impl Checker for CommitMessageChecker {
         let message = if status == ConditionResult::PASSED {
             "Commit message follows conventional commits".to_string()
         } else {
-            "Commit message does not follow conventional commits. Please make sure your MR title follows the Conventional Commits specification.".to_string()
+            "Commit message does not follow conventional commits. Please make sure your CL title follows the Conventional Commits specification.".to_string()
         };
 
         CheckResult {
@@ -29,8 +29,8 @@ impl Checker for CommitMessageChecker {
         }
     }
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<Value, MegaError> {
-        let title = mr_info.title.clone();
+    async fn build_params(&self, cl_info: &ClInfoDto) -> Result<Value, MegaError> {
+        let title = cl_info.title.clone();
         Ok(json!({
             "title": title,
         }))

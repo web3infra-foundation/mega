@@ -11,7 +11,7 @@ impl MigrationTrait for Migration {
                 Table::alter()
                     .table(MegaRefs::Table)
                     .add_column_if_not_exists(
-                        ColumnDef::new(Alias::new("is_mr"))
+                        ColumnDef::new(Alias::new("is_cl"))
                             .boolean()
                             .not_null()
                             .default(false),

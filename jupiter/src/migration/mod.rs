@@ -11,8 +11,8 @@
 //! # Migration Files
 //!
 //! - `m20250314_025943_init` - Initial database schema setup
-//! - `m20250427_031332_add_mr_refs_tag` - Adds merge request reference tagging
-//! - `m20250605_013340_alter_mega_mr_index` - Modifies merge request indexing
+//! - `m20250427_031332_add_cl_refs_tag` - Adds change list reference tagging
+//! - `m20250605_013340_alter_mega_cl_index` - Modifies change list indexing
 //! - `m20250610_000001_add_vault_storage` - Adds vault storage functionality
 //! - `m20250613_033821_alter_user_id` - Alters user ID column definitions
 //! - `m20250618_065050_add_label` - Adds label functionality to issues
@@ -36,8 +36,8 @@ use tracing::log;
 use common::errors::MegaError;
 
 mod m20250314_025943_init;
-mod m20250427_031332_add_mr_refs_tag;
-mod m20250605_013340_alter_mega_mr_index;
+mod m20250427_031332_add_cl_refs_tag;
+mod m20250605_013340_alter_mega_cl_index;
 mod m20250610_000001_add_vault_storage;
 mod m20250613_033821_alter_user_id;
 mod m20250618_065050_add_label;
@@ -46,7 +46,7 @@ mod m20250702_072055_add_item_assignees;
 mod m20250710_073119_create_reactions;
 mod m20250725_103004_add_note;
 mod m20250804_151214_alter_builds_end_at;
-mod m20250812_022434_alter_mega_mr;
+mod m20250812_022434_alter_mega_cl;
 mod m20250815_075653_remove_commit_id;
 mod m20250819_025231_alter_builds;
 mod m20250820_102133_gpgkey;
@@ -57,7 +57,7 @@ mod m20250903_013904_create_task_table;
 mod m20250903_071928_add_issue_refs;
 mod m20250904_074945_modify_tasks_and_builds;
 mod m20250904_120000_add_commit_auths;
-mod m20250905_163011_add_mr_reviewer;
+mod m20250905_163011_add_cl_reviewer;
 mod m20250910_153212_add_username_to_reviewer;
 
 /// Creates a primary key column definition with big integer type.
@@ -83,8 +83,8 @@ impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
             Box::new(m20250314_025943_init::Migration),
-            Box::new(m20250427_031332_add_mr_refs_tag::Migration),
-            Box::new(m20250605_013340_alter_mega_mr_index::Migration),
+            Box::new(m20250427_031332_add_cl_refs_tag::Migration),
+            Box::new(m20250605_013340_alter_mega_cl_index::Migration),
             Box::new(m20250610_000001_add_vault_storage::Migration),
             Box::new(m20250613_033821_alter_user_id::Migration),
             Box::new(m20250618_065050_add_label::Migration),
@@ -93,7 +93,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250710_073119_create_reactions::Migration),
             Box::new(m20250725_103004_add_note::Migration),
             Box::new(m20250804_151214_alter_builds_end_at::Migration),
-            Box::new(m20250812_022434_alter_mega_mr::Migration),
+            Box::new(m20250812_022434_alter_mega_cl::Migration),
             Box::new(m20250815_075653_remove_commit_id::Migration),
             Box::new(m20250819_025231_alter_builds::Migration),
             Box::new(m20250820_102133_gpgkey::Migration),
@@ -104,7 +104,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250903_071928_add_issue_refs::Migration),
             Box::new(m20250904_120000_add_commit_auths::Migration),
             Box::new(m20250904_074945_modify_tasks_and_builds::Migration),
-            Box::new(m20250905_163011_add_mr_reviewer::Migration),
+            Box::new(m20250905_163011_add_cl_reviewer::Migration),
             Box::new(m20250910_153212_add_username_to_reviewer::Migration),
         ]
     }

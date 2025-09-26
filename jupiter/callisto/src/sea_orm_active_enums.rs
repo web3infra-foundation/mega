@@ -12,8 +12,8 @@ pub enum CheckTypeEnum {
     BranchProtection,
     #[sea_orm(string_value = "commit_message")]
     CommitMessage,
-    #[sea_orm(string_value = "mr_sync")]
-    MrSync,
+    #[sea_orm(string_value = "cl_sync")]
+    ClSync,
     #[sea_orm(string_value = "merge_conflict")]
     MergeConflict,
     #[sea_orm(string_value = "ci_status")]
