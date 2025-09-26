@@ -411,7 +411,6 @@ async fn get_file_blame(
 
     // Convert BlameRequest to BlameQuery
     let query = BlameQuery::from(&params);
-
     // Call the business logic in ceres module
     match state
         .api_handler(params.path.as_ref())
@@ -419,14 +418,7 @@ async fn get_file_blame(
         .get_file_blame(&params.path, ref_name, query)
         .await
     {
-        Ok(result) => {
-            tracing::info!(
-                "Blame completed for {} lines in file: {}",
-                result.lines.len(),
-                params.path
-            );
-            Ok(Json(CommonResult::success(Some(result))))
-        }
+        Ok(result) => Ok(Json(CommonResult::success(Some(result)))),
         Err(e) => {
             tracing::error!("Blame operation failed for {}: {}", params.path, e);
             Err(ApiError::from(anyhow::anyhow!("Blame failed: {}", e)))

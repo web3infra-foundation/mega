@@ -21,7 +21,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
-use ceres::model::blame::{BlameInfo, BlameLine, BlameQuery, BlameRequest, BlameResult};
+use ceres::model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameRequest, BlameResult};
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
@@ -235,11 +235,11 @@ pub const USER_TAG: &str = "user";
         (name = MR_TAG, description = "Merge Request API endpoints")
     ),
     components(schemas(
+        BlameBlock,
+        BlameInfo,
         BlameQuery,
         BlameRequest,
         BlameResult,
-        BlameLine,
-        BlameInfo,
     ))
 )]
 struct ApiDoc;
