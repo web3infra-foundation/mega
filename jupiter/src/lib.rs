@@ -3,7 +3,6 @@ pub mod migration;
 pub mod model;
 pub mod service;
 pub mod storage;
-pub mod adapter;
 pub mod utils;
 
 

@@ -27,6 +27,7 @@ use mercury::{
     },
 };
 use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
+use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 
 use crate::{
     api_service::{ApiHandler, mono_api_service::MonoApiService},
@@ -107,7 +108,7 @@ impl RepoHandler for ImportRepo {
             while let Some(model) = tree_stream.next().await {
                 match model {
                     Ok(m) => {
-                        let t: Tree = m.into();
+                        let t: Tree = Tree::from_git_model(m);
                         let entry = t.into();
                         entry_tx.send(entry).await.unwrap();
                     }
@@ -136,7 +137,8 @@ impl RepoHandler for ImportRepo {
                     match model {
                         Ok(m) => {
                             // TODO handle storage type
-                            let b: Blob = m.into();
+                            let data = m.data.unwrap_or_default();
+                            let b: Blob = Blob::from_content_bytes(data);
                             let entry: Entry = b.into();
                             sender_clone.send(entry).await.unwrap();
                         }
@@ -151,7 +153,7 @@ impl RepoHandler for ImportRepo {
 
             let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
             for m in tags.into_iter() {
-                let c: Tag = m.into();
+                let c: Tag = Tag::from_git_model(m);
                 let entry: Entry = c.into();
                 entry_tx.send(entry).await.unwrap();
             }
@@ -208,7 +210,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), m.into()))
+            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), Tree::from_git_model(m)))
             .collect();
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
@@ -226,7 +228,7 @@ impl RepoHandler for ImportRepo {
             .unwrap();
         // traverse to get exist_objs
         for have_tree in have_trees {
-            self.traverse(have_tree.into(), &mut exist_objs, None).await;
+            self.traverse(Tree::from_git_model(have_tree), &mut exist_objs, None).await;
         }
 
         let mut counted_obj = HashSet::new();
@@ -267,7 +269,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(|x| Tree::from_git_model(x))
             .collect())
     }
 
@@ -373,7 +375,7 @@ impl ImportRepo {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|tree| {
-                let mut model: mega_tree::Model = tree.into();
+                let mut model: mega_tree::Model = tree.into_mega_model();
                 model.commit_id = new_commit.id.to_string();
                 model.into()
             })

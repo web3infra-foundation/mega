@@ -57,6 +57,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_mr, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
+use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 
 use jupiter::service::blame_service::BlameService;
 use jupiter::storage::Storage;
@@ -154,7 +155,7 @@ impl ApiHandler for MonoApiService {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|save_t| {
-                let mut tree_model: mega_tree::Model = save_t.into();
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model();
                 tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
@@ -172,27 +173,29 @@ impl ApiHandler for MonoApiService {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
 
-        storage
-            .get_tree_by_hash(&refs.ref_tree_hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_mega_model(
+            storage
+                .get_tree_by_hash(&refs.ref_tree_hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.storage
-            .mono_storage()
-            .get_tree_by_hash(hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_mega_model(
+            self.storage
+                .mono_storage()
+                .get_tree_by_hash(hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
         match self.storage.mono_storage().get_commit_by_hash(hash).await {
-            Ok(Some(commit)) => Some(commit.into()),
+            Ok(Some(commit)) => Some(Commit::from_mega_model(commit)),
             _ => None,
         }
     }
@@ -888,7 +891,7 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let mut tree_model: mega_tree::Model = save_t.into();
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model();
                 tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
@@ -1150,7 +1153,7 @@ impl MonoApiService {
         if let Some(commit) = commit {
             let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;
             if let Some(tree) = tree {
-                let tree: Tree = tree.into();
+                let tree: Tree = Tree::from_mega_model(tree);
                 res = self.traverse_tree(tree).await?;
             }
         }
@@ -1171,7 +1174,7 @@ impl MonoApiService {
                         .get_tree_by_hash(&item.id.to_string())
                         .await?
                         .unwrap();
-                    stack.push((path.clone(), child.into()));
+                    stack.push((path.clone(), Tree::from_mega_model(child)));
                 } else {
                     result.push((path, item.id));
                 }

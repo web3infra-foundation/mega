@@ -13,6 +13,7 @@ use callisto::{
 };
 
 use mercury::internal::object::tree::{TreeItem, TreeItemMode};
+use mercury::internal::pack::entry::Entry;
 // Mercury types
 use mercury::{
     hash::SHA1,
@@ -40,6 +41,65 @@ pub trait FromMegaModel {
 pub trait FromGitModel {
     type GitSource;
     fn from_git_model(model: Self::GitSource) -> Self;
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum GitObject {
+    Commit(Commit),
+    Tree(Tree),
+    Blob(Blob),
+    Tag(Tag),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum GitObjectModel {
+    Commit(git_commit::Model),
+    Tree(git_tree::Model),
+    Blob(git_blob::Model, raw_blob::Model),
+    Tag(git_tag::Model),
+}
+
+pub enum MegaObjectModel {
+    Commit(mega_commit::Model),
+    Tree(mega_tree::Model),
+    Blob(mega_blob::Model, raw_blob::Model),
+    Tag(mega_tag::Model),
+}
+
+impl GitObject {
+    pub fn convert_to_mega_model(self) -> MegaObjectModel {
+        match self {
+            GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into_mega_model()),
+            GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into_mega_model()),
+            GitObject::Blob(blob) => {
+                MegaObjectModel::Blob(blob.clone().into_mega_model(), blob.to_raw_blob())
+            }
+            GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into_mega_model()),
+        }
+    }
+
+    pub fn convert_to_git_model(self) -> GitObjectModel {
+        match self {
+            GitObject::Commit(commit) => GitObjectModel::Commit(commit.into_git_model()),
+            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model()),
+            GitObject::Blob(blob) => {
+                GitObjectModel::Blob(blob.clone().into_git_model(), blob.to_raw_blob())
+            }
+            GitObject::Tag(tag) => GitObjectModel::Tag(tag.into_git_model()),
+        }
+    }
+}
+
+pub fn process_entry(entry: Entry) -> GitObject {
+    match entry.obj_type {
+        ObjectType::Commit => {
+            GitObject::Commit(Commit::from_bytes(&entry.data, entry.hash).unwrap())
+        }
+        ObjectType::Tree => GitObject::Tree(Tree::from_bytes(&entry.data, entry.hash).unwrap()),
+        ObjectType::Blob => GitObject::Blob(Blob::from_bytes(&entry.data, entry.hash).unwrap()),
+        ObjectType::Tag => GitObject::Tag(Tag::from_bytes(&entry.data, entry.hash).unwrap()),
+        _ => unreachable!("can not parse delta!"),
+    }
 }
 
 impl IntoMegaModel for Blob {
@@ -93,7 +153,9 @@ impl IntoMegaModel for Commit {
                 .map(|x| x.to_string())
                 .collect(),
             author: Some(String::from_utf8_lossy(&self.author.to_data().unwrap()).to_string()),
-            committer: Some(String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string()),
+            committer: Some(
+                String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
+            ),
             content: Some(self.message.clone()),
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -240,7 +302,9 @@ impl IntoGitModel for Commit {
                 .map(|x| x.to_string())
                 .collect(),
             author: Some(String::from_utf8_lossy(&self.author.to_data().unwrap()).to_string()),
-            committer: Some(String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string()),
+            committer: Some(
+                String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
+            ),
             content: Some(self.message.clone()),
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -307,7 +371,6 @@ impl IntoGitModel for Tree {
         }
     }
 }
-
 
 pub fn generate_git_keep() -> Blob {
     let git_keep_content = String::from("This file was used to maintain the git tree");
@@ -525,11 +588,7 @@ impl FromMegaModel for Tree {
     /// - The tree_id string cannot be parsed into a valid SHA1 hash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_mega_model(model: Self::MegaSource) -> Self {
-        Tree::from_bytes(
-            &model.sub_trees,
-            SHA1::from_str(&model.tree_id).unwrap(),
-        )
-        .unwrap()
+        Tree::from_bytes(&model.sub_trees, SHA1::from_str(&model.tree_id).unwrap()).unwrap()
     }
 }
 
@@ -556,11 +615,7 @@ impl FromGitModel for Tree {
     /// - The tree_id string cannot be parsed into a valid SHA1 hash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_git_model(model: Self::GitSource) -> Self {
-        Tree::from_bytes(
-            &model.sub_trees,
-            SHA1::from_str(&model.tree_id).unwrap(),
-        )
-        .unwrap()
+        Tree::from_bytes(&model.sub_trees, SHA1::from_str(&model.tree_id).unwrap()).unwrap()
     }
 }
 
@@ -590,15 +645,15 @@ impl FromMegaModel for Commit {
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_mega_model(model: Self::MegaSource) -> Self {
         // Parse parents_id JSON array into Vec<SHA1>
-        let parent_commit_ids: Vec<SHA1> = match serde_json::from_value::<Vec<String>>(model.parents_id) {
-            Ok(parents_array) => {
-                parents_array.into_iter()
+        let parent_commit_ids: Vec<SHA1> =
+            match serde_json::from_value::<Vec<String>>(model.parents_id) {
+                Ok(parents_array) => parents_array
+                    .into_iter()
                     .filter(|s: &String| !s.is_empty())
                     .map(|s: String| SHA1::from_str(&s).unwrap())
-                    .collect()
-            },
-            Err(_) => Vec::new()
-        };
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
 
         Commit {
             id: SHA1::from_str(&model.commit_id).unwrap(),
@@ -637,15 +692,15 @@ impl FromGitModel for Commit {
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_git_model(model: Self::GitSource) -> Self {
         // Parse parents_id JSON array into Vec<SHA1>
-        let parent_commit_ids: Vec<SHA1> = match serde_json::from_value::<Vec<String>>(model.parents_id) {
-            Ok(parents_array) => {
-                parents_array.into_iter()
+        let parent_commit_ids: Vec<SHA1> =
+            match serde_json::from_value::<Vec<String>>(model.parents_id) {
+                Ok(parents_array) => parents_array
+                    .into_iter()
                     .filter(|s: &String| !s.is_empty())
                     .map(|s: String| SHA1::from_str(&s).unwrap())
-                    .collect()
-            },
-            Err(_) => Vec::new()
-        };
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
 
         Commit {
             id: SHA1::from_str(&model.commit_id).unwrap(),

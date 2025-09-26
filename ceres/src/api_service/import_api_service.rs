@@ -20,6 +20,7 @@ use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
+use jupiter::utils::converter::FromGitModel;
 
 #[derive(Clone)]
 pub struct ImportApiService {
@@ -62,22 +63,20 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        storage
+        Tree::from_git_model(storage
             .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
             .await
             .unwrap()
-            .unwrap()
-            .into()
+            .unwrap())
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.storage
+        Tree::from_git_model(self.storage
             .git_db_storage()
             .get_tree_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap()
-            .unwrap()
-            .into()
+            .unwrap())
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
