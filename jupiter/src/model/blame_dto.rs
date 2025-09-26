@@ -87,37 +87,51 @@ pub struct FileVersion {
 pub struct BlameInfo {
     pub commit_hash: String,
     pub commit_short_id: String,
-    pub author_name: String,
     pub author_email: String,
     pub author_time: i64,
-    pub committer_name: String,
     pub committer_email: String,
     pub committer_time: i64,
     pub commit_message: String,
     pub commit_summary: String,
     pub original_line_number: usize,
-    // URL fields for frontend navigation
-    pub author_avatar_url: String,
+    // Campsite username fields for frontend to query user info via other APIs
+    pub author_username: Option<String>,
+    pub committer_username: Option<String>,
     pub commit_detail_url: String,
-    pub author_profile_url: String,
 }
 
-/// A single line with its blame information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Individual line blame information (used internally for processing)
+#[derive(Debug, Clone)]
 pub struct BlameLine {
     pub line_number: usize,
     pub content: String,
     pub blame_info: BlameInfo,
 }
 
+/// Represents a continuous block of lines attributed to the same commit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlameBlock {
+    pub content: String,
+    pub blame_info: BlameInfo,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub line_count: usize,
+}
+
 /// Complete blame result for a file
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlameResult {
     pub file_path: String,
-    pub lines: Vec<BlameLine>,
+    pub blocks: Vec<BlameBlock>,
     pub total_lines: usize,
     pub page: Option<usize>,
     pub page_size: Option<usize>,
+    /// Earliest commit time across all lines in the file (Unix timestamp)
+    pub earliest_commit_time: i64,
+    /// Latest commit time across all lines in the file (Unix timestamp)
+    pub latest_commit_time: i64,
+    /// List of contributors to this file
+    pub contributors: Vec<Contributor>,
 }
 
 /// Query parameters for blame requests
@@ -136,4 +150,13 @@ pub struct BlameCandidate {
     pub line_number: usize,
     /// Original line number in the final file (1-based)
     pub original_final_line_number: usize,
+}
+
+/// Contributor information including campsite username
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contributor {
+    pub email: String,
+    pub username: Option<String>,
+    pub last_commit_time: i64,
+    pub total_lines: usize,
 }
