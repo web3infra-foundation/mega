@@ -569,11 +569,6 @@ impl ApiHandler for MonoApiService {
 
         match blame_result {
             Ok(result_from_service) => {
-                tracing::info!(
-                    "Blame completed for {} lines in file: {}",
-                    result_from_service.lines.len(),
-                    file_path
-                );
                 // Convert DTO result to API result
                 Ok(result_from_service.into())
             }
