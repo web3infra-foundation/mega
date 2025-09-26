@@ -23,6 +23,36 @@ use mercury::{
     },
 };
 
+/// Helper function to convert commit model data to Commit object
+fn commit_from_model(
+    commit_id: &str,
+    tree: &str,
+    parents_id: &serde_json::Value,
+    author: Option<String>,
+    committer: Option<String>,
+    content: Option<String>,
+) -> Commit {
+    // Parse parents_id JSON array into Vec<SHA1>
+    let parent_commit_ids: Vec<SHA1> =
+        match serde_json::from_value::<Vec<String>>(parents_id.clone()) {
+            Ok(parents_array) => parents_array
+                .into_iter()
+                .filter(|s: &String| !s.is_empty())
+                .map(|s: String| SHA1::from_str(&s).unwrap())
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+
+    Commit {
+        id: SHA1::from_str(commit_id).unwrap(),
+        tree_id: SHA1::from_str(tree).unwrap(),
+        parent_commit_ids,
+        author: Signature::from_data(author.unwrap().into_bytes()).unwrap(),
+        committer: Signature::from_data(committer.unwrap().into_bytes()).unwrap(),
+        message: content.unwrap(),
+    }
+}
+
 pub trait IntoMegaModel {
     type MegaTarget;
     fn into_mega_model(self) -> Self::MegaTarget;
@@ -644,25 +674,14 @@ impl FromMegaModel for Commit {
     /// - Any parent ID in parents_id cannot be parsed into a valid SHA1 hash
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_mega_model(model: Self::MegaSource) -> Self {
-        // Parse parents_id JSON array into Vec<SHA1>
-        let parent_commit_ids: Vec<SHA1> =
-            match serde_json::from_value::<Vec<String>>(model.parents_id) {
-                Ok(parents_array) => parents_array
-                    .into_iter()
-                    .filter(|s: &String| !s.is_empty())
-                    .map(|s: String| SHA1::from_str(&s).unwrap())
-                    .collect(),
-                Err(_) => Vec::new(),
-            };
-
-        Commit {
-            id: SHA1::from_str(&model.commit_id).unwrap(),
-            tree_id: SHA1::from_str(&model.tree).unwrap(),
-            parent_commit_ids,
-            author: Signature::from_data(model.author.unwrap().into_bytes()).unwrap(),
-            committer: Signature::from_data(model.committer.unwrap().into_bytes()).unwrap(),
-            message: model.content.unwrap(),
-        }
+        commit_from_model(
+            &model.commit_id,
+            &model.tree,
+            &model.parents_id,
+            model.author,
+            model.committer,
+            model.content,
+        )
     }
 }
 
@@ -691,25 +710,14 @@ impl FromGitModel for Commit {
     /// - Any parent ID in parents_id cannot be parsed into a valid SHA1 hash
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_git_model(model: Self::GitSource) -> Self {
-        // Parse parents_id JSON array into Vec<SHA1>
-        let parent_commit_ids: Vec<SHA1> =
-            match serde_json::from_value::<Vec<String>>(model.parents_id) {
-                Ok(parents_array) => parents_array
-                    .into_iter()
-                    .filter(|s: &String| !s.is_empty())
-                    .map(|s: String| SHA1::from_str(&s).unwrap())
-                    .collect(),
-                Err(_) => Vec::new(),
-            };
-
-        Commit {
-            id: SHA1::from_str(&model.commit_id).unwrap(),
-            tree_id: SHA1::from_str(&model.tree).unwrap(),
-            parent_commit_ids,
-            author: Signature::from_data(model.author.unwrap().into_bytes()).unwrap(),
-            committer: Signature::from_data(model.committer.unwrap().into_bytes()).unwrap(),
-            message: model.content.unwrap(),
-        }
+        commit_from_model(
+            &model.commit_id,
+            &model.tree,
+            &model.parents_id,
+            model.author,
+            model.committer,
+            model.content,
+        )
     }
 }
 

@@ -95,7 +95,7 @@ impl RepoHandler for ImportRepo {
             while let Some(model) = commit_stream.next().await {
                 match model {
                     Ok(m) => {
-                        let c: Commit = m.into();
+                        let c: Commit = Commit::from_git_model(m);
                         let entry = c.into();
                         entry_tx.send(entry).await.unwrap();
                     }
@@ -181,7 +181,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Commit::from_git_model)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
@@ -191,12 +191,13 @@ impl RepoHandler for ImportRepo {
                 let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
-                    let parent: Commit = storage
-                        .get_commit_by_hash(self.repo.repo_id, &p_commit_id)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
+                    let parent: Commit = Commit::from_git_model(
+                        storage
+                            .get_commit_by_hash(self.repo.repo_id, &p_commit_id)
+                            .await
+                            .unwrap()
+                            .unwrap(),
+                    );
                     want_commits.push(parent.clone());
                     want_clone.push(p_commit_id);
                     traversal_list.push(parent);
@@ -353,13 +354,15 @@ impl ImportRepo {
             .ok_or_else(|| MegaError::with_message("root ref not found"))?;
 
         // 4. get latest commit
-        let latest_commit: Commit = self
-            .storage
-            .git_db_storage()
-            .get_commit_by_hash(self.repo.repo_id, &commit_id)
-            .await?
-            .ok_or_else(|| MegaError::with_message(format!("commit {} not found", commit_id)))?
-            .into();
+        let latest_commit: Commit = Commit::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_commit_by_hash(self.repo.repo_id, &commit_id)
+                .await?
+                .ok_or_else(|| {
+                    MegaError::with_message(format!("commit {} not found", commit_id))
+                })?,
+        );
 
         // 5. generate commit
         let commit_msg = latest_commit.format_message();

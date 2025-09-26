@@ -4,6 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use mercury::errors::GitError;
 use thiserror::Error;
 
 use crate::model::CommonResult;
@@ -77,6 +78,12 @@ impl From<sea_orm::DbErr> for MegaError {
 impl From<pgp::errors::Error> for MegaError {
     fn from(err: pgp::errors::Error) -> MegaError {
         MegaError::new(err.into(), 1)
+    }
+}
+
+impl From<MegaError> for GitError {
+    fn from(val: MegaError) -> Self {
+        GitError::CustomError(val.to_string())
     }
 }
 

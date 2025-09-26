@@ -62,7 +62,8 @@ impl FromStr for SignatureType {
 impl SignatureType {
     /// The `from_data` method is used to convert a `Vec<u8>` to a `SignatureType` enum.
     pub fn from_data(data: Vec<u8>) -> Result<Self, GitError> {
-        let s = String::from_utf8(data.to_vec())?;
+        let s = String::from_utf8(data.to_vec())
+            .map_err(|e| GitError::ConversionError(e.to_string()))?;
         SignatureType::from_str(s.as_str())
     }
 

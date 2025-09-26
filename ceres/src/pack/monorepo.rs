@@ -81,12 +81,13 @@ impl RepoHandler for MonoRepo {
             let mut tree: Tree =
                 Tree::from_mega_model(storage.get_tree_by_hash(&tree_hash).await.unwrap().unwrap());
 
-            let commit: Commit = storage
-                .get_commit_by_hash(&refs.ref_commit_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
+            let commit: Commit = Commit::from_mega_model(
+                storage
+                    .get_commit_by_hash(&refs.ref_commit_hash)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            );
 
             for component in target_path.components() {
                 if component != Component::RootDir {
@@ -195,7 +196,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Commit::from_mega_model)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
@@ -205,12 +206,13 @@ impl RepoHandler for MonoRepo {
                 let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
-                    let parent: Commit = storage
-                        .get_commit_by_hash(&p_commit_id)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
+                    let parent: Commit = Commit::from_mega_model(
+                        storage
+                            .get_commit_by_hash(&p_commit_id)
+                            .await
+                            .unwrap()
+                            .unwrap(),
+                    );
                     want_commits.push(parent.clone());
                     want_clone.push(p_commit_id);
                     traversal_list.push(parent);
