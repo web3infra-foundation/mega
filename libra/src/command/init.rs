@@ -167,11 +167,11 @@ fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
 
 /// Only verify the shared_mode
 #[cfg(target_os = "windows")]
-fn apply_shared(root_dir: &Path, shared_mode: &str) -> io::Result<()> {
+fn apply_shared(_root_dir: &Path, shared_mode: &str) -> io::Result<()> {
     match shared_mode {
         "true" | "false" | "umask" | "group" | "all" | "world" | "everybody" => {} // Valid string input
         mode if mode.starts_with('0') && mode.len() == 4 => {
-            if let Ok(bits) = u32::from_str_radix(&mode[1..], 8) { //Valid perm input
+            if let Ok(_bits) = u32::from_str_radix(&mode[1..], 8) { //Valid perm input
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,

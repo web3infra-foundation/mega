@@ -282,7 +282,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| Tree::from_mega_model(x))
+            .map(Tree::from_mega_model)
             .collect())
     }
 

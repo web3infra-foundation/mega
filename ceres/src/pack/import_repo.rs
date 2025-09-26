@@ -19,6 +19,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
 use jupiter::storage::{Storage, base_storage::StorageConnector};
+use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 use mercury::{
     errors::GitError,
     internal::{
@@ -27,7 +28,6 @@ use mercury::{
     },
 };
 use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
-use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 
 use crate::{
     api_service::{ApiHandler, mono_api_service::MonoApiService},
@@ -228,7 +228,8 @@ impl RepoHandler for ImportRepo {
             .unwrap();
         // traverse to get exist_objs
         for have_tree in have_trees {
-            self.traverse(Tree::from_git_model(have_tree), &mut exist_objs, None).await;
+            self.traverse(Tree::from_git_model(have_tree), &mut exist_objs, None)
+                .await;
         }
 
         let mut counted_obj = HashSet::new();
@@ -269,7 +270,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| Tree::from_git_model(x))
+            .map(Tree::from_git_model)
             .collect())
     }
 

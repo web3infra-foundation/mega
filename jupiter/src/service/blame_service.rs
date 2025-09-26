@@ -25,11 +25,11 @@ use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use neptune::{DiffOperation, compute_diff};
 
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::{Tree, TreeItemMode};
 use crate::utils::converter::FromMegaModel;
 #[cfg(test)]
 use crate::utils::converter::IntoMegaModel;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::{Tree, TreeItemMode};
 use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 

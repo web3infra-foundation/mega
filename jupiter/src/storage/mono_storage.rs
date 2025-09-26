@@ -7,7 +7,7 @@ use sea_orm::{
     QueryOrder, QuerySelect,
 };
 
-use crate::utils::converter::{IntoMegaModel, ToRawBlob, MegaObjectModel, process_entry};
+use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;

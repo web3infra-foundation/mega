@@ -63,20 +63,24 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        Tree::from_git_model(storage
-            .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
-            .await
-            .unwrap()
-            .unwrap())
+        Tree::from_git_model(
+            storage
+                .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        Tree::from_git_model(self.storage
-            .git_db_storage()
-            .get_tree_by_hash(self.repo.repo_id, hash)
-            .await
-            .unwrap()
-            .unwrap())
+        Tree::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_tree_by_hash(self.repo.repo_id, hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
