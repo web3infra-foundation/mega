@@ -1,4 +1,4 @@
-use ceres::protocol::ServiceType::UploadPack;
+use ceres::protocol::ServiceType::{self, UploadPack};
 use clap::Parser;
 use indicatif::ProgressBar;
 use mercury::hash::SHA1;
@@ -10,7 +10,6 @@ use std::vec;
 use std::{collections::HashSet, fs, io::Write};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
-use url::Url;
 
 use crate::command::load_object;
 use crate::internal::db::get_db_conn_instance;
@@ -22,12 +21,70 @@ use crate::{
         branch::Branch,
         config::{Config, RemoteConfig},
         head::Head,
-        protocol::{ProtocolClient, https_client::HttpsClient},
+        protocol::{
+            DiscRef, FetchStream, ProtocolClient, https_client::HttpsClient,
+            local_client::LocalClient,
+        },
     },
     utils::{self, path_ext::PathExt},
 };
+use mercury::errors::GitError;
+use std::io::Error as IoError;
+use url::Url;
 
 const DEFAULT_REMOTE: &str = "origin";
+
+enum RemoteClient {
+    Http(HttpsClient),
+    Local(LocalClient),
+}
+
+impl RemoteClient {
+    fn from_spec(spec: &str) -> Result<Self, String> {
+        if let Ok(url) = Url::parse(spec) {
+            match url.scheme() {
+                "http" | "https" => Ok(Self::Http(HttpsClient::from_url(&url))),
+                "file" => {
+                    let path = url
+                        .to_file_path()
+                        .map_err(|_| format!("invalid file url: {spec}"))?;
+                    let client = LocalClient::from_path(path)
+                        .map_err(|e| format!("invalid local repository '{}': {}", spec, e))?;
+                    Ok(Self::Local(client))
+                }
+                other => Err(format!("unsupported remote scheme '{other}'")),
+            }
+        } else {
+            if spec.contains("://") || spec.contains('@') {
+                return Err(format!(
+                    "unsupported remote specification '{spec}': protocol not implemented"
+                ));
+            }
+            let normalized = spec.trim_end_matches('/');
+            let client = LocalClient::from_path(normalized)
+                .map_err(|e| format!("invalid local repository '{}': {}", spec, e))?;
+            Ok(Self::Local(client))
+        }
+    }
+
+    async fn discovery_reference(&self, service: ServiceType) -> Result<Vec<DiscRef>, GitError> {
+        match self {
+            RemoteClient::Http(client) => client.discovery_reference(service).await,
+            RemoteClient::Local(client) => client.discovery_reference(service).await,
+        }
+    }
+
+    async fn fetch_objects(
+        &self,
+        have: &[String],
+        want: &[String],
+    ) -> Result<FetchStream, IoError> {
+        match self {
+            RemoteClient::Http(client) => client.fetch_objects(have, want).await,
+            RemoteClient::Local(client) => client.fetch_objects(have, want).await,
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
@@ -91,16 +148,15 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
     );
 
     // fetch remote
-    let url = match Url::parse(&remote_config.url) {
-        Ok(url) => url,
+    let remote_client = match RemoteClient::from_spec(&remote_config.url) {
+        Ok(client) => client,
         Err(e) => {
-            eprintln!("fatal: invalid URL '{}': {}", remote_config.url, e);
+            eprintln!("fatal: {e}");
             return;
         }
     };
-    let http_client = HttpsClient::from_url(&url);
 
-    let mut refs = match http_client.discovery_reference(UploadPack).await {
+    let mut refs = match remote_client.discovery_reference(UploadPack).await {
         Ok(refs) => refs,
         Err(e) => {
             eprintln!("fatal: {e}");
@@ -138,8 +194,13 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
 
     let want = refs.iter().map(|r| r._hash.clone()).collect::<Vec<_>>();
     let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
-
-    let mut result_stream = http_client.fetch_objects(&have, &want).await.unwrap();
+    let mut result_stream = match remote_client.fetch_objects(&have, &want).await {
+        Ok(stream) => stream,
+        Err(e) => {
+            eprintln!("fatal: failed to fetch objects: {e}");
+            return;
+        }
+    };
 
     let mut reader = StreamReader::new(&mut result_stream);
     let mut pack_data = Vec::new();
@@ -192,10 +253,14 @@ pub async fn fetch_repository(remote_config: RemoteConfig, branch: Option<String
     bar.finish();
 
     /* save pack file */
-    let pack_file = {
-        let hash = SHA1::new(&pack_data[..pack_data.len() - 20]);
+    let pack_file = if pack_data.len() < 20 {
+        tracing::debug!("No pack data returned from remote");
+        None
+    } else {
+        let payload_len = pack_data.len() - 20;
+        let hash = SHA1::new(&pack_data[..payload_len]);
 
-        let checksum = SHA1::from_bytes(&pack_data[pack_data.len() - 20..]);
+        let checksum = SHA1::from_bytes(&pack_data[payload_len..]);
         assert_eq!(hash, checksum);
         let checksum = checksum.to_string();
         println!("checksum: {checksum}");

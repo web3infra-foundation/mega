@@ -372,9 +372,15 @@ pub fn get_repo_name_from_url(mut url: &str) -> Option<&str> {
     if url.ends_with('/') {
         url = &url[..url.len() - 1];
     }
+
     let repo_start = url.rfind('/')? + 1;
-    let repo_end = url.rfind('.')?;
-    Some(&url[repo_start..repo_end])
+    let repo = &url[repo_start..];
+    if repo.is_empty() {
+        return None;
+    }
+
+    let repo = repo.strip_suffix(".git").unwrap_or(repo);
+    if repo.is_empty() { None } else { Some(repo) }
 }
 
 /// Find the appropriate unit and value for Bytes.
@@ -563,5 +569,29 @@ mod test {
         let target = workdir.join("tmp/tmp1/tmp2/foo.bar");
         assert!(!check_gitignore(&workdir, &target));
         fs::remove_dir_all(workdir.join("tmp")).unwrap();
+    }
+
+    #[test]
+    fn test_get_repo_name_from_url_with_git_suffix() {
+        assert_eq!(
+            get_repo_name_from_url("https://example.com/owner/repo.git"),
+            Some("repo")
+        );
+    }
+
+    #[test]
+    fn test_get_repo_name_from_url_without_suffix() {
+        assert_eq!(
+            get_repo_name_from_url("https://example.com/owner/repo"),
+            Some("repo")
+        );
+    }
+
+    #[test]
+    fn test_get_repo_name_from_file_url_without_suffix() {
+        assert_eq!(
+            get_repo_name_from_url("file:///home/user/projects/repo"),
+            Some("repo")
+        );
     }
 }
