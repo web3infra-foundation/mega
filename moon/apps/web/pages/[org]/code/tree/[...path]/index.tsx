@@ -5,9 +5,12 @@ import { Theme } from '@radix-ui/themes'
 import { useParams } from 'next/navigation'
 
 import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
+import { Button } from '@gitmono/ui/Button'
+import { CloseIcon } from '@gitmono/ui/Icons'
 
 import CodeTable from '@/components/CodeView/CodeTable'
 import CommitHistory from '@/components/CodeView/CommitHistory'
+import NewCodeView from '@/components/CodeView/NewCodeView/NewCodeView'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
@@ -32,6 +35,8 @@ function TreeDetailPage() {
 
   const reqPath = `${new_path}/README.md`
   const { data: readmeContent } = useGetBlob({ path: reqPath })
+
+  const [isNewCode, setIsNewCode] = useState(false)
 
   const commitInfo = {
     user: {
@@ -63,35 +68,54 @@ function TreeDetailPage() {
     paddingRight: '8px'
   }
 
+  const handleNewClick = () => {
+    setIsNewCode(true)
+  }
+  const handleCloseClick = () => {
+    setIsNewCode(false)
+  }
+
   return (
     <Theme>
       <div className='relative m-4 h-screen'>
-      <div className='h-12 flex justify-between items-center'>
+        <div className='flex min-h-12 items-center justify-between'>
           <BreadCrumb path={path} />
-          {canClone?.data && (
-            <div className='m-1 flex justify-end'>
-              <CloneTabs />
-            </div>
+          {!isNewCode ? (
+            <>
+              <div className='m-1 flex justify-end gap-2'>
+                <Button onClick={handleNewClick}>New</Button>
+                {canClone?.data && <CloneTabs />}
+              </div>
+            </>
+          ) : (
+            <Button onClick={handleCloseClick}>
+              <CloseIcon />
+            </Button>
           )}
         </div>
-        <div className='flex gap-4'>
+        <div className='flex h-full gap-4'>
           <div style={treeStyle}>
             <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
           </div>
-
-          <div style={codeStyle}>
-            {commitInfo && (
-              <div>
-                <CommitHistory flag={'contents'} info={commitInfo} />
-              </div>
-            )}
-            <CodeTable
-              directory={directory}
-              loading={!TreeCommitInfo}
-              onCommitInfoChange={(path: string) => setNewPath(path)}
-              readmeContent={readmeContent?.data}
-            />
-          </div>
+          {!isNewCode ? (
+            <div style={codeStyle}>
+              {commitInfo && (
+                <div>
+                  <CommitHistory flag={'contents'} info={commitInfo} />
+                </div>
+              )}
+              <CodeTable
+                directory={directory}
+                loading={!TreeCommitInfo}
+                onCommitInfoChange={(path: string) => setNewPath(path)}
+                readmeContent={readmeContent?.data}
+              />
+            </div>
+          ) : (
+            <div className='pb-18 flex-1 overflow-hidden'>
+              <NewCodeView />
+            </div>
+          )}
         </div>
       </div>
     </Theme>
