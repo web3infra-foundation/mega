@@ -15,7 +15,7 @@ use ceres::{
     api_service::ApiHandler,
     model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
-        BlobContentQuery, CodePreviewQuery, CreateFileInfo, FileTreeItem, LatestCommitInfo,
+        BlobContentQuery, CodePreviewQuery, CreateEntryInfo, FileTreeItem, LatestCommitInfo,
         TreeCommitItem, TreeHashItem, TreeQuery, TreeResponse,
     },
 };
@@ -32,7 +32,7 @@ use crate::server::http_server::GIT_TAG;
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
         .routes(routes!(life_cycle_check))
-        .routes(routes!(create_file))
+        .routes(routes!(create_entry))
         .routes(routes!(get_latest_commit))
         .routes(routes!(get_tree_commit_info))
         .routes(routes!(get_file_blame))
@@ -91,24 +91,24 @@ async fn life_cycle_check() -> Result<impl IntoResponse, ApiError> {
     Ok(Json("http ready"))
 }
 
-/// Create file in web UI
+/// Create file or folder in web UI
 #[utoipa::path(
     post,
-    path = "/create-file",
-    request_body = CreateFileInfo,
+    path = "/create-entry",
+    request_body = CreateEntryInfo,
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
     tag = GIT_TAG
 )]
-async fn create_file(
+async fn create_entry(
     state: State<MonoApiServiceState>,
-    Json(json): Json<CreateFileInfo>,
+    Json(json): Json<CreateEntryInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
         .api_handler(json.path.as_ref())
         .await?
-        .create_monorepo_file(json.clone())
+        .create_monorepo_entry(json.clone())
         .await?;
     Ok(Json(CommonResult::success(None)))
 }
