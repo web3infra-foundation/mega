@@ -22,7 +22,7 @@ use tokio::sync::Mutex;
 
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
-    CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
+    CommitBindingInfo, CreateEntryInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
 };
 use common::model::{Pagination, TagInfo};
@@ -48,7 +48,7 @@ impl GitObjectCache {
 pub trait ApiHandler: Send + Sync {
     fn get_context(&self) -> Storage;
 
-    async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
+    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<(), GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         let context = self.get_context();
