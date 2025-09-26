@@ -1,18 +1,15 @@
-use super::ProtocolClient;
+use super::{
+    DiscRef, FetchStream, ProtocolClient, generate_upload_pack_content, parse_discovered_references,
+};
 use crate::command::ask_basic_auth;
-use bytes::Bytes;
 use ceres::protocol::ServiceType;
-use ceres::protocol::ServiceType::UploadPack;
-use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
-use mercury::hash::SHA1;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Body, RequestBuilder, Response, StatusCode};
 use std::io::Error as IoError;
 use std::ops::Deref;
 use std::sync::Mutex;
-use tokio_util::bytes::BytesMut;
 use url::Url;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
@@ -84,14 +81,6 @@ impl BasicAuth {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct DiscoveredReference {
-    pub(crate) _hash: String,
-    pub(crate) _ref: String,
-}
-
-type DiscRef = DiscoveredReference;
-
 // Client communicates with the remote git repository over SMART protocol.
 // protocol details: https://www.git-scm.com/docs/http-protocol
 // capability declarations: https://www.git-scm.com/docs/protocol-capabilities
@@ -105,10 +94,10 @@ impl HttpsClient {
         &self,
         service: ServiceType,
     ) -> Result<Vec<DiscRef>, GitError> {
-        let service: &str = &service.to_string();
+        let service_name = service.to_string();
         let url = self
             .url
-            .join(&format!("info/refs?service={service}"))
+            .join(&format!("info/refs?service={service_name}"))
             .unwrap();
         let res = BasicAuth::send(|| async { self.client.get(url.clone()) })
             .await
@@ -135,73 +124,19 @@ impl HttpsClient {
             .ok_or_else(|| GitError::NetworkError("Missing Content-Type header".to_string()))?
             .to_str()
             .map_err(|e| GitError::NetworkError(format!("Invalid Content-Type header: {}", e)))?;
-        if content_type != format!("application/x-{service}-advertisement") {
+        if content_type != format!("application/x-{service_name}-advertisement") {
             return Err(GitError::NetworkError(format!(
-                "Content-type must be `application/x-{service}-advertisement`, but got: {content_type}"
+                "Content-type must be `application/x-{service_name}-advertisement`, but got: {content_type}"
             )));
         }
 
-        let mut response_content = res
+        let response_content = res
             .bytes()
             .await
             .map_err(|e| GitError::NetworkError(format!("Failed to read response body: {}", e)))?;
         tracing::debug!("{:?}", response_content);
 
-        // the first five bytes of the response entity matches the regex ^[0-9a-f]{4}#.
-        // verify the first pkt-line is # service=$servicename, and ignore LF
-        let (_, first_line) = read_pkt_line(&mut response_content);
-        if first_line[..].ne(format!("# service={service}\n").as_bytes()) {
-            return Err(GitError::NetworkError(format!(
-                "Error Response format, didn't start with `# service={service}`"
-            )));
-        }
-
-        let mut ref_list = vec![];
-        let mut read_first_line = false;
-        loop {
-            let (bytes_take, pkt_line) = read_pkt_line(&mut response_content);
-            if bytes_take == 0 {
-                if response_content.is_empty() {
-                    break;
-                } else {
-                    continue;
-                }
-            }
-            let pkt_line = String::from_utf8(pkt_line.to_vec())
-                .map_err(|e| GitError::NetworkError(format!("Invalid UTF-8 in response: {}", e)))?;
-            let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
-            refs = refs.trim();
-            if !read_first_line {
-                if hash == SHA1::default().to_string() {
-                    break; // empty repo, return empty list // TODO: parse capability
-                }
-                let (head, caps) = refs.split_once('\0').ok_or_else(|| {
-                    GitError::NetworkError("Invalid reference format".to_string())
-                })?;
-                if service == UploadPack.to_string() {
-                    // for git-upload-pack, the first line is HEAD
-                    assert_eq!(head, "HEAD");
-                }
-                // default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
-                ref_list.push(DiscoveredReference {
-                    _hash: hash.to_string(),
-                    _ref: head.to_string(),
-                });
-                let caps = caps.split(' ').collect::<Vec<&str>>();
-                tracing::debug!("capability declarations: {:?}", caps);
-                // tracing::warn!(
-                //     "temporary ignore capability declarations:[ {:?} ]",
-                //     refs[4..].to_string()
-                // );
-                read_first_line = true;
-            } else {
-                ref_list.push(DiscoveredReference {
-                    _hash: hash.to_string(),
-                    _ref: refs.to_string(),
-                });
-            }
-        }
-        Ok(ref_list)
+        parse_discovered_references(response_content, service)
     }
 
     /// POST $GIT_URL/git-upload-pack HTTP/1.0<br>
@@ -212,12 +147,12 @@ impl HttpsClient {
     // TODO support some necessary options
     pub async fn fetch_objects(
         &self,
-        have: &Vec<String>,
-        want: &Vec<String>,
-    ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>> + use<>, IoError> {
+        have: &[String],
+        want: &[String],
+    ) -> Result<FetchStream, IoError> {
         // POST $GIT_URL/git-upload-pack HTTP/1.0
         let url = self.url.join("git-upload-pack").unwrap();
-        let body = generate_upload_pack_content(have, want).await;
+        let body = generate_upload_pack_content(have, want);
         tracing::debug!("fetch_objects with body: {:?}", body);
 
         let res = BasicAuth::send(|| async {
@@ -237,7 +172,7 @@ impl HttpsClient {
                 res.status()
             )));
         }
-        let result = res.bytes_stream().map_err(std::io::Error::other);
+        let result = res.bytes_stream().map_err(std::io::Error::other).boxed();
 
         Ok(result)
     }
@@ -255,38 +190,12 @@ impl HttpsClient {
         .await
     }
 }
-/// for fetching
-async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) -> Bytes {
-    let mut buf = BytesMut::new();
-    let mut write_first_line = false;
-
-    let capability = ["side-band-64k", "ofs-delta", "multi_ack_detailed"].join(" ");
-    for w in want {
-        if !write_first_line {
-            add_pkt_line_string(
-                &mut buf,
-                format!("want {w} {capability} agent=libra/0.1.0\n").to_string(),
-            );
-            write_first_line = true;
-        } else {
-            add_pkt_line_string(&mut buf, format!("want {w}\n").to_string());
-        }
-    }
-    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
-    for h in have {
-        add_pkt_line_string(&mut buf, format!("have {h}\n").to_string());
-    }
-
-    add_pkt_line_string(&mut buf, "done\n".to_string());
-
-    buf.freeze()
-}
-
 #[cfg(test)]
 mod tests {
 
     use crate::utils::test::init_debug_logger;
     use crate::utils::test::init_logger;
+    use ceres::protocol::ServiceType::UploadPack;
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncWriteExt;
 
@@ -319,14 +228,14 @@ mod tests {
         let test_repo = "https://github.com/web3infra-foundation/mega/";
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
         let refs = client.discovery_reference(UploadPack).await.unwrap();
-        let refs: Vec<DiscoveredReference> = refs
+        let refs: Vec<DiscRef> = refs
             .iter()
             .filter(|r| r._ref.starts_with("refs/heads"))
             .cloned()
             .collect();
         tracing::info!("refs: {:?}", refs);
 
-        let want = refs.iter().map(|r| r._hash.clone()).collect();
+        let want: Vec<String> = refs.iter().map(|r| r._hash.clone()).collect();
 
         let have = vec!["81a162e7b725bbad2adfe01879fd57e0119406b9".to_string()];
         let mut result_stream = client.fetch_objects(&have, &want).await.unwrap();
@@ -366,7 +275,7 @@ mod tests {
         let have = vec!["1c05d7f7dd70e38150bfd2d5fb8fb969e2eb9851".to_string()];
         // **want MUST change to one of the refs in the remote repo, such as `refs/heads/main` before running the test**
         let want = vec!["6b4e69962dbbc75e80d5263cc5c81571669db9bc".to_string()];
-        let body = generate_upload_pack_content(&have, &want).await;
+        let body = generate_upload_pack_content(&have, &want);
         tracing::info!("upload-pack content: {:?}", body);
         let mut cmd = tokio::process::Command::new("/usr/bin/git-upload-pack");
         cmd.arg("..");
