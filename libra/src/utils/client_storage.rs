@@ -3,16 +3,16 @@ use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use byteorder::{BigEndian, ReadBytesExt};
+use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression;
 use lru_mem::LruCache;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::types::ObjectType;
-use mercury::internal::pack::cache_object::CacheObject;
 use mercury::internal::pack::Pack;
+use mercury::internal::pack::cache_object::CacheObject;
 use mercury::utils::read_sha1;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -532,9 +532,9 @@ impl ClientStorage {
 
 #[cfg(test)]
 mod tests {
+    use mercury::internal::object::ObjectTrait;
     use mercury::internal::object::blob::Blob;
     use mercury::internal::object::types::ObjectType;
-    use mercury::internal::object::ObjectTrait;
     use serial_test::serial;
     use std::fs;
     use std::path::PathBuf;
@@ -553,9 +553,11 @@ mod tests {
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage
-            .put(&blob.id, &blob.data, blob.get_type())
-            .is_ok());
+        assert!(
+            client_storage
+                .put(&blob.id, &blob.data, blob.get_type())
+                .is_ok()
+        );
         assert!(client_storage.exist(&blob.id));
 
         let data = client_storage.get(&blob.id).unwrap();
@@ -573,9 +575,11 @@ mod tests {
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage
-            .put(&blob.id, &blob.data, blob.get_type())
-            .is_ok());
+        assert!(
+            client_storage
+                .put(&blob.id, &blob.data, blob.get_type())
+                .is_ok()
+        );
 
         let objs = client_storage.search("5dd01c177").await;
 
@@ -606,9 +610,11 @@ mod tests {
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage
-            .put(&blob.id, &blob.data, blob.get_type())
-            .is_ok());
+        assert!(
+            client_storage
+                .put(&blob.id, &blob.data, blob.get_type())
+                .is_ok()
+        );
 
         let obj_type = client_storage.get_object_type(&blob.id).unwrap();
         assert_eq!(obj_type, ObjectType::Blob);

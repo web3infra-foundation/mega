@@ -31,12 +31,11 @@ use std::fmt::Display;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-use crate::internal::object::types::ObjectType;
 use crate::internal::object::ObjectTrait;
+use crate::internal::object::types::ObjectType;
 
 /// **The Blob Object**
 #[derive(Eq, Debug, Clone)]
-#[non_exhaustive]
 pub struct Blob {
     pub id: SHA1,
     pub data: Vec<u8>,

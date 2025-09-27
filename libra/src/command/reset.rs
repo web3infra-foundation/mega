@@ -2,7 +2,7 @@ use crate::command::{get_target_commit, load_object};
 use crate::internal::branch::Branch;
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
-use crate::internal::reflog::{with_reflog, ReflogAction, ReflogContext};
+use crate::internal::reflog::{ReflogAction, ReflogContext, with_reflog};
 use crate::utils::object_ext::{BlobExt, TreeExt};
 use crate::utils::{path, util};
 use clap::Parser;
@@ -162,10 +162,8 @@ async fn reset_pathspecs(pathspecs: &[String], target: &str) {
         }
     }
 
-    if changed {
-        if let Err(e) = index.save(&index_file) {
-            eprintln!("fatal: failed to save index: {e}");
-        }
+    if changed && let Err(e) = index.save(&index_file) {
+        eprintln!("fatal: failed to save index: {e}");
     }
 }
 
@@ -303,10 +301,10 @@ pub(crate) async fn reset_working_directory_to_commit(
             for (file_path, _) in current_files {
                 if !target_files_set.contains(&file_path) {
                     let full_path = workdir.join(&file_path);
-                    if full_path.exists() {
-                        if let Err(e) = fs::remove_file(&full_path) {
-                            eprintln!("warning: failed to remove {}: {}", full_path.display(), e);
-                        }
+                    if full_path.exists()
+                        && let Err(e) = fs::remove_file(&full_path)
+                    {
+                        eprintln!("warning: failed to remove {}: {}", full_path.display(), e);
                     }
                 }
             }
@@ -318,10 +316,10 @@ pub(crate) async fn reset_working_directory_to_commit(
 
         for file_path in tracked_files {
             let full_path = workdir.join(&file_path);
-            if full_path.exists() {
-                if let Err(e) = fs::remove_file(&full_path) {
-                    eprintln!("warning: failed to remove {}: {}", full_path.display(), e);
-                }
+            if full_path.exists()
+                && let Err(e) = fs::remove_file(&full_path)
+            {
+                eprintln!("warning: failed to remove {}: {}", full_path.display(), e);
             }
         }
     }
@@ -471,14 +469,15 @@ pub(crate) fn remove_empty_directories(workdir: &Path) -> Result<(), String> {
         }
 
         // Remove this directory if it's empty and not the working directory
-        if !has_files && dir != workdir {
-            if let Err(e) = fs::remove_dir(dir) {
-                eprintln!(
-                    "warning: failed to remove empty directory {}: {}",
-                    dir.display(),
-                    e
-                );
-            }
+        if !has_files
+            && dir != workdir
+            && let Err(e) = fs::remove_dir(dir)
+        {
+            eprintln!(
+                "warning: failed to remove empty directory {}: {}",
+                dir.display(),
+                e
+            );
         }
 
         Ok(())
@@ -542,10 +541,10 @@ fn find_tree_item_recursive(
                 return Some(item.clone());
             } else if item.mode == mercury::internal::object::tree::TreeItemMode::Tree {
                 // Continue searching in subtree
-                if let Ok(subtree) = load_object::<Tree>(&item.id) {
-                    if let Some(result) = find_tree_item_recursive(&subtree, parts, index + 1) {
-                        return Some(result);
-                    }
+                if let Ok(subtree) = load_object::<Tree>(&item.id)
+                    && let Some(result) = find_tree_item_recursive(&subtree, parts, index + 1)
+                {
+                    return Some(result);
                 }
             }
         }

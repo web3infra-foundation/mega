@@ -1,6 +1,6 @@
+use diffs::Diff;
 #[cfg(feature = "diff_mydrs")]
 use diffs::myers;
-use diffs::Diff;
 
 const DATA_INS_LEN: usize = 0x7f;
 const VAR_INT_ENCODING_BITS: u8 = 7;

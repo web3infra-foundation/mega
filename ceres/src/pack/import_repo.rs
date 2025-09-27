@@ -3,22 +3,23 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use tokio::sync::{
-    mpsc::{self},
     Mutex,
+    mpsc::{self},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
-use jupiter::storage::{base_storage::StorageConnector, Storage};
+use jupiter::storage::{Storage, base_storage::StorageConnector};
+use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 use mercury::{
     errors::GitError,
     internal::{
@@ -29,7 +30,7 @@ use mercury::{
 use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 
 use crate::{
-    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    api_service::{ApiHandler, mono_api_service::MonoApiService},
     pack::RepoHandler,
     protocol::{
         import_refs::{CommandType, RefCommand, Refs},
@@ -94,7 +95,7 @@ impl RepoHandler for ImportRepo {
             while let Some(model) = commit_stream.next().await {
                 match model {
                     Ok(m) => {
-                        let c: Commit = m.into();
+                        let c: Commit = Commit::from_git_model(m);
                         let entry = c.into();
                         entry_tx.send(entry).await.unwrap();
                     }
@@ -107,7 +108,7 @@ impl RepoHandler for ImportRepo {
             while let Some(model) = tree_stream.next().await {
                 match model {
                     Ok(m) => {
-                        let t: Tree = m.into();
+                        let t: Tree = Tree::from_git_model(m);
                         let entry = t.into();
                         entry_tx.send(entry).await.unwrap();
                     }
@@ -136,7 +137,8 @@ impl RepoHandler for ImportRepo {
                     match model {
                         Ok(m) => {
                             // TODO handle storage type
-                            let b: Blob = m.into();
+                            let data = m.data.unwrap_or_default();
+                            let b: Blob = Blob::from_content_bytes(data);
                             let entry: Entry = b.into();
                             sender_clone.send(entry).await.unwrap();
                         }
@@ -151,7 +153,7 @@ impl RepoHandler for ImportRepo {
 
             let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
             for m in tags.into_iter() {
-                let c: Tag = m.into();
+                let c: Tag = Tag::from_git_model(m);
                 let entry: Entry = c.into();
                 entry_tx.send(entry).await.unwrap();
             }
@@ -179,7 +181,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Commit::from_git_model)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
@@ -189,12 +191,13 @@ impl RepoHandler for ImportRepo {
                 let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
-                    let parent: Commit = storage
-                        .get_commit_by_hash(self.repo.repo_id, &p_commit_id)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
+                    let parent: Commit = Commit::from_git_model(
+                        storage
+                            .get_commit_by_hash(self.repo.repo_id, &p_commit_id)
+                            .await
+                            .unwrap()
+                            .unwrap(),
+                    );
                     want_commits.push(parent.clone());
                     want_clone.push(p_commit_id);
                     traversal_list.push(parent);
@@ -208,7 +211,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), m.into()))
+            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), Tree::from_git_model(m)))
             .collect();
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
@@ -226,7 +229,8 @@ impl RepoHandler for ImportRepo {
             .unwrap();
         // traverse to get exist_objs
         for have_tree in have_trees {
-            self.traverse(have_tree.into(), &mut exist_objs, None).await;
+            self.traverse(Tree::from_git_model(have_tree), &mut exist_objs, None)
+                .await;
         }
 
         let mut counted_obj = HashSet::new();
@@ -267,7 +271,7 @@ impl RepoHandler for ImportRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Tree::from_git_model)
             .collect())
     }
 
@@ -350,13 +354,15 @@ impl ImportRepo {
             .ok_or_else(|| MegaError::with_message("root ref not found"))?;
 
         // 4. get latest commit
-        let latest_commit: Commit = self
-            .storage
-            .git_db_storage()
-            .get_commit_by_hash(self.repo.repo_id, &commit_id)
-            .await?
-            .ok_or_else(|| MegaError::with_message(format!("commit {} not found", commit_id)))?
-            .into();
+        let latest_commit: Commit = Commit::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_commit_by_hash(self.repo.repo_id, &commit_id)
+                .await?
+                .ok_or_else(|| {
+                    MegaError::with_message(format!("commit {} not found", commit_id))
+                })?,
+        );
 
         // 5. generate commit
         let commit_msg = latest_commit.format_message();
@@ -373,7 +379,7 @@ impl ImportRepo {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|tree| {
-                let mut model: mega_tree::Model = tree.into();
+                let mut model: mega_tree::Model = tree.into_mega_model();
                 model.commit_id = new_commit.id.to_string();
                 model.into()
             })

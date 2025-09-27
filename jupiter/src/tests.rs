@@ -12,6 +12,7 @@ use crate::service::mr_service::MRService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::gpg_storage::GpgStorage;
 use crate::storage::note_storage::NoteStorage;
+use crate::storage::{AppService, Storage};
 use crate::storage::{
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
@@ -19,7 +20,6 @@ use crate::storage::{
     raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
     vault_storage::VaultStorage,
 };
-use crate::storage::{AppService, Storage};
 
 pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
     let db_url = format!("sqlite://{}/test.db", temp_dir.as_ref().to_string_lossy());

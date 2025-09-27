@@ -4,12 +4,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
 use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -21,7 +21,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
-use ceres::model::blame::{BlameInfo, BlameLine, BlameQuery, BlameRequest, BlameResult};
+use ceres::model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameRequest, BlameResult};
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
@@ -30,11 +30,11 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::api::MonoApiServiceState;
 use crate::api::api_router::{self};
 use crate::api::lfs::lfs_router;
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use crate::api::oauth::oauth_client;
-use crate::api::MonoApiServiceState;
 use context::AppContext;
 
 #[derive(Clone)]
@@ -235,11 +235,11 @@ pub const USER_TAG: &str = "user";
         (name = MR_TAG, description = "Merge Request API endpoints")
     ),
     components(schemas(
+        BlameBlock,
+        BlameInfo,
         BlameQuery,
         BlameRequest,
         BlameResult,
-        BlameLine,
-        BlameInfo,
     ))
 )]
 struct ApiDoc;

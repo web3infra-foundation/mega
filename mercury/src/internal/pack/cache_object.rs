@@ -303,32 +303,32 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
     // `drop` will be called in `lru_cache.insert()` when cache full & eject the LRU
     // `lru_cache.insert()` is protected by Mutex
     fn drop(&mut self) {
-        if !self.complete_signal.load(Ordering::Acquire) {
-            if let Some(path) = &self.store_path {
-                match &self.pool {
-                    Some(pool) => {
-                        let data_copy = self.data.clone();
-                        let path_copy = path.clone();
-                        let complete_signal = self.complete_signal.clone();
-                        // block entire process, wait for IO, Control Memory
-                        // queue size will influence the Memory usage
-                        while pool.queued_count() > 2000 {
-                            std::thread::yield_now();
-                        }
-                        pool.execute(move || {
-                            if !complete_signal.load(Ordering::Acquire) {
-                                let res = data_copy.f_save(&path_copy);
-                                if let Err(e) = res {
-                                    println!("[f_save] {path_copy:?} error: {e:?}");
-                                }
-                            }
-                        });
+        if !self.complete_signal.load(Ordering::Acquire)
+            && let Some(path) = &self.store_path
+        {
+            match &self.pool {
+                Some(pool) => {
+                    let data_copy = self.data.clone();
+                    let path_copy = path.clone();
+                    let complete_signal = self.complete_signal.clone();
+                    // block entire process, wait for IO, Control Memory
+                    // queue size will influence the Memory usage
+                    while pool.queued_count() > 2000 {
+                        std::thread::yield_now();
                     }
-                    None => {
-                        let res = self.data.f_save(path);
-                        if let Err(e) = res {
-                            println!("[f_save] {path:?} error: {e:?}");
+                    pool.execute(move || {
+                        if !complete_signal.load(Ordering::Acquire) {
+                            let res = data_copy.f_save(&path_copy);
+                            if let Err(e) = res {
+                                println!("[f_save] {path_copy:?} error: {e:?}");
+                            }
                         }
+                    });
+                }
+                None => {
+                    let res = self.data.f_save(path);
+                    if let Err(e) = res {
+                        println!("[f_save] {path:?} error: {e:?}");
                     }
                 }
             }

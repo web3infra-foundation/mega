@@ -117,8 +117,21 @@ pub struct IndexEntry {
 }
 impl Display for IndexEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "IndexEntry {{ ctime: {}, mtime: {}, dev: {}, ino: {}, mode: {:o}, uid: {}, gid: {}, size: {}, hash: {}, flags: {:?}, name: {} }}",
-               self.ctime, self.mtime, self.dev, self.ino, self.mode, self.uid, self.gid, self.size, self.hash, self.flags, self.name)
+        write!(
+            f,
+            "IndexEntry {{ ctime: {}, mtime: {}, dev: {}, ino: {}, mode: {:o}, uid: {}, gid: {}, size: {}, hash: {}, flags: {:?}, name: {} }}",
+            self.ctime,
+            self.mtime,
+            self.dev,
+            self.ino,
+            self.mode,
+            self.uid,
+            self.gid,
+            self.size,
+            self.hash,
+            self.flags,
+            self.name
+        )
     }
 }
 
@@ -260,7 +273,8 @@ impl Index {
             let mut name = vec![0; name_len];
             file.read_exact(&mut name)?;
             // The exact encoding is undefined, but the '.' and '/' characters are encoded in 7-bit ASCII
-            entry.name = String::from_utf8(name)?; // TODO check the encoding
+            entry.name =
+                String::from_utf8(name).map_err(|e| GitError::ConversionError(e.to_string()))?; // TODO check the encoding
             index
                 .entries
                 .insert((entry.name.clone(), entry.flags.stage), entry);
@@ -275,7 +289,11 @@ impl Index {
         while file.bytes_read() + SHA1::SIZE < total_size as usize {
             // The remaining 20 bytes must be checksum
             let sign = utils::read_bytes(file, 4)?;
-            println!("{:?}", String::from_utf8(sign.clone())?);
+            println!(
+                "{:?}",
+                String::from_utf8(sign.clone())
+                    .map_err(|e| GitError::ConversionError(e.to_string()))?
+            );
             // If the first byte is 'A'...'Z' the extension is optional and can be ignored.
             if sign[0] >= b'A' && sign[0] <= b'Z' {
                 // Optional extension

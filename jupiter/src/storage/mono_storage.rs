@@ -1,19 +1,20 @@
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
 
+use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::{generate_id, MEGA_BRANCH_NAME};
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
+use mercury::internal::object::ObjectTrait;
 use mercury::internal::object::blob::Blob;
-use mercury::internal::object::{MegaObjectModel, ObjectTrait};
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -171,7 +172,9 @@ impl MonoStorage {
                 let git_objects = git_objects.clone();
                 let commits_to_process = commits_to_process.clone();
                 async move {
-                    let raw_obj = entry.process_entry();
+                    let entry_data = entry.data.clone();
+                    let entry_hash = entry.hash;
+                    let raw_obj = process_entry(entry);
                     let model = raw_obj.convert_to_mega_model();
                     let mut git_objects = git_objects.lock().unwrap();
                     match model {
@@ -179,8 +182,8 @@ impl MonoStorage {
                             // Store for binding processing
                             if let Ok(commit_obj) =
                                 mercury::internal::object::commit::Commit::from_bytes(
-                                    &entry.data,
-                                    entry.hash,
+                                    &entry_data,
+                                    entry_hash,
                                 )
                             {
                                 let mut commits = commits_to_process.lock().unwrap();
@@ -297,7 +300,7 @@ impl MonoStorage {
             return;
         }
         let converter = MegaModelConverter::init(mono_config);
-        let commit: mega_commit::Model = converter.commit.into();
+        let commit: mega_commit::Model = converter.commit.into_mega_model();
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())
             .await
@@ -318,7 +321,7 @@ impl MonoStorage {
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
         let save_models: Vec<mega_commit::ActiveModel> = commits
             .into_iter()
-            .map(mega_commit::Model::from)
+            .map(|c| c.into_mega_model())
             .map(|m| m.into_active_model())
             .collect();
         self.batch_save_model(save_models).await.unwrap();
@@ -331,10 +334,9 @@ impl MonoStorage {
         commit_id: &str,
     ) -> Result<(), MegaError> {
         let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
-            .clone()
-            .into_iter()
-            .map(mega_blob::Model::from)
-            .map(|mut m| {
+            .iter()
+            .map(|b| (*b).clone().into_mega_model())
+            .map(|mut m: mega_blob::Model| {
                 m.commit_id = commit_id.to_owned();
                 m.into_active_model()
             })
@@ -343,7 +345,7 @@ impl MonoStorage {
 
         let raw_blobs: Vec<raw_blob::ActiveModel> = blobs
             .into_iter()
-            .map(raw_blob::Model::from)
+            .map(|b| b.to_raw_blob())
             .map(|m| m.into_active_model())
             .collect();
         self.batch_save_model(raw_blobs).await.unwrap();

@@ -14,12 +14,7 @@ use std::{
 
 use sha1::Digest;
 
-use callisto::{
-    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob,
-};
-
 use crate::internal::object::types::ObjectType;
-use crate::internal::object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree};
 use crate::internal::zlib::stream::inflate::ReadBoxed;
 use crate::{errors::GitError, hash::SHA1};
 
@@ -49,47 +44,4 @@ pub trait ObjectTrait: Send + Sync + Display {
     fn get_size(&self) -> usize;
 
     fn to_data(&self) -> Result<Vec<u8>, GitError>;
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum GitObject {
-    Commit(Commit),
-    Tree(Tree),
-    Blob(Blob),
-    Tag(Tag),
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum GitObjectModel {
-    Commit(git_commit::Model),
-    Tree(git_tree::Model),
-    Blob(git_blob::Model, raw_blob::Model),
-    Tag(git_tag::Model),
-}
-
-pub enum MegaObjectModel {
-    Commit(mega_commit::Model),
-    Tree(mega_tree::Model),
-    Blob(mega_blob::Model, raw_blob::Model),
-    Tag(mega_tag::Model),
-}
-
-impl GitObject {
-    pub fn convert_to_mega_model(self) -> MegaObjectModel {
-        match self {
-            GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into()),
-            GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into()),
-            GitObject::Blob(blob) => MegaObjectModel::Blob((&blob).into(), (&blob).into()),
-            GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into()),
-        }
-    }
-
-    pub fn convert_to_git_model(self) -> GitObjectModel {
-        match self {
-            GitObject::Commit(commit) => GitObjectModel::Commit(commit.into()),
-            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into()),
-            GitObject::Blob(blob) => GitObjectModel::Blob((&blob).into(), (&blob).into()),
-            GitObject::Tag(tag) => GitObjectModel::Tag(tag.into()),
-        }
-    }
 }

@@ -1,13 +1,13 @@
 use crate::ws::WSMessage;
 use once_cell::sync::Lazy;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 // Import complete Error trait for better error handling
 use std::error::Error;
 use std::process::{ExitStatus, Stdio};
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));

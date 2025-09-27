@@ -6,14 +6,14 @@ use http::header::COOKIE;
 use reqwest::Client;
 use reqwest::Url;
 use tower_sessions::{
+    SessionStore,
     session::{Id, Record},
     session_store::Result,
-    SessionStore,
 };
 
+use crate::api::oauth::CAMPSITE_API_COOKIE;
 use crate::api::oauth::model::CampsiteUserJson;
 use crate::api::oauth::model::LoginUser;
-use crate::api::oauth::CAMPSITE_API_COOKIE;
 
 #[derive(Debug, Clone)]
 pub struct CampsiteApiStore {

@@ -1,15 +1,14 @@
 [package]
 name = "mercury"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sea-orm = { workspace = true, features = ["sqlx-sqlite"] }
 delta = { path = "delta" }
 sapling-zstdelta = { path = "zstdelta" }
-common = { workspace = true }
-callisto = { workspace = true }
 flate2 = { workspace = true, features = ["zlib"] } # enable linking against the libz(C lib); better performance
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
@@ -24,7 +23,7 @@ uuid = { workspace = true, features = ["v4"] }
 threadpool = { workspace = true }
 num_cpus = { workspace = true }
 dashmap = { workspace = true }
-tokio = {workspace = true }
+tokio = {workspace = true, features = ["fs"] }
 lru-mem = { workspace = true }
 bincode = { workspace = true , features = ["serde"] }
 byteorder = { workspace = true }

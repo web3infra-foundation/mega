@@ -1,6 +1,14 @@
+use libra::command::fetch;
+use libra::internal::{
+    branch::Branch,
+    config::{Config, RemoteConfig},
+};
+use libra::utils::test::{ChangeDirGuard, setup_with_new_libra_in};
+use serial_test::serial;
+use std::fs;
 use std::process::Command;
 use std::time::Duration;
-use tempfile::TempDir;
+use tempfile::{TempDir, tempdir};
 use tokio::process::Command as TokioCommand;
 use tokio::time::timeout;
 
@@ -114,4 +122,133 @@ async fn test_fetch_invalid_remote() {
     }
 
     eprintln!("test_fetch_invalid_remote passed");
+}
+
+#[tokio::test]
+#[serial]
+async fn test_fetch_local_repository() {
+    let temp_root = tempdir().expect("failed to create temp root");
+    let remote_dir = temp_root.path().join("remote.git");
+    let work_dir = temp_root.path().join("workdir");
+
+    // Prepare remote bare repository with an initial commit pushed from a working clone
+    assert!(
+        Command::new("git")
+            .args(["init", "--bare", remote_dir.to_str().unwrap()])
+            .status()
+            .expect("failed to init bare remote")
+            .success()
+    );
+
+    assert!(
+        Command::new("git")
+            .args(["init", work_dir.to_str().unwrap()])
+            .status()
+            .expect("failed to init working repo")
+            .success()
+    );
+
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["config", "user.name", "Libra Tester"])
+            .status()
+            .expect("failed to set user.name")
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["config", "user.email", "tester@example.com"])
+            .status()
+            .expect("failed to set user.email")
+            .success()
+    );
+
+    fs::write(work_dir.join("README.md"), "hello libra").expect("failed to write README");
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["add", "README.md"])
+            .status()
+            .expect("failed to add README")
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["commit", "-m", "initial commit"])
+            .status()
+            .expect("failed to commit")
+            .success()
+    );
+
+    let current_branch = String::from_utf8(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .output()
+            .expect("failed to read current branch")
+            .stdout,
+    )
+    .expect("branch name not utf8")
+    .trim()
+    .to_string();
+
+    let pushed_commit = String::from_utf8(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .expect("failed to read HEAD commit")
+            .stdout,
+    )
+    .expect("commit hash not utf8")
+    .trim()
+    .to_string();
+
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args(["remote", "add", "origin", remote_dir.to_str().unwrap()])
+            .status()
+            .expect("failed to add origin remote")
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .current_dir(&work_dir)
+            .args([
+                "push",
+                "origin",
+                &format!("HEAD:refs/heads/{current_branch}"),
+            ])
+            .status()
+            .expect("failed to push to remote")
+            .success()
+    );
+
+    // Initialize a fresh Libra repository to fetch into
+    let repo_dir = temp_root.path().join("libra_repo");
+    fs::create_dir_all(&repo_dir).expect("failed to create repo dir");
+    setup_with_new_libra_in(&repo_dir).await;
+    let _guard = ChangeDirGuard::new(&repo_dir);
+
+    let remote_path = remote_dir.to_str().unwrap().to_string();
+    Config::insert("remote", Some("origin"), "url", &remote_path).await;
+
+    fetch::fetch_repository(
+        RemoteConfig {
+            name: "origin".to_string(),
+            url: remote_path.clone(),
+        },
+        None,
+    )
+    .await;
+
+    let tracked_branch =
+        Branch::find_branch(&format!("refs/remotes/origin/{current_branch}"), None)
+            .await
+            .expect("remote-tracking branch not found");
+    assert_eq!(tracked_branch.commit.to_string(), pushed_commit);
 }

@@ -13,16 +13,16 @@ use mercury::{
     errors::GitError,
     hash::SHA1,
     internal::object::{
+        ObjectTrait,
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
-        ObjectTrait,
     },
 };
 use tokio::sync::Mutex;
 
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
-    CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
+    CommitBindingInfo, CreateEntryInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
 };
 use common::model::{Pagination, TagInfo};
@@ -48,7 +48,7 @@ impl GitObjectCache {
 pub trait ApiHandler: Send + Sync {
     fn get_context(&self) -> Storage;
 
-    async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
+    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<(), GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         let context = self.get_context();
@@ -67,10 +67,10 @@ pub trait ApiHandler: Send + Sync {
         let Some(tree) = self.search_tree_by_path(path).await.unwrap() else {
             return Ok(vec![]);
         };
-        if let Some(oid) = oid {
-            if oid != tree.id._to_string() {
-                return Ok(vec![]);
-            }
+        if let Some(oid) = oid
+            && oid != tree.id._to_string()
+        {
+            return Ok(vec![]);
         }
         tree.to_data()
     }
@@ -80,22 +80,22 @@ pub trait ApiHandler: Send + Sync {
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit>;
 
     async fn get_tree_relate_commit(&self, t_hash: SHA1, path: PathBuf)
-        -> Result<Commit, GitError>;
+    -> Result<Commit, GitError>;
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
 
     async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<Option<String>, GitError> {
         let filename = file_path.file_name().unwrap().to_str().unwrap();
         let parent = file_path.parent().unwrap();
-        if let Some(tree) = self.search_tree_by_path(parent).await? {
-            if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
-                match self.get_raw_blob_by_hash(&item.id.to_string()).await {
-                    Ok(Some(model)) => {
-                        return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()))
-                    }
-                    _ => return Ok(None),
-                };
-            }
+        if let Some(tree) = self.search_tree_by_path(parent).await?
+            && let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename)
+        {
+            match self.get_raw_blob_by_hash(&item.id.to_string()).await {
+                Ok(Some(model)) => {
+                    return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()));
+                }
+                _ => return Ok(None),
+            };
         }
         return Ok(None);
     }
@@ -309,7 +309,9 @@ pub trait ApiHandler: Send + Sync {
     /// Returns a `GitError` if the path does not exist.
     async fn search_tree_for_update(&self, path: &Path) -> Result<Vec<Arc<Tree>>, GitError> {
         // strip repo root prefix
-        let relative_path = self.strip_relative(path)?;
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
         let root_tree = self.get_root_tree().await;
 
         // init state
@@ -355,7 +357,9 @@ pub trait ApiHandler: Send + Sync {
     ///
     /// * `Result<Option<Tree>, GitError>` - A result containing an optional tree or a Git error.
     async fn search_tree_by_path(&self, path: &Path) -> Result<Option<Tree>, GitError> {
-        let relative_path = self.strip_relative(path)?;
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         for component in relative_path.components() {

@@ -3,20 +3,20 @@ use std::{
     path::{Component, Path, PathBuf},
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     vec,
 };
 
 use async_trait::async_trait;
 use tokio::sync::{
-    mpsc::{self},
     RwLock,
+    mpsc::{self},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use bellatrix::{orion_client::OrionBuildRequest, Bellatrix};
+use bellatrix::{Bellatrix, orion_client::OrionBuildRequest};
 use callisto::{entity_ext::generate_link, mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
@@ -34,12 +34,13 @@ use mercury::{
 };
 
 use crate::{
-    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    api_service::{ApiHandler, mono_api_service::MonoApiService},
     merge_checker::CheckerRegistry,
     model::mr::BuckFile,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
+use jupiter::utils::converter::FromMegaModel;
 
 pub struct MonoRepo {
     pub storage: Storage,
@@ -77,19 +78,16 @@ impl RepoHandler for MonoRepo {
             let refs = storage.get_ref("/").await.unwrap().unwrap();
             let tree_hash = refs.ref_tree_hash.clone();
 
-            let mut tree: Tree = storage
-                .get_tree_by_hash(&tree_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
+            let mut tree: Tree =
+                Tree::from_mega_model(storage.get_tree_by_hash(&tree_hash).await.unwrap().unwrap());
 
-            let commit: Commit = storage
-                .get_commit_by_hash(&refs.ref_commit_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
+            let commit: Commit = Commit::from_mega_model(
+                storage
+                    .get_commit_by_hash(&refs.ref_commit_hash)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            );
 
             for component in target_path.components() {
                 if component != Component::RootDir {
@@ -100,12 +98,13 @@ impl RepoHandler for MonoRepo {
                         .find(|x| x.name == path_name)
                         .map(|x| x.id);
                     if let Some(sha1) = sha1 {
-                        tree = storage
-                            .get_trees_by_hashes(vec![sha1.to_string()])
-                            .await
-                            .unwrap()[0]
-                            .clone()
-                            .into();
+                        tree = Tree::from_mega_model(
+                            storage
+                                .get_trees_by_hashes(vec![sha1.to_string()])
+                                .await
+                                .unwrap()[0]
+                                .clone(),
+                        );
                     } else {
                         return self.find_head_hash(vec![]);
                     }
@@ -197,7 +196,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Commit::from_mega_model)
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
@@ -207,12 +206,13 @@ impl RepoHandler for MonoRepo {
                 let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
-                    let parent: Commit = storage
-                        .get_commit_by_hash(&p_commit_id)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
+                    let parent: Commit = Commit::from_mega_model(
+                        storage
+                            .get_commit_by_hash(&p_commit_id)
+                            .await
+                            .unwrap()
+                            .unwrap(),
+                    );
                     want_commits.push(parent.clone());
                     want_clone.push(p_commit_id);
                     traversal_list.push(parent);
@@ -226,7 +226,12 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), m.into()))
+            .map(|m| {
+                (
+                    SHA1::from_str(&m.tree_id).unwrap(),
+                    Tree::from_mega_model(m),
+                )
+            })
             .collect();
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
@@ -237,7 +242,8 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap();
         for have_tree in have_trees {
-            self.traverse(have_tree.into(), &mut exist_objs, None).await;
+            self.traverse(Tree::from_mega_model(have_tree), &mut exist_objs, None)
+                .await;
         }
 
         let mut counted_obj = HashSet::new();
@@ -278,7 +284,7 @@ impl RepoHandler for MonoRepo {
             .await
             .unwrap()
             .into_iter()
-            .map(|x| x.into())
+            .map(Tree::from_mega_model)
             .collect())
     }
 
@@ -411,7 +417,7 @@ impl MonoRepo {
                 }
                 (Some(sha1), _) => {
                     let tree = mono_stg.get_tree_by_hash(&sha1.to_string()).await?.unwrap();
-                    search_trees.push((path, tree.into()));
+                    search_trees.push((path, Tree::from_mega_model(tree)));
                 }
             }
         }
@@ -426,14 +432,13 @@ impl MonoRepo {
         if res.is_empty() {
             let mut path = Some(mr_path);
             while let Some(p) = path {
-                if p.parent().is_some() {
-                    if let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
-                    {
-                        if let Some(buck) = self.try_extract_buck(tree, mr_path) {
-                            return Ok(vec![buck]);
-                        }
-                    };
-                }
+                if p.parent().is_some()
+                    && let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
+                    && let Some(buck) = self.try_extract_buck(tree, mr_path)
+                {
+                    return Ok(vec![buck]);
+                };
+
                 path = p.parent();
             }
         }
@@ -466,13 +471,11 @@ impl MonoRepo {
     ) -> Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError> {
         let mono_stg = self.storage.mono_storage();
         let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
-        let from_tree: Tree = mono_stg
-            .get_tree_by_hash(&from_c.tree)
-            .await?
-            .unwrap()
-            .into();
+        let from_tree: Tree =
+            Tree::from_mega_model(mono_stg.get_tree_by_hash(&from_c.tree).await?.unwrap());
         let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
-        let to_tree: Tree = mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap().into();
+        let to_tree: Tree =
+            Tree::from_mega_model(mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap());
         diff_trees(&to_tree, &from_tree)
     }
 

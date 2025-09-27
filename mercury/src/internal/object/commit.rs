@@ -16,13 +16,11 @@ use std::str::FromStr;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+use crate::internal::object::signature::Signature;
 use bincode::{Decode, Encode};
 use bstr::ByteSlice;
-use callisto::git_commit;
-use callisto::mega_commit;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -37,7 +35,6 @@ use serde::Serialize;
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
 #[derive(Eq, Debug, Clone, Serialize, Deserialize, Decode, Encode)]
-#[non_exhaustive]
 pub struct Commit {
     pub id: SHA1,
     pub tree_id: SHA1,
@@ -248,54 +245,6 @@ impl ObjectTrait for Commit {
         Ok(data)
     }
 }
-fn commit_from_model(
-    commit_id: &str,
-    tree: &str,
-    parents_id: &serde_json::Value,
-    author: Option<String>,
-    committer: Option<String>,
-    message: Option<String>,
-) -> Commit {
-    Commit {
-        id: SHA1::from_str(commit_id).unwrap(),
-        tree_id: SHA1::from_str(tree).unwrap(),
-        parent_commit_ids: parents_id
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
-            .collect(),
-        author: Signature::from_data(author.unwrap().into()).unwrap(),
-        committer: Signature::from_data(committer.unwrap().into()).unwrap(),
-        message: message.unwrap(),
-    }
-}
-
-impl From<mega_commit::Model> for Commit {
-    fn from(value: mega_commit::Model) -> Self {
-        commit_from_model(
-            &value.commit_id,
-            &value.tree,
-            &value.parents_id,
-            value.author,
-            value.committer,
-            value.content,
-        )
-    }
-}
-
-impl From<git_commit::Model> for Commit {
-    fn from(value: git_commit::Model) -> Self {
-        commit_from_model(
-            &value.commit_id,
-            &value.tree,
-            &value.parents_id,
-            value.author,
-            value.committer,
-            value.content,
-        )
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -307,7 +256,7 @@ mod tests {
 author benjamin.747 <benjamin.747@outlook.com> 1757467768 +0800
 committer benjamin.747 <benjamin.747@outlook.com> 1757491219 +0800
 gpgsig -----BEGIN PGP SIGNATURE-----
- 
+
  iQJNBAABCAA3FiEEs4MaYUV7JcjxsVMPyqxGczTZ6K4FAmjBMC4ZHGJlbmphbWlu
  Ljc0N0BvdXRsb29rLmNvbQAKCRDKrEZzNNnorj73EADNpsyLAHsB3NgoeH+uy9Vq
  G2+LRtlvqv3QMK7vbQUadXHlQYWk25SIk+WJ1kG1AnUy5fqOrLSDTA1ny+qwpH8O

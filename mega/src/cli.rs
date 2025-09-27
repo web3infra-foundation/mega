@@ -42,7 +42,11 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     } else if config_path_alt.exists() {
         Config::new(config_path_alt.to_str().unwrap()).unwrap()
     } else {
-        eprintln!("can't find config.toml under {:?} or {:?}, you can manually set config.toml path with --config parameter", env::current_dir().unwrap(), base_dir);
+        eprintln!(
+            "can't find config.toml under {:?} or {:?}, you can manually set config.toml path with --config parameter",
+            env::current_dir().unwrap(),
+            base_dir
+        );
         Config::default()
     };
 

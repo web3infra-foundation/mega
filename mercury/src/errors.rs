@@ -1,6 +1,3 @@
-use std::string::FromUtf8Error;
-
-use common::errors::MegaError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -94,17 +91,4 @@ pub enum GitError {
 
     #[error("{0}")]
     CustomError(String),
-}
-
-impl From<FromUtf8Error> for GitError {
-    fn from(err: FromUtf8Error) -> Self {
-        // convert the FromUtf8Error to GitError and return it
-        GitError::ConversionError(err.to_string())
-    }
-}
-
-impl From<MegaError> for GitError {
-    fn from(err: MegaError) -> Self {
-        GitError::CustomError(err.to_string())
-    }
 }

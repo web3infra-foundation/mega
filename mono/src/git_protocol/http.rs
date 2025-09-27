@@ -4,11 +4,11 @@ use anyhow::Result;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, Response};
 use bytes::{Bytes, BytesMut};
-use futures::{stream, TryStreamExt};
+use futures::{TryStreamExt, stream};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
-use ceres::protocol::{smart, ServiceType, SmartProtocol};
+use ceres::protocol::{ServiceType, SmartProtocol, smart};
 use common::errors::ProtocolError;
 use common::model::InfoRefsParams;
 
@@ -145,7 +145,7 @@ pub async fn git_receive_pack(
     let mut report_status = Bytes::new();
 
     let mut chunk_buffer = BytesMut::new(); // Used to cache the data of chunks before the PACK subsequence is found.
-                                            // Process the data stream to handle the Git receive-pack protocol.
+    // Process the data stream to handle the Git receive-pack protocol.
     while let Some(chunk) = data_stream.next().await {
         let chunk = chunk.unwrap();
         // Process the data up to the "PACK" subsequence.

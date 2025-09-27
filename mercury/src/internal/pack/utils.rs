@@ -425,8 +425,8 @@ mod tests {
 
         assert_eq!(offset, 2); // Offset is 2
         assert_eq!(type_bits, 5); // Expected type is 5
-                                  // Expected size 000000110101
-                                  // 110101  = 1 * 2^5 + 1 * 2^4 + 0 * 2^3 + 1 * 2^2 + 0 * 2^1 + 1 * 2^0= 53
+        // Expected size 000000110101
+        // 110101  = 1 * 2^5 + 1 * 2^4 + 0 * 2^3 + 1 * 2^2 + 0 * 2^1 + 1 * 2^0= 53
         assert_eq!(size, 53);
     }
 
@@ -441,7 +441,7 @@ mod tests {
 
         assert_eq!(offset, 1); // Offset is 1
         assert_eq!(type_bits, 1); // Expected type is 1
-                                  // Expected size is 15
+        // Expected size is 15
         assert_eq!(size, 15);
     }
 

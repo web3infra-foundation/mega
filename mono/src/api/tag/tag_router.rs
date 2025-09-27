@@ -2,17 +2,17 @@ use std::path::Path as StdPath;
 
 use anyhow::anyhow;
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::model::{CommonResult, PageParams};
 
 use crate::api::{
-    error::{map_ceres_error, ApiError},
-    tag::model::*,
     MonoApiServiceState,
+    error::{ApiError, map_ceres_error},
+    tag::model::*,
 };
 use crate::server::http_server::GIT_TAG;
 
@@ -36,10 +36,11 @@ async fn resolve_target_commit_id(
     target_opt: Option<&str>,
 ) -> Result<String, ApiError> {
     // if caller provided a specific non-"HEAD" target, use it directly
-    if let Some(t) = target_opt {
-        if t != "HEAD" && !t.is_empty() {
-            return Ok(t.to_string());
-        }
+    if let Some(t) = target_opt
+        && t != "HEAD"
+        && !t.is_empty()
+    {
+        return Ok(t.to_string());
     }
 
     let import_dir = state.storage.config().monorepo.import_dir.clone();
@@ -60,10 +61,10 @@ async fn resolve_target_commit_id(
                     return Ok(r.ref_git_id);
                 }
                 // fallback: any import ref for repo
-                if let Ok(refs) = git.get_ref(repo_model.id).await {
-                    if let Some(r) = refs.into_iter().next() {
-                        return Ok(r.ref_git_id);
-                    }
+                if let Ok(refs) = git.get_ref(repo_model.id).await
+                    && let Some(r) = refs.into_iter().next()
+                {
+                    return Ok(r.ref_git_id);
                 }
                 return Ok("HEAD".to_string());
             }
