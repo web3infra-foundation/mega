@@ -132,6 +132,32 @@ pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     reachable_commits
 }
 
+// Ordered as they should appear in log
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+enum ReferenceKind {
+    Tag,    // decorate color = yellow
+    Remote, // red
+    Local,  // green
+}
+
+#[derive(PartialEq, Eq, Clone)]
+struct Reference {
+    name: String,
+    kind: ReferenceKind,
+}
+
+impl PartialOrd for Reference {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.kind.cmp(&other.kind))
+    }
+}
+
+impl Ord for Reference {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.kind.cmp(&other.kind)
+    }
+}
+
 pub async fn execute(args: LogArgs) {
     let decorate_option = determine_decorate_option(&args)
         .await
@@ -166,8 +192,7 @@ pub async fn execute(args: LogArgs) {
     // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    let branch_commits = create_branch_commits_map().await;
-    let tag_commits = create_tag_commits_map().await;
+    let ref_commits = create_reference_commit_map().await;
 
     let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
@@ -271,49 +296,43 @@ pub async fn execute(args: LogArgs) {
     }
 }
 
-/// Create a map of commit hashes to branch names
-async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
+async fn create_reference_commit_map() -> HashMap<SHA1, Vec<Reference>> {
+    let mut commit_to_refs: HashMap<SHA1, Vec<Reference>> = HashMap::new();
+
     let all_branches = Branch::list_branches(None).await;
-    let mut commit_to_branches: HashMap<SHA1, Vec<String>> = HashMap::new();
-
     for branch in all_branches {
-        let branch_name = match &branch.remote {
-            Some(remote) => format!("{}/{}", remote, branch.name),
-            None => branch.name,
-        };
-
-        commit_to_branches
+        commit_to_refs
             .entry(branch.commit)
             .or_default()
-            .push(branch_name);
+            .push(match &branch.remote {
+                Some(remote) => Reference {
+                    name: format!("{}/{}", remote, branch.name),
+                    kind: ReferenceKind::Remote,
+                },
+                None => Reference {
+                    name: branch.name,
+                    kind: ReferenceKind::Local,
+                },
+            });
     }
 
-    commit_to_branches
-}
-
-/// Create a map of commit hashes to tag names
-async fn create_tag_commits_map() -> HashMap<SHA1, Vec<String>> {
     let all_tags = crate::internal::tag::list().await.expect("fatal: ");
-    let mut commit_to_tags: HashMap<SHA1, Vec<String>> = HashMap::new();
-
     for tag in all_tags {
-        match tag.object {
-            crate::internal::tag::TagObject::Commit(c) => {
-                commit_to_tags.entry(c.id).or_default().push(tag.name);
-            }
-            crate::internal::tag::TagObject::Tag(t) => {
-                commit_to_tags
-                    .entry(t.object_hash)
-                    .or_default()
-                    .push(tag.name);
-            }
-            _ => {
-                continue;
-            }
-        }
-    };
+        let commit_id = match tag.object {
+            crate::internal::tag::TagObject::Commit(c) => c.id,
+            crate::internal::tag::TagObject::Tag(t) => t.object_hash,
+            _ => continue,
+        };
+        commit_to_refs
+            .entry(commit_id)
+            .or_default()
+            .push(Reference {
+                name: tag.name,
+                kind: ReferenceKind::Tag,
+            });
+    }
 
-    commit_to_tags
+    commit_to_refs
 }
 
 /// Generate unified diff between commit and its first parent (or empty tree)
