@@ -49,7 +49,6 @@ use crate::internal::object::signature::Signature;
 
 /// The tag object is used to Annotated tag
 #[derive(Eq, Debug, Clone)]
-#[non_exhaustive]
 pub struct Tag {
     pub id: SHA1,
     pub object_hash: SHA1,

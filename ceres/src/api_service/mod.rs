@@ -22,7 +22,7 @@ use tokio::sync::Mutex;
 
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
-    CommitBindingInfo, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
+    CommitBindingInfo, CreateEntryInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
     TreeHashItem,
 };
 use common::model::{Pagination, TagInfo};
@@ -48,7 +48,7 @@ impl GitObjectCache {
 pub trait ApiHandler: Send + Sync {
     fn get_context(&self) -> Storage;
 
-    async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
+    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<(), GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         let context = self.get_context();
@@ -309,7 +309,9 @@ pub trait ApiHandler: Send + Sync {
     /// Returns a `GitError` if the path does not exist.
     async fn search_tree_for_update(&self, path: &Path) -> Result<Vec<Arc<Tree>>, GitError> {
         // strip repo root prefix
-        let relative_path = self.strip_relative(path)?;
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
         let root_tree = self.get_root_tree().await;
 
         // init state
@@ -355,7 +357,9 @@ pub trait ApiHandler: Send + Sync {
     ///
     /// * `Result<Option<Tree>, GitError>` - A result containing an optional tree or a Git error.
     async fn search_tree_by_path(&self, path: &Path) -> Result<Option<Tree>, GitError> {
-        let relative_path = self.strip_relative(path)?;
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         for component in relative_path.components() {

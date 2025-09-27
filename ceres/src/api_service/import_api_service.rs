@@ -17,9 +17,10 @@ use jupiter::storage::Storage;
 
 use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::blame::{BlameQuery, BlameResult};
-use crate::model::git::CreateFileInfo;
+use crate::model::git::CreateEntryInfo;
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
+use jupiter::utils::converter::FromGitModel;
 
 #[derive(Clone)]
 pub struct ImportApiService {
@@ -33,9 +34,9 @@ impl ApiHandler for ImportApiService {
         self.storage.clone()
     }
 
-    async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
+    async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<(), GitError> {
         return Err(GitError::CustomError(
-            "import dir does not support create file".to_string(),
+            "import dir does not support create entry".to_string(),
         ));
     }
 
@@ -62,22 +63,24 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        storage
-            .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_git_model(
+            storage
+                .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.storage
-            .git_db_storage()
-            .get_tree_by_hash(self.repo.repo_id, hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_tree_by_hash(self.repo.repo_id, hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
@@ -86,7 +89,7 @@ impl ApiHandler for ImportApiService {
             .get_commit_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap();
-        commit.map(|x| x.into())
+        commit.map(Commit::from_git_model)
     }
 
     async fn get_tree_relate_commit(
@@ -119,7 +122,7 @@ impl ApiHandler for ImportApiService {
             .get_commits_by_hashes(self.repo.repo_id, &c_hashes)
             .await
             .unwrap();
-        Ok(commits.into_iter().map(|x| x.into()).collect())
+        Ok(commits.into_iter().map(Commit::from_git_model).collect())
     }
 
     async fn item_to_commit_map(
@@ -593,7 +596,9 @@ impl ImportApiService {
         search_item: &TreeItem,
         cache: &mut GitObjectCache,
     ) -> Result<bool, GitError> {
-        let relative_path = self.strip_relative(path)?;
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
         let mut search_tree = root_tree;
         // first find search tree by path
         for component in relative_path.components() {
@@ -625,12 +630,13 @@ impl ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        storage
-            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Commit::from_git_model(
+            storage
+                .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 }
 

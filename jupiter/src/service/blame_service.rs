@@ -14,17 +14,18 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::model::blame_dto::{
-    BlameCandidate, BlameInfo, BlameLine, BlameQuery, BlameResult, FileVersion, LargeFileConfig,
-    LineAttribution,
+    BlameBlock, BlameCandidate, BlameInfo, BlameLine, BlameQuery, BlameResult, Contributor,
+    FileVersion, LargeFileConfig, LineAttribution,
 };
-use crate::storage::{
-    Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage,
-};
+use crate::storage::{Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage};
 use common::config::Config;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use neptune::{DiffOperation, compute_diff};
 
+use crate::utils::converter::FromMegaModel;
+#[cfg(test)]
+use crate::utils::converter::IntoMegaModel;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use std::sync::{Arc, Weak};
@@ -88,7 +89,6 @@ impl BlameCache {
 pub struct BlameService {
     mono_storage: Arc<MonoStorage>,
     raw_db_storage: Arc<RawDbStorage>,
-    user_storage: Arc<UserStorage>,
     cache: Arc<BlameCache>,
     config: Weak<Config>,
 }
@@ -99,7 +99,6 @@ impl BlameService {
         Self {
             mono_storage: Arc::new(storage.mono_storage()),
             raw_db_storage: Arc::new(storage.raw_db_storage()),
-            user_storage: Arc::new(storage.user_storage()),
             cache: Arc::new(BlameCache::new()),
             config: storage.config.clone(),
         }
@@ -184,15 +183,37 @@ impl BlameService {
         // Create blame lines with commit information
         let blame_lines = self.create_blame_lines(attributions).await?;
 
-        // Apply pagination if requested
-        let final_lines = self.apply_pagination(blame_lines, &query);
+        // Convert lines to blocks by grouping consecutive lines with same commit
+        let all_blocks = self.convert_lines_to_blocks(blame_lines);
+
+        // Calculate total lines from all blocks before pagination
+        let total_lines = all_blocks
+            .iter()
+            .map(|block| block.line_count)
+            .sum::<usize>();
+
+        // Apply pagination to blocks based on line numbers
+        let blocks = if let Some(ref q) = query {
+            self.apply_pagination_to_blocks(all_blocks, q)
+        } else {
+            all_blocks
+        };
+
+        // Calculate earliest and latest commit times from all blocks
+        let (earliest_commit_time, latest_commit_time) = self.calculate_commit_time_range(&blocks);
+
+        // Collect contributors from blocks
+        let contributors = self.collect_contributors(&blocks).await?;
 
         Ok(BlameResult {
             file_path: file_path.to_string_lossy().to_string(),
-            lines: final_lines,
-            total_lines: current_version.lines.len(),
+            blocks,
+            total_lines,
             page: query.as_ref().and_then(|q| q.page),
             page_size: query.as_ref().and_then(|q| q.page_size),
+            earliest_commit_time,
+            latest_commit_time,
+            contributors,
         })
     }
 
@@ -439,19 +460,110 @@ impl BlameService {
         compute_diff(old_lines, new_lines)
     }
 
-    /// Get user avatar URL from database, fallback to gravatar if not found
-    async fn get_user_avatar_url(&self, email: &str, name: &str) -> String {
-        // First try to find user by email
-        if let Ok(Some(user)) = self.user_storage.find_user_by_email(email).await {
-            return user.avatar_url;
+    /// Get campsite username from commit_auths table by commit hash and email
+    async fn get_campsite_username(&self, commit_hash: &str, email: &str) -> Option<String> {
+        let commit_binding_storage = self.mono_storage.commit_binding_storage();
+
+        // Try to find binding by commit hash
+        if let Ok(Some(binding)) = commit_binding_storage.find_by_sha(commit_hash).await {
+            // Check if the email matches and user is not anonymous
+            if binding.author_email == email && !binding.is_anonymous {
+                return binding.matched_username;
+            }
         }
 
-        // Then try to find user by name
-        if let Ok(Some(user)) = self.user_storage.find_user_by_name(name).await {
-            return user.avatar_url;
+        None
+    }
+
+    /// Get user info (email and username) from commit_auths table
+    /// Returns None if no binding found, caller should use git commit info as fallback
+    async fn get_campsite_user_info(&self, commit_hash: &str) -> Option<(String, Option<String>)> {
+        let commit_binding_storage = self.mono_storage.commit_binding_storage();
+
+        // Try to find binding by commit hash
+        if let Ok(Some(binding)) = commit_binding_storage.find_by_sha(commit_hash).await {
+            if !binding.is_anonymous {
+                return Some((binding.author_email, binding.matched_username));
+            } else {
+                // If anonymous, return email but no username
+                return Some((binding.author_email, None));
+            }
         }
 
-        "".to_string()
+        // No binding found
+        None
+    }
+
+    /// Collect contributors from blame blocks
+    async fn collect_contributors(
+        &self,
+        blocks: &[BlameBlock],
+    ) -> Result<Vec<Contributor>, GitError> {
+        use std::collections::HashMap;
+
+        let mut contributor_map: HashMap<String, Contributor> = HashMap::new();
+
+        for block in blocks {
+            let email = &block.blame_info.author_email;
+            let commit_time = block.blame_info.author_time;
+            let line_count = block.line_count;
+
+            // Use email as the key to group contributors
+            let key = email.clone();
+
+            if let Some(existing_contributor) = contributor_map.get_mut(&key) {
+                // Update existing contributor
+                existing_contributor.total_lines += line_count;
+                if commit_time > existing_contributor.last_commit_time {
+                    existing_contributor.last_commit_time = commit_time;
+                }
+            } else {
+                // Create new contributor
+                let username = self
+                    .get_campsite_username(&block.blame_info.commit_hash, email)
+                    .await;
+
+                let contributor = Contributor {
+                    email: email.clone(),
+                    username,
+                    last_commit_time: commit_time,
+                    total_lines: line_count,
+                };
+
+                contributor_map.insert(key, contributor);
+            }
+        }
+
+        // Convert to vector and sort by total lines (descending)
+        let mut contributors: Vec<Contributor> = contributor_map.into_values().collect();
+        contributors.sort_by(|a, b| b.total_lines.cmp(&a.total_lines));
+
+        Ok(contributors)
+    }
+
+    /// Calculate earliest and latest commit times from blame blocks
+    fn calculate_commit_time_range(&self, blocks: &[BlameBlock]) -> (i64, i64) {
+        if blocks.is_empty() {
+            return (0, 0);
+        }
+
+        // Initialize earliest and latest to the first block's commit time
+        let first_commit_time = blocks[0].blame_info.author_time;
+        let mut earliest = first_commit_time;
+        let mut latest = first_commit_time;
+
+        // Start from the second block since we already used the first one for initialization
+        for block in &blocks[1..] {
+            let commit_time = block.blame_info.author_time;
+            if commit_time < earliest {
+                earliest = commit_time;
+            }
+            if commit_time > latest {
+                latest = commit_time;
+            }
+        }
+
+        (earliest, latest)
     }
 
     /// Create blame lines with commit information
@@ -484,26 +596,39 @@ impl BlameService {
             let author_time = commit.author.timestamp as i64;
             let commit_hash_str = attr.commit_hash.to_string();
 
-            // Get real user avatar URL from database
-            let author_avatar_url = self
-                .get_user_avatar_url(&commit.author.email, &commit.author.name)
+            // Get campsite username from commit_auths table
+            // Try to get author info from commit_auths table, fallback to git commit
+            let (author_email, author_username) = if let Some((email, username)) =
+                self.get_campsite_user_info(&commit_hash_str).await
+            {
+                (email, username)
+            } else {
+                let git_email = commit.author.email.clone();
+                let username = self
+                    .get_campsite_username(&commit_hash_str, &git_email)
+                    .await;
+                (git_email, username)
+            };
+
+            // For committer, we still need to get from git commit and try to find username
+            let committer_email = commit.committer.email.clone();
+            let committer_username = self
+                .get_campsite_username(&commit_hash_str, &committer_email)
                 .await;
 
             let blame_info = BlameInfo {
                 commit_hash: commit_hash_str.clone(),
                 commit_short_id: commit_hash_str.chars().take(7).collect(),
-                author_name: commit.author.name.clone(),
-                author_email: commit.author.email.clone(),
+                author_email,
                 author_time,
-                committer_name: commit.committer.name.clone(),
-                committer_email: commit.committer.email.clone(),
+                committer_email,
                 committer_time: commit.committer.timestamp as i64,
                 commit_message: commit.message.clone(),
                 commit_summary: commit.message.lines().next().unwrap_or("").to_string(),
                 original_line_number: attr.line_number_in_commit,
-                author_avatar_url,
+                author_username,
+                committer_username,
                 commit_detail_url: format!("/commit/{}", commit_hash_str),
-                author_profile_url: format!("/people/{}", commit.author.name),
             };
 
             blame_lines.push(BlameLine {
@@ -516,42 +641,185 @@ impl BlameService {
         Ok(blame_lines)
     }
 
-    /// Apply pagination to blame results
-    fn apply_pagination(
+    /// Apply pagination to blame blocks based on line numbers
+    fn apply_pagination_to_blocks(
         &self,
-        blame_lines: Vec<BlameLine>,
-        query: &Option<BlameQuery>,
-    ) -> Vec<BlameLine> {
-        if let Some(q) = query {
-            if let (Some(page), Some(page_size)) = (q.page, q.page_size) {
-                if page == 0 || page_size == 0 {
-                    return Vec::new();
-                }
-                let start = (page - 1) * page_size;
-
-                if start >= blame_lines.len() {
-                    return Vec::new();
-                }
-
-                let end = (start + page_size).min(blame_lines.len());
-
-                blame_lines[start..end].to_vec()
-            } else {
-                let start = q.start_line.unwrap_or(1).saturating_sub(1);
-                let end = q
-                    .end_line
-                    .unwrap_or(blame_lines.len())
-                    .min(blame_lines.len());
-
-                if start < blame_lines.len() {
-                    blame_lines[start..end].to_vec()
-                } else {
-                    Vec::new()
-                }
-            }
-        } else {
-            blame_lines
+        blocks: Vec<BlameBlock>,
+        q: &BlameQuery,
+    ) -> Vec<BlameBlock> {
+        if blocks.is_empty() {
+            return Vec::new();
         }
+
+        // Calculate the line range we want to display
+        let (target_start_line, target_end_line) = if q.page.is_some() && q.page_size.is_some() {
+            let page = q.page.unwrap();
+            let page_size = q.page_size.unwrap();
+
+            if page == 0 || page_size == 0 {
+                return Vec::new();
+            }
+
+            // If start_line and end_line are specified, apply pagination within that range
+            if q.start_line.is_some() || q.end_line.is_some() {
+                let range_start = q.start_line.unwrap_or(1);
+                let range_end = q.end_line.unwrap_or(usize::MAX);
+
+                // Calculate pagination within the specified range
+                let range_size = range_end - range_start + 1;
+                let page_start_offset = (page - 1) * page_size;
+
+                if page_start_offset >= range_size {
+                    return Vec::new();
+                }
+
+                let page_end_offset = (page_start_offset + page_size).min(range_size);
+                let target_start = range_start + page_start_offset;
+                let target_end = range_start + page_end_offset - 1;
+
+                (target_start, target_end)
+            } else {
+                // Normal pagination from the beginning
+                let target_start = (page - 1) * page_size + 1;
+                let target_end = target_start + page_size - 1;
+                (target_start, target_end)
+            }
+        } else if q.start_line.is_some() || q.end_line.is_some() {
+            // No pagination, just line range filtering
+            let start = q.start_line.unwrap_or(1);
+            let end = q.end_line.unwrap_or(usize::MAX);
+            (start, end)
+        } else {
+            // No pagination and no line range, return all blocks
+            return blocks;
+        };
+
+        // Filter and adjust blocks based on the target line range
+        let mut result_blocks = Vec::new();
+
+        for block in blocks {
+            // Check if this block intersects with our target range
+            if block.end_line < target_start_line || block.start_line > target_end_line {
+                continue; // Block is completely outside our range
+            }
+
+            // Calculate the intersection of block lines and target range
+            let intersection_start = block.start_line.max(target_start_line);
+            let intersection_end = block.end_line.min(target_end_line);
+
+            if intersection_start <= intersection_end {
+                // Create a new block with only the lines in our target range
+                let adjusted_block =
+                    self.create_adjusted_block(&block, intersection_start, intersection_end);
+                result_blocks.push(adjusted_block);
+            }
+        }
+
+        result_blocks
+    }
+
+    /// Create an adjusted block that only contains lines within the specified range
+    fn create_adjusted_block(
+        &self,
+        original_block: &BlameBlock,
+        start_line: usize,
+        end_line: usize,
+    ) -> BlameBlock {
+        // If the block exactly matches the range, return a clone
+        if original_block.start_line == start_line && original_block.end_line == end_line {
+            return original_block.clone();
+        }
+
+        // Calculate which lines to include
+        let original_start = original_block.start_line;
+        let lines_to_skip = start_line - original_start;
+        let lines_to_take = end_line - start_line + 1;
+
+        // Split the content and take only the relevant lines
+        let original_lines: Vec<&str> = original_block.content.split('\n').collect();
+        let adjusted_lines: Vec<&str> = original_lines
+            .into_iter()
+            .skip(lines_to_skip)
+            .take(lines_to_take)
+            .collect();
+
+        let adjusted_content = adjusted_lines.join("\n");
+
+        BlameBlock {
+            content: adjusted_content,
+            blame_info: original_block.blame_info.clone(),
+            start_line,
+            end_line,
+            line_count: lines_to_take,
+        }
+    }
+
+    /// Convert blame lines to blame blocks by grouping consecutive lines with the same commit
+    fn convert_lines_to_blocks(&self, blame_lines: Vec<BlameLine>) -> Vec<BlameBlock> {
+        if blame_lines.is_empty() {
+            return Vec::new();
+        }
+
+        let mut blocks = Vec::new();
+        let mut current_block_start = 0;
+        let mut current_commit_hash = &blame_lines[0].blame_info.commit_hash;
+
+        // Process all lines in the main loop
+        for (i, line) in blame_lines.iter().enumerate() {
+            let is_commit_changed = line.blame_info.commit_hash != *current_commit_hash;
+
+            if is_commit_changed {
+                // Create a block for the previous group (from current_block_start to i-1)
+                self.create_blame_block(&blame_lines, current_block_start, i, &mut blocks);
+
+                // Start a new block from the current line
+                current_block_start = i;
+                current_commit_hash = &line.blame_info.commit_hash;
+            }
+        }
+
+        // Handle the final block after the loop (from current_block_start to the end)
+        self.create_blame_block(
+            &blame_lines,
+            current_block_start,
+            blame_lines.len(),
+            &mut blocks,
+        );
+
+        blocks
+    }
+
+    /// Helper function to create a blame block from a range of lines
+    fn create_blame_block(
+        &self,
+        blame_lines: &[BlameLine],
+        start_index: usize,
+        end_index: usize,
+        blocks: &mut Vec<BlameBlock>,
+    ) {
+        if start_index >= end_index || start_index >= blame_lines.len() {
+            return;
+        }
+
+        // Collect content for the block
+        let content: Vec<&str> = blame_lines[start_index..end_index]
+            .iter()
+            .map(|l| l.content.as_str())
+            .collect();
+        let joined_content = content.join("\n");
+
+        // Create the block
+        let start_line = blame_lines[start_index].line_number;
+        let end_line = blame_lines[end_index - 1].line_number;
+        let line_count = end_index - start_index;
+
+        blocks.push(BlameBlock {
+            content: joined_content,
+            blame_info: blame_lines[start_index].blame_info.clone(),
+            start_line,
+            end_line,
+            line_count,
+        });
     }
 
     /// Get file blob hash from commit tree
@@ -625,7 +893,7 @@ impl BlameService {
             .get_tree_by_hash(&tree_id.to_string())
             .await
         {
-            Ok(Some(tree)) => Ok(tree.into()),
+            Ok(Some(tree)) => Ok(Tree::from_mega_model(tree)),
             Ok(None) => Err(GitError::ObjectNotFound("Tree not found".to_string())),
             Err(e) => Err(GitError::CustomError(format!("Failed to get tree: {}", e))),
         }
@@ -641,7 +909,7 @@ impl BlameService {
             .get_commit_by_hash(&commit_id.to_string())
             .await
         {
-            Ok(Some(commit)) => Ok(Some(commit.into())),
+            Ok(Some(commit)) => Ok(Some(Commit::from_mega_model(commit))),
             _ => Ok(None), // Commit not found
         }
     }
@@ -686,19 +954,23 @@ impl BlameService {
             .get_file_blame_streaming(file_path, ref_name, start_line, end_line, None)
             .await?;
 
-        // Apply pagination
-        let final_lines = if query.page.is_some() || query.page_size.is_some() {
-            self.apply_pagination(result.lines, &Some(query.clone()))
-        } else {
-            result.lines
-        };
+        // Calculate earliest and latest commit times from all blocks
+        let (earliest_commit_time, latest_commit_time) =
+            self.calculate_commit_time_range(&result.blocks);
 
+        // Collect contributors from blocks
+        let contributors = self.collect_contributors(&result.blocks).await?;
+
+        // Return the result with blocks (pagination is already handled in get_file_blame_streaming)
         Ok(BlameResult {
             file_path: result.file_path,
-            lines: final_lines,
+            blocks: result.blocks,
             total_lines,
             page: query.page,
             page_size: query.page_size,
+            earliest_commit_time,
+            latest_commit_time,
+            contributors,
         })
     }
 
@@ -731,15 +1003,18 @@ impl BlameService {
         if actual_start > actual_end {
             return Ok(BlameResult {
                 file_path: file_path_buf.to_string_lossy().to_string(),
-                lines: Vec::new(),
+                blocks: Vec::new(),
                 total_lines: current_version.lines.len(),
                 page: None,
                 page_size: None,
+                earliest_commit_time: 0,
+                latest_commit_time: 0,
+                contributors: Vec::new(),
             });
         }
 
         // Process in chunks
-        let mut all_blame_lines = Vec::new();
+        let mut all_blocks = Vec::new();
 
         for chunk_start in (actual_start..=actual_end).step_by(chunk_size) {
             let chunk_end = (chunk_start + chunk_size - 1).min(actual_end);
@@ -754,15 +1029,22 @@ impl BlameService {
             let chunk_result = self
                 .get_file_blame(file_path, ref_name, Some(query))
                 .await?;
-            all_blame_lines.extend(chunk_result.lines);
+            all_blocks.extend(chunk_result.blocks);
         }
 
+        // NOTE: This function's role is ONLY to aggregate blocks from chunks.
+        // Final metadata aggregation (times, contributors) is left to the caller
+        // (get_file_blame_streaming_auto) to avoid redundant calculations.
         Ok(BlameResult {
             file_path: file_path.to_string(),
-            lines: all_blame_lines,
+            blocks: all_blocks,
             total_lines: current_version.lines.len(),
             page: None,
             page_size: None,
+            // These should be initialized to zero/empty, as the caller will re-calculate them
+            earliest_commit_time: 0,
+            latest_commit_time: 0,
+            contributors: Vec::new(),
         })
     }
 
@@ -889,193 +1171,139 @@ mod tests {
     use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
     use serde_json;
 
-    /// A comprehensive blame test with a commit history of three users.
+    /// Test case based on a file history with three users, verifying block aggregation,
+    /// time metadata, and the new username-based contributor identity.
     #[tokio::test]
-    async fn test_blame_service_with_three_users() {
+    async fn test_blame_service_full_validation() {
         // Create a temporary directory and test storage for isolation.
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let storage = crate::tests::test_storage(temp_dir.path()).await;
 
-        // Define test data for three users.
+        // Define test users (Name, Email, Time)
+        // NOTE: We use Name here to simulate the 'matched_username' we expect from the DB.
         let users = [
-            (
-                "Zhang Wei",
-                "zhang.wei@example.com",
-                "https://avatar.example.com/zhangwei",
-            ),
-            (
-                "Li Na",
-                "li.na@example.com",
-                "https://avatar.example.com/lina",
-            ),
-            (
-                "Wang Fang",
-                "wang.fang@example.com",
-                "https://avatar.example.com/wangfang",
-            ),
+            ("Bob", "bob@example.com", 1758153600), // Commit 1 (Earliest)
+            ("Alice", "alice@example.com", 1758240000), // Commit 2
+            ("Tony", "tony@example.com", 1758326400), // Commit 3 (Latest)
         ];
 
+        // Content versions for 'app.conf' (Final file has 6 lines)
         let content_v1 = r#"app_name = "MegaApp"
 version = "1.0"
 log_level = "info"
 debug_mode = true
 api_key = "initial_key_v1"
 "#;
-
         let content_v2 = r#"app_name = "MegaApp"
-    version = "1.0"
+version = "1.0"
 log_level = "warn"
-
+debug_mode = true
 api_key = "intermediate_key_v2"
 "#;
-
         let content_v3 = r#"app_name = "MegaApp"
-    version = "1.0"
-
+version = "1.0"
 log_level = "warn"
+debug_mode = true
 api_key = "final_key_v3"
 enable_https = true
 "#;
 
-        // Create Blob objects from content.
+        // --- 1. Create Git Objects and History Chain ---
         let blob1 = Blob::from_content(content_v1);
         let blob2 = Blob::from_content(content_v2);
         let blob3 = Blob::from_content(content_v3);
 
-        // Create signatures for each user.
-        let author1 = Signature {
+        // Helper to create Signatures (Author = Committer in this setup)
+        let create_sig = |user: &(&str, &str, i64)| Signature {
             signature_type: SignatureType::Author,
-            name: users[0].0.to_string(),
-            email: users[0].1.to_string(),
-            timestamp: 1758153600,
+            name: user.0.to_string(), // Git Author Name (used in legacy systems)
+            email: user.1.to_string(),
+            timestamp: user.2 as usize,
             timezone: "+0800".to_string(),
         };
+
+        let author1 = create_sig(&users[0]);
+        let author2 = create_sig(&users[1]);
+        let author3 = create_sig(&users[2]);
+
         let committer1 = author1.clone();
-
-        let author2 = Signature {
-            signature_type: SignatureType::Author,
-            name: users[1].0.to_string(),
-            email: users[1].1.to_string(),
-            timestamp: 1758240000,
-            timezone: "+0800".to_string(),
-        };
         let committer2 = author2.clone();
-
-        let author3 = Signature {
-            signature_type: SignatureType::Author,
-            name: users[2].0.to_string(),
-            email: users[2].1.to_string(),
-            timestamp: 1758326400,
-            timezone: "+0800".to_string(),
-        };
         let committer3 = author3.clone();
 
-        // Create TreeItem objects linking blobs to file names.
-        let tree_item1 = TreeItem::new(TreeItemMode::Blob, blob1.id, "app.conf".to_string());
-        let tree_item2 = TreeItem::new(TreeItemMode::Blob, blob2.id, "app.conf".to_string());
-        let tree_item3 = TreeItem::new(TreeItemMode::Blob, blob3.id, "app.conf".to_string());
+        let file_name = "app.conf";
 
-        // Create Tree objects from TreeItems.
-        let tree1 = Tree::from_tree_items(vec![tree_item1]).unwrap();
-        let tree2 = Tree::from_tree_items(vec![tree_item2]).unwrap();
-        let tree3 = Tree::from_tree_items(vec![tree_item3]).unwrap();
+        // Create Trees
+        let tree1 = Tree::from_tree_items(vec![TreeItem::new(
+            TreeItemMode::Blob,
+            blob1.id,
+            file_name.to_string(),
+        )])
+        .unwrap();
+        let tree2 = Tree::from_tree_items(vec![TreeItem::new(
+            TreeItemMode::Blob,
+            blob2.id,
+            file_name.to_string(),
+        )])
+        .unwrap();
+        let tree3 = Tree::from_tree_items(vec![TreeItem::new(
+            TreeItemMode::Blob,
+            blob3.id,
+            file_name.to_string(),
+        )])
+        .unwrap();
 
-        // Create Commit objects to form a history chain.
+        // Create Commits
         let commit1 = Commit::new(
             author1,
             committer1,
             tree1.id,
-            vec![], // Initial commit, no parent.
-            "feat: initial application configuration",
+            vec![],
+            "feat: initial config by Bob",
         );
-
         let commit2 = Commit::new(
             author2,
             committer2,
             tree2.id,
-            vec![commit1.id], // Parent is commit1.
-            "feat: update database config and add user credentials",
+            vec![commit1.id],
+            "feat: update log level by Alice",
         );
-
         let commit3 = Commit::new(
             author3,
             committer3,
             tree3.id,
-            vec![commit2.id], // Parent is commit2.
-            "refactor: cleanup config and prepare for production",
+            vec![commit2.id],
+            "refactor: finalize config by Tony",
         );
 
-        // --- Test Setup Information ---
-        println!("\n=== Test Data Construction Complete ===");
-        println!("User 1 - {}: {}", users[0].0, users[0].1);
-        println!("Commit: {} (Initial config)", commit1.id);
-        println!("Time: {}", 1758153600);
-
-        println!("\nUser 2 - {}: {}", users[1].0, users[1].1);
-        println!("Commit: {} (Update database config)", commit2.id);
-        println!("Parent: {}", commit1.id);
-        println!("Time: {}", 1758240000);
-
-        println!("\nUser 3 - {}: {}", users[2].0, users[2].1);
-        println!("Commit: {} (Refactor config)", commit3.id);
-        println!("Parent: {}", commit2.id);
-        println!("Time: {}", 1758326400);
-
+        // Save objects (Blobs, Trees, Commits, Ref)
         storage
             .app_service
             .mono_storage
-            .save_mega_blobs(vec![&blob1], &commit1.id.to_string())
+            .save_mega_blobs(vec![&blob1, &blob2, &blob3], &commit3.id.to_string())
             .await
-            .expect("Failed to save blob1");
-        storage
-            .app_service
-            .mono_storage
-            .save_mega_blobs(vec![&blob2], &commit2.id.to_string())
-            .await
-            .expect("Failed to save blob2");
-        storage
-            .app_service
-            .mono_storage
-            .save_mega_blobs(vec![&blob3], &commit3.id.to_string())
-            .await
-            .expect("Failed to save blob3");
+            .expect("Failed to save blobs");
 
         use callisto::mega_tree;
-        let save_trees: Vec<mega_tree::ActiveModel> =
-            vec![tree1.clone(), tree2.clone(), tree3.clone()]
-                .into_iter()
-                .map(|tree| {
-                    let mut tree_model: mega_tree::Model = tree.into();
-                    tree_model.commit_id = "test".to_string();
-                    tree_model.into()
-                })
-                .collect();
+        let save_trees: Vec<mega_tree::ActiveModel> = vec![tree1, tree2, tree3.clone()]
+            .into_iter()
+            .map(|tree| {
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                tree_model.commit_id = "test".to_string();
+                tree_model.into()
+            })
+            .collect();
         storage
             .app_service
             .mono_storage
             .batch_save_model(save_trees)
             .await
             .expect("Failed to save trees");
-
         storage
             .app_service
             .mono_storage
-            .save_mega_commits(vec![commit1.clone()])
+            .save_mega_commits(vec![commit1.clone(), commit2.clone(), commit3.clone()])
             .await
-            .expect("Failed to save commit1");
-        storage
-            .app_service
-            .mono_storage
-            .save_mega_commits(vec![commit2.clone()])
-            .await
-            .expect("Failed to save commit2");
-        storage
-            .app_service
-            .mono_storage
-            .save_mega_commits(vec![commit3.clone()])
-            .await
-            .expect("Failed to save commit3");
-
+            .expect("Failed to save commits");
         storage
             .app_service
             .mono_storage
@@ -1087,29 +1315,432 @@ enable_https = true
                 false,
             )
             .await
-            .expect("Failed to save HEAD reference");
+            .expect("Failed to save HEAD ref");
 
-        // --- Act: Create the service and call the method under test. ---
+        // --- 2. Add Commit Binding Data (Simulating successful user matching) ---
+        // This sets the 'matched_username' (Bob, Alice, Tony) in the commit_auths table.
+        storage
+            .app_service
+            .mono_storage
+            .commit_binding_storage()
+            .upsert_binding(
+                &commit1.id.to_string(),
+                &users[0].1,
+                Some(users[0].0.to_string()),
+                false,
+            ) // Bob
+            .await
+            .expect("Failed to save commit binding for user 1");
+        storage
+            .app_service
+            .mono_storage
+            .commit_binding_storage()
+            .upsert_binding(
+                &commit2.id.to_string(),
+                &users[1].1,
+                Some(users[1].0.to_string()),
+                false,
+            ) // Alice
+            .await
+            .expect("Failed to save commit binding for user 2");
+        storage
+            .app_service
+            .mono_storage
+            .commit_binding_storage()
+            .upsert_binding(
+                &commit3.id.to_string(),
+                &users[2].1,
+                Some(users[2].0.to_string()),
+                false,
+            ) // Tony
+            .await
+            .expect("Failed to save commit binding for user 3");
+
+        // --- 3. Act: Call the service ---
         let blame_service = BlameService::new(Arc::new(storage.clone()));
-
         let blame_result = blame_service
-            .get_file_blame("app.conf", None, None)
+            .get_file_blame(file_name, None, None)
             .await
             .expect("Failed to get blame result");
 
-        // --- Assert: Print the result for visual verification. ---
-        let json_output = serde_json::to_string_pretty(&blame_result).unwrap();
-        println!("\n=== Blame Result (JSON Format) ===");
-        println!("{}", json_output);
+        // --- JSON PRINTING (for debugging/visual confirmation) ---
+        let json_output = serde_json::to_string_pretty(&blame_result)
+            .expect("Failed to serialize BlameResult to JSON");
+        println!(
+            "\n=== Blame Result JSON Output (app.conf) ===\n{}",
+            json_output
+        );
 
-        // Perform high-level checks to ensure the process was successful.
-        assert!(
-            !blame_result.lines.is_empty(),
-            "Blame result should not be empty"
+        // --- 4. Assert: Full Validation ---
+
+        // A. Global Metadata Assertions
+        assert_eq!(blame_result.total_lines, 6, "Total lines must be 6.");
+        assert_eq!(
+            blame_result.blocks.len(),
+            4,
+            "Should be 4 aggregated blocks."
         );
         assert_eq!(
-            blame_result.file_path, "app.conf",
-            "File path should be correct"
+            blame_result.earliest_commit_time, users[0].2,
+            "Earliest time must be Bob's commit."
         );
+        assert_eq!(
+            blame_result.latest_commit_time, users[2].2,
+            "Latest time must be Tony's commit."
+        );
+
+        // B. Block Aggregation & Identity Assertions (Verifying new username fields)
+        let block1 = &blame_result.blocks[0]; // L1-L2, Bob
+        assert_eq!(block1.start_line, 1);
+        assert_eq!(block1.end_line, 2);
+        assert_eq!(block1.blame_info.author_username, Some("Bob".to_string()));
+        assert_eq!(
+            block1.blame_info.committer_username,
+            Some("Bob".to_string())
+        );
+        assert_eq!(block1.blame_info.author_email, users[0].1);
+
+        let block2 = &blame_result.blocks[1]; // L3, Alice
+        assert_eq!(block2.start_line, 3);
+        assert_eq!(block2.end_line, 3);
+        assert_eq!(block2.blame_info.author_username, Some("Alice".to_string()));
+
+        let block4 = &blame_result.blocks[3]; // L5-L6, Tony
+        assert_eq!(block4.start_line, 5);
+        assert_eq!(block4.end_line, 6);
+        assert_eq!(block4.blame_info.author_username, Some("Tony".to_string()));
+        assert_eq!(
+            block4.blame_info.committer_username,
+            Some("Tony".to_string())
+        );
+        assert_eq!(block4.blame_info.author_email, users[2].1);
+
+        // C. Contributor Aggregation Assertions
+        assert_eq!(
+            blame_result.contributors.len(),
+            3,
+            "Total contributors must be 3."
+        );
+
+        let contributor_map: HashMap<String, Contributor> = blame_result
+            .contributors
+            .into_iter()
+            .map(|c| (c.email.clone(), c))
+            .collect();
+
+        // Verify Bob (3 lines, Earliest time)
+        let bob_contributor = contributor_map.get(users[0].1).expect("Bob not found");
+        assert_eq!(
+            bob_contributor.total_lines, 3,
+            "Bob should have 3 lines (L1, L2, L4)."
+        );
+        assert_eq!(
+            bob_contributor.username,
+            Some("Bob".to_string()),
+            "Bob's username should be set."
+        );
+        assert_eq!(
+            bob_contributor.last_commit_time, users[0].2,
+            "Bob's last commit time should be his only commit time."
+        );
+
+        // Verify Tony (2 lines, Latest time)
+        let tony_contributor = contributor_map.get(users[2].1).expect("Tony not found");
+        assert_eq!(
+            tony_contributor.total_lines, 2,
+            "Tony should have 2 lines (L5, L6)."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_block_level_pagination() {
+        // Setup test environment
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+
+        // Create a simple test file for pagination testing
+        let file_name = "test_pagination.txt";
+        let content = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\n";
+
+        // Create blob and tree
+        let blob = Blob::from_content(content);
+        let tree_item = TreeItem::new(TreeItemMode::Blob, blob.id, file_name.to_string());
+        let tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+
+        // Create commit
+        let signature = Signature {
+            signature_type: SignatureType::Author,
+            name: "Test User".to_string(),
+            email: "test@example.com".to_string(),
+            timestamp: 1758153600,
+            timezone: "+0800".to_string(),
+        };
+
+        let commit = Commit::new(
+            signature.clone(),
+            signature,
+            tree.id,
+            vec![],
+            "Test commit for pagination",
+        );
+
+        // Save objects to storage
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_blobs(vec![&blob], &commit.id.to_string())
+            .await
+            .expect("Failed to save blob");
+
+        use callisto::mega_tree;
+        let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
+            .into_iter()
+            .map(|tree| {
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                tree_model.commit_id = "test".to_string();
+                tree_model.into()
+            })
+            .collect();
+        storage
+            .app_service
+            .mono_storage
+            .batch_save_model(save_trees)
+            .await
+            .expect("Failed to save trees");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_commits(vec![commit.clone()])
+            .await
+            .expect("Failed to save commits");
+        storage
+            .app_service
+            .mono_storage
+            .save_ref(
+                "/",
+                None,
+                &commit.id.to_string(),
+                &tree.id.to_string(),
+                false,
+            )
+            .await
+            .expect("Failed to save HEAD ref");
+
+        let blame_service = BlameService::new(Arc::new(storage.clone()));
+
+        // Test 1: Page-based pagination
+        let query = BlameQuery {
+            page: Some(1),
+            page_size: Some(2),
+            start_line: None,
+            end_line: None,
+        };
+
+        let result = blame_service
+            .get_file_blame(file_name, None, Some(query))
+            .await
+            .expect("Failed to get blame result with page pagination");
+
+        // Should return first 2 lines (which might span multiple blocks)
+        assert!(result.blocks.len() > 0, "Should have at least one block");
+        assert_eq!(
+            result.blocks[0].start_line, 1,
+            "First block should start at line 1"
+        );
+
+        // Test 2: Line range pagination
+        let query = BlameQuery {
+            page: None,
+            page_size: None,
+            start_line: Some(3),
+            end_line: Some(5),
+        };
+
+        let result = blame_service
+            .get_file_blame(file_name, None, Some(query))
+            .await
+            .expect("Failed to get blame result with line range pagination");
+
+        // Should return lines 3-5
+        assert!(result.blocks.len() > 0, "Should have at least one block");
+        let first_block = &result.blocks[0];
+        let last_block = &result.blocks[result.blocks.len() - 1];
+
+        assert!(
+            first_block.start_line >= 3,
+            "First block should start at or after line 3"
+        );
+        assert!(
+            last_block.end_line <= 5,
+            "Last block should end at or before line 5"
+        );
+
+        // Test 3: Single line pagination
+        let query = BlameQuery {
+            page: None,
+            page_size: None,
+            start_line: Some(4),
+            end_line: Some(4),
+        };
+
+        let result = blame_service
+            .get_file_blame(file_name, None, Some(query))
+            .await
+            .expect("Failed to get blame result with single line pagination");
+
+        // Should return exactly line 4
+        assert_eq!(
+            result.blocks.len(),
+            1,
+            "Should have exactly one block for single line"
+        );
+        let block = &result.blocks[0];
+        assert_eq!(block.start_line, 4, "Block should start at line 4");
+        assert_eq!(block.end_line, 4, "Block should end at line 4");
+        assert_eq!(block.line_count, 1, "Block should contain exactly 1 line");
+
+        println!("All pagination tests passed!");
+    }
+
+    #[tokio::test]
+    async fn test_block_adjustment_logic() {
+        // Setup test environment - reuse the existing test setup
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let file_name = "app.conf"; // Use the same file as the main test
+
+        // Use the same setup as the main test to ensure we have multi-line blocks
+        let users = [
+            ("Bob", "bob@example.com", 1758153600),
+            ("Alice", "alice@example.com", 1758240000),
+            ("Tony", "tony@example.com", 1758326400),
+        ];
+
+        let content_v3 = r#"app_name = "MegaApp"
+version = "1.0"
+log_level = "warn"
+debug_mode = true
+api_key = "final_key_v3"
+enable_https = true
+"#;
+
+        // Create the final blob and commit (simplified setup)
+        let blob = Blob::from_content(content_v3);
+        let tree_item = TreeItem::new(TreeItemMode::Blob, blob.id, file_name.to_string());
+        let tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+
+        let signature = Signature {
+            signature_type: SignatureType::Author,
+            name: users[2].0.to_string(),
+            email: users[2].1.to_string(),
+            timestamp: users[2].2 as usize,
+            timezone: "+0800".to_string(),
+        };
+
+        let commit = Commit::new(signature.clone(), signature, tree.id, vec![], "Test commit");
+
+        // Save objects
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_blobs(vec![&blob], &commit.id.to_string())
+            .await
+            .expect("Failed to save blob");
+
+        use callisto::mega_tree;
+        let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
+            .into_iter()
+            .map(|tree| {
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                tree_model.commit_id = "test".to_string();
+                tree_model.into()
+            })
+            .collect();
+        storage
+            .app_service
+            .mono_storage
+            .batch_save_model(save_trees)
+            .await
+            .expect("Failed to save trees");
+        storage
+            .app_service
+            .mono_storage
+            .save_mega_commits(vec![commit.clone()])
+            .await
+            .expect("Failed to save commits");
+        storage
+            .app_service
+            .mono_storage
+            .save_ref(
+                "/",
+                None,
+                &commit.id.to_string(),
+                &tree.id.to_string(),
+                false,
+            )
+            .await
+            .expect("Failed to save HEAD ref");
+
+        let blame_service = BlameService::new(Arc::new(storage.clone()));
+
+        // Get all blocks first
+        let full_result = blame_service
+            .get_file_blame(file_name, None, None)
+            .await
+            .expect("Failed to get full blame result");
+
+        println!("Full result has {} blocks", full_result.blocks.len());
+        for (i, block) in full_result.blocks.iter().enumerate() {
+            println!(
+                "Block {}: lines {}-{}, content: {:?}",
+                i,
+                block.start_line,
+                block.end_line,
+                block.content.lines().collect::<Vec<_>>()
+            );
+        }
+
+        // Test block adjustment when pagination cuts through a block
+        // Find a block that spans multiple lines
+        let multi_line_block = full_result
+            .blocks
+            .iter()
+            .find(|block| block.line_count > 1)
+            .expect("Should have at least one multi-line block");
+
+        let start_line = multi_line_block.start_line + 1; // Start from middle of block
+        let end_line = multi_line_block.end_line;
+
+        let query = BlameQuery {
+            page: None,
+            page_size: None,
+            start_line: Some(start_line),
+            end_line: Some(end_line),
+        };
+
+        let result = blame_service
+            .get_file_blame(file_name, None, Some(query))
+            .await
+            .expect("Failed to get blame result with block adjustment");
+
+        // Verify the adjusted block
+        let adjusted_block = &result.blocks[0];
+        assert_eq!(
+            adjusted_block.start_line, start_line,
+            "Adjusted block should start at requested line"
+        );
+        assert_eq!(
+            adjusted_block.end_line, end_line,
+            "Adjusted block should end at requested line"
+        );
+
+        // Verify content is properly adjusted
+        let expected_line_count = end_line - start_line + 1;
+        assert_eq!(
+            adjusted_block.line_count, expected_line_count,
+            "Adjusted block should have correct line count"
+        );
+
+        println!("Block adjustment test passed!");
     }
 }
