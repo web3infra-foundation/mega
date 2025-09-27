@@ -50,6 +50,7 @@ pub struct LogArgs {
     pathspec: Vec<String>,
 }
 
+#[derive(PartialEq)]
 enum DecorateOptions {
     No,
     Short,
@@ -162,11 +163,6 @@ pub async fn execute(args: LogArgs) {
     let decorate_option = determine_decorate_option(&args)
         .await
         .expect("fatal: invalid --decorate option");
-    // println!("{}", match decorate_option {
-    //     DecorateOptions::Full => "full",
-    //     DecorateOptions::Short => "short",
-    //     DecorateOptions::No => "no",
-    // });
 
     #[cfg(unix)]
     let mut process = Command::new("less") // create a pipe to less
@@ -179,12 +175,17 @@ pub async fn execute(args: LogArgs) {
 
     let head = Head::current().await;
     // check if the current branch has any commits
-    if let Head::Branch(branch_name) = head.to_owned() {
-        let branch = Branch::find_branch(&branch_name, None).await;
+    let branch_name = if let Head::Branch(n) = head.to_owned() {
+        Some(n)
+    } else {
+        None
+    };
+    if let Some(n) = &branch_name {
+        let branch = Branch::find_branch(n, None).await;
         if branch.is_none() {
-            panic!("fatal: your current branch '{branch_name}' does not have any commits yet ");
-        }
-    }
+            panic!("fatal: your current branch '{n}' does not have any commits yet ");
+        };
+    };
 
     let commit_hash = Head::current_commit().await.unwrap().to_string();
 
@@ -202,68 +203,105 @@ pub async fn execute(args: LogArgs) {
         }
         output_number += 1;
 
-        // get references
-        let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
-        let tags = tag_commits.get(&commit.id).cloned().unwrap_or_default();
+        let ref_msg = if decorate_option != DecorateOptions::No {
+            let mut ref_msgs: Vec<String> = vec![];
+            if output_number == 1 {
+                ref_msgs.push(if let Some(b_name) = &branch_name {
+                    format!(
+                        "{} -> {}{}",
+                        "HEAD".cyan(),
+                        (if decorate_option == DecorateOptions::Full {
+                            "refs/heads/"
+                        } else {
+                            ""
+                        })
+                        .green(),
+                        b_name.green()
+                    )
+                } else {
+                    "HEAD".cyan().to_string()
+                });
+            };
+
+            let mut refs = ref_commits.get(&commit.id).cloned().unwrap_or_default();
+            refs.sort();
+
+            ref_msgs.append(
+                &mut refs
+                    .iter()
+                    .filter_map(|r| {
+                        if r.kind == ReferenceKind::Local && Some(r.name.to_owned()) == branch_name
+                        {
+                            None
+                        } else {
+                            Some(match r.kind {
+                                ReferenceKind::Tag => format!(
+                                    "tag: {}{}",
+                                    if decorate_option == DecorateOptions::Full {
+                                        "refs/tags/"
+                                    } else {
+                                        ""
+                                    },
+                                    r.name
+                                )
+                                .yellow()
+                                .to_string(),
+                                ReferenceKind::Remote => format!(
+                                    "{}{}",
+                                    if decorate_option == DecorateOptions::Full {
+                                        "refs/remotes/"
+                                    } else {
+                                        ""
+                                    },
+                                    r.name
+                                )
+                                .red()
+                                .to_string(),
+                                ReferenceKind::Local => format!(
+                                    "{}{}",
+                                    if decorate_option == DecorateOptions::Full {
+                                        "refs/heads/"
+                                    } else {
+                                        ""
+                                    },
+                                    r.name
+                                )
+                                .green()
+                                .to_string(),
+                            })
+                        }
+                    })
+                    .collect(),
+            );
+            ref_msgs.join(", ")
+        } else {
+            String::new()
+        };
 
         // prepare pathspecs for diff if needed
         let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
         let message = if args.oneline {
-            // Oneline format: <short_hash> <commit_message_first_line>
+            // Oneline format: <short_hash> <refs> <commit_message_first_line>
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
-            if !branches.is_empty() {
-                let branch_info = format!(" ({})", branches.join(", "));
-                format!(
-                    "{} {}{}",
-                    short_hash.yellow().bold(),
-                    msg,
-                    branch_info.green()
-                )
+            if !ref_msg.is_empty() {
+                format!("{} ({}) {}", short_hash.yellow().bold(), ref_msg, msg)
             } else {
                 format!("{} {}", short_hash.yellow(), msg)
             }
         } else {
             // Default detailed format
-            let mut message = format!(
-                "{} {}",
-                "commit".yellow(),
-                if !branches.is_empty() {
-                    commit.id.to_string().yellow().bold()
-                } else {
-                    commit.id.to_string().yellow()
-                }
-            );
-
-            // Show HEAD and branch info
-            if output_number == 1 {
-                // For the first commit (HEAD), show HEAD info and all branches
-                let mut refs = vec![];
-                let current_branch = if let Head::Branch(name) = head.to_owned() {
-                    refs.push(format!("{} -> {}", "HEAD".blue(), name.green()));
-                    Some(name)
-                } else {
-                    refs.push("HEAD".blue().to_string());
-                    None
-                };
-
-                // Add other branches pointing to this commit (excluding current branch)
-                let other_branches: Vec<String> = branches
-                    .iter()
-                    .filter(|&b| current_branch.as_ref() != Some(b))
-                    .map(|b| b.green().to_string())
-                    .collect();
-
-                refs.extend(other_branches);
-
-                let ref_info = format!(" ({})", refs.join(", "));
-                message = format!("{message}{ref_info}");
-            } else if !branches.is_empty() {
-                // Show branch info for other commits that are branch heads
-                let branch_info = format!(" ({})", branches.join(", "));
-                message = format!("{}{}", message, branch_info.green());
-            }
+            let mut message = if !ref_msg.is_empty() {
+                format!(
+                    "{} {} ({})",
+                    "commit".yellow(),
+                    commit.id.to_string().yellow().bold(),
+                    ref_msg
+                )
+            } else {
+                format!("{} {}", "commit".yellow(), commit.id.to_string().yellow())
+            };
 
             message.push_str(&format!("\nAuthor: {}", commit.author));
             let (msg, _) = parse_commit_msg(&commit.message);
