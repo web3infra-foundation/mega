@@ -58,6 +58,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_mr, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
+use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 
 use jupiter::service::blame_service::BlameService;
 use jupiter::storage::Storage;
@@ -228,7 +229,7 @@ impl ApiHandler for MonoApiService {
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into();
+                    let mut tree_model: mega_tree::Model = save_t.into_mega_model();
                     tree_model.commit_id.clone_from(&new_commit_id);
                     tree_model.into()
                 })
@@ -326,17 +327,23 @@ impl ApiHandler for MonoApiService {
                 .apply_update_result(&update_result, &entry_info.commit_msg())
                 .await?;
 
-            storage.save_mega_blobs(vec![&blob], &new_commit_id).await?;
+            storage
+                .save_mega_blobs(vec![&blob], &new_commit_id)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
 
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into();
+                    let mut tree_model: mega_tree::Model = save_t.into_mega_model();
                     tree_model.commit_id.clone_from(&new_commit_id);
                     tree_model.into()
                 })
                 .collect();
-            storage.batch_save_model(save_trees).await?;
+            storage
+                .batch_save_model(save_trees)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
         }
 
         Ok(())
@@ -350,27 +357,29 @@ impl ApiHandler for MonoApiService {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
 
-        storage
-            .get_tree_by_hash(&refs.ref_tree_hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_mega_model(
+            storage
+                .get_tree_by_hash(&refs.ref_tree_hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        self.storage
-            .mono_storage()
-            .get_tree_by_hash(hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+        Tree::from_mega_model(
+            self.storage
+                .mono_storage()
+                .get_tree_by_hash(hash)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
         match self.storage.mono_storage().get_commit_by_hash(hash).await {
-            Ok(Some(commit)) => Some(commit.into()),
+            Ok(Some(commit)) => Some(Commit::from_mega_model(commit)),
             _ => None,
         }
     }
@@ -382,12 +391,13 @@ impl ApiHandler for MonoApiService {
             .await
             .unwrap()
             .unwrap();
-        Ok(storage
-            .get_commit_by_hash(&tree_info.commit_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .into())
+        Ok(Commit::from_mega_model(
+            storage
+                .get_commit_by_hash(&tree_info.commit_id)
+                .await
+                .unwrap()
+                .unwrap(),
+        ))
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -397,7 +407,7 @@ impl ApiHandler for MonoApiService {
             .get_commits_by_hashes(&c_hashes)
             .await
             .unwrap();
-        Ok(commits.into_iter().map(|x| x.into()).collect())
+        Ok(commits.into_iter().map(Commit::from_mega_model).collect())
     }
 
     async fn item_to_commit_map(
@@ -947,12 +957,13 @@ impl MonoApiService {
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
         if mr.from_hash == refs.ref_commit_hash {
-            let commit: Commit = storage
-                .get_commit_by_hash(&mr.to_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
+            let commit: Commit = Commit::from_mega_model(
+                storage
+                    .get_commit_by_hash(&mr.to_hash)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            );
 
             if mr.path != "/" {
                 let path = PathBuf::from(mr.path.clone());
@@ -1035,7 +1046,11 @@ impl MonoApiService {
             match update {
                 RefUpdate::Update { path, tree_id } => {
                     // update can only be root path
-                    if let Some(mut p_ref) = storage.get_ref(path).await? {
+                    if let Some(mut p_ref) = storage
+                        .get_ref(path)
+                        .await
+                        .map_err(|e| GitError::CustomError(e.to_string()))?
+                    {
                         let commit = Commit::from_tree_id(
                             *tree_id,
                             vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
@@ -1044,13 +1059,26 @@ impl MonoApiService {
                         new_commit_id = commit.id.to_string();
                         p_ref.ref_commit_hash = new_commit_id.clone();
                         p_ref.ref_tree_hash = tree_id.to_string();
-                        storage.update_ref(p_ref).await?;
-                        storage.save_mega_commits(vec![commit]).await?;
+                        storage
+                            .update_ref(p_ref)
+                            .await
+                            .map_err(|e| GitError::CustomError(e.to_string()))?;
+                        storage
+                            .save_mega_commits(vec![commit])
+                            .await
+                            .map_err(|e| GitError::CustomError(e.to_string()))?;
                     }
                 }
                 RefUpdate::Delete { path } => {
-                    if let Some(p_ref) = storage.get_ref(path).await? {
-                        storage.remove_ref(p_ref).await?;
+                    if let Some(p_ref) = storage
+                        .get_ref(path)
+                        .await
+                        .map_err(|e| GitError::CustomError(e.to_string()))?
+                    {
+                        storage
+                            .remove_ref(p_ref)
+                            .await
+                            .map_err(|e| GitError::CustomError(e.to_string()))?;
                     }
                 }
             }
@@ -1061,12 +1089,15 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let mut tree_model: mega_tree::Model = save_t.into();
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model();
                 tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
             .collect();
-        storage.batch_save_model(save_trees).await?;
+        storage
+            .batch_save_model(save_trees)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         Ok(new_commit_id)
     }
@@ -1120,7 +1151,8 @@ impl MonoApiService {
         // calculate pages
         let sorted_changed_files = self
             .mr_files_list(old_blobs.clone(), new_blobs.clone())
-            .await?;
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
@@ -1323,7 +1355,7 @@ impl MonoApiService {
         if let Some(commit) = commit {
             let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;
             if let Some(tree) = tree {
-                let tree: Tree = tree.into();
+                let tree: Tree = Tree::from_mega_model(tree);
                 res = self.traverse_tree(tree).await?;
             }
         }
@@ -1344,7 +1376,7 @@ impl MonoApiService {
                         .get_tree_by_hash(&item.id.to_string())
                         .await?
                         .unwrap();
-                    stack.push((path.clone(), child.into()));
+                    stack.push((path.clone(), Tree::from_mega_model(child)));
                 } else {
                     result.push((path, item.id));
                 }
