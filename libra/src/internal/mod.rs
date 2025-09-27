@@ -6,5 +6,3 @@ pub mod model;
 pub mod protocol;
 pub mod reflog;
 pub mod tag;
-
-pub use reflog::parse_ref_name;

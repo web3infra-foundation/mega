@@ -226,24 +226,6 @@ fn timestamp_seconds() -> i64 {
     since_the_epoch.as_secs() as i64
 }
 
-// `partial_ref_name` is the branch name entered by the user.
-pub async fn parse_ref_name(partial_ref_name: &str) -> String {
-    if partial_ref_name == HEAD {
-        return HEAD.to_string();
-    }
-    if !partial_ref_name.contains("/") {
-        return format!("refs/heads/{partial_ref_name}");
-    }
-    let (ref_name, _) = partial_ref_name.split_once("/").unwrap();
-    if config::Config::get("remote", Some(ref_name), "url")
-        .await
-        .is_some()
-    {
-        return format!("refs/remotes/{partial_ref_name}");
-    }
-    format!("refs/heads/{partial_ref_name}")
-}
-
 /// Executes a database operation within a transaction and records a reflog entry upon success.
 ///
 /// This function acts as a safe, atomic wrapper for any operation that needs to be
