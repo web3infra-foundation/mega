@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Box, Skeleton } from '@mui/material';
 import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
 import { convertToTreeData, getDescendantIds } from './TreeUtils';
@@ -8,7 +8,6 @@ import { useAtom } from 'jotai';
 import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom';
 import { useTreeViewApiRef } from "@mui/x-tree-view";
 import { useGetMrFileTree } from "@/hooks/useGetMrFileTree";
-import { usePathname } from "next/navigation";
 
 const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath: string) => void }) => {
   const apiRef = useTreeViewApiRef();
@@ -16,9 +15,7 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
 
-  const pathname = usePathname()!!;
-  const orgPath = useMemo(() => pathname.split('/').at(1), [pathname]);
-  const { data: treeResponse, isLoading } = useGetMrFileTree(link, orgPath)
+  const { data: treeResponse, isLoading } = useGetMrFileTree(link)
 
   // Process the tree data when API returns
   useEffect(() => {
@@ -68,6 +65,10 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
       const newExpandedIds = [...expandedNodes, itemId]
 
       setExpandedNodes(newExpandedIds)
+
+      if (item.content_type === 'file' && onFileClick) {
+        onFileClick(item.path || itemId)
+      }
     }
   }
 

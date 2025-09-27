@@ -124,18 +124,18 @@ export default function FileDiff({ id }: {
     const fileExists = parsedFiles.some(file => file.file.path === filePath)
 
     if (fileExists) {
-      toggleExpanded(filePath)
+      setExpandedMap((prev) => ({ ...prev, [filePath]: true }))
 
       // Use setTimeout to ensure DOM is updated after expansion
       setTimeout(() => {
         const fileElement = fileRefs.current[filePath]
 
         if (fileElement) {
-          fileElement.scrollIntoView({ behavior: 'smooth' })
+          fileElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
       }, 100)
     }
-  }, [parsedFiles, toggleExpanded])
+  }, [parsedFiles])
 
   const hasMoreData = useMemo(() => {
     return fileDiff.length < totalCount

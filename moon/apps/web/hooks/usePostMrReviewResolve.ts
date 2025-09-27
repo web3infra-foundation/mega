@@ -4,8 +4,8 @@ import { legacyApiClient } from "@/utils/queryClient";
 
 export const usePostMrReviewResolve = (
   link: string,
-  new_state: boolean,
-  review_id: number
+  conversation_id: number,
+  resolved: boolean
 ): {
   data: string,
   isLoading: boolean
@@ -17,8 +17,8 @@ export const usePostMrReviewResolve = (
       return await legacyApiClient.v1.postApiMrReviewResolve().request(
         link,
         {
-          new_state,
-          review_id
+          conversation_id,
+          resolved
         }
       )
     }
