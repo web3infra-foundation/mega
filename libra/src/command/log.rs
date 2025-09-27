@@ -76,24 +76,23 @@ pub async fn execute(args: LogArgs) {
         .expect("failed to execute process");
 
     let head = Head::current().await;
-    // check if the current branch has any commits
+
+    // 检查当前分支是否有提交
     if let Head::Branch(branch_name) = head.to_owned() {
         let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
-            panic!("fatal: your current branch '{branch_name}' does not have any commits yet ");
+            panic!("fatal: your current branch '{branch_name}' does not have any commits yet");
         }
     }
 
     let commit_hash = Head::current_commit().await.unwrap().to_string();
-
     let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
-    // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
     let branch_commits = create_branch_commits_map().await;
-
     let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
+
     for commit in reachable_commits {
         if output_number >= max_output_number {
             break;
@@ -101,27 +100,40 @@ pub async fn execute(args: LogArgs) {
         output_number += 1;
 
         let branches = branch_commits.get(&commit.id).cloned().unwrap_or_default();
-
-        // prepare pathspecs for diff if needed
         let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
         let message = if args.oneline {
-            // Oneline format: <short_hash> <commit_message_first_line>
+            // Oneline format
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
-            if !branches.is_empty() {
-                let branch_info = format!(" ({})", branches.join(", "));
-                format!(
-                    "{} {}{}",
-                    short_hash.yellow().bold(),
-                    msg,
-                    branch_info.green()
-                )
+
+            let mut ref_info = Vec::new();
+
+            // HEAD -> current branch
+            if let Head::Branch(ref current_branch) = head {
+                if branches.contains(current_branch) {
+                    ref_info.push(format!("HEAD -> {}", current_branch.green()));
+                }
+            }
+
+            // 其他分支
+            let other_branches: Vec<String> = branches
+                .iter()
+                .filter(|b| match &head {
+                    Head::Branch(name) => b != name,
+                    _ => true,
+                })
+                .map(|b| b.green().to_string())
+                .collect();
+            ref_info.extend(other_branches);
+
+            if !ref_info.is_empty() {
+                format!("{} {} ({})", short_hash.yellow().bold(), msg, ref_info.join(", "))
             } else {
-                format!("{} {}", short_hash.yellow(), msg)
+                format!("{} {}", short_hash.yellow().bold(), msg)
             }
         } else {
-            // Default detailed format
+            // Detailed format
             let mut message = format!(
                 "{} {}",
                 "commit".yellow(),
@@ -132,9 +144,8 @@ pub async fn execute(args: LogArgs) {
                 }
             );
 
-            // Show HEAD and branch info
             if output_number == 1 {
-                // For the first commit (HEAD), show HEAD info and all branches
+                // HEAD info
                 let mut refs = vec![];
                 let current_branch = if let Head::Branch(name) = head.to_owned() {
                     refs.push(format!("{} -> {}", "HEAD".blue(), name.green()));
@@ -144,19 +155,16 @@ pub async fn execute(args: LogArgs) {
                     None
                 };
 
-                // Add other branches pointing to this commit (excluding current branch)
                 let other_branches: Vec<String> = branches
                     .iter()
                     .filter(|&b| current_branch.as_ref() != Some(b))
                     .map(|b| b.green().to_string())
                     .collect();
-
                 refs.extend(other_branches);
 
                 let ref_info = format!(" ({})", refs.join(", "));
                 message = format!("{message}{ref_info}");
             } else if !branches.is_empty() {
-                // Show branch info for other commits that are branch heads
                 let branch_info = format!(" ({})", branches.join(", "));
                 message = format!("{}{}", message, branch_info.green());
             }
@@ -164,7 +172,7 @@ pub async fn execute(args: LogArgs) {
             message.push_str(&format!("\nAuthor: {}", commit.author));
             let (msg, _) = parse_commit_msg(&commit.message);
             message.push_str(&format!("\n{msg}\n"));
-            // If patch requested, compute diff between this commit and its first parent
+
             if args.patch {
                 let patch_output = generate_diff(&commit, paths.clone()).await;
                 message.push_str(&patch_output);
@@ -186,11 +194,13 @@ pub async fn execute(args: LogArgs) {
             println!("{message}");
         }
     }
+
     #[cfg(unix)]
     {
         let _ = process.wait().expect("failed to wait on child");
     }
 }
+
 
 /// Create a map of commit hashes to branch names
 async fn create_branch_commits_map() -> HashMap<SHA1, Vec<String>> {
