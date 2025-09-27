@@ -228,7 +228,8 @@ pub trait RepoHandler: Send + Sync + 'static {
         if let Some(sender) = sender {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
-                let blob: Blob = b.into();
+                let data = b.data.unwrap_or_default();
+                let blob: Blob = Blob::from_content_bytes(data);
                 sender.send(blob.into()).await.unwrap();
             }
         }

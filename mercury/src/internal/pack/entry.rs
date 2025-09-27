@@ -3,12 +3,12 @@ use std::hash::{Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
 use crate::hash::SHA1;
+use crate::internal::object::ObjectTrait;
 use crate::internal::object::blob::Blob;
 use crate::internal::object::commit::Commit;
 use crate::internal::object::tag::Tag;
 use crate::internal::object::tree::Tree;
 use crate::internal::object::types::ObjectType;
-use crate::internal::object::{GitObject, ObjectTrait};
 
 ///
 /// Git object data from pack file
@@ -32,20 +32,6 @@ impl Hash for Entry {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.obj_type.hash(state);
         self.hash.hash(state);
-    }
-}
-
-impl Entry {
-    pub fn process_entry(&self) -> GitObject {
-        match self.obj_type {
-            ObjectType::Commit => {
-                GitObject::Commit(Commit::from_bytes(&self.data, self.hash).unwrap())
-            }
-            ObjectType::Tree => GitObject::Tree(Tree::from_bytes(&self.data, self.hash).unwrap()),
-            ObjectType::Blob => GitObject::Blob(Blob::from_bytes(&self.data, self.hash).unwrap()),
-            ObjectType::Tag => GitObject::Tag(Tag::from_bytes(&self.data, self.hash).unwrap()),
-            _ => unreachable!("can not parse delta!"),
-        }
     }
 }
 

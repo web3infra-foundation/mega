@@ -23,6 +23,9 @@ use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use neptune::{DiffOperation, compute_diff};
 
+use crate::utils::converter::FromMegaModel;
+#[cfg(test)]
+use crate::utils::converter::IntoMegaModel;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use std::sync::{Arc, Weak};
@@ -890,7 +893,7 @@ impl BlameService {
             .get_tree_by_hash(&tree_id.to_string())
             .await
         {
-            Ok(Some(tree)) => Ok(tree.into()),
+            Ok(Some(tree)) => Ok(Tree::from_mega_model(tree)),
             Ok(None) => Err(GitError::ObjectNotFound("Tree not found".to_string())),
             Err(e) => Err(GitError::CustomError(format!("Failed to get tree: {}", e))),
         }
@@ -906,7 +909,7 @@ impl BlameService {
             .get_commit_by_hash(&commit_id.to_string())
             .await
         {
-            Ok(Some(commit)) => Ok(Some(commit.into())),
+            Ok(Some(commit)) => Ok(Some(Commit::from_mega_model(commit))),
             _ => Ok(None), // Commit not found
         }
     }
@@ -1284,7 +1287,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree1, tree2, tree3.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
@@ -1493,7 +1496,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
@@ -1648,7 +1651,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model();
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
