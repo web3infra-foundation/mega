@@ -37,11 +37,11 @@ const DependentsPage = () => {
     const [stats, setStats] = useState({ direct: 0, indirect: 0 });
     const searchTerm = '';
 
-    // 从查询参数或URL参数中获取crate信息
-    const crateName = (router.query.crateName as string) || params?.crateName as string || "tokio";
-    const version = (router.query.version as string) || params?.version as string || "1.2.01";
-    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
-    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+    // 从URL参数中获取crate信息
+    const crateName = params?.name as string || "tokio";
+    const version = params?.version as string || "1.2.01";
+    const nsfront = params?.nsfront as string || router.query.org as string;
+    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
 
     // 从 API 获取 dependents 数据
     useEffect(() => {
