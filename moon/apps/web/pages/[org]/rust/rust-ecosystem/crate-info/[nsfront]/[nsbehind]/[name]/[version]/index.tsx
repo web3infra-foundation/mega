@@ -92,11 +92,11 @@ const CratePage = () => {
     const [unsafecheckerError, setUnsafecheckerError] = useState<string | null>(null);
     // const itemsPerPage = 1;
 
-    // 从查询参数或URL参数中获取crate信息
-    const crateName = (router.query.crateName as string) || params?.crateName as string || "example-crate";
-    const version = (router.query.version as string) || params?.version as string || "1.0.0";
-    const nsfront = (router.query.nsfront as string) || params?.nsfront as string || router.query.org as string;
-    const nsbehind = (router.query.nsbehind as string) || params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+    // 从URL参数中获取crate信息
+    const crateName = params?.name as string || "example-crate";
+    const version = params?.version as string || "1.0.0";
+    const nsfront = params?.nsfront as string || router.query.org as string;
+    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
     const name = crateName;
     
 
@@ -288,9 +288,11 @@ const CratePage = () => {
                                                          {cve.id}
                                                      </p>
                                                  </div>
-                                                 <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
-                                                     MORE DETAILS
-                                                 </button>
+                                                 <Link href={`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${cve.id}`}>
+                                                     <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
+                                                         MORE DETAILS
+                                                     </button>
+                                                 </Link>
                                              </div>
                                          ))}
 
@@ -312,9 +314,11 @@ const CratePage = () => {
                                                          {cve.id}
                                                      </p>
                                                  </div>
-                                                 <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
-                                                     MORE DETAILS
-                                                 </button>
+                                                 <Link href={`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${cve.id}`}>
+                                                     <button className="ml-4 px-4 py-2 border border-[#4B68FF] text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal rounded hover:bg-[#4B68FF] hover:text-white transition-colors">
+                                                         MORE DETAILS
+                                                     </button>
+                                                 </Link>
                                              </div>
                                          ))}
                                      </div>
@@ -470,199 +474,389 @@ const CratePage = () => {
                                 </div>
 
                             {/* Dependencies */}
-                                 <div className="space-y-6">
-                                     {/* Dependencies 内容 */}
-                                     {results && results.dependencies && (results.dependencies.direct + results.dependencies.indirect) > 0 ? (
-                                         <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
-                                             {/* 卡片头部 */}
-                                             <div className="flex justify-between items-center mb-6">
-                                                 <div>
-                                                     <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Dependencies</h3>
-                                                 </div>
-                                                 <span 
-                                                     className="flex-shrink-0 text-sm text-white"
-                                                     style={{
-                                                         display: 'flex',
-                                                         width: '33px',
-                                                         height: '33px',
-                                                         flexDirection: 'column',
-                                                         justifyContent: 'center',
-                                                         alignItems: 'center',
-                                                         aspectRatio: '1/1',
-                                                         borderRadius: '6px',
-                                                         background: '#4B68FF'
-                                                     }}
-                                                 >
-                                                     {results.dependencies.direct + results.dependencies.indirect}
-                                                 </span>
-                                             </div>
-                                             <div className="space-y-4">
-                                                                                                 {/* Direct */}
-                                                 <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                     <div 
-                                                         className="capitalize"
-                                                         style={{
-                                                             color: '#002bb7c4',
-                                                             fontFamily: '"HarmonyOS Sans SC"',
-                                                             fontSize: '14px',
-                                                             fontStyle: 'normal',
-                                                             fontWeight: 400,
-                                                             lineHeight: 'normal',
-                                                             letterSpacing: 0
-                                                         }}
-                                                     >
-                                                         Direct
-                                                     </div>
-                                                                                                           <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependencies.direct}</div>
-                                                      <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                          <div
-                                                              className="h-full bg-[#4B68FF] rounded-lg"
-                                                              style={{
-                                                                  width: `${(results.dependencies.direct / (results.dependencies.direct + results.dependencies.indirect)) * 100}%`
-                                                              }}
-                                                          />
-                                                      </div>
-                                                 </div>
-
-                                                 {/* Indirect */}
-                                                 <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                     <div 
-                                                         className="capitalize"
-                                                         style={{
-                                                             color: '#002bb7c4',
-                                                             fontFamily: '"HarmonyOS Sans SC"',
-                                                             fontSize: '14px',
-                                                             fontStyle: 'normal',
-                                                             fontWeight: 400,
-                                                             lineHeight: 'normal',
-                                                             letterSpacing: 0
-                                                         }}
-                                                     >
-                                                         Indirect
-                                                     </div>
-                                                                                                           <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependencies.indirect}</div>
-                                                      <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                          <div
-                                                              className="h-full bg-[#4B68FF] rounded-lg"
-                                                              style={{
-                                                                  width: `${(results.dependencies.indirect / (results.dependencies.direct + results.dependencies.indirect)) * 100}%`
-                                                              }}
-                                                          />
-                                                      </div>
-                                                 </div>
+                                <div className="space-y-6">
+                                    {/* Dependencies 内容 */}
+                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
+                                        {/* 卡片头部 */}
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Dependencies</h3>
                                             </div>
+                                            <span 
+                                                className="flex-shrink-0 text-sm text-white"
+                                                style={{
+                                                    display: 'flex',
+                                                    width: '33px',
+                                                    height: '33px',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    aspectRatio: '1/1',
+                                                    borderRadius: '6px',
+                                                    background: '#4B68FF'
+                                                }}
+                                            >
+                                                {results.dependencies.direct + results.dependencies.indirect}
+                                            </span>
+                                        </div>
+                                        
+                                        {results && results.dependencies && (results.dependencies.direct + results.dependencies.indirect) > 0 ? (
+                                            <>
+                                                <div className="space-y-4">
+                                                    {/* Direct */}
+                                                    <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                                                        <div 
+                                                            className="capitalize"
+                                                            style={{
+                                                                color: '#002bb7c4',
+                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                fontSize: '14px',
+                                                                fontStyle: 'normal',
+                                                                fontWeight: 400,
+                                                                lineHeight: 'normal',
+                                                                letterSpacing: 0
+                                                            }}
+                                                        >
+                                                            Direct
+                                                        </div>
+                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependencies.direct}</div>
+                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
+                                                            <div
+                                                                className="h-full bg-[#4B68FF] rounded-lg"
+                                                                style={{
+                                                                    width: `${(results.dependencies.direct / (results.dependencies.direct + results.dependencies.indirect)) * 100}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                                            <div className="mt-6 text-center">
-                                                <Link href={`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies?crateName=${crateName}&version=${version}`}>
-                                                    <span className="text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline">
-                                                        View all dependencies ({results.dependencies.direct + results.dependencies.indirect})
-                                                    </span>
-                                                </Link>
+                                                    {/* Indirect */}
+                                                    <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                                                        <div 
+                                                            className="capitalize"
+                                                            style={{
+                                                                color: '#002bb7c4',
+                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                fontSize: '14px',
+                                                                fontStyle: 'normal',
+                                                                fontWeight: 400,
+                                                                lineHeight: 'normal',
+                                                                letterSpacing: 0
+                                                            }}
+                                                        >
+                                                            Indirect
+                                                        </div>
+                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependencies.indirect}</div>
+                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
+                                                            <div
+                                                                className="h-full bg-[#4B68FF] rounded-lg"
+                                                                style={{
+                                                                    width: `${(results.dependencies.indirect / (results.dependencies.direct + results.dependencies.indirect)) * 100}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-6 text-center">
+                                                    <Link href={`/${nsfront}/rust/rust-ecosystem/crate-info/${crateName}/dependencies?crateName=${crateName}&version=${version}`}>
+                                                        <span className="text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline">
+                                                            View all dependencies ({results.dependencies.direct + results.dependencies.indirect})
+                                                        </span>
+                                                    </Link>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    This package has no known dependencies.
+                                                </p>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-[#333333] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal leading-normal capitalize">
-                                            This Package Has No Known Dependencies.
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
 
-                                                                 {/* Dependents */}
-                                 <div className="space-y-6">
-                                     {/* Dependents 内容 */}
-                                     {results && results.dependents && (results.dependents.direct + results.dependents.indirect) > 0 ? (
-                                         <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
-                                             {/* 卡片头部 */}
-                                             <div className="flex justify-between items-center mb-6">
-                                                 <div>
-                                                     <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Dependents</h3>
-                                                 </div>
-                                                 <span 
-                                                     className="flex-shrink-0 text-sm text-white"
-                                                     style={{
-                                                         display: 'flex',
-                                                         width: '33px',
-                                                         height: '33px',
-                                                         flexDirection: 'column',
-                                                         justifyContent: 'center',
-                                                         alignItems: 'center',
-                                                         aspectRatio: '1/1',
-                                                         borderRadius: '6px',
-                                                         background: '#4B68FF'
-                                                     }}
-                                                 >
-                                                     {results.dependents.direct + results.dependents.indirect}
-                                                 </span>
-                                             </div>
-                                             <div className="space-y-4">
-                                                                                                 {/* Direct */}
-                                                 <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                     <div 
-                                                         className="capitalize"
-                                                         style={{
-                                                             color: '#002bb7c4',
-                                                             fontFamily: '"HarmonyOS Sans SC"',
-                                                             fontSize: '14px',
-                                                             fontStyle: 'normal',
-                                                             fontWeight: 400,
-                                                             lineHeight: 'normal',
-                                                             letterSpacing: 0
-                                                         }}
-                                                     >
-                                                         Direct
-                                                     </div>
-                                                                                                           <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.direct}</div>
-                                                      <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                          <div
-                                                              className="h-full bg-[#4B68FF] rounded-lg"
-                                                              style={{
-                                                                  width: `${(results.dependents.direct / (results.dependents.direct + results.dependents.indirect)) * 100}%`
-                                                              }}
-                                                          />
-                                                      </div>
-                                                 </div>
-
-                                                 {/* Indirect */}
-                                                 <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                     <div 
-                                                         className="capitalize"
-                                                         style={{
-                                                             color: '#002bb7c4',
-                                                             fontFamily: '"HarmonyOS Sans SC"',
-                                                             fontSize: '14px',
-                                                             fontStyle: 'normal',
-                                                             fontWeight: 400,
-                                                             lineHeight: 'normal',
-                                                             letterSpacing: 0
-                                                         }}
-                                                     >
-                                                         Indirect
-                                                     </div>
-                                                                                                           <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.indirect}</div>
-                                                      <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                          <div
-                                                              className="h-full bg-[#4B68FF] rounded-lg"
-                                                              style={{
-                                                                  width: `${(results.dependents.indirect / (results.dependents.direct + results.dependents.indirect)) * 100}%`
-                                                              }}
-                                                          />
-                                                      </div>
-                                                 </div>
+                                {/* Dependents */}
+                                <div className="space-y-6">
+                                    {/* Dependents 内容 */}
+                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
+                                        {/* 卡片头部 */}
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Dependents</h3>
                                             </div>
+                                            <span 
+                                                className="flex-shrink-0 text-sm text-white"
+                                                style={{
+                                                    display: 'flex',
+                                                    width: '33px',
+                                                    height: '33px',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    aspectRatio: '1/1',
+                                                    borderRadius: '6px',
+                                                    background: '#4B68FF'
+                                                }}
+                                            >
+                                                {results.dependents.direct + results.dependents.indirect}
+                                            </span>
+                                        </div>
+                                        
+                                        {results && results.dependents && (results.dependents.direct + results.dependents.indirect) > 0 ? (
+                                            <>
+                                                <div className="space-y-4">
+                                                    {/* Direct */}
+                                                    <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                                                        <div 
+                                                            className="capitalize"
+                                                            style={{
+                                                                color: '#002bb7c4',
+                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                fontSize: '14px',
+                                                                fontStyle: 'normal',
+                                                                fontWeight: 400,
+                                                                lineHeight: 'normal',
+                                                                letterSpacing: 0
+                                                            }}
+                                                        >
+                                                            Direct
+                                                        </div>
+                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.direct}</div>
+                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
+                                                            <div
+                                                                className="h-full bg-[#4B68FF] rounded-lg"
+                                                                style={{
+                                                                    width: `${(results.dependents.direct / (results.dependents.direct + results.dependents.indirect)) * 100}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                                            <div className="mt-6 text-center">
-                                                <Link href={`/${nsfront}/${nsbehind}/${name}/${version}/dependents`}>
-                                                    <span className="text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline">
-                                                        View all dependents ({results.dependents.direct + results.dependents.indirect})
-                                                    </span>
-                                                </Link>
+                                                    {/* Indirect */}
+                                                    <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                                                        <div 
+                                                            className="capitalize"
+                                                            style={{
+                                                                color: '#002bb7c4',
+                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                fontSize: '14px',
+                                                                fontStyle: 'normal',
+                                                                fontWeight: 400,
+                                                                lineHeight: 'normal',
+                                                                letterSpacing: 0
+                                                            }}
+                                                        >
+                                                            Indirect
+                                                        </div>
+                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.indirect}</div>
+                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
+                                                            <div
+                                                                className="h-full bg-[#4B68FF] rounded-lg"
+                                                                style={{
+                                                                    width: `${(results.dependents.indirect / (results.dependents.direct + results.dependents.indirect)) * 100}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-6 text-center">
+                                                    <Link href={`/${nsfront}/${nsbehind}/${name}/${version}/dependents`}>
+                                                        <span className="text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline">
+                                                            View all dependents ({results.dependents.direct + results.dependents.indirect})
+                                                        </span>
+                                                    </Link>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    This package has no known dependents.
+                                                </p>
                                             </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Senseleak */}
+                                <div className="space-y-6">
+                                    {/* Senseleak 内容 */}
+                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
+                                        {/* 卡片头部 */}
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Senseleak</h3>
+                                                <p 
+                                                  className="mt-3"
+                                                  style={{
+                                                      alignSelf: 'stretch',
+                                                      color: '#1c2024',
+                                                      fontFamily: '"HarmonyOS Sans SC"',
+                                                      fontSize: '20px',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      lineHeight: '16px',
+                                                      letterSpacing: '0.04px'
+                                                  }}
+                                              >
+                                                  Security analysis results
+                                              </p>
+                                            </div>
+                                            <span 
+                                                className="flex-shrink-0 text-sm text-white"
+                                                style={{
+                                                    display: 'flex',
+                                                    width: '33px',
+                                                    height: '33px',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    aspectRatio: '1/1',
+                                                    borderRadius: '6px',
+                                                    background: senseleakData?.exist ? '#E5484D' : '#4B68FF'
+                                                }}
+                                            >
+                                                {senseleakLoading ? '...' : senseleakData?.exist ? '!' : '0'}
+                                            </span>
                                         </div>
-                                    ) : (
-                                        <div className="text-[#333333] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal leading-normal capitalize">
-                                            This Package Has No Known Dependents.
+                                        
+                                        {senseleakLoading ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    Loading senseleak analysis...
+                                                </p>
+                                            </div>
+                                        ) : senseleakError ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    {senseleakError}
+                                                </p>
+                                            </div>
+                                        ) : senseleakData ? (
+                                            <div className="space-y-4">
+                                                <div className="bg-gray-50 rounded-lg p-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide">
+                                                            ANALYSIS RESULT
+                                                        </span>
+                                                        <span className={`px-2 py-1 rounded text-[12px] font-['HarmonyOS_Sans_SC'] font-normal ${
+                                                            senseleakData.exist ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {senseleakData.exist ? 'Issues Found' : 'No Issues'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                                        <pre className="whitespace-pre-wrap break-words bg-white p-3 rounded border">
+                                                            {senseleakData.res || 'No detailed information available'}
+                                                        </pre>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    No senseleak data available
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Unsafechecker */}
+                                <div className="space-y-6">
+                                    {/* Unsafechecker 内容 */}
+                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
+                                        {/* 卡片头部 */}
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Unsafechecker</h3>
+                                                <p 
+                                                  className="mt-3"
+                                                  style={{
+                                                      alignSelf: 'stretch',
+                                                      color: '#1c2024',
+                                                      fontFamily: '"HarmonyOS Sans SC"',
+                                                      fontSize: '20px',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      lineHeight: '16px',
+                                                      letterSpacing: '0.04px'
+                                                  }}
+                                              >
+                                                  Unsafe code analysis results
+                                              </p>
+                                            </div>
+                                            <span 
+                                                className="flex-shrink-0 text-sm text-white"
+                                                style={{
+                                                    display: 'flex',
+                                                    width: '33px',
+                                                    height: '33px',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    aspectRatio: '1/1',
+                                                    borderRadius: '6px',
+                                                    background: unsafecheckerData?.exist ? '#E5484D' : '#4B68FF'
+                                                }}
+                                            >
+                                                {unsafecheckerLoading ? '...' : unsafecheckerData?.exist ? '!' : '0'}
+                                            </span>
                                         </div>
-                                    )}
+                                        
+                                        {unsafecheckerLoading ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    Loading unsafechecker analysis...
+                                                </p>
+                                            </div>
+                                        ) : unsafecheckerError ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    {unsafecheckerError}
+                                                </p>
+                                            </div>
+                                        ) : unsafecheckerData ? (
+                                            <div className="space-y-4">
+                                                <div className="bg-gray-50 rounded-lg p-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide">
+                                                            ANALYSIS RESULT
+                                                        </span>
+                                                        <span className={`px-2 py-1 rounded text-[12px] font-['HarmonyOS_Sans_SC'] font-normal ${
+                                                            unsafecheckerData.exist ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {unsafecheckerData.exist ? 'Issues Found' : 'No Issues'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                                        {unsafecheckerData.res && unsafecheckerData.res.length > 0 ? (
+                                                            <div className="space-y-3">
+                                                                {unsafecheckerData.res.map((result: string) => (
+                                                                    <div key={`unsafechecker-result-${result.slice(0, 50)}-${result.length}-${result.charCodeAt(0)}`} className="bg-white p-3 rounded border">
+                                                                        <pre className="whitespace-pre-wrap break-words">
+                                                                            {result}
+                                                                        </pre>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="bg-white p-3 rounded border text-center">
+                                                                <p className="text-[#666666]">No detailed information available</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
+                                                    No unsafechecker data available
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -688,57 +882,6 @@ const CratePage = () => {
                                     </p>
                                 </div>
 
-                                {/* Senseleak */}
-                                <div>
-                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
-                                        Senseleak
-                                    </h3>
-                                    {senseleakLoading ? (
-                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            Loading...
-                                        </p>
-                                    ) : senseleakError ? (
-                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            {senseleakError}
-                                        </p>
-                                    ) : senseleakData ? (
-                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            <pre className="whitespace-pre-wrap break-words">
-                                                {JSON.stringify(senseleakData, null, 2)}
-                                            </pre>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            No data available
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Unsafechecker */}
-                                <div>
-                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
-                                        Unsafechecker
-                                    </h3>
-                                    {unsafecheckerLoading ? (
-                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            Loading...
-                                        </p>
-                                    ) : unsafecheckerError ? (
-                                        <p className="text-[14px] text-[#FD5656] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            {unsafecheckerError}
-                                        </p>
-                                    ) : unsafecheckerData ? (
-                                        <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            <pre className="whitespace-pre-wrap break-words">
-                                                {JSON.stringify(unsafecheckerData, null, 2)}
-                                            </pre>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[14px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal">
-                                            No data available
-                                        </p>
-                                    )}
-                                </div>
 
                                 {/* Owners */}
                                 <div>

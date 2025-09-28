@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useParams } from 'next/navigation';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { VersionSelectorDropdown } from '../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
+import { VersionSelectorDropdown } from '../../../../../../../../../components/Rust/VersionSelector/VersionSelectorDropdown';
 
 interface CrateInfoLayoutProps {
     children: React.ReactNode;
@@ -14,23 +14,55 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
     const router = useRouter();
     const params = useParams();
     
-    // 从查询参数或URL参数中获取crate信息
+    // 从URL参数中获取crate信息 - 使用更稳定的依赖项
     const crateName = useMemo(() => 
-        (router.query.crateName as string) || params?.crateName as string || "example-crate", 
-        [router.query.crateName, params?.crateName]
+        params?.name as string || "example-crate", 
+        [params?.name]
     );
     const version = useMemo(() => 
-        (router.query.version as string) || params?.version as string || "1.0.0", 
-        [router.query.version, params?.version]
+        params?.version as string || "1.0.0", 
+        [params?.version]
     );
     const nsfront = useMemo(() => 
         params?.nsfront as string || router.query.org as string, 
         [params?.nsfront, router.query.org]
     );
+    const nsbehind = useMemo(() => 
+        params?.nsbehind as string || "rust/rust-ecosystem/crate-info", 
+        [params?.nsbehind]
+    );
+    
+    // 稳定的crate信息对象，避免不必要的重新渲染
+    const crateInfo = useMemo(() => ({
+        crateName,
+        version,
+        nsfront,
+        nsbehind,
+        org: router.query.org as string
+    }), [crateName, version, nsfront, nsbehind, router.query.org]);
     
     // 版本选择相关状态
     const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
     const [selectedVersion, setSelectedVersion] = useState<string>(version);
+    
+    // 当version参数变化时更新selectedVersion
+    useEffect(() => {
+        setSelectedVersion(version);
+    }, [version]);
+    
+    // 搜索相关状态
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // 搜索处理函数
+    const handleSearch = useCallback((e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchQuery.trim()) {
+            router.push({
+                pathname: `/${crateInfo.org}/rust/rust-ecosystem/search`,
+                query: { q: searchQuery.trim() }
+            });
+        }
+    }, [searchQuery, router, crateInfo.org]);
     
     // 根据当前路径确定activeTab
     const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>('overview');
@@ -57,23 +89,24 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
 
     // 版本选择处理函数
     const handleVersionSelect = useCallback((newVersion: string) => {
+        if (newVersion === selectedVersion) return; // 如果版本相同，不执行任何操作
+        
         setSelectedVersion(newVersion);
         // 更新URL中的版本参数
         const currentPath = router.asPath;
+        
+        const newPath = currentPath.replace(/\/[^/]+\/?$/, `/${newVersion}`);
 
-        const newPath = currentPath.replace(/[?&]version=[^&]*/, '') + 
-            (currentPath.includes('?') ? '&' : '?') + `version=${newVersion}`;
-            
         router.push(newPath, undefined, { shallow: true });
-    }, [router]);
+    }, [router, selectedVersion]);
 
     const navigationTabs = useMemo(() => [
-        { id: 'overview', label: 'overview', href: `/${nsfront}/rust/rust-ecosystem/crate-info?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
-        { id: 'dependencies', label: 'dependencies', href: `/${nsfront}/rust/rust-ecosystem/crate-info/dependencies?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
-        { id: 'dependents', label: 'dependents', href: `/${nsfront}/rust/rust-ecosystem/crate-info/dependents?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
-        { id: 'compare', label: 'compare', href: `/${nsfront}/rust/rust-ecosystem/crate-info/compare?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` },
-        { id: 'versions', label: 'versions', href: `/${nsfront}/rust/rust-ecosystem/crate-info/versions?crateName=${crateName}&version=${version}&nsfront=${nsfront}&nsbehind=${router.query.nsbehind || 'rust/rust-ecosystem/crate-info'}` }
-    ], [nsfront, crateName, version, router.query.nsbehind]);
+        { id: 'overview', label: 'overview', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}` },
+        { id: 'dependencies', label: 'dependencies', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependencies` },
+        { id: 'dependents', label: 'dependents', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependents` },
+        { id: 'compare', label: 'compare', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/compare` },
+        { id: 'versions', label: 'versions', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/versions` }
+    ], [crateInfo]);
 
     return (
         <div className="h-screen bg-[#F4F4F5] flex flex-col">
@@ -93,7 +126,7 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
                         boxSizing: 'border-box',
                     }}
                 >
-                    <form className="flex-1 max-w-xl ml-8">
+                    <form onSubmit={handleSearch} className="flex-1 max-w-xl ml-8">
                         <div className="relative ml-10 mt-2">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
@@ -102,6 +135,24 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
                                 type="text"
                                 placeholder="Search..."
                                 className="block w-full pl-10 pr-3 py-2 border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 placeholder-gray-500"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                    // 阻止可能导致页面刷新的键盘事件
+                                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                                        e.stopPropagation();
+                                        return;
+                                    }
+                                    // 阻止 Enter 键在输入框中的默认行为，让表单处理
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSearch(e);
+                                    }
+                                }}
+                                onKeyUp={(e) => {
+                                    // 确保键盘事件不会冒泡
+                                    e.stopPropagation();
+                                }}
                             />
                         </div>
                     </form>
@@ -139,7 +190,7 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
                                         lineHeight: 'normal'
                                     }}
                                 >
-                                    {crateName}
+                                    {crateInfo.crateName}
                                 </h1>
                             </div>
                             <div className="relative">
