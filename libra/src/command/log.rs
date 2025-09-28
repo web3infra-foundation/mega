@@ -80,25 +80,31 @@ async fn determine_decorate_option(args: &LogArgs) -> Result<DecorateOptions, St
         .map(|s| str_to_decorate_option(s))
         .transpose()?;
 
-    if arg_deco.is_some() && args.no_decorate {
-        let mut args_os = std::env::args_os().peekable();
-        while let Some(arg) = args_os.next() {
-            if arg == "--no-decorate" {
-                return Ok(arg_deco.unwrap());
-            } else if arg.to_str().unwrap_or_default().starts_with("--decorate") {
-                return Ok(DecorateOptions::No);
-            };
+    match arg_deco {
+        Some(a) => {
+            if args.no_decorate {
+                let args_os = std::env::args_os().peekable();
+                for arg in args_os {
+                    if arg == "--no-decorate" {
+                        return Ok(a);
+                    } else if arg.to_str().unwrap_or_default().starts_with("--decorate") {
+                        return Ok(DecorateOptions::No);
+                    };
+                }
+            } else {
+                return Ok(a);
+            }
         }
-    } else if arg_deco.is_some() {
-        return Ok(arg_deco.unwrap());
-    } else if args.no_decorate {
-        return Ok(DecorateOptions::No);
+        None => {
+            if args.no_decorate {
+                return Ok(DecorateOptions::No);
+            }
+        }
     };
 
     if let Some(config_deco) = Config::get("log", None, "decorate")
         .await
-        .map(|s| str_to_decorate_option(&s).ok())
-        .flatten()
+        .and_then(|s| str_to_decorate_option(&s).ok())
     {
         Ok(config_deco)
     } else {
@@ -141,22 +147,10 @@ enum ReferenceKind {
     Local,  // green
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct Reference {
-    name: String,
     kind: ReferenceKind,
-}
-
-impl PartialOrd for Reference {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.kind.cmp(&other.kind))
-    }
-}
-
-impl Ord for Reference {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.kind.cmp(&other.kind)
-    }
+    name: String,
 }
 
 pub async fn execute(args: LogArgs) {
@@ -286,7 +280,7 @@ pub async fn execute(args: LogArgs) {
             let short_hash = &commit.id.to_string()[..7];
             let (msg, _) = parse_commit_msg(&commit.message);
             if !ref_msg.is_empty() {
-                format!("{} ({}) {}", short_hash.yellow().bold(), ref_msg, msg)
+                format!("{} ({}) {}", short_hash.yellow(), ref_msg, msg)
             } else {
                 format!("{} {}", short_hash.yellow(), msg)
             }
@@ -296,7 +290,7 @@ pub async fn execute(args: LogArgs) {
                 format!(
                     "{} {} ({})",
                     "commit".yellow(),
-                    commit.id.to_string().yellow().bold(),
+                    commit.id.to_string().yellow(),
                     ref_msg
                 )
             } else {
