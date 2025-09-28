@@ -330,15 +330,7 @@ export default function SearchResultsPage() {
                           </span>
                           <h3 
                             className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                            onClick={() => router.push({
-                              pathname: `/${router.query.org}/rust/rust-ecosystem/crate-info/`,
-                              query: { 
-                                crateName: item.name,
-                                version: item.version || '1.0.0',
-                                nsfront: item.nsfront,
-                                nsbehind: item.nsbehind
-                              }
-                            })}
+                            onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/crate-info/${item.nsfront}/${item.nsbehind}/${item.name}/${item.version || '1.0.0'}`)}
                           >
                             {item.name}
                           </h3>
