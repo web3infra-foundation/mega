@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 import { Button } from '@gitmono/ui/Button'
 import { Dialog } from '@gitmono/ui/Dialog'
@@ -8,7 +9,6 @@ import { useCreateEntry } from '@/hooks/useCreateEntry'
 
 import MarkdownEditor from './MarkdownEditor'
 import PathInput from './PathInput'
-import toast from 'react-hot-toast'
 
 const NewCodeView = () => {
   const [path, setPath] = useState('')
@@ -22,7 +22,7 @@ const NewCodeView = () => {
     createEntryHook.mutate(
       {
         name: name,
-        path: path,
+        path: '/' + path.replace('/'+name, ''),
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : ''
       },
@@ -60,11 +60,7 @@ const NewCodeView = () => {
               <Button variant='flat' onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={handlerSubmit}
-              >
-                Create
-              </Button>
+              <Button onClick={handlerSubmit}>Create</Button>
             </Dialog.TrailingActions>
           </Dialog.Footer>
         </Dialog.Content>
@@ -73,6 +69,7 @@ const NewCodeView = () => {
         <PathInput pathState={[path, setPath]} nameState={[name, setName]} />
         <div className='flex gap-2'>
           <Button
+            disabled={name === ''}
             onClick={() => {
               if (fileType === 'folder') {
                 setDialogOpen(true)
