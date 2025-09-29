@@ -49,7 +49,7 @@ import { usePostMrReopen } from '@/hooks/usePostMrReopen'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
-import { PageWithLayout } from '@/utils/types'
+import { PageWithLayout, CommonDetailData } from '@/utils/types'
 import { useGetMrReviewers } from "@/hooks/useGetMrReviewers";
 import { usePostMrReviewers } from "@/hooks/usePostMrReviewers";
 import { TrashIcon } from "@gitmono/ui/Icons";
@@ -246,7 +246,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
             <LoadingSpinner />
           </div>
         ) : (
-          mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
+          mrDetail && <TimelineItems detail={mrDetail as CommonDetailData} id={id} type='mr' editorRef={editorRef} />
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
           <div className='w-full'>{mrDetail && mrDetail.status === 'Open' && <MergeBox prId={id} />}</div>

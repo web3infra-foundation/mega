@@ -14,7 +14,8 @@ import {
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 
-import { CommonResultMRDetailRes, ConversationItem } from '@gitmono/types/generated'
+import { ConversationItem } from '@gitmono/types/generated'
+import { CommonDetailData } from '@/utils/types'
 
 import MRComment from '@/components/MrView/MRComment'
 import ReviewComment from '@/components/MrView/ReviewComment'
@@ -71,7 +72,7 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   )
 }
 
-const TimelineItems: React.FC<{detail: CommonResultMRDetailRes['data']; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
+const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
   const assignees = detail!!.assignees!!
   const convItems: ConvItem[] = detail!!.conversations.map((conv: ConversationItem) => {
     let icon
