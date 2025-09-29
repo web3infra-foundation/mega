@@ -9,13 +9,15 @@ import {
   FeedPullRequestOpenIcon,
   FeedTagIcon,
   PersonIcon,
-  RepoPushIcon
+  RepoPushIcon,
+  CheckCircleIcon
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 
-import { ConversationItem } from '@gitmono/types/generated'
+import { CommonResultMRDetailRes, ConversationItem } from '@gitmono/types/generated'
 
 import MRComment from '@/components/MrView/MRComment'
+import ReviewComment from '@/components/MrView/ReviewComment'
 import AssigneeItem from './AssigneeItem'
 import CloseItem from './CloseItem'
 import MergedItem from './MergedItem'
@@ -69,8 +71,9 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   )
 }
 
-const TimelineItems: React.FC<{ detail: any; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
-  const convItems: ConvItem[] = detail.conversations.map((conv: ConversationItem) => {
+const TimelineItems: React.FC<{detail: CommonResultMRDetailRes['data']; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
+  const assignees = detail!!.assignees!!
+  const convItems: ConvItem[] = detail!!.conversations.map((conv: ConversationItem) => {
     let icon
     let children
     let isOver = false
@@ -79,6 +82,10 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string; editorRef
       case 'Comment':
         icon = <CommentIcon />
         children = <MRComment conv={conv} id={id} whoamI={type} editorRef={editorRef} />
+        break
+      case 'Review':
+        icon = <CheckCircleIcon size={24} className='text-blue-500' />
+        children = <ReviewComment assignees={assignees} conv={conv} id={id} whoamI={type} editorRef={editorRef} />
         break
       case 'Merged':
         icon = <FeedMergedIcon size={24} className='text-purple-500' />
@@ -109,7 +116,7 @@ const TimelineItems: React.FC<{ detail: any; id: string; type: string; editorRef
     }
 
     return { badge: icon, children, isOver, id: conv.id }
-  })
+  }) !!
 
   return <TimelineWrapper convItems={convItems} />
 }

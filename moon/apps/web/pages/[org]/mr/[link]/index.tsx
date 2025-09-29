@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import { toast } from 'react-hot-toast'
 
-import { ConversationItem } from '@gitmono/types/generated'
+import { CommonResultMRDetailRes } from '@gitmono/types/generated'
 import { Button, LoadingSpinner } from '@gitmono/ui'
 import { PicturePlusIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
@@ -26,6 +26,7 @@ import {
   useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
+import { useReviewerSelector } from '@/components/MrView/useReviewerSelector'
 import { editIdAtom, FALSE_EDIT_VAL, mridAtom, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { TabLayout } from '@/components/Layout/TabLayout'
@@ -49,12 +50,10 @@ import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-
-export interface MRDetail {
-  status: string
-  conversations: ConversationItem[]
-  title: string
-}
+import { useGetMrReviewers } from "@/hooks/useGetMrReviewers";
+import { usePostMrReviewers } from "@/hooks/usePostMrReviewers";
+import { TrashIcon } from "@gitmono/ui/Icons";
+import { useDeleteMrReviewers } from "@/hooks/useDeleteMrReviewers";
 
 const MRDetailPage: PageWithLayout<any> = () => {
   const router = useRouter()
@@ -65,15 +64,13 @@ const MRDetailPage: PageWithLayout<any> = () => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
   const id = typeof tempId === 'string' ? tempId : ''
   const { data: MrDetailData, isLoading: detailIsLoading, refetch } = useGetMrDetail(id)
-  const mrDetail = MrDetailData?.data as MRDetail | undefined
+  const { reviewers, isLoading: ReviewIsLoading, refetch: refetchReviewers } = useGetMrReviewers(id)
+  const mrDetail = MrDetailData?.data as CommonResultMRDetailRes['data'] | undefined
   const { closeHint, needComment, handleChange } = useChange({ title: 'Close Merge Request' })
   const { mutate: mrAssignees } = usePostMRAssignees()
+  const { mutate: mrReviewers } = usePostMrReviewers()
   const { mutate: mrLabels } = usePostMRLabels()
   const Checks = dynamic(() => import('@/components/MrView/components/Checks'))
-
-  if (mrDetail) {
-    mrDetail.status = mrDetail.status.toLowerCase()
-  }
 
   const [_, setEditId] = useAtom(editIdAtom)
   const [refresh, setRefresh] = useAtom(refreshAtom)
@@ -175,6 +172,33 @@ const MRDetailPage: PageWithLayout<any> = () => {
     avatars
   })
   const {
+    open: review_open,
+    handleAssignees: handleReviewers,
+    handleOpenChange: review_handleOpenChange,
+    fetchSelected: review_fetchSelected,
+    availableAvatars
+  } = useReviewerSelector({
+    reviewers,
+    reviewRequest: (selected) =>
+    mrReviewers(
+      {
+        link: id,
+        data: {
+          reviewer_usernames: selected
+        }
+      },
+      {
+        onSuccess: async () => {
+          editorRef.current?.clearAndBlur()
+          refetchReviewers()
+        },
+        onError: apiErrorToast
+      }
+    ),
+    avatars
+  })
+
+  const {
     open: label_open,
     handleLabels,
     handleOpenChange: label_handleOpenChange,
@@ -202,11 +226,22 @@ const MRDetailPage: PageWithLayout<any> = () => {
     }
   })
 
+  const { mutate: deleteReviewer } = useDeleteMrReviewers()
+  const handleDeleteReviewer = (user_name: string) => {
+    deleteReviewer({
+      link: id,
+      data: {
+        reviewer_usernames: [user_name]
+      }
+    })
+    refetchReviewers()
+  }
+
   const [tab] = useAtom(tabAtom)
   const Conversation = () => (
     <div className='flex gap-40'>
       <div className='mt-3 flex w-[60%] flex-col'>
-        {detailIsLoading ? (
+        {detailIsLoading && ReviewIsLoading ? (
           <div className='flex h-16 items-center justify-center'>
             <LoadingSpinner />
           </div>
@@ -214,7 +249,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
           mrDetail && <TimelineItems detail={mrDetail} id={id} type='mr' editorRef={editorRef} />
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
-          <div className='w-full'>{mrDetail && mrDetail.status === 'open' && <MergeBox prId={id} />}</div>
+          <div className='w-full'>{mrDetail && mrDetail.status === 'Open' && <MergeBox prId={id} />}</div>
           <h2>Add a comment</h2>
           <input {...dropzone.getInputProps()} />
           <div className='rounded-lg border p-6'>
@@ -240,7 +275,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
             />
           </div>
           <div className='flex justify-end gap-2'>
-            {mrDetail && mrDetail.status === 'open' && (
+            {mrDetail && mrDetail.status === 'Open' && (
               <Button
                 disabled={!login || mrCloseIsPending}
                 onClick={handleMrClose}
@@ -251,7 +286,7 @@ const MRDetailPage: PageWithLayout<any> = () => {
                 {closeHint}
               </Button>
             )}
-            {mrDetail && mrDetail.status === 'closed' && (
+            {mrDetail && mrDetail.status === 'Closed' && (
               <Button
                 disabled={!login || mrReopenIsPending}
                 onClick={handleMrReopen}
@@ -276,6 +311,51 @@ const MRDetailPage: PageWithLayout<any> = () => {
       </div>
       {/* <SideBar /> */}
       <div className='flex flex-1 flex-col flex-wrap items-center'>
+        <BadgeItem
+          selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
+          items={availableAvatars}
+          title='Reviewers'
+          handleGroup={(selected) => handleReviewers(selected)}
+          open={review_open}
+          onOpenChange={(open) => review_handleOpenChange(open)}
+          selected={review_fetchSelected}
+        >
+          {(el) => {
+            const names = Array.from(new Set(splitFun(el)))
+
+            return (
+              <>
+                {names.map((i, index) => {
+                  const reviewer = reviewers.find(r => r.username === i)
+                  const isApproved = reviewer?.approved ?? false
+
+                  return (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <div key={ index } className='mb-4 flex items-center gap-2 px-4 text-sm text-gray-500'>
+                      <MemberAvatar size='sm' member={ memberMap.get(i) }/>
+                      <span className={'flex-1'} >{ i }</span>
+                      <span
+                        className={ `ml-2 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                          isApproved
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }` }
+                      >
+                        { isApproved? 'Approved' : 'Pending' }
+                      </span>
+                      <span
+                        onClick={() => handleDeleteReviewer(i)}
+                        className='border-2 rounded-full hover:bg-red-800'
+                      >
+                        <TrashIcon />
+                      </span>
+                    </div>
+                  )
+                })}
+              </>
+            )
+          }}
+        </BadgeItem>
         <BadgeItem
           selectPannelProps={{ title: 'Assign up to 10 people to this issue' }}
           items={avatars}
