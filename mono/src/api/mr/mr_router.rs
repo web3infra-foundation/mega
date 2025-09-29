@@ -637,16 +637,12 @@ async fn review_resolve(
         .storage
         .mr_storage()
         .is_assignee(&link, &user.username)
-        .await?; 
+        .await?;
 
     state
         .storage
         .conversation_storage()
-        .change_review_state(
-            &link,
-            &payload.conversation_id,
-            payload.resolved,
-        )
+        .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
 
     Ok(Json(CommonResult::success(None)))

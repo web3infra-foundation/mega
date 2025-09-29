@@ -178,14 +178,14 @@ impl MrStorage {
 
     pub async fn is_assignee(&self, link: &str, username: &str) -> Result<(), MegaError> {
         let assignee = mega_mr::Entity::find()
-            .filter(mega_mr::Column::Link.eq(link)) 
+            .filter(mega_mr::Column::Link.eq(link))
             .find_with_related(item_assignees::Entity)
             .filter(item_assignees::Column::ItemId.eq(username))
             .all(self.get_connection())
             .await?;
         if assignee.is_empty() {
             return Err(MegaError::with_message("Not an assignee"));
-        } 
+        }
 
         Ok(())
     }
