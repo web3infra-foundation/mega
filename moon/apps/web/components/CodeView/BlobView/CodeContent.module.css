@@ -35,3 +35,14 @@
     background-color: #e0e5ea;
     transition: all 0.5s;
 }
+
+.bg-blame-1 { background-color: rgb(255, 223, 182); }
+.bg-blame-2 { background-color: rgb(255, 198, 128); }
+.bg-blame-3 { background-color: rgb(240, 136, 62); }
+.bg-blame-4 { background-color: rgb(240, 136, 62); }
+.bg-blame-5 { background-color: rgb(219, 109, 40); }
+.bg-blame-6 { background-color: rgb(189, 86, 29); }
+.bg-blame-7 { background-color: rgb(155, 66, 21); }
+.bg-blame-8 { background-color: rgb(118, 45, 10); }
+.bg-blame-9 { background-color: rgb(90, 30, 2); }
+.bg-blame-10 { background-color: rgb(61, 19, 0); }
