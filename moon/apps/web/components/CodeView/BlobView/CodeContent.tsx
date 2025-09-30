@@ -99,10 +99,8 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('code')
   
-  // 获取blame数据
   const filePath =  path?.join('/') || ''
   
-  // 当路径改变时，重置为code视图
   useEffect(() => {
     setViewMode('code')
   }, [filePath])
@@ -316,7 +314,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           }}
           className='overflow-x-auto rounded-lg p-4 text-sm'
         >
-            {/* <Button icon={<DotsHorizontal />} size={'sm'} className='flex h-6 w-6 p-0' /> */}
           {!lfs &&
             tokens.map((line, i) => (
               <div
@@ -388,7 +385,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
       if (!authorTime) return styles['bg-blame-1']
 
       if (earliest_commit_time === latest_commit_time) {
-        return styles['bg-blame-10'] // 最新颜色
+        return styles['bg-blame-10']
       }
       const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
       const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 11)
@@ -413,7 +410,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     return (
       <>
         <ContributionRecord contributors={ blameData.data?.contributors} />
-        {/*<ContributionRecord contributors={blameData.data?.contributors} />*/}
         <div className="border-t border-gray-200 bg-white overflow-x-auto">
           {blameData.data?.blocks?.map((block, blockIndex) => {
             const colorClass = getBlameColorClass(block.blame_info?.author_time || 0 ,blameData.data?.earliest_commit_time || 0 , blameData.data?.latest_commit_time || 0)
