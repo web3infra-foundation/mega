@@ -1,31 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { PostApiMrReviewResolveData } from "@gitmono/types";
+import { useMutation } from "@tanstack/react-query";
+import { ChangeReviewStatePayload, PostApiMrReviewResolveData } from "@gitmono/types";
 import { legacyApiClient } from "@/utils/queryClient";
 
-export const usePostMrReviewResolve = (
-  link: string,
-  conversation_id: number,
-  resolved: boolean
-): {
-  data: string,
-  isLoading: boolean
-} => {
-  const { data, isLoading } = useQuery<PostApiMrReviewResolveData>({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: legacyApiClient.v1.postApiMrReviewResolve().requestKey(link),
-    queryFn: async () => {
-      return await legacyApiClient.v1.postApiMrReviewResolve().request(
-        link,
-        {
-          conversation_id,
-          resolved
-        }
-      )
-    }
+export const usePostMrReviewResolve = () => {
+  return useMutation<PostApiMrReviewResolveData, Error, {link: string, data: ChangeReviewStatePayload}>({
+    mutationFn: ({link, data}) => legacyApiClient.v1.postApiMrReviewResolve().request(link, data)
   })
-
-  return {
-    data: data?.data ?? "",
-    isLoading
-  }
 }

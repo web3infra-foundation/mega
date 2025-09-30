@@ -25,6 +25,7 @@ import { usePostIssueLabels } from '@/hooks/usePostIssueLabels'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
+import { CommonDetailData } from '@/utils/types'
 
 import { MemberAvatar } from '../MemberAvatar'
 import TimelineItems from '../MrView/TimelineItems'
@@ -316,7 +317,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef} />
+                  <TimelineItems detail={issueDetail as CommonDetailData} id={link} type='issue' editorRef={editorRef} />
                 )}
 
                 {info && info.status === 'open' && (
