@@ -635,13 +635,14 @@ async fn review_resolve(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
         .storage
+        .mr_storage()
+        .is_assignee(&link, &user.username)
+        .await?;
+
+    state
+        .storage
         .conversation_storage()
-        .change_review_state(
-            &link,
-            &payload.conversation_id,
-            &user.campsite_user_id,
-            payload.resolved,
-        )
+        .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
 
     Ok(Json(CommonResult::success(None)))
