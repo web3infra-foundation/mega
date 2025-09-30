@@ -2,17 +2,19 @@ import { AlertIcon, WarningTriangleIcon, CheckCircleIcon, LoadingSpinner } from 
 import React from "react";
 
 interface MergeSectionProps {
-  isReviewerApproved: boolean;
+  isNowUserApprove?: boolean;
+  isAllReviewerApproved: boolean;
   hasCheckFailures: boolean;
   onMerge: () => Promise<void>;
+  onApprove: () => void;
   isMerging: boolean;
 }
 
-export function MergeSection({ isReviewerApproved, hasCheckFailures, onMerge, isMerging }: MergeSectionProps) {
+export function MergeSection({ isAllReviewerApproved, hasCheckFailures, isNowUserApprove, onMerge, onApprove, isMerging }: MergeSectionProps) {
   let statusNode: React.ReactNode;
-  const isMergeable = isReviewerApproved && !hasCheckFailures;
+  const isMergeable = isAllReviewerApproved && !hasCheckFailures;
 
-  if (!isReviewerApproved) {
+  if (!isAllReviewerApproved) {
     statusNode = (
       <div className="flex items-center text-yellow-700">
         <WarningTriangleIcon className="h-5 w-5 mr-3" />
@@ -38,15 +40,28 @@ export function MergeSection({ isReviewerApproved, hasCheckFailures, onMerge, is
   return (
     <div className="p-3">
       {statusNode}
-      <button
-        onClick={onMerge}
-        disabled={!isMergeable}
-        className="w-full mt-3 px-4 py-2 font-bold text-white bg-green-600 rounded-md
-                   hover:bg-green-700
+      <div className="flex items-center justify-center space-x-4">
+        <button
+          onClick={onApprove}
+          disabled={isNowUserApprove === undefined || isNowUserApprove}
+          className="w-full mt-3 px-4 py-2 font-bold text-white bg-green-600 rounded-md
+                   hover:bg-green-800
+                   duration-500
                    disabled:bg-gray-400 disabled:cursor-not-allowed"
-      >
-        {isMerging ? <LoadingSpinner/> : "Confirm Merge"}
-      </button>
+        >
+          {"Approve"}
+        </button>
+        <button
+          onClick={onMerge}
+          disabled={!isMergeable}
+          className="w-full mt-3 px-4 py-2 font-bold text-white bg-green-600 rounded-md
+                   hover:bg-green-800
+                   duration-500
+                   disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          {isMerging ? <LoadingSpinner/> : "Confirm Merge"}
+        </button>
+      </div>
     </div>
   );
 }
