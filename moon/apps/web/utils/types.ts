@@ -1,10 +1,22 @@
 import { ReactElement, ReactNode } from 'react'
 import { NextPage } from 'next'
 import type { AppProps } from 'next/app'
+import { ConversationItem, LabelItem } from '@gitmono/types/generated'
 
-export type ApiErrorResponse = {
+export interface ApiErrorResponse {
   code: string
   message: string
+}
+
+// Merged type containing only common properties between CommonResultIssueDetailRes and CommonResultMRDetailRes
+export interface CommonDetailData {
+  assignees: string[]
+  conversations: ConversationItem[]
+  id: number
+  labels: LabelItem[]
+  link: string
+  open_timestamp: number
+  title: string
 }
 
 export type AppPropsWithLayout<T> = AppProps & {
@@ -32,7 +44,7 @@ export type PageWithProviders<T> = React.FC<T> & NextPageWithProviders<T>
   screenshot as the `preview_file_path` — we want to update the single
   transformed file, and need some unique identifer to do it correctly.
 */
-export type TransformedFile = {
+export interface TransformedFile {
   id: string
   raw: File
   url: string
@@ -66,7 +78,7 @@ export enum NotificationName {
   ProjectReminder = 'project_reminder'
 }
 
-export type Changelog = {
+export interface Changelog {
   title: string
   slug: string
   published_at: string

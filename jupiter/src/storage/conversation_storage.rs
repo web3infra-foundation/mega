@@ -111,13 +111,11 @@ impl ConversationStorage {
         &self,
         mr_link: &str,
         review_id: &i64,
-        username: &str,
         state: bool,
     ) -> Result<(), MegaError> {
         let mut conversation = mega_conversation::Entity::find()
             .filter(mega_conversation::Column::Id.eq(*review_id))
             .filter(mega_conversation::Column::ConvType.eq(ConvTypeEnum::Review))
-            .filter(mega_conversation::Column::Username.eq(username))
             .filter(mega_conversation::Column::Link.eq(mr_link))
             .one(self.get_connection())
             .await

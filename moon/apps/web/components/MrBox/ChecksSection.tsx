@@ -201,7 +201,7 @@ export function ChecksSection({ checks, onStatusChange, additionalChecks }: Chec
           />
         </Collapsible.Trigger>
 
-        {/* CheckList 部分 */ }
+        {/* CheckList & AdditionalChecks 部分 */ }
         <Collapsible.Content>
           <CheckList groupedChecks={ groupedChecks }/>
           <AdditionalChecksSection additionalChecks={ additionalChecks || [] }/>

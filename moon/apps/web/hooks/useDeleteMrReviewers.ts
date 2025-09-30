@@ -1,26 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { legacyApiClient } from "@/utils/queryClient";
-import { DeleteApiMrRemoveReviewersData } from "@gitmono/types";
+import { DeleteApiMrReviewersData, ReviewerPayload } from "@gitmono/types";
 
-export const useDeleteMrReviewers = (
-  link: string,
-  usernames: string[]
-): {
-  data: string,
-  isLoading: boolean,
-} => {
-  const { data, isLoading } = useQuery<DeleteApiMrRemoveReviewersData>({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: legacyApiClient.v1.deleteApiMrRemoveReviewers().requestKey(link),
-    queryFn: async () => {
-      return await legacyApiClient.v1.deleteApiMrRemoveReviewers().request(
-        link,
-        {
-          reviewer_usernames: usernames
-        }
-      )
-    }
+export const useDeleteMrReviewers = () => {
+  return useMutation<DeleteApiMrReviewersData, Error, {link: string, data: ReviewerPayload}>({
+    mutationFn: ({link, data}) => legacyApiClient.v1.deleteApiMrReviewers().request(link, data)
   })
-
-  return { data: data?.data?? "", isLoading }
 }
