@@ -180,7 +180,7 @@ impl MrStorage {
         let assignee = mega_mr::Entity::find()
             .filter(mega_mr::Column::Link.eq(link))
             .find_with_related(item_assignees::Entity)
-            .filter(item_assignees::Column::ItemId.eq(username))
+            .filter(item_assignees::Column::AssignneeId.eq(username))
             .all(self.get_connection())
             .await?;
         if assignee.is_empty() {
