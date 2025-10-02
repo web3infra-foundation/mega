@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Highlight, themes } from 'prism-react-renderer'
+import { Highlight, themes, Prism  } from 'prism-react-renderer'
+
+(typeof global !== "undefined" ? global : window).Prism = Prism
 
 import 'github-markdown-css/github-markdown-light.css'
 import { motion } from 'framer-motion';
@@ -13,8 +15,12 @@ import styles from './CodeContent.module.css'
 
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
+import { getLangFromFileName } from '@/utils/getLanguageDetection'
 import { UsersIcon } from '@gitmono/ui'
+import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
 type ViewMode = 'code' | 'blame'
+
+
 
 function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number }) {
   const { data: memberData } = useGetOrganizationMember({ username });
@@ -31,7 +37,6 @@ function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number 
     </motion.div>
   );
 }
-
 
 
 function UserAvatarGroup({ contributors }: {
@@ -69,31 +74,6 @@ function UserAvatarGroup({ contributors }: {
 }
 
 
-const suffixToLangMap: Record<string, string> = {
-  '.js': 'jsx',
-  '.jsx': 'jsx',
-  '.tsx': 'tsx',
-  '.kt': 'kotlin',
-  '.json': 'json',
-  '.md': 'markdown',
-  '.py': 'python',
-  '.rs': 'rust',
-  '.cpp': 'cpp',
-  '.h': 'cpp',
-  '.go': 'go',
-  '.yml': 'yaml',
-  '.yaml': 'yaml'
-}
-
-function getLangFromFileName(fileName: string): string {
-  const lastPart = fileName.toLowerCase().match(/\.[^./\\]+$/)
-
-  if (lastPart) {
-    return suffixToLangMap[lastPart[0].toLowerCase()] ?? 'markdown'
-  }
-  return 'markdown'
-}
-
 const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string[] }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
@@ -111,6 +91,17 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     page:1,
   })
 
+  let filename
+
+  if (!path || path.length === 0) {
+    toast.error('Path information is missing')
+    filename = ''
+  } else {
+    filename = path[path.length - 1]
+  }
+  const detectedLanguage = getLangFromFileName(filename)
+
+  usePrismLanguageLoader(detectedLanguage)
 
 
   // const menuItems: MenuProps = {
@@ -171,14 +162,8 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     handleCopyLine(fileContent)
   }
 
-  let filename
 
-  if (!path || path.length === 0) {
-    toast.error('Path information is missing')
-    filename = ''
-  } else {
-    filename = path[path.length - 1]
-  }
+
   const handleRawView = () => {
     // Create a new window/tab with the raw content
     const newWindow = window.open()
@@ -300,7 +285,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
 
   const renderCodeView = () => (
-    <Highlight theme={themes.github} code={fileContent} language={getLangFromFileName(filename)}>
+    <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
       {({ style, tokens, getLineProps, getTokenProps }) => (
         <pre
           style={{
@@ -362,7 +347,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
 
   const renderBlameView = () => {
-
 
     if (isBlameLoading) {
       return (
@@ -426,7 +410,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
                   return (
                     // eslint-disable-next-line react/no-array-index-key
-                    <Highlight key={`${blockIndex}-${lineIndex}`} theme={themes.github} code={lineContent} language={getLangFromFileName(filename)}>
+                    <Highlight key={`${blockIndex}-${lineIndex}`} theme={themes.github} code={lineContent} language={detectedLanguage}>
                       {({ tokens, getLineProps, getTokenProps }) => (
                         <div
                           {...getLineProps({ line: tokens[0] })}
@@ -526,7 +510,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-
       {viewMode === 'code' ? renderCodeView() : renderBlameView()}
     </div>
   )
