@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libra = { path = "../libra" }
 mercury = { path = "../mercury" }
 ceres = { path = "../ceres" }
 
@@ -48,6 +47,8 @@ crossbeam = "0.8.4"
 fs_extra = "1.2"
 dashmap = "6.1.0"
 chrono = "0.4.24"
+ring = "0.17.8"
+hex = "0.4.3"
 
 
 [features] 

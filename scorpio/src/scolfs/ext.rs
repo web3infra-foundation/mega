@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use libra::utils::lfs::generate_pointer_file;
+use crate::utils::lfs::generate_pointer_file;
 use mercury::{hash::SHA1, internal::object::blob::Blob};
 
 use crate::scolfs::lfs::backup_lfs_file;

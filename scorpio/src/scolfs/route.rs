@@ -1,4 +1,5 @@
 // src/api/lfs/mod.rs
+use crate::internal::protocol::LFSClient;
 use axum::{
     extract::{Json, Path, Query},
     http::StatusCode,
@@ -6,10 +7,9 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use libra::internal::protocol::lfs_client::LFSClient;
 
 use crate::util::{config, GPath};
-use ceres::lfs::lfs_structs::{Lock, LockListQuery};
+use ceres::lfs::lfs_structs::Lock;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -107,14 +107,18 @@ async fn list_locks(
 
     let locks = LFSClient::get()
         .await
-        .get_locks(LockListQuery {
-            id: query.id.unwrap_or_default(),
+        .get_locks(ceres::lfs::lfs_structs::LockListQuery {
             path: query.path.unwrap_or_default(),
-            limit: query.limit.map(|l| l.to_string()).unwrap_or_default(),
+            id: query.id.unwrap_or_default(),
             cursor: String::new(),
-            refspec,
+            limit: query.limit.map(|l| l.to_string()).unwrap_or_default(),
+            refspec: refspec.clone(),
         })
         .await
+        .unwrap_or(ceres::lfs::lfs_structs::LockList {
+            locks: vec![],
+            next_cursor: String::new(),
+        })
         .locks;
 
     Ok(Json(LockResponse { locks }))
@@ -131,15 +135,15 @@ async fn create_lock(Path(path): Path<String>) -> Result<StatusCode, ErrorRespon
         error: "Could not determine current ref".to_string(),
     })?;
 
-    let status = LFSClient::get().await.lock(path.clone(), refspec).await;
+    let status = LFSClient::get()
+        .await
+        .lock(path.clone(), Some(refspec))
+        .await;
 
     match status {
-        StatusCode::CREATED => Ok(StatusCode::CREATED),
-        StatusCode::CONFLICT => Err(ErrorResponse {
-            error: "Lock already exists".to_string(),
-        }),
-        _ => Err(ErrorResponse {
-            error: "Failed to create lock".to_string(),
+        Ok(_) => Ok(StatusCode::CREATED),
+        Err(_) => Err(ErrorResponse {
+            error: "lock failed".to_string(),
         }),
     }
 }
@@ -163,7 +167,7 @@ async fn remove_lock(
         None => {
             let locks = LFSClient::get()
                 .await
-                .get_locks(LockListQuery {
+                .get_locks(ceres::lfs::lfs_structs::LockListQuery {
                     refspec: refspec.clone(),
                     path: path.clone(),
                     id: String::new(),
@@ -171,6 +175,10 @@ async fn remove_lock(
                     limit: String::new(),
                 })
                 .await
+                .unwrap_or(ceres::lfs::lfs_structs::LockList {
+                    locks: vec![],
+                    next_cursor: String::new(),
+                })
                 .locks;
 
             locks
@@ -185,16 +193,13 @@ async fn remove_lock(
 
     let status = LFSClient::get()
         .await
-        .unlock(id, refspec, query.force.unwrap_or(false))
+        .unlock(id, query.force.unwrap_or(false), Some(refspec))
         .await;
 
     match status {
-        StatusCode::OK => Ok(StatusCode::NO_CONTENT),
-        StatusCode::FORBIDDEN => Err(ErrorResponse {
-            error: "Permission denied".to_string(),
-        }),
-        _ => Err(ErrorResponse {
-            error: "Failed to unlock".to_string(),
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(_) => Err(ErrorResponse {
+            error: "unlock failed".to_string(),
         }),
     }
 }
