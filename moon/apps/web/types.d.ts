@@ -3,3 +3,10 @@ declare namespace JSX {
     'lottie-player': any
   }
 }
+
+
+declare module 'prismjs/components/prism-*' {
+  const content: any;
+
+  export default content;
+}
