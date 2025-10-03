@@ -6,9 +6,9 @@ use std::{
 };
 
 use super::{utils, ScorpioLFS};
+use crate::internal::protocol::LFSClient;
 use crate::util;
-use libra::internal::protocol::lfs_client::LFSClient;
-use libra::utils::lfs;
+use crate::utils::lfs;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use wax::Pattern;
@@ -172,7 +172,7 @@ pub async fn lfs_restore(mono_path: &str, lower_path: &str) -> std::io::Result<(
                     std::fs::copy(&lfs_obj_path, path_str)?;
                 } else {
                     // not exist, download from server
-                    if let Err(e) = lfs_client.download_object(&oid, size, path_str, None).await {
+                    if let Err(e) = lfs_client.download_object(&oid, size, path_str).await {
                         eprintln!("LFS Download fatal: {e}");
                     }
                 }
@@ -206,7 +206,7 @@ mod tests {
 
     use std::path::Path;
 
-    use libra::internal::protocol::{lfs_client::LFSClient, ProtocolClient};
+    use crate::internal::protocol::{LFSClient, ProtocolClient};
     use mercury::internal::{object::blob::Blob, pack::entry::Entry};
 
     use crate::scolfs::{ext::BlobExt, ScorpioLFS};
@@ -259,7 +259,7 @@ mod tests {
         let test_bin_path = temp_dir.join("test.bin");
         std::fs::write(&test_bin_path, b"dummy content").expect("Failed to create test.bin");
         // Generate pointer file and oid
-        let (pointer, oid) = libra::utils::lfs::generate_pointer_file(test_bin_path);
+        let (pointer, oid) = crate::utils::lfs::generate_pointer_file(test_bin_path);
         println!("pointer: {pointer}, oid: {oid}");
 
         // Create a dummy file to backup
