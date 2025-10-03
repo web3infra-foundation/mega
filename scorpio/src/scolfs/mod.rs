@@ -6,14 +6,12 @@ mod utils;
 
 use std::collections::HashSet;
 
+use crate::internal::protocol::{BasicAuth, LFSClient, LfsBatchResponse, ProtocolClient};
 use crate::util::config;
-use ceres::lfs::lfs_structs::{BatchRequest, Operation, Ref, RequestObject, VerifiableLockRequest};
-use libra::internal::protocol::{
-    https_client::BasicAuth,
-    lfs_client::{LFSClient, LfsBatchResponse},
-    ProtocolClient,
+use crate::utils::lfs as lfsutils;
+use ceres::lfs::lfs_structs::{
+    BatchRequest, Operation, Ref, RequestObject, VerifiableLockList, VerifiableLockRequest,
 };
-use libra::utils::lfs as lfsutils;
 use mercury::internal::{object::types::ObjectType, pack::entry::Entry};
 use reqwest::StatusCode;
 
@@ -73,17 +71,25 @@ impl ScorpioLFS for LFSClient {
                     refs: Ref {
                         name: utils::current_refspec().unwrap(),
                     },
-                    ..Default::default()
+                    cursor: None,
+                    limit: None,
                 })
-                .await;
-
+                .await
+                .unwrap_or((
+                    500,
+                    VerifiableLockList {
+                        ours: vec![],
+                        theirs: vec![],
+                        next_cursor: String::new(),
+                    },
+                ));
             if code == StatusCode::FORBIDDEN {
                 eprintln!("fatal: Forbidden: You must have push access to verify locks");
                 return Err(());
             } else if code == StatusCode::NOT_FOUND {
                 // By default, an LFS server that doesn't implement any locking endpoints should return 404.
                 // This response will not halt any Git pushes.
-            } else if !code.is_success() {
+            } else if code >= 400 {
                 eprintln!("fatal: LFS verify locks failed. Status: {code}");
                 return Err(());
             } else {
@@ -150,7 +156,13 @@ impl ScorpioLFS for LFSClient {
         for obj in resp.objects {
             let file_path = lfs::lfs_object_path(&obj.oid);
             println!("{:?}", serde_json::to_string(&obj).unwrap());
-            self.upload_object(obj, &file_path).await?;
+            // Read file data for upload
+            let file_data = std::fs::read(&file_path).unwrap_or_default();
+            self.upload_object(&obj.oid, obj.size as u64, file_data)
+                .await
+                .map_err(|e| {
+                    eprintln!("Upload failed: {}", e);
+                })?;
         }
         println!("LFS objects push completed.");
         Ok(())
