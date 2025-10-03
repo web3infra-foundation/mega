@@ -59,5 +59,4 @@ export function usePrismLanguageLoader(language: string) {
       //
     })
   }, [language])
-  return
 }

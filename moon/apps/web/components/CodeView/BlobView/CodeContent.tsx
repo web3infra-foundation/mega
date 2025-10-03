@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Highlight, themes, Prism  } from 'prism-react-renderer'
+import { Highlight, themes, Prism } from 'prism-react-renderer'
 
 (typeof global !== "undefined" ? global : window).Prism = Prism
 
@@ -39,8 +39,7 @@ function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number 
 }
 
 
-function UserAvatarGroup({ contributors }: {
-  contributors: Array<{
+function UserAvatarGroup({ contributors }: { contributors: Array<{
     email: string
     username?: string | null
   }>
@@ -85,11 +84,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     setViewMode('code')
   }, [filePath])
 
-  const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
-    refs: "main",
-    path: filePath,
-    page:1,
-  })
 
   let filename
 
@@ -229,8 +223,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
   }
 
 
-
-
   const ContributionRecord = ({ contributors }: {
     contributors: Array<{
       email: string
@@ -341,10 +333,16 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}
           </pre>
       )}
-    </Highlight>  )
+    </Highlight>
+  )
 
 
-  const renderBlameView = () => {
+  const RenderBlameView = () => {
+    const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
+      refs: "main",
+      path: filePath,
+      page:1,
+    })
 
     if (isBlameLoading) {
       return (
@@ -508,7 +506,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-      {viewMode === 'code' ? renderCodeView() : renderBlameView()}
+      {viewMode === 'code' ? renderCodeView() : RenderBlameView()}
     </div>
   )
 }
