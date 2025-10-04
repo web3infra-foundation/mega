@@ -25,9 +25,9 @@ COPY . .
 
 # build
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
-    cargo build --release -p mono -p libra; \
+    cargo build --release -p mono; \
 else \
-    cargo build -p mono -p libra; \
+    cargo build -p mono; \
 fi
 
 # final image
@@ -38,9 +38,8 @@ RUN apt-get update && apt-get install -y libssl-dev ca-certificates less
 ARG BUILD_TYPE=release
 
 COPY --from=builder /opt/mega/target/$BUILD_TYPE/mono /usr/local/bin/mono
-COPY --from=builder /opt/mega/target/$BUILD_TYPE/libra /usr/local/bin/libra
-
 COPY --from=builder /opt/mega/docker/start-mono.sh /usr/local/bin/start-mono.sh
+
 RUN chmod +x /usr/local/bin/start-mono.sh
 RUN chmod +x /usr/local/bin/mono
 
