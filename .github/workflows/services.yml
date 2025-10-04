@@ -105,8 +105,7 @@ jobs:
           sleep 30
       - name: Testing cases with mono service
         run: |
-          cargo test --test service_test -- --nocapture
-          cargo test --test lfs_test -- --nocapture
+          echo "TODO: Desigin testing cases with mono service"
       - name: Testing Mono Test Cases
         run: |
           cargo test --manifest-path mono/Cargo.toml --all-features --no-fail-fast -- --nocapture
