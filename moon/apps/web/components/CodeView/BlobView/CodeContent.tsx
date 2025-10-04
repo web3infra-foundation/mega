@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Highlight, themes } from 'prism-react-renderer'
+import { Highlight, themes, Prism } from 'prism-react-renderer'
+
+(typeof global !== "undefined" ? global : window).Prism = Prism
 
 import 'github-markdown-css/github-markdown-light.css'
 import { motion } from 'framer-motion';
@@ -13,8 +15,12 @@ import styles from './CodeContent.module.css'
 
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
+import { getLangFromFileName } from '@/utils/getLanguageDetection'
 import { UsersIcon } from '@gitmono/ui'
+import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
 type ViewMode = 'code' | 'blame'
+
+
 
 function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number }) {
   const { data: memberData } = useGetOrganizationMember({ username });
@@ -33,9 +39,7 @@ function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number 
 }
 
 
-
-function UserAvatarGroup({ contributors }: {
-  contributors: Array<{
+function UserAvatarGroup({ contributors }: { contributors: Array<{
     email: string
     username?: string | null
   }>
@@ -69,48 +73,29 @@ function UserAvatarGroup({ contributors }: {
 }
 
 
-const suffixToLangMap: Record<string, string> = {
-  '.js': 'jsx',
-  '.jsx': 'jsx',
-  '.tsx': 'tsx',
-  '.kt': 'kotlin',
-  '.json': 'json',
-  '.md': 'markdown',
-  '.py': 'python',
-  '.rs': 'rust',
-  '.cpp': 'cpp',
-  '.h': 'cpp',
-  '.go': 'go',
-  '.yml': 'yaml',
-  '.yaml': 'yaml'
-}
-
-function getLangFromFileName(fileName: string): string {
-  const lastPart = fileName.toLowerCase().match(/\.[^./\\]+$/)
-
-  if (lastPart) {
-    return suffixToLangMap[lastPart[0].toLowerCase()] ?? 'markdown'
-  }
-  return 'markdown'
-}
-
 const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string[] }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('code')
-  
+
   const filePath =  path?.join('/') || ''
-  
+
   useEffect(() => {
     setViewMode('code')
   }, [filePath])
-  
-  const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
-    refs: "main",
-    path: filePath,
-    page:1,
-  })
 
+
+  let filename
+
+  if (!path || path.length === 0) {
+    toast.error('Path information is missing')
+    filename = ''
+  } else {
+    filename = path[path.length - 1]
+  }
+  const detectedLanguage = getLangFromFileName(filename)
+
+  usePrismLanguageLoader(detectedLanguage)
 
 
   // const menuItems: MenuProps = {
@@ -171,14 +156,8 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     handleCopyLine(fileContent)
   }
 
-  let filename
 
-  if (!path || path.length === 0) {
-    toast.error('Path information is missing')
-    filename = ''
-  } else {
-    filename = path[path.length - 1]
-  }
+
   const handleRawView = () => {
     // Create a new window/tab with the raw content
     const newWindow = window.open()
@@ -244,63 +223,61 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
   }
 
 
-
-
   const ContributionRecord = ({ contributors }: {
     contributors: Array<{
       email: string
       username?: string | null
     }>
   }) => {
-     return (
-       <div className="flex items-center justify-between py-2 px-4 bg-gray-50 border-b border-gray-200">
+    return (
+      <div className="flex items-center justify-between py-2 px-4 bg-gray-50 border-b border-gray-200">
 
-         <div className="flex items-center space-x-2">
-           <span className="text-xs text-gray-600">Older</span>
-           <div className="flex items-center space-x-1">
-             <div className={`w-3 h-3 ${styles['bg-blame-10']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-9']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-8']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-7']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-6']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-5']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-4']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-3']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-2']}`}></div>
-             <div className={`w-3 h-3 ${styles['bg-blame-1']}`}></div>
-           </div>
-           <span className="text-xs text-gray-600">Newer</span>
-         </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-gray-600">Older</span>
+          <div className="flex items-center space-x-1">
+            <div className={`w-3 h-3 ${styles['bg-blame-10']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-9']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-8']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-7']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-6']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-5']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-4']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-3']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-2']}`}></div>
+            <div className={`w-3 h-3 ${styles['bg-blame-1']}`}></div>
+          </div>
+          <span className="text-xs text-gray-600">Newer</span>
+        </div>
 
-         <div className="flex items-center space-x-3">
-           <div className="flex items-center space-x-2">
-             <div className="flex -space-x-1">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <div className="flex -space-x-1">
 
-               <div className="flex items-center space-x-1 ">
-                  < UserAvatarGroup contributors={ contributors}></UserAvatarGroup>
-               </div>
+              <div className="flex items-center space-x-1 ">
+                < UserAvatarGroup contributors={ contributors}></UserAvatarGroup>
+              </div>
 
 
-                <div className="flex items-center space-x-1 pr-3 pl-2">
-                  <UsersIcon size={16} className="text-black" />
-                  <span className="text-xs text-black ml-0 ">Contributors</span>
-                </div>
+              <div className="flex items-center space-x-1 pr-3 pl-2">
+                <UsersIcon size={16} className="text-black" />
+                <span className="text-xs text-black ml-0 ">Contributors</span>
+              </div>
 
-               <span className="text-xs text-black bg-gray-200 rounded-full px-2 py-1 ">
+              <span className="text-xs text-black bg-gray-200 rounded-full px-2 py-1 ">
                   {(contributors?.length || 0)}
               </span>
 
-             </div>
-           </div>
-         </div>
-       </div>
-     )
-   }
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
 
 
   const renderCodeView = () => (
-    <Highlight theme={themes.github} code={fileContent} language={getLangFromFileName(filename)}>
+    <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
       {({ style, tokens, getLineProps, getTokenProps }) => (
         <pre
           style={{
@@ -309,7 +286,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
             padding: '16px',
             paddingTop: '30px',
             userSelect: 'text',
-            whiteSpace: 'pre-wrap',
+            whiteSpace: 'pre',
             wordBreak: 'break-all'
           }}
           className='overflow-x-auto rounded-lg p-4 text-sm'
@@ -347,22 +324,25 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                       null}
                   </span>
                 <span className={styles.codeLineNumber}>{i + 1}</span>
-                <span className="max-w-[80%]">
                     {line.map((token, key) => (
                       // eslint-disable-next-line react/no-array-index-key
                       <span key={key} {...getTokenProps({ token })} />
                     ))}
-                  </span>
               </div>
             ))}
           {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}
           </pre>
       )}
-    </Highlight>  )
+    </Highlight>
+  )
 
 
-  const renderBlameView = () => {
-
+  const RenderBlameView = () => {
+    const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
+      refs: "main",
+      path: filePath,
+      page:1,
+    })
 
     if (isBlameLoading) {
       return (
@@ -396,10 +376,10 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
     const formatRelativeTime = (authorTime: number) => {
       if (!authorTime) return 'Unknown'
-      
+
       const now = Date.now() / 1000
       const daysDiff = Math.floor((now - authorTime) / (24 * 60 * 60))
-      
+
       if (daysDiff < 1) return 'Today'
       if (daysDiff < 7) return `${daysDiff} days ago`
       if (daysDiff < 30) return `${Math.floor(daysDiff / 7)} weeks ago`
@@ -414,19 +394,19 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           {blameData.data?.blocks?.map((block, blockIndex) => {
             const colorClass = getBlameColorClass(block.blame_info?.author_time || 0 ,blameData.data?.earliest_commit_time || 0 , blameData.data?.latest_commit_time || 0)
             const blockLines = block.content.split('\n')
-            
+
             return (
               <div
                 key={block?.blame_info.commit_hash}
                 className="border-b border-gray-200 hover:bg-blue-50 transition-colors duration-150"
-                >
+              >
                 {blockLines.map((lineContent, lineIndex) => {
                   const absoluteLineNumber = block.start_line + lineIndex
                   const isSelected = selectedLine === (absoluteLineNumber - 1)
 
                   return (
                     // eslint-disable-next-line react/no-array-index-key
-                    <Highlight key={`${blockIndex}-${lineIndex}`} theme={themes.github} code={lineContent} language={getLangFromFileName(filename)}>
+                    <Highlight key={`${blockIndex}-${lineIndex}`} theme={themes.github} code={lineContent} language={detectedLanguage}>
                       {({ tokens, getLineProps, getTokenProps }) => (
                         <div
                           {...getLineProps({ line: tokens[0] })}
@@ -483,9 +463,9 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                   )
                 })}
               </div>
-                  )
-                })}
-              </div>
+            )
+          })}
+        </div>
       </>
     )
   }
@@ -496,13 +476,13 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     <div>
       <div className={styles.toolbar}>
         <div className='m-2 h-8 rounded-lg bg-gray-200'>
-          <button 
-            className={`${styles.toolbarLeftButton} ${viewMode === 'code' ? styles.active : ''}`} 
+          <button
+            className={`${styles.toolbarLeftButton} ${viewMode === 'code' ? styles.active : ''}`}
             onClick={() => setViewMode('code')}
           >
             Code
           </button>
-          <button 
+          <button
             className={`${styles.toolbarLeftButton} ${viewMode === 'blame' ? styles.active : ''}`}
             onClick={() => setViewMode('blame')}
           >
@@ -526,8 +506,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-
-      {viewMode === 'code' ? renderCodeView() : renderBlameView()}
+      {viewMode === 'code' ? renderCodeView() : RenderBlameView()}
     </div>
   )
 }
