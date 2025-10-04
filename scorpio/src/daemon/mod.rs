@@ -9,7 +9,7 @@ use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::Router;
 use dashmap::DashMap;
-use mercury::hash::SHA1;
+use git_internal::hash::SHA1;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use uuid::Uuid;

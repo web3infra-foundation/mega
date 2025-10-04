@@ -1,5 +1,5 @@
-use mercury::hash::SHA1;
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use git_internal::hash::SHA1;
+use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

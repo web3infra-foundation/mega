@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::manager::store::{BlobFsStore, TreeStore};
 
-use mercury::{
+use git_internal::{
     hash::SHA1,
     internal::{
         object::{
