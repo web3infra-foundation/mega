@@ -1,6 +1,6 @@
 use crate::scolfs::lfs::is_lfs_tracked;
 
-use mercury::internal::object::blob::Blob;
+use git_internal::internal::object::blob::Blob;
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;

@@ -12,7 +12,7 @@ use crate::utils::lfs as lfsutils;
 use ceres::lfs::lfs_structs::{
     BatchRequest, Operation, Ref, RequestObject, VerifiableLockList, VerifiableLockRequest,
 };
-use mercury::internal::{object::types::ObjectType, pack::entry::Entry};
+use git_internal::internal::{object::types::ObjectType, pack::entry::Entry};
 use reqwest::StatusCode;
 
 #[allow(unused)]

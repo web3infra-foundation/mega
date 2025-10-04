@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::utils::lfs::generate_pointer_file;
-use mercury::{hash::SHA1, internal::object::blob::Blob};
+use git_internal::{hash::SHA1, internal::object::blob::Blob};
 
 use crate::scolfs::lfs::backup_lfs_file;
 #[allow(unused)]

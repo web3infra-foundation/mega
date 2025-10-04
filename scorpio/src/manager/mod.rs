@@ -3,7 +3,7 @@ use crate::util::config;
 use add::add_and_del;
 use commit::commit_core;
 use fs_extra::dir::{copy, CopyOptions};
-use mercury::{
+use git_internal::{
     hash::SHA1,
     internal::object::{
         commit::Commit,

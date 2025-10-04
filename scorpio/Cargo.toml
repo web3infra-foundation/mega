@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mercury = { path = "../mercury" }
 ceres = { path = "../ceres" }
 
 reqwest =  { version = "0.12.7", features = ["json","blocking"] }
@@ -49,6 +48,7 @@ dashmap = "6.1.0"
 chrono = "0.4.24"
 ring = "0.17.8"
 hex = "0.4.3"
+git-internal = "0.1.0"
 
 
 [features] 

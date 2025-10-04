@@ -7,7 +7,7 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
-use mercury::internal::object::commit::Commit;
+use git_internal::internal::object::commit::Commit;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

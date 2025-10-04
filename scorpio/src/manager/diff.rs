@@ -1,8 +1,9 @@
+use git_internal::hash::SHA1;
+use git_internal::internal::object::blob::Blob;
+use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use git_internal::internal::object::types::ObjectType;
 use libc::{self, stat};
-use mercury::hash::SHA1;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use mercury::internal::object::types::ObjectType;
+
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::path::{Path, PathBuf};

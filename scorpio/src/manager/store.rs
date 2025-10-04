@@ -1,6 +1,6 @@
-use mercury::hash::SHA1;
-use mercury::internal::object::ObjectTrait;
-use mercury::internal::object::{blob::Blob, commit::Commit, tree::Tree};
+use git_internal::hash::SHA1;
+use git_internal::internal::object::ObjectTrait;
+use git_internal::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
@@ -588,7 +588,7 @@ impl TempStoreArea {
 
 #[cfg(test)]
 mod test {
-    use mercury::{
+    use git_internal::{
         hash::SHA1,
         internal::object::tree::{Tree, TreeItem, TreeItemMode},
     };
