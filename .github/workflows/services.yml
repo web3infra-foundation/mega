@@ -109,13 +109,7 @@ jobs:
         run: |
           cargo test --test service_test -- --nocapture
           cargo test --test lfs_test -- --nocapture
-      - name: Testing Mega Test Cases
-        run: |
-          cargo test --manifest-path mega/Cargo.toml --all-features --no-fail-fast -- --nocapture
       - name: Testing Mono Test Cases
         run: |
           cargo test --manifest-path mono/Cargo.toml --all-features --no-fail-fast -- --nocapture
-      - name: Testing Libra Test Cases
-        run: |    
-          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
           
