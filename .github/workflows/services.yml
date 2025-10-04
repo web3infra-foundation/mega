@@ -3,8 +3,6 @@ on:
   workflow_dispatch:
   pull_request:
     paths-ignore:
-      - 'alfs/**'
-      - 'aries/**'
       - 'config/**'
       - 'docker/**'
       - 'docs/**'
@@ -73,9 +71,9 @@ jobs:
           git config --global lfs.url http://localhost:8000
 
       # Build the mono and libra binaries
-      - name: Build mono and libra
+      - name: Build mono
         run: |
-          cargo build --bin mega --bin mono --bin libra
+          cargo build --bin mono
           echo "The mono volumn located at: ${{ github.workspace }}/testing"
           mkdir -p ${{ github.workspace }}/testing
           mkdir -p ${{ github.workspace }}/testing/etc
