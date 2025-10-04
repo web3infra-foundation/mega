@@ -173,8 +173,7 @@ impl Default for Config {
         let bin_name = utils::get_current_bin_name();
         let default_config = match bin_name.as_str() {
             "mono" => include_str!("../../config/config.toml"),
-            "mega" => include_str!("../../mega/config.toml"),
-            _ => include_str!("../../mega/config.toml"),
+            &_ => todo!(),
         };
         let default_config = default_config
             .lines()
