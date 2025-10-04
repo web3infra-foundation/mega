@@ -1,4 +1,4 @@
-FROM postgres:17
+FROM postgres:18
 
 # When running the `docker buildx build` command, you may encounter the following warning:
 #
