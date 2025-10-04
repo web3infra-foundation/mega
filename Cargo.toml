@@ -7,7 +7,6 @@ members = [
     "mercury",
     "jupiter",
     "ceres",
-    "libra",
     "vault",
     "saturn",
     "orion",
@@ -19,7 +18,7 @@ members = [
     "neptune",
     "scorpio",
 ]
-default-members = ["mega", "mono", "libra", "orion", "orion-server"]
+default-members = ["mega", "mono", "orion", "orion-server"]
 resolver = "1"
 exclude = ["scorpio"]
 
