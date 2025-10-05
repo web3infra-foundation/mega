@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use mercury::internal::object::tree::TreeItemMode;
+use git_internal::internal::object::tree::TreeItemMode;
 use reqwest::Client;
 use rfuse3::raw::reply::ReplyEntry;
 use store::DictionaryStore;
