@@ -207,7 +207,7 @@ mod tests {
     use std::path::Path;
 
     use crate::internal::protocol::{LFSClient, ProtocolClient};
-    use mercury::internal::{object::blob::Blob, pack::entry::Entry};
+    use git_internal::internal::{object::blob::Blob, pack::entry::Entry};
 
     use crate::scolfs::{ext::BlobExt, ScorpioLFS};
 

@@ -7,9 +7,9 @@ use async_recursion::async_recursion;
 use ceres::model::git::LatestCommitInfo;
 use crossbeam::queue::SegQueue;
 use futures::future::join_all;
-use mercury::hash::SHA1;
-use mercury::internal::object::tree::{Tree, TreeItemMode};
-use mercury::internal::object::{
+use git_internal::hash::SHA1;
+use git_internal::internal::object::tree::{Tree, TreeItemMode};
+use git_internal::internal::object::{
     commit::Commit,
     signature::{Signature, SignatureType},
 };
@@ -870,7 +870,7 @@ pub async fn fetch_parent_commit() -> Result<Commit, Box<dyn std::error::Error>>
 
 #[cfg(test)]
 mod tests {
-    use mercury::internal::object::tree::Tree;
+    use git_internal::internal::object::tree::Tree;
     use reqwest::Client;
     use std::error::Error;
     use std::fs::File;
