@@ -19,15 +19,15 @@ use crate::model::blame_dto::{
 };
 use crate::storage::{Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage};
 use common::config::Config;
-use mercury::errors::GitError;
-use mercury::hash::SHA1;
+use git_internal::errors::GitError;
+use git_internal::hash::SHA1;
 use neptune::{DiffOperation, compute_diff};
 
 use crate::utils::converter::FromMegaModel;
 #[cfg(test)]
 use crate::utils::converter::IntoMegaModel;
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::{Tree, TreeItemMode};
+use git_internal::internal::object::commit::Commit;
+use git_internal::internal::object::tree::{Tree, TreeItemMode};
 use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 
@@ -1165,10 +1165,10 @@ impl BlameService {
 mod tests {
     use super::*;
     use crate::storage::base_storage::StorageConnector;
-    use mercury::internal::object::blob::Blob;
-    use mercury::internal::object::commit::Commit;
-    use mercury::internal::object::signature::{Signature, SignatureType};
-    use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+    use git_internal::internal::object::blob::Blob;
+    use git_internal::internal::object::commit::Commit;
+    use git_internal::internal::object::signature::{Signature, SignatureType};
+    use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
     use serde_json;
 
     /// Test case based on a file history with three users, verifying block aggregation,

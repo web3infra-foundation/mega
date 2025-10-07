@@ -12,7 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 callisto = { workspace = true }
 common = { workspace = true }
-mercury = { workspace = true }
+git-internal = { workspace = true }
 neptune = { workspace = true }
 saturn = { workspace = true }
 
