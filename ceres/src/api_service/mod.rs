@@ -8,7 +8,6 @@ use async_trait::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::{storage::Storage, utils::converter::generate_git_keep_with_timestamp};
 use git_internal::{
     errors::GitError,
     hash::SHA1,
@@ -18,6 +17,7 @@ use git_internal::{
         tree::{Tree, TreeItem, TreeItemMode},
     },
 };
+use jupiter::{storage::Storage, utils::converter::generate_git_keep_with_timestamp};
 use tokio::sync::Mutex;
 
 use crate::model::blame::{BlameQuery, BlameResult};
