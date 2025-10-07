@@ -22,9 +22,8 @@ use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
 };
-use jupiter::storage::Storage;
-use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
-use mercury::{
+use git_internal::internal::{object::ObjectTrait, pack::encode::PackEncoder};
+use git_internal::{
     errors::GitError,
     hash::SHA1,
     internal::{
@@ -32,6 +31,7 @@ use mercury::{
         pack::entry::Entry,
     },
 };
+use jupiter::storage::Storage;
 
 use crate::{
     api_service::{ApiHandler, mono_api_service::MonoApiService},

@@ -24,7 +24,7 @@
 //! ## Dependencies
 //!
 //! This module relies on several core components:
-//! - `mercury`: Git object handling and version control primitives
+//! - `git_internal`: Git object handling and version control primitives
 //! - `jupiter`: Storage layer abstraction and data persistence
 //! - `callisto`: Database models and ORM functionality
 //! - `libra`: External Git-compatible command-line tool for diff operations
@@ -45,11 +45,11 @@ use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateEntryInfo;
 use crate::model::mr::MrDiffFile;
 use async_trait::async_trait;
-use mercury::errors::GitError;
-use mercury::hash::SHA1;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use git_internal::errors::GitError;
+use git_internal::hash::SHA1;
+use git_internal::internal::object::blob::Blob;
+use git_internal::internal::object::commit::Commit;
+use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 use regex::Regex;
@@ -793,8 +793,8 @@ impl MonoApiService {
     ) -> Result<TagInfo, GitError> {
         let mono_storage = self.storage.mono_storage();
 
-        // build mercury/mega tag models
-        let (tag_id_hex, object_id) = self.build_mercury_tag_mono(
+        // build git_internal/mega tag models
+        let (tag_id_hex, object_id) = self.build_git_internal_tag_mono(
             name.clone(),
             target.clone(),
             tagger_info.clone(),
@@ -904,7 +904,7 @@ impl MonoApiService {
         Ok(())
     }
 
-    fn build_mercury_tag_mono(
+    fn build_git_internal_tag_mono(
         &self,
         name: String,
         target: Option<String>,
@@ -915,20 +915,20 @@ impl MonoApiService {
             .as_ref()
             .ok_or(GitError::InvalidCommitObject)
             .and_then(|t| SHA1::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
-        let tagger_sig = mercury::internal::object::signature::Signature::new(
-            mercury::internal::object::signature::SignatureType::Tagger,
+        let tagger_sig = git_internal::internal::object::signature::Signature::new(
+            git_internal::internal::object::signature::SignatureType::Tagger,
             tagger_info.clone(),
             String::new(),
         );
-        let mercury_tag = mercury::internal::object::tag::Tag::new(
+        let git_internal_tag = git_internal::internal::object::tag::Tag::new(
             tag_target,
-            mercury::internal::object::types::ObjectType::Commit,
+            git_internal::internal::object::types::ObjectType::Commit,
             name.clone(),
             tagger_sig,
             message.clone().unwrap_or_default(),
         );
         Ok((
-            mercury_tag.id.to_string(),
+            git_internal_tag.id.to_string(),
             target.unwrap_or_else(|| "HEAD".to_string()),
         ))
     }
@@ -1390,7 +1390,7 @@ impl MonoApiService {
 mod test {
     use super::*;
     use crate::model::mr::MrDiffFile;
-    use mercury::hash::SHA1;
+    use git_internal::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;
 
@@ -1778,7 +1778,7 @@ mod test {
 
     #[tokio::test]
     async fn test_content_diff_functionality() {
-        use mercury::internal::object::blob::Blob;
+        use git_internal::internal::object::blob::Blob;
         use std::collections::HashMap;
 
         // Test basic diff generation with sample data

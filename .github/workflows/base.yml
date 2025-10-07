@@ -99,7 +99,6 @@ jobs:
       - name: Run cargo test
         run: |
           cargo test --manifest-path common/Cargo.toml --all-features --no-fail-fast -- --nocapture
-          cargo test --manifest-path mercury/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path jupiter/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path ceres/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture

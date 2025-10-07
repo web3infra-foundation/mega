@@ -8,7 +8,7 @@ use gtk::glib::Enum;
 use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate, SignalListItemFactory, SingleSelection, TreeListModel};
-use mercury::internal::object::tree::{TreeItem, TreeItemMode};
+use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
 use smallvec::SmallVec;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
