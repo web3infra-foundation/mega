@@ -12,10 +12,10 @@ use callisto::{
     sea_orm_active_enums::StorageTypeEnum,
 };
 
-use mercury::internal::object::tree::{TreeItem, TreeItemMode};
-use mercury::internal::pack::entry::Entry;
-// Mercury types
-use mercury::{
+use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
+use git_internal::internal::pack::entry::Entry;
+// git_internal types
+use git_internal::{
     hash::SHA1,
     internal::object::{
         ObjectTrait, blob::Blob, commit::Commit, signature::Signature, tag::Tag, tree::Tree,
@@ -756,7 +756,7 @@ mod test {
     use std::str::FromStr;
 
     use common::config::MonoConfig;
-    use mercury::{hash::SHA1, internal::object::commit::Commit};
+    use git_internal::{hash::SHA1, internal::object::commit::Commit};
 
     use crate::utils::converter::MegaModelConverter;
 

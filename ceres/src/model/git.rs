@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
-use mercury::internal::object::{
+use git_internal::internal::object::{
     commit::Commit,
     tree::{TreeItem, TreeItemMode},
 };

@@ -21,8 +21,8 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use mercury::internal::pack::Pack;
-use mercury::{
+use git_internal::internal::pack::Pack;
+use git_internal::{
     errors::GitError,
     internal::{
         object::{

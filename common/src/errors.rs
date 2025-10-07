@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use mercury::errors::GitError;
+use git_internal::errors::GitError;
 use thiserror::Error;
 
 use crate::model::CommonResult;

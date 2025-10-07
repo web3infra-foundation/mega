@@ -14,7 +14,7 @@ path = "src/lib.rs"
 common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
-mercury = { workspace = true }
+git-internal = { workspace = true }
 neptune = { workspace = true }
 bellatrix = { workspace = true }
 
