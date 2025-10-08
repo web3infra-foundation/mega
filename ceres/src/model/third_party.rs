@@ -38,12 +38,14 @@ pub trait ThirdPartyRepoTrait {
 
 #[async_trait::async_trait]
 impl ThirdPartyRepoTrait for ThirdPartyClient {
-    // -------------------------
-    // 1. Fetch remote refs
-    // -------------------------
     async fn fetch_refs(&self) -> Result<Vec<String>, MegaError> {
         let request_url = format!("{}/info/refs?service=git-upload-pack", self.url);
-        let resp = self.client.get(request_url).send().await.unwrap();
+        let resp = self
+            .client
+            .get(request_url)
+            .send()
+            .await
+            .map_err(|e| MegaError::with_message(format!("{e}")))?;
 
         if !resp.status().is_success() {
             return Err(MegaError::with_message(format!(
@@ -57,7 +59,6 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             .await
             .map_err(|e| MegaError::with_message(format!("Unable to parse bytes: {}", e)))?;
 
-        // ✅ Cursor 是同步读，用 std::io::Read::read_exact
         let mut cursor = Cursor::new(bytes);
         let mut refs = Vec::new();
 
@@ -92,9 +93,6 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
         Ok(refs)
     }
 
-    // -------------------------
-    // 2. Fetch pack stream
-    // -------------------------
     async fn fetch_packs(
         &self,
         want: &[String],
@@ -176,17 +174,16 @@ impl ThirdPartyClient {
                 let data = &data[1..];
                 match code {
                     1 => pack_data.extend_from_slice(data),
-                    2 => print!("{}", String::from_utf8_lossy(data)),
-                    3 => eprintln!("{}", String::from_utf8_lossy(data)),
-                    _ => eprintln!("unknown side-band-64k code: {code}"),
+                    2 => tracing::info!("{}", String::from_utf8_lossy(data)),
+                    3 => tracing::warn!("{}", String::from_utf8_lossy(data)),
+                    _ => tracing::warn!("unknown side-band-64k code: {code}"),
                 }
             } else if &data != b"NAK\n" {
-                print!("{}", String::from_utf8_lossy(&data));
+                tracing::info!("{}", String::from_utf8_lossy(&data));
             }
         }
-
         if pack_data.is_empty() {
-            eprintln!("⚠️ no PACK data received");
+            tracing::warn!("no PACK data received");
         }
 
         Ok(pack_data)

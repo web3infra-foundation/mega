@@ -32,7 +32,7 @@ pub struct ReviewerInfo {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
-pub struct CloneRepoPaylod {
+pub struct CloneRepoPayload {
     pub owner: String,
     pub repo: String,
 }

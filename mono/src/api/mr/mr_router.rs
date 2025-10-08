@@ -13,7 +13,7 @@ use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::mr::model::{
-    ChangeReviewStatePayload, ChangeReviewerStatePayload, CloneRepoPaylod, ReviewerInfo,
+    ChangeReviewStatePayload, ChangeReviewerStatePayload, CloneRepoPayload, ReviewerInfo,
     ReviewerPayload, ReviewersResponse,
 };
 use crate::api::{MonoApiServiceState, mr::FilesChangedPage};
@@ -649,12 +649,12 @@ async fn review_resolve(
     Ok(Json(CommonResult::success(None)))
 }
 
-/// Fetch MR list
+// Clone a Github Repo
 #[utoipa::path(
     post,
     path = "/clone",
     request_body (
-        content = CloneRepoPaylod,
+        content = CloneRepoPayload,
     ),
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
@@ -663,7 +663,7 @@ async fn review_resolve(
 )]
 async fn clone_third_party_repo(
     state: State<MonoApiServiceState>,
-    Json(payload): Json<CloneRepoPaylod>,
+    Json(payload): Json<CloneRepoPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
         .monorepo()
