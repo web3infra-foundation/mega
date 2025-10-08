@@ -30,3 +30,9 @@ pub struct ReviewerInfo {
     pub username: String,
     pub approved: bool,
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct CloneRepoPaylod {
+    pub owner: String,
+    pub repo: String,
+}
