@@ -44,7 +44,10 @@ use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateEntryInfo;
 use crate::model::mr::MrDiffFile;
+use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
+use crate::protocol::{SmartProtocol, TransportProtocol};
 use async_trait::async_trait;
+use bytes::Bytes;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
 use git_internal::internal::object::blob::Blob;
@@ -1362,6 +1365,32 @@ impl MonoApiService {
         Ok(res)
     }
 
+    pub async fn sync_third_party_repo(&self, owner: &str, repo: &str) -> Result<Bytes, MegaError> {
+        let url = format!("https://github.com/{owner}/{repo}.git");
+        let remote_client = ThirdPartyClient::new(&url);
+
+        let refs = remote_client.fetch_refs().await?;
+        let res = remote_client.fetch_packs(&refs).await?;
+        let pack_data = remote_client
+            .process_pack_stream(res)
+            .await
+            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+
+        let shared = Arc::new(tokio::sync::Mutex::new(0));
+        let mut protocol = SmartProtocol::new(
+            PathBuf::from(url),
+            self.storage.clone(),
+            shared,
+            TransportProtocol::Http,
+        );
+        let bytes = protocol
+            .git_receive_pack_stream(Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))))
+            .await
+            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+
+        Ok(bytes)
+    }
+
     async fn traverse_tree(&self, root_tree: Tree) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
         let mut result = vec![];
         let mut stack = vec![(PathBuf::new(), root_tree)];
@@ -1871,4 +1900,38 @@ mod test {
             "Should contain git diff header"
         );
     }
+}
+
+#[test]
+fn test_parse_github_link() {
+    let url = "https://github.com/web3infra-foundation/libra/";
+    let url = url
+        .trim_end_matches(".git")
+        .trim_end_matches("/")
+        .strip_prefix("https://github.com/")
+        .expect("Invalid GitHub URL");
+    let (owner, repo) = url.rsplit_once('/').unwrap();
+    assert_eq!(owner, "web3infra-foundation");
+    assert_eq!(repo, "libra");
+}
+
+#[tokio::test]
+async fn test_third_party_trait() {
+    let url = "https://github.com/aidcheng/mega.git";
+    let third_party_client = ThirdPartyClient::new(url);
+
+    let refs = third_party_client
+        .fetch_refs()
+        .await
+        .expect("Unable to fetch refs");
+
+    let res = third_party_client
+        .fetch_packs(&refs)
+        .await
+        .expect("Unable to fetch res");
+
+    third_party_client
+        .process_pack_stream(res)
+        .await
+        .expect("unable to process");
 }
