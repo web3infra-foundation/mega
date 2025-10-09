@@ -9,7 +9,7 @@ use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
 use crate::merge_checker::mr_sync_checker::MrSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
-use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
+use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 
 mod code_review_checker;
 mod commit_message_checker;
@@ -20,7 +20,7 @@ pub mod mr_sync_checker;
 pub trait Checker: Send + Sync {
     async fn run(&self, params: &serde_json::Value) -> CheckResult;
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<serde_json::Value, MegaError>;
+    async fn build_params(&self, mr_info: &ClInfoDto) -> Result<serde_json::Value, MegaError>;
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, ToSchema)]
@@ -178,10 +178,10 @@ impl CheckerRegistry {
         self.checkers.insert(check_type, checker);
     }
 
-    pub async fn run_checks(&self, mr_info: MrInfoDto) -> Result<(), MegaError> {
+    pub async fn run_checks(&self, mr_info: ClInfoDto) -> Result<(), MegaError> {
         let check_configs = self
             .storage
-            .mr_storage()
+            .cl_storage()
             .get_checks_config_by_path(&mr_info.path)
             .await?;
         let mut save_models = vec![];
@@ -202,7 +202,7 @@ impl CheckerRegistry {
             }
         }
         self.storage
-            .mr_storage()
+            .cl_storage()
             .save_check_results(save_models)
             .await?;
         Ok(())

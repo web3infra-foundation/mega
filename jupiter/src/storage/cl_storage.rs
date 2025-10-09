@@ -176,6 +176,20 @@ impl ClStorage {
         Ok(assignees.first().cloned())
     }
 
+    pub async fn is_assignee(&self, link: &str, username: &str) -> Result<(), MegaError> {
+        let assignee = mega_cl::Entity::find()
+            .filter(mega_cl::Column::Link.eq(link))
+            .find_with_related(item_assignees::Entity)
+            .filter(item_assignees::Column::AssignneeId.eq(username))
+            .all(self.get_connection())
+            .await?;
+        if assignee.is_empty() {
+            return Err(MegaError::with_message("Not an assignee"));
+        }
+
+        Ok(())
+    }
+
     pub async fn new_cl(
         &self,
         path: &str,

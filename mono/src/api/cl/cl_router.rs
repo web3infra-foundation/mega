@@ -10,33 +10,29 @@ use common::{
     model::{CommonPage, CommonResult, PageParams},
 };
 use jupiter::service::cl_service::CLService;
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::cl::model::{
+    ChangeReviewStatePayload, ChangeReviewerStatePayload, CloneRepoPayload, ReviewerInfo,
+    ReviewerPayload, ReviewersResponse,
+};
+use crate::api::{cl::FilesChangedPage, MonoApiServiceState};
 use crate::api::{
     api_common::{
         self,
         model::{AssigneeUpdatePayload, ListPayload},
     },
-    cl::model::{
-        ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
-        ReviewersResponse, CLDetailRes, ClFilesRes, Condition, FilesChangedPage, MergeBoxRes,
-        MuiTreeNode,
-    },
+    cl::{CLDetailRes, ClFilesRes, Condition, MergeBoxRes, MuiTreeNode},
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
     oauth::model::LoginUser,
-    MonoApiServiceState,
 };
-use crate::{
-    api::error::ApiError,
-    server::http_server::{CL_TAG},
-};
+use crate::{api::error::ApiError, server::http_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
-        "/cl",
+        "/mr",
         OpenApiRouter::new()
             .routes(routes!(fetch_cl_list))
             .routes(routes!(cl_detail))
@@ -56,7 +52,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
             .routes(routes!(reviewer_approve))
-            .routes(routes!(review_resolve)),
+            .routes(routes!(review_resolve))
+            .routes(routes!(clone_third_party_repo)),
     )
 }
 
@@ -70,7 +67,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn reopen_cl(
     user: LoginUser,
@@ -116,7 +113,7 @@ async fn reopen_cl(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn close_cl(
     user: LoginUser,
@@ -160,7 +157,7 @@ async fn close_cl(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn merge(
     user: LoginUser,
@@ -196,7 +193,7 @@ async fn merge(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn merge_no_auth(
     Path(link): Path<String>,
@@ -229,7 +226,7 @@ async fn merge_no_auth(
     responses(
         (status = 200, body = CommonResult<CommonPage<ItemRes>>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn fetch_cl_list(
     state: State<MonoApiServiceState>,
@@ -256,7 +253,7 @@ async fn fetch_cl_list(
     responses(
         (status = 200, body = CommonResult<CLDetailRes>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn cl_detail(
     user: LoginUser,
@@ -280,7 +277,7 @@ async fn cl_detail(
     responses(
         (status = 200, body = CommonResult<Vec<MuiTreeNode>>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn cl_mui_tree(
     Path(link): Path<String>,
@@ -305,7 +302,7 @@ async fn cl_mui_tree(
     responses(
         (status = 200, body = CommonResult<FilesChangedPage>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn cl_files_changed_by_page(
     Path(link): Path<String>,
@@ -332,7 +329,7 @@ async fn cl_files_changed_by_page(
     responses(
         (status = 200, body = CommonResult<Vec<ClFilesRes>>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn cl_files_list(
     Path(link): Path<String>,
@@ -347,7 +344,7 @@ async fn cl_files_list(
     let stg = state.monorepo();
     let old_files = stg.get_commit_blobs(&cl.from_hash).await?;
     let new_files = stg.get_commit_blobs(&cl.to_hash).await?;
-    let cl_diff_files = stg.cl_files_list(old_files, new_files.clone()).await?;
+    let cl_diff_files = stg.mr_files_list(old_files, new_files.clone()).await?; // TODO
 
     let cl_base = PathBuf::from(cl.path);
     let res = cl_diff_files
@@ -371,7 +368,7 @@ async fn cl_files_list(
     responses(
         (status = 200, body = CommonResult<MergeBoxRes>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn merge_box(
     Path(link): Path<String>,
@@ -412,7 +409,7 @@ async fn merge_box(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn save_comment(
     user: LoginUser,
@@ -455,7 +452,7 @@ async fn save_comment(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn edit_title(
     _: LoginUser,
@@ -475,7 +472,7 @@ async fn edit_title(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn labels(
     user: LoginUser,
@@ -493,7 +490,7 @@ async fn labels(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn assignees(
     user: LoginUser,
@@ -513,7 +510,7 @@ async fn assignees(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn add_reviewers(
     Path(link): Path<String>,
@@ -539,7 +536,7 @@ async fn add_reviewers(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn remove_reviewers(
     Path(link): Path<String>,
@@ -564,7 +561,7 @@ async fn remove_reviewers(
     responses(
         (status = 200, body = CommonResult<ReviewersResponse>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn list_reviewers(
     Path(link): Path<String>,
@@ -600,7 +597,7 @@ async fn list_reviewers(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn reviewer_approve(
     user: LoginUser,
@@ -629,7 +626,7 @@ async fn reviewer_approve(
     responses(
         (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = CL_TAG
+    tag = MR_TAG
 )]
 async fn review_resolve(
     user: LoginUser,
@@ -639,13 +636,38 @@ async fn review_resolve(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
         .storage
+        .cl_storage()
+        .is_assignee(&link, &user.username)
+        .await?;
+
+    state
+        .storage
         .conversation_storage()
-        .change_review_state(
-            &link,
-            &payload.conversation_id,
-            &user.campsite_user_id,
-            payload.resolved,
-        )
+        .change_review_state(&link, &payload.conversation_id, payload.resolved)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+// Clone a Github Repo
+#[utoipa::path(
+    post,
+    path = "/clone",
+    request_body (
+        content = CloneRepoPayload,
+    ),
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn clone_third_party_repo(
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<CloneRepoPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .monorepo()
+        .sync_third_party_repo(&payload.owner, &payload.repo)
         .await?;
 
     Ok(Json(CommonResult::success(None)))
@@ -688,7 +710,7 @@ mod test {
             let lines: Vec<&str> = chunk.split_whitespace().collect();
             if lines.len() >= 2 {
                 let current_file = lines[0].trim_start_matches("a/").to_string();
-                files.insert(current_file.clone(), "modified".to_string()); // Default status is modified
+                files.insert(current_file.clone(), "modified".to_string()); // 默认状态为修改
                 if chunk.contains("new file mode") {
                     files.insert(current_file, "new".to_string());
                 } else if chunk.contains("deleted file mode") {

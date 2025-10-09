@@ -8,7 +8,7 @@ use std::sync::{Arc, LazyLock};
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
 use crate::service::issue_service::IssueService;
-use crate::service::mr_service::MRService;
+use crate::service::cl_service::CLService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::gpg_storage::GpgStorage;
 use crate::storage::note_storage::NoteStorage;
@@ -16,7 +16,7 @@ use crate::storage::{AppService, Storage};
 use crate::storage::{
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mr_reviewer_storage::MrReviewerStorage, mr_storage::MrStorage,
+    mono_storage::MonoStorage, cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
     raw_db_storage::RawDbStorage, relay_storage::RelayStorage, user_storage::UserStorage,
     vault_storage::VaultStorage,
 };
@@ -52,14 +52,14 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         lfs_db_storage: LfsDbStorage { base: base.clone() },
         relay_storage: RelayStorage { base: base.clone() },
         user_storage: UserStorage { base: base.clone() },
-        mr_storage: MrStorage { base: base.clone() },
+        cl_storage: ClStorage { base: base.clone() },
         issue_storage: IssueStorage { base: base.clone() },
         vault_storage: VaultStorage { base: base.clone() },
         conversation_storage: ConversationStorage { base: base.clone() },
         lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
         note_storage: NoteStorage { base: base.clone() },
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
-        reviewer_storage: MrReviewerStorage { base: base.clone() },
+        reviewer_storage: ClReviewerStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
@@ -67,7 +67,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     Storage {
         app_service: Arc::new(svc),
         issue_service: IssueService::mock(),
-        mr_service: MRService::mock(),
+        cl_service: CLService::mock(),
         config: Arc::downgrade(&config),
     }
 }

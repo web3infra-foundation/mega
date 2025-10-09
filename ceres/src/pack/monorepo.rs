@@ -17,7 +17,7 @@ use tokio::sync::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use bellatrix::{Bellatrix, orion_client::OrionBuildRequest};
-use callisto::{entity_ext::generate_link, mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
+use callisto::{entity_ext::generate_link, mega_cl, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
     utils::{self, MEGA_BRANCH_NAME},
@@ -36,7 +36,7 @@ use jupiter::storage::Storage;
 use crate::{
     api_service::{ApiHandler, mono_api_service::MonoApiService},
     merge_checker::CheckerRegistry,
-    model::mr::BuckFile,
+    model::cl::BuckFile,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -50,7 +50,7 @@ pub struct MonoRepo {
     // current_commit only exists when an unpack operation occurs.
     // When only a branch is updated and the pack file is empty, this value will be None.
     pub current_commit: Arc<RwLock<Option<Commit>>>,
-    pub mr_link: Arc<RwLock<Option<String>>>,
+    pub cl_link: Arc<RwLock<Option<String>>>,
     pub bellatrix: Arc<Bellatrix>,
     pub username: Option<String>,
 }
@@ -141,7 +141,7 @@ impl RepoHandler for MonoRepo {
     }
 
     async fn post_receive_pack(&self) -> Result<(), MegaError> {
-        self.save_or_update_mr().await?;
+        self.save_or_update_cl().await?;
         self.post_mr_operation().await?;
         Ok(())
     }
@@ -301,8 +301,8 @@ impl RepoHandler for MonoRepo {
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
-        let mr_link = self.fetch_or_new_mr_link().await.unwrap();
-        let ref_name = utils::mr_ref_name(&mr_link);
+        let cl_link = self.fetch_or_new_cl_link().await.unwrap();
+        let ref_name = utils::mr_ref_name(&cl_link);
         if let Some(c) = &*current_commit {
             if let Some(mut mr_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
                 mr_ref.ref_commit_hash = refs.new_id.clone();
@@ -339,11 +339,11 @@ impl RepoHandler for MonoRepo {
 }
 
 impl MonoRepo {
-    async fn fetch_or_new_mr_link(&self) -> Result<String, MegaError> {
-        let storage = self.storage.mr_storage();
+    async fn fetch_or_new_cl_link(&self) -> Result<String, MegaError> {
+        let storage = self.storage.cl_storage();
         let path_str = self.path.to_str().unwrap();
-        let mr_link = match storage
-            .get_open_mr_by_path(path_str, &self.username())
+        let cl_link = match storage
+            .get_open_cl_by_path(path_str, &self.username())
             .await
             .unwrap()
         {
@@ -357,13 +357,13 @@ impl MonoRepo {
                 generate_link()
             }
         };
-        let mut lock = self.mr_link.write().await;
-        *lock = Some(mr_link.clone());
-        Ok(mr_link)
+        let mut lock = self.cl_link.write().await;
+        *lock = Some(cl_link.clone());
+        Ok(cl_link)
     }
 
-    async fn update_existing_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let mr_stg = self.storage.mr_storage();
+    async fn update_existing_mr(&self, mr: mega_cl::Model) -> Result<(), MegaError> {
+        let mr_stg = self.storage.cl_storage();
         let comment_stg = self.storage.conversation_storage();
 
         let from_same = mr.from_hash == self.from_hash;
@@ -391,10 +391,10 @@ impl MonoRepo {
                 )
                 .await?;
 
-            mr_stg.update_mr_to_hash(mr, &self.to_hash).await?;
+            mr_stg.update_cl_to_hash(mr, &self.to_hash).await?;
         } else {
             mr_stg
-                .update_mr_hash(mr, &self.from_hash, &self.to_hash)
+                .update_cl_hash(mr, &self.from_hash, &self.to_hash)
                 .await?;
         }
         Ok(())
@@ -483,18 +483,18 @@ impl MonoRepo {
         self.username.clone().unwrap_or(String::from("Admin"))
     }
 
-    pub async fn save_or_update_mr(&self) -> Result<(), MegaError> {
-        let storage = self.storage.mr_storage();
+    pub async fn save_or_update_cl(&self) -> Result<(), MegaError> {
+        let storage = self.storage.cl_storage();
         let path_str = self.path.to_str().unwrap();
         let username = self.username();
 
-        match storage.get_open_mr_by_path(path_str, &username).await? {
+        match storage.get_open_cl_by_path(path_str, &username).await? {
             Some(mr) => {
                 self.update_existing_mr(mr).await?;
             }
             None => {
-                let link_guard = self.mr_link.read().await;
-                let mr_link = link_guard.as_ref().unwrap();
+                let link_guard = self.cl_link.read().await;
+                let cl_link = link_guard.as_ref().unwrap();
                 let commit_guard = self.current_commit.read().await;
                 let title = if let Some(commit) = commit_guard.as_ref() {
                     commit.format_message()
@@ -502,9 +502,9 @@ impl MonoRepo {
                     String::new()
                 };
                 storage
-                    .new_mr(
+                    .new_cl(
                         path_str,
-                        mr_link,
+                        cl_link,
                         &title,
                         &self.from_hash,
                         &self.to_hash,
@@ -517,7 +517,7 @@ impl MonoRepo {
     }
 
     pub async fn post_mr_operation(&self) -> Result<(), MegaError> {
-        let link_guard = self.mr_link.read().await;
+        let link_guard = self.cl_link.read().await;
         let link = link_guard.as_ref().unwrap();
 
         if self.bellatrix.enable_build() {
@@ -533,7 +533,7 @@ impl MonoRepo {
                         repo: buck_file.path.to_str().unwrap().to_string(),
                         buck_hash: buck_file.buck.to_string(),
                         buckconfig_hash: buck_file.buck_config.to_string(),
-                        mr: link.to_string(),
+                        cl: link.to_string(),
                         args: Some(vec![]),
                     };
                     let bellatrix = self.bellatrix.clone();
@@ -543,15 +543,15 @@ impl MonoRepo {
                 }
             }
         }
-        let mr_info = self
+        let cl_info = self
             .storage
-            .mr_storage()
-            .get_mr(link)
+            .cl_storage()
+            .get_cl(link)
             .await?
             .expect("MR Not Found");
 
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
-        check_reg.run_checks(mr_info.into()).await?;
+        check_reg.run_checks(cl_info.into()).await?;
         Ok(())
     }
 }
