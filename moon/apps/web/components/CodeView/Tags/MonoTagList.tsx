@@ -12,9 +12,9 @@ interface Props {
   onDelete?: (name: string) => void
 }
 
-export function MonoTagList({ tags }: Props) {
+export function MonoTagList({ tags, onDelete }: Props) {
   const [localTags, setLocalTags] = useState(tags)
-  
+
   useEffect(() => {
     setLocalTags(tags)
   }, [tags])
