@@ -13,8 +13,8 @@ use jupiter::service::mr_service::MRService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::mr::model::{
-    ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
-    ReviewersResponse,
+    ChangeReviewStatePayload, ChangeReviewerStatePayload, CloneRepoPayload, ReviewerInfo,
+    ReviewerPayload, ReviewersResponse,
 };
 use crate::api::{MonoApiServiceState, mr::FilesChangedPage};
 use crate::api::{
@@ -52,7 +52,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
             .routes(routes!(reviewer_approve))
-            .routes(routes!(review_resolve)),
+            .routes(routes!(review_resolve))
+            .routes(routes!(clone_third_party_repo)),
     )
 }
 
@@ -643,6 +644,30 @@ async fn review_resolve(
         .storage
         .conversation_storage()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+// Clone a Github Repo
+#[utoipa::path(
+    post,
+    path = "/clone",
+    request_body (
+        content = CloneRepoPayload,
+    ),
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = MR_TAG
+)]
+async fn clone_third_party_repo(
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<CloneRepoPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    state
+        .monorepo()
+        .sync_third_party_repo(&payload.owner, &payload.repo)
         .await?;
 
     Ok(Json(CommonResult::success(None)))
