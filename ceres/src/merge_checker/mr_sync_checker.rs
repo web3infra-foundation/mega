@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use common::errors::MegaError;
-use jupiter::{model::mr_dto::MrInfoDto, storage::Storage};
+use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 
@@ -42,7 +42,7 @@ impl Checker for MrSyncChecker {
         res
     }
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<serde_json::Value, MegaError> {
+    async fn build_params(&self, mr_info: &ClInfoDto) -> Result<serde_json::Value, MegaError> {
         let refs = self
             .storage
             .mono_storage()

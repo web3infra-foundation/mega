@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 
+use callisto::sea_orm_active_enums::MergeStatusEnum;
+use callisto::{
+    check_result, item_assignees, label, mega_cl, mega_conversation, path_check_configs,
+};
+use common::errors::MegaError;
 use common::model::Pagination;
+use sea_orm::RelationTrait;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, Set,
 };
-use sea_orm::RelationTrait;
-use callisto::sea_orm_active_enums::MergeStatusEnum;
-use callisto::{
-    check_result, item_assignees, label, mega_conversation, mega_cl, path_check_configs,
-};
-use common::errors::MegaError;
 
 use crate::model::common::{ItemDetails, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -174,6 +174,20 @@ impl ClStorage {
             .all(self.get_connection())
             .await?;
         Ok(assignees.first().cloned())
+    }
+
+    pub async fn is_assignee(&self, link: &str, username: &str) -> Result<(), MegaError> {
+        let assignee = mega_cl::Entity::find()
+            .filter(mega_cl::Column::Link.eq(link))
+            .find_with_related(item_assignees::Entity)
+            .filter(item_assignees::Column::AssignneeId.eq(username))
+            .all(self.get_connection())
+            .await?;
+        if assignee.is_empty() {
+            return Err(MegaError::with_message("Not an assignee"));
+        }
+
+        Ok(())
     }
 
     pub async fn new_cl(
