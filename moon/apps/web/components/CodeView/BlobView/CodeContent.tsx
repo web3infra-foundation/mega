@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Highlight, themes, Prism } from 'prism-react-renderer'
+import { Virtuoso } from 'react-virtuoso'
 
 (typeof global !== "undefined" ? global : window).Prism = Prism
 
@@ -18,11 +19,12 @@ import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { getLangFromFileName } from '@/utils/getLanguageDetection'
 import { UsersIcon } from '@gitmono/ui'
 import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
+import React from 'react'
 type ViewMode = 'code' | 'blame'
 
 
 
-function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number }) {
+const UserAvatar = React.memo(({ username, zIndex }: { username?: string; zIndex?: number }) => {
   const { data: memberData } = useGetOrganizationMember({ username });
 
   return (
@@ -36,14 +38,16 @@ function UserAvatar({ username, zIndex }: { username?: string ; zIndex?: number 
       />
     </motion.div>
   );
-}
+})
 
 
-function UserAvatarGroup({ contributors }: { contributors: Array<{
+
+const UserAvatarGroup = React.memo(({ contributors }: {
+  contributors: Array<{
     email: string
     username?: string | null
   }>
-}) {
+})=> {
   return (
     <motion.div
       className="flex justify-center items-center"
@@ -70,7 +74,10 @@ function UserAvatarGroup({ contributors }: { contributors: Array<{
       ))}
     </motion.div>
   );
-}
+})
+
+UserAvatar.displayName = 'UserAvatar';
+UserAvatarGroup.displayName = 'UserAvatarGroup';
 
 
 const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string[] }) => {
@@ -78,22 +85,30 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('code')
 
-  const filePath =  path?.join('/') || ''
+
+  const filePath = useMemo(() => path?.join('/') || '', [path]);
+
+  const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
+    refs: "main",
+    path: filePath,
+    page:1,
+  })
 
   useEffect(() => {
     setViewMode('code')
-  }, [filePath])
+  }, [path])
 
 
-  let filename
 
-  if (!path || path.length === 0) {
-    toast.error('Path information is missing')
-    filename = ''
-  } else {
-    filename = path[path.length - 1]
-  }
-  const detectedLanguage = getLangFromFileName(filename)
+
+  const filename = useMemo(() => {
+    if (!path || path.length === 0) {
+      return '';
+    }
+    return path[path.length - 1];
+  }, [path]);
+
+  const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename]);
 
   usePrismLanguageLoader(detectedLanguage)
 
@@ -127,9 +142,11 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
   const lineRef = useRef<HTMLDivElement[]>([])
 
-  const handleLineClick = (lineNumber: number) => {
+  const handleLineClick = useCallback((lineNumber: number) => {
     setSelectedLine(lineNumber === selectedLine ? null : lineNumber)
-  }
+  }, [
+    selectedLine
+  ])
 
   const handleCopyLine = (line: string) => {
     if (navigator.clipboard) {
@@ -159,7 +176,6 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
 
   const handleRawView = () => {
-    // Create a new window/tab with the raw content
     const newWindow = window.open()
 
     if (newWindow) {
@@ -184,6 +200,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
       toast.error('Unable to open new window. Please check your browser settings.')
     }
   }
+
   const handleDownload = () => {
     const blob = new Blob([fileContent], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -230,7 +247,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     }>
   }) => {
     return (
-      <div className="flex items-center justify-between py-2 px-4 bg-gray-50 border-b border-gray-200">
+      <div className="flex items-center justify-between py-2 px-4  bg-gray-50  border-b border-gray-200">
 
         <div className="flex items-center space-x-2">
           <span className="text-xs text-gray-600">Older</span>
@@ -274,85 +291,133 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     )
   }
 
+  const getBlameColorClass = useCallback((authorTime: number, earliest_commit_time: number, latest_commit_time: number) => {
+    if (!authorTime) return styles['bg-blame-1']
+
+    if (earliest_commit_time === latest_commit_time) {
+      return styles['bg-blame-10']
+    }
+    const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
+    const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 11)
+
+    return styles[`bg-blame-${colorLevel}`]
+  }, [])
 
 
-  const renderCodeView = () => (
-    <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
-      {({ style, tokens, getLineProps, getTokenProps }) => (
-        <pre
-          style={{
-            ...style,
-            backgroundColor: '#fff',
-            padding: '16px',
-            paddingTop: '30px',
-            userSelect: 'text',
-            whiteSpace: 'pre',
-            wordBreak: 'break-all'
-          }}
-          className='overflow-x-auto rounded-lg p-4 text-sm'
-        >
-          {!lfs &&
-            tokens.map((line, i) => (
-              <div
-                /* eslint-disable-next-line react/no-array-index-key */
-                key={i}
-                {...getLineProps({ line })}
-                // @ts-ignore
-                ref={(el) => (lineRef.current[i] = el as HTMLDivElement)}
-                style={{
-                  backgroundColor: selectedLine === i ? '#f0f7ff' : 'transparent'
-                }}
-                className='flex justify-self-auto'
-                onClick={() => handleLineClick(i)}
-              >
-                  <span className='inline-block w-8'>
-                    {selectedLine === i ? (
-                        <div></div>
-                      ) : // <Dropdown
-                      //   menu={{
-                      //     ...menuItems,
-                      //     onClick: (props) => {
-                      //       if (props.key === '1') {
-                      //         handleCopyLine(line.map((i) => i.content).join(''))
-                      //       }
-                      //     }
-                      //   }}
-                      //   className='rounded border border-gray-200 bg-gray-100'
-                      // >
-                      //   <Button size={'sm'} className='flex h-6 w-6 p-0' />
-                      // </Dropdown>
-                      null}
-                  </span>
-                <span className={styles.codeLineNumber}>{i + 1}</span>
-                    {line.map((token, key) => (
-                      // eslint-disable-next-line react/no-array-index-key
-                      <span key={key} {...getTokenProps({ token })} />
-                    ))}
-              </div>
-            ))}
-          {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}
-          </pre>
-      )}
-    </Highlight>
-  )
+  const formatRelativeTime = useCallback((authorTime: number) => {
+    if (!authorTime) return 'Unknown'
 
+    const now = Date.now() / 1000
+    const daysDiff = Math.floor((now - authorTime) / (24 * 60 * 60))
 
-  const RenderBlameView = () => {
-    const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
-      refs: "main",
-      path: filePath,
-      page:1,
+    if (daysDiff < 1) return 'Today'
+    if (daysDiff < 7) return `${daysDiff} days ago`
+    if (daysDiff < 30) return `${Math.floor(daysDiff / 7)} weeks ago`
+    if (daysDiff < 365) return `${Math.floor(daysDiff / 30)} months ago`
+    return `${Math.floor(daysDiff / 365)} years ago`
+  }, [])
+
+  const processedBlameBlocks = useMemo(() => {
+    if (!blameData?.data?.blocks) return []
+
+    return blameData.data.blocks.map((block) => {
+      const colorClass = getBlameColorClass(
+        block.blame_info?.author_time || 0,
+        blameData.data?.earliest_commit_time || 0,
+        blameData.data?.latest_commit_time || 0
+      )
+      const blockLines = block.content.split('\n')
+
+      return {
+        colorClass,
+        blameInfo: block.blame_info,
+        startLine: block.start_line,
+        lines: blockLines.map((content, index) => ({
+          content,
+          lineNumber: block.start_line + index
+        }))
+      }
     })
+  }, [
+    blameData,
+    getBlameColorClass
+  ])
 
+
+
+  const renderCodeView = useCallback(() => {
+    if (lfs) {
+      return (
+        <div className='flex items-center justify-center p-8'>
+          <span>(Sorry about that, but we can’t show files that are this big right now.)</span>
+        </div>
+      )
+    }
+
+    return (
+      <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
+        {({ style, tokens, getLineProps, getTokenProps }) => (
+          <Virtuoso
+            style={{
+              height: 'calc(100vh - 215px)',
+              backgroundColor: '#fff',
+            }}
+            totalCount={tokens.length}
+            itemContent={(index) => {
+              const line = tokens[index]
+
+              return (
+                <div
+                  key={index}
+                  {...getLineProps({ line })}
+                  ref={(el) => {
+                    if (el) lineRef.current[index] = el
+                  }}
+                  style={{
+                    ...style,
+                    backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
+                    padding: '0 16px',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre',
+                  }}
+                  className='flex justify-self-auto'
+                  onClick={() => handleLineClick(index)}
+                >
+                  <span className='inline-block w-8'>
+                    {selectedLine === index ? (
+                      <div></div>
+                    ) : null}
+                  </span>
+                  <span className={styles.codeLineNumber}>{index + 1}</span>
+                  {line.map((token, key) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <span key={key} {...getTokenProps({ token })} />
+                  ))}
+                </div>
+              )
+            }}
+          />
+        )}
+      </Highlight>
+    )
+  }, [
+    fileContent,
+    detectedLanguage,
+    lfs,
+    selectedLine,
+    handleLineClick
+  ])
+
+
+  const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
       return (
         <div className='flex items-center justify-center p-8'>
           <div className='text-gray-500'>Loading blame information...</div>
         </div>
       )
-    }
-
-    if (!blameData?.data) {
+    }else if (!blameData?.data) {
       return (
         <div className='flex items-center justify-center p-8'>
           <div className='text-gray-500'>No blame information available</div>
@@ -360,115 +425,117 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
       )
     }
 
-
-    const getBlameColorClass = (authorTime: number, earliest_commit_time: number, latest_commit_time: number) => {
-      if (!authorTime) return styles['bg-blame-1']
-
-      if (earliest_commit_time === latest_commit_time) {
-        return styles['bg-blame-10']
-      }
-      const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
-      const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 11)
-
-      return styles[`bg-blame-${colorLevel}`]
-    }
-
-
-    const formatRelativeTime = (authorTime: number) => {
-      if (!authorTime) return 'Unknown'
-
-      const now = Date.now() / 1000
-      const daysDiff = Math.floor((now - authorTime) / (24 * 60 * 60))
-
-      if (daysDiff < 1) return 'Today'
-      if (daysDiff < 7) return `${daysDiff} days ago`
-      if (daysDiff < 30) return `${Math.floor(daysDiff / 7)} weeks ago`
-      if (daysDiff < 365) return `${Math.floor(daysDiff / 30)} months ago`
-      return `${Math.floor(daysDiff / 365)} years ago`
-    }
-
     return (
       <>
-        <ContributionRecord contributors={ blameData.data?.contributors} />
-        <div className="border-t border-gray-200 bg-white overflow-x-auto">
-          {blameData.data?.blocks?.map((block, blockIndex) => {
-            const colorClass = getBlameColorClass(block.blame_info?.author_time || 0 ,blameData.data?.earliest_commit_time || 0 , blameData.data?.latest_commit_time || 0)
-            const blockLines = block.content.split('\n')
+        <ContributionRecord contributors={blameData.data?.contributors} />
+        <Virtuoso
+          style={{
+            height: 'calc(100vh - 255px)',
+            backgroundColor: '#fff',
+          }}
+          totalCount={processedBlameBlocks.length}
+          itemContent={(blockIndex) => {
+            const block = processedBlameBlocks[blockIndex]
 
             return (
               <div
-                key={block?.blame_info.commit_hash}
-                className="border-b border-gray-200 hover:bg-blue-50 transition-colors duration-150"
+                key={`block-${blockIndex}`}
+                className="border-b border-gray-200  transition-colors duration-150"
               >
-                {blockLines.map((lineContent, lineIndex) => {
-                  const absoluteLineNumber = block.start_line + lineIndex
-                  const isSelected = selectedLine === (absoluteLineNumber - 1)
+                <div className="flex min-w-0">
 
-                  return (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <Highlight key={`${blockIndex}-${lineIndex}`} theme={themes.github} code={lineContent} language={detectedLanguage}>
-                      {({ tokens, getLineProps, getTokenProps }) => (
-                        <div
-                          {...getLineProps({ line: tokens[0] })}
-                          className="flex min-w-0"
-                          onClick={() => handleLineClick(absoluteLineNumber - 1)}
-                          style={{
-                            backgroundColor: isSelected ? '#f0f7ff' : '#fff',
-                            fontSize: '12px',
-                            height: '20px',
+                  <div className="flex-shrink-0 w-1 flex items-center" >
+                    <div className={`${block.colorClass} rounded-sm h-[99%] w-[95%]` } ></div>
+                  </div>
 
-                          }}
+
+                  <div className="flex-shrink-0 border-r border-gray-200" style={{ width: '350px' }}>
+                    <div className="flex items-center px-3 py-2   top-0 z-10 ">
+                      <span className="w-[100px] text-xs text-gray-600 truncate">
+                        {formatRelativeTime(block.blameInfo?.author_time || 0)}
+                      </span>
+                      <UserAvatar
+                        username={block.blameInfo?.author_username || ''}
+                        zIndex={block.blameInfo?.author_time || 0}
+                      />
+                      <div className="w-[200px] flex items-center ml-2">
+                        <span
+                          className="text-xs text-gray-600 truncate"
+                          title={block.blameInfo?.commit_summary}
                         >
-                          <div className="w-1 flex-shrink-0" >
-                            <div className={`${colorClass} rounded-sm h-[90%] w-[95%]` } ></div>
-                          </div>
+                          {block.blameInfo?.commit_message || 'No commit message'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
 
-                          {lineIndex === 0 ? (
-                            <div className="flex items-center px-3 py-1 bg-white flex-shrink-0" style={{ width: '350px' }}>
-                              <span className="w-[100px] text-gray-600 truncate">
-                                {formatRelativeTime(block.blame_info?.author_time || 0)}
-                              </span>
+                  <div className="flex-1 min-w-0">
+                    {block.lines.map((line) => {
+                      const isSelected = selectedLine === (line.lineNumber - 1)
 
-                              <UserAvatar
-                                username={block.blame_info?.author_username || ''}
-                                zIndex = {block.blame_info.author_time}
-                              />
+                      return (
+                        <Highlight
+                          key={`line-${line.lineNumber}`}
+                          theme={themes.github}
+                          code={line.content}
+                          language={detectedLanguage}
+                        >
+                          {({ tokens, getLineProps, getTokenProps }) => (
+                            <div
+                              {...getLineProps({ line: tokens[0] })}
+                              className="flex min-w-0"
+                              onClick={() => handleLineClick(line.lineNumber - 1)}
+                              style={{
+                                backgroundColor: isSelected ? '#f0f7ff' : '#fff',
+                                fontSize: '12px',
+                                height: '20px',
+                              }}
+                            >
 
-                              <div className="w-[200px] flex items-center space-x-2 text-xs whitespace-nowrap">
-                                <span className="text-gray-600 truncate" title={block.blame_info?.commit_summary}>
-                                  {block.blame_info?.commit_message || 'No commit message'}
-                                </span>
+                              <div
+                                className="flex items-center justify-center text-xs text-gray-500 select-none flex-shrink-0 bg-white"
+                                style={{ width: '60px' }}
+                              >
+                                {line.lineNumber}
+                              </div>
+
+                              <div
+                                className="flex items-center font-mono text-sm py-1 pl-3 min-w-0"
+                                style={{
+                                  minWidth: '0',
+                                  width: 'max-content'
+                                }}
+                              >
+                                <div className="whitespace-pre">
+                                  {tokens[0]?.map((token, key) => (
+                                    // eslint-disable-next-line react/no-array-index-key
+                                    <span key={key} {...getTokenProps({ token })} />
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            <div className="bg-white flex-shrink-0" style={{ width: '350px' }}></div>
                           )}
-
-                          <div className="flex items-center justify-center bg-white text-xs text-gray-500 select-none flex-shrink-0 border-r border-gray-200" style={{ width: '60px' }}>
-                            {absoluteLineNumber}
-                          </div>
-
-                          <div className="flex items-center bg-white font-mono text-sm py-1 pl-3 min-w-0" style={{ minWidth: '0', width: 'max-content' }}>
-                            <div className="whitespace-pre">
-                              {tokens[0]?.map((token, key) => (
-                                // eslint-disable-next-line react/no-array-index-key
-                                <span key={key} {...getTokenProps({ token })} />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </Highlight>
-                  )
-                })}
+                        </Highlight>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             )
-          })}
-        </div>
+          }}
+        />
       </>
     )
-  }
+  }, [
+    isBlameLoading,
+    blameData,
+    processedBlameBlocks,
+    selectedLine,
+    detectedLanguage,
+    handleLineClick,
+    formatRelativeTime
+  ])
 
 
 
@@ -506,7 +573,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-      {viewMode === 'code' ? renderCodeView() : RenderBlameView()}
+      {viewMode === 'code' ? renderCodeView() : renderBlameView()}
     </div>
   )
 }
