@@ -16,6 +16,7 @@ import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
@@ -83,6 +84,7 @@ function TreeDetailPage() {
           {!isNewCode ? (
             <>
               <div className='m-1 flex justify-end gap-2'>
+                <TagSwitcher />
                 <Button onClick={handleNewClick}>New</Button>
                 {canClone?.data && <CloneTabs />}
               </div>
