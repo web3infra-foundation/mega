@@ -16,7 +16,7 @@ use tokio::sync::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use bellatrix::{Bellatrix, orion_client::OrionBuildRequest};
+use bellatrix::{Bellatrix, orion_client::BuildInfo, orion_client::OrionBuildRequest};
 use callisto::{entity_ext::generate_link, mega_mr, raw_blob, sea_orm_active_enums::ConvTypeEnum};
 use common::{
     errors::MegaError,
@@ -519,6 +519,12 @@ impl MonoRepo {
     pub async fn post_mr_operation(&self) -> Result<(), MegaError> {
         let link_guard = self.mr_link.read().await;
         let link = link_guard.as_ref().unwrap();
+        let old_mr_info = self
+            .storage
+            .mr_storage()
+            .get_mr(link)
+            .await?
+            .ok_or_else(|| MegaError::with_message(format!("MR not found for link: {}", link)))?;
 
         if self.bellatrix.enable_build() {
             let buck_files = self.search_buck_under_mr(&self.path).await?;
@@ -531,10 +537,14 @@ impl MonoRepo {
                 for buck_file in buck_files {
                     let req = OrionBuildRequest {
                         repo: buck_file.path.to_str().unwrap().to_string(),
-                        buck_hash: buck_file.buck.to_string(),
-                        buckconfig_hash: buck_file.buck_config.to_string(),
-                        mr: link.to_string(),
-                        args: Some(vec![]),
+                        mr: old_mr_info.id,
+                        task_name: None,
+                        template: None,
+                        builds: vec![BuildInfo {
+                            buck_hash: buck_file.buck.to_string(),
+                            buckconfig_hash: buck_file.buck_config.to_string(),
+                            args: Some(vec![]),
+                        }],
                     };
                     let bellatrix = self.bellatrix.clone();
                     tokio::spawn(async move {
@@ -548,7 +558,7 @@ impl MonoRepo {
             .mr_storage()
             .get_mr(link)
             .await?
-            .expect("MR Not Found");
+            .ok_or_else(|| MegaError::with_message(format!("MR not found for link: {}", link)))?;
 
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
         check_reg.run_checks(mr_info.into()).await?;

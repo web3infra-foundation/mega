@@ -1,12 +1,19 @@
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
-pub struct OrionBuildRequest {
-    pub repo: String,
+pub struct BuildInfo {
     pub buck_hash: String,
     pub buckconfig_hash: String,
-    pub mr: String,
     pub args: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct OrionBuildRequest {
+    pub repo: String,
+    pub mr: i64,
+    pub task_name: Option<String>,
+    pub template: Option<String>,
+    pub builds: Vec<BuildInfo>,
 }
 
 #[derive(Clone)]
