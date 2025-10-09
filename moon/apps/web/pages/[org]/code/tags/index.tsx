@@ -23,8 +23,6 @@ function CodeTagsPage() {
   })
 
   const [localTags, setLocalTags] = useState<any[]>([])
-  // Mark locally created tags
-  const [localCreatedNames, setLocalCreatedNames] = useState<string[]>([])
   const tags = useMemo(() => {
     // Merge locally created tags and API returned tags
     const apiTags = data?.data?.items ?? []
@@ -46,18 +44,16 @@ function CodeTagsPage() {
   const hasTags = filtered.length > 0
 
   // Force refresh API data and clear local cache after deleting a tag
-  const handleDeleteTag = (name: string) => {
+  const handleDeleteTag = () => {
     setLocalTags([])
-    setLocalCreatedNames([])
     // Force refresh API data
     queryClient.invalidateQueries({ queryKey: ['postApiTagsList'] })
     refetch()
   }
 
   // Cache locally after creating a tag, deduplicate after API returns
-  const handleCreateTag = (tag: any) => {
+  const handleCreateTag = () => {
     setLocalTags([])
-    setLocalCreatedNames([])
     // Force refresh API data
     queryClient.invalidateQueries({ queryKey: ['postApiTagsList'] })
     refetch()
