@@ -45,7 +45,7 @@ function InnerRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }
     return tag.message || `${tag.object_type} ${tag.object_id.substring(0, 8)}`
   }, [tag])
 
-  const href = `#tag-${encodeURIComponent(tag.name)}`
+  const href = `/code/tags/${encodeURIComponent(tag.name)}`
 
   return (
     <li className='hover:bg-tertiary group-has-[button[aria-expanded="true"]]:bg-tertiary group relative -mx-3 flex items-center gap-3 rounded-md py-1.5 pl-3 pr-1.5'>

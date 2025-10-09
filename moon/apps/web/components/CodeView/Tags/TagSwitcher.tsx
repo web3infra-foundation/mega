@@ -115,7 +115,13 @@ export default function TagSwitcher() {
 
                 <SelectCommandSeparator alwaysRender />
                 <div className='flex items-center justify-end p-2'>
-                  <Button onClick={() => { setOpen(false); router.push('/[org]/code/tags'.replace('[org]', String(router.query.org ?? '')))}}>
+                  <Button onClick={() => { 
+                    setOpen(false); 
+                    router.push({
+                      pathname: '/[org]/code/tags',
+                      query: { org: String(router.query.org ?? '') }
+                    });
+                  }}>
                     View all tags
                   </Button>
                 </div>

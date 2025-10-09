@@ -87,8 +87,8 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
       setTarget('')
       setTargetMode('branch')
     } catch (e: any) {
-      // 友好错误提示
-      alert(e?.message || 'Tag 创建失败，请稍后重试')
+      // error message
+      alert(e?.message || 'Tag creation failed, please try again later')
     }
   }
 

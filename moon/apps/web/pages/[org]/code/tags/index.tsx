@@ -91,8 +91,7 @@ function CodeTagsPage() {
 
 function EmptyState() {
   return (
-    <IndexPageEmptyState>
-      
+    <IndexPageEmptyState>  
       <div className='flex flex-col gap-1'>
         <UIText size='text-base' weight='font-semibold'>No tags yet</UIText>
       </div>
