@@ -1,6 +1,5 @@
 import React, { forwardRef, useState } from 'react'
 import { useSignoutUser } from 'hooks/useSignoutUser'
-import { useSetAtom } from 'jotai'
 import { isMobile } from 'react-device-detect'
 import * as R from 'remeda'
 
@@ -19,8 +18,6 @@ import {
   Link,
   LogOutIcon,
   MonitorIcon,
-  QuestionMarkCircleIcon,
-  ShipIcon,
   UserCircleIcon,
   ZapierIcon
 } from '@gitmono/ui'
@@ -28,7 +25,6 @@ import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
 import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
 
-import { setFeedbackDialogOpenAtom } from '@/components/Feedback/FeedbackDialog'
 import { NotificationPauseCalendarDialog } from '@/components/NotificationPause/NotificationPauseCalendarDialog'
 import { NotificationScheduleDialog } from '@/components/NotificationPause/NotificationScheduleDialog'
 import { useScope } from '@/contexts/scope'
@@ -68,7 +64,6 @@ export function ProfileDropdown({
   const signout = useSignoutUser()
   const isDesktop = useIsDesktopApp()
   const isStaff = useCurrentUserIsStaff()
-  const setFeedbackDialogOpen = useSetAtom(setFeedbackDialogOpenAtom)
   const [open, setOpen] = useState(false)
   const [notificationPauseCalendarDialogOpen, setNotificationPauseCalendarDialogOpen] = useState(false)
   const [notificationScheduleDialogOpen, setNotificationScheduleDialogOpen] = useState(false)
@@ -100,19 +95,6 @@ export function ProfileDropdown({
       label: 'Support',
       leftSlot: <HelpIcon />,
       url: `mailto:support@gitmono.com`
-    },
-    {
-      type: 'item',
-      label: 'Changelog',
-      leftSlot: <ShipIcon />,
-      external: true,
-      url: `${SITE_URL}/changelog`
-    },
-    {
-      type: 'item',
-      label: 'Share feedback',
-      leftSlot: <QuestionMarkCircleIcon />,
-      onSelect: () => setFeedbackDialogOpen(true)
     },
     { type: 'separator' },
     !isMobile && {
