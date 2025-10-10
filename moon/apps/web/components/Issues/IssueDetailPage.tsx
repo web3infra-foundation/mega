@@ -25,7 +25,6 @@ import { usePostIssueLabels } from '@/hooks/usePostIssueLabels'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
-import { CommonDetailData } from '@/utils/types'
 
 import { MemberAvatar } from '../MemberAvatar'
 import TimelineItems from '../MrView/TimelineItems'
@@ -43,6 +42,7 @@ import {
   useMemberMap
 } from './utils/sideEffect'
 import { editIdAtom, FALSE_EDIT_VAL, idAtom, refreshAtom } from './utils/store'
+import { WorkWithChatDialog } from './WorkWithChatDialog'
 
 export default function IssueDetailPage({ link }: { link: string }) {
   const [id] = useAtom(idAtom)
@@ -317,7 +317,7 @@ export default function IssueDetailPage({ link }: { link: string }) {
                     <LoadingSpinner />
                   </div>
                 ) : (
-                  <TimelineItems detail={issueDetail as CommonDetailData} id={link} type='issue' editorRef={editorRef} />
+                  issueDetail && <TimelineItems detail={issueDetail} id={link} type='issue' editorRef={editorRef} />
                 )}
 
                 {info && info.status === 'open' && (
@@ -505,6 +505,11 @@ export default function IssueDetailPage({ link }: { link: string }) {
                 <BadgeItem title='Type' items={labels} />
                 <BadgeItem title='Projects' items={labels} />
                 <BadgeItem title='Milestones' items={labels} />
+
+                {/* Work with Chat Dialog */}
+                <div className='mt-4 w-full'>
+                  <WorkWithChatDialog />
+                </div>
               </div>
             </div>
           </Stack>
