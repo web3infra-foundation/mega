@@ -8,5 +8,5 @@ export function useGetTreeCommitInfo(path: string) {
 	return useQuery({
 		queryKey: query.requestKey({path}),
 		queryFn: () => query.request({path})
-	  })
+	})
 } 
