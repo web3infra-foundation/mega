@@ -15,9 +15,9 @@ impl RelationTrait for Relation {
                 .from(Column::ItemId)
                 .to(crate::mega_issue::Column::Id)
                 .into(),
-            Self::MegaMr => Entity::belongs_to(crate::mega_mr::Entity)
+            Self::MegaMr => Entity::belongs_to(crate::mega_cl::Entity)
                 .from(Column::ItemId)
-                .to(crate::mega_mr::Column::Id)
+                .to(crate::mega_cl::Column::Id)
                 .into(),
         }
     }
@@ -29,7 +29,7 @@ impl Related<crate::mega_issue::Entity> for Entity {
     }
 }
 
-impl Related<crate::mega_mr::Entity> for Entity {
+impl Related<crate::mega_cl::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::MegaMr.def()
     }

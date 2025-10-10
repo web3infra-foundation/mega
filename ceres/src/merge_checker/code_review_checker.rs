@@ -1,7 +1,7 @@
 use crate::merge_checker::{CheckResult, Checker};
 use async_trait::async_trait;
 use common::errors::MegaError;
-use jupiter::model::mr_dto::MrInfoDto;
+use jupiter::model::cl_dto::ClInfoDto;
 use jupiter::storage::Storage;
 use serde::Deserialize;
 use serde_json::Value;
@@ -13,7 +13,7 @@ pub struct CodeReviewChecker {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CodeReviewParams {
-    mr_link: String,
+    cl_link: String,
 }
 
 impl CodeReviewParams {
@@ -32,7 +32,7 @@ impl Checker for CodeReviewChecker {
             message: String::new(),
         };
 
-        let approved = self.verify_mr(&params.mr_link).await;
+        let approved = self.verify_mr(&params.cl_link).await;
         match approved {
             Ok(_) => {
                 res.status = crate::merge_checker::ConditionResult::PASSED;
@@ -48,19 +48,19 @@ impl Checker for CodeReviewChecker {
         res
     }
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<Value, MegaError> {
+    async fn build_params(&self, cl_info: &ClInfoDto) -> Result<Value, MegaError> {
         Ok(serde_json::json!({
-            "mr_link": mr_info.link,
+            "cl_link": cl_info.link,
         }))
     }
 }
 
 impl CodeReviewChecker {
-    async fn verify_mr(&self, mr_link: &str) -> Result<(), MegaError> {
+    async fn verify_mr(&self, cl_link: &str) -> Result<(), MegaError> {
         let reviewers = self
             .storage
             .reviewer_storage()
-            .list_reviewers(mr_link)
+            .list_reviewers(cl_link)
             .await?;
 
         let mut err_message = String::new();
