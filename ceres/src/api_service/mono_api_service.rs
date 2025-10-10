@@ -58,7 +58,7 @@ use neptune::neptune_engine::Diff;
 use regex::Regex;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_mr, mega_tag, mega_tree};
+use callisto::{mega_cl, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
@@ -955,7 +955,7 @@ impl MonoApiService {
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
-    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), GitError> {
+    pub async fn merge_cl(&self, username: &str, mr: mega_cl::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -987,8 +987,8 @@ impl MonoApiService {
                 .unwrap();
             // update mr status last
             self.storage
-                .mr_storage()
-                .merge_mr(mr.clone())
+                .cl_storage()
+                .merge_cl(mr.clone())
                 .await
                 .unwrap();
         } else {
@@ -1123,24 +1123,24 @@ impl MonoApiService {
 
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
-    /// * `mr_link` - The link to the merge request.
+    /// * `cl_link` - The link to the merge request.
     /// * `page_id` - The page number to fetch. (id out of bounds will return empty)
     /// * `page_size` - The number of items per page.
     /// # Returns
     ///  a `Result` containing `MrDiff` on success or a `GitError` on failure.
     pub async fn paged_content_diff(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         page: Pagination,
     ) -> Result<(Vec<DiffItem>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
         // old and new blobs for comparison
-        let stg = self.storage.mr_storage();
+        let stg = self.storage.cl_storage();
         let mr =
-            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+            stg.get_cl(cl_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Merge request not found: {cl_link}"))
             })?;
         let old_blobs = self
             .get_commit_blobs(&mr.from_hash)
@@ -1280,13 +1280,13 @@ impl MonoApiService {
 
     pub async fn get_sorted_changed_file_list(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         path: Option<&str>,
     ) -> Result<Vec<String>, MegaError> {
         let mr = self
             .storage
-            .mr_storage()
-            .get_mr(mr_link)
+            .cl_storage()
+            .get_cl(cl_link)
             .await
             .unwrap()
             .ok_or_else(|| MegaError::with_message("Error getting "))?;

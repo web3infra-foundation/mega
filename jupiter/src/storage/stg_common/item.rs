@@ -1,4 +1,4 @@
-use callisto::{mega_issue, mega_mr};
+use callisto::{mega_cl, mega_issue};
 
 use crate::model::common::ItemKind;
 
@@ -21,11 +21,11 @@ impl ItemEntity for mega_issue::Entity {
     }
 }
 
-impl ItemEntity for mega_mr::Entity {
-    type Model = mega_mr::Model;
+impl ItemEntity for mega_cl::Entity {
+    type Model = mega_cl::Model;
 
     fn item_kind(model: Self::Model) -> ItemKind {
-        ItemKind::Mr(model)
+        ItemKind::Cl(model)
     }
 
     fn get_id(model: &Self::Model) -> i64 {

@@ -1,8 +1,8 @@
-use callisto::{label, mega_issue, mega_mr};
+use callisto::{label, mega_cl, mega_issue};
 
 pub enum ItemKind {
     Issue(mega_issue::Model),
-    Mr(mega_mr::Model),
+    Cl(mega_cl::Model),
 }
 
 pub struct ItemDetails {
