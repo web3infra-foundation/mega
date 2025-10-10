@@ -5,7 +5,7 @@ use crate::{item_labels::Column, item_labels::Entity};
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
     MegaIssue,
-    MegaMr,
+    MegaCl,
     Label,
 }
 
@@ -16,9 +16,9 @@ impl RelationTrait for Relation {
                 .from(Column::ItemId)
                 .to(crate::mega_issue::Column::Id)
                 .into(),
-            Self::MegaMr => Entity::belongs_to(crate::mega_mr::Entity)
+            Self::MegaCl => Entity::belongs_to(crate::mega_cl::Entity)
                 .from(Column::ItemId)
-                .to(crate::mega_mr::Column::Id)
+                .to(crate::mega_cl::Column::Id)
                 .into(),
             Self::Label => Entity::belongs_to(crate::label::Entity)
                 .from(Column::LabelId)
@@ -40,8 +40,8 @@ impl Related<crate::mega_issue::Entity> for Entity {
     }
 }
 
-impl Related<crate::mega_mr::Entity> for Entity {
+impl Related<crate::mega_cl::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::MegaMr.def()
+        Relation::MegaCl.def()
     }
 }

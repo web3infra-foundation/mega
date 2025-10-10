@@ -10,7 +10,7 @@ pub struct BuildInfo {
 #[derive(Serialize, Debug)]
 pub struct OrionBuildRequest {
     pub repo: String,
-    pub mr: i64,
+    pub cl: i64,
     pub task_name: Option<String>,
     pub template: Option<String>,
     pub builds: Vec<BuildInfo>,

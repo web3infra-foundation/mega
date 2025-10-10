@@ -1,4 +1,4 @@
-use callisto::{mega_issue, mega_mr, sea_orm_active_enums::MergeStatusEnum};
+use callisto::{mega_cl, mega_issue, sea_orm_active_enums::MergeStatusEnum};
 use chrono::NaiveDateTime;
 use jupiter::{
     model::common::{ItemDetails, ItemKind},
@@ -44,7 +44,7 @@ impl From<ItemDetails> for ItemRes {
                 assignees: value.assignees,
                 comment_num: value.comment_num,
             },
-            ItemKind::Mr(model) => Self {
+            ItemKind::Cl(model) => Self {
                 id: model.id,
                 link: model.link,
                 title: model.title,
@@ -142,8 +142,8 @@ impl From<mega_issue::Model> for IssueSuggestions {
     }
 }
 
-impl From<mega_mr::Model> for IssueSuggestions {
-    fn from(value: mega_mr::Model) -> Self {
+impl From<mega_cl::Model> for IssueSuggestions {
+    fn from(value: mega_cl::Model) -> Self {
         Self {
             id: value.id,
             link: value.link,
