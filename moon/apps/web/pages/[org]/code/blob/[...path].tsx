@@ -33,7 +33,8 @@ const treeStyle = {
 function BlobPage() {
   const { path = [] } = useRouter().query as { path?: string[] }
   const new_path = '/' + path.join('/')
-  const fileContent = useGetBlob({ path: new_path }).data?.data ?? ''
+  const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path })
+  const fileContent = blobData?.data ?? ''
   const commitInfo: CommitInfo = {
     user: {
       avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
@@ -55,10 +56,10 @@ function BlobPage() {
             </div>
 
             <div style={codeStyle}>
-              <div className='m-2'>
+              <div>
                 <CommitHistory flag={'details'} info={commitInfo} />
               </div>
-              <CodeContent fileContent={fileContent} path={path} />
+              <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
             </div>
           </div>
       </div>
