@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::manager::fetch::download_mr_files;
+use crate::manager::fetch::download_cl_files;
 use crate::util::config;
 
 /// Single file record
@@ -22,9 +22,9 @@ struct FilesListResp {
     req_result: bool,
 }
 
-pub async fn build_mr_layer(
+pub async fn build_cl_layer(
     link: &str,
-    mr_path: PathBuf,
+    cl_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let files_list = fetch_files_list(link).await?;
 
@@ -32,15 +32,15 @@ pub async fn build_mr_layer(
         println!("{}", files_list.err_message);
         return Ok(());
     }
-    if !mr_path.exists() {
-        std::fs::create_dir_all(&mr_path)?;
+    if !cl_path.exists() {
+        std::fs::create_dir_all(&cl_path)?;
     }
 
     // Collect all files that need to be downloaded
     let mut download_files = Vec::new();
     for file in files_list.data {
         let relative_path = file.path.strip_prefix('/').unwrap_or(&file.path);
-        let file_path = mr_path.join(relative_path);
+        let file_path = cl_path.join(relative_path);
 
         match file.action.as_str() {
             "new" | "modified" => {
@@ -91,20 +91,20 @@ pub async fn build_mr_layer(
 
     // Download all files concurrently
     if !download_files.is_empty() {
-        download_mr_files(download_files).await?;
+        download_cl_files(download_files).await?;
     }
 
-    println!("MR layer built for link: {link}");
+    println!("CL layer built for link: {link}");
     Ok(())
 }
 
-/// Fetch the list of files for a Merge Request (MR)
+/// Fetch the list of files for a Change List (CL)
 ///
-/// - `link`: unique identifier for the MR (used in the path)
+/// - `link`: unique identifier for the CL (used in the path)
 ///
 /// Returns `FilesListResp` on success, or `reqwest::Error` on failure.
 async fn fetch_files_list(link: &str) -> Result<FilesListResp, reqwest::Error> {
-    let url = format!("{}/api/v1/mr/{}/files-list", config::base_url(), link);
+    let url = format!("{}/api/v1/cl/{}/files-list", config::base_url(), link);
 
     Client::new()
         .get(&url)

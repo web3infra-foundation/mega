@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub mr_id: i64,
+    pub cl_id: i64,
     pub task_name: Option<String>,
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub template: Option<Json>,
@@ -58,14 +58,14 @@ impl Model {
     /// Create a new task ActiveModel for database insertion
     pub fn create_task(
         task_id: Uuid,
-        mr_id: i64,
+        cl_id: i64,
         task_name: Option<String>,
         template: Option<Json>,
         created_at: DateTimeWithTimeZone,
     ) -> ActiveModel {
         ActiveModel {
             id: Set(task_id),
-            mr_id: Set(mr_id),
+            cl_id: Set(cl_id),
             task_name: Set(task_name),
             template: Set(template),
             created_at: Set(created_at),
@@ -75,13 +75,13 @@ impl Model {
     /// Insert a task directly into the database
     pub async fn insert_task(
         task_id: Uuid,
-        mr_id: i64,
+        cl_id: i64,
         task_name: Option<String>,
         template: Option<Json>,
         created_at: DateTimeWithTimeZone,
         db: &impl ConnectionTrait,
     ) -> Result<Model, DbErr> {
-        let task_model = Self::create_task(task_id, mr_id, task_name, template, created_at);
+        let task_model = Self::create_task(task_id, cl_id, task_name, template, created_at);
         task_model.insert(db).await
     }
 }

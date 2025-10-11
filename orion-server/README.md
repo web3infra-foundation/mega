@@ -7,19 +7,19 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
 - **Buck2 Build Scheduling**: Supports dispatching build tasks to multiple build clients via WebSocket, enabling distributed builds.
 - **Task Status Query**: Query the status of build tasks (in progress, completed, failed, interrupted, etc.) through RESTful APIs.
 - **Real-time Log Output**: Pushes build logs in real time via Server-Sent Events (SSE), allowing frontends or other services to display build output live.
-- **Query History by MR**: Supports querying historical build records by Merge Request (MR) number.
+- **Query History by CL**: Supports querying historical build records by Change List (CL) number.
 - **Task Deduplication and Assignment**: Automatically selects idle build clients for task assignment, supporting concurrent multi-client builds.
 - **Persistent Storage**: Persists build tasks and their metadata in a database for later tracing and analysis.
 
 ## Main Modules
 
-- `model::builds`: Defines the database model for build tasks, including task ID, output files, status codes, start/end times, repository name, build targets, parameters, MR number, and provides interfaces for querying by task ID.
+- `model::builds`: Defines the database model for build tasks, including task ID, output files, status codes, start/end times, repository name, build targets, parameters, CL number, and provides interfaces for querying by task ID.
 - `api`: Implements all external APIs, including:
     - WebSocket connection management and message protocol (task dispatch, log reporting, status feedback, etc.)
     - Build task submission interface
     - Task status query interface
     - Real-time build log output interface (SSE)
-    - Historical build query interface by MR
+    - Historical build query interface by CL
 
 ## Typical Workflow
 
@@ -27,7 +27,7 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
 2. **Users submit new build tasks via HTTP API; the server automatically assigns them to idle build clients.**
 3. **Build clients receive tasks, execute Buck2 builds, and report logs and final status in real time via WebSocket.**
 4. **The server writes logs to files and pushes them in real time to frontends or other subscribers via SSE.**
-5. **Upon task completion, the server persists the results to the database, supporting later queries by task ID or MR.**
+5. **Upon task completion, the server persists the results to the database, supporting later queries by task ID or CL.**
 
 ## API
 
@@ -49,7 +49,7 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
             "repo": "string",
             "target": "string",
             "args": ["string", ...],      // optional
-            "mr": "string"                // optional, Merge Request number
+            "cl": "string"                // optional, Change List number
         }
         ```
     - **Response:**
@@ -68,7 +68,7 @@ curl -X POST http://localhost:8004/task \
         "repo": "buck2-rust-third-party",
         "target": "root//:rust-third-party",
         "args": [""],
-        "mr": "123"
+        "cl": "123"
     }'
 ```
 #### 3. Start Build Task
@@ -82,7 +82,7 @@ curl -X POST http://localhost:8004/task \
             "buck_hash": "string",
             "buckconfig_hash": "string",
             "args": ["string", ...],      // optional
-            "mr": "string"                // optional, Merge Request number
+            "cl": "string"                // optional, Change List number
         }
         ```
     - **Response:**
@@ -131,17 +131,17 @@ curl -X POST http://localhost:8004/task \
 
 **Example:**
 ```bash
-curl -X GET http://localhost:8004/mr-task/123
+curl -X GET http://localhost:8004/cl-task/123
 ```
 
 **Note:**
 - All endpoints except `/ws` are intended for HTTP clients (frontends, automation, etc.).
 - WebSocket clients must implement the protocol defined in `orion::ws::WSMessage` for task handling and reporting.
 - SSE endpoints require clients to support Server-Sent Events.
-#### 6. Query Builds by Merge Request
+#### 6. Query Builds by Change List
 
-- **`GET /mr-task/{mr}`**
-    Query historical build records by Merge Request (MR) number.
+- **`GET /cl-task/{cl}`**
+    Query historical build records by Change List (CL) number.
     - **Response:**
         - `200 OK` with a JSON array of build records if found:
           ```json
@@ -156,17 +156,17 @@ curl -X GET http://localhost:8004/mr-task/123
               "repo_name": "string",
               "target": "string",
               "arguments": "string",
-              "mr": "string"
+              "cl": "string"
             }
           ]
           ```
-        - `404 Not Found` with `{ "message": "No builds found for the given MR" }` if none.
+        - `404 Not Found` with `{ "message": "No builds found for the given CL" }` if none.
         - `500 Internal Server Error` on database errors.
 
-#### 7. Query Builds with Status by Merge Request
+#### 7. Query Builds with Status by Change List
 
-- **`GET /tasks/{mr}`**
-    Query all tasks with their current status by Merge Request (MR) number.
+- **`GET /tasks/{cl}`**
+    Query all tasks with their current status by Change List (CL) number.
     - **Response:**
         - `200 OK` with a JSON array of build records with status if found:
           ```json
@@ -180,7 +180,7 @@ curl -X GET http://localhost:8004/mr-task/123
               "repo_name": "string",
               "target": "string",
               "arguments": "string",
-              "mr": "string",
+              "cl": "string",
               "status": "Building|Interrupted|Failed|Completed|NotFound|Pending"
             }
           ]

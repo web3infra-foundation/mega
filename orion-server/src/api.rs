@@ -69,7 +69,8 @@ const DEFAULT_LOG_OFFSET: u64 = 1;
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct TaskRequest {
     pub repo: String,
-    pub mr: i64,
+    pub cl_link: String,
+    pub cl: i64,
     pub task_name: Option<String>,
     pub template: Option<Value>,
     pub builds: Vec<scheduler::BuildRequest>,
@@ -107,7 +108,7 @@ pub fn routers() -> Router<AppState> {
             "/task-history-output/{id}",
             get(task_history_output_handler),
         )
-        .route("/tasks/{mr}", get(tasks_handler))
+        .route("/tasks/{cl}", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
 }
 
@@ -343,7 +344,7 @@ pub async fn task_handler(
     // Insert task into the database using the model's insert method
     if let Err(err) = tasks::Model::insert_task(
         task_id,
-        req.mr,
+        req.cl,
         req.task_name.clone(),
         req.template.clone(),
         chrono::Utc::now().into(),
@@ -368,8 +369,9 @@ pub async fn task_handler(
             let result: BuildResult = handle_immediate_task_dispatch(
                 state.clone(),
                 task_id,
+                &req.cl_link,
                 &req.repo,
-                req.mr,
+                req.cl,
                 build.clone(),
                 target.clone(),
             )
@@ -381,10 +383,11 @@ pub async fn task_handler(
                 .scheduler
                 .enqueue_task(
                     task_id,
+                    &req.cl_link,
                     build.clone(),
                     target.clone(),
                     req.repo.clone(),
-                    req.mr,
+                    req.cl,
                 )
                 .await
             {
@@ -425,8 +428,9 @@ pub async fn task_handler(
 async fn handle_immediate_task_dispatch(
     state: AppState,
     task_id: Uuid,
+    cl_link: &str,
     repo: &str,
-    mr: i64,
+    cl: i64,
     req: BuildRequest,
     target: String,
 ) -> BuildResult {
@@ -474,13 +478,14 @@ async fn handle_immediate_task_dispatch(
         target: target.clone(),
         args: req.args.clone(),
         start_at: chrono::Utc::now(),
-        mr: mr.to_string(),
+        cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
         log_file,
     };
 
     // Use the model's insert_build method for direct insertion
     if let Err(err) = builds::Model::insert_build(
+        build_id,
         task_id,
         repo.to_string(),
         target.clone(),
@@ -496,14 +501,15 @@ async fn handle_immediate_task_dispatch(
             message: format!("Failed to insert builds into database: {}", err),
         };
     }
+    println!("insert build");
 
     // Create WebSocket message for the worker (use first build's args)
-    let msg = WSMessage::Task {
+    let msg: WSMessage = WSMessage::Task {
         id: build_id.to_string(),
         repo: repo.to_string(),
         target,
         args: req.args.clone(),
-        mr: mr.to_string(),
+        cl_link: cl_link.to_string(),
     };
 
     // Send task to the selected worker
@@ -828,7 +834,7 @@ impl BuildDTO {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TaskInfoDTO {
     pub task_id: String,
-    pub mr_id: i64,
+    pub cl_id: i64,
     pub task_name: Option<String>,
     pub template: Option<serde_json::Value>,
     pub created_at: String,
@@ -839,7 +845,7 @@ impl TaskInfoDTO {
     fn from_model(model: tasks::Model, build_list: Vec<BuildDTO>) -> Self {
         Self {
             task_id: model.id.to_string(),
-            mr_id: model.mr_id,
+            cl_id: model.cl_id,
             task_name: model.task_name,
             template: model.template,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
@@ -850,24 +856,24 @@ impl TaskInfoDTO {
 
 #[utoipa::path(
     get,
-    path = "/tasks/{mr}",
+    path = "/tasks/{cl}",
     params(
-        ("mr" = i64, Path, description = "MR number to filter tasks by")
+        ("cl" = i64, Path, description = "CL number to filter tasks by")
     ),
     responses(
     (status = 200, description = "All tasks with their current status", body = [TaskInfoDTO]),
     (status = 500, description = "Internal error", body = serde_json::Value)
     )
 )]
-/// Return all tasks with their current status (combining /mr-task and /task-status logic)
+/// Return all tasks with their current status (combining /cl-task and /task-status logic)
 pub async fn tasks_handler(
     State(state): State<AppState>,
-    Path(mr): Path<i64>,
+    Path(cl): Path<i64>,
 ) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
     let active_builds = state.scheduler.active_builds.clone();
     match tasks::Entity::find()
-        .filter(tasks::Column::MrId.eq(mr))
+        .filter(tasks::Column::ClId.eq(cl))
         .all(db)
         .await
     {
