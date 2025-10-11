@@ -3,7 +3,7 @@
 -- Table Definition
 CREATE TABLE "public"."tasks" (
     "id" uuid NOT NULL,
-    "mr_id" int8 NOT NULL,
+    "cl_id" int8 NOT NULL,
     "task_name" varchar,
     "template" jsonb,
     "created_at" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,

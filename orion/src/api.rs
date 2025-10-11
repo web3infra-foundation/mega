@@ -13,8 +13,8 @@ pub struct BuildRequest {
     pub target: String,
     /// Additional command-line arguments for the build
     pub args: Option<Vec<String>>,
-    /// Merge request identifier for context
-    pub mr: String,
+    /// Change List identifier for context
+    pub cl: String,
 }
 
 /// Result of a build operation containing status and metadata.
@@ -59,7 +59,7 @@ pub async fn buck_build(
             req.repo,
             req.target,
             req.args.unwrap_or_default(),
-            req.mr,
+            req.cl,
             sender.clone(),
         )
         .await

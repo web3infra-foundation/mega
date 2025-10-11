@@ -48,13 +48,13 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Model {
     /// Create a new build ActiveModel for database insertion
     pub fn create_build(
+        build_id: Uuid,
         task_id: Uuid,
         repo: String,
         target: String,
         args: Option<Value>,
     ) -> ActiveModel {
         let now = Utc::now().into();
-        let build_id = Uuid::now_v7();
         ActiveModel {
             id: Set(build_id),
             task_id: Set(task_id),
@@ -71,13 +71,20 @@ impl Model {
 
     /// Insert a single build directly into the database
     pub async fn insert_build(
+        build_id: Uuid,
         task_id: Uuid,
         repo: String,
         target: String,
         build: BuildRequest,
         db: &impl ConnectionTrait,
     ) -> Result<Model, DbErr> {
-        let build_model = Self::create_build(task_id, repo, target, build.args.map(|a| json!(a)));
+        let build_model = Self::create_build(
+            build_id,
+            task_id,
+            repo,
+            target,
+            build.args.map(|a| json!(a)),
+        );
         build_model.insert(db).await
     }
 }

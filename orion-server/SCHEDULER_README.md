@@ -137,7 +137,7 @@ let config = SchedulerConfig {
 ### Priority Determination
 
 The system automatically determines task priority based on:
-- **Merge Request labels**: `hotfix`, `urgent`, `critical` → Critical priority
+- **Change List labels**: `hotfix`, `urgent`, `critical` → Critical priority
 - **Repository importance**: `core`, `main`, `production` → High priority
 - **Build complexity**: Fewer arguments → Higher priority (faster feedback)
 - **System load**: High load → Lower priority for complex tasks
