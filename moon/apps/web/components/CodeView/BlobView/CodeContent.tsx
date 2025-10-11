@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Highlight, themes, Prism } from 'prism-react-renderer'
 import { Virtuoso } from 'react-virtuoso'
+import Markdown from 'react-markdown'
 
 (typeof global !== "undefined" ? global : window).Prism = Prism
 
@@ -20,7 +21,7 @@ import { getLangFromFileName } from '@/utils/getLanguageDetection'
 import { UsersIcon } from '@gitmono/ui'
 import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
 import React from 'react'
-type ViewMode = 'code' | 'blame'
+type ViewMode = 'code' | 'blame' | 'preview'
 
 
 
@@ -80,11 +81,12 @@ UserAvatar.displayName = 'UserAvatar';
 UserAvatarGroup.displayName = 'UserAvatarGroup';
 
 
-const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string[] }) => {
+const CodeContent = ({ fileContent, path, isCodeLoading }: 
+  { fileContent: string; path?: string[]; isCodeLoading: boolean;
+}) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('code')
-
+  const [manualViewMode, setManualViewMode] = useState<ViewMode | null>(null)
 
   const filePath = useMemo(() => path?.join('/') || '', [path]);
 
@@ -94,19 +96,26 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     page:1,
   })
 
-  useEffect(() => {
-    setViewMode('code')
-  }, [path])
-
-
-
-
   const filename = useMemo(() => {
     if (!path || path.length === 0) {
       return '';
     }
     return path[path.length - 1];
   }, [path]);
+
+  const isMarkdownFile = useMemo(() => {
+    return filename.toLowerCase().endsWith('.md');
+  }, [filename]);
+
+  const viewMode = useMemo<ViewMode>(() => {
+    if (manualViewMode) 
+      return manualViewMode;
+    return isMarkdownFile ? 'preview' : 'code';
+  }, [manualViewMode, isMarkdownFile]);
+
+  useEffect(() => {
+    setManualViewMode(null);
+  }, [path])
 
   const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename]);
 
@@ -298,7 +307,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
       return styles['bg-blame-10']
     }
     const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
-    const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 11)
+    const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 10)
 
     return styles[`bg-blame-${colorLevel}`]
   }, [])
@@ -346,78 +355,126 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
 
 
   const renderCodeView = useCallback(() => {
+
+    if (isCodeLoading) {
+      return (
+        <div className="animate-pulse" style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff', padding: '0 16px' }}>
+        {Array.from({ length: 10 }).map((_, index) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <div key={index} className="flex items-center py-1">
+            <div className="w-12 h-4 bg-gray-200 rounded mr-4"></div>
+            <div
+              className="h-4 bg-gray-200 rounded" 
+              style={{ width: `${Math.random() * 50 + 30}%` }}
+            ></div>
+          </div>
+        ))}
+      </div>
+      )
+    }
     if (lfs) {
       return (
         <div className='flex items-center justify-center p-8'>
-          <span>(Sorry about that, but we can’t show files that are this big right now.)</span>
+          {/* eslint-disable-next-line react/no-unescaped-entities */}
+          <span>(Sorry about that, but we can't show files that are this big right now.)</span>
         </div>
       )
     }
 
-    return (
-      <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
-        {({ style, tokens, getLineProps, getTokenProps }) => (
-          <Virtuoso
-            style={{
-              height: 'calc(100vh - 215px)',
-              backgroundColor: '#fff',
-            }}
-            totalCount={tokens.length}
-            itemContent={(index) => {
-              const line = tokens[index]
 
-              return (
-                <div
-                  key={index}
-                  {...getLineProps({ line })}
-                  ref={(el) => {
-                    if (el) lineRef.current[index] = el
-                  }}
-                  style={{
-                    ...style,
-                    backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
-                    padding: '0 16px',
-                    fontSize: '14px',
-                    fontFamily: 'monospace',
-                    whiteSpace: 'pre',
-                  }}
-                  className='flex justify-self-auto'
-                  onClick={() => handleLineClick(index)}
-                >
-                  <span className='inline-block w-8'>
-                    {selectedLine === index ? (
-                      <div></div>
-                    ) : null}
-                  </span>
-                  <span className={styles.codeLineNumber}>{index + 1}</span>
-                  {line.map((token, key) => (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
-                </div>
-              )
-            }}
-          />
-        )}
-      </Highlight>
+
+    return (
+      <div style={{ height: 'calc(100vh - 215px)', overflowX: 'auto', overflowY: 'hidden' }}>
+        <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
+          {({ style, tokens, getLineProps, getTokenProps }) => (
+            <Virtuoso
+              style={{
+                height: 'calc(100vh - 215px)',
+                backgroundColor: '#fff',
+              }}
+              totalCount={tokens.length}
+              itemContent={(index) => {
+                const line = tokens[index]
+
+                return (
+                  <div
+                    key={index}
+                    {...getLineProps({ line })}
+                    ref={(el) => {
+                      if (el) lineRef.current[index] = el
+                    }}
+                    style={{
+                      ...style,
+                      backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
+                      padding: '0 16px',
+                      fontSize: '14px',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'pre',
+                      display: 'flex',
+                      minWidth: 'fit-content',
+                    }}
+                    onClick={() => handleLineClick(index)}
+                  >
+                    <span className='inline-block w-8'>
+                      {selectedLine === index ? (
+                        <div></div>
+                      ) : null}
+                    </span>
+                    <span className={styles.codeLineNumber}>{index + 1}</span>
+                    <span style={{ display: 'inline' }}>
+                      {line.map((token, key) => (
+                        // eslint-disable-next-line react/no-array-index-key
+                        <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
+                      ))}
+                    </span>
+                  </div>
+                )
+              }}
+            />
+          )}
+        </Highlight>
+      </div>
     )
   }, [
     fileContent,
     detectedLanguage,
     lfs,
     selectedLine,
-    handleLineClick
+    handleLineClick,
+    isCodeLoading
   ])
 
 
   const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
       return (
-        <div className='flex items-center justify-center p-8'>
-          <div className='text-gray-500'>Loading blame information...</div>
+        <div className="animate-pulse" style={{ height: 'calc(100vh - 255px)', backgroundColor: '#fff' }}>
+          {Array.from({ length: 10 }).map((_, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={index} className="flex border-b border-gray-200 py-2">
+
+              <div className="w-1 bg-gray-200 mx-2"></div>
+
+              <div className="w-[350px] flex items-center px-3 space-x-2">
+                <div className="w-20 h-4 bg-gray-200 rounded"></div>
+                <div className="w-5 h-5 bg-gray-300 rounded-full"></div>
+                <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              </div>
+
+              <div className="flex-1 flex items-center px-3">
+                <div className="w-12 h-4 bg-gray-200 rounded mr-4"></div>
+                <div 
+                  className="h-4 bg-gray-200 rounded" 
+                  style={{ width: `${Math.random() * 60 + 20}%` }}
+                ></div>
+              </div>
+            </div>
+          ))}
         </div>
       )
-    }else if (!blameData?.data) {
+    }
+    
+    if (!blameData?.data) {
       return (
         <div className='flex items-center justify-center p-8'>
           <div className='text-gray-500'>No blame information available</div>
@@ -470,7 +527,7 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                   </div>
 
 
-                  <div className="flex-1 min-w-0">
+                  <div className={`flex-1 min-w-0 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
                     {block.lines.map((line) => {
                       const isSelected = selectedLine === (line.lineNumber - 1)
 
@@ -507,10 +564,10 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
                                   width: 'max-content'
                                 }}
                               >
-                                <div className="whitespace-pre">
+                                <div className="whitespace-pre" style={{ display: 'inline' }}>
                                   {tokens[0]?.map((token, key) => (
                                     // eslint-disable-next-line react/no-array-index-key
-                                    <span key={key} {...getTokenProps({ token })} />
+                                    <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
                                   ))}
                                 </div>
                               </div>
@@ -537,26 +594,66 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
     formatRelativeTime
   ])
 
+  const renderPreviewView = useCallback(() => {
+    if (isCodeLoading) {
+      return (
+        <div className="animate-pulse p-8" style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff' }}>
+          {Array.from({ length: 3 }).map((_, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={index} className="mb-4">
+              <div className="h-6 bg-gray-200 rounded mb-2" style={{ width: `${Math.random() * 30 + 40}%` }}></div>
+              <div className="h-4 bg-gray-100 rounded mb-1" style={{ width: `${Math.random() * 20 + 70}%` }}></div>
+              <div className="h-4 bg-gray-100 rounded mb-1" style={{ width: `${Math.random() * 20 + 80}%` }}></div>
+              <div className="h-4 bg-gray-100 rounded" style={{ width: `${Math.random() * 30 + 50}%` }}></div>
+            </div>
+          ))}
+        </div>
+      )
+    }
 
+    return (
+      <div 
+        className='markdown-body p-8' 
+        style={{ 
+          height: 'calc(100vh - 215px)', 
+          overflow: 'auto',
+          backgroundColor: '#fff'
+        }}
+      >
+        <Markdown>{fileContent}</Markdown>
+      </div>
+    )
+  }, [fileContent, isCodeLoading])
 
   return (
     <div>
       <div className={styles.toolbar}>
         <div className='m-2 h-8 rounded-lg bg-gray-200'>
+          {isMarkdownFile && (
+            <button
+              className={`${styles.toolbarLeftButton} ${viewMode === 'preview' ? styles.active : ''}`}
+              onClick={() => setManualViewMode('preview')}
+            >
+              Preview
+            </button>
+          )}
           <button
             className={`${styles.toolbarLeftButton} ${viewMode === 'code' ? styles.active : ''}`}
-            onClick={() => setViewMode('code')}
+            onClick={() => setManualViewMode('code')}
           >
             Code
           </button>
           <button
             className={`${styles.toolbarLeftButton} ${viewMode === 'blame' ? styles.active : ''}`}
-            onClick={() => setViewMode('blame')}
+            onClick={() => setManualViewMode('blame')}
           >
             Blame
           </button>
         </div>
-        <span className='m-2 text-gray-500'>{`${fileContent.split('\n').length}   lines  .  2.79  KB`}</span>
+        <div className='text-gray-500 whitespace-nowrap hidden 2xl:inline'>
+          <span className='m-2' style={{ minWidth: 0 }}>{`${fileContent.split('\n').length}   lines  .  2.79  KB`}</span>
+        </div>
+
         <div className='flex-1' />
         <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
           <button className={styles.toolbarRightButton} onClick={handleRawView}>
@@ -573,7 +670,10 @@ const CodeContent = ({ fileContent, path }: { fileContent: string; path?: string
           <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
-      {viewMode === 'code' ? renderCodeView() : renderBlameView()}
+      {viewMode === 'preview' && renderPreviewView()}
+      {viewMode === 'code' && renderCodeView()}
+      {viewMode === 'blame' && renderBlameView()}
+
     </div>
   )
 }
