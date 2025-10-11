@@ -41,7 +41,7 @@ export default function CommitHistory({ flag, info }: {flag:string, info: Commit
             </span>
           </Flex>
         </MemberHovercard>
-        <span className='text-gray-500 text-sm'>
+        <span className='text-gray-500 text-sm truncate flex-1 min-w-0'>
           {info.message}
         </span>
         {
