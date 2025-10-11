@@ -95,15 +95,15 @@ impl MegaFuse {
         &self,
         inode: u64,
         store_path: P,
-        need_mr: bool, // if need mr, then create mr layer.
+        need_cl: bool, // if need cl, then create cl layer.
     ) -> std::io::Result<()> {
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
         let mut lowerdir = vec![lower];
-        if need_mr {
-            let mr_path = store_path.as_ref().join("mr");
-            let _ = std::fs::create_dir_all(&mr_path);
-            lowerdir.push(mr_path);
+        if need_cl {
+            let cl_path = store_path.as_ref().join("cl");
+            let _ = std::fs::create_dir_all(&cl_path);
+            lowerdir.push(cl_path);
         }
         let upperdir = upper;
 

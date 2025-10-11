@@ -533,6 +533,7 @@ impl MonoRepo {
                 for buck_file in buck_files {
                     let req = OrionBuildRequest {
                         repo: buck_file.path.to_str().unwrap().to_string(),
+                        cl_link: link.to_string(),
                         cl: cl_info.id,
                         task_name: None,
                         template: None,

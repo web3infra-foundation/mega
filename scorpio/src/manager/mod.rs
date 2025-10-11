@@ -16,10 +16,10 @@ use std::io::Write;
 use std::{fs, path::PathBuf, str::FromStr};
 
 pub mod add;
+pub mod cl;
 pub mod commit;
 pub mod diff;
 pub mod fetch;
-pub mod mr;
 pub mod push;
 pub mod reset;
 pub mod status;

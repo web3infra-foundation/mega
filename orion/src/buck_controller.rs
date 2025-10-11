@@ -19,14 +19,14 @@ static PROJECT_ROOT: Lazy<String> =
 ///
 /// # Arguments
 /// * `repo` - Repository path to mount
-/// * `mr` - Merge request identifier
+/// * `cl` - Change List identifier
 ///
 /// # Returns
 /// * `Ok(true)` - Mount operation completed successfully
 /// * `Err(_)` - Mount request failed or timed out
-pub async fn mount_fs(repo: &str, mr: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+pub async fn mount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let client = reqwest::Client::new();
-    let mount_payload = json!({ "path": repo, "mr": mr });
+    let mount_payload = json!({ "path": repo, "cl": cl });
 
     let mount_res = client
         .post("http://localhost:2725/api/fs/mount")
@@ -125,7 +125,7 @@ pub async fn mount_fs(repo: &str, mr: &str) -> Result<bool, Box<dyn Error + Send
 /// * `repo` - Repository path for filesystem mounting
 /// * `target` - Buck build target specification  
 /// * `args` - Additional command-line arguments for buck
-/// * `mr` - Merge request context identifier
+/// * `cl` - Change List context identifier
 /// * `sender` - WebSocket channel for streaming build output
 ///
 /// # Returns
@@ -135,7 +135,7 @@ pub async fn build(
     repo: String,
     target: String,
     args: Vec<String>,
-    mr: String,
+    cl: String,
     sender: UnboundedSender<WSMessage>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!(
@@ -145,7 +145,7 @@ pub async fn build(
         repo
     );
 
-    mount_fs(&repo, &mr).await?;
+    mount_fs(&repo, &cl).await?;
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 
     let mut cmd = Command::new("buck2");

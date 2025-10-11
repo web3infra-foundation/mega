@@ -327,13 +327,13 @@ pub fn enqueue_file_download(file_id: SHA1, save_path: PathBuf) {
     }
 }
 
-/// Download multiple files for MR scenarios.
-pub async fn download_mr_files(
+/// Download multiple files for CL scenarios.
+pub async fn download_cl_files(
     files: Vec<(SHA1, PathBuf)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let download_manager = DownloadManager::get_global();
 
-    // Since this is for MR files only (no directory traversal),
+    // Since this is for CL files only (no directory traversal),
     // we mark directory processing as complete immediately
     download_manager.notify_directory_processing_complete();
 
