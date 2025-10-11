@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use jupiter::model::mr_dto::MrInfoDto;
+use jupiter::model::cl_dto::ClInfoDto;
 use serde_json::{Value, json};
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
@@ -29,7 +29,7 @@ impl Checker for CommitMessageChecker {
         }
     }
 
-    async fn build_params(&self, mr_info: &MrInfoDto) -> Result<Value, MegaError> {
+    async fn build_params(&self, mr_info: &ClInfoDto) -> Result<Value, MegaError> {
         let title = mr_info.title.clone();
         Ok(json!({
             "title": title,

@@ -1,4 +1,6 @@
 pub mod base_storage;
+pub(crate) mod cl_reviewer_storage;
+pub mod cl_storage;
 pub mod commit_binding_storage;
 pub mod conversation_storage;
 pub mod git_db_storage;
@@ -7,8 +9,6 @@ pub mod init;
 pub mod issue_storage;
 pub mod lfs_db_storage;
 pub mod mono_storage;
-pub(crate) mod mr_reviewer_storage;
-pub mod mr_storage;
 pub mod note_storage;
 pub mod raw_db_storage;
 pub mod relay_storage;
@@ -21,19 +21,19 @@ use std::sync::{Arc, LazyLock, Weak};
 use common::config::Config;
 
 use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
+use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
-use crate::service::mr_service::MRService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
-    commit_binding_storage::CommitBindingStorage, git_db_storage::GitDbStorage,
-    gpg_storage::GpgStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, mr_storage::MrStorage, raw_db_storage::RawDbStorage,
+    cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
+    git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
+    lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage,
     relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::mr_reviewer_storage::MrReviewerStorage;
+use crate::storage::cl_reviewer_storage::ClReviewerStorage;
 use crate::storage::note_storage::NoteStorage;
 
 #[derive(Clone)]
@@ -46,13 +46,13 @@ pub struct AppService {
     pub relay_storage: RelayStorage,
     pub user_storage: UserStorage,
     pub vault_storage: VaultStorage,
-    pub mr_storage: MrStorage,
+    pub cl_storage: ClStorage,
     pub issue_storage: IssueStorage,
     pub conversation_storage: ConversationStorage,
     pub lfs_file_storage: Arc<dyn LfsFileStorage>,
     pub note_storage: NoteStorage,
     pub commit_binding_storage: CommitBindingStorage,
-    pub reviewer_storage: MrReviewerStorage,
+    pub reviewer_storage: ClReviewerStorage,
 }
 
 impl AppService {
@@ -68,12 +68,12 @@ impl AppService {
             user_storage: UserStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
             lfs_file_storage: Arc::new(LocalStorage::mock()),
-            mr_storage: MrStorage { base: mock.clone() },
+            cl_storage: ClStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
             note_storage: NoteStorage { base: mock.clone() },
             commit_binding_storage: CommitBindingStorage { base: mock.clone() },
-            reviewer_storage: MrReviewerStorage { base: mock.clone() },
+            reviewer_storage: ClReviewerStorage { base: mock.clone() },
         })
     }
 }
@@ -82,7 +82,7 @@ impl AppService {
 pub struct Storage {
     pub(crate) app_service: Arc<AppService>,
     pub issue_service: IssueService,
-    pub mr_service: MRService,
+    pub cl_service: CLService,
     pub config: Weak<Config>,
 }
 
@@ -98,14 +98,14 @@ impl Storage {
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
         let relay_storage = RelayStorage { base: base.clone() };
         let user_storage = UserStorage { base: base.clone() };
-        let mr_storage = MrStorage { base: base.clone() };
+        let cl_storage = ClStorage { base: base.clone() };
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
         let lfs_file_storage = lfs_storage::init(config.lfs.clone(), connection.clone()).await;
         let note_storage = NoteStorage { base: base.clone() };
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
-        let reviewer_storage = MrReviewerStorage { base: base.clone() };
+        let reviewer_storage = ClReviewerStorage { base: base.clone() };
 
         let app_service = AppService {
             mono_storage,
@@ -116,7 +116,7 @@ impl Storage {
             relay_storage,
             user_storage,
             vault_storage,
-            mr_storage,
+            cl_storage,
             issue_storage,
             conversation_storage,
             lfs_file_storage,
@@ -128,7 +128,7 @@ impl Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
             issue_service: IssueService::new(base.clone()),
-            mr_service: MRService::new(base.clone()),
+            cl_service: CLService::new(base.clone()),
         }
     }
 
@@ -168,8 +168,8 @@ impl Storage {
         self.app_service.vault_storage.clone()
     }
 
-    pub fn mr_storage(&self) -> MrStorage {
-        self.app_service.mr_storage.clone()
+    pub fn cl_storage(&self) -> ClStorage {
+        self.app_service.cl_storage.clone()
     }
 
     pub fn issue_storage(&self) -> IssueStorage {
@@ -192,7 +192,7 @@ impl Storage {
         self.app_service.commit_binding_storage.clone()
     }
 
-    pub fn reviewer_storage(&self) -> MrReviewerStorage {
+    pub fn reviewer_storage(&self) -> ClReviewerStorage {
         self.app_service.reviewer_storage.clone()
     }
 
@@ -204,7 +204,7 @@ impl Storage {
         Storage {
             app_service: AppService::mock(),
             issue_service: IssueService::mock(),
-            mr_service: MRService::mock(),
+            cl_service: CLService::mock(),
             config: Arc::downgrade(&*CONFIG),
         }
     }

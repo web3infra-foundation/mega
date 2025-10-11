@@ -1,5 +1,5 @@
 use common::config::BlameConfig;
-use mercury::hash::SHA1;
+use git_internal::hash::SHA1;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for handling large files and performance tuning in blame operations.

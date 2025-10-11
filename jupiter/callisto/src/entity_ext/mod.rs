@@ -2,9 +2,9 @@ pub mod check_result;
 pub mod item_assignees;
 pub mod item_labels;
 pub mod label;
+pub mod mega_cl;
 pub mod mega_conversation;
 pub mod mega_issue;
-pub mod mega_mr;
 pub mod reactions;
 
 use idgenerator::IdInstance;

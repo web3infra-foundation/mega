@@ -13,9 +13,9 @@ use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::model::Pagination;
 use common::utils::{MEGA_BRANCH_NAME, generate_id};
-use mercury::internal::object::ObjectTrait;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::{object::commit::Commit, pack::entry::Entry};
+use git_internal::internal::object::ObjectTrait;
+use git_internal::internal::object::blob::Blob;
+use git_internal::internal::{object::commit::Commit, pack::entry::Entry};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;
@@ -181,7 +181,7 @@ impl MonoStorage {
                         MegaObjectModel::Commit(commit) => {
                             // Store for binding processing
                             if let Ok(commit_obj) =
-                                mercury::internal::object::commit::Commit::from_bytes(
+                                git_internal::internal::object::commit::Commit::from_bytes(
                                     &entry_data,
                                     entry_hash,
                                 )

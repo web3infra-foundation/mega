@@ -6,11 +6,9 @@ import { isMobile } from 'react-device-detect'
 import { COMMUNITY_SLUG } from '@gitmono/config'
 import { PublicOrganization } from '@gitmono/types/generated'
 import {
-  AppsIcon,
   Avatar,
   Badge,
   ChevronSelectIcon,
-  FaceSmileIcon,
   GearIcon,
   GlobeIcon,
   PlusIcon,
@@ -29,8 +27,6 @@ import { useGetCurrentOrganization } from '@/hooks/useGetCurrentOrganization'
 import { useGetInboundMembershipRequests } from '@/hooks/useGetInboundMembershipRequests'
 import { useGetOrganizationMemberships } from '@/hooks/useGetOrganizationMemberships'
 import { useGetUnreadNotificationsCount } from '@/hooks/useGetUnreadNotificationsCount'
-import { useViewerCanCreateCustomReaction } from '@/hooks/useViewerCanCreateCustomReaction'
-import { useViewerCanManageIntegrations } from '@/hooks/useViewerCanManageIntegrations'
 import { useViewerIsAdmin } from '@/hooks/useViewerIsAdmin'
 
 export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode }) {
@@ -38,8 +34,6 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
   const router = useRouter()
   const isLg = useBreakpoint('lg')
   const [open, setOpen] = useState(false)
-  const { viewerCanCreateCustomReaction } = useViewerCanCreateCustomReaction()
-  const { viewerCanManageIntegrations } = useViewerCanManageIntegrations()
   const {
     data: memberships,
     isLoading: organizationsLoading,
@@ -86,8 +80,6 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
   )
 
   const hasSettings = currentOrganization?.viewer_is_admin
-  const hasEmojis = viewerCanCreateCustomReaction && currentOrganization?.slug !== COMMUNITY_SLUG
-  const hasIntegrations = viewerCanManageIntegrations && currentOrganization?.slug !== COMMUNITY_SLUG
 
   const items = buildMenuItems([
     organization?.viewer_can_see_people_index && {
@@ -116,7 +108,7 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
         router.push(`/${scope}/projects`)
       }
     },
-    (hasSettings || hasEmojis) && {
+    hasSettings && {
       type: 'separator'
     },
     hasSettings && {
@@ -124,18 +116,6 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
       leftSlot: <GearIcon />,
       label: 'Settings',
       url: `/${scope}/settings`
-    },
-    hasEmojis && {
-      type: 'item',
-      leftSlot: <FaceSmileIcon />,
-      label: 'Custom emojis',
-      url: `/${scope}/settings/emojis`
-    },
-    hasIntegrations && {
-      type: 'item',
-      leftSlot: <AppsIcon />,
-      label: 'Integrations',
-      url: `/${scope}/settings/integrations`
     }
   ])
 

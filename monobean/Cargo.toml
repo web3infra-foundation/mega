@@ -20,12 +20,11 @@ scv = { version = "0.9.0", package = "sourceview5", features = ["gtk_v4_12", "v5
 # To run mega core, we have to add these:
 mono = { path = "../mono" }
 common = { path = "../common" }
-
 vault = { path = "../vault" }
 gateway = { path = "../gateway" }
 ceres = { path = "../ceres" }
-mercury = { path = "../mercury" }
 context = {path = "../context"}
+git-internal = "0.1.0"
 
 
 thiserror = { version = "2.0.11", features = ["default"] }

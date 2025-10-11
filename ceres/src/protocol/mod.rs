@@ -201,7 +201,7 @@ impl SmartProtocol {
                 from_hash: String::new(),
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
-                mr_link: Arc::new(RwLock::new(None)),
+                cl_link: Arc::new(RwLock::new(None)),
                 bellatrix: Arc::new(Bellatrix::new(self.storage.config().build.clone())),
                 username: self.username.clone(),
             };

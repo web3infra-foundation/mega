@@ -1,6 +1,6 @@
 use crate::model::diff_model::DiffItem;
+use git_internal::hash::SHA1;
 use infer;
-use mercury::hash::SHA1;
 use path_absolutize::Absolutize;
 use std::collections::HashMap;
 use std::collections::HashSet;

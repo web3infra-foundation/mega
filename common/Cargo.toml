@@ -10,7 +10,7 @@ name = "common"
 path = "src/lib.rs"
 
 [dependencies]
-mercury = { workspace = true}
+git-internal = { workspace = true}
 callisto = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }

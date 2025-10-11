@@ -3,7 +3,7 @@ import { InfiniteLoader } from 'components/InfiniteLoader'
 import { useGetTags } from 'hooks/useGetTags'
 
 import { Tag } from '@gitmono/types'
-import { HashtagIcon, Link, UIText } from '@gitmono/ui'
+import { Link, UIText } from '@gitmono/ui'
 
 import {
   IndexPageContainer,
@@ -55,8 +55,7 @@ export function TagsIndex() {
 
 function TagsIndexEmptyState() {
   return (
-    <IndexPageEmptyState>
-      <HashtagIcon size={32} />
+    <IndexPageEmptyState>      
 
       <div className='flex flex-col gap-1'>
         <UIText size='text-base' weight='font-semibold'>
@@ -91,7 +90,6 @@ function InnerTagRow({ tag }: { tag: Tag }) {
     <li className='hover:bg-tertiary group-has-[button[aria-expanded="true"]]:bg-tertiary group relative -mx-3 flex items-center gap-3 rounded-md py-1.5 pl-3 pr-1.5'>
       <Link href={`/${scope}/tags/${tag.name}`} className='absolute inset-0 z-0' />
 
-      <HashtagIcon className='text-quaternary' />
 
       <div className='flex flex-1 flex-row items-center gap-2'>
         <UIText weight='font-medium' size='text-[15px]' className='line-clamp-1'>

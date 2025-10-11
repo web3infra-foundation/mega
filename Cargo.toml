@@ -2,7 +2,6 @@
 members = [
     "mono",
     "common",
-    "mercury",
     "jupiter",
     "ceres",
     "vault",
@@ -23,7 +22,6 @@ exclude = ["scorpio"]
 [workspace.dependencies]
 mono = { path = "mono" }
 common = { path = "common" }
-mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
@@ -34,6 +32,8 @@ orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 neptune = { path = "neptune" }
+
+git-internal = "0.1.0"
 
 #====
 anyhow = "1.0.98"

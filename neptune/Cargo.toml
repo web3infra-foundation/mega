@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 infer = { workspace = true }
-mercury = { workspace = true }
+git-internal = { workspace = true }
 path-absolutize = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true }

@@ -24,7 +24,7 @@
 //! ## Dependencies
 //!
 //! This module relies on several core components:
-//! - `mercury`: Git object handling and version control primitives
+//! - `git_internal`: Git object handling and version control primitives
 //! - `jupiter`: Storage layer abstraction and data persistence
 //! - `callisto`: Database models and ORM functionality
 //! - `libra`: External Git-compatible command-line tool for diff operations
@@ -44,18 +44,21 @@ use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::CreateEntryInfo;
 use crate::model::mr::MrDiffFile;
+use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
+use crate::protocol::{SmartProtocol, TransportProtocol};
 use async_trait::async_trait;
-use mercury::errors::GitError;
-use mercury::hash::SHA1;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use bytes::Bytes;
+use git_internal::errors::GitError;
+use git_internal::hash::SHA1;
+use git_internal::internal::object::blob::Blob;
+use git_internal::internal::object::commit::Commit;
+use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use neptune::model::diff_model::DiffItem;
 use neptune::neptune_engine::Diff;
 use regex::Regex;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_mr, mega_tag, mega_tree};
+use callisto::{mega_cl, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
@@ -793,8 +796,8 @@ impl MonoApiService {
     ) -> Result<TagInfo, GitError> {
         let mono_storage = self.storage.mono_storage();
 
-        // build mercury/mega tag models
-        let (tag_id_hex, object_id) = self.build_mercury_tag_mono(
+        // build git_internal/mega tag models
+        let (tag_id_hex, object_id) = self.build_git_internal_tag_mono(
             name.clone(),
             target.clone(),
             tagger_info.clone(),
@@ -904,7 +907,7 @@ impl MonoApiService {
         Ok(())
     }
 
-    fn build_mercury_tag_mono(
+    fn build_git_internal_tag_mono(
         &self,
         name: String,
         target: Option<String>,
@@ -915,20 +918,20 @@ impl MonoApiService {
             .as_ref()
             .ok_or(GitError::InvalidCommitObject)
             .and_then(|t| SHA1::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
-        let tagger_sig = mercury::internal::object::signature::Signature::new(
-            mercury::internal::object::signature::SignatureType::Tagger,
+        let tagger_sig = git_internal::internal::object::signature::Signature::new(
+            git_internal::internal::object::signature::SignatureType::Tagger,
             tagger_info.clone(),
             String::new(),
         );
-        let mercury_tag = mercury::internal::object::tag::Tag::new(
+        let git_internal_tag = git_internal::internal::object::tag::Tag::new(
             tag_target,
-            mercury::internal::object::types::ObjectType::Commit,
+            git_internal::internal::object::types::ObjectType::Commit,
             name.clone(),
             tagger_sig,
             message.clone().unwrap_or_default(),
         );
         Ok((
-            mercury_tag.id.to_string(),
+            git_internal_tag.id.to_string(),
             target.unwrap_or_else(|| "HEAD".to_string()),
         ))
     }
@@ -952,7 +955,7 @@ impl MonoApiService {
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
-    pub async fn merge_mr(&self, username: &str, mr: mega_mr::Model) -> Result<(), GitError> {
+    pub async fn merge_cl(&self, username: &str, mr: mega_cl::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -984,8 +987,8 @@ impl MonoApiService {
                 .unwrap();
             // update mr status last
             self.storage
-                .mr_storage()
-                .merge_mr(mr.clone())
+                .cl_storage()
+                .merge_cl(mr.clone())
                 .await
                 .unwrap();
         } else {
@@ -1120,24 +1123,24 @@ impl MonoApiService {
 
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
-    /// * `mr_link` - The link to the merge request.
+    /// * `cl_link` - The link to the merge request.
     /// * `page_id` - The page number to fetch. (id out of bounds will return empty)
     /// * `page_size` - The number of items per page.
     /// # Returns
     ///  a `Result` containing `MrDiff` on success or a `GitError` on failure.
     pub async fn paged_content_diff(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         page: Pagination,
     ) -> Result<(Vec<DiffItem>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
         // old and new blobs for comparison
-        let stg = self.storage.mr_storage();
+        let stg = self.storage.cl_storage();
         let mr =
-            stg.get_mr(mr_link).await.unwrap().ok_or_else(|| {
-                GitError::CustomError(format!("Merge request not found: {mr_link}"))
+            stg.get_cl(cl_link).await.unwrap().ok_or_else(|| {
+                GitError::CustomError(format!("Merge request not found: {cl_link}"))
             })?;
         let old_blobs = self
             .get_commit_blobs(&mr.from_hash)
@@ -1277,13 +1280,13 @@ impl MonoApiService {
 
     pub async fn get_sorted_changed_file_list(
         &self,
-        mr_link: &str,
+        cl_link: &str,
         path: Option<&str>,
     ) -> Result<Vec<String>, MegaError> {
         let mr = self
             .storage
-            .mr_storage()
-            .get_mr(mr_link)
+            .cl_storage()
+            .get_cl(cl_link)
             .await
             .unwrap()
             .ok_or_else(|| MegaError::with_message("Error getting "))?;
@@ -1362,6 +1365,32 @@ impl MonoApiService {
         Ok(res)
     }
 
+    pub async fn sync_third_party_repo(&self, owner: &str, repo: &str) -> Result<Bytes, MegaError> {
+        let url = format!("https://github.com/{owner}/{repo}.git");
+        let remote_client = ThirdPartyClient::new(&url);
+
+        let refs = remote_client.fetch_refs().await?;
+        let res = remote_client.fetch_packs(&refs).await?;
+        let pack_data = remote_client
+            .process_pack_stream(res)
+            .await
+            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+
+        let shared = Arc::new(tokio::sync::Mutex::new(0));
+        let mut protocol = SmartProtocol::new(
+            PathBuf::from(url),
+            self.storage.clone(),
+            shared,
+            TransportProtocol::Http,
+        );
+        let bytes = protocol
+            .git_receive_pack_stream(Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))))
+            .await
+            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+
+        Ok(bytes)
+    }
+
     async fn traverse_tree(&self, root_tree: Tree) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
         let mut result = vec![];
         let mut stack = vec![(PathBuf::new(), root_tree)];
@@ -1390,7 +1419,7 @@ impl MonoApiService {
 mod test {
     use super::*;
     use crate::model::mr::MrDiffFile;
-    use mercury::hash::SHA1;
+    use git_internal::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;
 
@@ -1778,7 +1807,7 @@ mod test {
 
     #[tokio::test]
     async fn test_content_diff_functionality() {
-        use mercury::internal::object::blob::Blob;
+        use git_internal::internal::object::blob::Blob;
         use std::collections::HashMap;
 
         // Test basic diff generation with sample data
@@ -1871,4 +1900,38 @@ mod test {
             "Should contain git diff header"
         );
     }
+}
+
+#[test]
+fn test_parse_github_link() {
+    let url = "https://github.com/web3infra-foundation/libra/";
+    let url = url
+        .trim_end_matches(".git")
+        .trim_end_matches("/")
+        .strip_prefix("https://github.com/")
+        .expect("Invalid GitHub URL");
+    let (owner, repo) = url.rsplit_once('/').unwrap();
+    assert_eq!(owner, "web3infra-foundation");
+    assert_eq!(repo, "libra");
+}
+
+#[tokio::test]
+async fn test_third_party_trait() {
+    let url = "https://github.com/aidcheng/mega.git";
+    let third_party_client = ThirdPartyClient::new(url);
+
+    let refs = third_party_client
+        .fetch_refs()
+        .await
+        .expect("Unable to fetch refs");
+
+    let res = third_party_client
+        .fetch_packs(&refs)
+        .await
+        .expect("Unable to fetch res");
+
+    third_party_client
+        .process_pack_stream(res)
+        .await
+        .expect("unable to process");
 }
