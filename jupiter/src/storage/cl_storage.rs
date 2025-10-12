@@ -298,7 +298,7 @@ impl ClStorage {
         check_result::Entity::insert_many(models)
             .on_conflict(
                 OnConflict::columns(vec![
-                    check_result::Column::MrLink,
+                    check_result::Column::ClLink,
                     check_result::Column::CheckTypeCode,
                 ])
                 .update_columns([
@@ -319,7 +319,7 @@ impl ClStorage {
         mr_link: &str,
     ) -> Result<Vec<check_result::Model>, MegaError> {
         let models = check_result::Entity::find()
-            .filter(check_result::Column::MrLink.eq(mr_link))
+            .filter(check_result::Column::ClLink.eq(mr_link))
             .all(self.get_connection())
             .await?;
         Ok(models)

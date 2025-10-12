@@ -344,7 +344,7 @@ async fn cl_files_list(
     let stg = state.monorepo();
     let old_files = stg.get_commit_blobs(&cl.from_hash).await?;
     let new_files = stg.get_commit_blobs(&cl.to_hash).await?;
-    let cl_diff_files = stg.mr_files_list(old_files, new_files.clone()).await?; // TODO
+    let cl_diff_files = stg.cl_files_list(old_files, new_files.clone()).await?; // TODO
 
     let cl_base = PathBuf::from(cl.path);
     let res = cl_diff_files

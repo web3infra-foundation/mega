@@ -62,7 +62,7 @@ impl MonoStorage {
         ref_name: Option<String>,
         ref_commit_hash: &str,
         ref_tree_hash: &str,
-        is_mr: bool,
+        is_cl: bool,
     ) -> Result<(), MegaError> {
         let model = mega_refs::Model {
             id: generate_id(),
@@ -72,7 +72,7 @@ impl MonoStorage {
             ref_tree_hash: ref_tree_hash.to_owned(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
-            is_mr,
+            is_cl,
         };
         model
             .into_active_model()
@@ -82,10 +82,10 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn remove_none_mr_refs(&self, path: &str) -> Result<(), MegaError> {
+    pub async fn remove_none_cl_refs(&self, path: &str) -> Result<(), MegaError> {
         mega_refs::Entity::delete_many()
             .filter(mega_refs::Column::Path.starts_with(path))
-            .filter(mega_refs::Column::IsMr.eq(false))
+            .filter(mega_refs::Column::IsCl.eq(false))
             .exec(self.get_connection())
             .await?;
         Ok(())
@@ -101,7 +101,7 @@ impl MonoStorage {
     pub async fn get_refs(&self, path: &str) -> Result<Vec<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
-            // .filter(mega_refs::Column::IsMr.eq(false))
+            // .filter(mega_refs::Column::IsCl.eq(false))
             .order_by_asc(mega_refs::Column::RefName)
             .all(self.get_connection())
             .await?;
