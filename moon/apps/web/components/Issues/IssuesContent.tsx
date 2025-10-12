@@ -466,7 +466,7 @@ export function IssuesContent({ searching }: Props) {
                   key={i.link}
                   title={i.title}
                   leftIcon={getStatusIcon(i.status)}
-                  labels = {<ItemLabels item={i} />}
+                  labels={<ItemLabels item={i} />}
                   rightIcon={<ItemRightIcons item={i} />}
                   onClick={() => {
                     setIdAtom(i.id)
@@ -474,7 +474,8 @@ export function IssuesContent({ searching }: Props) {
                   }}
                 >
                   <div className='text-xs text-[#59636e]'>
-                    #{i.link}{'    '}
+
+                    <span className="mr-2">#{i.link}</span>
                     {getIssueDescription(i)}
                   </div>
 

@@ -479,7 +479,7 @@ export default function MrView() {
                     key={i.id}
                     title={i.title}
                     leftIcon={getStatusIcon(i.status)}
-                    labels = {<ItemLabels item={i} />}
+                    labels={<ItemLabels item={i} />}
                     rightIcon={<ItemRightIcons item={i} />}
                     onClick={() => {
                       setMrid(i.id)
@@ -487,7 +487,7 @@ export default function MrView() {
                     }}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      #{i.link}{'    '}
+                      <span className="mr-2">#{i.link}</span>
                       {getDescription(i)}
                       {' • MergeRequest'}
                     </div>

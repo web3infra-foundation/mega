@@ -408,7 +408,7 @@ export const ListItem = memo(
               }}
               className='inner flex flex-col hover:cursor-pointer'
             >
-              <div className='max-w-[600px] truncate font-semibold' title={title}>
+              <div className='max-w-lg md:max-w-xl truncate font-semibold' title={title}>
                 {title}
               </div>
 
