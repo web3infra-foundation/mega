@@ -1,5 +1,0 @@
-[[buildscript]]
-[buildscript.rustc_flags]
-#env = { DEP_OPENSSL_VERSION_NUMBER = "10101070"}
-
-env = { DEP_OPENSSL_VERSION_NUMBER = "30013000" }
