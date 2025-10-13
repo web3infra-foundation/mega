@@ -10,6 +10,7 @@ import { LabelItem, SyncOrganizationMember as Member, PostApiMrListData } from '
 import { Button, CheckIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
+import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { IssueIndexTabFilter as MRIndexTabFilter } from '@/components/Issues/IssueIndex'
 import {
   Dropdown,
@@ -29,7 +30,7 @@ import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
-import { AdditionType, RightAvatar } from '../Issues/IssuesContent'
+import { AdditionType, ItemLabels, ItemRightIcons } from '../Issues/IssuesContent'
 import { Pagination } from '../Issues/Pagenation'
 import { orderTags, reviewTags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
@@ -174,15 +175,52 @@ export default function MrView() {
 
     switch (normalizedStatus) {
       case 'open':
-        return `MergeRequest opened by Admin ${formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} `
+        return (
+          <>
+            opened {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} by{' '}
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                {item.author}
+              </span>
+            </MemberHovercard>
+
+          </>
+        )
       case 'merged':
         if (item.merge_timestamp !== null) {
-          return `MergeRequest merged by Admin ${formatDistance(fromUnixTime(item?.merge_timestamp ?? 0), new Date(), { addSuffix: true })}`
+          return (
+            <>
+              by{' '}
+              <MemberHovercard username={item.author}>
+                <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                  {item.author}
+                </span>
+              </MemberHovercard>
+              {' was merged '}
+              {formatDistance(fromUnixTime(item.merge_timestamp ?? 0), new Date(), { addSuffix: true })}
+
+            </>
+          )
         } else {
           return ''
         }
       case 'closed':
-        return `MR ${item.link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`
+        return (
+          <>
+            by{' '}
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                {item.author}
+              </span>
+            </MemberHovercard>
+
+            {' was closed '}
+
+            {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
+
+
+          </>
+        )
       default:
         return null
     }
@@ -439,16 +477,19 @@ export default function MrView() {
                 return issueList.map((i) => (
                   <MrItem
                     key={i.id}
+                    title={i.title}
+                    leftIcon={getStatusIcon(i.status)}
+                    labels={<ItemLabels item={i} />}
+                    rightIcon={<ItemRightIcons item={i} />}
                     onClick={() => {
                       setMrid(i.id)
                       router.push(`/${scope}/mr/${i.link}`)
                     }}
-                    title={i.title}
-                    leftIcon={getStatusIcon(i.status)}
-                    rightIcon={<RightAvatar item={i} />}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      {i.link} {i.status} {getDescription(i)}
+                      <span className="mr-2">#{i.link}</span>
+                      {getDescription(i)}
+                      {' • MergeRequest'}
                     </div>
                   </MrItem>
                 ))
