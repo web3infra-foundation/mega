@@ -1,7 +1,7 @@
 import React, { forwardRef, memo, ReactNode, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 
-import { LabelItem, SyncOrganizationMember } from '@gitmono/types/index'
+import { LabelItem, SyncOrganizationMember } from '@gitmono/types'
 import {
   Button,
   ChevronDownIcon,
@@ -381,20 +381,26 @@ export const ListItem = memo(
     title,
     children,
     leftIcon,
+    labels,
     rightIcon,
     onClick
   }: {
     title: string
     children?: ReactNode
     leftIcon?: ReactNode
+    labels?: ReactNode
     rightIcon?: ReactNode
     onClick?: () => void
   }) => {
     return (
       <>
         <div className='container flex justify-between border-b border-gray-300 px-3.5 py-3 hover:bg-black/[0.08]'>
+          
           <div className='left flex gap-3'>
+
             <div className='mt-1'>{leftIcon}</div>
+
+
             <div
               onClick={(e) => {
                 e.stopPropagation()
@@ -402,13 +408,22 @@ export const ListItem = memo(
               }}
               className='inner flex flex-col hover:cursor-pointer'
             >
-              {title}
+              <div className='max-w-lg md:max-w-xl truncate font-semibold' title={title}>
+                {title}
+              </div>
+
               {children}
+
             </div>
+
+            {/* <div className='mt-1'>{rightIcon}</div> */}
+            {labels && <div className='flex items-center'>{labels}</div>}
           </div>
-          <div className='right'>
-            <div className='mt-1'>{rightIcon}</div>
+
+          <div className='right flex items-center'>
+            {rightIcon}
           </div>
+          
         </div>
       </>
     )

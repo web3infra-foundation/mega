@@ -16,6 +16,7 @@ import { Button, ChatBubbleIcon, ChevronDownIcon, OrderedListIcon } from '@gitmo
 // import { MenuItem } from '@gitmono/ui/Menu'
 
 import { EmptySearchResults } from '@/components/Feed/EmptySearchResults'
+import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import {
   Dropdown,
   DropdownItemwithAvatar,
@@ -391,6 +392,50 @@ export function IssuesContent({ searching }: Props) {
     }
   }
 
+  const getIssueDescription = (item: ItemsType[number]) => {
+    const normalizedStatus = item.status.toLowerCase()
+
+    switch (normalizedStatus) {
+      case 'open':
+        return (
+          <>
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                {item.author}
+              </span>
+            </MemberHovercard>
+            {' opened '}
+            {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })}
+          </>
+        )
+      case 'closed':
+        return (
+          <>
+            by{' '}
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                {item.author}
+              </span>
+            </MemberHovercard>
+            {' was closed '}
+            {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
+          </>
+        )
+      default:
+        return (
+          <>
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
+                {item.author}
+              </span>
+            </MemberHovercard>
+            {' updated '}
+            {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
+          </>
+        )
+    }
+  }
+
   return (
     <>
       {/* TODO:Searching logic need to be completed */}
@@ -421,16 +466,19 @@ export function IssuesContent({ searching }: Props) {
                   key={i.link}
                   title={i.title}
                   leftIcon={getStatusIcon(i.status)}
-                  rightIcon={<RightAvatar item={i} />}
+                  labels={<ItemLabels item={i} />}
+                  rightIcon={<ItemRightIcons item={i} />}
                   onClick={() => {
                     setIdAtom(i.id)
                     router.push(`/${scope}/issue/${i.link}`)
                   }}
                 >
                   <div className='text-xs text-[#59636e]'>
-                    {i.link} · {i.author} {i.status}{' '}
-                    {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
+
+                    <span className="mr-2">#{i.link}</span>
+                    {getIssueDescription(i)}
                   </div>
+
                 </ListItem>
               ))
             }}
@@ -471,53 +519,59 @@ function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boole
   )
 }
 
-export const RightAvatar = ({ item }: { item: ItemsType[number] }) => {
+
+export const ItemLabels = ({ item }: { item: ItemsType[number] }) => {
   return (
-    <>
-      <div className='mr-10 flex w-fit items-center justify-between gap-10'>
-        <div
-          style={{
-            visibility: `${item.labels.length === 0 ? 'hidden' : 'unset'}`
-          }}
-          className='flex items-center gap-2 text-sm'
-        >
-          {item.labels.map((label) => {
-            const fontColor = getFontColor(label.color)
+    <div
+      style={{
+        visibility: `${item.labels.length === 0 ? 'hidden' : 'unset'}`
+      }}
+      className='flex items-center gap-2 text-sm'
+    >
+      {item.labels.map((label) => {
+        const fontColor = getFontColor(label.color)
 
-            return (
-              <span
-                key={label.id}
-                style={{
-                  backgroundColor: label.color,
-                  color: fontColor.toHex(),
-                  borderRadius: '16px',
-                  padding: '0px 8px',
-                  fontSize: '12px',
-                  fontWeight: '550',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                }}
-              >
-                {label.name}
-              </span>
-            )
-          })}
-        </div>
+        return (
+          <span
+            key={label.id}
+            style={{
+              backgroundColor: label.color,
+              color: fontColor.toHex(),
+              borderRadius: '16px',
+              padding: '0px 8px',
+              fontSize: '12px',
+              fontWeight: '550',
+              justifyContent: 'center',
+              textAlign: 'center'
+            }}
+          >
+            {label.name}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
-        <div
-          style={{
-            visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`
-          }}
-          className='flex items-center gap-2 text-sm text-gray-500'
-        >
-          <ChatBubbleIcon />
-          <span>{item.comment_num}</span>
-        </div>
+export const ItemRightIcons = ({ item }: { item: ItemsType[number] }) => {
+  return (
+    // <div className='mr-10 flex w-fit items-center justify-between gap-10'>
+    <div className='flex items-center gap-4'>
 
-        <div className='min-w-45'>
-          <MemberHoverAvatarList users={item} />
-        </div>
+      <div
+        style={{
+          visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`
+        }}
+        className='flex items-center gap-1 text-sm text-gray-500'
+      >
+        <ChatBubbleIcon />
+        <span>{item.comment_num}</span>
       </div>
-    </>
+
+
+      <div className='min-w-15'>
+        <MemberHoverAvatarList users={item} />
+      </div>
+    </div>
   )
 }
