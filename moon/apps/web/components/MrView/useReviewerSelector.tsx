@@ -4,10 +4,10 @@ import { useAvatars } from "@/components/Issues/utils/sideEffect";
 import { ReviewerInfo } from "@gitmono/types";
 
 export const useReviewerSelector = ({
-  reviewers,
-  reviewRequest,
-  avatars
-}: {
+                                      reviewers,
+                                      reviewRequest,
+                                      avatars
+                                    }: {
   reviewers: ReviewerInfo[]
   reviewRequest: (selected: string[]) => void
   avatars: ReturnType<typeof useAvatars>
@@ -19,9 +19,11 @@ export const useReviewerSelector = ({
 
   const handleAssignees = (selected: ItemInput[]) => {
     const newSelection = [...selected.map((i) => i.text).filter((t): t is string => typeof t === 'string')]
-    
+
+
     setSelectedUsers(newSelection)
     shouldFetch.current = true
+
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -37,19 +39,19 @@ export const useReviewerSelector = ({
       }
       shouldFetch.current = false
     }
+
   }
 
   const fetchSelected = useMemo(() => {
-    // Combine existing reviewers with newly selected ones for display
-    const allSelected = new Set([...initialReviewers, ...selectedUsers])
-
-    return avatars.filter((user) => allSelected.has(user.text as string))
-  }, [selectedUsers, avatars, initialReviewers])
+    // Only show existing reviewers from backend
+    return avatars.filter((user) => initialReviewers.includes(user.text as string))
+  }, [avatars, initialReviewers])
 
   const availableAvatars = useMemo(() => {
     const existingReviewerSet = new Set(initialReviewers)
 
     return avatars.filter((user) => !existingReviewerSet.has(user.text as string))
+
   }, [avatars, initialReviewers])
 
   return {
