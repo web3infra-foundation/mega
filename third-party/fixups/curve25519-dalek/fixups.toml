@@ -1,8 +1,0 @@
-extra_srcs = [
-    "README.md",
-    "docs/avx2-notes.md",
-    "docs/parallel-formulas.md",
-]
-
-[[buildscript]]
-[buildscript.rustc_flags]

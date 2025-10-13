@@ -1,4 +1,0 @@
-cargo_env = true
-env = { "CARGO_BIN_NAME" = "rvault" }
-[[buildscript]]
-[buildscript.rustc_flags]

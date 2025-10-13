@@ -1,4 +1,0 @@
-extra_srcs = [
-    "doc/**/*.md",
-    "README.md"
-]

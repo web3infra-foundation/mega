@@ -1,4 +1,0 @@
-extra_srcs = [
-    "src/parser.rs",
-    "examples/css/parser.rs"
-]
