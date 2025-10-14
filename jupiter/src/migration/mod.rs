@@ -61,6 +61,7 @@ mod m20250905_163011_add_mr_reviewer;
 mod m20250910_153212_add_username_to_reviewer;
 mod m20250930_024736_mr_to_cl;
 mod m20251011_091944_tasks_mr_id_to_cl_id;
+mod m20251012_071700_mr_to_cl_batch;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -110,6 +111,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250910_153212_add_username_to_reviewer::Migration),
             Box::new(m20250930_024736_mr_to_cl::Migration),
             Box::new(m20251011_091944_tasks_mr_id_to_cl_id::Migration),
+            Box::new(m20251012_071700_mr_to_cl_batch::Migration),
         ]
     }
 }
