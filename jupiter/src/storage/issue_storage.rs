@@ -9,7 +9,7 @@ use sea_orm::{
 };
 
 use callisto::{
-    issue_mr_references, item_assignees, item_labels, label, mega_conversation, mega_issue,
+    issue_cl_references, item_assignees, item_labels, label, mega_conversation, mega_issue,
 };
 use common::errors::MegaError;
 use common::model::Pagination;
@@ -359,8 +359,8 @@ impl IssueStorage {
         source_id: &str,
         target_id: &str,
         reference_type: ReferenceTypeEnum,
-    ) -> Result<issue_mr_references::Model, MegaError> {
-        let issue_ref = issue_mr_references::Model {
+    ) -> Result<issue_cl_references::Model, MegaError> {
+        let issue_ref = issue_cl_references::Model {
             source_id: source_id.to_owned(),
             target_id: target_id.to_owned(),
             reference_type,

@@ -222,6 +222,7 @@ pub async fn post_method_router(
 /// Swagger API tag
 pub const GIT_TAG: &str = "git";
 pub const MR_TAG: &str = "merge_request";
+pub const CL_TAG: &str = "change_list";
 pub const GPG_TAG: &str = "gpg-key";
 pub const ISSUE_TAG: &str = "issue";
 pub const LABEL_TAG: &str = "label";

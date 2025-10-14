@@ -3,7 +3,7 @@ use crate::{check_result, entity_ext::generate_id, sea_orm_active_enums::CheckTy
 impl check_result::Model {
     pub fn new(
         path: &str,
-        mr_link: &str,
+        cl_link: &str,
         commit_id: &str,
         check_type_code: CheckTypeEnum,
         status: &str,
@@ -15,7 +15,7 @@ impl check_result::Model {
             created_at: now,
             updated_at: now,
             path: path.to_owned(),
-            mr_link: mr_link.to_owned(),
+            cl_link: cl_link.to_owned(),
             commit_id: commit_id.to_owned(),
             check_type_code,
             status: status.to_owned(),

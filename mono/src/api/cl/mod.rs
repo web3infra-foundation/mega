@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use ceres::{
     merge_checker::{CheckType, ConditionResult},
-    model::mr::MrDiffFile,
+    model::cl::ClDiffFile,
 };
 use jupiter::model::cl_dto::CLDetails;
 use serde::Serialize;
@@ -105,20 +105,20 @@ pub struct ClFilesRes {
     pub action: String,
 }
 
-impl From<MrDiffFile> for ClFilesRes {
-    fn from(value: MrDiffFile) -> Self {
+impl From<ClDiffFile> for ClFilesRes {
+    fn from(value: ClDiffFile) -> Self {
         match value {
-            MrDiffFile::New(path, sha) => Self {
+            ClDiffFile::New(path, sha) => Self {
                 path: path.to_string_lossy().to_string(),
                 sha: sha.to_string(),
                 action: String::from_str("new").unwrap(),
             },
-            MrDiffFile::Deleted(path, sha) => Self {
+            ClDiffFile::Deleted(path, sha) => Self {
                 path: path.to_string_lossy().to_string(),
                 sha: sha.to_string(),
                 action: String::from_str("deleted").unwrap(),
             },
-            MrDiffFile::Modified(path, _, new) => Self {
+            ClDiffFile::Modified(path, _, new) => Self {
                 path: path.to_string_lossy().to_string(),
                 sha: new.to_string(),
                 action: String::from_str("modified").unwrap(),

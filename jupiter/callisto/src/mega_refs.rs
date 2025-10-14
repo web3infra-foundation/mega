@@ -16,7 +16,7 @@ pub struct Model {
     pub ref_tree_hash: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
-    pub is_mr: bool,
+    pub is_cl: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

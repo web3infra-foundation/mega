@@ -298,7 +298,7 @@ impl RepoHandler for MonoRepo {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
         let cl_link = self.fetch_or_new_cl_link().await.unwrap();
-        let ref_name = utils::mr_ref_name(&cl_link);
+        let ref_name = utils::cl_ref_name(&cl_link);
         if let Some(c) = &*current_commit {
             if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
                 cl_ref.ref_commit_hash = refs.new_id.clone();
