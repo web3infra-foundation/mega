@@ -27,7 +27,7 @@ import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 
 import { MemberAvatar } from '../MemberAvatar'
-import TimelineItems from '../MrView/TimelineItems'
+import TimelineItems from '../ClView/TimelineItems'
 import { BadgeItem } from './IssueNewPage'
 import TitleInput from './TitleInput'
 import { pickWithReflect } from './utils/pickWithReflectDeep'

@@ -7,7 +7,7 @@ import {usePostSSHKey} from '@/hooks/usePostSSHKey'
 import {useDeleteSSHKeyById} from '@/hooks/useDeleteSSHKeyById'
 import {legacyApiClient} from "@/utils/queryClient";
 import {useQueryClient} from "@tanstack/react-query";
-import HandleTime from "@/components/MrView/components/HandleTime";
+import HandleTime from "@/components/ClView/components/HandleTime";
 
 const SshKeyItem = ({keyData}: { keyData: ListSSHKey }) => {
   const {mutate: deleteSSHKey} = useDeleteSSHKeyById()

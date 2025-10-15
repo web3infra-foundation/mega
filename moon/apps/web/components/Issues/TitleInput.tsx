@@ -8,7 +8,7 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 import { UIText } from '@gitmono/ui/Text'
 
 import { usePostIssueTitle } from '@/hooks/issues/usePostIssueTitle'
-import { usePostMrTitle } from '@/hooks/MR/usePostMrTitle'
+import { usePostClTitle } from '@/hooks/CL/usePostClTitle'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 
 const TitleInput = ({
@@ -19,13 +19,13 @@ const TitleInput = ({
 }: {
   title: string
   id: string
-  whoami: 'mr' | 'issue'
+  whoami: 'cl' | 'issue'
   callback?: () => void | Promise<any>
 }) => {
   const [editTitle, setEditTitle] = useState(title)
   const [isEdit, setIsEdit] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { mutate: modifyMRTitle } = usePostMrTitle()
+  const { mutate: modifyClTitle } = usePostClTitle()
   const { mutate: modifyIssueTitle } = usePostIssueTitle()
 
   const handleSave = () => {
@@ -35,8 +35,8 @@ const TitleInput = ({
     }
     setLoading(true)
     switch (whoami) {
-      case 'mr':
-        modifyMRTitle(
+      case 'cl':
+        modifyClTitle(
           { link: id, data: { content: editTitle as string } },
           {
             onError: (err) => apiErrorToast(err),

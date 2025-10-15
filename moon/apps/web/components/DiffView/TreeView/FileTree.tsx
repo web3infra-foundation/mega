@@ -7,7 +7,7 @@ import { CustomTreeItem } from './CustomTreeItem';
 import { useAtom } from 'jotai';
 import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom';
 import { useTreeViewApiRef } from "@mui/x-tree-view";
-import { useGetMrFileTree } from "@/hooks/useGetMrFileTree";
+import { useGetClFileTree } from "@/hooks/CL/useGetClFileTree";
 
 const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath: string) => void }) => {
   const apiRef = useTreeViewApiRef();
@@ -15,7 +15,7 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
 
-  const { data: treeResponse, isLoading } = useGetMrFileTree(link)
+  const { data: treeResponse, isLoading } = useGetClFileTree(link)
 
   // Process the tree data when API returns
   useEffect(() => {

@@ -3,7 +3,7 @@ import { ChecklistIcon, CommentDiscussionIcon, FileDiffIcon } from '@primer/octi
 import { UnderlineNav } from '@primer/react'
 import { useAtom } from 'jotai'
 
-import { tabAtom } from '../MrView/components/Checks/cpns/store'
+import { tabAtom } from '../ClView/components/Checks/cpns/store'
 
 export const TabLayout = ({ children }: PropsWithChildren) => {
   const [tab, setTab] = useAtom(tabAtom)
