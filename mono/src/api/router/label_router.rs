@@ -6,7 +6,6 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use common::model::{CommonPage, CommonResult, PageParams};
 
 use crate::api::MonoApiServiceState;
-// use crate::api::label::{LabelItem, NewLabel};
 use crate::api::oauth::model::LoginUser;
 use crate::{api::error::ApiError, server::http_server::LABEL_TAG};
 
