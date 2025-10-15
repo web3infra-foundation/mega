@@ -169,8 +169,9 @@ async fn mount_handler(
                     task.status = "finished".to_string();
                     task.result = Some(mount_info);
                 }
-                Err(_) => {
+                Err(err) => {
                     task.status = "error".to_string();
+                    println!("Mount task {request_id_clone} failed: {err}");
                     // Could add error details here in the future
                 }
             }
