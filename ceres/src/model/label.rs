@@ -1,5 +1,3 @@
-pub mod label_router;
-
 use callisto::label;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;

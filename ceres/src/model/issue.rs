@@ -7,9 +7,7 @@ use jupiter::{
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::api::{conversation::ConversationItem, label::LabelItem};
-
-pub mod issue_router;
+use crate::model::{conversation::ConversationItem, label::LabelItem};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ItemRes {
@@ -149,9 +147,9 @@ impl From<mega_cl::Model> for IssueSuggestions {
             link: value.link,
             title: value.title,
             suggest_type: if value.status == MergeStatusEnum::Open {
-                String::from("merge_request")
+                String::from("change_list")
             } else {
-                String::from("merge_request_closed")
+                String::from("change_list_closed")
             },
             created_at: value.created_at,
         }

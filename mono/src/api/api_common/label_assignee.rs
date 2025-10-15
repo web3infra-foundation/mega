@@ -8,8 +8,9 @@ use jupiter::model::common::LabelAssigneeParams;
 
 use crate::api::MonoApiServiceState;
 use crate::api::error::ApiError;
-use crate::api::label::LabelUpdatePayload;
-use crate::api::{api_common::model::AssigneeUpdatePayload, oauth::model::LoginUser};
+use crate::api::oauth::model::LoginUser;
+use ceres::model::change_list::AssigneeUpdatePayload;
+use ceres::model::label::LabelUpdatePayload;
 
 pub async fn label_update(
     user: LoginUser,

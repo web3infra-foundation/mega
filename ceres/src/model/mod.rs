@@ -1,4 +1,11 @@
 pub mod blame;
-pub mod cl;
+pub mod change_list;
+pub mod commit;
+pub mod conversation;
 pub mod git;
+pub mod gpg;
+pub mod issue;
+pub mod label;
+pub mod tag;
 pub mod third_party;
+pub mod user;

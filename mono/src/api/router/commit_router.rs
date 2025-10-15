@@ -1,10 +1,10 @@
-use super::model::CommitBindingResponse;
 use crate::api::{MonoApiServiceState, error::ApiError};
-use crate::server::http_server::GIT_TAG;
+use crate::server::http_server::CODE_PREVIEW;
 use axum::{
     Json,
     extract::{Path, State},
 };
+use ceres::model::commit::CommitBindingResponse;
 use common::model::CommonResult;
 use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -32,7 +32,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         (status = 404, description = "Commit not found"),
         (status = 400, description = "Invalid request")
     ),
-    tag = GIT_TAG
+    tag = CODE_PREVIEW
 )]
 #[axum::debug_handler]
 async fn update_commit_binding(
