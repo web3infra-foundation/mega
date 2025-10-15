@@ -5,23 +5,17 @@ use axum::{
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
+use ceres::model::{
+    change_list::{AssigneeUpdatePayload, ListPayload},
+    conversation::ContentPayload,
+    issue::{IssueDetailRes, IssueSuggestions, ItemRes, NewIssue, QueryPayload},
+    label::LabelUpdatePayload,
+};
 use common::model::{CommonPage, CommonResult, PageParams};
 use jupiter::service::issue_service::IssueService;
 
-use crate::api::{
-    MonoApiServiceState,
-    api_common,
-    oauth::model::LoginUser, // api_common::{self, model::AssigneeUpdatePayload},
-};
+use crate::api::{MonoApiServiceState, api_common, oauth::model::LoginUser};
 use crate::{api::error::ApiError, server::http_server::ISSUE_TAG};
-use ceres::model::issue::{IssueDetailRes, ItemRes, NewIssue};
-use ceres::model::{
-    // api_common::model::ListPayload,
-    change_list::{AssigneeUpdatePayload, ListPayload},
-    conversation::ContentPayload,
-    issue::{IssueSuggestions, QueryPayload},
-    label::LabelUpdatePayload,
-};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
