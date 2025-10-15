@@ -137,6 +137,28 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
     }
   }, [basePath, onCommitInfoChange]);
 
+  // 自动选中当前路径对应的节点
+  useEffect(() => {
+    if (apiRef.current && basePath && treeAllData.length > 0) {
+      // 延迟执行，确保树已经完全渲染
+      setTimeout(() => {
+        try {
+
+          const item = apiRef.current!.getItem(basePath)
+
+          if (item) {
+            apiRef.current?.setItemSelection({
+              itemId: basePath,
+              keepExistingSelection: false
+            })
+          }
+        } catch (e) {
+          // 节点可能还不存在，忽略错误
+        }
+      }, 100)
+    }
+  }, [basePath, treeAllData, apiRef])
+
   return (
     <>
       {treeAllData?.length === 0 ? (
