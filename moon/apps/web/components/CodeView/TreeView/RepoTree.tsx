@@ -5,6 +5,7 @@ import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 import { useGetTree } from '@/hooks/useGetTree';
+import { useRefsFromRouter } from '@/hooks/useRefsFromRouter';
 import { legacyApiClient } from '@/utils/queryClient';
 import { convertToTreeData, generateExpandedPaths, mergeTreeNodes, findNode, getDescendantIds } from './TreeUtils';
 import { CustomTreeItem } from './CustomTreeItem';
@@ -28,7 +29,8 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
   const [loadingDirectories, setLoadingDirectories] = useState<Set<string>>(new Set());
   
-  const { data: treeItems } = useGetTree({ path: basePath });
+  const { refs } = useRefsFromRouter();
+  const { data: treeItems, isLoading: isTreeLoading } = useGetTree({ path: basePath, ...(refs ? { refs } : {}) } as any);
 
   // Set the expanded state on initialization
   useEffect(() => {
@@ -36,22 +38,35 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
     const existingNode = findNode(treeAllData, basePath);
     const hasRealData = existingNode?.children && !existingNode?.children[0].isPlaceholder
     
-    if (!loadingDirectories.has(basePath) && !hasRealData && existingNode?.content_type === 'directory') {
+    if (
+      !loadingDirectories.has(basePath) &&
+      (!existingNode || existingNode?.content_type === 'directory') &&
+      !hasRealData
+    ) {
       setLoadingDirectories(prev => new Set(prev).add(basePath));
     }
-    setExpandedNodes(Array.from(new Set([...expandedNodes, ...pathsToExpand])));
+    // when refs changes, ensure the expanded paths include the current basePath
+    setExpandedNodes(Array.from(new Set([ ...pathsToExpand ])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basePath]);
+  }, [basePath, refs]);
 
   useEffect(() => {
     if (treeItems) {
       const newPathTreeData = convertToTreeData(treeItems)
-      const newTreeAllData = mergeTreeNodes(treeAllData, newPathTreeData)
-
-      setTreeAllData(newTreeAllData)
+      
+      setTreeAllData(mergeTreeNodes(treeAllData, newPathTreeData))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeItems]);
+
+  // when refs changes, trigger a reload for the current basePath 
+  useEffect(() => {
+    // Force reset the tree
+    setTreeAllData([]);
+    setExpandedNodes(generateExpandedPaths(basePath));
+    setLoadingDirectories(new Set([basePath]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refs]);
 
 const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeIds: string[]) => {
   const collapsedNodes = expandedNodes.filter(id => !nodeIds.includes(id));
@@ -82,13 +97,15 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
 
   useEffect(() => {
     loadingDirectories.forEach(path => {
-      legacyApiClient.v1.getApiTree().request({ path })
+  const params: any = { path };
+      
+      if (refs) params.refs = refs;
+      legacyApiClient.v1.getApiTree().request(params)
         .then((response: any) => {
           if (response) {   
             const newDirectoryData = convertToTreeData(response)
-            const newTreeAllData = mergeTreeNodes(treeAllData, newDirectoryData)
-
-            setTreeAllData(newTreeAllData)
+            
+            setTreeAllData(mergeTreeNodes(treeAllData, newDirectoryData))
           }
         })
         .catch((_error: any) => {
@@ -104,20 +121,20 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
         });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingDirectories]);
+  }, [loadingDirectories, refs]);
 
   const handleLabelClick = useCallback((path: string, isDirectory: boolean) => {
     if (isDirectory) {
-      const fullPath = `/${scope}/code/tree${path}`;
+      const fullPath = `/${scope}/code/tree${path}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`;
       const cleanPath = fullPath.replace(/\/+/g, '/');
       
       router.push(cleanPath);
     } else {      
       const filePath = path.startsWith('/') ? path : `/${path}`;
 
-      router.push(`/${scope}/code/blob${filePath}`);
+      router.push(`/${scope}/code/blob${filePath}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`);
     }
-  }, [router, scope]);
+  }, [router, scope, refs]);
 
   const handleFocusItem = (_e: React.SyntheticEvent | null, itemId: string) => {
     const item = apiRef.current!.getItem(itemId)
@@ -137,10 +154,12 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
     }
   }, [basePath, onCommitInfoChange]);
 
+  const showInitialSkeleton = (isTreeLoading || loadingDirectories.has(basePath)) && treeAllData?.length === 0;
+
   return (
     <>
-      {treeAllData?.length === 0 ? (
-        <Box sx={{ display: 'flex', paddingLeft: '16px' }}>
+      {showInitialSkeleton ? (
+  <Box sx={{ display: 'flex', paddingInlineStart: '16px' }}>
           <Skeleton width="200px" height="30px" />
         </Box>
       ) 
@@ -151,7 +170,7 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
           onItemFocus={handleFocusItem}
           expandedItems={expandedNodes}
           onExpandedItemsChange={handleNodeToggle}
-          sx={{ height: 'fit-content', flexGrow: 1, width: '100%', overflow: 'auto' }}
+          sx={{ blockSize: 'fit-content', flexGrow: 1, inlineSize: '100%', overflow: 'auto' }}
           slots={{
             item: (itemProps) => (
               <CustomTreeItem 
