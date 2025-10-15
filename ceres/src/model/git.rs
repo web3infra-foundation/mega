@@ -29,12 +29,6 @@ impl CreateEntryInfo {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize, ToSchema, Clone)]
-pub enum ContentType {
-    File,
-    Directory,
-}
-
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct CodePreviewQuery {
     #[serde(default)]

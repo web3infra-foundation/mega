@@ -33,7 +33,7 @@ use jupiter::utils::converter::FromMegaModel;
 use crate::{
     api_service::{ApiHandler, mono_api_service::MonoApiService},
     merge_checker::CheckerRegistry,
-    model::cl::BuckFile,
+    model::change_list::BuckFile,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -476,7 +476,7 @@ impl MonoRepo {
     }
 
     pub fn username(&self) -> String {
-        self.username.clone().unwrap_or(String::from("Admin"))
+        self.username.clone().unwrap_or(String::from("Anonymous"))
     }
 
     pub async fn save_or_update_cl(&self) -> Result<(), MegaError> {

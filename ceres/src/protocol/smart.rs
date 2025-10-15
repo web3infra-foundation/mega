@@ -224,6 +224,8 @@ impl SmartProtocol {
 
         let mut default_exist = repo_handler.check_default_branch().await;
 
+        let mut unpack_failed = false;
+
         //2. update each refs and build report
         for command in &mut self.command_list {
             if command.ref_type == RefTypeEnum::Tag {
@@ -246,16 +248,19 @@ impl SmartProtocol {
                     }
                     Err(ref err) => {
                         command.failed(err.to_string());
+                        unpack_failed = true;
                     }
                 }
             }
             add_pkt_line_string(&mut report_status, command.get_status());
         }
-        //3. post_receive_pack
-        repo_handler.post_receive_pack().await?;
+        if !unpack_failed {
+            //3. post_receive_pack
+            repo_handler.post_receive_pack().await?;
 
-        // 4. Process commit bindings for successful ref updates
-        self.process_commit_bindings().await;
+            // 4. Process commit bindings for successful ref updates
+            self.process_commit_bindings().await;
+        }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
         let length = report_status.len();

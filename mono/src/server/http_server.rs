@@ -32,9 +32,9 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::MonoApiServiceState;
 use crate::api::api_router::{self};
-use crate::api::lfs::lfs_router;
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use crate::api::oauth::oauth_client;
+use crate::api::router::lfs_router;
 use context::AppContext;
 
 #[derive(Clone)]
@@ -220,20 +220,21 @@ pub async fn post_method_router(
 }
 
 /// Swagger API tag
-pub const GIT_TAG: &str = "git";
-pub const MR_TAG: &str = "merge_request";
-pub const CL_TAG: &str = "change_list";
-pub const GPG_TAG: &str = "gpg-key";
-pub const ISSUE_TAG: &str = "issue";
-pub const LABEL_TAG: &str = "label";
-pub const CONV_TAG: &str = "conversation";
+pub const SYSTEM_COMMON: &str = "System Common";
+pub const CODE_PREVIEW: &str = "Code Preview";
+pub const TAG_MANAGE: &str = "Tag Management";
+pub const CL_TAG: &str = "Change List";
+pub const GPG_TAG: &str = "Gpg Key";
+pub const ISSUE_TAG: &str = "Issue Management";
+pub const LABEL_TAG: &str = "Label Management";
+pub const CONV_TAG: &str = "Conversation and Comment";
 pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
-pub const USER_TAG: &str = "user";
+pub const USER_TAG: &str = "User Management";
 #[derive(OpenApi)]
 #[openapi(
     tags(
-        (name = GIT_TAG, description = "Git API endpoints"),
-        (name = MR_TAG, description = "Merge Request API endpoints")
+        (name = CODE_PREVIEW, description = "Git API endpoints"),
+        (name = CL_TAG, description = "Change List API endpoints")
     ),
     components(schemas(
         BlameBlock,

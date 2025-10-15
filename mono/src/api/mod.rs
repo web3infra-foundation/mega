@@ -25,18 +25,10 @@ use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 
 pub mod api_common;
 pub mod api_router;
-pub mod cl;
-pub mod commit;
-pub mod conversation;
 pub mod error;
-mod gpg;
-pub mod issue;
-pub mod label;
-pub mod lfs;
 pub mod notes;
 pub mod oauth;
-pub mod tag;
-pub mod user;
+pub mod router;
 
 pub type GithubClient<
     HasAuthUrl = EndpointSet,

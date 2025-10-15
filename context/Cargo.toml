@@ -15,4 +15,4 @@ common = { workspace = true }
 jupiter = { workspace = true }
 vault = { workspace = true }
 
-tokio = "1.45.1"
+tokio = { workspace = true }

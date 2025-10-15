@@ -42,7 +42,7 @@ use std::sync::Arc;
 
 use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
-use crate::model::cl::ClDiffFile;
+use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
 use crate::protocol::{SmartProtocol, TransportProtocol};
@@ -1418,7 +1418,7 @@ impl MonoApiService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::model::cl::ClDiffFile;
+    use crate::model::change_list::ClDiffFile;
     use git_internal::hash::SHA1;
     use std::path::PathBuf;
     use std::str::FromStr;

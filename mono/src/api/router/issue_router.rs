@@ -10,19 +10,18 @@ use jupiter::service::issue_service::IssueService;
 
 use crate::api::{
     MonoApiServiceState,
-    api_common::{self, model::AssigneeUpdatePayload},
+    api_common,
+    oauth::model::LoginUser, // api_common::{self, model::AssigneeUpdatePayload},
 };
-use crate::api::{
-    api_common::model::ListPayload,
+use crate::{api::error::ApiError, server::http_server::ISSUE_TAG};
+use ceres::model::issue::{IssueDetailRes, ItemRes, NewIssue};
+use ceres::model::{
+    // api_common::model::ListPayload,
+    change_list::{AssigneeUpdatePayload, ListPayload},
     conversation::ContentPayload,
     issue::{IssueSuggestions, QueryPayload},
     label::LabelUpdatePayload,
 };
-use crate::api::{
-    issue::{IssueDetailRes, ItemRes, NewIssue},
-    oauth::model::LoginUser,
-};
-use crate::{api::error::ApiError, server::http_server::ISSUE_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

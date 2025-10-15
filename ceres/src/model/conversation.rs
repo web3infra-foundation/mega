@@ -5,8 +5,6 @@ use utoipa::ToSchema;
 
 use callisto::{mega_conversation, reactions, sea_orm_active_enums::ConvTypeEnum};
 
-pub mod conv_router;
-
 #[derive(Serialize, ToSchema)]
 pub struct ConversationItem {
     pub id: i64,

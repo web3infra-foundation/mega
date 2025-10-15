@@ -5,16 +5,18 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use ceres::model::tag::{CreateTagRequest, DeleteTagResponse, TagListResponse, TagResponse};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::model::{CommonResult, PageParams};
 
-use crate::api::{
-    MonoApiServiceState,
-    error::{ApiError, map_ceres_error},
-    tag::model::*,
+use crate::{
+    api::{
+        MonoApiServiceState,
+        error::{ApiError, map_ceres_error},
+    },
+    server::http_server::TAG_MANAGE,
 };
-use crate::server::http_server::GIT_TAG;
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -150,7 +152,7 @@ fn validate_tag_name(name: &str) -> Result<(), ApiError> {
     responses(
         (status = 201, body = CommonResult<TagResponse>, content_type = "application/json")
     ),
-    tag = GIT_TAG
+    tag = TAG_MANAGE
 )]
 async fn create_tag(
     State(state): State<MonoApiServiceState>,
@@ -209,7 +211,7 @@ async fn create_tag(
     responses(
         (status = 200, body = CommonResult<TagListResponse>, content_type = "application/json")
     ),
-    tag = GIT_TAG
+    tag = TAG_MANAGE
 )]
 
 async fn list_tags(
@@ -258,7 +260,7 @@ async fn list_tags(
         (status = 200, body = CommonResult<TagResponse>, content_type = "application/json"),
         (status = 404, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = GIT_TAG
+    tag = TAG_MANAGE
 )]
 async fn get_tag(
     State(state): State<MonoApiServiceState>,
@@ -302,7 +304,7 @@ async fn get_tag(
         (status = 200, body = CommonResult<DeleteTagResponse>, content_type = "application/json"),
         (status = 404, body = CommonResult<String>, content_type = "application/json")
     ),
-    tag = GIT_TAG
+    tag = TAG_MANAGE
 )]
 async fn delete_tag(
     State(state): State<MonoApiServiceState>,
