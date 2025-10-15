@@ -3127,21 +3127,6 @@ export type BlameResult = {
   total_lines: number
 }
 
-export type CLDetailRes = {
-  assignees: string[]
-  conversations: ConversationItem[]
-  /** @format int64 */
-  id: number
-  labels: LabelItem[]
-  link: string
-  /** @format int64 */
-  merge_timestamp?: number | null
-  /** @format int64 */
-  open_timestamp: number
-  status: MergeStatus
-  title: string
-}
-
 export type ChangeReviewStatePayload = {
   /** @format int64 */
   conversation_id: number
@@ -3160,17 +3145,6 @@ export enum CheckType {
   MergeConflict = 'MergeConflict',
   CiStatus = 'CiStatus',
   CodeReview = 'CodeReview'
-}
-
-export type ClFilesRes = {
-  action: string
-  path: string
-  sha: string
-}
-
-export type CloneRepoPayload = {
-  owner: string
-  repo: string
 }
 
 export type CommitBindingInfo = {
@@ -3232,25 +3206,6 @@ export type CommonResultBlameResult = {
     page_size?: number | null
     /** @min 0 */
     total_lines: number
-  }
-  err_message: string
-  req_result: boolean
-}
-
-export type CommonResultCLDetailRes = {
-  data?: {
-    assignees: string[]
-    conversations: ConversationItem[]
-    /** @format int64 */
-    id: number
-    labels: LabelItem[]
-    link: string
-    /** @format int64 */
-    merge_timestamp?: number | null
-    /** @format int64 */
-    open_timestamp: number
-    status: MergeStatus
-    title: string
   }
   err_message: string
   req_result: boolean
@@ -3379,6 +3334,25 @@ export type CommonResultLabelItem = {
   req_result: boolean
 }
 
+export type CommonResultMRDetailRes = {
+  data?: {
+    assignees: string[]
+    conversations: ConversationItem[]
+    /** @format int64 */
+    id: number
+    labels: LabelItem[]
+    link: string
+    /** @format int64 */
+    merge_timestamp?: number | null
+    /** @format int64 */
+    open_timestamp: number
+    status: MergeStatus
+    title: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultMergeBoxRes = {
   data?: {
     merge_requirements?: null | MergeRequirements
@@ -3432,16 +3406,6 @@ export type CommonResultTreeResponse = {
   req_result: boolean
 }
 
-export type CommonResultVecClFilesRes = {
-  data?: {
-    action: string
-    path: string
-    sha: string
-  }[]
-  err_message: string
-  req_result: boolean
-}
-
 export type CommonResultVecGpgKey = {
   data?: {
     /** @format date-time */
@@ -3489,6 +3453,16 @@ export type CommonResultVecListToken = {
     /** @format int64 */
     id: number
     token: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecMrFilesRes = {
+  data?: {
+    action: string
+    path: string
+    sha: string
   }[]
   err_message: string
   req_result: boolean
@@ -3736,6 +3710,21 @@ export type ListToken = {
   token: string
 }
 
+export type MRDetailRes = {
+  assignees: string[]
+  conversations: ConversationItem[]
+  /** @format int64 */
+  id: number
+  labels: LabelItem[]
+  link: string
+  /** @format int64 */
+  merge_timestamp?: number | null
+  /** @format int64 */
+  open_timestamp: number
+  status: MergeStatus
+  title: string
+}
+
 export type MergeBoxRes = {
   merge_requirements?: null | MergeRequirements
 }
@@ -3749,6 +3738,12 @@ export enum MergeStatus {
   Open = 'Open',
   Merged = 'Merged',
   Closed = 'Closed'
+}
+
+export type MrFilesRes = {
+  action: string
+  path: string
+  sha: string
 }
 
 export type MuiTreeNode = {
@@ -3966,9 +3961,9 @@ export type LogSegment = {
 /** Task information including current status */
 export type TaskInfoDTO = {
   build_list: BuildDTO[]
-  /** @format int64 */
-  cl_id: number
   created_at: string
+  /** @format int64 */
+  mr_id: number
   task_id: string
   task_name?: string | null
   template?: any
@@ -3978,8 +3973,7 @@ export type TaskInfoDTO = {
 export type TaskRequest = {
   builds: BuildRequest[]
   /** @format int64 */
-  cl: number
-  cl_link: string
+  mr: number
   repo: string
   task_name?: string | null
   template?: any
@@ -5149,46 +5143,6 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
-export type PostApiClAssigneesData = CommonResultString
-
-export type PostApiClCloneData = CommonResultString
-
-export type PostApiClLabelsData = CommonResultString
-
-export type PostApiClListData = CommonResultCommonPageItemRes
-
-export type PostApiClCloseData = CommonResultString
-
-export type PostApiClCommentData = CommonResultString
-
-export type GetApiClDetailData = CommonResultCLDetailRes
-
-export type PostApiClFilesChangedData = CommonResultFilesChangedPage
-
-export type GetApiClFilesListData = CommonResultVecClFilesRes
-
-export type PostApiClMergeData = CommonResultString
-
-export type GetApiClMergeBoxData = CommonResultMergeBoxRes
-
-export type PostApiClMergeNoAuthData = CommonResultString
-
-export type GetApiClMuiTreeData = CommonResultVecMuiTreeNode
-
-export type PostApiClReopenData = CommonResultString
-
-export type PostApiClReviewResolveData = CommonResultString
-
-export type PostApiClReviewerApproveData = CommonResultString
-
-export type GetApiClReviewersData = CommonResultReviewersResponse
-
-export type PostApiClReviewersData = CommonResultString
-
-export type DeleteApiClReviewersData = CommonResultString
-
-export type PostApiClTitleData = CommonResultString
-
 export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
 
 export type DeleteApiConversationReactionsByIdData = CommonResultString
@@ -5243,6 +5197,44 @@ export type GetApiLatestCommitParams = {
 }
 
 export type GetApiLatestCommitData = LatestCommitInfo
+
+export type PostApiMrAssigneesData = CommonResultString
+
+export type PostApiMrLabelsData = CommonResultString
+
+export type PostApiMrListData = CommonResultCommonPageItemRes
+
+export type PostApiMrCloseData = CommonResultString
+
+export type PostApiMrCommentData = CommonResultString
+
+export type GetApiMrDetailData = CommonResultMRDetailRes
+
+export type PostApiMrFilesChangedData = CommonResultFilesChangedPage
+
+export type GetApiMrFilesListData = CommonResultVecMrFilesRes
+
+export type PostApiMrMergeData = CommonResultString
+
+export type GetApiMrMergeBoxData = CommonResultMergeBoxRes
+
+export type PostApiMrMergeNoAuthData = CommonResultString
+
+export type GetApiMrMuiTreeData = CommonResultVecMuiTreeNode
+
+export type PostApiMrReopenData = CommonResultString
+
+export type PostApiMrReviewResolveData = CommonResultString
+
+export type PostApiMrReviewerApproveData = CommonResultString
+
+export type GetApiMrReviewersData = CommonResultReviewersResponse
+
+export type PostApiMrReviewersData = CommonResultString
+
+export type DeleteApiMrReviewersData = CommonResultString
+
+export type PostApiMrTitleData = CommonResultString
 
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
@@ -5337,7 +5329,7 @@ export type GetTaskHistoryOutputByIdData = any
 
 export type GetTaskOutputByIdData = any
 
-export type GetTasksByClData = TaskInfoDTO[]
+export type GetTasksByMrData = TaskInfoDTO[]
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -13695,483 +13687,6 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
-     * @name PostApiClAssignees
-     * @summary Update CL related assignees
-     * @request POST:/api/v1/cl/assignees
-     */
-    postApiClAssignees: () => {
-      const base = 'POST:/api/v1/cl/assignees' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClAssigneesData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiClAssigneesData>([base]),
-        request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
-          this.request<PostApiClAssigneesData>({
-            path: `/api/v1/cl/assignees`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClClone
-     * @request POST:/api/v1/cl/clone
-     */
-    postApiClClone: () => {
-      const base = 'POST:/api/v1/cl/clone' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClCloneData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiClCloneData>([base]),
-        request: (data: CloneRepoPayload, params: RequestParams = {}) =>
-          this.request<PostApiClCloneData>({
-            path: `/api/v1/cl/clone`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClLabels
-     * @summary Update cl related labels
-     * @request POST:/api/v1/cl/labels
-     */
-    postApiClLabels: () => {
-      const base = 'POST:/api/v1/cl/labels' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClLabelsData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiClLabelsData>([base]),
-        request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
-          this.request<PostApiClLabelsData>({
-            path: `/api/v1/cl/labels`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClList
-     * @summary Fetch CL list
-     * @request POST:/api/v1/cl/list
-     */
-    postApiClList: () => {
-      const base = 'POST:/api/v1/cl/list' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClListData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiClListData>([base]),
-        request: (data: PageParamsListPayload, params: RequestParams = {}) =>
-          this.request<PostApiClListData>({
-            path: `/api/v1/cl/list`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClClose
-     * @summary Close Change List
-     * @request POST:/api/v1/cl/{link}/close
-     */
-    postApiClClose: () => {
-      const base = 'POST:/api/v1/cl/{link}/close' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClCloseData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClCloseData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<PostApiClCloseData>({
-            path: `/api/v1/cl/${link}/close`,
-            method: 'POST',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClComment
-     * @summary Add new comment on Change List
-     * @request POST:/api/v1/cl/{link}/comment
-     */
-    postApiClComment: () => {
-      const base = 'POST:/api/v1/cl/{link}/comment' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClCommentData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClCommentData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
-          this.request<PostApiClCommentData>({
-            path: `/api/v1/cl/${link}/comment`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name GetApiClDetail
-     * @summary Get change list details
-     * @request GET:/api/v1/cl/{link}/detail
-     */
-    getApiClDetail: () => {
-      const base = 'GET:/api/v1/cl/{link}/detail' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiClDetailData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiClDetailData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiClDetailData>({
-            path: `/api/v1/cl/${link}/detail`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClFilesChanged
-     * @summary Get Change List file changed list in Pagination
-     * @request POST:/api/v1/cl/{link}/files-changed
-     */
-    postApiClFilesChanged: () => {
-      const base = 'POST:/api/v1/cl/{link}/files-changed' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClFilesChangedData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClFilesChangedData>([base, link]),
-        request: (link: string, data: PageParamsString, params: RequestParams = {}) =>
-          this.request<PostApiClFilesChangedData>({
-            path: `/api/v1/cl/${link}/files-changed`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name GetApiClFilesList
-     * @summary Get Change List file list
-     * @request GET:/api/v1/cl/{link}/files-list
-     */
-    getApiClFilesList: () => {
-      const base = 'GET:/api/v1/cl/{link}/files-list' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiClFilesListData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiClFilesListData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiClFilesListData>({
-            path: `/api/v1/cl/${link}/files-list`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClMerge
-     * @summary Approve Change List
-     * @request POST:/api/v1/cl/{link}/merge
-     */
-    postApiClMerge: () => {
-      const base = 'POST:/api/v1/cl/{link}/merge' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClMergeData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClMergeData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<PostApiClMergeData>({
-            path: `/api/v1/cl/${link}/merge`,
-            method: 'POST',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name GetApiClMergeBox
-     * @summary Get Merge Box to check merge status
-     * @request GET:/api/v1/cl/{link}/merge-box
-     */
-    getApiClMergeBox: () => {
-      const base = 'GET:/api/v1/cl/{link}/merge-box' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiClMergeBoxData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiClMergeBoxData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiClMergeBoxData>({
-            path: `/api/v1/cl/${link}/merge-box`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
- * No description
- *
- * @tags change_list
- * @name PostApiClMergeNoAuth
- * @summary Change List without authentication
-It's for local testing purposes.
- * @request POST:/api/v1/cl/{link}/merge-no-auth
- */
-    postApiClMergeNoAuth: () => {
-      const base = 'POST:/api/v1/cl/{link}/merge-no-auth' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClMergeNoAuthData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClMergeNoAuthData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<PostApiClMergeNoAuthData>({
-            path: `/api/v1/cl/${link}/merge-no-auth`,
-            method: 'POST',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name GetApiClMuiTree
-     * @request GET:/api/v1/cl/{link}/mui-tree
-     */
-    getApiClMuiTree: () => {
-      const base = 'GET:/api/v1/cl/{link}/mui-tree' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiClMuiTreeData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiClMuiTreeData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiClMuiTreeData>({
-            path: `/api/v1/cl/${link}/mui-tree`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClReopen
-     * @summary Reopen Change List
-     * @request POST:/api/v1/cl/{link}/reopen
-     */
-    postApiClReopen: () => {
-      const base = 'POST:/api/v1/cl/{link}/reopen' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClReopenData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClReopenData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<PostApiClReopenData>({
-            path: `/api/v1/cl/${link}/reopen`,
-            method: 'POST',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClReviewResolve
-     * @request POST:/api/v1/cl/{link}/review/resolve
-     */
-    postApiClReviewResolve: () => {
-      const base = 'POST:/api/v1/cl/{link}/review/resolve' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClReviewResolveData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClReviewResolveData>([base, link]),
-        request: (link: string, data: ChangeReviewStatePayload, params: RequestParams = {}) =>
-          this.request<PostApiClReviewResolveData>({
-            path: `/api/v1/cl/${link}/review/resolve`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * @description the function get user's campsite_id from the login user info automatically
-     *
-     * @tags change_list
-     * @name PostApiClReviewerApprove
-     * @summary Change the reviewer state
-     * @request POST:/api/v1/cl/{link}/reviewer/approve
-     */
-    postApiClReviewerApprove: () => {
-      const base = 'POST:/api/v1/cl/{link}/reviewer/approve' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClReviewerApproveData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClReviewerApproveData>([base, link]),
-        request: (link: string, data: ChangeReviewerStatePayload, params: RequestParams = {}) =>
-          this.request<PostApiClReviewerApproveData>({
-            path: `/api/v1/cl/${link}/reviewer/approve`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name GetApiClReviewers
-     * @request GET:/api/v1/cl/{link}/reviewers
-     */
-    getApiClReviewers: () => {
-      const base = 'GET:/api/v1/cl/{link}/reviewers' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiClReviewersData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<GetApiClReviewersData>([base, link]),
-        request: (link: string, params: RequestParams = {}) =>
-          this.request<GetApiClReviewersData>({
-            path: `/api/v1/cl/${link}/reviewers`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClReviewers
-     * @request POST:/api/v1/cl/{link}/reviewers
-     */
-    postApiClReviewers: () => {
-      const base = 'POST:/api/v1/cl/{link}/reviewers' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClReviewersData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClReviewersData>([base, link]),
-        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
-          this.request<PostApiClReviewersData>({
-            path: `/api/v1/cl/${link}/reviewers`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name DeleteApiClReviewers
-     * @request DELETE:/api/v1/cl/{link}/reviewers
-     */
-    deleteApiClReviewers: () => {
-      const base = 'DELETE:/api/v1/cl/{link}/reviewers' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<DeleteApiClReviewersData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<DeleteApiClReviewersData>([base, link]),
-        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
-          this.request<DeleteApiClReviewersData>({
-            path: `/api/v1/cl/${link}/reviewers`,
-            method: 'DELETE',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
-     * @name PostApiClTitle
-     * @summary Edit CL title
-     * @request POST:/api/v1/cl/{link}/title
-     */
-    postApiClTitle: () => {
-      const base = 'POST:/api/v1/cl/{link}/title' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClTitleData>([base]),
-        requestKey: (link: string) => dataTaggedQueryKey<PostApiClTitleData>([base, link]),
-        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
-          this.request<PostApiClTitleData>({
-            path: `/api/v1/cl/${link}/title`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
      * @tags git
      * @name PutApiCommitsBinding
      * @summary Update commit binding information
@@ -14729,6 +14244,459 @@ It's for local testing purposes.
     /**
      * No description
      *
+     * @tags merge_request
+     * @name PostApiMrAssignees
+     * @summary Update MR related assignees
+     * @request POST:/api/v1/mr/assignees
+     */
+    postApiMrAssignees: () => {
+      const base = 'POST:/api/v1/mr/assignees' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrAssigneesData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMrAssigneesData>([base]),
+        request: (data: AssigneeUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrAssigneesData>({
+            path: `/api/v1/mr/assignees`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrLabels
+     * @summary Update mr related labels
+     * @request POST:/api/v1/mr/labels
+     */
+    postApiMrLabels: () => {
+      const base = 'POST:/api/v1/mr/labels' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrLabelsData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMrLabelsData>([base]),
+        request: (data: LabelUpdatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrLabelsData>({
+            path: `/api/v1/mr/labels`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrList
+     * @summary Fetch MR list
+     * @request POST:/api/v1/mr/list
+     */
+    postApiMrList: () => {
+      const base = 'POST:/api/v1/mr/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrListData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMrListData>([base]),
+        request: (data: PageParamsListPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrListData>({
+            path: `/api/v1/mr/list`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrClose
+     * @summary Close Merge Request
+     * @request POST:/api/v1/mr/{link}/close
+     */
+    postApiMrClose: () => {
+      const base = 'POST:/api/v1/mr/{link}/close' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrCloseData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrCloseData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiMrCloseData>({
+            path: `/api/v1/mr/${link}/close`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrComment
+     * @summary Add new comment on Merge Request
+     * @request POST:/api/v1/mr/{link}/comment
+     */
+    postApiMrComment: () => {
+      const base = 'POST:/api/v1/mr/{link}/comment' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrCommentData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrCommentData>([base, link]),
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrCommentData>({
+            path: `/api/v1/mr/${link}/comment`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrDetail
+     * @summary Get merge request details
+     * @request GET:/api/v1/mr/{link}/detail
+     */
+    getApiMrDetail: () => {
+      const base = 'GET:/api/v1/mr/{link}/detail' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrDetailData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrDetailData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrDetailData>({
+            path: `/api/v1/mr/${link}/detail`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrFilesChanged
+     * @summary Get Merge Request file changed list in Pagination
+     * @request POST:/api/v1/mr/{link}/files-changed
+     */
+    postApiMrFilesChanged: () => {
+      const base = 'POST:/api/v1/mr/{link}/files-changed' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrFilesChangedData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrFilesChangedData>([base, link]),
+        request: (link: string, data: PageParamsString, params: RequestParams = {}) =>
+          this.request<PostApiMrFilesChangedData>({
+            path: `/api/v1/mr/${link}/files-changed`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrFilesList
+     * @summary Get Merge Request file list
+     * @request GET:/api/v1/mr/{link}/files-list
+     */
+    getApiMrFilesList: () => {
+      const base = 'GET:/api/v1/mr/{link}/files-list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrFilesListData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrFilesListData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrFilesListData>({
+            path: `/api/v1/mr/${link}/files-list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrMerge
+     * @summary Approve Merge Request
+     * @request POST:/api/v1/mr/{link}/merge
+     */
+    postApiMrMerge: () => {
+      const base = 'POST:/api/v1/mr/{link}/merge' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrMergeData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrMergeData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiMrMergeData>({
+            path: `/api/v1/mr/${link}/merge`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrMergeBox
+     * @summary Get Merge Box to check merge status
+     * @request GET:/api/v1/mr/{link}/merge-box
+     */
+    getApiMrMergeBox: () => {
+      const base = 'GET:/api/v1/mr/{link}/merge-box' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrMergeBoxData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrMergeBoxData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrMergeBoxData>({
+            path: `/api/v1/mr/${link}/merge-box`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+ * No description
+ *
+ * @tags merge_request
+ * @name PostApiMrMergeNoAuth
+ * @summary Merge Request without authentication
+It's for local testing purposes.
+ * @request POST:/api/v1/mr/{link}/merge-no-auth
+ */
+    postApiMrMergeNoAuth: () => {
+      const base = 'POST:/api/v1/mr/{link}/merge-no-auth' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrMergeNoAuthData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrMergeNoAuthData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiMrMergeNoAuthData>({
+            path: `/api/v1/mr/${link}/merge-no-auth`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrMuiTree
+     * @request GET:/api/v1/mr/{link}/mui-tree
+     */
+    getApiMrMuiTree: () => {
+      const base = 'GET:/api/v1/mr/{link}/mui-tree' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrMuiTreeData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrMuiTreeData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrMuiTreeData>({
+            path: `/api/v1/mr/${link}/mui-tree`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrReopen
+     * @summary Reopen Merge Request
+     * @request POST:/api/v1/mr/{link}/reopen
+     */
+    postApiMrReopen: () => {
+      const base = 'POST:/api/v1/mr/{link}/reopen' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReopenData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReopenData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiMrReopenData>({
+            path: `/api/v1/mr/${link}/reopen`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewResolve
+     * @request POST:/api/v1/mr/{link}/review/resolve
+     */
+    postApiMrReviewResolve: () => {
+      const base = 'POST:/api/v1/mr/{link}/review/resolve' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewResolveData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewResolveData>([base, link]),
+        request: (link: string, data: ChangeReviewStatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewResolveData>({
+            path: `/api/v1/mr/${link}/review/resolve`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description the function get user's campsite_id from the login user info automatically
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewerApprove
+     * @summary Change the reviewer state
+     * @request POST:/api/v1/mr/{link}/reviewer/approve
+     */
+    postApiMrReviewerApprove: () => {
+      const base = 'POST:/api/v1/mr/{link}/reviewer/approve' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewerApproveData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewerApproveData>([base, link]),
+        request: (link: string, data: ChangeReviewerStatePayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewerApproveData>({
+            path: `/api/v1/mr/${link}/reviewer/approve`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name GetApiMrReviewers
+     * @request GET:/api/v1/mr/{link}/reviewers
+     */
+    getApiMrReviewers: () => {
+      const base = 'GET:/api/v1/mr/{link}/reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMrReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiMrReviewersData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiMrReviewersData>({
+            path: `/api/v1/mr/${link}/reviewers`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrReviewers
+     * @request POST:/api/v1/mr/{link}/reviewers
+     */
+    postApiMrReviewers: () => {
+      const base = 'POST:/api/v1/mr/{link}/reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrReviewersData>({
+            path: `/api/v1/mr/${link}/reviewers`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name DeleteApiMrReviewers
+     * @request DELETE:/api/v1/mr/{link}/reviewers
+     */
+    deleteApiMrReviewers: () => {
+      const base = 'DELETE:/api/v1/mr/{link}/reviewers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiMrReviewersData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<DeleteApiMrReviewersData>([base, link]),
+        request: (link: string, data: ReviewerPayload, params: RequestParams = {}) =>
+          this.request<DeleteApiMrReviewersData>({
+            path: `/api/v1/mr/${link}/reviewers`,
+            method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags merge_request
+     * @name PostApiMrTitle
+     * @summary Edit MR title
+     * @request POST:/api/v1/mr/{link}/title
+     */
+    postApiMrTitle: () => {
+      const base = 'POST:/api/v1/mr/{link}/title' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMrTitleData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiMrTitleData>([base, link]),
+        request: (link: string, data: ContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiMrTitleData>({
+            path: `/api/v1/mr/${link}/title`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags sync-notes-state
      * @name GetApiOrganizationsNotesSyncState
      * @request GET:/api/v1/organizations/{org_slug}/notes/{id}/sync_state
@@ -15229,24 +15197,24 @@ Continuously monitors the log file and streams new content as it becomes availab
       }
     }
   }
-  cl = {
+  mr = {
     /**
      * No description
      *
      * @tags api
-     * @name GetTasksByCl
-     * @summary Return all tasks with their current status (combining /cl-task and /task-status logic)
-     * @request GET:/tasks/{cl}
+     * @name GetTasksByMr
+     * @summary Return all tasks with their current status (combining /mr-task and /task-status logic)
+     * @request GET:/tasks/{mr}
      */
-    getTasksByCl: () => {
-      const base = 'GET:/tasks/{cl}' as const
+    getTasksByMr: () => {
+      const base = 'GET:/tasks/{mr}' as const
 
       return {
-        baseKey: dataTaggedQueryKey<GetTasksByClData>([base]),
-        requestKey: (cl: number) => dataTaggedQueryKey<GetTasksByClData>([base, cl]),
-        request: (cl: number, params: RequestParams = {}) =>
-          this.request<GetTasksByClData>({
-            path: `/tasks/${cl}`,
+        baseKey: dataTaggedQueryKey<GetTasksByMrData>([base]),
+        requestKey: (mr: number) => dataTaggedQueryKey<GetTasksByMrData>([base, mr]),
+        request: (mr: number, params: RequestParams = {}) =>
+          this.request<GetTasksByMrData>({
+            path: `/tasks/${mr}`,
             method: 'GET',
             ...params
           })

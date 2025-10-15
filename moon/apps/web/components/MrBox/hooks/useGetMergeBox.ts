@@ -3,12 +3,12 @@ import { atomFamily } from "jotai/utils";
 import { atomWithWebStorage } from "@/utils/atomWithWebStorage";
 import { useQuery } from "@tanstack/react-query";
 import { legacyApiClient } from "@/utils/queryClient";
-import { GetApiClMergeBoxData } from "@gitmono/types";
+import { GetApiMrMergeBoxData } from "@gitmono/types";
 import { useEffect } from "react";
 
-const fetchMergeBox = legacyApiClient.v1.getApiClMergeBox()
+const fetchMergeBox = legacyApiClient.v1.getApiMrMergeBox()
 const getMergeBoxAtom = atomFamily(() =>
-  atomWithWebStorage<GetApiClMergeBoxData['data']>(`merge-box`, {})
+  atomWithWebStorage<GetApiMrMergeBoxData['data']>(`merge-box`, {})
 )
 
 export const useGetMergeBox = (link: string) => {

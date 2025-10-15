@@ -30,7 +30,7 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
   const [loadingDirectories, setLoadingDirectories] = useState<Set<string>>(new Set());
   
   const { refs } = useRefsFromRouter();
-  const { data: treeItems, isLoading: isTreeLoading } = useGetTree({ path: basePath, ...(refs ? { refs } : {}) } as any);
+  const { data: treeItems, isLoading: isTreeLoading } = useGetTree({ path: basePath, ...(refs ? { refs } : {}) });
 
   // Set the expanded state on initialization
   useEffect(() => {
@@ -159,7 +159,7 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
   return (
     <>
       {showInitialSkeleton ? (
-  <Box sx={{ display: 'flex', paddingInlineStart: '16px' }}>
+        <Box sx={{ display: 'flex', paddingLeft: '16px' }}>
           <Skeleton width="200px" height="30px" />
         </Box>
       ) 
@@ -170,7 +170,7 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
           onItemFocus={handleFocusItem}
           expandedItems={expandedNodes}
           onExpandedItemsChange={handleNodeToggle}
-          sx={{ blockSize: 'fit-content', flexGrow: 1, inlineSize: '100%', overflow: 'auto' }}
+          sx={{ height: 'fit-content', flexGrow: 1, width: '100%', overflow: 'auto' }}
           slots={{
             item: (itemProps) => (
               <CustomTreeItem 

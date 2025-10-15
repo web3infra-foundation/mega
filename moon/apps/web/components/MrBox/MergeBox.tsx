@@ -70,7 +70,7 @@ export function MergeBox({ prId }: { prId: string }) {
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: legacyApiClient.v1.getApiClReviewers().requestKey(id)
+          queryKey: legacyApiClient.v1.getApiMrReviewers().requestKey(id)
         });
       }
     });
