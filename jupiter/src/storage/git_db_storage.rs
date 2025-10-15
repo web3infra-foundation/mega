@@ -42,7 +42,23 @@ struct GitObjects {
 }
 
 impl GitDbStorage {
-    pub async fn create_and_save_ref(&self, ref_name: &str, ref_id: &str) -> Result<(), MegaError> {
+    pub async fn create_repo_and_save_ref(
+        &self, 
+        repo_path: &str,
+        repo_name: &str,
+        ref_name: &str, 
+        ref_id: &str
+    ) -> Result<(), MegaError> {
+        let repo_id = generate_id();
+        let repo = git_repo::Model {
+            id: repo_id,
+            repo_path: repo_path.to_string(),
+            repo_name: repo_name.to_string(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        self.save_git_repo(repo).await?;
+
         let refs = import_refs::Model {
             id: generate_id(),
             repo_id: 0,
@@ -53,7 +69,7 @@ impl GitDbStorage {
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
-        self.save_ref(generate_id(), refs).await?;
+        self.save_ref(repo_id, refs).await?;
         Ok(())
     }
 
