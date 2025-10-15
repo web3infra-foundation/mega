@@ -15,7 +15,6 @@ on:
       - 'docs/**'
       - 'moon/**'
       - 'scripts/**'
-      - 'third-party/**'
       - 'toolchains/**'
       - '.github/workflows/web-**'
       - 'extensions/**'

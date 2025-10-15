@@ -6,8 +6,6 @@ on:
     paths-ignore:
       - '.devcontainer/**'
       - '.github/**'
-      - 'alfs/**'
-      - 'aries/**'
       - 'config/**'
       - 'docker/**'
       - 'docs/**'
@@ -19,7 +17,6 @@ on:
       - 'scorpio/**'
       - 'scripts/**'
       - 'tests/**'
-      - 'third-party/**'
       - 'toolchains/**'
 
 env:
