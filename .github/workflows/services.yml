@@ -9,7 +9,6 @@ on:
       - 'moon/**'
       - 'rust/**'
       - 'scripts/**'
-      - 'third-party/**'
       - 'toolchains/**'
       - 'extensions/**'
 
