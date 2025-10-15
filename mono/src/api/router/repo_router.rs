@@ -12,7 +12,7 @@ use crate::{
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
-        "/gpg",
+        "/repo",
         OpenApiRouter::new().routes(routes!(clone_third_party_repo)),
     )
 }
