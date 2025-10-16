@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Button, DotsHorizontal, Link, LinkIcon, TrashIcon, UIText } from '@gitmono/ui'
+import { Avatar, Button, DotsHorizontal, Link, LinkIcon, TrashIcon, UIText } from '@gitmono/ui'
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
 import { useCopyToClipboard } from '@gitmono/ui/src/hooks'
 
 import { TagResponse } from '@gitmono/types'
+import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { useDeleteMonoTag } from '@/hooks/useDeleteMonoTag'
+import { formatDistanceToNow } from 'date-fns'
 
 interface Props {
   tags: TagResponse[]
@@ -45,6 +47,37 @@ function InnerRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }
     return tag.message || `${tag.object_type} ${tag.object_id.substring(0, 8)}`
   }, [tag])
 
+  const creator = useMemo(() => {
+    // tagger format examples: "Alice <alice@example.com>", "alice@example.com", "unknown"
+    const t = (tag.tagger || '').trim()
+
+    if (!t) return { name: 'unknown', email: undefined as string | undefined }
+    const m = t.match(/^(.*)\s*<([^>]+)>$/)
+
+    if (m) {
+      const name = m[1].trim() || m[2].split('@')[0]
+
+      return { name, email: m[2] }
+    }
+    if (t.includes('@')) {
+      return { name: t.split('@')[0], email: t }
+    }
+    return { name: t, email: undefined as string | undefined }
+  }, [tag.tagger])
+
+  const username = useMemo(() => {
+    if (creator.email) return creator.email.split('@')[0]
+    return creator.name || ''
+  }, [creator])
+
+  const createdRelative = useMemo(() => {
+    try {
+      return formatDistanceToNow(new Date(tag.created_at), { addSuffix: true })
+    } catch {
+      return ''
+    }
+  }, [tag.created_at])
+
   const href = `/code/tags/${encodeURIComponent(tag.name)}`
 
   return (
@@ -62,6 +95,15 @@ function InnerRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }
             {subtitle}
           </UIText>
         )}
+        <MemberHovercard username={username} role='member'>
+          <div className='mt-0.5 flex items-center gap-1.5 relative z-[1]'>
+            <Avatar size='xs' name={creator.name} />
+            <UIText quaternary size='text-[12px]' className='line-clamp-1'>
+              Created by {creator.name}
+              {createdRelative ? ` · ${createdRelative}` : ''}
+            </UIText>
+          </div>
+        </MemberHovercard>
       </div>
 
       <div className='hidden flex-none items-center gap-0.5 lg:flex'>

@@ -10,6 +10,6 @@ export function useGetHTTPLog(payload: GetTaskHistoryOutputByIdParams) {
     queryFn: () => HttpTaskRes(payload)
     // refetchInterval: 15000,
     // refetchIntervalInBackground: true,
-    // enabled: !!mr
+    // enabled: !!cl
   })
 }

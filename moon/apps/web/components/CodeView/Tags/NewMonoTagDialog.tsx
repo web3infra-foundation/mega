@@ -16,6 +16,7 @@ import {
 } from '@gitmono/ui'
 
 import { useCreateMonoTag } from '@/hooks/useCreateMonoTag'
+import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useGetLatestCommit } from '../../../hooks/useGetLatestCommit'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import React from 'react'
@@ -35,6 +36,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
   const [pickerQuery, setPickerQuery] = useState('')
 
   const { mutateAsync, isPending } = useCreateMonoTag()
+  const { data: currentUser } = useGetCurrentUser()
   const { data: latestCommit, isLoading: latestLoading } = useGetLatestCommit('/')
   const { data: treeCommitResp, isLoading: listLoading, isFetching: listFetching } = useGetTreeCommitInfo('/')
 
@@ -75,7 +77,9 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
         name: name.trim(),
         message: message || undefined,
         target: resolvedTarget,
-        path_context: '/'
+        path_context: '/',
+        tagger_email: currentUser?.email || undefined,
+        tagger_name: currentUser?.display_name || currentUser?.username || undefined
       })
 
       if (onCreated && result?.data) {

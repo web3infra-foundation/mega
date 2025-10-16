@@ -147,9 +147,9 @@ function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
     case 'issue_open':
       suggestionType = 'issue'
       break
-    case 'merge_request_closed':
-    case 'merge_request':
-      suggestionType = 'merge_request'
+    case 'change_list_closed':
+    case 'change_list':
+      suggestionType = 'change_list'
       break
     default:
       break
@@ -171,7 +171,7 @@ function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
       }
     >
       <span className="h-5 w-5">
-        {suggestionType === 'merge_request' 
+        {suggestionType === 'change_list'
           ? <GitCommitIcon /> 
           : <ChatBubblePlusIcon />}
       </span>

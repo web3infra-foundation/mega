@@ -134,7 +134,7 @@ pub async fn build(
     id: String,
     repo: String,
     target: String,
-    args: Vec<String>,
+    _args: Vec<String>,
     cl: String,
     sender: UnboundedSender<WSMessage>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
@@ -151,7 +151,6 @@ pub async fn build(
     let mut cmd = Command::new("buck2");
     let cmd = cmd
         .arg("build")
-        .args(args)
         .arg(&target)
         .current_dir(format!("{}/{}", *PROJECT_ROOT, repo))
         .stdout(Stdio::piped())

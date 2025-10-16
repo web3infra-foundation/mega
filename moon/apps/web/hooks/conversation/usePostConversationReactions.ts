@@ -26,9 +26,9 @@ export function usePostConversationReactions(commentId: number, id: string, type
             queryKey: legacyApiClient.v1.getApiIssueDetail().requestKey(id)
           })
           break
-        case 'mr':
+        case 'cl':
           queryClient.invalidateQueries({
-            queryKey: legacyApiClient.v1.getApiMrDetail().requestKey(id)
+            queryKey: legacyApiClient.v1.getApiClDetail().requestKey(id)
           })
           break
         default:

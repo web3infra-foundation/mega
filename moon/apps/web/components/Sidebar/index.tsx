@@ -39,7 +39,7 @@ import { RecentlyViewedPopover } from './RecentlyViewed/RecentlyViewedPopover'
 import { SidebarCode } from './SidebarCode'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
-import { SiderbarMergeRequest } from './SiderbarMergeRequest'
+import { SiderbarChangeList } from './SiderbarChangeList'
 import { SidebarCratespro } from './SidebarCratespro'
 
 export function SidebarContainer() {
@@ -167,7 +167,7 @@ function SidebarContent() {
           <SidebarMyWorkItems />
           <SidebarDrafts />
           <SidebarCode />
-          <SiderbarMergeRequest />
+          <SiderbarChangeList />
           <SidebarIssue />
           <SidebarCratespro />
         </SidebarGroup>
