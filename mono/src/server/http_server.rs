@@ -230,6 +230,7 @@ pub const LABEL_TAG: &str = "Label Management";
 pub const CONV_TAG: &str = "Conversation and Comment";
 pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
 pub const USER_TAG: &str = "User Management";
+pub const REPO_TAG: &str = "Repo creation and synchronisation";
 #[derive(OpenApi)]
 #[openapi(
     tags(

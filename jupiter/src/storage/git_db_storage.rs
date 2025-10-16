@@ -1,6 +1,8 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use callisto::sea_orm_active_enums::RefTypeEnum;
+use common::utils::generate_id;
 use futures::{Stream, StreamExt, stream};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -40,6 +42,37 @@ struct GitObjects {
 }
 
 impl GitDbStorage {
+    pub async fn create_repo_and_save_ref(
+        &self,
+        repo_path: &str,
+        repo_name: &str,
+        ref_name: &str,
+        ref_id: &str,
+    ) -> Result<(), MegaError> {
+        let repo_id = generate_id();
+        let repo = git_repo::Model {
+            id: repo_id,
+            repo_path: repo_path.to_string(),
+            repo_name: repo_name.to_string(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        self.save_git_repo(repo).await?;
+
+        let refs = import_refs::Model {
+            id: generate_id(),
+            repo_id: 0,
+            ref_name: ref_name.to_string(),
+            ref_git_id: ref_id.to_string(),
+            ref_type: RefTypeEnum::Branch,
+            default_branch: true,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        self.save_ref(repo_id, refs).await?;
+        Ok(())
+    }
+
     pub async fn save_ref(
         &self,
         repo_id: i64,

@@ -1365,20 +1365,32 @@ impl MonoApiService {
         Ok(res)
     }
 
-    pub async fn sync_third_party_repo(&self, owner: &str, repo: &str) -> Result<Bytes, MegaError> {
+    pub async fn sync_third_party_repo(
+        &self,
+        owner: &str,
+        repo: &str,
+        mega_path: PathBuf,
+    ) -> Result<Bytes, MegaError> {
+        // Additional Path Parameter for Mega
         let url = format!("https://github.com/{owner}/{repo}.git");
         let remote_client = ThirdPartyClient::new(&url);
 
-        let refs = remote_client.fetch_refs().await?;
-        let res = remote_client.fetch_packs(&refs).await?;
+        let (ref_name, ref_hash) = remote_client.fetch_refs().await?;
+
+        let res = remote_client
+            .fetch_packs(std::slice::from_ref(&ref_hash))
+            .await?;
         let pack_data = remote_client
             .process_pack_stream(res)
             .await
             .map_err(|e| MegaError::with_message(format!("{e}")))?;
 
+        self.save_import_ref(&mega_path, &ref_name, &ref_hash.clone())
+            .await?;
+
         let shared = Arc::new(tokio::sync::Mutex::new(0));
         let mut protocol = SmartProtocol::new(
-            PathBuf::from(url),
+            mega_path,
             self.storage.clone(),
             shared,
             TransportProtocol::Http,
@@ -1389,6 +1401,28 @@ impl MonoApiService {
             .map_err(|e| MegaError::with_message(format!("{e}")))?;
 
         Ok(bytes)
+    }
+
+    async fn save_import_ref(
+        &self,
+        mega_path: &Path,
+        ref_name: &str,
+        ref_id: &str,
+    ) -> Result<(), MegaError> {
+        let path = mega_path
+            .to_str()
+            .ok_or_else(|| MegaError::with_message("Invalid UTF-8 in mega_path"))?;
+
+        let name = mega_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| MegaError::with_message("Failed to extract file name from mega_path"))?;
+
+        self.storage
+            .git_db_storage()
+            .create_repo_and_save_ref(path, name, ref_name, ref_id)
+            .await?;
+        Ok(())
     }
 
     async fn traverse_tree(&self, root_tree: Tree) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
@@ -1920,13 +1954,13 @@ async fn test_third_party_trait() {
     let url = "https://github.com/aidcheng/mega.git";
     let third_party_client = ThirdPartyClient::new(url);
 
-    let refs = third_party_client
+    let (_, refs) = third_party_client
         .fetch_refs()
         .await
         .expect("Unable to fetch refs");
 
     let res = third_party_client
-        .fetch_packs(&refs)
+        .fetch_packs(&[refs])
         .await
         .expect("Unable to fetch res");
 

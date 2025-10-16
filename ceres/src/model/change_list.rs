@@ -273,6 +273,7 @@ pub struct ReviewerInfo {
 pub struct CloneRepoPayload {
     pub owner: String,
     pub repo: String,
+    pub path: String,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
