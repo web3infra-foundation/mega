@@ -170,8 +170,12 @@ pub trait ApiHandler: Send + Sync {
         }
     }
 
-    async fn get_tree_info(&self, path: &Path) -> Result<Vec<TreeBriefItem>, GitError> {
-        match self.search_tree_by_path(path).await? {
+    async fn get_tree_info(
+        &self,
+        path: &Path,
+        refs: Option<&str>,
+    ) -> Result<Vec<TreeBriefItem>, GitError> {
+        match self.search_tree_by_path_with_refs(path, refs).await? {
             Some(tree) => {
                 let items = tree
                     .tree_items
@@ -189,14 +193,61 @@ pub trait ApiHandler: Send + Sync {
         }
     }
 
-    async fn get_tree_commit_info(&self, path: PathBuf) -> Result<Vec<TreeCommitItem>, GitError> {
-        let item_to_commit_map = self.item_to_commit_map(path).await?;
+    async fn get_tree_commit_info(
+        &self,
+        path: PathBuf,
+        refs: Option<&str>,
+    ) -> Result<Vec<TreeCommitItem>, GitError> {
+        // If refs provided, resolve to commit and list items from that commit's tree at path,
+        // attaching the same commit info to each item for consistent, minimal behavior.
+        let maybe = refs.unwrap_or("").trim();
+        if !maybe.is_empty() {
+            // Resolve commit from refs (SHA or tag)
+            let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
+            let mut commit_hash = String::new();
+            if is_hex_sha1(maybe) {
+                commit_hash = maybe.to_string();
+            } else if let Ok(Some(tag)) = self.get_tag(None, maybe.to_string()).await {
+                commit_hash = tag.object_id;
+            }
 
+            if !commit_hash.is_empty() {
+                if let Some(commit) = self.get_commit_by_hash(&commit_hash).await {
+                    // Use refs-aware tree search
+                    if let Some(tree) = self.search_tree_by_path_with_refs(&path, refs).await? {
+                        let mut items: Vec<TreeCommitItem> = tree
+                            .tree_items
+                            .into_iter()
+                            .map(|item| TreeCommitItem::from((item, Some(commit.clone()))))
+                            .collect();
+                        items.sort_by(|a, b| {
+                            a.content_type
+                                .cmp(&b.content_type)
+                                .then(a.name.cmp(&b.name))
+                        });
+                        return Ok(items);
+                    } else {
+                        // path not found under this refs
+                        return Ok(vec![]);
+                    }
+                } else {
+                    return Err(GitError::CustomError(
+                        "Invalid refs: commit not found".to_string(),
+                    ));
+                }
+            } else {
+                return Err(GitError::CustomError(
+                    "Invalid refs: tag or commit not found".to_string(),
+                ));
+            }
+        }
+
+        // No refs provided: fallback to existing behavior
+        let item_to_commit_map = self.item_to_commit_map(path).await?;
         let mut items: Vec<TreeCommitItem> = item_to_commit_map
             .into_iter()
             .map(TreeCommitItem::from)
             .collect();
-        // sort with type and name
         items.sort_by(|a, b| {
             a.content_type
                 .cmp(&b.content_type)
@@ -209,6 +260,15 @@ pub trait ApiHandler: Send + Sync {
         &self,
         path: PathBuf,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError>;
+
+    /// Refs-aware version; default fallback to refs-unaware implementation
+    async fn item_to_commit_map_with_refs(
+        &self,
+        path: PathBuf,
+        _refs: Option<&str>,
+    ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
+        self.item_to_commit_map(path).await
+    }
 
     // Tag related operations shared across mono/import implementations.
     /// Create a tag in the repository context represented by `repo_path`.
@@ -251,8 +311,12 @@ pub trait ApiHandler: Send + Sync {
     /// the dir's hash as same as old,file's hash is the content hash
     /// may think about change dir'hash as the content
     /// for now,only change the file's hash
-    async fn get_tree_content_hash(&self, path: PathBuf) -> Result<Vec<TreeHashItem>, GitError> {
-        match self.search_tree_by_path(&path).await? {
+    async fn get_tree_content_hash(
+        &self,
+        path: PathBuf,
+        refs: Option<&str>,
+    ) -> Result<Vec<TreeHashItem>, GitError> {
+        match self.search_tree_by_path_with_refs(&path, refs).await? {
             Some(tree) => {
                 let mut items: Vec<TreeHashItem> = tree
                     .tree_items
@@ -277,8 +341,9 @@ pub trait ApiHandler: Send + Sync {
         &self,
         path: PathBuf,
         dir_name: &str,
+        refs: Option<&str>,
     ) -> Result<Vec<TreeHashItem>, GitError> {
-        match self.search_tree_by_path(&path).await? {
+        match self.search_tree_by_path_with_refs(&path, refs).await? {
             Some(tree) => {
                 let items: Vec<TreeHashItem> = tree
                     .tree_items
@@ -364,6 +429,66 @@ pub trait ApiHandler: Send + Sync {
         let mut search_tree = root_tree.clone();
         for component in relative_path.components() {
             // root tree already found
+            if component != Component::RootDir {
+                let target_name = component.as_os_str().to_str().unwrap();
+                let search_res = search_tree
+                    .tree_items
+                    .iter()
+                    .find(|x| x.name == target_name);
+                if let Some(search_res) = search_res {
+                    if !search_res.is_tree() {
+                        return Ok(None);
+                    }
+                    let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
+                    search_tree = res.clone();
+                } else {
+                    return Ok(None);
+                }
+            }
+        }
+        Ok(Some(search_tree))
+    }
+
+    /// Get root tree for a given refs (commit SHA or tag name). If refs is None/empty, use default root.
+    async fn get_root_tree_for_refs(&self, refs: Option<&str>) -> Result<Tree, GitError> {
+        let maybe = refs.unwrap_or("").trim();
+        if maybe.is_empty() {
+            return Ok(self.get_root_tree().await);
+        }
+        let is_hex_sha1 = maybe.len() == 40 && maybe.chars().all(|c| c.is_ascii_hexdigit());
+        let mut commit_hash = String::new();
+        if is_hex_sha1 {
+            commit_hash = maybe.to_string();
+        } else if let Ok(Some(tag)) = self.get_tag(None, maybe.to_string()).await {
+            commit_hash = tag.object_id;
+        }
+
+        if commit_hash.is_empty() {
+            return Err(GitError::CustomError(
+                "Invalid refs: tag or commit not found".to_string(),
+            ));
+        }
+        if let Some(commit) = self.get_commit_by_hash(&commit_hash).await {
+            Ok(self.get_tree_by_hash(&commit.tree_id.to_string()).await)
+        } else {
+            Err(GitError::CustomError(
+                "Invalid refs: commit not found".to_string(),
+            ))
+        }
+    }
+
+    /// Refs-aware tree search using a resolved root from refs
+    async fn search_tree_by_path_with_refs(
+        &self,
+        path: &Path,
+        refs: Option<&str>,
+    ) -> Result<Option<Tree>, GitError> {
+        let relative_path = self
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let root_tree = self.get_root_tree_for_refs(refs).await?;
+        let mut search_tree = root_tree.clone();
+        for component in relative_path.components() {
             if component != Component::RootDir {
                 let target_name = component.as_os_str().to_str().unwrap();
                 let search_res = search_tree

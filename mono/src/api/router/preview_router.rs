@@ -154,7 +154,9 @@ async fn get_tree_info(
     for part in parts {
         let path = part.as_ref();
         let handler = state.api_handler(path).await?;
-        let tree_items = handler.get_tree_info(path).await?;
+        let tree_items = handler
+            .get_tree_info(path, Some(query.refs.as_str()))
+            .await?;
         file_tree.insert(
             part,
             FileTreeItem {
@@ -167,7 +169,7 @@ async fn get_tree_info(
     let tree_items = state
         .api_handler(query.path.as_ref())
         .await?
-        .get_tree_info(query.path.as_ref())
+        .get_tree_info(query.path.as_ref(), Some(query.refs.as_str()))
         .await?;
     Ok(Json(CommonResult::success(Some(TreeResponse {
         file_tree,
@@ -194,7 +196,7 @@ async fn get_tree_commit_info(
     let data = state
         .api_handler(query.path.as_ref())
         .await?
-        .get_tree_commit_info(query.path.into())
+        .get_tree_commit_info(query.path.into(), Some(query.refs.as_str()))
         .await?;
     Ok(Json(CommonResult::success(Some(data))))
 }
@@ -218,7 +220,7 @@ async fn get_tree_content_hash(
     let data = state
         .api_handler(query.path.as_ref())
         .await?
-        .get_tree_content_hash(query.path.into())
+        .get_tree_content_hash(query.path.into(), Some(query.refs.as_str()))
         .await?;
     Ok(Json(CommonResult::success(Some(data))))
 }
@@ -250,7 +252,7 @@ async fn get_tree_dir_hash(
     let data = state
         .api_handler(parent_path.as_ref())
         .await?
-        .get_tree_dir_hash(parent_path.into(), target_name)
+        .get_tree_dir_hash(parent_path.into(), target_name, Some(query.refs.as_str()))
         .await?;
 
     Ok(Json(CommonResult::success(Some(data))))
