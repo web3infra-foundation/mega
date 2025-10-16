@@ -148,11 +148,36 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
     }
   }
   
-  useEffect(() => {
+   useEffect(() => {
     if (basePath) {
       onCommitInfoChange?.(basePath);
     }
   }, [basePath, onCommitInfoChange]);
+
+  useEffect(() => {
+    if (apiRef.current && basePath && treeAllData.length > 0) {
+      const selectNode = () => {
+        try {
+          const item = apiRef.current!.getItem(basePath)
+
+          if (item) {
+            apiRef.current?.setItemSelection({
+              itemId: basePath,
+              keepExistingSelection: false
+            })
+            return true
+          }
+        } catch (e) {
+          return false
+        }
+        return false
+      }
+
+      if (!selectNode()) {
+        requestAnimationFrame(() => selectNode())
+      }
+    }
+  }, [basePath, treeAllData, apiRef])
 
   const showInitialSkeleton = (isTreeLoading || loadingDirectories.has(basePath)) && treeAllData?.length === 0;
 
