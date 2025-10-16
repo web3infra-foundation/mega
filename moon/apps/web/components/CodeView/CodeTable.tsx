@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import { FolderIcon } from '@heroicons/react/20/solid'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { usePathname, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import RTable from './Table'
 import { columnsType, DirectoryType } from './Table/type'
 import Markdown from 'react-markdown'
@@ -19,9 +20,11 @@ export interface DataType {
   date: number
 }
 
-const CodeTable = ({ directory, loading, readmeContent, onCommitInfoChange}: any) => {
+const CodeTable = ({ directory, loading, readmeContent }: any) => {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const refs = searchParams?.get('refs') || undefined
   let real_path = pathname?.replace('/tree', '')
 
   const markdownContentStyle = {
@@ -83,7 +86,7 @@ const CodeTable = ({ directory, loading, readmeContent, onCommitInfoChange}: any
       }
       pathParts?.push(encodeURIComponent(record.name))
 
-      newPath = `/${pathParts?.join('/')}`
+      newPath = `/${pathParts?.join('/')}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`
       router.push(newPath)
     } else {
       let newPath: string
@@ -95,9 +98,8 @@ const CodeTable = ({ directory, loading, readmeContent, onCommitInfoChange}: any
       }
       pathParts?.push(encodeURIComponent(record.name))
 
-      newPath = `/${pathParts?.join('/')}`
+      newPath = `/${pathParts?.join('/')}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`
 
-      onCommitInfoChange?.(newPath);
       router.push(newPath)
     }
   }

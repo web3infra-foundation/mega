@@ -8,6 +8,7 @@ import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
+import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 import { Theme } from '@radix-ui/themes'
 
 const codeStyle = {
@@ -33,7 +34,8 @@ const treeStyle = {
 function BlobPage() {
   const { path = [] } = useRouter().query as { path?: string[] }
   const new_path = '/' + path.join('/')
-  const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path })
+  const { refs } = useRefsFromRouter()
+  const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path, refs })
   const fileContent = blobData?.data ?? ''
   const commitInfo: CommitInfo = {
     user: {
