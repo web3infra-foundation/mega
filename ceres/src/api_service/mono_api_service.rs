@@ -1385,7 +1385,8 @@ impl MonoApiService {
             .await
             .map_err(|e| MegaError::with_message(format!("{e}")))?;
 
-        self.save_import_ref(&mega_path, &ref_name, &ref_hash.clone()).await?;
+        self.save_import_ref(&mega_path, &ref_name, &ref_hash.clone())
+            .await?;
 
         let shared = Arc::new(tokio::sync::Mutex::new(0));
         let mut protocol = SmartProtocol::new(
@@ -1402,10 +1403,15 @@ impl MonoApiService {
         Ok(bytes)
     }
 
-    async fn save_import_ref(&self, mega_path: &PathBuf, ref_name: &str, ref_id: &str) -> Result<(), MegaError> {
+    async fn save_import_ref(
+        &self,
+        mega_path: &Path,
+        ref_name: &str,
+        ref_id: &str,
+    ) -> Result<(), MegaError> {
         let path = mega_path
-        .to_str()
-        .ok_or_else(|| MegaError::with_message("Invalid UTF-8 in mega_path"))?;
+            .to_str()
+            .ok_or_else(|| MegaError::with_message("Invalid UTF-8 in mega_path"))?;
 
         let name = mega_path
             .file_name()
@@ -1414,12 +1420,7 @@ impl MonoApiService {
 
         self.storage
             .git_db_storage()
-            .create_repo_and_save_ref(
-                path, 
-                name, 
-                ref_name, 
-                ref_id
-            )
+            .create_repo_and_save_ref(path, name, ref_name, ref_id)
             .await?;
         Ok(())
     }

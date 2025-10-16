@@ -43,11 +43,11 @@ struct GitObjects {
 
 impl GitDbStorage {
     pub async fn create_repo_and_save_ref(
-        &self, 
+        &self,
         repo_path: &str,
         repo_name: &str,
-        ref_name: &str, 
-        ref_id: &str
+        ref_name: &str,
+        ref_id: &str,
     ) -> Result<(), MegaError> {
         let repo_id = generate_id();
         let repo = git_repo::Model {
