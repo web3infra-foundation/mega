@@ -7,7 +7,7 @@ import {useQueryClient} from '@tanstack/react-query'
 import {legacyApiClient} from '@/utils/queryClient'
 import {ListToken} from '@gitmono/types'
 import toast from "react-hot-toast";
-import HandleTime from "@/components/MrView/components/HandleTime";
+import HandleTime from "@/components/ClView/components/HandleTime";
 import {useGetCurrentUser} from "@/hooks/useGetCurrentUser";
 
 const TokenItem = ({item}: {

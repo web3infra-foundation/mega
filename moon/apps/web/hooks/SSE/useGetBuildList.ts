@@ -10,6 +10,6 @@ export function useGetHTTPLog(id: string) {
     queryFn: () => fetchAllbuildList(id)
     // refetchInterval: 15000,
     // refetchIntervalInBackground: true,
-    // enabled: !!mr
+    // enabled: !!cl
   })
 }

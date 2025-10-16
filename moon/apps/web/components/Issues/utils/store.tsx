@@ -34,14 +34,14 @@ export const currentPage = atomWithWebStorage<number>('currentPage', 1)
 export const issueOpenCurrentPage = atomWithWebStorage('IssueOpencurrentPage', 1)
 export const issueCloseCurrentPage = atomWithWebStorage('IssueClosecurrentPage', 1)
 
-export const mrOpenCurrentPage = atomWithWebStorage('MROpencurrentPage', 1)
-export const mrCloseCurrentPage = atomWithWebStorage('MRClosecurrentPage', 1)
+export const clOpenCurrentPage = atomWithWebStorage('CLOpencurrentPage', 1)
+export const clCloseCurrentPage = atomWithWebStorage('CLClosecurrentPage', 1)
 
 export const labelsOpenCurrentPage = atomWithWebStorage('LabelsOpenCurrentPage', 1)
 export const labelsCloseCurrentPage = atomWithWebStorage('LabelsCloseCurrentPage', 1)
 
 export const idAtom = atom(0)
-export const mridAtom = atom(0)
+export const clidAtom = atom(0)
 
 export const FALSE_EDIT_VAL = -1
 export const editIdAtom = atom(0)

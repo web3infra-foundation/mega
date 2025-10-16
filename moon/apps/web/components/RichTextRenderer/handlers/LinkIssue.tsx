@@ -17,8 +17,8 @@ export const LinkIssue: NodeHandler = ({ node, children }) => {
     case 'issue':
       url = `/${scope}/issue/${id}`
       break
-    case 'merge_request':
-      url = `/${scope}/mr/${id}`
+    case 'change_list':
+      url = `/${scope}/cl/${id}`
       break
     default:
       break

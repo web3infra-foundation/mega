@@ -2,7 +2,7 @@ import { ConversationItem, GroupedReaction } from '@gitmono/types/generated'
 import { Button, cn, FaceSmilePlusIcon } from '@gitmono/ui'
 
 import { Reactions } from '.'
-import { useHandleExpression } from '../MrView/hook/useHandleExpression'
+import { useHandleExpression } from '../ClView/hook/useHandleExpression'
 import { ReactionPicker } from './ReactionPicker'
 
 export function ReactionShow({ comment, id, type }: { comment: ConversationItem, id: string, type: string }) {

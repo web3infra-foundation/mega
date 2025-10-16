@@ -2,13 +2,13 @@ import {
   GetTaskBuildListByIdData,
   GetTaskHistoryOutputByIdData,
   GetTaskHistoryOutputByIdParams,
-  GetTasksByMrData
+  GetTasksByClData
 } from '@gitmono/types/generated'
 
-import { SSEPATH } from '@/components/MrView/hook/useSSM'
+import { SSEPATH } from '@/components/ClView/hook/useSSM'
 
-export const fetchTask = async (mr: number): Promise<GetTasksByMrData> => {
-  const res = await fetch(`${SSEPATH}/tasks/${mr}`, {
+export const fetchTask = async (cl: number): Promise<GetTasksByClData> => {
+  const res = await fetch(`${SSEPATH}/tasks/${cl}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
@@ -35,8 +35,8 @@ export const taskStatus = async (taskId: string) => {
   return res.json()
 }
 
-export const MrTaskStatus = async (mr: string) => {
-  const res = await fetch(`/sse/tasks/${mr}`, {
+export const ClTaskStatus = async (cl: string) => {
+  const res = await fetch(`/sse/tasks/${cl}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
