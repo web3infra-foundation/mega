@@ -6,9 +6,8 @@ use axum::{
 };
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::model::change_list::{
-    CLDetailRes, ChangeReviewStatePayload, ChangeReviewerStatePayload, ClFilesRes,
-    CloneRepoPayload, Condition, FilesChangedPage, MergeBoxRes, MuiTreeNode, ReviewerInfo,
-    ReviewerPayload, ReviewersResponse,
+    CLDetailRes, ChangeReviewStatePayload, ChangeReviewerStatePayload, ClFilesRes, Condition,
+    FilesChangedPage, MergeBoxRes, MuiTreeNode, ReviewerInfo, ReviewerPayload, ReviewersResponse,
 };
 use common::{
     errors::MegaError,
@@ -54,8 +53,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
             .routes(routes!(reviewer_approve))
-            .routes(routes!(review_resolve))
-            .routes(routes!(clone_third_party_repo)),
+            .routes(routes!(review_resolve)),
     )
 }
 
@@ -646,30 +644,6 @@ async fn review_resolve(
         .storage
         .conversation_storage()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
-        .await?;
-
-    Ok(Json(CommonResult::success(None)))
-}
-
-// Clone a Github Repo
-#[utoipa::path(
-    post,
-    path = "/clone",
-    request_body (
-        content = CloneRepoPayload,
-    ),
-    responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
-    ),
-    tag = CL_TAG
-)]
-async fn clone_third_party_repo(
-    state: State<MonoApiServiceState>,
-    Json(payload): Json<CloneRepoPayload>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
-    state
-        .monorepo()
-        .sync_third_party_repo(&payload.owner, &payload.repo)
         .await?;
 
     Ok(Json(CommonResult::success(None)))

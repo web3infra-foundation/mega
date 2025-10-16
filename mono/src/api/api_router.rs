@@ -13,9 +13,13 @@ use ceres::{api_service::ApiHandler, model::git::TreeQuery};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
-    MonoApiServiceState, error::ApiError, notes::note_router, router::cl_router,
-    router::commit_router, router::conv_router, router::gpg_router, router::issue_router,
-    router::label_router, router::preview_router, router::tag_router, router::user_router,
+    MonoApiServiceState,
+    error::ApiError,
+    notes::note_router,
+    router::{
+        cl_router, commit_router, conv_router, gpg_router, issue_router, label_router,
+        preview_router, repo_router, tag_router, user_router,
+    },
 };
 use crate::server::http_server::SYSTEM_COMMON;
 
@@ -34,6 +38,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(note_router::routers())
         .merge(commit_router::routers())
         .merge(tag_router::routers())
+        .merge(repo_router::routers())
 }
 
 /// Health Check

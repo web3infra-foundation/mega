@@ -29,7 +29,7 @@ impl ThirdPartyClient {
 
 #[async_trait::async_trait]
 pub trait ThirdPartyRepoTrait {
-    async fn fetch_refs(&self) -> Result<Vec<String>, MegaError>;
+    async fn fetch_refs(&self) -> Result<(String, String), MegaError>;
     async fn fetch_packs(
         &self,
         want: &[String],
@@ -38,7 +38,7 @@ pub trait ThirdPartyRepoTrait {
 
 #[async_trait::async_trait]
 impl ThirdPartyRepoTrait for ThirdPartyClient {
-    async fn fetch_refs(&self) -> Result<Vec<String>, MegaError> {
+    async fn fetch_refs(&self) -> Result<(String, String), MegaError> {
         let request_url = format!("{}/info/refs?service=git-upload-pack", self.url);
         let resp = self
             .client
@@ -60,8 +60,8 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             .map_err(|e| MegaError::with_message(format!("Unable to parse bytes: {}", e)))?;
 
         let mut cursor = Cursor::new(bytes);
-        let mut refs = Vec::new();
-
+        let mut cmt: Option<String> = None;
+        let mut r: Option<String> = None;
         loop {
             let mut len_buf = [0u8; 4];
             if std::io::Read::read_exact(&mut cursor, &mut len_buf).is_err() {
@@ -84,13 +84,17 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             if line.contains("refs/heads/") || line.contains("refs/tags/") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 && parts[1] == "refs/heads/main" {
-                    refs.push(parts[0].to_string());
+                    r = Some(parts[1].to_string());
+                    cmt = Some(parts[0].to_string());
                     break;
                 }
             }
         }
 
-        Ok(refs)
+        match (r, cmt) {
+            (Some(r), Some(cmt)) => Ok((r, cmt)),
+            _ => Err(MegaError::with_message("refs/heads/main not found")),
+        }
     }
 
     async fn fetch_packs(
