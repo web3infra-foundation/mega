@@ -9,7 +9,7 @@ import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 import { DiffItem } from './parsedDiffs'
 import { Virtuoso } from "react-virtuoso";
 import { LoadingSpinner } from "@gitmono/ui";
-import { useGetMrFileChanged } from "@/hooks/useGetMrFileChanged";
+import { useGetClFileChanged } from "@/hooks/CL/useGetClFileChanged";
 import FileTree from "@/components/DiffView/TreeView/FileTree";
 
 function calculateDiffStatsFromRawDiff(diffText: string): { additions: number; deletions: number } {
@@ -71,25 +71,25 @@ export default function FileDiff({ id }: {
   const [pageDataMap, setPageDataMap] = useState<Map<number, DiffItem[]>>(new Map())
   const [totalCount, setTotalCount] = useState(0)
 
-  const { fileChanged: MrFilesChangedData, isLoading: isFileChangeLoading } = useGetMrFileChanged(id, {
+  const { fileChanged: ClFilesChangedData, isLoading: isFileChangeLoading } = useGetClFileChanged(id, {
     page,
     per_page: 100
   })
 
   useEffect(() => {
-    if (MrFilesChangedData?.items && !isFileChangeLoading) {
+    if (ClFilesChangedData?.items && !isFileChangeLoading) {
       setPageDataMap(prev => {
         const newMap = new Map(prev)
 
         if (!newMap.has(page)) {
-          newMap.set(page, MrFilesChangedData.items)
+          newMap.set(page, ClFilesChangedData.items)
         }
         return newMap
       })
 
-      setTotalCount(MrFilesChangedData.total)
+      setTotalCount(ClFilesChangedData.total)
     }
-  }, [MrFilesChangedData, isFileChangeLoading, page])
+  }, [ClFilesChangedData, isFileChangeLoading, page])
 
   const fileDiff = useMemo(() => {
     const allItems: DiffItem[] = []
