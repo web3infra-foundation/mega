@@ -55,7 +55,7 @@ const CodeViewHeader = () => {
         >
           <Flex align="center" gap="2">
             <GitPullRequestIcon className="h-4 w-4 text-[#378f50]" />
-            <span>My open pull requests</span>
+            <span>My open change lists</span>
           </Flex>
         </Button>
 

@@ -8,7 +8,7 @@ import { IssueList as LabelList, ListItem } from '@/components/Issues/IssueList'
 import { Pagination } from '@/components/Issues/Pagenation';
 import { labelsOpenCurrentPage } from '@/components/Issues/utils/store';
 import { AppLayout } from '@/components/Layout/AppLayout';
-import { Heading } from '@/components/MrView/catalyst/heading';
+import { Heading } from '@/components/ClView/catalyst/heading';
 import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar';
 import { useScope } from '@/contexts/scope';

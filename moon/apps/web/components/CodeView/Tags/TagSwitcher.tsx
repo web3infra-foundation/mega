@@ -21,11 +21,13 @@ import {
 } from '@gitmono/ui'
 
 import { useRouter } from 'next/router'
+import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 
 import { usePostMonoTagList } from '@/hooks/usePostMonoTagList'
 
 export default function TagSwitcher() {
   const router = useRouter()
+  const { refs, setRefs } = useRefsFromRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const anchorRef = useRef<HTMLButtonElement | null>(null)
@@ -47,7 +49,7 @@ export default function TagSwitcher() {
   return (
     <>
         <span ref={anchorRef as unknown as React.RefObject<HTMLSpanElement>}>
-          <Button onClick={() => setOpen(true)}>Tag</Button>
+          <Button onClick={() => setOpen(true)}>{refs ? `Tag: ${refs}` : 'Tag'}</Button>
         </span>
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverElementAnchor element={anchorRef.current} />
@@ -91,10 +93,10 @@ export default function TagSwitcher() {
                             onSelect={() => {
                               setOpen(false);
                               const org = router.query.org;
-                              const path = router.query.path ? Array.isArray(router.query.path) ? router.query.path.join('/') : router.query.path : '';
+                              const path = router.query.path ? (Array.isArray(router.query.path) ? router.query.path.join('/') : router.query.path) : '';
 
                               if (t.name) {
-                                router.push(`/${org}/code/tree/${path}?refs=${t.name}`);
+                                router.push(`/${org}/code/tree/${path}?refs=${encodeURIComponent(t.name)}`);
                               }
                             }}
                           >
@@ -124,6 +126,14 @@ export default function TagSwitcher() {
                   }}>
                     View all tags
                   </Button>
+                  {refs && (
+                    <Button className='ml-2' variant='plain' onClick={() => {
+                      setOpen(false)
+                      setRefs(undefined)
+                    }}>
+                      Clear
+                    </Button>
+                  )}
                 </div>
               </SelectCommandContainer>
             </div>

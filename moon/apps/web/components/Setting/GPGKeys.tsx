@@ -7,7 +7,7 @@ import { usePostGPGKey } from '@/hooks/usePostGPGKey'
 import { useDeleteGPGKeyById } from '@/hooks/useDeleteGPGKeyById'
 import { legacyApiClient } from "@/utils/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
-import HandleTime from "@/components/MrView/components/HandleTime";
+import HandleTime from "@/components/ClView/components/HandleTime";
 import { GpgKey } from "@gitmono/types";
 
 const GpgKeyItem = ({ keyData } : { keyData: GpgKey }) => {
