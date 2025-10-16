@@ -18,6 +18,7 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import { useGetBlob } from '@/hooks/useGetBlob'
+import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
 
@@ -27,7 +28,8 @@ function TreeDetailPage() {
   const new_path = '/' + path?.join('/')
 
   const [newPath, setNewPath] = useState(new_path)
-  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath)
+  const { refs } = useRefsFromRouter()
+  const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath, refs)
 
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
@@ -35,7 +37,7 @@ function TreeDetailPage() {
   const { data: canClone } = useGetTreePathCanClone({ path: newPath })
 
   const reqPath = `${new_path}/README.md`
-  const { data: readmeContent } = useGetBlob({ path: reqPath })
+  const { data: readmeContent } = useGetBlob({ path: reqPath, refs })
 
   const [isNewCode, setIsNewCode] = useState(false)
 
@@ -109,7 +111,6 @@ function TreeDetailPage() {
               <CodeTable
                 directory={directory}
                 loading={!TreeCommitInfo}
-                onCommitInfoChange={(path: string) => setNewPath(path)}
                 readmeContent={readmeContent?.data}
               />
             </div>
