@@ -1385,7 +1385,7 @@ impl MonoApiService {
             .await
             .map_err(|e| MegaError::with_message(format!("{e}")))?;
 
-        self.save_import_ref(&mega_path, &ref_name, &ref_hash.clone())
+        self.save_import_ref(&mega_path, &ref_name, &ref_hash)
             .await?;
 
         let shared = Arc::new(tokio::sync::Mutex::new(0));
