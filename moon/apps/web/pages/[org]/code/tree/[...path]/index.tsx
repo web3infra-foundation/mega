@@ -11,16 +11,16 @@ import { CloseIcon } from '@gitmono/ui/Icons'
 import CodeTable from '@/components/CodeView/CodeTable'
 import CommitHistory from '@/components/CodeView/CommitHistory'
 import NewCodeView from '@/components/CodeView/NewCodeView/NewCodeView'
+import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
-import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import { useGetBlob } from '@/hooks/useGetBlob'
-import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
+import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 
 function TreeDetailPage() {
   const params = useParams()
@@ -40,6 +40,7 @@ function TreeDetailPage() {
   const { data: readmeContent } = useGetBlob({ path: reqPath, refs })
 
   const [isNewCode, setIsNewCode] = useState(false)
+  const [newEntryType, setNewEntryType] = useState<'file' | 'folder'>('file')
 
   const commitInfo = {
     user: {
@@ -71,7 +72,8 @@ function TreeDetailPage() {
     paddingRight: '8px'
   }
 
-  const handleNewClick = () => {
+  const handleNewClick = (type: 'file' | 'folder') => {
+    setNewEntryType(type)
     setIsNewCode(true)
   }
   const handleCloseClick = () => {
@@ -87,7 +89,8 @@ function TreeDetailPage() {
             <>
               <div className='m-1 flex justify-end gap-2'>
                 <TagSwitcher />
-                <Button onClick={handleNewClick}>New</Button>
+                <Button onClick={() => handleNewClick('file')}>New File</Button>
+                <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
                 {canClone?.data && <CloneTabs />}
               </div>
             </>
@@ -101,6 +104,7 @@ function TreeDetailPage() {
           <div style={treeStyle}>
             <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
           </div>
+
           {!isNewCode ? (
             <div style={codeStyle}>
               {commitInfo && (
@@ -108,15 +112,11 @@ function TreeDetailPage() {
                   <CommitHistory flag={'contents'} info={commitInfo} />
                 </div>
               )}
-              <CodeTable
-                directory={directory}
-                loading={!TreeCommitInfo}
-                readmeContent={readmeContent?.data}
-              />
+              <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent?.data} />
             </div>
           ) : (
             <div className='pb-18 flex-1 overflow-hidden'>
-              <NewCodeView currentPath={new_path} onClose={handleCloseClick} />
+              <NewCodeView currentPath={new_path} onClose={handleCloseClick} defaultType={newEntryType} />
             </div>
           )}
         </div>
