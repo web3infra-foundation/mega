@@ -88,7 +88,7 @@ function TreeDetailPage() {
           {!isNewCode ? (
             <>
               <div className='m-1 flex justify-end gap-2'>
-                <TagSwitcher />
+                {refs && <TagSwitcher />}
                 <Button onClick={() => handleNewClick('file')}>New File</Button>
                 <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
                 {canClone?.data && <CloneTabs />}

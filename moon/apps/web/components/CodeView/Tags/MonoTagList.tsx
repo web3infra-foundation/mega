@@ -3,6 +3,7 @@ import { Avatar, Button, DotsHorizontal, Link, LinkIcon, TrashIcon, UIText } fro
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
 import { useCopyToClipboard } from '@gitmono/ui/src/hooks'
+import { useRouter } from 'next/router'
 
 import { TagResponse } from '@gitmono/types'
 import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
@@ -11,10 +12,11 @@ import { formatDistanceToNow } from 'date-fns'
 
 interface Props {
   tags: TagResponse[]
+  defaultPath?: string
   onDelete?: (name: string) => void
 }
 
-export function MonoTagList({ tags, onDelete }: Props) {
+export function MonoTagList({ tags, defaultPath, onDelete }: Props) {
   const [localTags, setLocalTags] = useState(tags)
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export function MonoTagList({ tags, onDelete }: Props) {
   return (
     <ul className='flex flex-col py-2'>
       {localTags.map((t) => (
-        <MonoTagRow key={t.name} tag={t} onDelete={() => {
+        <MonoTagRow key={t.name} tag={t} defaultPath={defaultPath} onDelete={() => {
           setLocalTags(localTags.filter(tag => tag.name !== t.name));
           if (typeof onDelete === 'function') onDelete(t.name);
         }} />
@@ -34,14 +36,15 @@ export function MonoTagList({ tags, onDelete }: Props) {
 }
 
 
-function MonoTagRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }) {
-  return <InnerRow tag={tag} onDelete={onDelete} />
+function MonoTagRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPath?: string; onDelete?: () => void }) {
+  return <InnerRow tag={tag} defaultPath={defaultPath} onDelete={onDelete} />
 }
 
-function InnerRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }) {
+function InnerRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPath?: string; onDelete?: () => void }) {
   const [copy] = useCopyToClipboard()
   const [menuOpen, setMenuOpen] = useState(false)
   const del = useDeleteMonoTag()
+  const router = useRouter()
 
   const subtitle = useMemo(() => {
     return tag.message || `${tag.object_type} ${tag.object_id.substring(0, 8)}`
@@ -78,7 +81,12 @@ function InnerRow({ tag, onDelete }: { tag: TagResponse; onDelete?: () => void }
     }
   }, [tag.created_at])
 
-  const href = `/code/tags/${encodeURIComponent(tag.name)}`
+  const href = useMemo(() => {
+    const org = router.query.org || 'mega'
+    const path = (defaultPath || '').replace(/^\/+/, '')
+
+    return `/${org}/code/tree/${path}?refs=${encodeURIComponent(tag.name)}`
+  }, [router.query.org, defaultPath, tag.name])
 
   return (
     <li className='hover:bg-tertiary group-has-[button[aria-expanded="true"]]:bg-tertiary group relative -mx-3 flex items-center gap-3 rounded-md py-1.5 pl-3 pr-1.5'>

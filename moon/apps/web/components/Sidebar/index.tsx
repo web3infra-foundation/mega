@@ -41,6 +41,7 @@ import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
 import { SiderbarChangeList } from './SiderbarChangeList'
 import { SidebarCratespro } from './SidebarCratespro'
+import { SidebarTags } from './SidebarTags'
 
 export function SidebarContainer() {
   const { scope } = useScope()
@@ -167,6 +168,7 @@ function SidebarContent() {
           <SidebarMyWorkItems />
           <SidebarDrafts />
           <SidebarCode />
+          <SidebarTags />
           <SiderbarChangeList />
           <SidebarIssue />
           <SidebarCratespro />
