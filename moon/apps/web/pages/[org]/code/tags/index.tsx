@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react'
+import { Theme } from '@radix-ui/themes'
+import { useQueryClient } from '@tanstack/react-query'
 import Head from 'next/head'
 
-import { Theme } from '@radix-ui/themes'
 import { Button, UIText } from '@gitmono/ui'
 
-import { AppLayout } from '@/components/Layout/AppLayout'
-import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { MonoTagList } from '@/components/CodeView/Tags/MonoTagList'
 import NewMonoTagDialog from '@/components/CodeView/Tags/NewMonoTagDialog'
-import { IndexPageContainer, IndexPageContent, IndexPageEmptyState, IndexPageLoading, IndexSearchInput } from '@/components/IndexPages/components'
+import {
+  IndexPageContainer,
+  IndexPageContent,
+  IndexPageEmptyState,
+  IndexPageLoading,
+  IndexSearchInput
+} from '@/components/IndexPages/components'
+import { AppLayout } from '@/components/Layout/AppLayout'
+import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+import { useGetTree } from '@/hooks/useGetTree'
 import { usePostMonoTagList } from '@/hooks/usePostMonoTagList'
-import { useQueryClient } from '@tanstack/react-query'
 
 function CodeTagsPage() {
   const [q, setQ] = useState('')
@@ -22,16 +29,27 @@ function CodeTagsPage() {
     pagination: { page: 1, per_page: 200 }
   })
 
+  const { data: treeData } = useGetTree({ path: '/' })
+  const defaultPath = useMemo(() => {
+    if (!treeData?.data?.tree_items) return ''
+    const folders = treeData.data.tree_items
+      .filter((item) => item.content_type === 'directory')
+      .sort((a, b) => {
+        return a.name.localeCompare(b.name)
+      })
+
+    return folders.length > 0 ? folders[0].path : ''
+  }, [treeData])
+
   const [localTags, setLocalTags] = useState<any[]>([])
   const tags = useMemo(() => {
     // Merge locally created tags and API returned tags
     const apiTags = data?.data?.items ?? []
     // Only keep locally created tags not returned by API
-    const localOnly = localTags.filter(t => !apiTags.some(at => at.name === t.name))
-    // Only keep names of locally created tags
-    const all = [...localOnly, ...apiTags]
+    const localOnly = localTags.filter((t) => !apiTags.some((at) => at.name === t.name))
 
-    return all
+    // Only keep names of locally created tags
+    return [...localOnly, ...apiTags]
   }, [data, localTags])
 
   const filtered = useMemo(() => {
@@ -69,8 +87,8 @@ function CodeTagsPage() {
         <IndexPageContainer>
           <div className='flex items-center justify-between px-3 py-3'>
             <div className='flex items-center gap-2'>
-                <UIText weight='font-semibold'>Tags</UIText>
-              </div>
+              <UIText weight='font-semibold'>Tags</UIText>
+            </div>
             <div className='flex items-center gap-2'>
               <IndexSearchInput query={q} setQuery={setQ} isSearchLoading={isFetching} />
               <Button onClick={() => setDialogOpen(true)}>New tag</Button>
@@ -80,7 +98,9 @@ function CodeTagsPage() {
           <IndexPageContent>
             {(isLoading || isFetching) && <IndexPageLoading />}
             {!isLoading && !hasTags && <EmptyState />}
-            {!isLoading && hasTags && <MonoTagList tags={filtered} onDelete={handleDeleteTag} />}
+            {!isLoading && hasTags && (
+              <MonoTagList tags={filtered} defaultPath={defaultPath} onDelete={handleDeleteTag} />
+            )}
           </IndexPageContent>
         </IndexPageContainer>
         <NewMonoTagDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={handleCreateTag} />
@@ -91,9 +111,11 @@ function CodeTagsPage() {
 
 function EmptyState() {
   return (
-    <IndexPageEmptyState>  
+    <IndexPageEmptyState>
       <div className='flex flex-col gap-1'>
-        <UIText size='text-base' weight='font-semibold'>No tags yet</UIText>
+        <UIText size='text-base' weight='font-semibold'>
+          No tags yet
+        </UIText>
       </div>
     </IndexPageEmptyState>
   )
