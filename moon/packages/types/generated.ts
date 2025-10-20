@@ -3170,6 +3170,7 @@ export type ClFilesRes = {
 
 export type CloneRepoPayload = {
   owner: string
+  path: string
   repo: string
 }
 
@@ -3584,6 +3585,7 @@ export type ConversationItem = {
   grouped_reactions: ReactionItem[]
   /** @format int64 */
   id: number
+  resolved?: boolean | null
   /** @format int64 */
   updated_at: number
   username: string
@@ -5151,8 +5153,6 @@ export type GetApiBlobData = CommonResultString
 
 export type PostApiClAssigneesData = CommonResultString
 
-export type PostApiClCloneData = CommonResultString
-
 export type PostApiClLabelsData = CommonResultString
 
 export type PostApiClListData = CommonResultCommonPageItemRes
@@ -5247,6 +5247,8 @@ export type GetApiLatestCommitData = LatestCommitInfo
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
 export type PatchApiOrganizationsNotesSyncStateData = any
+
+export type PostApiRepoCloneData = CommonResultString
 
 export type GetApiStatusData = string
 
@@ -13647,7 +13649,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiBlame
      * @summary Get blame information for a file
      * @request GET:/api/v1/blame
@@ -13671,7 +13673,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiBlob
      * @summary Get blob file as string
      * @request GET:/api/v1/blob
@@ -13695,7 +13697,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClAssignees
      * @summary Update CL related assignees
      * @request POST:/api/v1/cl/assignees
@@ -13720,31 +13722,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
-     * @name PostApiClClone
-     * @request POST:/api/v1/cl/clone
-     */
-    postApiClClone: () => {
-      const base = 'POST:/api/v1/cl/clone' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiClCloneData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiClCloneData>([base]),
-        request: (data: CloneRepoPayload, params: RequestParams = {}) =>
-          this.request<PostApiClCloneData>({
-            path: `/api/v1/cl/clone`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClLabels
      * @summary Update cl related labels
      * @request POST:/api/v1/cl/labels
@@ -13769,7 +13747,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClList
      * @summary Fetch CL list
      * @request POST:/api/v1/cl/list
@@ -13794,7 +13772,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClClose
      * @summary Close Change List
      * @request POST:/api/v1/cl/{link}/close
@@ -13817,7 +13795,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClComment
      * @summary Add new comment on Change List
      * @request POST:/api/v1/cl/{link}/comment
@@ -13842,7 +13820,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name GetApiClDetail
      * @summary Get change list details
      * @request GET:/api/v1/cl/{link}/detail
@@ -13865,7 +13843,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClFilesChanged
      * @summary Get Change List file changed list in Pagination
      * @request POST:/api/v1/cl/{link}/files-changed
@@ -13890,7 +13868,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name GetApiClFilesList
      * @summary Get Change List file list
      * @request GET:/api/v1/cl/{link}/files-list
@@ -13913,7 +13891,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClMerge
      * @summary Approve Change List
      * @request POST:/api/v1/cl/{link}/merge
@@ -13936,7 +13914,7 @@ Returns task ID and status information upon successful creation
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name GetApiClMergeBox
      * @summary Get Merge Box to check merge status
      * @request GET:/api/v1/cl/{link}/merge-box
@@ -13959,7 +13937,7 @@ Returns task ID and status information upon successful creation
     /**
  * No description
  *
- * @tags change_list
+ * @tags Change List
  * @name PostApiClMergeNoAuth
  * @summary Change List without authentication
 It's for local testing purposes.
@@ -13983,7 +13961,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name GetApiClMuiTree
      * @request GET:/api/v1/cl/{link}/mui-tree
      */
@@ -14005,7 +13983,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClReopen
      * @summary Reopen Change List
      * @request POST:/api/v1/cl/{link}/reopen
@@ -14028,7 +14006,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClReviewResolve
      * @request POST:/api/v1/cl/{link}/review/resolve
      */
@@ -14052,7 +14030,7 @@ It's for local testing purposes.
     /**
      * @description the function get user's campsite_id from the login user info automatically
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClReviewerApprove
      * @summary Change the reviewer state
      * @request POST:/api/v1/cl/{link}/reviewer/approve
@@ -14077,7 +14055,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name GetApiClReviewers
      * @request GET:/api/v1/cl/{link}/reviewers
      */
@@ -14099,7 +14077,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClReviewers
      * @request POST:/api/v1/cl/{link}/reviewers
      */
@@ -14123,7 +14101,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name DeleteApiClReviewers
      * @request DELETE:/api/v1/cl/{link}/reviewers
      */
@@ -14147,7 +14125,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags change_list
+     * @tags Change List
      * @name PostApiClTitle
      * @summary Edit CL title
      * @request POST:/api/v1/cl/{link}/title
@@ -14172,7 +14150,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name PutApiCommitsBinding
      * @summary Update commit binding information
      * @request PUT:/api/v1/commits/{sha}/binding
@@ -14197,7 +14175,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags conversation
+     * @tags Conversation and Comment
      * @name DeleteApiConversationReactionsById
      * @summary Delete conversation reactions
      * @request DELETE:/api/v1/conversation/reactions/{id}
@@ -14220,7 +14198,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags conversation
+     * @tags Conversation and Comment
      * @name PostApiConversationByCommentId
      * @summary Edit comment
      * @request POST:/api/v1/conversation/{comment_id}
@@ -14245,7 +14223,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags conversation
+     * @tags Conversation and Comment
      * @name DeleteApiConversationByCommentId
      * @summary Delete Comment
      * @request DELETE:/api/v1/conversation/{comment_id}
@@ -14268,7 +14246,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags conversation
+     * @tags Conversation and Comment
      * @name PostApiConversationReactions
      * @summary Add comment reactions with emoji
      * @request POST:/api/v1/conversation/{comment_id}/reactions
@@ -14293,7 +14271,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name PostApiCreateEntry
      * @summary Create file or folder in web UI
      * @request POST:/api/v1/create-entry
@@ -14318,7 +14296,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags gpg-key
+     * @tags Gpg Key
      * @name PostApiGpgAdd
      * @request POST:/api/v1/gpg/add
      */
@@ -14342,7 +14320,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags gpg-key
+     * @tags Gpg Key
      * @name GetApiGpgList
      * @request GET:/api/v1/gpg/list
      */
@@ -14364,7 +14342,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags gpg-key
+     * @tags Gpg Key
      * @name DeleteApiGpgRemove
      * @request DELETE:/api/v1/gpg/remove
      */
@@ -14388,7 +14366,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueAssignees
      * @summary Update issue related assignees
      * @request POST:/api/v1/issue/assignees
@@ -14413,7 +14391,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name GetApiIssueIssueSuggester
      * @summary Get issue suggester in comment
      * @request GET:/api/v1/issue/issue_suggester
@@ -14438,7 +14416,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueLabels
      * @summary Update issue related labels
      * @request POST:/api/v1/issue/labels
@@ -14463,7 +14441,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueList
      * @summary Fetch Issue list
      * @request POST:/api/v1/issue/list
@@ -14488,7 +14466,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueNew
      * @summary New Issue
      * @request POST:/api/v1/issue/new
@@ -14513,7 +14491,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueClose
      * @summary Close an issue
      * @request POST:/api/v1/issue/{link}/close
@@ -14536,7 +14514,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueComment
      * @summary Add new comment on Issue
      * @request POST:/api/v1/issue/{link}/comment
@@ -14561,7 +14539,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name GetApiIssueDetail
      * @summary Get issue details
      * @request GET:/api/v1/issue/{link}/detail
@@ -14584,7 +14562,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueReopen
      * @summary Reopen an issue
      * @request POST:/api/v1/issue/{link}/reopen
@@ -14607,7 +14585,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags issue
+     * @tags Issue Management
      * @name PostApiIssueTitle
      * @summary Edit issue title
      * @request POST:/api/v1/issue/{link}/title
@@ -14632,7 +14610,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags label
+     * @tags Label Management
      * @name PostApiLabelList
      * @summary List label in page
      * @request POST:/api/v1/label/list
@@ -14657,7 +14635,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags label
+     * @tags Label Management
      * @name PostApiLabelNew
      * @summary New label
      * @request POST:/api/v1/label/new
@@ -14682,7 +14660,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags label
+     * @tags Label Management
      * @name GetApiLabelById
      * @summary Fetch label details
      * @request GET:/api/v1/label/{id}
@@ -14705,7 +14683,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiLatestCommit
      * @summary Get latest commit by path
      * @request GET:/api/v1/latest-commit
@@ -14777,7 +14755,31 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Repo creation and synchronisation
+     * @name PostApiRepoClone
+     * @request POST:/api/v1/repo/clone
+     */
+    postApiRepoClone: () => {
+      const base = 'POST:/api/v1/repo/clone' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiRepoCloneData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiRepoCloneData>([base]),
+        request: (data: CloneRepoPayload, params: RequestParams = {}) =>
+          this.request<PostApiRepoCloneData>({
+            path: `/api/v1/repo/clone`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags System Common
      * @name GetApiStatus
      * @summary Health Check
      * @request GET:/api/v1/status
@@ -14800,7 +14802,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Tag Management
      * @name PostApiTags
      * @summary Create Tag
      * @request POST:/api/v1/tags
@@ -14825,7 +14827,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Tag Management
      * @name PostApiTagsList
      * @summary List all Tags
      * @request POST:/api/v1/tags/list
@@ -14850,7 +14852,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Tag Management
      * @name GetApiTagsByName
      * @summary Get Tag by name
      * @request GET:/api/v1/tags/{name}
@@ -14873,7 +14875,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Tag Management
      * @name DeleteApiTagsByName
      * @summary Delete Tag
      * @request DELETE:/api/v1/tags/{name}
@@ -14896,7 +14898,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiTree
      * @summary Get tree brief info
      * @request GET:/api/v1/tree
@@ -14920,7 +14922,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiTreeCommitInfo
      * @summary List matching trees with commit msg by query
      * @request GET:/api/v1/tree/commit-info
@@ -14945,7 +14947,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiTreeContentHash
      * @summary Get tree content hash,the dir's hash as same as old,file's hash is the content hash
      * @request GET:/api/v1/tree/content-hash
@@ -14970,7 +14972,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiTreeDirHash
      * @summary return the dir's hash
      * @request GET:/api/v1/tree/dir-hash
@@ -14994,7 +14996,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags git
+     * @tags Code Preview
      * @name GetApiTreePathCanClone
      * @summary Check if a path can be cloned
      * @request GET:/api/v1/tree/path-can-clone
@@ -15019,7 +15021,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name PostApiUserSsh
      * @summary Add SSH Key
      * @request POST:/api/v1/user/ssh
@@ -15044,7 +15046,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name GetApiUserSshList
      * @summary Get User's SSH key list
      * @request GET:/api/v1/user/ssh/list
@@ -15067,7 +15069,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name DeleteApiUserSshByKeyId
      * @summary Delete SSH Key
      * @request DELETE:/api/v1/user/ssh/{key_id}
@@ -15090,7 +15092,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name PostApiUserTokenGenerate
      * @summary Generate Token For http push
      * @request POST:/api/v1/user/token/generate
@@ -15113,7 +15115,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name GetApiUserTokenList
      * @summary Get User's push token list
      * @request GET:/api/v1/user/token/list
@@ -15136,7 +15138,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags user
+     * @tags User Management
      * @name DeleteApiUserTokenByKeyId
      * @summary Delete User's http push token
      * @request DELETE:/api/v1/user/token/{key_id}
