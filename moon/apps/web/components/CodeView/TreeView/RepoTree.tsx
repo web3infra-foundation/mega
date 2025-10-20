@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Box, Skeleton } from '@mui/material';
 import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
 import { usePathname } from 'next/navigation';
@@ -7,7 +7,7 @@ import { useRouter } from 'next/router';
 import { useGetTree } from '@/hooks/useGetTree';
 import { useRefsFromRouter } from '@/hooks/useRefsFromRouter';
 import { legacyApiClient } from '@/utils/queryClient';
-import { convertToTreeData, generateExpandedPaths, mergeTreeNodes, findNode, getDescendantIds } from './TreeUtils';
+import { convertToTreeData, generateExpandedPaths, mergeTreeNodes, findNode, getDescendantIds, MuiTreeNode } from './TreeUtils';
 import { CustomTreeItem } from './CustomTreeItem';
 import toast from 'react-hot-toast';
 import { useAtom } from 'jotai';
@@ -31,12 +31,32 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
   
   const { refs } = useRefsFromRouter();
   const { data: treeItems, isLoading: isTreeLoading } = useGetTree({ path: basePath, ...(refs ? { refs } : {}) });
+  
+  const prevRefsRef = useRef<string | undefined>(refs);
+  const loadingRequestsRef = useRef<Set<string>>(new Set());
+  const treeAllDataRef = useRef<MuiTreeNode[]>(treeAllData);
+  
+  useEffect(() => {
+    treeAllDataRef.current = treeAllData;
+  }, [treeAllData]);
 
-  // Set the expanded state on initialization
+  useEffect(() => {
+    const refsChanged = prevRefsRef.current !== refs;
+    
+    if (refsChanged) {
+      setTreeAllData([]);
+      setExpandedNodes(generateExpandedPaths(basePath));
+      setLoadingDirectories(new Set([basePath]));
+      
+      prevRefsRef.current = refs;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refs]);
+
   useEffect(() => {
     const pathsToExpand = generateExpandedPaths(basePath);
     const existingNode = findNode(treeAllData, basePath);
-    const hasRealData = existingNode?.children && !existingNode?.children[0].isPlaceholder
+    const hasRealData = existingNode?.children && !existingNode?.children[0]?.isPlaceholder;
     
     if (
       !loadingDirectories.has(basePath) &&
@@ -45,28 +65,20 @@ const RepoTree = ({ onCommitInfoChange }: { onCommitInfoChange?:Function }) => {
     ) {
       setLoadingDirectories(prev => new Set(prev).add(basePath));
     }
-    // when refs changes, ensure the expanded paths include the current basePath
-    setExpandedNodes(Array.from(new Set([ ...pathsToExpand ])));
+    
+    setExpandedNodes(Array.from(new Set([...pathsToExpand])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basePath, refs]);
+  }, [basePath]);
 
   useEffect(() => {
     if (treeItems) {
-      const newPathTreeData = convertToTreeData(treeItems)
-      
-      setTreeAllData(mergeTreeNodes(treeAllData, newPathTreeData))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [treeItems]);
+      const newPathTreeData = convertToTreeData(treeItems);
+      const merged = mergeTreeNodes(treeAllDataRef.current, newPathTreeData);
 
-  // when refs changes, trigger a reload for the current basePath 
-  useEffect(() => {
-    // Force reset the tree
-    setTreeAllData([]);
-    setExpandedNodes(generateExpandedPaths(basePath));
-    setLoadingDirectories(new Set([basePath]));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refs]);
+      setTreeAllData(merged);
+    }
+  }, [setTreeAllData, treeItems]);
+
 
 const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeIds: string[]) => {
   const collapsedNodes = expandedNodes.filter(id => !nodeIds.includes(id));
@@ -97,21 +109,33 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
 
   useEffect(() => {
     loadingDirectories.forEach(path => {
-  const params: any = { path };
+      const requestKey = `${path}:${refs || 'default'}`;
       
+      if (loadingRequestsRef.current.has(requestKey)) {
+        return;
+      }
+      
+      loadingRequestsRef.current.add(requestKey);
+      
+      const params: any = { path };
+
       if (refs) params.refs = refs;
+      
       legacyApiClient.v1.getApiTree().request(params)
         .then((response: any) => {
           if (response) {   
-            const newDirectoryData = convertToTreeData(response)
+            const newDirectoryData = convertToTreeData(response);
             
-            setTreeAllData(mergeTreeNodes(treeAllData, newDirectoryData))
+            const merged = mergeTreeNodes(treeAllDataRef.current, newDirectoryData);
+
+            setTreeAllData(merged);
           }
         })
         .catch((_error: any) => {
           toast.error('Loading failed.');
         })
         .finally(() => {
+          loadingRequestsRef.current.delete(requestKey);
           setLoadingDirectories(prev => {
             const newSet = new Set(prev);
 
@@ -120,8 +144,7 @@ const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeI
           });
         });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingDirectories, refs]);
+  }, [loadingDirectories, refs, setTreeAllData]);
 
   const handleLabelClick = useCallback((path: string, isDirectory: boolean) => {
     if (isDirectory) {
