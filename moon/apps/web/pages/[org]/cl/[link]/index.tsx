@@ -247,7 +247,7 @@ const CLDetailPage: PageWithLayout<any> = () => {
             <LoadingSpinner />
           </div>
         ) : (
-          clDetail && <TimelineItems detail={clDetail as CommonDetailData} id={id} type='cl' editorRef={editorRef} />
+          clDetail && <TimelineItems detail={clDetail as CommonDetailData} id={id} type='cl' editorRef={editorRef} reviewers={reviewers} />
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
           <div className='w-full'>{clDetail && clDetail.status === 'Open' && <MergeBox prId={id} />}</div>
