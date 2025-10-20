@@ -1,10 +1,10 @@
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 
 import { getNoteExtensions } from '@gitmono/editor'
-import { ConversationItem } from '@gitmono/types/generated'
+import { ConversationItem,ReviewerInfo } from '@gitmono/types/generated'
 import { Button, ConditionalWrap, FaceSmilePlusIcon, PicturePlusIcon, UIText } from '@gitmono/ui'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
@@ -34,14 +34,14 @@ import { UserLinkByName } from './components/UserLinkByName'
 import { useHandleExpression } from './hook/useHandleExpression'
 
 interface ReviewCommentProps {
-  assignees: string[]
+  reviewers: ReviewerInfo[]
   conv: ConversationItem
   id: string
   whoamI: string
   editorRef: React.RefObject<SimpleNoteContentRef>
 }
 
-const ReviewComment = ({assignees, conv, id, whoamI, editorRef }: ReviewCommentProps) => {
+const ReviewComment = ({reviewers, conv, id, whoamI, editorRef }: ReviewCommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
   const { data: currentUser } = useGetCurrentUser()
   const { mutate: resolveReview } = usePostClReviewResolve()
@@ -54,14 +54,18 @@ const ReviewComment = ({assignees, conv, id, whoamI, editorRef }: ReviewCommentP
   const handleReactionSelect = useHandleExpression({ conv, id, type: whoamI })
   const [editId, setEditId] = useAtom(editIdAtom)
   const editInputRef = useRef<{ handleUpdate: () => void }>()
-  const [isResolved, setIsResolved] = useState(false)
+  const [isResolved, setIsResolved] = useState(conv.resolved ?? false)
 
   const canResolve = useMemo(() => {
     if (!currentUser?.username) {
       return false
     }
-    return assignees.includes(currentUser.username)
-  }, [currentUser?.username, assignees])
+    return reviewers.some(r => r.username === currentUser.username)
+  }, [currentUser?.username, reviewers])
+
+  useEffect(() => {
+    setIsResolved(conv.resolved ?? false)
+  }, [conv.resolved])
 
   const handleResolve = useCallback(async () => {
     try {

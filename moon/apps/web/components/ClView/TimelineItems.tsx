@@ -14,7 +14,7 @@ import {
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
 
-import { ConversationItem } from '@gitmono/types/generated'
+import { ConversationItem, ReviewerInfo } from '@gitmono/types/generated'
 import { CommonDetailData } from '@/utils/types'
 
 import CLComment from '@/components/ClView/CLComment'
@@ -72,12 +72,13 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
   )
 }
 
-const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef> }> = ({ detail, id, type, editorRef }) => {
-  const assignees = detail!!.assignees!!
+const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef>; reviewers?: ReviewerInfo[] }> = ({ detail, id, type, editorRef, reviewers = [] }) => {
   const convItems: ConvItem[] = detail!!.conversations.map((conv: ConversationItem) => {
     let icon
     let children
     let isOver = false
+
+    const isCurrentReviewer = reviewers.some(r => r.username === conv.username)
 
     switch (conv.conv_type) {
       case 'Comment':
@@ -85,8 +86,13 @@ const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: strin
         children = <CLComment conv={conv} id={id} whoamI={type} editorRef={editorRef} />
         break
       case 'Review':
-        icon = <CheckCircleIcon size={24} className='text-blue-500' />
-        children = <ReviewComment assignees={assignees} conv={conv} id={id} whoamI={type} editorRef={editorRef} />
+        if (!isCurrentReviewer) {
+          icon = <CommentIcon />
+          children = <CLComment conv={conv} id={id} whoamI={type} editorRef={editorRef} />
+        } else {
+          icon = <CheckCircleIcon size={24} className='text-blue-500' />
+          children = <ReviewComment reviewers={reviewers} conv={conv} id={id} whoamI={type} editorRef={editorRef} />
+        }
         break
       case 'Merged':
         icon = <FeedMergedIcon size={24} className='text-purple-500' />
