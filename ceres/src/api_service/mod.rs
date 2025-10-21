@@ -22,8 +22,8 @@ use tokio::sync::Mutex;
 
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{
-    CommitBindingInfo, CreateEntryInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem,
-    TreeHashItem,
+    CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload, EditFileResult,
+    LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
 };
 use common::model::{Pagination, TagInfo};
 
@@ -307,6 +307,62 @@ pub trait ApiHandler: Send + Sync {
         ref_name: Option<&str>,
         query: BlameQuery,
     ) -> Result<BlameResult, GitError>;
+
+    /// Convenience: get file blob oid at HEAD (or provided refs) by path
+    async fn get_file_blob_id(
+        &self,
+        path: &Path,
+        refs: Option<&str>,
+    ) -> Result<Option<SHA1>, GitError> {
+        let parent = path.parent().unwrap_or(Path::new("/"));
+        if let Some(tree) = self.search_tree_by_path_with_refs(parent, refs).await? {
+            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == name)
+                && item.mode == TreeItemMode::Blob
+            {
+                return Ok(Some(item.id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Preview unified diff for a single file change
+    async fn preview_file_diff(
+        &self,
+        payload: DiffPreviewPayload,
+    ) -> Result<Option<neptune::model::diff_model::DiffItem>, GitError> {
+        use neptune::neptune_engine::Diff;
+        let path = PathBuf::from(&payload.path);
+        // old oid and content
+        let old_oid_opt = self
+            .get_file_blob_id(&path, Some(payload.refs.as_str()))
+            .await?;
+        let old_entry = if let Some(oid) = old_oid_opt {
+            vec![(path.clone(), oid)]
+        } else {
+            Vec::new()
+        };
+        let new_blob = git_internal::internal::object::blob::Blob::from_content(&payload.content);
+        let new_entry = vec![(path.clone(), new_blob.id)];
+
+        // local content reader: use DB for old oid and memory for new
+        let mut cache: std::collections::HashMap<SHA1, Vec<u8>> = std::collections::HashMap::new();
+        if let Some(oid) = old_oid_opt
+            && let Some(model) = self.get_raw_blob_by_hash(&oid.to_string()).await?
+        {
+            cache.insert(oid, model.data.unwrap_or_default());
+        }
+        cache.insert(new_blob.id, payload.content.into_bytes());
+
+        let read =
+            |_: &PathBuf, oid: &SHA1| -> Vec<u8> { cache.get(oid).cloned().unwrap_or_default() };
+        let mut items =
+            Diff::diff(old_entry, new_entry, "histogram".into(), Vec::new(), read).await;
+        Ok(items.pop())
+    }
+
+    /// Save file edit with conflict detection and commit creation.
+    async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError>;
 
     /// the dir's hash as same as old,file's hash is the content hash
     /// may think about change dir'hash as the content
