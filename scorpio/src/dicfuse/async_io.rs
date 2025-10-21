@@ -32,7 +32,23 @@ impl Filesystem for Dicfuse {
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
 
         ppath.push(name.to_string_lossy().into_owned());
-        let child = store.get_by_path(&ppath.to_string()).await?;
+        
+        // Try to get the child; if not found, try loading the parent directory first
+        let child = match store.get_by_path(&ppath.to_string()).await {
+            Ok(item) => item,
+            Err(_) => {
+                // If child not found, try to load the parent directory's content
+                let parent_path = "/".to_string() + &store.find_path(parent).await
+                    .ok_or(libc::ENOENT)?
+                    .to_string();
+                let max_depth = store.max_depth() + parent_path.matches('/').count();
+                let _ = load_dir(store.clone(), parent_path, max_depth).await;
+                
+                // Try again after loading
+                store.get_by_path(&ppath.to_string()).await?
+            }
+        };
+        
         let re = self.get_stat(child).await;
         Ok(re)
     }
@@ -169,6 +185,13 @@ impl Filesystem for Dicfuse {
         fh: u64,
         offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>> {
+        // Load the directory content if not already loaded
+        let parent_path = "/".to_string() + &self.store.find_path(parent).await
+            .ok_or(libc::ENOENT)?
+            .to_string();
+        let max_depth = self.store.max_depth() + parent_path.matches('/').count();
+        let _ = load_dir(self.store.clone(), parent_path, max_depth).await;
+        
         let items = self.store.do_readdir(parent, fh, offset as u64).await?;
         let mut d: Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
@@ -195,6 +218,13 @@ impl Filesystem for Dicfuse {
         offset: u64,
         _lock_owner: u64,
     ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
+        // Load the directory content if not already loaded
+        let parent_path = "/".to_string() + &self.store.find_path(parent).await
+            .ok_or(libc::ENOENT)?
+            .to_string();
+        let max_depth = self.store.max_depth() + parent_path.matches('/').count();
+        let _ = load_dir(self.store.clone(), parent_path, max_depth).await;
+        
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d: Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
 

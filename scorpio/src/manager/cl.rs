@@ -25,6 +25,7 @@ struct FilesListResp {
 pub async fn build_cl_layer(
     link: &str,
     cl_path: PathBuf,
+    mount_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let files_list = fetch_files_list(link).await?;
 
@@ -39,7 +40,20 @@ pub async fn build_cl_layer(
     // Collect all files that need to be downloaded
     let mut download_files = Vec::new();
     for file in files_list.data {
-        let relative_path = file.path.strip_prefix('/').unwrap_or(&file.path);
+        // Strip the leading '/' first
+        let path_without_leading_slash = file.path.strip_prefix('/').unwrap_or(&file.path);
+        
+        // Then strip the mount_path prefix to get the relative path within the mount point
+        let mount_path_normalized = mount_path.trim_start_matches('/');
+        let relative_path = if !mount_path_normalized.is_empty() {
+            path_without_leading_slash
+                .strip_prefix(&format!("{}/", mount_path_normalized))
+                .or_else(|| path_without_leading_slash.strip_prefix(mount_path_normalized))
+                .unwrap_or(path_without_leading_slash)
+        } else {
+            path_without_leading_slash
+        };
+        
         let file_path = cl_path.join(relative_path);
 
         match file.action.as_str() {

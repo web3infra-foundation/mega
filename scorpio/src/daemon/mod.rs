@@ -266,7 +266,7 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
     // Handle Change List (CL) layer if provided
     if let Some(m) = &req.cl {
         let cl_store_path = PathBuf::from(&store_path).join("cl");
-        if let Err(e) = cl::build_cl_layer(m, cl_store_path).await {
+        if let Err(e) = cl::build_cl_layer(m, cl_store_path, &work_dir.path).await {
             return Err(format!("Failed to build cl layer: {e}"));
         }
     }
