@@ -11,8 +11,8 @@ use ceres::{
     api_service::ApiHandler,
     model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
-        BlobContentQuery, CodePreviewQuery, CreateEntryInfo, FileTreeItem, LatestCommitInfo,
-        TreeCommitItem, TreeHashItem, TreeResponse,
+        BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
+        EditFileResult, FileTreeItem, LatestCommitInfo, TreeCommitItem, TreeHashItem, TreeResponse,
     },
 };
 use common::model::CommonResult;
@@ -32,6 +32,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(path_can_be_cloned))
         .routes(routes!(get_tree_info))
         .routes(routes!(get_blob_string))
+        .routes(routes!(preview_diff))
+        .routes(routes!(save_edit))
 }
 
 /// Get blob file as string
@@ -340,4 +342,42 @@ async fn get_file_blame(
             Err(ApiError::from(anyhow::anyhow!("Blame failed: {}", e)))
         }
     }
+}
+
+/// Preview unified diff for a single file before saving
+#[utoipa::path(
+    post,
+    path = "/edit/diff-preview",
+    request_body = DiffPreviewPayload,
+    responses(
+        (status = 200, body = CommonResult<neptune::model::diff_model::DiffItem>, content_type = "application/json")
+    ),
+    tag = CODE_PREVIEW
+)]
+async fn preview_diff(
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<DiffPreviewPayload>,
+) -> Result<Json<CommonResult<neptune::model::diff_model::DiffItem>>, ApiError> {
+    let handler = state.api_handler(payload.path.as_ref()).await?;
+    let item = handler.preview_file_diff(payload).await?;
+    Ok(Json(CommonResult::success(item)))
+}
+
+/// Save edit and create a commit
+#[utoipa::path(
+    post,
+    path = "/edit/save",
+    request_body = EditFilePayload,
+    responses(
+        (status = 200, body = CommonResult<EditFileResult>, content_type = "application/json")
+    ),
+    tag = CODE_PREVIEW
+)]
+async fn save_edit(
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<EditFilePayload>,
+) -> Result<Json<CommonResult<EditFileResult>>, ApiError> {
+    let handler = state.api_handler(payload.path.as_ref()).await?;
+    let res = handler.save_file_edit(payload).await?;
+    Ok(Json(CommonResult::success(Some(res))))
 }

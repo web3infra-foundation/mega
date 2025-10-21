@@ -44,6 +44,7 @@ use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
+use crate::model::git::{EditFilePayload, EditFileResult};
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
 use crate::protocol::{SmartProtocol, TransportProtocol};
 use async_trait::async_trait;
@@ -87,6 +88,53 @@ pub enum RefUpdate {
 impl ApiHandler for MonoApiService {
     fn get_context(&self) -> Storage {
         self.storage.clone()
+    }
+
+    /// Save file edit in monorepo with optimistic concurrency check
+    async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
+        let storage = self.storage.mono_storage();
+        let file_path = PathBuf::from(&payload.path);
+        let parent_path = file_path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+
+        // Build update chain to parent directory and determine current blob id
+        let update_chain = self.search_tree_for_update(parent_path).await?;
+        let parent_tree = update_chain
+            .last()
+            .ok_or_else(|| GitError::CustomError("Parent tree not found".to_string()))?
+            .clone();
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| GitError::CustomError("Invalid file name".to_string()))?;
+
+        let _current_item = parent_tree
+            .tree_items
+            .iter()
+            .find(|x| x.name == file_name && x.mode == TreeItemMode::Blob)
+            .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
+
+        // Create new blob and build update result up to root
+        let new_blob = Blob::from_content(&payload.content);
+        let result = self
+            .build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        // Apply and save
+        let new_commit_id = self
+            .apply_update_result(&result, &payload.commit_message)
+            .await?;
+        storage
+            .save_mega_blobs(vec![&new_blob], &new_commit_id)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        Ok(EditFileResult {
+            commit_id: new_commit_id,
+            new_oid: new_blob.id.to_string(),
+            path: payload.path,
+        })
     }
 
     /// Creates a new file or directory in the monorepo based on the provided file information.
@@ -579,7 +627,7 @@ impl ApiHandler for MonoApiService {
                         object_type: "commit".to_string(),
                         tagger: "".to_string(),
                         message: "".to_string(),
-                        created_at: chrono::Utc::now().to_rfc3339(),
+                        created_at: r.created_at.and_utc().to_rfc3339(),
                     });
                 }
             }
@@ -627,7 +675,7 @@ impl ApiHandler for MonoApiService {
                 object_type: "commit".to_string(),
                 tagger: "".to_string(),
                 message: "".to_string(),
-                created_at: chrono::Utc::now().to_rfc3339(),
+                created_at: r.created_at.and_utc().to_rfc3339(),
             }));
         }
         Ok(None)
@@ -875,6 +923,12 @@ impl MonoApiService {
                 tracing::error!("Failed to write lightweight tag ref: {}", e);
                 GitError::CustomError("[code:500] Failed to write lightweight tag ref".to_string())
             })?;
+        // Fetch saved ref to use its creation time
+        let saved_ref = mono_storage
+            .get_ref_by_name(&full_ref)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?
+            .ok_or_else(|| GitError::CustomError("Ref not found after creation".to_string()))?;
 
         Ok(TagInfo {
             name: name.clone(),
@@ -883,7 +937,7 @@ impl MonoApiService {
             object_type: "commit".to_string(),
             tagger: tagger_info.clone(),
             message: String::new(),
-            created_at: chrono::Utc::now().to_rfc3339(),
+            created_at: saved_ref.created_at.and_utc().to_rfc3339(),
         })
     }
     async fn validate_target_commit_mono(&self, target: Option<&String>) -> Result<(), GitError> {
