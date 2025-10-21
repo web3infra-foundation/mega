@@ -54,7 +54,7 @@ mod test {
     #[test]
     fn test_link_generate() {
         let link = generate_link();
-        println!("MR Link: '{link:?}'");
+        println!("CL Link: '{link:?}'");
         assert!(
             link.chars().count() == 8
                 && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())

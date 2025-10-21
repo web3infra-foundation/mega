@@ -98,7 +98,7 @@ mod tests {
         let issue = mega_issue::Model {
             id: 1,
             link: String::from("ILD2EV5V"),
-            title: String::from("[Monobean] no such column: mega_refs.is_mr #1028"),
+            title: String::from("[Monobean] no such column: mega_refs.is_cl #1028"),
             status: String::from("open"),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
