@@ -4,17 +4,17 @@ use async_trait::async_trait;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::merge_checker::cl_sync_checker::ClSyncChecker;
 use crate::merge_checker::commit_message_checker::CommitMessageChecker;
 use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
-use crate::merge_checker::cl_sync_checker::ClSyncChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
 use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 
+pub mod cl_sync_checker;
 mod code_review_checker;
 mod commit_message_checker;
 mod gpg_signature_checker;
-pub mod cl_sync_checker;
 
 #[async_trait]
 pub trait Checker: Send + Sync {

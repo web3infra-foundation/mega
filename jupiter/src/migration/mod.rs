@@ -112,7 +112,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250930_024736_mr_to_cl::Migration),
             Box::new(m20251011_091944_tasks_mr_id_to_cl_id::Migration),
             Box::new(m20251012_071700_mr_to_cl_batch::Migration),
-            Box::new(m20251021_073817_rename_mr_sync_to_cl_sync::Migration)
+            Box::new(m20251021_073817_rename_mr_sync_to_cl_sync::Migration),
         ]
     }
 }
