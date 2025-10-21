@@ -10,6 +10,7 @@ use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use git_internal::internal::pack::entry::Entry;
 
 use common::errors::MegaError;
 use common::model::TagInfo;
@@ -17,7 +18,7 @@ use jupiter::storage::Storage;
 
 use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::blame::{BlameQuery, BlameResult};
-use crate::model::git::CreateEntryInfo;
+use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
 use crate::protocol::repo::Repo;
 use callisto::{git_tag, import_refs};
 use jupiter::utils::converter::FromGitModel;
@@ -248,6 +249,7 @@ impl ApiHandler for ImportApiService {
                     if result.iter().any(|t| t.name == tag_name) {
                         continue;
                     }
+                    let created_at = r.created_at.and_utc().to_rfc3339();
                     lightweight_refs.push(TagInfo {
                         name: tag_name.clone(),
                         tag_id: r.ref_git_id.clone(),
@@ -255,7 +257,7 @@ impl ApiHandler for ImportApiService {
                         object_type: "commit".to_string(),
                         tagger: "".to_string(),
                         message: "".to_string(),
-                        created_at: chrono::Utc::now().to_rfc3339(),
+                        created_at,
                     });
                 }
             }
@@ -313,6 +315,7 @@ impl ApiHandler for ImportApiService {
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await {
             for r in refs {
                 if r.ref_name == full_ref {
+                    let created_at = r.created_at.and_utc().to_rfc3339();
                     return Ok(Some(TagInfo {
                         name: name.clone(),
                         tag_id: r.ref_git_id.clone(),
@@ -320,7 +323,7 @@ impl ApiHandler for ImportApiService {
                         object_type: "commit".to_string(),
                         tagger: "".to_string(),
                         message: "".to_string(),
-                        created_at: chrono::Utc::now().to_rfc3339(),
+                        created_at,
                     }));
                 }
             }
@@ -386,6 +389,84 @@ impl ApiHandler for ImportApiService {
         Err(GitError::CustomError(
             "Import directory does not support blame functionality".to_string(),
         ))
+    }
+
+    /// Save file edit for import repo path
+    async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
+        use git_internal::internal::object::blob::Blob;
+        use git_internal::internal::object::tree::TreeItemMode;
+
+        let path = PathBuf::from(&payload.path);
+        let parent = path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+        let update_chain = self
+            .search_tree_for_update(parent)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let parent_tree = update_chain
+            .last()
+            .cloned()
+            .ok_or_else(|| GitError::CustomError("Parent tree not found".to_string()))?;
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| GitError::CustomError("Invalid file name".to_string()))?;
+        let _current = parent_tree
+            .tree_items
+            .iter()
+            .find(|x| x.name == name && x.mode == TreeItemMode::Blob)
+            .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
+
+        // Create new blob and rebuild tree up to root
+        let new_blob = Blob::from_content(&payload.content);
+        let (updated_trees, new_root_id) =
+            self.build_updated_trees(path.clone(), update_chain, new_blob.id)?;
+
+        // Save commit and objects under import repo tables
+        let git_storage = self.storage.git_db_storage();
+        let new_commit_id = {
+            // Update default branch ref commit with parent = current default commit
+            let default_ref = git_storage
+                .get_default_ref(self.repo.repo_id)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?
+                .ok_or_else(|| GitError::CustomError("Default ref not found".to_string()))?;
+            let current_commit = git_storage
+                .get_commit_by_hash(self.repo.repo_id, &default_ref.ref_git_id)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?
+                .ok_or(GitError::InvalidCommitObject)?;
+            let parent_id = SHA1::from_str(&current_commit.commit_id).unwrap();
+
+            let new_commit =
+                Commit::from_tree_id(new_root_id, vec![parent_id], &payload.commit_message);
+            let new_commit_id = new_commit.id.to_string();
+
+            let mut entries: Vec<Entry> = Vec::new();
+            for t in updated_trees.iter().cloned() {
+                entries.push(Entry::from(t));
+            }
+            entries.push(Entry::from(new_blob.clone()));
+            entries.push(Entry::from(new_commit.clone()));
+            git_storage
+                .save_entry(self.repo.repo_id, entries)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+            // Update ref to new commit id
+            git_storage
+                .update_ref(self.repo.repo_id, &default_ref.ref_name, &new_commit_id)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
+            new_commit_id
+        };
+
+        Ok(EditFileResult {
+            commit_id: new_commit_id,
+            new_oid: new_blob.id.to_string(),
+            path: payload.path,
+        })
     }
 }
 
@@ -462,6 +543,8 @@ impl ImportApiService {
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
+        // Use ref creation time as lightweight tag created_at (capture before move)
+        let created_at = import_ref.created_at.and_utc().to_rfc3339();
         git_storage
             .save_ref(self.repo.repo_id, import_ref)
             .await
@@ -476,7 +559,7 @@ impl ImportApiService {
             object_type: "commit".to_string(),
             tagger: tagger_info.clone(),
             message: String::new(),
-            created_at: chrono::Utc::now().to_rfc3339(),
+            created_at,
         })
     }
     /// Traverses the commit history starting from a given commit, looking for the earliest commit
@@ -638,9 +721,7 @@ impl ImportApiService {
                 .unwrap(),
         )
     }
-}
 
-impl ImportApiService {
     async fn validate_target_commit(&self, target: Option<&String>) -> Result<(), GitError> {
         if let Some(ref t) = target {
             let git_storage = self.storage.git_db_storage();
@@ -742,5 +823,44 @@ impl ImportApiService {
             ));
         }
         Ok(())
+    }
+
+    fn update_tree_hash(
+        &self,
+        tree: Arc<Tree>,
+        name: &str,
+        target_hash: SHA1,
+    ) -> Result<Tree, GitError> {
+        let index = tree
+            .tree_items
+            .iter()
+            .position(|item| item.name == name)
+            .ok_or_else(|| GitError::CustomError(format!("Tree item '{}' not found", name)))?;
+        let mut items = tree.tree_items.clone();
+        items[index].id = target_hash;
+        Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
+    }
+
+    /// Build updated trees chain and return (updated_trees, new_root_tree_id)
+    fn build_updated_trees(
+        &self,
+        mut path: PathBuf,
+        mut update_chain: Vec<Arc<Tree>>,
+        mut updated_tree_hash: SHA1,
+    ) -> Result<(Vec<Tree>, SHA1), GitError> {
+        let mut updated_trees = Vec::new();
+        while let Some(tree) = update_chain.pop() {
+            let cloned_path = path.clone();
+            let name = cloned_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?;
+            path.pop();
+
+            let new_tree = self.update_tree_hash(tree, name, updated_tree_hash)?;
+            updated_tree_hash = new_tree.id;
+            updated_trees.push(new_tree);
+        }
+        Ok((updated_trees, updated_tree_hash))
     }
 }

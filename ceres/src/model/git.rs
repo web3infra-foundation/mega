@@ -189,6 +189,40 @@ fn default_path() -> String {
     "/".to_string()
 }
 
+/// Request body for previewing diff of a single file before saving.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DiffPreviewPayload {
+    /// Full file path like "/project/dir/file.rs"
+    pub path: String,
+    /// New content to preview against current HEAD
+    pub content: String,
+    /// Optional refs (commit SHA or tag); empty/default means current HEAD
+    #[serde(default)]
+    pub refs: String,
+}
+
+/// Request body for saving an edited file with conflict detection.
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct EditFilePayload {
+    /// Full file path like "/project/dir/file.rs"
+    pub path: String,
+    /// New file content to save
+    pub content: String,
+    /// Commit message to use when creating the commit
+    pub commit_message: String,
+}
+
+/// Response body after saving an edited file
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct EditFileResult {
+    /// New commit id created by this save
+    pub commit_id: String,
+    /// New blob oid of the saved file
+    pub new_oid: String,
+    /// Saved file path
+    pub path: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TreeResponse {
     pub file_tree: HashMap<String, FileTreeItem>,
