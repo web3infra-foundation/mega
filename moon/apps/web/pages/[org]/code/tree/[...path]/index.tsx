@@ -15,6 +15,7 @@ import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
+import SyncRepoButton from '@/components/CodeView/TreeView/SyncRepoButton'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
@@ -92,6 +93,7 @@ function TreeDetailPage() {
                 <Button onClick={() => handleNewClick('file')}>New File</Button>
                 <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
                 {canClone?.data && <CloneTabs />}
+                <SyncRepoButton currentPath={newPath} />
               </div>
             </>
           ) : (
