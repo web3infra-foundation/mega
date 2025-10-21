@@ -128,3 +128,66 @@ async fn fetch_files_list(link: &str) -> Result<FilesListResp, reqwest::Error> {
         .json::<FilesListResp>()
         .await
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_path_stripping() {
+        // Test case 1: Normal path with mount point
+        let file_path = "/release/greeter_lib/src/lib.rs";
+        let mount_path = "release";
+        
+        let path_without_leading_slash = file_path.strip_prefix('/').unwrap_or(file_path);
+        let mount_path_normalized = mount_path.trim_start_matches('/');
+        let relative_path = if !mount_path_normalized.is_empty() {
+            path_without_leading_slash
+                .strip_prefix(&format!("{}/", mount_path_normalized))
+                .or_else(|| path_without_leading_slash.strip_prefix(mount_path_normalized))
+                .unwrap_or(path_without_leading_slash)
+        } else {
+            path_without_leading_slash
+        };
+        
+        assert_eq!(relative_path, "greeter_lib/src/lib.rs");
+    }
+
+    #[test]
+    fn test_path_stripping_nested() {
+        // Test case 2: Nested mount path
+        let file_path = "/my/nested/path/file.txt";
+        let mount_path = "my/nested";
+        
+        let path_without_leading_slash = file_path.strip_prefix('/').unwrap_or(file_path);
+        let mount_path_normalized = mount_path.trim_start_matches('/');
+        let relative_path = if !mount_path_normalized.is_empty() {
+            path_without_leading_slash
+                .strip_prefix(&format!("{}/", mount_path_normalized))
+                .or_else(|| path_without_leading_slash.strip_prefix(mount_path_normalized))
+                .unwrap_or(path_without_leading_slash)
+        } else {
+            path_without_leading_slash
+        };
+        
+        assert_eq!(relative_path, "path/file.txt");
+    }
+
+    #[test]
+    fn test_path_stripping_root() {
+        // Test case 3: Empty mount path (root)
+        let file_path = "/file.txt";
+        let mount_path = "";
+        
+        let path_without_leading_slash = file_path.strip_prefix('/').unwrap_or(file_path);
+        let mount_path_normalized = mount_path.trim_start_matches('/');
+        let relative_path = if !mount_path_normalized.is_empty() {
+            path_without_leading_slash
+                .strip_prefix(&format!("{}/", mount_path_normalized))
+                .or_else(|| path_without_leading_slash.strip_prefix(mount_path_normalized))
+                .unwrap_or(path_without_leading_slash)
+        } else {
+            path_without_leading_slash
+        };
+        
+        assert_eq!(relative_path, "file.txt");
+    }
+}
