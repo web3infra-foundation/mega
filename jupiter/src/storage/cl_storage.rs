@@ -316,10 +316,10 @@ impl ClStorage {
 
     pub async fn get_check_result(
         &self,
-        mr_link: &str,
+        cl_link: &str,
     ) -> Result<Vec<check_result::Model>, MegaError> {
         let models = check_result::Entity::find()
-            .filter(check_result::Column::ClLink.eq(mr_link))
+            .filter(check_result::Column::ClLink.eq(cl_link))
             .all(self.get_connection())
             .await?;
         Ok(models)
