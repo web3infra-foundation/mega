@@ -32,11 +32,11 @@ impl Checker for CodeReviewChecker {
             message: String::new(),
         };
 
-        let approved = self.verify_mr(&params.cl_link).await;
+        let approved = self.verify_cl(&params.cl_link).await;
         match approved {
             Ok(_) => {
                 res.status = crate::merge_checker::ConditionResult::PASSED;
-                res.message = String::from("All reviewers have approved the MR.");
+                res.message = String::from("All reviewers have approved the CL.");
             }
 
             Err(e) => {
@@ -56,7 +56,7 @@ impl Checker for CodeReviewChecker {
 }
 
 impl CodeReviewChecker {
-    async fn verify_mr(&self, cl_link: &str) -> Result<(), MegaError> {
+    async fn verify_cl(&self, cl_link: &str) -> Result<(), MegaError> {
         let reviewers = self
             .storage
             .reviewer_storage()
@@ -66,7 +66,7 @@ impl CodeReviewChecker {
         let mut err_message = String::new();
         for reviewer in reviewers {
             if !reviewer.approved {
-                let msg = format!("Reviewer {} has not approved the MR.\n", reviewer.id);
+                let msg = format!("Reviewer {} has not approved the CL.\n", reviewer.id);
                 err_message = err_message + &msg;
             }
         }

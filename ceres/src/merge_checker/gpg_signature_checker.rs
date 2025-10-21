@@ -15,7 +15,7 @@ pub struct GpgSignatureChecker {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct GpgSignatureParams {
-    mr_to: String,
+    cl_to: String,
     committer: String,
 }
 
@@ -35,7 +35,7 @@ impl Checker for GpgSignatureChecker {
             message: String::new(),
         };
 
-        let is_verified = self.verify_mr(&params.mr_to, params.committer).await;
+        let is_verified = self.verify_cl(&params.cl_to, params.committer).await;
         match is_verified {
             Ok(_) => {
                 res.status = ConditionResult::PASSED;
@@ -51,20 +51,20 @@ impl Checker for GpgSignatureChecker {
         res
     }
 
-    async fn build_params(&self, mr_info: &ClInfoDto) -> Result<Value, MegaError> {
+    async fn build_params(&self, cl_info: &ClInfoDto) -> Result<Value, MegaError> {
         Ok(serde_json::json!({
-            "mr_to": mr_info.to_hash,
-            "committer": mr_info.username,
+            "cl_to": cl_info.to_hash,
+            "committer": cl_info.username,
         }))
     }
 }
 
 impl GpgSignatureChecker {
-    async fn verify_mr(&self, mr_to: &str, assignee: String) -> Result<(), MegaError> {
+    async fn verify_cl(&self, cl_to: &str, assignee: String) -> Result<(), MegaError> {
         let commit = self
             .storage
             .mono_storage()
-            .get_commit_by_hash(mr_to)
+            .get_commit_by_hash(cl_to)
             .await?
             .ok_or_else(|| MegaError::with_message("Commit not found"))?;
 
