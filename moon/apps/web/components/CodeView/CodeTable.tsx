@@ -25,7 +25,7 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
   const router = useRouter()
   const pathname = usePathname()
   const nextRouter = useNextRouter()
-  
+
   const refs = (nextRouter.query.version as string) || 'main'
 
   let real_path = pathname?.replace('/tree', '')
@@ -89,7 +89,6 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         pathParts?.splice(2, 0, 'blob')
       }
 
-      // 插入 version 参数
       if (pathParts.length >= 3 && pathParts[2] === 'blob') {
         pathParts.splice(3, 0, refs)
       }
@@ -105,7 +104,6 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         pathParts?.splice(2, 0, 'tree')
       }
 
-      // 插入 version 参数
       if (pathParts.length >= 3 && pathParts[2] === 'tree') {
         pathParts.splice(3, 0, refs)
       }
