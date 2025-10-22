@@ -39,7 +39,12 @@ pub async fn build_cl_layer(
     // Collect all files that need to be downloaded
     let mut download_files = Vec::new();
     for file in files_list.data {
-        let relative_path = file.path.strip_prefix('/').unwrap_or(&file.path);
+        // fetched path is absolute path, here we convert it to path repo
+        let relative_path: PathBuf =
+            PathBuf::from(file.path.strip_prefix('/').unwrap_or(&file.path))
+                .components()
+                .skip(1)
+                .collect();
         let file_path = cl_path.join(relative_path);
 
         match file.action.as_str() {
