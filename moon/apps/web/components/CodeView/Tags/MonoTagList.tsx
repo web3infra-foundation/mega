@@ -1,14 +1,15 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { useRouter } from 'next/router'
+
+import { TagResponse } from '@gitmono/types'
 import { Avatar, Button, DotsHorizontal, Link, LinkIcon, TrashIcon, UIText } from '@gitmono/ui'
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
 import { useCopyToClipboard } from '@gitmono/ui/src/hooks'
-import { useRouter } from 'next/router'
 
-import { TagResponse } from '@gitmono/types'
 import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { useDeleteMonoTag } from '@/hooks/useDeleteMonoTag'
-import { formatDistanceToNow } from 'date-fns'
 
 interface Props {
   tags: TagResponse[]
@@ -26,15 +27,19 @@ export function MonoTagList({ tags, defaultPath, onDelete }: Props) {
   return (
     <ul className='flex flex-col py-2'>
       {localTags.map((t) => (
-        <MonoTagRow key={t.name} tag={t} defaultPath={defaultPath} onDelete={() => {
-          setLocalTags(localTags.filter(tag => tag.name !== t.name));
-          if (typeof onDelete === 'function') onDelete(t.name);
-        }} />
+        <MonoTagRow
+          key={t.name}
+          tag={t}
+          defaultPath={defaultPath}
+          onDelete={() => {
+            setLocalTags(localTags.filter((tag) => tag.name !== t.name))
+            if (typeof onDelete === 'function') onDelete(t.name)
+          }}
+        />
       ))}
     </ul>
   )
 }
-
 
 function MonoTagRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPath?: string; onDelete?: () => void }) {
   return <InnerRow tag={tag} defaultPath={defaultPath} onDelete={onDelete} />
@@ -45,6 +50,8 @@ function InnerRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPat
   const [menuOpen, setMenuOpen] = useState(false)
   const del = useDeleteMonoTag()
   const router = useRouter()
+
+  const org = router.query.org || 'mega'
 
   const subtitle = useMemo(() => {
     return tag.message || `${tag.object_type} ${tag.object_id.substring(0, 8)}`
@@ -82,17 +89,16 @@ function InnerRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPat
   }, [tag.created_at])
 
   const href = useMemo(() => {
-    const org = router.query.org || 'mega'
     const path = (defaultPath || '').replace(/^\/+/, '')
 
-    return `/${org}/code/tree/${path}?refs=${encodeURIComponent(tag.name)}`
-  }, [router.query.org, defaultPath, tag.name])
+    return `/${org}/code/tree/${tag.name}/${path}`
+  }, [org, tag.name, defaultPath])
 
   return (
     <li className='hover:bg-tertiary group-has-[button[aria-expanded="true"]]:bg-tertiary group relative -mx-3 flex items-center gap-3 rounded-md py-1.5 pl-3 pr-1.5'>
       <Link href={href} className='absolute inset-0 z-0' />
 
-  {/* removed leading hashtag icon per design update */}
+      {/* removed leading hashtag icon per design update */}
 
       <div className='flex flex-1 flex-col gap-0.5'>
         <UIText weight='font-medium' size='text-[15px]' className='line-clamp-1'>
@@ -103,15 +109,20 @@ function InnerRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPat
             {subtitle}
           </UIText>
         )}
-        <MemberHovercard username={username} role='member'>
-          <div className='mt-0.5 flex items-center gap-1.5 relative z-[1]'>
-            <Avatar size='xs' name={creator.name} />
-            <UIText quaternary size='text-[12px]' className='line-clamp-1'>
-              Created by {creator.name}
-              {createdRelative ? ` · ${createdRelative}` : ''}
-            </UIText>
-          </div>
-        </MemberHovercard>
+        {tag.tagger && tag.tagger !== 'unknown' ? (
+          <MemberHovercard username={username} role='member'>
+            <div className='relative z-[1] mt-0.5 flex items-center gap-1.5'>
+              <Avatar size='xs' name={creator.name} />
+              <UIText quaternary size='text-[12px]' className='line-clamp-1'>
+                Created by {creator.name} · {createdRelative ? `${createdRelative}` : ''}
+              </UIText>
+            </div>
+          </MemberHovercard>
+        ) : (
+          <UIText quaternary size='text-[12px]' className='mt-0.5 line-clamp-1'>
+            Created {createdRelative ? `${createdRelative}` : ''}
+          </UIText>
+        )}
       </div>
 
       <div className='hidden flex-none items-center gap-0.5 lg:flex'>
@@ -138,9 +149,9 @@ function InnerRow({ tag, defaultPath, onDelete }: { tag: TagResponse; defaultPat
                 onSelect: () => {
                   del.mutate(tag.name, {
                     onSuccess: () => {
-                      if (onDelete) onDelete();
+                      if (onDelete) onDelete()
                     }
-                  });
+                  })
                 }
               }
             ])}

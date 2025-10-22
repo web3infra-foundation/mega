@@ -6,11 +6,12 @@ import { useMemo } from 'react'
 import { FolderIcon } from '@heroicons/react/20/solid'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { usePathname, useRouter } from 'next/navigation'
-import { useSearchParams } from 'next/navigation'
+import { useRouter as useNextRouter } from 'next/router'
+import Markdown from 'react-markdown'
+
+import FileIcon from './FileIcon/FileIcon'
 import RTable from './Table'
 import { columnsType, DirectoryType } from './Table/type'
-import Markdown from 'react-markdown'
-import FileIcon from './FileIcon/FileIcon'
 
 export interface DataType {
   oid: string
@@ -23,16 +24,18 @@ export interface DataType {
 const CodeTable = ({ directory, loading, readmeContent }: any) => {
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const refs = searchParams?.get('refs') || undefined
+  const nextRouter = useNextRouter()
+  
+  const refs = (nextRouter.query.version as string) || 'main'
+
   let real_path = pathname?.replace('/tree', '')
 
   const markdownContentStyle = {
-    margin:' 0 auto',
+    margin: ' 0 auto',
     marginTop: 20,
     border: '1px solid rgba(0, 0, 0, 0.112)',
     padding: '2%',
-    borderRadius: '0.5rem',
+    borderRadius: '0.5rem'
   }
 
   const columns = useMemo<columnsType<DirectoryType>[]>(
@@ -45,9 +48,10 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
           <>
             <div className='flex items-center'>
               {record.content_type === 'directory' && <FolderIcon className='size-4 text-gray-600' />}
-              {record.content_type === 'file' && <FileIcon filename={record.name}  style={{width:'16px', height:'16px'}}/>}
-              <a className='cursor-pointer transition-colors duration-300 hover:text-[#69b1ff] pl-2'>{record.name}</a>
-             
+              {record.content_type === 'file' && (
+                <FileIcon filename={record.name} style={{ width: '16px', height: '16px' }} />
+              )}
+              <a className='cursor-pointer pl-2 transition-colors duration-300 hover:text-[#69b1ff]'>{record.name}</a>
             </div>
           </>
         )
@@ -56,8 +60,10 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         title: 'Message',
         dataIndex: ['commit_message'],
         key: 'commit_message',
-        render: (_, {commit_message}) => (
-          <a className='cursor-pointer transition-colors duration-300 text-gray-600 hover:text-[#69b1ff]'>{commit_message}</a>
+        render: (_, { commit_message }) => (
+          <a className='cursor-pointer text-gray-600 transition-colors duration-300 hover:text-[#69b1ff]'>
+            {commit_message}
+          </a>
         )
       },
       {
@@ -77,28 +83,35 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
     const pathParts = normalizedPath?.split('/') || []
 
     if (record.content_type === 'file') {
-      let newPath: string
-
       const hasBlob = pathParts?.includes('blob')
 
       if (!hasBlob && pathParts.length >= 2) {
         pathParts?.splice(2, 0, 'blob')
       }
-      pathParts?.push(encodeURIComponent(record.name))
 
-      newPath = `/${pathParts?.join('/')}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`
+      // 插入 version 参数
+      if (pathParts.length >= 3 && pathParts[2] === 'blob') {
+        pathParts.splice(3, 0, refs)
+      }
+
+      pathParts?.push(encodeURIComponent(record.name))
+      const newPath = `/${pathParts?.join('/')}`
+
       router.push(newPath)
     } else {
-      let newPath: string
-
       const hasTree = pathParts?.includes('tree')
 
       if (!hasTree && pathParts.length >= 2) {
         pathParts?.splice(2, 0, 'tree')
       }
-      pathParts?.push(encodeURIComponent(record.name))
 
-      newPath = `/${pathParts?.join('/')}${refs ? `?refs=${encodeURIComponent(refs)}` : ''}`
+      // 插入 version 参数
+      if (pathParts.length >= 3 && pathParts[2] === 'tree') {
+        pathParts.splice(3, 0, refs)
+      }
+
+      pathParts?.push(encodeURIComponent(record.name))
+      const newPath = `/${pathParts?.join('/')}`
 
       router.push(newPath)
     }
@@ -114,7 +127,7 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         onClick={handleRowClick}
         loading={loading}
       />
-    {readmeContent && (
+      {readmeContent && (
         <div style={markdownContentStyle}>
           <div className='markdown-body'>
             <Markdown>{readmeContent}</Markdown>

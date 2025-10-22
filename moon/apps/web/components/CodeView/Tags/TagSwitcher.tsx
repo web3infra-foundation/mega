@@ -1,7 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/router'
 
 import {
   Button,
+  CloseIcon,
+  cn,
   CONTAINER_STYLES,
   LazyLoadingSpinner,
   Popover,
@@ -15,22 +18,22 @@ import {
   SelectCommandItem,
   SelectCommandList,
   SelectCommandSeparator,
-  UIText,
-  CloseIcon,
-  cn
+  UIText
 } from '@gitmono/ui'
-
-import { useRouter } from 'next/router'
-import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 
 import { usePostMonoTagList } from '@/hooks/usePostMonoTagList'
 
 export default function TagSwitcher() {
   const router = useRouter()
-  const { refs, setRefs } = useRefsFromRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const anchorRef = useRef<HTMLButtonElement | null>(null)
+
+  const org = router.query.org as string
+  const refs = router.query.version as string
+  
+  const pathArray = router.query.path ? (Array.isArray(router.query.path) ? router.query.path : [router.query.path]) : []
+  const path = pathArray.join('/')
 
   const { data, isLoading, isFetching } = usePostMonoTagList({
     additional: '/',
@@ -48,13 +51,21 @@ export default function TagSwitcher() {
 
   return (
     <>
+      {refs && refs !== 'main' && (
         <span ref={anchorRef as unknown as React.RefObject<HTMLSpanElement>}>
-          <Button onClick={() => setOpen(true)}>{refs ? `Tag: ${refs}` : 'Tag'}</Button>
+          <Button onClick={() => setOpen(true)}>{`Tag: ${refs}`}</Button>
         </span>
+      )}
+
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverElementAnchor element={anchorRef.current} />
         <PopoverPortal>
-          <PopoverContent className={cn('scrollable min-w-[360px] max-w-[360px] p-0', CONTAINER_STYLES.base)} side='bottom' align='end' asChild>
+          <PopoverContent
+            className={cn('scrollable min-w-[360px] max-w-[360px] p-0', CONTAINER_STYLES.base)}
+            side='bottom'
+            align='end'
+            asChild
+          >
             <div className='relative flex max-h-[400px] flex-col'>
               {/* Top-right close button for consistency */}
               <Button
@@ -68,11 +79,7 @@ export default function TagSwitcher() {
               />
               <SelectCommandContainer className='flex max-h-[400px] flex-col'>
                 <div className='flex items-center gap-2 p-2'>
-                  <SelectCommandInput
-                    placeholder='Find a tag...'
-                    value={query}
-                    onValueChange={(v) => setQuery(v)}
-                  />
+                  <SelectCommandInput placeholder='Find a tag...' value={query} onValueChange={(v) => setQuery(v)} />
                 </div>
                 <SelectCommandSeparator alwaysRender />
 
@@ -91,12 +98,9 @@ export default function TagSwitcher() {
                             value={t.name}
                             title={t.name}
                             onSelect={() => {
-                              setOpen(false);
-                              const org = router.query.org;
-                              const path = router.query.path ? (Array.isArray(router.query.path) ? router.query.path.join('/') : router.query.path) : '';
-
+                              setOpen(false)
                               if (t.name) {
-                                router.push(`/${org}/code/tree/${path}?refs=${encodeURIComponent(t.name)}`);
+                                router.push(`/${org}/code/tree/${encodeURIComponent(t.name)}/${path}`)
                               }
                             }}
                           >
@@ -117,20 +121,26 @@ export default function TagSwitcher() {
 
                 <SelectCommandSeparator alwaysRender />
                 <div className='flex items-center justify-end p-2'>
-                  <Button onClick={() => { 
-                    setOpen(false); 
-                    router.push({
-                      pathname: '/[org]/code/tags',
-                      query: { org: String(router.query.org ?? '') }
-                    });
-                  }}>
+                  <Button
+                    onClick={() => {
+                      setOpen(false)
+                      router.push({
+                        pathname: '/[org]/code/tags',
+                        query: { org: org ?? '' }
+                      })
+                    }}
+                  >
                     View all tags
                   </Button>
                   {refs && (
-                    <Button className='ml-2' variant='plain' onClick={() => {
-                      setOpen(false)
-                      setRefs(undefined)
-                    }}>
+                    <Button
+                      className='ml-2'
+                      variant='plain'
+                      onClick={() => {
+                        setOpen(false)
+                        router.push(`/${org}/code/tree/main/${path}`)
+                      }}
+                    >
                       Clear
                     </Button>
                   )}
