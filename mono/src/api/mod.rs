@@ -158,7 +158,7 @@ pub mod util {
                 let cedar_path = component.join(".mega_cedar.json");
                 let entity_str = state
                     .monorepo()
-                    .get_blob_as_string(cedar_path)
+                    .get_blob_as_string(cedar_path, None)
                     .await
                     .unwrap();
                 if let Some(entity_str) = entity_str {
