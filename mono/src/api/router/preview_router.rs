@@ -55,7 +55,7 @@ async fn get_blob_string(
     let data = state
         .api_handler(query.path.as_ref())
         .await?
-        .get_blob_as_string(query.path.into())
+        .get_blob_as_string(query.path.into(), Some(query.refs.as_str()))
         .await?;
     Ok(Json(CommonResult::success(data)))
 }
@@ -378,6 +378,20 @@ async fn save_edit(
     Json(payload): Json<EditFilePayload>,
 ) -> Result<Json<CommonResult<EditFileResult>>, ApiError> {
     let handler = state.api_handler(payload.path.as_ref()).await?;
-    let res = handler.save_file_edit(payload).await?;
+    let res = handler.save_file_edit(payload.clone()).await?;
+
+    // If frontend provided author info, bind commit to that user
+    if let Some(email) = payload.author_email.as_ref() {
+        let stg = state.storage.commit_binding_storage();
+        stg.upsert_binding(
+            &res.commit_id,
+            email,
+            payload.author_username.clone(),
+            false,
+        )
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
+    }
+
     Ok(Json(CommonResult::success(Some(res))))
 }

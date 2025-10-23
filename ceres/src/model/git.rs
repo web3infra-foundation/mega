@@ -46,6 +46,8 @@ pub struct TreeQuery {
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct BlobContentQuery {
+    #[serde(default)]
+    pub refs: String,
     #[serde(default = "default_path")]
     pub path: String,
 }
@@ -58,7 +60,6 @@ pub struct LatestCommitInfo {
     pub author: UserInfo,
     pub committer: UserInfo,
     pub status: String,
-    pub binding_info: Option<CommitBindingInfo>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -89,7 +90,6 @@ impl From<Commit> for LatestCommitInfo {
             author,
             committer,
             status: "success".to_string(),
-            binding_info: None, // Will be populated at API layer
         }
     }
 }
@@ -210,6 +210,12 @@ pub struct EditFilePayload {
     pub content: String,
     /// Commit message to use when creating the commit
     pub commit_message: String,
+    /// author email to bind this commit to a user
+    #[serde(default)]
+    pub author_email: Option<String>,
+    /// platform username (used to verify and bind commit to user)
+    #[serde(default)]
+    pub author_username: Option<String>,
 }
 
 /// Response body after saving an edited file
