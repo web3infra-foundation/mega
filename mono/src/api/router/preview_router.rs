@@ -315,11 +315,6 @@ async fn get_file_blame(
         params.refs
     );
 
-    // Validate input parameters
-    if params.path.is_empty() {
-        return Err(ApiError::from(anyhow::anyhow!("File path cannot be empty")));
-    }
-
     // Use refs parameter if provided, otherwise use None to let the service handle defaults
     let ref_name = if params.refs.is_empty() {
         None
@@ -330,18 +325,12 @@ async fn get_file_blame(
     // Convert BlameRequest to BlameQuery
     let query = BlameQuery::from(&params);
     // Call the business logic in ceres module
-    match state
+    let result = state
         .api_handler(params.path.as_ref())
         .await?
         .get_file_blame(&params.path, ref_name, query)
-        .await
-    {
-        Ok(result) => Ok(Json(CommonResult::success(Some(result)))),
-        Err(e) => {
-            tracing::error!("Blame operation failed for {}: {}", params.path, e);
-            Err(ApiError::from(anyhow::anyhow!("Blame failed: {}", e)))
-        }
-    }
+        .await?;
+    Ok(Json(CommonResult::success(Some(result))))
 }
 
 /// Preview unified diff for a single file before saving
