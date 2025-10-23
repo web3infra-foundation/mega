@@ -1,26 +1,28 @@
+import { useCallback } from 'react'
 import { useRouter } from 'next/router'
-import { useCallback, useMemo } from 'react'
 
+// The file can be deleted.
 export function useRefsFromRouter() {
   const router = useRouter()
-  const refs = useMemo(() => {
-    const r = router.query.refs
-
-    if (!r) return undefined
-    return Array.isArray(r) ? r[0] : r
-  }, [router.query.refs])
+  const refs = router.query.version as string
 
   const setRefs = useCallback(
     (newRefs?: string) => {
-      const { pathname, query } = router
-      const nextQuery: Record<string, any> = { ...query }
-      
-      if (!newRefs) {
-        delete nextQuery.refs
-      } else {
-        nextQuery.refs = newRefs
+      const { query } = router
+      const org = query.org
+
+      let pathArray: string[] = []
+
+      if (query.path) {
+        pathArray = Array.isArray(query.path) ? query.path : [query.path]
       }
-      router.push({ pathname, query: nextQuery }, undefined, { shallow: false })
+      const currentPath = pathArray.join('/')
+
+      if (!newRefs) {
+        router.push(`/${org}/code/tree/main/${currentPath}`)
+      } else {
+        router.push(`/${org}/code/tree/${encodeURIComponent(newRefs)}/${currentPath}`)
+      }
     },
     [router]
   )

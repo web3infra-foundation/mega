@@ -1,5 +1,6 @@
 import React from 'react'
-import { useRouter } from 'next/router'
+import { Theme } from '@radix-ui/themes'
+import { useParams } from 'next/navigation'
 
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
 import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
@@ -8,8 +9,6 @@ import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
-import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
-import { Theme } from '@radix-ui/themes'
 
 const codeStyle = {
   borderRadius: 8,
@@ -32,9 +31,12 @@ const treeStyle = {
 }
 
 function BlobPage() {
-  const { path = [] } = useRouter().query as { path?: string[] }
+  const params = useParams()
+  const { version, path = [] } = params as { version: string; path?: string[] }
+
+  const refs = version === 'main' ? undefined : version
   const new_path = '/' + path.join('/')
-  const { refs } = useRefsFromRouter()
+
   const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path, refs })
   const fileContent = blobData?.data ?? ''
   const commitInfo: CommitInfo = {
@@ -50,20 +52,20 @@ function BlobPage() {
   return (
     <Theme>
       <div className='relative m-4 h-screen'>
-          <BreadCrumb path={path} />
-          {/* tree */}
-          <div className='flex gap-4'>
-            <div style={treeStyle}>
-              <RepoTree />
-            </div>
-
-            <div style={codeStyle}>
-              <div>
-                <CommitHistory flag={'details'} info={commitInfo} />
-              </div>
-              <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
-            </div>
+        <BreadCrumb path={path} />
+        {/* tree */}
+        <div className='flex gap-4'>
+          <div style={treeStyle}>
+            <RepoTree />
           </div>
+
+          <div style={codeStyle}>
+            <div>
+              <CommitHistory flag={'details'} info={commitInfo} />
+            </div>
+            <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
+          </div>
+        </div>
       </div>
     </Theme>
   )
