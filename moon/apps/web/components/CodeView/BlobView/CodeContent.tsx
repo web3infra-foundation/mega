@@ -81,8 +81,8 @@ UserAvatar.displayName = 'UserAvatar';
 UserAvatarGroup.displayName = 'UserAvatarGroup';
 
 
-const CodeContent = ({ fileContent, path, isCodeLoading, onEditClick }: 
-  { fileContent: string; path?: string[]; isCodeLoading: boolean; onEditClick?: () => void;
+const CodeContent = ({ fileContent, path, isCodeLoading }: 
+  { fileContent: string; path?: string[]; isCodeLoading: boolean;
 }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
@@ -667,7 +667,7 @@ const CodeContent = ({ fileContent, path, isCodeLoading, onEditClick }:
           </button>
         </div>
         <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
-          <button className={styles.toolbarRightButton} onClick={onEditClick}>Edit</button>
+          <button className={styles.toolbarRightButton}>Edit</button>
         </div>
       </div>
       {viewMode === 'preview' && renderPreviewView()}

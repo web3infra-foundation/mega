@@ -3343,29 +3343,6 @@ export type CommonResultDeleteTagResponse = {
   req_result: boolean
 }
 
-export type CommonResultDiffItem = {
-  data?: {
-    data: string
-    path: string
-  }
-  err_message: string
-  req_result: boolean
-}
-
-export type CommonResultEditFileResult = {
-  /** Response body after saving an edited file */
-  data?: {
-    /** New commit id created by this save */
-    commit_id: string
-    /** New blob oid of the saved file */
-    new_oid: string
-    /** Saved file path */
-    path: string
-  }
-  err_message: string
-  req_result: boolean
-}
-
 export type CommonResultFilesChangedPage = {
   data?: {
     page: CommonPageDiffItem
@@ -3645,41 +3622,6 @@ export type DeleteTagResponse = {
   deleted_tag: string
   /** Operation message */
   message: string
-}
-
-export type DiffItem = {
-  data: string
-  path: string
-}
-
-/** Request body for previewing diff of a single file before saving. */
-export type DiffPreviewPayload = {
-  /** New content to preview against current HEAD */
-  content: string
-  /** Full file path like "/project/dir/file.rs" */
-  path: string
-  /** Optional refs (commit SHA or tag); empty/default means current HEAD */
-  refs?: string
-}
-
-/** Request body for saving an edited file with conflict detection. */
-export type EditFilePayload = {
-  /** Commit message to use when creating the commit */
-  commit_message: string
-  /** New file content to save */
-  content: string
-  /** Full file path like "/project/dir/file.rs" */
-  path: string
-}
-
-/** Response body after saving an edited file */
-export type EditFileResult = {
-  /** New commit id created by this save */
-  commit_id: string
-  /** New blob oid of the saved file */
-  new_oid: string
-  /** Saved file path */
-  path: string
 }
 
 export type FileTreeItem = {
@@ -5258,10 +5200,6 @@ export type DeleteApiConversationByCommentIdData = CommonResultString
 export type PostApiConversationReactionsData = CommonResultString
 
 export type PostApiCreateEntryData = CommonResultString
-
-export type PostApiEditDiffPreviewData = CommonResultDiffItem
-
-export type PostApiEditSaveData = CommonResultEditFileResult
 
 export type PostApiGpgAddData = CommonResultString
 
@@ -14347,56 +14285,6 @@ It's for local testing purposes.
         request: (data: CreateEntryInfo, params: RequestParams = {}) =>
           this.request<PostApiCreateEntryData>({
             path: `/api/v1/create-entry`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags Code Preview
-     * @name PostApiEditDiffPreview
-     * @summary Preview unified diff for a single file before saving
-     * @request POST:/api/v1/edit/diff-preview
-     */
-    postApiEditDiffPreview: () => {
-      const base = 'POST:/api/v1/edit/diff-preview' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiEditDiffPreviewData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiEditDiffPreviewData>([base]),
-        request: (data: DiffPreviewPayload, params: RequestParams = {}) =>
-          this.request<PostApiEditDiffPreviewData>({
-            path: `/api/v1/edit/diff-preview`,
-            method: 'POST',
-            body: data,
-            type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags Code Preview
-     * @name PostApiEditSave
-     * @summary Save edit and create a commit
-     * @request POST:/api/v1/edit/save
-     */
-    postApiEditSave: () => {
-      const base = 'POST:/api/v1/edit/save' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostApiEditSaveData>([base]),
-        requestKey: () => dataTaggedQueryKey<PostApiEditSaveData>([base]),
-        request: (data: EditFilePayload, params: RequestParams = {}) =>
-          this.request<PostApiEditSaveData>({
-            path: `/api/v1/edit/save`,
             method: 'POST',
             body: data,
             type: ContentType.Json,
