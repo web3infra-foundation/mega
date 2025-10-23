@@ -79,12 +79,16 @@ impl From<jupiter::model::blame_dto::BlameQuery> for BlameQuery {
     }
 }
 
+fn default_path() -> String {
+    "/".to_string()
+}
+
 /// Request parameters for blame API endpoints
 #[derive(Debug, Deserialize, IntoParams, ToSchema)]
 pub struct BlameRequest {
     #[serde(default)]
     pub refs: String,
-    #[serde(default)]
+    #[serde(default = "default_path")]
     pub path: String,
     #[serde(default)]
     pub start_line: Option<usize>,

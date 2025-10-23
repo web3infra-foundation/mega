@@ -251,43 +251,7 @@ impl BlameService {
                         format!("refs/heads/{}", ref_str)
                     };
                     tracing::debug!("Trying to resolve ref: {}", full_ref_name);
-                    match self.mono_storage.get_ref_by_name(&full_ref_name).await {
-                        Ok(Some(commit_id)) => self
-                            .get_commit_by_hash(&commit_id.ref_commit_hash)
-                            .await?
-                            .ok_or_else(|| GitError::ObjectNotFound(ref_str.to_string())),
-                        Ok(None) => {
-                            // Fallback to default branch
-                            tracing::debug!(
-                                "Ref not found by name, falling back to get_ref with root path"
-                            );
-                            match self.mono_storage.get_ref("/").await {
-                                Ok(Some(commit_id)) => {
-                                    tracing::debug!(
-                                        "Found commit via fallback: {}",
-                                        commit_id.ref_commit_hash
-                                    );
-                                    self.get_commit_by_hash(&commit_id.ref_commit_hash)
-                                        .await?
-                                        .ok_or_else(|| {
-                                            GitError::ObjectNotFound(ref_str.to_string())
-                                        })
-                                }
-                                Ok(None) => {
-                                    tracing::debug!("No commit found via fallback");
-                                    Err(GitError::ObjectNotFound(ref_str.to_string()))
-                                }
-                                Err(e) => Err(GitError::CustomError(format!(
-                                    "Failed to resolve reference: {}",
-                                    e
-                                ))),
-                            }
-                        }
-                        Err(e) => Err(GitError::CustomError(format!(
-                            "Failed to resolve reference: {}",
-                            e
-                        ))),
-                    }
+                    self.commit_by_ref_or_default(&full_ref_name, ref_str).await
                 }
             }
             None => {
@@ -317,6 +281,64 @@ impl BlameService {
         }
 
         Ok(resolved_commit)
+    }
+
+    // Extracted helper: resolve commit by ref name with safe fallback
+    async fn commit_by_ref_or_default(
+        &self,
+        full_ref_name: &str,
+        ref_display_name: &str,
+    ) -> Result<Commit, GitError> {
+        match self.mono_storage.get_ref_by_name(full_ref_name).await {
+            Ok(Some(ref_row)) => match self.get_commit_by_hash(&ref_row.ref_commit_hash).await? {
+                Some(commit) => Ok(commit),
+                None => {
+                    tracing::warn!(
+                        "Ref {} -> {} missing in mono commits, falling back to root default",
+                        full_ref_name,
+                        ref_row.ref_commit_hash
+                    );
+                    match self.mono_storage.get_ref("/").await {
+                        Ok(Some(default_ref)) => self
+                            .get_commit_by_hash(&default_ref.ref_commit_hash)
+                            .await?
+                            .ok_or_else(|| GitError::ObjectNotFound(ref_display_name.to_string())),
+                        Ok(None) => {
+                            tracing::debug!("No default ref found at root path");
+                            Err(GitError::ObjectNotFound(ref_display_name.to_string()))
+                        }
+                        Err(e) => Err(GitError::CustomError(format!(
+                            "Failed to resolve default reference: {}",
+                            e
+                        ))),
+                    }
+                }
+            },
+            Ok(None) => {
+                tracing::debug!(
+                    "Ref not found by name: {}, falling back to root default",
+                    full_ref_name
+                );
+                match self.mono_storage.get_ref("/").await {
+                    Ok(Some(default_ref)) => self
+                        .get_commit_by_hash(&default_ref.ref_commit_hash)
+                        .await?
+                        .ok_or_else(|| GitError::ObjectNotFound(ref_display_name.to_string())),
+                    Ok(None) => {
+                        tracing::debug!("No default ref found at root path");
+                        Err(GitError::ObjectNotFound(ref_display_name.to_string()))
+                    }
+                    Err(e) => Err(GitError::CustomError(format!(
+                        "Failed to resolve reference: {}",
+                        e
+                    ))),
+                }
+            }
+            Err(e) => Err(GitError::CustomError(format!(
+                "Failed to resolve reference: {}",
+                e
+            ))),
+        }
     }
 
     /// Get file version at specific commit (with caching)
