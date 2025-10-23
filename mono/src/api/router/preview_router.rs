@@ -55,7 +55,7 @@ async fn get_blob_string(
     let data = state
         .api_handler(query.path.as_ref())
         .await?
-        .get_blob_as_string(query.path.clone().into(), Some(query.refs.as_str()))
+        .get_blob_as_string(query.path.into(), Some(query.refs.as_str()))
         .await?;
     Ok(Json(CommonResult::success(data)))
 }
@@ -390,7 +390,7 @@ async fn save_edit(
             false,
         )
         .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update commit binding: {}", e)))?;
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
     }
 
     Ok(Json(CommonResult::success(Some(res))))

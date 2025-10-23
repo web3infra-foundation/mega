@@ -119,11 +119,9 @@ pub trait ApiHandler: Send + Sync {
             let display = binding.display_name.clone();
             let avatar = binding.avatar_url.clone().unwrap_or_default();
 
-            // Fill both author and committer for UI consumption
+            // Fill both author for UI consumption
             commit_info.author.display_name = display.clone();
             commit_info.author.avatar_url = avatar.clone();
-            commit_info.committer.display_name = display;
-            commit_info.committer.avatar_url = avatar;
         }
 
         Ok(commit_info)
