@@ -21,15 +21,15 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
-import { useRefsFromRouter } from '@/hooks/useRefsFromRouter'
 
 function TreeDetailPage() {
   const params = useParams()
-  const { path = [] } = params as { path?: string[] }
+  const { version, path = [] } = params as { version: string; path?: string[] }
+
+  const refs = version === 'main' ? undefined : version
   const new_path = '/' + path?.join('/')
 
   const [newPath, setNewPath] = useState(new_path)
-  const { refs } = useRefsFromRouter()
   const { data: TreeCommitInfo } = useGetTreeCommitInfo(newPath, refs)
 
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>
@@ -89,7 +89,7 @@ function TreeDetailPage() {
           {!isNewCode ? (
             <>
               <div className='m-1 flex justify-end gap-2'>
-                {refs && <TagSwitcher />}
+                <TagSwitcher />
                 <Button onClick={() => handleNewClick('file')}>New File</Button>
                 <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
                 {canClone?.data && <CloneTabs />}
@@ -118,7 +118,12 @@ function TreeDetailPage() {
             </div>
           ) : (
             <div className='pb-18 flex-1 overflow-hidden'>
-              <NewCodeView currentPath={new_path} onClose={handleCloseClick} defaultType={newEntryType} />
+              <NewCodeView
+                currentPath={new_path}
+                onClose={handleCloseClick}
+                defaultType={newEntryType}
+                version={version}
+              />
             </div>
           )}
         </div>

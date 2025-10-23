@@ -19,9 +19,10 @@ interface NewCodeViewProps {
   currentPath?: string
   onClose?: () => void
   defaultType?: 'folder' | 'file'
+  version?: string 
 }
 
-const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCodeViewProps) => {
+const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version }: NewCodeViewProps) => {
   const router = useRouter()
   const { scope } = useScope()
   const queryClient = useQueryClient()
@@ -78,9 +79,9 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
           ])
 
           if (fileType === 'file') {
-            router.push(`/${scope}/code/blob${fullPath}`)
+            router.push(`/${scope}/code/blob/${version}${fullPath}`)
           } else {
-            router.push(`/${scope}/code/tree${fullPath}`)
+            router.push( `/${scope}/code/tree/${version}${fullPath}`)
           }
 
           onClose?.()
