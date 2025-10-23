@@ -14,7 +14,7 @@ import NewCodeView from '@/components/CodeView/NewCodeView/NewCodeView'
 import TagSwitcher from '@/components/CodeView/Tags/TagSwitcher'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
-import RepoTree from '@/components/CodeView/TreeView/RepoTree'
+import CollapsibleTreeView from '@/components/CodeView/TreeView/CollapsibleTreeView'
 import SyncRepoButton from '@/components/CodeView/TreeView/SyncRepoButton'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
@@ -53,20 +53,9 @@ function TreeDetailPage() {
     date: '3 months ago'
   }
 
-  const treeStyle = {
-    borderRadius: 8,
-    width: '20%',
-    minWidth: '300px',
-    flexShrink: 0,
-    background: '#fff',
-    height: 'calc(100vh - 96px)',
-    overflow: 'auto',
-    paddingRight: '8px'
-  }
-
   const codeStyle = {
     borderRadius: 8,
-    width: 'calc(80% - 8px)',
+    flex: 1,
     background: '#fff',
     height: 'calc(100vh - 96px)',
     overflow: 'auto',
@@ -103,9 +92,7 @@ function TreeDetailPage() {
           )}
         </div>
         <div className='flex h-full gap-4'>
-          <div style={treeStyle}>
-            <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
-          </div>
+          <CollapsibleTreeView onCommitInfoChange={(path: string) => setNewPath(path)} />
 
           {!isNewCode ? (
             <div style={codeStyle}>

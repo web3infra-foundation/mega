@@ -5,25 +5,14 @@ import { useParams } from 'next/navigation'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
 import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
-import RepoTree from '@/components/CodeView/TreeView/RepoTree'
+import CollapsibleTreeView from '@/components/CodeView/TreeView/CollapsibleTreeView'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 
 const codeStyle = {
   borderRadius: 8,
-  width: '80%',
-  background: '#fff',
-  height: 'calc(100vh - 96px)',
-  overflow: 'auto',
-  paddingRight: '8px'
-}
-
-const treeStyle = {
-  borderRadius: 8,
-  width: '20%',
-  minWidth: '300px',
-  flexShrink: 0,
+  flex: 1,
   background: '#fff',
   height: 'calc(100vh - 96px)',
   overflow: 'auto',
@@ -55,9 +44,7 @@ function BlobPage() {
         <BreadCrumb path={path} />
         {/* tree */}
         <div className='flex gap-4'>
-          <div style={treeStyle}>
-            <RepoTree />
-          </div>
+          <CollapsibleTreeView />
 
           <div style={codeStyle}>
             <div>

@@ -4,10 +4,13 @@ import { RESET } from "jotai/utils";
 
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { atom } from 'jotai'
 
 export const treeAllDataAtom = atomWithWebStorage<MuiTreeNode[]>('treeAllDataAtom', [])
 
 export const expandedNodesAtom = atomWithWebStorage<string[]>('expandedNodes', [])
+
+export const treeCollapsedAtom = atom<boolean>(false)
 
 export function useClearTreeAtoms(setTreeAllData: (v: any) => void, setExpandedNodes: (v: any) => void) {
   const router = useRouter();

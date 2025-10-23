@@ -80,36 +80,19 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
 
   const handleRowClick = (record: DirectoryType) => {
     const normalizedPath = real_path?.replace(/^\/|\/$/g, '')
-    const pathParts = normalizedPath?.split('/') || []
+    const pathParts = normalizedPath?.split('/').filter(Boolean) || []
+
+    const cleanParts = pathParts.filter((part) => part !== 'blob' && part !== 'tree' && part !== refs)
+
+    const baseParts = cleanParts.slice(0, 2)
+    const currentFilePath = cleanParts.slice(2)
 
     if (record.content_type === 'file') {
-      const hasBlob = pathParts?.includes('blob')
-
-      if (!hasBlob && pathParts.length >= 2) {
-        pathParts?.splice(2, 0, 'blob')
-      }
-
-      if (pathParts.length >= 3 && pathParts[2] === 'blob') {
-        pathParts.splice(3, 0, refs)
-      }
-
-      pathParts?.push(encodeURIComponent(record.name))
-      const newPath = `/${pathParts?.join('/')}`
+      const newPath = `/${baseParts.join('/')}/blob/${refs}/${[...currentFilePath, encodeURIComponent(record.name)].join('/')}`
 
       router.push(newPath)
     } else {
-      const hasTree = pathParts?.includes('tree')
-
-      if (!hasTree && pathParts.length >= 2) {
-        pathParts?.splice(2, 0, 'tree')
-      }
-
-      if (pathParts.length >= 3 && pathParts[2] === 'tree') {
-        pathParts.splice(3, 0, refs)
-      }
-
-      pathParts?.push(encodeURIComponent(record.name))
-      const newPath = `/${pathParts?.join('/')}`
+      const newPath = `/${baseParts.join('/')}/tree/${refs}/${[...currentFilePath, encodeURIComponent(record.name)].join('/')}`
 
       router.push(newPath)
     }
