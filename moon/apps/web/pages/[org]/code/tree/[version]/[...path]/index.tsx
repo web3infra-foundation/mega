@@ -90,10 +90,10 @@ function TreeDetailPage() {
             <>
               <div className='m-1 flex justify-end gap-2'>
                 <TagSwitcher />
-                <Button onClick={() => handleNewClick('file')}>New File</Button>
-                <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
+                {version == 'main' && <Button onClick={() => handleNewClick('file')}>New File</Button>}
+                {version == 'main' && <Button onClick={() => handleNewClick('folder')}>New Folder</Button>}
                 {canClone?.data && <CloneTabs />}
-                <SyncRepoButton currentPath={newPath} />
+                {path[0] === 'third-party' && version == 'main' && <SyncRepoButton currentPath={newPath} />}
               </div>
             </>
           ) : (
