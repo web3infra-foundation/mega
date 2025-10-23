@@ -110,6 +110,16 @@ impl BlameService {
         Self::new(storage)
     }
 
+    /// Normalize ref input into a canonical form (e.g., 'main' or 'refs/heads/main')
+    fn normalize_ref_name(input: &str) -> String {
+        let t = input.trim().trim_start_matches('/');
+        if t.is_empty() {
+            "main".to_string()
+        } else {
+            t.to_string()
+        }
+    }
+
     /// Check if a file is considered large based on configuration
     pub async fn check_if_large_file(
         &self,
@@ -219,60 +229,98 @@ impl BlameService {
 
     /// Resolve commit from reference name or use HEAD (with caching)
     async fn resolve_commit(&self, ref_name: Option<&str>) -> Result<Commit, GitError> {
-        tracing::debug!("resolve_commit: ref_name={:?}", ref_name);
-
-        // 🚀 Step 1: Attempt to fetch from cache
-        let cache_key = ref_name.unwrap_or("HEAD").to_string();
+        // Step 1: Attempt to fetch from cache
+        let cache_key = match ref_name {
+            Some(s) => Self::normalize_ref_name(s),
+            None => "main".to_string(),
+        };
 
         {
             let cache = self.cache.commits.read().await;
             if let Some(cached_commit) = cache.get(&cache_key) {
-                tracing::debug!("Cache hit for commit: {}", cache_key);
                 return Ok((**cached_commit).clone());
             }
         }
 
-        // 🔄 Step 2: Cache miss, fetch from storage
-        tracing::debug!(
-            "Cache miss for commit: {}, resolving from storage",
-            cache_key
-        );
+        // Step 2: Cache miss, resolve from storage
         let commit = match ref_name {
             Some(ref_str) => {
-                // Try to get commit by hash first
-                if let Ok(Some(commit)) = self.get_commit_by_hash(ref_str).await {
-                    tracing::debug!("Found commit by hash: {}", commit.id);
+                let requested = Self::normalize_ref_name(ref_str);
+
+                // Try to resolve by commit hash first
+                if let Ok(Some(commit)) = self.get_commit_by_hash(&requested).await {
                     Ok(commit)
+                } else if !requested.starts_with("refs/") {
+                    // Short branch names (e.g., "main"): prefer root default first
+                    let expected_heads = format!("refs/heads/{}", requested);
+                    match self.mono_storage.get_ref("/").await {
+                        Ok(Some(root_ref)) => {
+                            if root_ref.ref_name == expected_heads {
+                                match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
+                                    Ok(Some(commit)) => Ok(commit),
+                                    _ => {
+                                        self.commit_by_ref_or_default(&expected_heads, &requested)
+                                            .await
+                                    }
+                                }
+                            } else {
+                                // Different name at root, resolve via standard refs/heads only
+                                self.commit_by_ref_or_default(&expected_heads, &requested)
+                                    .await
+                            }
+                        }
+                        _ => {
+                            self.commit_by_ref_or_default(&expected_heads, &requested)
+                                .await
+                        }
+                    }
                 } else {
-                    // Try to resolve by branch name using get_ref_by_name
-                    let full_ref_name = if ref_str.starts_with("refs/") {
-                        ref_str.to_string()
-                    } else {
-                        format!("refs/heads/{}", ref_str)
-                    };
-                    tracing::debug!("Trying to resolve ref: {}", full_ref_name);
-                    self.commit_by_ref_or_default(&full_ref_name, ref_str).await
+                    // Full ref name: first check root default to avoid path ambiguity, then normal resolution
+                    match self.mono_storage.get_ref("/").await {
+                        Ok(Some(root_ref)) => {
+                            if root_ref.ref_name == requested {
+                                match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
+                                    Ok(Some(commit)) => Ok(commit),
+                                    _ => {
+                                        self.commit_by_ref_or_default(&requested, &requested).await
+                                    }
+                                }
+                            } else {
+                                self.commit_by_ref_or_default(&requested, &requested).await
+                            }
+                        }
+                        _ => self.commit_by_ref_or_default(&requested, &requested).await,
+                    }
                 }
             }
             None => {
-                // Use root path to get the default reference
+                // Default to 'main' branch when no ref is provided
+                let requested = "main";
+                let expected_heads = format!("refs/heads/{}", requested);
                 match self.mono_storage.get_ref("/").await {
-                    Ok(Some(commit_id)) => self
-                        .get_commit_by_hash(&commit_id.ref_commit_hash)
-                        .await?
-                        .ok_or_else(|| GitError::ObjectNotFound("HEAD".to_string())),
-                    Ok(None) => Err(GitError::ObjectNotFound(
-                        "No HEAD or main branch found".to_string(),
-                    )),
-                    Err(e) => Err(GitError::CustomError(format!(
-                        "Failed to resolve HEAD: {}",
-                        e
-                    ))),
+                    Ok(Some(root_ref)) => {
+                        if root_ref.ref_name == expected_heads {
+                            match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
+                                Ok(Some(commit)) => Ok(commit),
+                                _ => {
+                                    self.commit_by_ref_or_default(&expected_heads, requested)
+                                        .await
+                                }
+                            }
+                        } else {
+                            self.commit_by_ref_or_default(&expected_heads, requested)
+                                .await
+                        }
+                    }
+                    _ => {
+                        self.commit_by_ref_or_default(&expected_heads, requested)
+                            .await
+                    }
                 }
             }
         };
 
-        // 💾 Step 3: Store in cache
+        // Step 3: Store in cache
         let resolved_commit = commit?;
         {
             let mut cache = self.cache.commits.write().await;
@@ -289,50 +337,39 @@ impl BlameService {
         full_ref_name: &str,
         ref_display_name: &str,
     ) -> Result<Commit, GitError> {
+        // Prefer root default ref when it exactly matches the requested full ref
+        if let Ok(Some(default_ref)) = self.mono_storage.get_ref("/").await
+            && default_ref.ref_name == full_ref_name
+        {
+            if let Some(commit) = self
+                .get_commit_by_hash(&default_ref.ref_commit_hash)
+                .await?
+            {
+                return Ok(commit);
+            } else {
+                tracing::warn!(
+                    "Default ref {} -> {} missing in mono commits; continuing to standard resolution",
+                    full_ref_name,
+                    default_ref.ref_commit_hash
+                );
+            }
+        }
+
         match self.mono_storage.get_ref_by_name(full_ref_name).await {
             Ok(Some(ref_row)) => match self.get_commit_by_hash(&ref_row.ref_commit_hash).await? {
                 Some(commit) => Ok(commit),
                 None => {
                     tracing::warn!(
-                        "Ref {} -> {} missing in mono commits, falling back to root default",
+                        "Ref {} -> {} missing in mono commits; aborting",
                         full_ref_name,
                         ref_row.ref_commit_hash
                     );
-                    match self.mono_storage.get_ref("/").await {
-                        Ok(Some(default_ref)) => self
-                            .get_commit_by_hash(&default_ref.ref_commit_hash)
-                            .await?
-                            .ok_or_else(|| GitError::ObjectNotFound(ref_display_name.to_string())),
-                        Ok(None) => {
-                            tracing::debug!("No default ref found at root path");
-                            Err(GitError::ObjectNotFound(ref_display_name.to_string()))
-                        }
-                        Err(e) => Err(GitError::CustomError(format!(
-                            "Failed to resolve default reference: {}",
-                            e
-                        ))),
-                    }
+                    Err(GitError::ObjectNotFound(ref_display_name.to_string()))
                 }
             },
             Ok(None) => {
-                tracing::debug!(
-                    "Ref not found by name: {}, falling back to root default",
-                    full_ref_name
-                );
-                match self.mono_storage.get_ref("/").await {
-                    Ok(Some(default_ref)) => self
-                        .get_commit_by_hash(&default_ref.ref_commit_hash)
-                        .await?
-                        .ok_or_else(|| GitError::ObjectNotFound(ref_display_name.to_string())),
-                    Ok(None) => {
-                        tracing::debug!("No default ref found at root path");
-                        Err(GitError::ObjectNotFound(ref_display_name.to_string()))
-                    }
-                    Err(e) => Err(GitError::CustomError(format!(
-                        "Failed to resolve reference: {}",
-                        e
-                    ))),
-                }
+                tracing::debug!("Ref not found by name: {}", full_ref_name);
+                Err(GitError::ObjectNotFound(ref_display_name.to_string()))
             }
             Err(e) => Err(GitError::CustomError(format!(
                 "Failed to resolve reference: {}",
@@ -1347,7 +1384,7 @@ enable_https = true
             .commit_binding_storage()
             .upsert_binding(
                 &commit1.id.to_string(),
-                &users[0].1,
+                users[0].1,
                 Some(users[0].0.to_string()),
                 false,
             ) // Bob
@@ -1359,7 +1396,7 @@ enable_https = true
             .commit_binding_storage()
             .upsert_binding(
                 &commit2.id.to_string(),
-                &users[1].1,
+                users[1].1,
                 Some(users[1].0.to_string()),
                 false,
             ) // Alice
@@ -1371,7 +1408,7 @@ enable_https = true
             .commit_binding_storage()
             .upsert_binding(
                 &commit3.id.to_string(),
-                &users[2].1,
+                users[2].1,
                 Some(users[2].0.to_string()),
                 false,
             ) // Tony
@@ -1564,7 +1601,7 @@ enable_https = true
             .expect("Failed to get blame result with page pagination");
 
         // Should return first 2 lines (which might span multiple blocks)
-        assert!(result.blocks.len() > 0, "Should have at least one block");
+        assert!(!result.blocks.is_empty(), "Should have at least one block");
         assert_eq!(
             result.blocks[0].start_line, 1,
             "First block should start at line 1"
@@ -1584,7 +1621,7 @@ enable_https = true
             .expect("Failed to get blame result with line range pagination");
 
         // Should return lines 3-5
-        assert!(result.blocks.len() > 0, "Should have at least one block");
+        assert!(!result.blocks.is_empty(), "Should have at least one block");
         let first_block = &result.blocks[0];
         let last_block = &result.blocks[result.blocks.len() - 1];
 
