@@ -84,10 +84,14 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
 
-    async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<Option<String>, GitError> {
+    async fn get_blob_as_string(
+        &self,
+        file_path: PathBuf,
+        refs: Option<&str>,
+    ) -> Result<Option<String>, GitError> {
         let filename = file_path.file_name().unwrap().to_str().unwrap();
         let parent = file_path.parent().unwrap();
-        if let Some(tree) = self.search_tree_by_path(parent).await?
+        if let Some(tree) = self.search_tree_by_path_with_refs(parent, refs).await?
             && let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename)
         {
             match self.get_raw_blob_by_hash(&item.id.to_string()).await {
@@ -111,8 +115,14 @@ pub trait ApiHandler: Send + Sync {
         let commit = self.get_tree_relate_commit(tree.id, path).await?;
         let mut commit_info: LatestCommitInfo = commit.into();
 
-        // Build commit binding information
-        commit_info.binding_info = self.build_commit_binding_info(&commit_info.oid).await?;
+        if let Some(binding) = self.build_commit_binding_info(&commit_info.oid).await? {
+            let display = binding.display_name.clone();
+            let avatar = binding.avatar_url.clone().unwrap_or_default();
+
+            // Fill both author for UI consumption
+            commit_info.author.display_name = display.clone();
+            commit_info.author.avatar_url = avatar.clone();
+        }
 
         Ok(commit_info)
     }
