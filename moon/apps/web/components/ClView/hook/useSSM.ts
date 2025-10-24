@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 
+import { orionApiClient } from '@/utils/queryClient'
+
 import { loadingAtom, logsAtom, statusAtom } from '../components/Checks/cpns/store'
 
-// TODO：request path should be set by the environment val
-export const SSEPATH = window.location.href.includes('app') ? 'https://orion.gitmega.com/' : '/sse/'
+/**
+ * Get SSE URL for task output streaming
+ * Corresponds to orionApiClient.id.getTaskOutputById() API endpoint
+ * Path: GET:/task-output/{id}
+ */
+export const getTaskOutputSSEUrl = (taskId: string) => {
+  const baseUrl = (orionApiClient as any).baseUrl || ''
+
+  return `${baseUrl}/task-output/${taskId}`
+}
 
 export const useSSM = () => {
   const sseUrl = useRef('')
@@ -16,15 +26,15 @@ export const useSSM = () => {
         res(es)
       }
       es.onerror = () => {
-        rej('eventsource建立失败')
+        rej('eventsource connection failed')
       }
     })
   }
 
   const initial = () => {
-    window.location.href.includes('app')
-      ? (sseUrl.current = 'https://orion.gitmega.com/logs?follow=true')
-      : (sseUrl.current = '/sse/logs?follow=true')
+    const baseUrl = (orionApiClient as any).baseUrl || ''
+
+    sseUrl.current = `${baseUrl}/logs?follow=true`
   }
 
   return {
@@ -42,22 +52,16 @@ export const useTaskSSE = () => {
 
   const setEventSource: (taskId: string) => void = (taskId: string) => {
     if (eventSourcesRef.current[taskId]) return
-    // proxy
-    // const es = new EventSource(`/sse/task-output/${taskId}`)
 
-    // mock
-    // const es = new EventSource(`/api/event?id=${taskId}`)
-
-    const es = new EventSource(`${SSEPATH}task-output/${taskId}`)
+    const es = new EventSource(getTaskOutputSSEUrl(taskId))
 
     es.onmessage = (e) => {
       setLogsMap((prev) => {
         const prevLogs = prev[taskId] ?? ''
         const newLog = e.data + '\n'
 
-        // 判断最后一条是否重复
         if (prevLogs.endsWith(newLog)) {
-          return prev // 重复就直接返回原对象
+          return prev
         }
 
         return {
@@ -76,7 +80,7 @@ export const useTaskSSE = () => {
       setStatus((prev) => {
         return {
           ...prev,
-          [taskId]: result.status // 每条消息生成新数组
+          [taskId]: result.status
         }
       })
       es.close()
@@ -90,7 +94,6 @@ export const useTaskSSE = () => {
   }
 
   useEffect(() => {
-    // 组件卸载时关闭所有连接
     return () => {
       Object.values(eventSourcesRef.current).forEach((es) => es.close())
       eventSourcesRef.current = {}
@@ -108,7 +111,6 @@ export const useMultiTaskSSE = (taskIds: string[]) => {
   const eventSourcesRef = useRef<Record<string, EventSource>>({})
 
   useEffect(() => {
-    // 关闭并清理旧的连接（不在 taskIds 里的）
     Object.keys(eventSourcesRef.current).forEach((id) => {
       if (!taskIds.includes(id)) {
         eventSourcesRef.current[id].close()
@@ -116,11 +118,9 @@ export const useMultiTaskSSE = (taskIds: string[]) => {
       }
     })
 
-    // 为新 taskIds 建立连接
     taskIds.forEach((taskId) => {
       if (!eventSourcesRef.current[taskId]) {
-        // const es = new EventSource(`/api/tasks/${taskId}/events`)
-        const es = new EventSource(`${SSEPATH}/task-output/${taskId}`)
+        const es = new EventSource(getTaskOutputSSEUrl(taskId))
 
         es.onmessage = (e) => {
           setEventsMap((prev) => {
@@ -132,14 +132,12 @@ export const useMultiTaskSSE = (taskIds: string[]) => {
 
         es.onerror = () => {
           es.close()
-          // 这里可以做重连逻辑
         }
 
         eventSourcesRef.current[taskId] = es
       }
     })
 
-    // 组件卸载时关闭所有连接
     return () => {
       Object.values(eventSourcesRef.current).forEach((es) => es.close())
       eventSourcesRef.current = {}
