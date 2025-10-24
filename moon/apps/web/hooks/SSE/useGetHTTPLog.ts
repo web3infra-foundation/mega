@@ -1,15 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { GetTaskHistoryOutputByIdData, GetTaskHistoryOutputByIdParams } from '@gitmono/types/generated'
+import { GetTaskHistoryOutputByIdData, GetTaskHistoryOutputByIdParams, RequestParams } from '@gitmono/types/generated'
 
-import { HttpTaskRes } from './ssmRequest'
+import { orionApiClient } from '@/utils/queryClient'
 
-export function useGetHTTPLog(payload: GetTaskHistoryOutputByIdParams) {
+export function useGetHTTPLog(payload: GetTaskHistoryOutputByIdParams, params?: RequestParams) {
   return useQuery<GetTaskHistoryOutputByIdData, Error>({
-    queryKey: [payload.id, payload],
-    queryFn: () => HttpTaskRes(payload)
-    // refetchInterval: 15000,
-    // refetchIntervalInBackground: true,
-    // enabled: !!cl
+    queryKey: [...orionApiClient.id.getTaskHistoryOutputById().requestKey(payload), params],
+    queryFn: () => orionApiClient.id.getTaskHistoryOutputById().request(payload, params)
   })
+}
+
+export const fetchHTTPLog = (payload: GetTaskHistoryOutputByIdParams, params?: RequestParams) => {
+  return orionApiClient.id.getTaskHistoryOutputById().request(payload, params)
 }
