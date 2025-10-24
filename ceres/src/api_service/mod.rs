@@ -48,7 +48,8 @@ impl GitObjectCache {
 pub trait ApiHandler: Send + Sync {
     fn get_context(&self) -> Storage;
 
-    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<(), GitError>;
+    /// Create a file or directory entry under the monorepo path. Returns the new commit id on success.
+    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<String, GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         let context = self.get_context();

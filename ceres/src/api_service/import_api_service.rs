@@ -35,7 +35,7 @@ impl ApiHandler for ImportApiService {
         self.storage.clone()
     }
 
-    async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<(), GitError> {
+    async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<String, GitError> {
         return Err(GitError::CustomError(
             "import dir does not support create entry".to_string(),
         ));
