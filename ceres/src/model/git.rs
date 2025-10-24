@@ -17,6 +17,10 @@ pub struct CreateEntryInfo {
     pub path: String,
     // pub import_dir: bool,
     pub content: Option<String>,
+    /// web user email for commit binding
+    pub author_email: Option<String>,
+    /// web username for commit binding (optional)
+    pub author_username: Option<String>,
 }
 
 impl CreateEntryInfo {

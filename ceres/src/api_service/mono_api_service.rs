@@ -145,11 +145,12 @@ impl ApiHandler for MonoApiService {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(())` on success, or a `GitError` on failure.
-    async fn create_monorepo_entry(&self, entry_info: CreateEntryInfo) -> Result<(), GitError> {
+    /// Returns new commit id on success, or a `GitError` on failure.
+    async fn create_monorepo_entry(&self, entry_info: CreateEntryInfo) -> Result<String, GitError> {
         let storage = self.storage.mono_storage();
         let path = PathBuf::from(&entry_info.path);
         let mut save_trees = vec![];
+        let last_commit_id: String;
 
         // Try to get the update chain for the given path.
         // If the path exists, return an empty missing_parts and prefix.
@@ -286,6 +287,7 @@ impl ApiHandler for MonoApiService {
                 })
                 .collect();
             storage.batch_save_model(save_trees).await?;
+            last_commit_id = new_commit_id;
         } else {
             // If missing_parts is not empty, we must create intermediate
             // directories (trees) for each missing segment. This branch
@@ -395,9 +397,10 @@ impl ApiHandler for MonoApiService {
                 .batch_save_model(save_trees)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
+            last_commit_id = new_commit_id;
         }
 
-        Ok(())
+        Ok(last_commit_id)
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {

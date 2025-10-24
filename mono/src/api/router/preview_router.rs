@@ -74,11 +74,16 @@ async fn create_entry(
     state: State<MonoApiServiceState>,
     Json(json): Json<CreateEntryInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state
-        .api_handler(json.path.as_ref())
-        .await?
-        .create_monorepo_entry(json.clone())
-        .await?;
+    let handler = state.api_handler(json.path.as_ref()).await?;
+    let commit_id = handler.create_monorepo_entry(json.clone()).await?;
+
+    // If frontend provided author info, bind commit to that user (same as save_edit)
+    if let Some(email) = json.author_email.as_ref() {
+        let stg = state.storage.commit_binding_storage();
+        stg.upsert_binding(&commit_id, email, json.author_username.clone(), false)
+            .await
+            .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
+    }
     Ok(Json(CommonResult::success(None)))
 }
 
