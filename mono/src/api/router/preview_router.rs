@@ -314,22 +314,13 @@ async fn get_file_blame(
     Query(params): Query<BlameRequest>,
     State(state): State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<BlameResult>>, ApiError> {
-    tracing::info!(
-        "Getting blame for file: {} at ref: {}",
-        params.path,
-        params.refs
-    );
-
-    // Use refs parameter if provided, otherwise use None to let the service handle defaults
     let ref_name = if params.refs.is_empty() {
         None
     } else {
         Some(params.refs.as_str())
     };
 
-    // Convert BlameRequest to BlameQuery
     let query = BlameQuery::from(&params);
-    // Call the business logic in ceres module
     let result = state
         .api_handler(params.path.as_ref())
         .await?

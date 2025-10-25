@@ -152,15 +152,12 @@ pub struct BlameInfo {
     pub commit_hash: String,
     pub commit_short_id: String,
     pub author_email: String,
-    pub author_time: i64,
-    pub committer_email: String,
-    pub committer_time: i64,
+    pub commit_time: i64,
     pub commit_message: String,
     pub commit_summary: String,
     pub original_line_number: usize,
-    // Campsite username fields for frontend to query user info via other APIs
+    // Campsite username field for frontend to query user info via other APIs
     pub author_username: Option<String>,
-    pub committer_username: Option<String>,
     pub commit_detail_url: String,
 }
 
@@ -170,14 +167,11 @@ impl From<jupiter::model::blame_dto::BlameInfo> for BlameInfo {
             commit_hash: dto.commit_hash,
             commit_short_id: dto.commit_short_id,
             author_email: dto.author_email,
-            author_time: dto.author_time,
-            committer_email: dto.committer_email,
-            committer_time: dto.committer_time,
+            commit_time: dto.commit_time,
             commit_message: dto.commit_message,
             commit_summary: dto.commit_summary,
             original_line_number: dto.original_line_number,
             author_username: dto.author_username,
-            committer_username: dto.committer_username,
             commit_detail_url: dto.commit_detail_url,
         }
     }
