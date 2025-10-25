@@ -88,15 +88,12 @@ pub struct BlameInfo {
     pub commit_hash: String,
     pub commit_short_id: String,
     pub author_email: String,
-    pub author_time: i64,
-    pub committer_email: String,
-    pub committer_time: i64,
+    pub commit_time: i64,
     pub commit_message: String,
     pub commit_summary: String,
     pub original_line_number: usize,
-    // Campsite username fields for frontend to query user info via other APIs
+    // Campsite username field for frontend to query user info via other APIs
     pub author_username: Option<String>,
-    pub committer_username: Option<String>,
     pub commit_detail_url: String,
 }
 
@@ -159,4 +156,15 @@ pub struct Contributor {
     pub username: Option<String>,
     pub last_commit_time: i64,
     pub total_lines: usize,
+}
+
+/// Commit binding information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitBindingInfo {
+    pub matched_username: Option<String>,
+    pub is_anonymous: bool,
+    pub is_verified_user: bool,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub author_email: String,
 }
