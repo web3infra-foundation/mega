@@ -38,7 +38,7 @@ This is a monorepo containing many components. Some key ones include:
 - Return Result<T, E>; avoid unwrap()/expect() in library code except in tests or when invariant-proofed and documented.
 - Prefer iterator and slice APIs to heap-allocating vectors in hot paths. Use SmallVec, bytes, or no_std-friendly patterns when beneficial.
 
-# Performance & memory
+## Performance & memory
 
 - Mega targets huge repos; prioritize O(n) single-pass algorithms, streaming IO, mmap when safe, and bounded allocations.
 - When dealing with Git objects/packs, consider delta-chain depth, fanout tables, OID (SHA-1 vs SHA-256), and zstd/deflate trade-offs. Include micro-benchmarks for hot paths via criterion.
