@@ -106,25 +106,58 @@ pub trait ApiHandler: Send + Sync {
     }
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
-        let tree = if let Some(tree) = self.search_tree_by_path(&path).await? {
-            tree
-        } else {
+        // 1) Try as directory path first
+        if let Some(tree) = self.search_tree_by_path(&path).await? {
+            let commit = self.get_tree_relate_commit(tree.id, path).await?;
+            let mut commit_info: LatestCommitInfo = commit.into();
+
+            if let Some(binding) = self.build_commit_binding_info(&commit_info.oid).await? {
+                let display = binding.display_name.clone();
+                let avatar = binding.avatar_url.clone().unwrap_or_default();
+                commit_info.author.display_name = display;
+                commit_info.author.avatar_url = avatar;
+            }
+
+            return Ok(commit_info);
+        }
+
+        // 2) If not a directory, try as file path: lookup parent directory and map blob -> commit
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+
+        // parent must be a directory tree that exists
+        if self.search_tree_by_path(parent).await?.is_none() {
             return Err(GitError::CustomError(
                 "can't find target parent tree under latest commit".to_string(),
             ));
         };
-        let commit = self.get_tree_relate_commit(tree.id, path).await?;
-        let mut commit_info: LatestCommitInfo = commit.into();
 
+        // Use directory item -> commit mapping to find the file's latest commit
+        let map = self.item_to_commit_map(parent.to_path_buf()).await?;
+        // Find matching blob item in the directory
+        let matched_commit = map.into_iter().find_map(|(item, commit_opt)| {
+            if item.mode == TreeItemMode::Blob && item.name == file_name {
+                commit_opt
+            } else {
+                None
+            }
+        });
+
+        let commit = matched_commit
+            .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
+
+        let mut commit_info: LatestCommitInfo = commit.into();
         if let Some(binding) = self.build_commit_binding_info(&commit_info.oid).await? {
             let display = binding.display_name.clone();
             let avatar = binding.avatar_url.clone().unwrap_or_default();
-
-            // Fill both author for UI consumption
-            commit_info.author.display_name = display.clone();
-            commit_info.author.avatar_url = avatar.clone();
+            commit_info.author.display_name = display;
+            commit_info.author.avatar_url = avatar;
         }
-
         Ok(commit_info)
     }
 
