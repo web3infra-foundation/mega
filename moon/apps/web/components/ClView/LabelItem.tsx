@@ -4,52 +4,39 @@ import {MemberHovercard} from '../InlinePost/MemberHovercard'
 import {MemberAvatar} from '../MemberAvatar'
 import {UserLinkByName} from './components/UserLinkByName'
 import HandleTime from './components/HandleTime'
-import {ConversationItem, GetApiLabelByIdData} from '@gitmono/types/generated'
+import {ConversationItem} from '@gitmono/types/generated'
 import {getFontColor} from "@/utils/getFontColor";
 import {legacyApiClient} from "@/utils/queryClient";
-import {useEffect, useMemo, useState} from "react";
-import {apiErrorToast} from "@/utils/apiErrorToast";
+import {useMemo} from "react";
+import {useQueries} from "@tanstack/react-query";
 
 interface LabelItemProps {
   conv: ConversationItem
 }
-type LabelList = ({ color: string; description: string; id: number; name: string; })[]
 
 function LabelItem({conv}: LabelItemProps) {
   const {data: member} = useGetOrganizationMember({username: conv.username})
   const comment = conv.comment?.split(' ') ?? []
-  const match = useMemo(
-    () =>
-      conv.comment?.match(/\[(.*?)]/) ?? []
-    , [conv.comment])
-  const [idList, setIdList] = useState<string[]>([])
-  const [labelList, setLabelList] = useState<LabelList>([]);
+  
+  const idList = useMemo(() => {
 
-  useEffect(() => {
-    const res = (match.length > 1) ? match[1].split(", ") : []
+    const match = conv.comment?.match(/\[(.*?)]/)
 
-    setIdList(res)
-  }, [match])
-  useEffect(() => {
-    if (idList.length === 0) return;
-
-    Promise.all(
-      idList.map(id => {
-        const numId = parseInt(id, 10);
-
-        if (isNaN(numId)) return Promise.reject(new Error('Invalid ID'));
-        return legacyApiClient.v1.getApiLabelById().request(numId);
-      })
-    ).then((res: GetApiLabelByIdData[]) => {
-      const fetchedLabels = res
-        .filter(res => res?.data)
-        .map(res => res!!.data!!) ?? [];
-
-      setLabelList(fetchedLabels);
-    }).catch(err =>
-      apiErrorToast(err)
-    )
-  }, [idList])
+    if (!match || match.length <= 1) return []
+    return match[1].split(", ").map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+  }, [conv.comment])
+  
+  const labelQueries = useQueries({
+    queries: idList.map(id => ({
+      queryKey: ['label', id],
+      queryFn: () => legacyApiClient.v1.getApiLabelById().request(id),
+      enabled: id > 0,
+    }))
+  })
+  
+  const labels = labelQueries
+    .filter(q => q.data?.data)
+    .map(q => q.data!.data!)
 
   return (
     <>
@@ -70,7 +57,7 @@ function LabelItem({conv}: LabelItemProps) {
           <span className='font-semibold'>{conv.username} </span>
           <span className='text-gray-400'>{comment[1]} </span>
           {
-            labelList.map(label => {
+            labels.map(label => {
               const fontColor = getFontColor(label.color)
 
               return <span
