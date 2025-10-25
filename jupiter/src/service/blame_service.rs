@@ -10,7 +10,7 @@
 //! - **Frontend Friendly**: Delivers a comprehensive and easy-to-use data model.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use crate::model::blame_dto::{
@@ -32,7 +32,6 @@ use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 
 /// Maps blame candidates from current commit to parent commit based on diff operations
-/// This function ensures that line number contexts are correctly maintained during history traversal
 fn map_blame_to_parent(
     current_candidates: &[BlameCandidate],
     diff_ops: &[DiffOperation],
@@ -71,7 +70,7 @@ fn map_blame_to_parent(
 struct BlameCache {
     /// Cache for file versions at specific commits
     file_versions: RwLock<HashMap<String, Arc<FileVersion>>>,
-    /// Cache for commit objects - Using Arc to avoid unnecessary clones
+    /// Cache for commit objects
     commits: RwLock<HashMap<String, Arc<Commit>>>,
 }
 
@@ -126,12 +125,6 @@ impl BlameService {
         file_path: &str,
         ref_name: Option<&str>,
     ) -> Result<bool, GitError> {
-        tracing::debug!(
-            "Checking if file is large: {} at ref: {:?}",
-            file_path,
-            ref_name
-        );
-
         // Resolve the commit to analyze
         let commit = self.resolve_commit(ref_name).await?;
         let file_path_buf = PathBuf::from(file_path);
@@ -140,7 +133,6 @@ impl BlameService {
         let blob_hash = match self.get_file_blob_hash(&file_path_buf, &commit).await? {
             Some(hash) => hash,
             None => {
-                tracing::debug!("File not found: {}", file_path);
                 return Ok(false); // File doesn't exist, not large
             }
         };
@@ -158,14 +150,6 @@ impl BlameService {
             let defaults = LargeFileConfig::default();
             content_size > defaults.max_size_threshold || line_count > defaults.max_lines_threshold
         };
-
-        tracing::debug!(
-            "File {} size: {} bytes, lines: {}, is_large: {}",
-            file_path,
-            content_size,
-            line_count,
-            is_large
-        );
 
         Ok(is_large)
     }
@@ -325,7 +309,6 @@ impl BlameService {
         {
             let mut cache = self.cache.commits.write().await;
             cache.insert(cache_key.clone(), Arc::new(resolved_commit.clone()));
-            tracing::debug!("Cached commit: {}", cache_key);
         }
 
         Ok(resolved_commit)
@@ -367,10 +350,7 @@ impl BlameService {
                     Err(GitError::ObjectNotFound(ref_display_name.to_string()))
                 }
             },
-            Ok(None) => {
-                tracing::debug!("Ref not found by name: {}", full_ref_name);
-                Err(GitError::ObjectNotFound(ref_display_name.to_string()))
-            }
+            Ok(None) => Err(GitError::ObjectNotFound(ref_display_name.to_string())),
             Err(e) => Err(GitError::CustomError(format!(
                 "Failed to resolve reference: {}",
                 e
@@ -381,25 +361,20 @@ impl BlameService {
     /// Get file version at specific commit (with caching)
     async fn get_file_version(
         &self,
-        file_path: &PathBuf,
+        file_path: &Path,
         commit: &Commit,
     ) -> Result<FileVersion, GitError> {
-        // 🚀 Step 1: Attempt to fetch from cache
+        // Step 1: Attempt to fetch from cache
         let cache_key = format!("{}:{}", commit.id, file_path.display());
 
         {
             let cache = self.cache.file_versions.read().await;
             if let Some(cached_version) = cache.get(&cache_key) {
-                tracing::debug!("Cache hit for file version: {}", cache_key);
                 return Ok((**cached_version).clone());
             }
         }
 
-        // 🔄 Step 2: Cache miss, fetch from storage
-        tracing::debug!(
-            "Cache miss for file version: {}, fetching from storage",
-            cache_key
-        );
+        // Step 2: Cache miss, fetch from storage
         let blob_hash = self
             .get_file_blob_hash(file_path, commit)
             .await?
@@ -417,22 +392,19 @@ impl BlameService {
             lines,
         };
 
-        // 💾 Step 3: Store in cache
+        // Step 3: Store in cache
         {
             let mut cache = self.cache.file_versions.write().await;
             cache.insert(cache_key.clone(), Arc::new(file_version.clone()));
-            tracing::debug!("Cached file version: {}", cache_key);
         }
 
         Ok(file_version)
     }
 
-    /// Trace line history through commit ancestry using iterative approach to avoid stack overflow
-    /// Build line attributions by correctly mapping blame candidates through commit history
-    /// This fixes the context mapping error in the original trace_line_history implementation
+    /// Build line attributions by tracing line history through commit ancestry
     async fn build_line_attributions(
         &self,
-        file_path: &PathBuf,
+        file_path: &Path,
         target_commit: &Commit,
         current_version: &FileVersion,
     ) -> Result<Vec<LineAttribution>, GitError> {
@@ -481,11 +453,6 @@ impl BlameService {
             {
                 Ok(v) => v,
                 Err(_) => {
-                    tracing::debug!(
-                        "File {} not found in parent commit {}, stopping traversal",
-                        file_path.display(),
-                        parent_commit.id
-                    );
                     break;
                 }
             };
@@ -513,40 +480,32 @@ impl BlameService {
         Ok(final_attributions)
     }
 
-    /// Compute diff operations between two file versions using Neptune's Myers algorithm
+    /// Compute diff operations between two file versions
     fn compute_blame_diff(&self, old_lines: &[String], new_lines: &[String]) -> Vec<DiffOperation> {
-        // Use Neptune's Myers algorithm which directly returns DiffOperation
         compute_diff(old_lines, new_lines)
     }
 
-    /// Get campsite username from commit_auths table by commit hash and email
-    async fn get_campsite_username(&self, commit_hash: &str, email: &str) -> Option<String> {
-        let commit_binding_storage = self.mono_storage.commit_binding_storage();
-
-        // Try to find binding by commit hash
-        if let Ok(Some(binding)) = commit_binding_storage.find_by_sha(commit_hash).await {
-            // Check if the email matches and user is not anonymous
-            if binding.author_email == email && !binding.is_anonymous {
-                return binding.matched_username;
-            }
-        }
-
-        None
-    }
-
     /// Get user info (email and username) from commit_auths table
-    /// Returns None if no binding found, caller should use git commit info as fallback
-    async fn get_campsite_user_info(&self, commit_hash: &str) -> Option<(String, Option<String>)> {
+    async fn get_campsite_user_info(&self, commit_hash: &str) -> Option<(String, String)> {
         let commit_binding_storage = self.mono_storage.commit_binding_storage();
 
         // Try to find binding by commit hash
         if let Ok(Some(binding)) = commit_binding_storage.find_by_sha(commit_hash).await {
-            if !binding.is_anonymous {
-                return Some((binding.author_email, binding.matched_username));
+            let username = if binding.is_anonymous {
+                "Anonymous".to_string()
+            } else if let Some(matched_username) = binding.matched_username {
+                matched_username
             } else {
-                // If anonymous, return email but no username
-                return Some((binding.author_email, None));
-            }
+                // Extract username from email (part before @)
+                binding
+                    .author_email
+                    .split('@')
+                    .next()
+                    .unwrap_or(&binding.author_email)
+                    .to_string()
+            };
+
+            return Some((binding.author_email, username));
         }
 
         // No binding found
@@ -564,7 +523,7 @@ impl BlameService {
 
         for block in blocks {
             let email = &block.blame_info.author_email;
-            let commit_time = block.blame_info.author_time;
+            let commit_time = block.blame_info.commit_time;
             let line_count = block.line_count;
 
             // Use email as the key to group contributors
@@ -578,9 +537,16 @@ impl BlameService {
                 }
             } else {
                 // Create new contributor
-                let username = self
-                    .get_campsite_username(&block.blame_info.commit_hash, email)
-                    .await;
+                let username = if let Some((_, username)) = self
+                    .get_campsite_user_info(&block.blame_info.commit_hash)
+                    .await
+                {
+                    Some(username)
+                } else {
+                    // Extract username from email as fallback
+                    let fallback_username = email.split('@').next().unwrap_or(email).to_string();
+                    Some(fallback_username)
+                };
 
                 let contributor = Contributor {
                     email: email.clone(),
@@ -607,13 +573,13 @@ impl BlameService {
         }
 
         // Initialize earliest and latest to the first block's commit time
-        let first_commit_time = blocks[0].blame_info.author_time;
+        let first_commit_time = blocks[0].blame_info.commit_time;
         let mut earliest = first_commit_time;
         let mut latest = first_commit_time;
 
         // Start from the second block since we already used the first one for initialization
         for block in &blocks[1..] {
-            let commit_time = block.blame_info.author_time;
+            let commit_time = block.blame_info.commit_time;
             if commit_time < earliest {
                 earliest = commit_time;
             }
@@ -652,41 +618,34 @@ impl BlameService {
                 }
             };
 
-            let author_time = commit.author.timestamp as i64;
             let commit_hash_str = attr.commit_hash.to_string();
 
-            // Get campsite username from commit_auths table
             // Try to get author info from commit_auths table, fallback to git commit
             let (author_email, author_username) = if let Some((email, username)) =
                 self.get_campsite_user_info(&commit_hash_str).await
             {
-                (email, username)
+                (email, Some(username))
             } else {
+                // No binding found in commit_auths table, use git commit info
+                // Extract username from git email as fallback
                 let git_email = commit.author.email.clone();
-                let username = self
-                    .get_campsite_username(&commit_hash_str, &git_email)
-                    .await;
-                (git_email, username)
+                let fallback_username = git_email
+                    .split('@')
+                    .next()
+                    .unwrap_or(&git_email)
+                    .to_string();
+                (git_email, Some(fallback_username))
             };
-
-            // For committer, we still need to get from git commit and try to find username
-            let committer_email = commit.committer.email.clone();
-            let committer_username = self
-                .get_campsite_username(&commit_hash_str, &committer_email)
-                .await;
 
             let blame_info = BlameInfo {
                 commit_hash: commit_hash_str.clone(),
                 commit_short_id: commit_hash_str.chars().take(7).collect(),
                 author_email,
-                author_time,
-                committer_email,
-                committer_time: commit.committer.timestamp as i64,
+                commit_time: commit.committer.timestamp as i64,
                 commit_message: commit.message.clone(),
                 commit_summary: commit.message.lines().next().unwrap_or("").to_string(),
                 original_line_number: attr.line_number_in_commit,
                 author_username,
-                committer_username,
                 commit_detail_url: format!("/commit/{}", commit_hash_str),
             };
 
@@ -884,27 +843,12 @@ impl BlameService {
     /// Get file blob hash from commit tree
     async fn get_file_blob_hash(
         &self,
-        file_path: &PathBuf,
+        file_path: &Path,
         commit: &Commit,
     ) -> Result<Option<SHA1>, GitError> {
-        tracing::debug!(
-            "get_file_blob_hash: commit_id={}, tree_id={}",
-            commit.id,
-            commit.tree_id
-        );
         let tree = self.get_tree_by_hash(&commit.tree_id.to_string()).await?;
 
         let path_components: Vec<&str> = file_path.iter().filter_map(|s| s.to_str()).collect();
-
-        tracing::debug!(
-            "Looking for file: {:?}, path_components: {:?}",
-            file_path,
-            path_components
-        );
-        tracing::debug!("Tree has {} items", tree.tree_items.len());
-        for item in &tree.tree_items {
-            tracing::debug!("Tree item: name={}, mode={:?}", item.name, item.mode);
-        }
 
         let mut current_tree = tree;
 
@@ -1155,7 +1099,7 @@ impl BlameService {
     /// Get file version from cache or storage
     async fn get_file_version_cached(
         &self,
-        file_path: &PathBuf,
+        file_path: &Path,
         commit: &Commit,
     ) -> Result<FileVersion, GitError> {
         let caching_enabled = if let Some(config) = self.config.upgrade() {
@@ -1422,13 +1366,44 @@ enable_https = true
             .await
             .expect("Failed to get blame result");
 
-        // --- JSON PRINTING (for debugging/visual confirmation) ---
+        // --- DETAILED OUTPUT FOR COMMIT_AUTH TABLE VERIFICATION ---
+        println!("\n=== COMMIT_AUTH TABLE USER MATCHING TEST ===");
+        println!("File: {}", blame_result.file_path);
+        println!("Total Lines: {}", blame_result.total_lines);
+        println!("Total Blocks: {}", blame_result.blocks.len());
+        println!("Contributors: {}", blame_result.contributors.len());
+
+        println!("\n--- Blame Blocks with User Matching ---");
+        for (i, block) in blame_result.blocks.iter().enumerate() {
+            println!(
+                "Block {}: Lines {}-{}",
+                i + 1,
+                block.start_line,
+                block.end_line
+            );
+            println!("  Commit: {}", &block.blame_info.commit_hash[..8]);
+            println!("  Author Email: {}", block.blame_info.author_email);
+            println!(
+                "  Author Username (from commit_auth): {:?}",
+                block.blame_info.author_username
+            );
+            println!("  Commit Message: {}", block.blame_info.commit_message);
+            println!("  Lines: {}", block.line_count);
+            println!();
+        }
+
+        println!("--- Contributors Summary (from commit_auth table) ---");
+        for contributor in &blame_result.contributors {
+            println!("Email: {}", contributor.email);
+            println!("  Username: {:?}", contributor.username);
+            println!("  Total Lines: {}", contributor.total_lines);
+            println!("  Last Commit Time: {}", contributor.last_commit_time);
+            println!();
+        }
+
         let json_output = serde_json::to_string_pretty(&blame_result)
             .expect("Failed to serialize BlameResult to JSON");
-        println!(
-            "\n=== Blame Result JSON Output (app.conf) ===\n{}",
-            json_output
-        );
+        println!("=== Complete JSON Output ===\n{}", json_output);
 
         // --- 4. Assert: Full Validation ---
 
@@ -1453,10 +1428,6 @@ enable_https = true
         assert_eq!(block1.start_line, 1);
         assert_eq!(block1.end_line, 2);
         assert_eq!(block1.blame_info.author_username, Some("Bob".to_string()));
-        assert_eq!(
-            block1.blame_info.committer_username,
-            Some("Bob".to_string())
-        );
         assert_eq!(block1.blame_info.author_email, users[0].1);
 
         let block2 = &blame_result.blocks[1]; // L3, Alice
@@ -1468,10 +1439,6 @@ enable_https = true
         assert_eq!(block4.start_line, 5);
         assert_eq!(block4.end_line, 6);
         assert_eq!(block4.blame_info.author_username, Some("Tony".to_string()));
-        assert_eq!(
-            block4.blame_info.committer_username,
-            Some("Tony".to_string())
-        );
         assert_eq!(block4.blame_info.author_email, users[2].1);
 
         // C. Contributor Aggregation Assertions
