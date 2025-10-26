@@ -3,7 +3,7 @@ import { Theme } from '@radix-ui/themes'
 import { useParams } from 'next/navigation'
 
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
-import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
+import CommitHistory from '@/components/CodeView/CommitHistory'
 import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -39,15 +39,6 @@ function BlobPage() {
 
   const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path, refs })
   const fileContent = blobData?.data ?? ''
-  const commitInfo: CommitInfo = {
-    user: {
-      avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
-      name: 'yetianxing2014'
-    },
-    message: 'feat: migrate campsite to mega',
-    hash: '5fe4235',
-    date: '3 months ago'
-  }
 
   return (
     <Theme>
@@ -61,7 +52,7 @@ function BlobPage() {
 
           <div style={codeStyle}>
             <div>
-              <CommitHistory flag={'details'} info={commitInfo} />
+              <CommitHistory flag={'details'} path={new_path} refs={refs} />
             </div>
             <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
           </div>
