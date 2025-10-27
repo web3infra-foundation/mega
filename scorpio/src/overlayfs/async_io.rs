@@ -639,27 +639,16 @@ impl Filesystem for OverlayFs{
     )
  }
 
- /// dir entry stream given by [`readdir`][Filesystem::readdir].
- type DirEntryStream<'a>
-    =Iter<IntoIter<Result<DirectoryEntry>>>
-    where
-    Self: 'a;
-    /// dir entry stream given by [`readdir`][Filesystem::readdir].
-    type DirEntryPlusStream<'a>
-    = Iter<IntoIter<Result<DirectoryEntryPlus>>>
-    where
-    Self: 'a;
-
  /// read directory. `offset` is used to track the offset of the directory entries. `fh` will
  /// contain the value set by the [`opendir`][Filesystem::opendir] method, or will be
  /// undefined if the [`opendir`][Filesystem::opendir] method didn't set any value.
- async fn readdir(
-     &self,
+ async fn readdir<'a>(
+     &'a self,
      req: Request,
      parent: Inode,
      fh: u64,
      offset: i64,
- ) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>> {
+ ) -> Result<ReplyDirectory<impl futures::Stream<Item = Result<DirectoryEntry>> + Send + 'a>> {
     if self.config.no_readdir {
         info!("fuse: readdir is not supported.");
         return Err(Error::from_raw_os_error(libc::ENOTDIR).into());
@@ -670,14 +659,14 @@ impl Filesystem for OverlayFs{
 
  /// read directory entries, but with their attribute, like [`readdir`][Filesystem::readdir]
  /// + [`lookup`][Filesystem::lookup] at the same time.
- async fn readdirplus(
-    &self,
+ async fn readdirplus<'a>(
+    &'a self,
     req: Request,
     parent: Inode,
     fh: u64,
     offset: u64,
     _lock_owner: u64,
-) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
+) -> Result<ReplyDirectoryPlus<impl futures::Stream<Item = Result<DirectoryEntryPlus>> + Send + 'a>> {
     if self.config.no_readdir {
         info!("fuse: readdir is not supported.");
         return Err(Error::from_raw_os_error(libc::ENOTDIR).into());

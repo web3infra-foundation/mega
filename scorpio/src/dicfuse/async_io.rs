@@ -8,21 +8,9 @@ use rfuse3::{Errno, Inode, Result};
 
 use super::Dicfuse;
 use crate::dicfuse::store::load_dir;
-use futures::stream::{iter, Iter};
-use std::vec::IntoIter;
+use futures::stream::iter;
 
 impl Filesystem for Dicfuse {
-    /// dir entry stream given by [`readdir`][Filesystem::readdir].
-    type DirEntryStream<'a>
-        = Iter<IntoIter<Result<DirectoryEntry>>>
-    where
-        Self: 'a;
-    /// dir entry stream given by [`readdir`][Filesystem::readdir].
-    type DirEntryPlusStream<'a>
-        = Iter<IntoIter<Result<DirectoryEntryPlus>>>
-    where
-        Self: 'a;
-
     /// look up a directory entry by name and get its attributes.
     async fn lookup(&self, _req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         let store = self.store.clone();
@@ -162,13 +150,14 @@ impl Filesystem for Dicfuse {
             written: data.len() as u32,
         })
     }
-    async fn readdir(
-        &self,
+    async fn readdir<'a>(
+        &'a self,
         _req: Request,
         parent: Inode,
         fh: u64,
         offset: i64,
-    ) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>> {
+    ) -> Result<ReplyDirectory<impl futures::Stream<Item = Result<DirectoryEntry>> + Send + 'a>>
+    {
         let items = self.store.do_readdir(parent, fh, offset as u64).await?;
         let mut d: Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
@@ -187,14 +176,16 @@ impl Filesystem for Dicfuse {
             entries: iter(d.into_iter()),
         })
     }
-    async fn readdirplus(
-        &self,
+    async fn readdirplus<'a>(
+        &'a self,
         _req: Request,
         parent: Inode,
         fh: u64,
         offset: u64,
         _lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
+    ) -> Result<
+        ReplyDirectoryPlus<impl futures::Stream<Item = Result<DirectoryEntryPlus>> + Send + 'a>,
+    > {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d: Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
 
