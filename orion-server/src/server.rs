@@ -5,10 +5,7 @@ use axum::Router;
 use axum::routing::get;
 use chrono::{FixedOffset, Utc};
 use http::{HeaderValue, Method};
-use sea_orm::{
-    ActiveValue::Set, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbErr,
-    EntityTrait, QueryFilter, Schema, TransactionTrait,
-};
+use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -16,7 +13,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{self, AppState};
-use crate::model::{builds, tasks};
+use crate::model::builds;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
@@ -50,7 +47,6 @@ pub async fn start_server(port: u16) {
     let conn = Database::connect(db_url)
         .await
         .expect("Database connection failed");
-    setup_tables(&conn).await.expect("Failed to setup tables");
 
     let state = AppState::new(conn, None);
 
@@ -101,20 +97,6 @@ pub async fn start_server(port: u16) {
     )
     .await
     .unwrap();
-}
-
-/// Sets up database tables if they don't exist
-async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
-    let trans = conn.begin().await?;
-    let builder = conn.get_database_backend();
-    let schema = Schema::new(builder);
-    let statement = builder.build(
-        schema
-            .create_table_from_entity(tasks::Entity)
-            .if_not_exists(),
-    );
-    trans.execute(statement).await?;
-    trans.commit().await
 }
 
 /// Background task that monitors worker health and handles timeouts
