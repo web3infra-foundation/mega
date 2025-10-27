@@ -10,6 +10,7 @@ import { Select, SelectTrigger, SelectValue } from '@gitmono/ui/Select'
 import { expandedNodesAtom } from '@/components/CodeView/TreeView/codeTreeAtom'
 import { useScope } from '@/contexts/scope'
 import { useCreateEntry } from '@/hooks/useCreateEntry'
+import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { legacyApiClient } from '@/utils/queryClient'
 
 import MarkdownEditor from './MarkdownEditor'
@@ -33,6 +34,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
   // const [dialogOpen, setDialogOpen] = useState(false)
   const [content, setContent] = useState('')
   const createEntryHook = useCreateEntry()
+  const { data: currentUser } = useGetCurrentUser()
 
   const handlerSubmit = () => {
     const entryPath = '/' + path.replace('/' + name, '')
@@ -42,7 +44,9 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
         name: name,
         path: entryPath,
         is_directory: fileType === 'folder',
-        content: fileType === 'file' ? content : ''
+        content: fileType === 'file' ? content : '',
+        author_email: currentUser?.email,
+        author_username: currentUser?.username
       },
       {
         onSuccess: async () => {

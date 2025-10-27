@@ -43,16 +43,6 @@ function TreeDetailPage() {
   const [isNewCode, setIsNewCode] = useState(false)
   const [newEntryType, setNewEntryType] = useState<'file' | 'folder'>('file')
 
-  const commitInfo = {
-    user: {
-      avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
-      name: 'yetianxing2014'
-    },
-    message: '[feat(libra)]: 为 config 命令添加 --default参数 (#1119)',
-    hash: '5fe4235',
-    date: '3 months ago'
-  }
-
   const treeStyle = {
     borderRadius: 8,
     width: '20%',
@@ -109,11 +99,9 @@ function TreeDetailPage() {
 
           {!isNewCode ? (
             <div style={codeStyle}>
-              {commitInfo && (
-                <div>
-                  <CommitHistory flag={'contents'} info={commitInfo} />
-                </div>
-              )}
+              <div>
+                <CommitHistory flag={'contents'} path={newPath} refs={refs} />
+              </div>
               <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent?.data} />
             </div>
           ) : (
