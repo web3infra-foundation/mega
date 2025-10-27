@@ -1,10 +1,8 @@
 use std::ffi::OsStr;
 use std::num::NonZeroU32;
-use std::vec::IntoIter;
 
 use super::MegaFuse;
 use crate::READONLY_INODE;
-use futures::stream::Iter;
 use rfuse3::raw::prelude::*;
 use rfuse3::{Inode, Result};
 /// select the right fs by inodes .
@@ -344,14 +342,49 @@ impl Filesystem for MegaFuse {
     /// read directory. `offset` is used to track the offset of the directory entries. `fh` will
     /// contain the value set by the [`opendir`][Filesystem::opendir] method, or will be
     /// undefined if the [`opendir`][Filesystem::opendir] method didn't set any value.
-    async fn readdir(
-        &self,
+    async fn readdir<'a>(
+        &'a self,
         req: Request,
         parent: Inode,
         fh: u64,
         offset: i64,
-    ) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>> {
-        call_fuse_function!(self, readdir, req, parent, fh, offset)
+    ) -> Result<ReplyDirectory<impl futures::Stream<Item = Result<DirectoryEntry>> + Send + 'a>>
+    {
+        use futures::StreamExt;
+
+        if let Some(ovl_inode) = self
+            .inodes_alloc
+            .get_ovl_inode(parent / READONLY_INODE)
+            .await
+        {
+            if let Some(ovl_inode_root) = self.overlayfs.lock().await.get(&ovl_inode).cloned() {
+                let reply = ovl_inode_root.readdir(req, parent, fh, offset).await?;
+                let entries: Vec<_> = reply.entries.collect().await;
+                Ok(ReplyDirectory {
+                    entries: futures::stream::iter(entries),
+                })
+            } else {
+                let reply = self.dic.readdir(req, parent, fh, offset).await?;
+                let entries: Vec<_> = reply.entries.collect().await;
+                Ok(ReplyDirectory {
+                    entries: futures::stream::iter(entries),
+                })
+            }
+        } else if let Some(ovl_inode_root) = self.overlayfs.lock().await.get(&parent).cloned() {
+            let reply = ovl_inode_root.readdir(req, parent, fh, offset).await?;
+            let entries: Vec<_> = reply.entries.collect().await;
+            Ok(ReplyDirectory {
+                entries: futures::stream::iter(entries),
+            })
+        } else if parent < READONLY_INODE {
+            let reply = self.dic.readdir(req, parent, fh, offset).await?;
+            let entries: Vec<_> = reply.entries.collect().await;
+            Ok(ReplyDirectory {
+                entries: futures::stream::iter(entries),
+            })
+        } else {
+            panic!("can't find fs by inode");
+        }
     }
 
     /// release an open directory. For every [`opendir`][Filesystem::opendir] call there will
@@ -449,28 +482,63 @@ impl Filesystem for MegaFuse {
         call_fuse_function!(self, fallocate, req, inode, fh, offset, length, mode)
     }
 
-    /// dir entry stream given by [`readdir`][Filesystem::readdir].
-    type DirEntryStream<'a>
-        = Iter<IntoIter<Result<DirectoryEntry>>>
-    where
-        Self: 'a;
-    /// dir entry stream given by [`readdir`][Filesystem::readdir].
-    type DirEntryPlusStream<'a>
-        = Iter<IntoIter<Result<DirectoryEntryPlus>>>
-    where
-        Self: 'a;
-
     /// read directory entries, but with their attribute, like [`readdir`][Filesystem::readdir]
     /// + [`lookup`][Filesystem::lookup] at the same time.
-    async fn readdirplus(
-        &self,
+    async fn readdirplus<'a>(
+        &'a self,
         req: Request,
         parent: Inode,
         fh: u64,
         offset: u64,
         lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
-        call_fuse_function!(self, readdirplus, req, parent, fh, offset, lock_owner)
+    ) -> Result<
+        ReplyDirectoryPlus<impl futures::Stream<Item = Result<DirectoryEntryPlus>> + Send + 'a>,
+    > {
+        use futures::StreamExt;
+
+        if let Some(ovl_inode) = self
+            .inodes_alloc
+            .get_ovl_inode(parent / READONLY_INODE)
+            .await
+        {
+            if let Some(ovl_inode_root) = self.overlayfs.lock().await.get(&ovl_inode).cloned() {
+                let reply = ovl_inode_root
+                    .readdirplus(req, parent, fh, offset, lock_owner)
+                    .await?;
+                let entries: Vec<_> = reply.entries.collect().await;
+                Ok(ReplyDirectoryPlus {
+                    entries: futures::stream::iter(entries),
+                })
+            } else {
+                let reply = self
+                    .dic
+                    .readdirplus(req, parent, fh, offset, lock_owner)
+                    .await?;
+                let entries: Vec<_> = reply.entries.collect().await;
+                Ok(ReplyDirectoryPlus {
+                    entries: futures::stream::iter(entries),
+                })
+            }
+        } else if let Some(ovl_inode_root) = self.overlayfs.lock().await.get(&parent).cloned() {
+            let reply = ovl_inode_root
+                .readdirplus(req, parent, fh, offset, lock_owner)
+                .await?;
+            let entries: Vec<_> = reply.entries.collect().await;
+            Ok(ReplyDirectoryPlus {
+                entries: futures::stream::iter(entries),
+            })
+        } else if parent < READONLY_INODE {
+            let reply = self
+                .dic
+                .readdirplus(req, parent, fh, offset, lock_owner)
+                .await?;
+            let entries: Vec<_> = reply.entries.collect().await;
+            Ok(ReplyDirectoryPlus {
+                entries: futures::stream::iter(entries),
+            })
+        } else {
+            panic!("can't find fs by inode");
+        }
     }
 
     /// rename a file or directory with flags.
