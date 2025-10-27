@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
+use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
+use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 
 use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
@@ -41,6 +44,14 @@ struct GitObjects {
     blobs: Vec<mega_blob::ActiveModel>,
     raw_blobs: Vec<raw_blob::ActiveModel>,
     tags: Vec<mega_tag::ActiveModel>,
+}
+
+#[derive(Debug)]
+pub struct RefUpdateData {
+    pub path: String,
+    pub ref_name: String,
+    pub commit_id: String,
+    pub tree_hash: String,
 }
 
 impl MonoStorage {
@@ -82,9 +93,11 @@ impl MonoStorage {
         Ok(())
     }
 
+    /// Removes non-CL refs under the given path, but keeps the ref matching the path itself.
     pub async fn remove_none_cl_refs(&self, path: &str) -> Result<(), MegaError> {
         mega_refs::Entity::delete_many()
             .filter(mega_refs::Column::Path.starts_with(path))
+            .filter(mega_refs::Column::Path.ne(path))
             .filter(mega_refs::Column::IsCl.eq(false))
             .exec(self.get_connection())
             .await?;
@@ -96,6 +109,25 @@ impl MonoStorage {
             .exec(self.get_connection())
             .await?;
         Ok(())
+    }
+
+    pub async fn get_refs_for_paths_and_cls(
+        &self,
+        paths: &[&str],
+        cls: Option<&[&str]>,
+    ) -> Result<Vec<mega_refs::Model>, MegaError> {
+        let mut query = mega_refs::Entity::find()
+            .filter(mega_refs::Column::Path.is_in(paths.iter().copied()))
+            .order_by_asc(mega_refs::Column::RefName);
+
+        if let Some(cls_values) = cls {
+            query = query.filter(mega_refs::Column::RefName.is_in(cls_values.iter().copied()));
+        } else {
+            query = query.filter(mega_refs::Column::RefName.eq(MEGA_BRANCH_NAME));
+        }
+
+        let result = query.all(self.get_connection()).await?;
+        Ok(result)
     }
 
     pub async fn get_refs(&self, path: &str) -> Result<Vec<mega_refs::Model>, MegaError> {
@@ -147,6 +179,53 @@ impl MonoStorage {
         ref_data.reset(mega_refs::Column::RefTreeHash);
         ref_data.reset(mega_refs::Column::UpdatedAt);
         ref_data.update(self.get_connection()).await.unwrap();
+        Ok(())
+    }
+    pub async fn batch_update_by_path_concurrent(
+        &self,
+        updates: Vec<RefUpdateData>,
+    ) -> Result<(), MegaError> {
+        let conn = self.get_connection();
+        let mut condition = Condition::any();
+        for update in &updates {
+            condition = condition.add(
+                Condition::all()
+                    .add(mega_refs::Column::Path.eq(update.path.clone()))
+                    .add(mega_refs::Column::RefName.eq(update.ref_name.clone())),
+            );
+        }
+
+        let existing_refs: Vec<mega_refs::Model> = mega_refs::Entity::find()
+            .filter(condition)
+            .all(conn)
+            .await?;
+
+        let ref_map: HashMap<(String, String), mega_refs::Model> = existing_refs
+            .into_iter()
+            .map(|r| ((r.path.clone(), r.ref_name.clone()), r))
+            .collect();
+
+        let mut futures = FuturesUnordered::new();
+
+        for update in updates {
+            if let Some(ref_data) = ref_map.get(&(update.path.clone(), update.ref_name.clone())) {
+                let conn = conn.clone();
+                let mut active: mega_refs::ActiveModel = ref_data.clone().into();
+
+                futures.push(async move {
+                    active.ref_commit_hash = Set(update.commit_id);
+                    active.ref_tree_hash = Set(update.tree_hash);
+                    active.updated_at = Set(chrono::Utc::now().naive_utc());
+                    active.update(&conn).await?;
+                    Ok::<(), MegaError>(())
+                });
+            }
+        }
+
+        while let Some(res) = futures.next().await {
+            res?;
+        }
+
         Ok(())
     }
 

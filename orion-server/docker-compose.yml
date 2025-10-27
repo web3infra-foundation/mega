@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   app:
@@ -15,8 +15,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   db:
@@ -36,35 +34,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-  db-init:
-    image: postgres:15
-    container_name: orion-db-init
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      PGPASSWORD: postgres
-    volumes:
-      - ./db/schema.sql:/schema.sql:ro
-    entrypoint: ["sh", "-lc"]
-    command: |
-      set -euo pipefail
-      echo "[db-init] Waiting for Postgres to be ready..."
-      until pg_isready -h db -p 5432 -U postgres >/dev/null 2>&1; do echo -n "."; sleep 1; done
-      echo " OK"
-
-      if ! psql -h db -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='orion'" | grep -q 1; then
-        echo "[db-init] Creating database 'orion'..."
-        psql -h db -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE orion"
-      else
-        echo "[db-init] Database 'orion' already exists."
-      fi
-
-      echo "[db-init] Applying schema to 'orion'..."
-      psql -h db -p 5432 -U postgres -d orion -v ON_ERROR_STOP=1 -f /schema.sql
-      echo "[db-init] Schema applied."
-    restart: "no"
 
 volumes:
   pgdata:
