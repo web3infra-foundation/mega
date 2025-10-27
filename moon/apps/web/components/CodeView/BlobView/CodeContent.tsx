@@ -1,126 +1,134 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Highlight, themes, Prism } from 'prism-react-renderer'
-import { Virtuoso } from 'react-virtuoso'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Highlight, Prism, themes } from 'prism-react-renderer'
 import Markdown from 'react-markdown'
-
-(typeof global !== "undefined" ? global : window).Prism = Prism
+import { Virtuoso } from 'react-virtuoso'
 
 import 'github-markdown-css/github-markdown-light.css'
-import { motion } from 'framer-motion';
-import { Avatar } from '@mui/material';
 
+import React from 'react'
+import { Avatar } from '@mui/material'
+import { motion } from 'framer-motion'
+import { useRouter as useNextRouter } from 'next/dist/client/router'
 import toast from 'react-hot-toast'
 
-import styles from './CodeContent.module.css'
+import { UsersIcon } from '@gitmono/ui'
 
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { getLangFromFileName } from '@/utils/getLanguageDetection'
-import { UsersIcon } from '@gitmono/ui'
 import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
-import React from 'react'
+import { getLangFromFileName } from '@/utils/getLanguageDetection'
+
+import styles from './CodeContent.module.css'
+
+;(typeof global !== 'undefined' ? global : window).Prism = Prism
+
 type ViewMode = 'code' | 'blame' | 'preview'
 
-
-
 const UserAvatar = React.memo(({ username, zIndex }: { username?: string; zIndex?: number }) => {
-  const { data: memberData } = useGetOrganizationMember({ username });
+  const { data: memberData } = useGetOrganizationMember({ username })
 
   return (
-    <motion.div
-    >
+    <motion.div>
       <Avatar
         alt={username}
-        src={memberData?.user?.avatar_url || ""}
+        src={memberData?.user?.avatar_url || ''}
         sx={{ width: 20, height: 20, border: '2px solid #fff' }}
         style={{ zIndex }}
       />
     </motion.div>
-  );
+  )
 })
 
+const UserAvatarGroup = React.memo(
+  ({
+    contributors
+  }: {
+    contributors: Array<{
+      email: string
+      username?: string | null
+    }>
+  }) => {
+    return (
+      <motion.div
+        className='flex items-center justify-center'
+        initial='stacked'
+        whileHover='spread'
+        style={{
+          width: 20,
+          height: 20,
+          position: 'relative'
+        }}
+      >
+        {contributors.map((c, i) => (
+          <motion.div
+            key={c.username}
+            variants={{
+              stacked: { x: -i * 12 },
+              spread: { x: i * 3 }
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            style={{ position: 'relative' }}
+          >
+            <UserAvatar username={c.username || undefined} zIndex={i} />
+          </motion.div>
+        ))}
+      </motion.div>
+    )
+  }
+)
 
+UserAvatar.displayName = 'UserAvatar'
+UserAvatarGroup.displayName = 'UserAvatarGroup'
 
-const UserAvatarGroup = React.memo(({ contributors }: {
-  contributors: Array<{
-    email: string
-    username?: string | null
-  }>
-})=> {
-  return (
-    <motion.div
-      className="flex justify-center items-center"
-      initial="stacked"
-      whileHover="spread"
-      style={{
-        width: 20,
-        height: 20,
-        position: "relative",
-      }}
-    >
-      {contributors.map((c, i) => (
-        <motion.div
-          key={c.username}
-          variants={{
-            stacked: { x: -i * 12 },
-            spread: { x: i * 3 },
-          }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          style={{ position: "relative" }}
-        >
-          <UserAvatar username={c.username || undefined} zIndex={i} />
-        </motion.div>
-      ))}
-    </motion.div>
-  );
-})
-
-UserAvatar.displayName = 'UserAvatar';
-UserAvatarGroup.displayName = 'UserAvatarGroup';
-
-
-const CodeContent = ({ fileContent, path, isCodeLoading }: 
-  { fileContent: string; path?: string[]; isCodeLoading: boolean;
+const CodeContent = ({
+  fileContent,
+  path,
+  isCodeLoading
+}: {
+  fileContent: string
+  path?: string[]
+  isCodeLoading: boolean
 }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
   const [manualViewMode, setManualViewMode] = useState<ViewMode | null>(null)
 
-  const filePath = useMemo(() => path?.join('/') || '', [path]);
+  const nextRouter = useNextRouter()
+
+  const filePath = useMemo(() => path?.join('/') || '', [path])
+  const version = (nextRouter.query.version as string) || 'main'
 
   const { data: blameData, isLoading: isBlameLoading } = useGetBlame({
-    refs: "main",
+    refs: version,
     path: filePath,
-    page:1,
+    page: 1
   })
 
   const filename = useMemo(() => {
     if (!path || path.length === 0) {
-      return '';
+      return ''
     }
-    return path[path.length - 1];
-  }, [path]);
-
-  const isMarkdownFile = useMemo(() => {
-    return filename.toLowerCase().endsWith('.md');
-  }, [filename]);
-
-  const viewMode = useMemo<ViewMode>(() => {
-    if (manualViewMode) 
-      return manualViewMode;
-    return isMarkdownFile ? 'preview' : 'code';
-  }, [manualViewMode, isMarkdownFile]);
-
-  useEffect(() => {
-    setManualViewMode(null);
+    return path[path.length - 1]
   }, [path])
 
-  const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename]);
+  const isMarkdownFile = useMemo(() => {
+    return filename.toLowerCase().endsWith('.md')
+  }, [filename])
+
+  const viewMode = useMemo<ViewMode>(() => {
+    if (manualViewMode) return manualViewMode
+    return isMarkdownFile ? 'preview' : 'code'
+  }, [manualViewMode, isMarkdownFile])
+
+  useEffect(() => {
+    setManualViewMode(null)
+  }, [path])
+
+  const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename])
 
   usePrismLanguageLoader(detectedLanguage)
-
 
   // const menuItems: MenuProps = {
   //   items: [
@@ -151,11 +159,12 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
 
   const lineRef = useRef<HTMLDivElement[]>([])
 
-  const handleLineClick = useCallback((lineNumber: number) => {
-    setSelectedLine(lineNumber === selectedLine ? null : lineNumber)
-  }, [
-    selectedLine
-  ])
+  const handleLineClick = useCallback(
+    (lineNumber: number) => {
+      setSelectedLine(lineNumber === selectedLine ? null : lineNumber)
+    },
+    [selectedLine]
+  )
 
   const handleCopyLine = (line: string) => {
     if (navigator.clipboard) {
@@ -181,8 +190,6 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
   const handleCopy = () => {
     handleCopyLine(fileContent)
   }
-
-
 
   const handleRawView = () => {
     const newWindow = window.open()
@@ -248,51 +255,46 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
     return false
   }
 
-
-  const ContributionRecord = ({ contributors }: {
+  const ContributionRecord = ({
+    contributors
+  }: {
     contributors: Array<{
       email: string
       username?: string | null
     }>
   }) => {
     return (
-      <div className="flex items-center justify-between py-2 px-4  bg-gray-50  border-b border-gray-200">
-
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-600">Older</span>
-          <div className="flex items-center space-x-1">
-            <div className={`w-3 h-3 ${styles['bg-blame-10']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-9']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-8']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-7']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-6']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-5']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-4']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-3']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-2']}`}></div>
-            <div className={`w-3 h-3 ${styles['bg-blame-1']}`}></div>
+      <div className='flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2'>
+        <div className='flex items-center space-x-2'>
+          <span className='text-xs text-gray-600'>Older</span>
+          <div className='flex items-center space-x-1'>
+            <div className={`h-3 w-3 ${styles['bg-blame-10']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-9']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-8']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-7']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-6']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-5']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-4']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-3']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-2']}`}></div>
+            <div className={`h-3 w-3 ${styles['bg-blame-1']}`}></div>
           </div>
-          <span className="text-xs text-gray-600">Newer</span>
+          <span className='text-xs text-gray-600'>Newer</span>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <div className="flex -space-x-1">
-
-              <div className="flex items-center space-x-1 ">
-                < UserAvatarGroup contributors={ contributors}></UserAvatarGroup>
+        <div className='flex items-center space-x-3'>
+          <div className='flex items-center space-x-2'>
+            <div className='flex -space-x-1'>
+              <div className='flex items-center space-x-1'>
+                <UserAvatarGroup contributors={contributors}></UserAvatarGroup>
               </div>
 
-
-              <div className="flex items-center space-x-1 pr-3 pl-2">
-                <UsersIcon size={16} className="text-black" />
-                <span className="text-xs text-black ml-0 ">Contributors</span>
+              <div className='flex items-center space-x-1 pl-2 pr-3'>
+                <UsersIcon size={16} className='text-black' />
+                <span className='ml-0 text-xs text-black'>Contributors</span>
               </div>
 
-              <span className="text-xs text-black bg-gray-200 rounded-full px-2 py-1 ">
-                  {(contributors?.length || 0)}
-              </span>
-
+              <span className='rounded-full bg-gray-200 px-2 py-1 text-xs text-black'>{contributors?.length || 0}</span>
             </div>
           </div>
         </div>
@@ -300,18 +302,20 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
     )
   }
 
-  const getBlameColorClass = useCallback((authorTime: number, earliest_commit_time: number, latest_commit_time: number) => {
-    if (!authorTime) return styles['bg-blame-1']
+  const getBlameColorClass = useCallback(
+    (authorTime: number, earliest_commit_time: number, latest_commit_time: number) => {
+      if (!authorTime) return styles['bg-blame-1']
 
-    if (earliest_commit_time === latest_commit_time) {
-      return styles['bg-blame-10']
-    }
-    const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
-    const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 10)
+      if (earliest_commit_time === latest_commit_time) {
+        return styles['bg-blame-10']
+      }
+      const relativePosition = (authorTime - earliest_commit_time) / (latest_commit_time - earliest_commit_time)
+      const colorLevel = Math.min(Math.floor(relativePosition * 10) + 1, 10)
 
-    return styles[`bg-blame-${colorLevel}`]
-  }, [])
-
+      return styles[`bg-blame-${colorLevel}`]
+    },
+    []
+  )
 
   const formatRelativeTime = useCallback((authorTime: number) => {
     if (!authorTime) return 'Unknown'
@@ -347,29 +351,23 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
         }))
       }
     })
-  }, [
-    blameData,
-    getBlameColorClass
-  ])
-
-
+  }, [blameData, getBlameColorClass])
 
   const renderCodeView = useCallback(() => {
-
     if (isCodeLoading) {
       return (
-        <div className="animate-pulse" style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff', padding: '0 16px' }}>
-        {Array.from({ length: 10 }).map((_, index) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <div key={index} className="flex items-center py-1">
-            <div className="w-12 h-4 bg-gray-200 rounded mr-4"></div>
-            <div
-              className="h-4 bg-gray-200 rounded" 
-              style={{ width: `${Math.random() * 50 + 30}%` }}
-            ></div>
-          </div>
-        ))}
-      </div>
+        <div
+          className='animate-pulse'
+          style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff', padding: '0 16px' }}
+        >
+          {Array.from({ length: 10 }).map((_, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={index} className='flex items-center py-1'>
+              <div className='mr-4 h-4 w-12 rounded bg-gray-200'></div>
+              <div className='h-4 rounded bg-gray-200' style={{ width: `${Math.random() * 50 + 30}%` }}></div>
+            </div>
+          ))}
+        </div>
       )
     }
     if (lfs) {
@@ -381,8 +379,6 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
       )
     }
 
-
-
     return (
       <div style={{ height: 'calc(100vh - 215px)', overflowX: 'auto', overflowY: 'hidden' }}>
         <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
@@ -390,7 +386,7 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
             <Virtuoso
               style={{
                 height: 'calc(100vh - 215px)',
-                backgroundColor: '#fff',
+                backgroundColor: '#fff'
               }}
               totalCount={tokens.length}
               itemContent={(index) => {
@@ -411,15 +407,11 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
                       fontFamily: 'monospace',
                       whiteSpace: 'pre',
                       display: 'flex',
-                      minWidth: 'fit-content',
+                      minWidth: 'fit-content'
                     }}
                     onClick={() => handleLineClick(index)}
                   >
-                    <span className='inline-block w-8'>
-                      {selectedLine === index ? (
-                        <div></div>
-                      ) : null}
-                    </span>
+                    <span className='inline-block w-8'>{selectedLine === index ? <div></div> : null}</span>
                     <span className={styles.codeLineNumber}>{index + 1}</span>
                     <span style={{ display: 'inline' }}>
                       {line.map((token, key) => (
@@ -435,45 +427,33 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
         </Highlight>
       </div>
     )
-  }, [
-    fileContent,
-    detectedLanguage,
-    lfs,
-    selectedLine,
-    handleLineClick,
-    isCodeLoading
-  ])
-
+  }, [fileContent, detectedLanguage, lfs, selectedLine, handleLineClick, isCodeLoading])
 
   const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
       return (
-        <div className="animate-pulse" style={{ height: 'calc(100vh - 255px)', backgroundColor: '#fff' }}>
+        <div className='animate-pulse' style={{ height: 'calc(100vh - 255px)', backgroundColor: '#fff' }}>
           {Array.from({ length: 10 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className="flex border-b border-gray-200 py-2">
+            <div key={index} className='flex border-b border-gray-200 py-2'>
+              <div className='mx-2 w-1 bg-gray-200'></div>
 
-              <div className="w-1 bg-gray-200 mx-2"></div>
-
-              <div className="w-[350px] flex items-center px-3 space-x-2">
-                <div className="w-20 h-4 bg-gray-200 rounded"></div>
-                <div className="w-5 h-5 bg-gray-300 rounded-full"></div>
-                <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              <div className='flex w-[350px] items-center space-x-2 px-3'>
+                <div className='h-4 w-20 rounded bg-gray-200'></div>
+                <div className='h-5 w-5 rounded-full bg-gray-300'></div>
+                <div className='h-4 w-32 rounded bg-gray-200'></div>
               </div>
 
-              <div className="flex-1 flex items-center px-3">
-                <div className="w-12 h-4 bg-gray-200 rounded mr-4"></div>
-                <div 
-                  className="h-4 bg-gray-200 rounded" 
-                  style={{ width: `${Math.random() * 60 + 20}%` }}
-                ></div>
+              <div className='flex flex-1 items-center px-3'>
+                <div className='mr-4 h-4 w-12 rounded bg-gray-200'></div>
+                <div className='h-4 rounded bg-gray-200' style={{ width: `${Math.random() * 60 + 20}%` }}></div>
               </div>
             </div>
           ))}
         </div>
       )
     }
-    
+
     if (!blameData?.data) {
       return (
         <div className='flex items-center justify-center p-8'>
@@ -488,48 +468,39 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
         <Virtuoso
           style={{
             height: 'calc(100vh - 255px)',
-            backgroundColor: '#fff',
+            backgroundColor: '#fff'
           }}
           totalCount={processedBlameBlocks.length}
           itemContent={(blockIndex) => {
             const block = processedBlameBlocks[blockIndex]
 
             return (
-              <div
-                key={`block-${blockIndex}`}
-                className="border-b border-gray-200  transition-colors duration-150"
-              >
-                <div className="flex min-w-0">
-
-                  <div className="flex-shrink-0 w-1 flex items-center" >
-                    <div className={`${block.colorClass} rounded-sm h-[99%] w-[95%]` } ></div>
+              <div key={`block-${blockIndex}`} className='border-b border-gray-200 transition-colors duration-150'>
+                <div className='flex min-w-0'>
+                  <div className='flex w-1 flex-shrink-0 items-center'>
+                    <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
                   </div>
 
-
-                  <div className="flex-shrink-0 border-r border-gray-200" style={{ width: '350px' }}>
-                    <div className="flex items-center px-3 py-2   top-0 z-10 ">
-                      <span className="w-[100px] text-xs text-gray-600 truncate">
+                  <div className='flex-shrink-0 border-r border-gray-200' style={{ width: '350px' }}>
+                    <div className='top-0 z-10 flex items-center px-3 py-2'>
+                      <span className='w-[100px] truncate text-xs text-gray-600'>
                         {formatRelativeTime(block.blameInfo?.author_time || 0)}
                       </span>
                       <UserAvatar
                         username={block.blameInfo?.author_username || ''}
                         zIndex={block.blameInfo?.author_time || 0}
                       />
-                      <div className="w-[200px] flex items-center ml-2">
-                        <span
-                          className="text-xs text-gray-600 truncate"
-                          title={block.blameInfo?.commit_summary}
-                        >
+                      <div className='ml-2 flex w-[200px] items-center'>
+                        <span className='truncate text-xs text-gray-600' title={block.blameInfo?.commit_summary}>
                           {block.blameInfo?.commit_message || 'No commit message'}
                         </span>
                       </div>
                     </div>
                   </div>
 
-
-                  <div className={`flex-1 min-w-0 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
+                  <div className={`min-w-0 flex-1 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
                     {block.lines.map((line) => {
-                      const isSelected = selectedLine === (line.lineNumber - 1)
+                      const isSelected = selectedLine === line.lineNumber - 1
 
                       return (
                         <Highlight
@@ -541,30 +512,29 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
                           {({ tokens, getLineProps, getTokenProps }) => (
                             <div
                               {...getLineProps({ line: tokens[0] })}
-                              className="flex min-w-0"
+                              className='flex min-w-0'
                               onClick={() => handleLineClick(line.lineNumber - 1)}
                               style={{
                                 backgroundColor: isSelected ? '#f0f7ff' : '#fff',
                                 fontSize: '12px',
-                                height: '20px',
+                                height: '20px'
                               }}
                             >
-
                               <div
-                                className="flex items-center justify-center text-xs text-gray-500 select-none flex-shrink-0 bg-white"
+                                className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
                                 style={{ width: '60px' }}
                               >
                                 {line.lineNumber}
                               </div>
 
                               <div
-                                className="flex items-center font-mono text-sm py-1 pl-3 min-w-0"
+                                className='flex min-w-0 items-center py-1 pl-3 font-mono text-sm'
                                 style={{
                                   minWidth: '0',
                                   width: 'max-content'
                                 }}
                               >
-                                <div className="whitespace-pre" style={{ display: 'inline' }}>
+                                <div className='whitespace-pre' style={{ display: 'inline' }}>
                                   {tokens[0]?.map((token, key) => (
                                     // eslint-disable-next-line react/no-array-index-key
                                     <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
@@ -597,14 +567,14 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
   const renderPreviewView = useCallback(() => {
     if (isCodeLoading) {
       return (
-        <div className="animate-pulse p-8" style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff' }}>
+        <div className='animate-pulse p-8' style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff' }}>
           {Array.from({ length: 3 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className="mb-4">
-              <div className="h-6 bg-gray-200 rounded mb-2" style={{ width: `${Math.random() * 30 + 40}%` }}></div>
-              <div className="h-4 bg-gray-100 rounded mb-1" style={{ width: `${Math.random() * 20 + 70}%` }}></div>
-              <div className="h-4 bg-gray-100 rounded mb-1" style={{ width: `${Math.random() * 20 + 80}%` }}></div>
-              <div className="h-4 bg-gray-100 rounded" style={{ width: `${Math.random() * 30 + 50}%` }}></div>
+            <div key={index} className='mb-4'>
+              <div className='mb-2 h-6 rounded bg-gray-200' style={{ width: `${Math.random() * 30 + 40}%` }}></div>
+              <div className='mb-1 h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 20 + 70}%` }}></div>
+              <div className='mb-1 h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 20 + 80}%` }}></div>
+              <div className='h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 30 + 50}%` }}></div>
             </div>
           ))}
         </div>
@@ -612,10 +582,10 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
     }
 
     return (
-      <div 
-        className='markdown-body p-8' 
-        style={{ 
-          height: 'calc(100vh - 215px)', 
+      <div
+        className='markdown-body p-8'
+        style={{
+          height: 'calc(100vh - 215px)',
           overflow: 'auto',
           backgroundColor: '#fff'
         }}
@@ -650,8 +620,11 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
             Blame
           </button>
         </div>
-        <div className='text-gray-500 whitespace-nowrap hidden 2xl:inline'>
-          <span className='m-2' style={{ minWidth: 0 }}>{`${fileContent.split('\n').length}   lines  .  2.79  KB`}</span>
+        <div className='hidden whitespace-nowrap text-gray-500 2xl:inline'>
+          <span
+            className='m-2'
+            style={{ minWidth: 0 }}
+          >{`${fileContent.split('\n').length}   lines  .  2.79  KB`}</span>
         </div>
 
         <div className='flex-1' />
@@ -666,14 +639,15 @@ const CodeContent = ({ fileContent, path, isCodeLoading }:
             Download
           </button>
         </div>
-        <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
-          <button className={styles.toolbarRightButton}>Edit</button>
-        </div>
+        {version === 'main' && (
+          <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
+            <button className={styles.toolbarRightButton}>Edit</button>
+          </div>
+        )}
       </div>
       {viewMode === 'preview' && renderPreviewView()}
       {viewMode === 'code' && renderCodeView()}
       {viewMode === 'blame' && renderBlameView()}
-
     </div>
   )
 }
