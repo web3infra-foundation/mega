@@ -51,7 +51,7 @@ impl RepoHandler for ImportRepo {
         false
     }
 
-    async fn head_hash(&self) -> (String, Vec<Refs>) {
+    async fn refs_with_head_hash(&self) -> (String, Vec<Refs>) {
         let result = self
             .storage
             .git_db_storage()
@@ -349,7 +349,7 @@ impl ImportRepo {
 
         // 3. get root ref
         let mut root_ref = storage
-            .get_ref("/")
+            .get_main_ref("/")
             .await?
             .ok_or_else(|| MegaError::with_message("root ref not found"))?;
 

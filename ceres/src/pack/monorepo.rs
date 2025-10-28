@@ -14,10 +14,12 @@ use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use bellatrix::{Bellatrix, orion_client::BuildInfo, orion_client::OrionBuildRequest};
-use callisto::{entity_ext::generate_link, mega_cl, raw_blob, sea_orm_active_enums::ConvTypeEnum};
+use callisto::{
+    entity_ext::generate_link, mega_cl, mega_refs, raw_blob, sea_orm_active_enums::ConvTypeEnum,
+};
 use common::{
     errors::MegaError,
-    utils::{self, MEGA_BRANCH_NAME},
+    utils::{self, ZERO_ID},
 };
 use git_internal::{
     errors::GitError,
@@ -57,81 +59,84 @@ impl RepoHandler for MonoRepo {
         true
     }
 
-    async fn head_hash(&self) -> (String, Vec<Refs>) {
+    async fn refs_with_head_hash(&self) -> (String, Vec<Refs>) {
         let storage = self.storage.mono_storage();
 
-        let result = storage.get_refs(self.path.to_str().unwrap()).await.unwrap();
+        let path_refs = storage
+            .get_all_refs(self.path.to_str().unwrap(), false)
+            .await
+            .unwrap();
 
-        let heads_exist = result
+        let heads_exist = path_refs
             .iter()
             .any(|x| x.ref_name == common::utils::MEGA_BRANCH_NAME);
 
         let refs = if heads_exist {
-            let refs: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
+            let refs: Vec<Refs> = path_refs.into_iter().map(|x| x.into()).collect();
             refs
         } else {
             let target_path = self.path.clone();
-            let refs = storage.get_ref("/").await.unwrap().unwrap();
-            let tree_hash = refs.ref_tree_hash.clone();
+            let mut refs = vec![];
 
-            let mut tree: Tree =
-                Tree::from_mega_model(storage.get_tree_by_hash(&tree_hash).await.unwrap().unwrap());
+            let root_refs = storage.get_all_refs("/", true).await.unwrap();
 
-            let commit: Commit = Commit::from_mega_model(
-                storage
-                    .get_commit_by_hash(&refs.ref_commit_hash)
-                    .await
-                    .unwrap()
-                    .unwrap(),
-            );
+            for root_ref in root_refs {
+                let (tree_hash, commit_hash) = (root_ref.ref_tree_hash, root_ref.ref_commit_hash);
+                let mut tree: Tree = Tree::from_mega_model(
+                    storage.get_tree_by_hash(&tree_hash).await.unwrap().unwrap(),
+                );
 
-            for component in target_path.components() {
-                if component != Component::RootDir {
-                    let path_name = component.as_os_str().to_str().unwrap();
-                    let sha1 = tree
-                        .tree_items
-                        .iter()
-                        .find(|x| x.name == path_name)
-                        .map(|x| x.id);
-                    if let Some(sha1) = sha1 {
-                        tree = Tree::from_mega_model(
-                            storage
-                                .get_trees_by_hashes(vec![sha1.to_string()])
-                                .await
-                                .unwrap()[0]
-                                .clone(),
-                        );
-                    } else {
-                        return self.find_head_hash(vec![]);
+                let commit: Commit = Commit::from_mega_model(
+                    storage
+                        .get_commit_by_hash(&commit_hash)
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                );
+
+                for component in target_path.components() {
+                    if component != Component::RootDir {
+                        let path_compo_name = component.as_os_str().to_str().unwrap();
+                        let path_compo_hash = tree
+                            .tree_items
+                            .iter()
+                            .find(|x| x.name == path_compo_name)
+                            .map(|x| x.id);
+                        if let Some(hash) = path_compo_hash {
+                            tree = Tree::from_mega_model(
+                                storage
+                                    .get_tree_by_hash(&hash.to_string())
+                                    .await
+                                    .unwrap()
+                                    .unwrap(),
+                            );
+                        } else {
+                            return (ZERO_ID.to_string(), vec![]);
+                        }
                     }
                 }
-            }
+                let c = Commit::new(
+                    commit.author,
+                    commit.committer,
+                    tree.id,
+                    vec![],
+                    &commit.message,
+                );
 
-            let c = Commit::new(
-                commit.author,
-                commit.committer,
-                tree.id,
-                vec![],
-                &commit.message,
-            );
-            storage
-                .save_ref(
-                    self.path.to_str().unwrap(),
-                    None,
-                    &c.id.to_string(),
-                    &c.tree_id.to_string(),
+                let new_mega_ref = mega_refs::Model::new(
+                    &self.path,
+                    root_ref.ref_name.clone(),
+                    c.id.to_string(),
+                    c.tree_id.to_string(),
                     false,
-                )
-                .await
-                .unwrap();
-            storage.save_mega_commits(vec![c.clone()]).await.unwrap();
+                );
 
-            vec![Refs {
-                ref_name: MEGA_BRANCH_NAME.to_string(),
-                ref_hash: c.id.to_string(),
-                default_branch: true,
-                ..Default::default()
-            }]
+                storage.save_refs(new_mega_ref.clone()).await.unwrap();
+                storage.save_mega_commits(vec![c.clone()]).await.unwrap();
+
+                refs.push(new_mega_ref.into());
+            }
+            refs
         };
         self.find_head_hash(refs)
     }
@@ -305,16 +310,14 @@ impl RepoHandler for MonoRepo {
                 cl_ref.ref_tree_hash = c.tree_id.to_string();
                 storage.update_ref(cl_ref).await.unwrap();
             } else {
-                storage
-                    .save_ref(
-                        self.path.to_str().unwrap(),
-                        Some(ref_name),
-                        &refs.new_id,
-                        &c.tree_id.to_string(),
-                        true,
-                    )
-                    .await
-                    .unwrap();
+                let refs = mega_refs::Model::new(
+                    &self.path,
+                    ref_name,
+                    refs.new_id.clone(),
+                    c.tree_id.to_string(),
+                    true,
+                );
+                storage.save_refs(refs).await.unwrap();
             }
         }
         Ok(())

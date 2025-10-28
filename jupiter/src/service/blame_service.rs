@@ -237,7 +237,7 @@ impl BlameService {
                 } else if !requested.starts_with("refs/") {
                     // Short branch names (e.g., "main"): prefer root default first
                     let expected_heads = format!("refs/heads/{}", requested);
-                    match self.mono_storage.get_ref("/").await {
+                    match self.mono_storage.get_main_ref("/").await {
                         Ok(Some(root_ref)) => {
                             if root_ref.ref_name == expected_heads {
                                 match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
@@ -260,7 +260,7 @@ impl BlameService {
                     }
                 } else {
                     // Full ref name: first check root default to avoid path ambiguity, then normal resolution
-                    match self.mono_storage.get_ref("/").await {
+                    match self.mono_storage.get_main_ref("/").await {
                         Ok(Some(root_ref)) => {
                             if root_ref.ref_name == requested {
                                 match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
@@ -281,7 +281,7 @@ impl BlameService {
                 // Default to 'main' branch when no ref is provided
                 let requested = "main";
                 let expected_heads = format!("refs/heads/{}", requested);
-                match self.mono_storage.get_ref("/").await {
+                match self.mono_storage.get_main_ref("/").await {
                     Ok(Some(root_ref)) => {
                         if root_ref.ref_name == expected_heads {
                             match self.get_commit_by_hash(&root_ref.ref_commit_hash).await {
@@ -321,7 +321,7 @@ impl BlameService {
         ref_display_name: &str,
     ) -> Result<Commit, GitError> {
         // Prefer root default ref when it exactly matches the requested full ref
-        if let Ok(Some(default_ref)) = self.mono_storage.get_ref("/").await
+        if let Ok(Some(default_ref)) = self.mono_storage.get_main_ref("/").await
             && default_ref.ref_name == full_ref_name
         {
             if let Some(commit) = self
@@ -1168,6 +1168,8 @@ impl BlameService {
 mod tests {
     use super::*;
     use crate::storage::base_storage::StorageConnector;
+    use callisto::mega_refs;
+    use common::utils::MEGA_BRANCH_NAME;
     use git_internal::internal::object::blob::Blob;
     use git_internal::internal::object::commit::Commit;
     use git_internal::internal::object::signature::{Signature, SignatureType};
@@ -1307,16 +1309,18 @@ enable_https = true
             .save_mega_commits(vec![commit1.clone(), commit2.clone(), commit3.clone()])
             .await
             .expect("Failed to save commits");
+
+        let refs = mega_refs::Model::new(
+            "/".to_string(),
+            MEGA_BRANCH_NAME.to_string(),
+            commit3.id.to_string(),
+            tree3.id.to_string(),
+            false,
+        );
         storage
             .app_service
             .mono_storage
-            .save_ref(
-                "/",
-                None,
-                &commit3.id.to_string(),
-                &tree3.id.to_string(),
-                false,
-            )
+            .save_refs(refs)
             .await
             .expect("Failed to save HEAD ref");
 
@@ -1539,16 +1543,17 @@ enable_https = true
             .save_mega_commits(vec![commit.clone()])
             .await
             .expect("Failed to save commits");
+        let refs = mega_refs::Model::new(
+            "/".to_string(),
+            MEGA_BRANCH_NAME.to_string(),
+            commit.id.to_string(),
+            tree.id.to_string(),
+            false,
+        );
         storage
             .app_service
             .mono_storage
-            .save_ref(
-                "/",
-                None,
-                &commit.id.to_string(),
-                &tree.id.to_string(),
-                false,
-            )
+            .save_refs(refs)
             .await
             .expect("Failed to save HEAD ref");
 
@@ -1694,16 +1699,17 @@ enable_https = true
             .save_mega_commits(vec![commit.clone()])
             .await
             .expect("Failed to save commits");
+        let refs = mega_refs::Model::new(
+            "/".to_string(),
+            MEGA_BRANCH_NAME.to_string(),
+            commit.id.to_string(),
+            tree.id.to_string(),
+            false,
+        );
         storage
             .app_service
             .mono_storage
-            .save_ref(
-                "/",
-                None,
-                &commit.id.to_string(),
-                &tree.id.to_string(),
-                false,
-            )
+            .save_refs(refs)
             .await
             .expect("Failed to save HEAD ref");
 
