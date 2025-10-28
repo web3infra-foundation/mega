@@ -869,27 +869,7 @@ impl MonoApiService {
                 // try to write ref; if ref write fails, rollback DB insert
                 let path_str = repo_path.unwrap_or_else(|| "/".to_string());
                 // Resolve tree hash from target commit so ref metadata is complete
-                let tree_hash = match mono_storage.get_commit_by_hash(&object_id).await {
-                    Ok(Some(commit_model)) => commit_model.tree.clone(),
-                    Ok(None) => {
-                        tracing::error!(
-                            "Target commit '{}' not found while creating annotated tag",
-                            object_id
-                        );
-                        return Err(GitError::CustomError(format!(
-                            "[code:404] Target commit '{}' not found",
-                            object_id
-                        )));
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "DB error fetching commit '{}' for annotated tag: {}",
-                            object_id,
-                            e
-                        );
-                        return Err(GitError::CustomError("[code:500] DB error".to_string()));
-                    }
-                };
+                let tree_hash = self.resolve_tree_hash_for_commit(&object_id).await?;
                 if let Err(e) = mono_storage
                     .save_ref(
                         &path_str,
@@ -941,27 +921,7 @@ impl MonoApiService {
             ));
         }
         // Resolve tree hash from target commit
-        let tree_hash = match mono_storage.get_commit_by_hash(&object_id).await {
-            Ok(Some(commit_model)) => commit_model.tree.clone(),
-            Ok(None) => {
-                tracing::error!(
-                    "Target commit '{}' not found while creating lightweight tag",
-                    object_id
-                );
-                return Err(GitError::CustomError(format!(
-                    "[code:404] Target commit '{}' not found",
-                    object_id
-                )));
-            }
-            Err(e) => {
-                tracing::error!(
-                    "DB error fetching commit '{}' for lightweight tag: {}",
-                    object_id,
-                    e
-                );
-                return Err(GitError::CustomError("[code:500] DB error".to_string()));
-            }
-        };
+        let tree_hash = self.resolve_tree_hash_for_commit(&object_id).await?;
         mono_storage
             .save_ref(
                 &path_str,
@@ -991,6 +951,32 @@ impl MonoApiService {
             message: String::new(),
             created_at: saved_ref.created_at.and_utc().to_rfc3339(),
         })
+    }
+
+    /// Resolve the tree hash for a given commit id with proper error mapping/logging
+    async fn resolve_tree_hash_for_commit(&self, commit_id: &str) -> Result<String, GitError> {
+        let mono_storage = self.storage.mono_storage();
+        match mono_storage.get_commit_by_hash(commit_id).await {
+            Ok(Some(commit_model)) => Ok(commit_model.tree.clone()),
+            Ok(None) => {
+                tracing::error!(
+                    "Target commit '{}' not found while resolving tree hash",
+                    commit_id
+                );
+                Err(GitError::CustomError(format!(
+                    "[code:404] Target commit '{}' not found",
+                    commit_id
+                )))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "DB error fetching commit '{}' for tree hash resolution: {}",
+                    commit_id,
+                    e
+                );
+                Err(GitError::CustomError("[code:500] DB error".to_string()))
+            }
+        }
     }
     async fn validate_target_commit_mono(&self, target: Option<&String>) -> Result<(), GitError> {
         let mono_storage = self.storage.mono_storage();
