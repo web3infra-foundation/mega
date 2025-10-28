@@ -8,7 +8,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
-use crate::auth::UserAuthExtractor;
 use crate::protocol::ZERO_ID;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -416,75 +415,38 @@ impl SmartProtocol {
             return Ok(()); // Skip if no valid email
         }
 
-        // Enhanced user matching logic based on authentication status
-        let (final_user_id, is_anonymous) = if let Some(authenticated_user) =
-            &self.authenticated_user
-        {
-            // User is authenticated - check if commit author email belongs to them
-            match self.create_user_auth_extractor() {
-                Ok(user_auth) => {
-                    let email_belongs_to_user = user_auth
-                        .verify_email_ownership(&authenticated_user.username, &author_email)
-                        .await
-                        .unwrap_or(false);
-
-                    if email_belongs_to_user {
-                        // Author email belongs to authenticated user
-                        (Some(authenticated_user.username.clone()), false)
-                    } else {
-                        // Author email doesn't belong to authenticated user - try general matching
-                        let user_storage = self.storage.user_storage();
-                        let matched_user = user_storage.find_user_by_email(&author_email).await?;
-
-                        if let Some(user) = matched_user {
-                            (Some(user.name.clone()), false)
-                        } else {
-                            // Mark as anonymous since we can't match the email
-                            (None, true)
-                        }
-                    }
-                }
-                Err(e) => {
-                    // Log the error from create_user_auth_extractor for debugging
-                    tracing::warn!(
-                        "Failed to create user auth extractor for commit binding: {}. \
-                         Falling back to email-based matching.",
-                        e
-                    );
-
-                    // Fallback to email-based matching if auth extractor fails
-                    let user_storage = self.storage.user_storage();
-                    let matched_user = user_storage.find_user_by_email(&author_email).await?;
-                    if let Some(user) = matched_user {
-                        (Some(user.name.clone()), false)
-                    } else {
-                        (None, true)
-                    }
-                }
-            }
-        } else {
-            // No authenticated user - try to match by email only
-            let user_storage = self.storage.user_storage();
-            let matched_user = user_storage.find_user_by_email(&author_email).await?;
-
-            if let Some(user) = matched_user {
-                (Some(user.name.clone()), false)
+        // Simplified matching logic: if there is an authenticated user, bind to them; otherwise anonymous
+        let (final_user_id, is_anonymous) =
+            if let Some(authenticated_user) = &self.authenticated_user {
+                (Some(authenticated_user.username.clone()), false)
             } else {
                 (None, true)
-            }
-        };
+            };
 
         // Upsert the binding
         commit_binding_storage
-            .upsert_binding(commit_sha, &author_email, final_user_id, is_anonymous)
+            .upsert_binding(
+                commit_sha,
+                &author_email,
+                final_user_id,
+                is_anonymous,
+                None,
+                None,
+            )
             .await?;
 
         tracing::info!(
-            "Bound commit {} (author: {}) to user: {:?} (authenticated: {})",
+            "Bound commit {} (author: {}) -> {}",
             commit_sha,
             author_email,
-            if is_anonymous { "anonymous" } else { "matched" },
-            self.authenticated_user.is_some()
+            if is_anonymous {
+                "anonymous".to_string()
+            } else {
+                self.authenticated_user
+                    .as_ref()
+                    .map(|u| u.username.clone())
+                    .unwrap_or_else(|| "unknown".to_string())
+            }
         );
 
         Ok(())

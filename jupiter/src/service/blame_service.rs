@@ -1331,6 +1331,8 @@ enable_https = true
                 users[0].1,
                 Some(users[0].0.to_string()),
                 false,
+                None,
+                None,
             ) // Bob
             .await
             .expect("Failed to save commit binding for user 1");
@@ -1343,6 +1345,8 @@ enable_https = true
                 users[1].1,
                 Some(users[1].0.to_string()),
                 false,
+                None,
+                None,
             ) // Alice
             .await
             .expect("Failed to save commit binding for user 2");
@@ -1355,6 +1359,8 @@ enable_https = true
                 users[2].1,
                 Some(users[2].0.to_string()),
                 false,
+                None,
+                None,
             ) // Tony
             .await
             .expect("Failed to save commit binding for user 3");

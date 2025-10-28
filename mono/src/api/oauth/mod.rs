@@ -7,7 +7,6 @@ use axum::{
     routing::get,
 };
 use axum_extra::{TypedHeader, headers, typed_header::TypedHeaderRejectionReason};
-use callisto::user;
 use chrono::{Duration, Utc};
 use http::request::Parts;
 use oauth2::{
@@ -89,21 +88,8 @@ async fn login_authorized(
         tracing::error!("github:user_info:err {:?}", resp.text().await.unwrap());
     }
 
-    let new_user: user::Model = github_user.into();
-    let user = state
-        .user_stg()
-        .find_user_by_email(&new_user.email)
-        .await
-        .unwrap();
-
-    let login_user: LoginUser;
-    if let Some(user) = user {
-        // Create a new session filled with user data
-        login_user = user.into();
-    } else {
-        state.user_stg().save_user(new_user.clone()).await.unwrap();
-        login_user = new_user.into();
-    }
+    // Directly convert GitHub user info into our LoginUser (no local user persistence)
+    let login_user: LoginUser = github_user.into();
 
     // Create a new session
     let session = Session::new(None, Arc::new(store.clone()), None);

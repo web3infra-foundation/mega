@@ -1,8 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
-
-use callisto::user;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OauthCallbackParams {
@@ -26,16 +23,14 @@ pub struct GitHubUserJson {
     pub email: Option<String>,
 }
 
-impl From<GitHubUserJson> for user::Model {
+impl From<GitHubUserJson> for LoginUser {
     fn from(value: GitHubUserJson) -> Self {
         Self {
-            id: generate_id(),
-            name: value.login,
+            username: value.login,
             email: value.email.unwrap_or_default(),
             avatar_url: value.avatar_url,
-            is_github: true,
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: None,
+            campsite_user_id: String::new(),
+            created_at: Utc::now().naive_utc(),
         }
     }
 }
@@ -68,16 +63,4 @@ pub struct LoginUser {
     pub avatar_url: String,
     pub email: String,
     pub created_at: NaiveDateTime,
-}
-
-impl From<user::Model> for LoginUser {
-    fn from(value: user::Model) -> Self {
-        Self {
-            avatar_url: value.avatar_url,
-            email: value.email,
-            created_at: value.created_at,
-            campsite_user_id: String::new(),
-            username: String::new(),
-        }
-    }
 }

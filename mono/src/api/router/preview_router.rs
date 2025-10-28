@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use axum::{
     Json,
     extract::{Query, State},
+    http::HeaderMap,
 };
 
 use anyhow::Result;
@@ -20,6 +21,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{MonoApiServiceState, error::ApiError};
 use crate::server::http_server::CODE_PREVIEW;
+use ceres::users::get_org_member_by_username;
+use tracing::{info, warn};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -72,17 +75,113 @@ async fn get_blob_string(
 )]
 async fn create_entry(
     state: State<MonoApiServiceState>,
+    headers: HeaderMap,
     Json(json): Json<CreateEntryInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let handler = state.api_handler(json.path.as_ref()).await?;
     let commit_id = handler.create_monorepo_entry(json.clone()).await?;
 
     // If frontend provided author info, bind commit to that user (same as save_edit)
+    // Guard for anonymous intent
+    let username_trimmed_opt = json.author_username.as_deref().map(|s| s.trim());
+    let is_anonymous = username_trimmed_opt
+        .map(|u| u.is_empty() || u.eq_ignore_ascii_case("anonymous"))
+        .unwrap_or(true);
     if let Some(email) = json.author_email.as_ref() {
         let stg = state.storage.commit_binding_storage();
-        stg.upsert_binding(&commit_id, email, json.author_username.clone(), false)
-            .await
-            .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
+        // Try resolve via organization member API when username and required headers are present
+        let org_slug_opt = headers
+            .get("X-Organization-Slug")
+            .and_then(|v| v.to_str().ok());
+        let cookie_header_opt = headers
+            .get("X-Campsite-Session")
+            .and_then(|v| v.to_str().ok())
+            .map(|val| {
+                let name = std::env::var("CAMPSITE_API_COOKIE_NAME")
+                    .unwrap_or_else(|_| "_campsite_api_session".to_string());
+                format!("{}={}", name, val)
+            })
+            .or_else(|| {
+                headers
+                    .get("X-Campsite-Cookie")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            })
+            .or_else(|| {
+                headers
+                    .get(axum::http::header::COOKIE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            });
+        let has_org = org_slug_opt.is_some();
+        let has_cookie = cookie_header_opt.is_some();
+
+        if let (Some(org_slug), Some(cookie_header)) = (org_slug_opt, cookie_header_opt) {
+            if !is_anonymous {
+                let username_trimmed = username_trimmed_opt.unwrap();
+                match get_org_member_by_username(
+                    state.storage.config(),
+                    org_slug,
+                    username_trimmed,
+                    Some(cookie_header),
+                )
+                .await
+                {
+                    Ok(Some(member)) => {
+                        info!(target:"commit_binding", commit_id=%commit_id, org_slug=org_slug, username=username_trimmed, "org-member verified (create-entry)");
+                        let display = if member.display_name.is_empty() {
+                            username_trimmed.to_string()
+                        } else {
+                            member.display_name
+                        };
+                        let avatar = if member.avatar_url.is_empty() {
+                            None
+                        } else {
+                            Some(member.avatar_url)
+                        };
+                        stg.upsert_binding(
+                            &commit_id,
+                            email,
+                            Some(username_trimmed.to_string()),
+                            false,
+                            Some(display),
+                            avatar,
+                        )
+                        .await
+                        .map_err(|e| {
+                            ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                        })?;
+                    }
+                    _ => {
+                        // Degrade to anonymous when verification fails
+                        warn!(target:"commit_binding", commit_id=%commit_id, reason="verification_failed", "degrade to anonymous (create-entry)");
+                        stg.upsert_binding(&commit_id, email, None, true, None, None)
+                            .await
+                            .map_err(|e| {
+                                ApiError::from(anyhow::anyhow!(
+                                    "Failed to save commit binding: {}",
+                                    e
+                                ))
+                            })?;
+                    }
+                }
+            } else {
+                info!(target:"commit_binding", commit_id=%commit_id, reason="username_anonymous", "persist anonymous (create-entry)");
+                stg.upsert_binding(&commit_id, email, None, true, None, None)
+                    .await
+                    .map_err(|e| {
+                        ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                    })?;
+            }
+        } else {
+            // Missing inputs, degrade to anonymous
+            warn!(target:"commit_binding", commit_id=%commit_id, has_org_slug=has_org, has_cookie=has_cookie, reason="missing_headers_or_cookie", "degrade to anonymous (create-entry)");
+            stg.upsert_binding(&commit_id, email, None, true, None, None)
+                .await
+                .map_err(|e| {
+                    ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                })?;
+        }
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -360,6 +459,7 @@ async fn preview_diff(
 )]
 async fn save_edit(
     state: State<MonoApiServiceState>,
+    headers: HeaderMap,
     Json(payload): Json<EditFilePayload>,
 ) -> Result<Json<CommonResult<EditFileResult>>, ApiError> {
     let handler = state.api_handler(payload.path.as_ref()).await?;
@@ -368,14 +468,101 @@ async fn save_edit(
     // If frontend provided author info, bind commit to that user
     if let Some(email) = payload.author_email.as_ref() {
         let stg = state.storage.commit_binding_storage();
-        stg.upsert_binding(
-            &res.commit_id,
-            email,
-            payload.author_username.clone(),
-            false,
-        )
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
+        // Guard and normalize username
+        let username_trimmed_opt = payload.author_username.as_deref().map(|s| s.trim());
+        let is_anonymous = username_trimmed_opt
+            .map(|u| u.is_empty() || u.eq_ignore_ascii_case("anonymous"))
+            .unwrap_or(true);
+        let org_slug_opt = headers
+            .get("X-Organization-Slug")
+            .and_then(|v| v.to_str().ok());
+        let cookie_header_opt = headers
+            .get("X-Campsite-Session")
+            .and_then(|v| v.to_str().ok())
+            .map(|val| {
+                let name = std::env::var("CAMPSITE_API_COOKIE_NAME")
+                    .unwrap_or_else(|_| "_campsite_api_session".to_string());
+                format!("{}={}", name, val)
+            })
+            .or_else(|| {
+                headers
+                    .get("X-Campsite-Cookie")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            })
+            .or_else(|| {
+                headers
+                    .get(axum::http::header::COOKIE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            });
+        let has_org = org_slug_opt.is_some();
+        let has_cookie = cookie_header_opt.is_some();
+
+        if let (Some(org_slug), Some(cookie_header)) = (org_slug_opt, cookie_header_opt) {
+            if !is_anonymous {
+                let username_trimmed = username_trimmed_opt.unwrap();
+                match get_org_member_by_username(
+                    state.storage.config(),
+                    org_slug,
+                    username_trimmed,
+                    Some(cookie_header),
+                )
+                .await
+                {
+                    Ok(Some(member)) => {
+                        info!(target:"commit_binding", commit_id=%res.commit_id, org_slug=org_slug, username=username_trimmed, "org-member verified (save-edit)");
+                        let display = if member.display_name.is_empty() {
+                            username_trimmed.to_string()
+                        } else {
+                            member.display_name
+                        };
+                        let avatar = if member.avatar_url.is_empty() {
+                            None
+                        } else {
+                            Some(member.avatar_url)
+                        };
+                        stg.upsert_binding(
+                            &res.commit_id,
+                            email,
+                            Some(username_trimmed.to_string()),
+                            false,
+                            Some(display),
+                            avatar,
+                        )
+                        .await
+                        .map_err(|e| {
+                            ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                        })?;
+                    }
+                    _ => {
+                        warn!(target:"commit_binding", commit_id=%res.commit_id, reason="verification_failed", "degrade to anonymous (save-edit)");
+                        stg.upsert_binding(&res.commit_id, email, None, true, None, None)
+                            .await
+                            .map_err(|e| {
+                                ApiError::from(anyhow::anyhow!(
+                                    "Failed to save commit binding: {}",
+                                    e
+                                ))
+                            })?;
+                    }
+                }
+            } else {
+                info!(target:"commit_binding", commit_id=%res.commit_id, reason="username_anonymous", "persist anonymous (save-edit)");
+                stg.upsert_binding(&res.commit_id, email, None, true, None, None)
+                    .await
+                    .map_err(|e| {
+                        ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                    })?;
+            }
+        } else {
+            warn!(target:"commit_binding", commit_id=%res.commit_id, has_org_slug=has_org, has_cookie=has_cookie, reason="missing_headers_or_cookie", "degrade to anonymous (save-edit)");
+            stg.upsert_binding(&res.commit_id, email, None, true, None, None)
+                .await
+                .map_err(|e| {
+                    ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e))
+                })?;
+        }
     }
 
     Ok(Json(CommonResult::success(Some(res))))

@@ -1,6 +1,6 @@
 import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 
-import { MONO_API_URL, ORION_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
+import { MONO_API_URL, ORION_API_URL, RAILS_API_URL, RAILS_AUTH_URL, SCOPE_COOKIE_NAME } from '@gitmono/config'
 import { Api, ApiError, DataTag } from '@gitmono/types'
 
 import { ApiErrorResponse } from './types'
@@ -146,12 +146,34 @@ export const apiClient = new Api({
   }
 })
 
+function getScopeFromCookie(): string | undefined {
+  if (typeof document === 'undefined') return undefined
+  const cookies = document.cookie?.split(';').map((s) => s.trim()) ?? []
+  const scopePair = cookies.find((c) => c.startsWith(`${SCOPE_COOKIE_NAME}=`))
+  
+  if (!scopePair) return undefined
+  try {
+    return decodeURIComponent(scopePair.split('=')[1] || '') || undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const legacyApiClient = new Api({
   baseUrl: MONO_API_URL,
   baseApiParams: {
+    secure: true,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     format: 'json'
+  },
+  // Inject organization scope header for mono API so server can verify org-member
+  securityWorker: () => {
+    const scope = getScopeFromCookie()
+
+    return scope
+      ? { headers: { 'X-Organization-Slug': scope } }
+      : {}
   }
 })
 export const orionApiClient = new Api({

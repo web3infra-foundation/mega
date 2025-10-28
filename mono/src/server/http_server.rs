@@ -144,6 +144,10 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
                     .allow_headers(vec![
                         http::header::AUTHORIZATION,
                         http::header::CONTENT_TYPE,
+                        // custom headers used by web client for identity and session forwarding
+                        http::header::HeaderName::from_static("x-organization-slug"),
+                        http::header::HeaderName::from_static("x-campsite-session"),
+                        http::header::HeaderName::from_static("x-campsite-cookie"),
                     ])
                     .allow_methods([
                         Method::GET,

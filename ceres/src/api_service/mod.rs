@@ -168,27 +168,22 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<Option<CommitBindingInfo>, GitError> {
         let storage = self.get_context();
         let commit_binding_storage = storage.commit_binding_storage();
-        let user_storage = storage.user_storage();
 
         if let Ok(Some(binding_model)) = commit_binding_storage.find_by_sha(commit_sha).await {
-            // Get user information if not anonymous
-            let user_info =
-                if !binding_model.is_anonymous && binding_model.matched_username.is_some() {
-                    let username = binding_model.matched_username.as_ref().unwrap();
-                    if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
-                        Some((user.name.clone(), user.avatar_url.clone()))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
+            // Use stored presentation data only; do not call remote services here
+            let is_verified_user =
+                !binding_model.is_anonymous && binding_model.matched_username.is_some();
 
-            let (display_name, avatar_url, is_verified_user) = if binding_model.is_anonymous {
-                ("Anonymous".to_string(), None, false)
-            } else if let Some((username, avatar)) = user_info {
-                (username, Some(avatar), true)
+            let (display_name, avatar_url) = if binding_model.is_anonymous {
+                ("Anonymous".to_string(), None)
+            } else if let Some(name) = binding_model.display_name.clone() {
+                // No avatar fallback: empty string treated as None when persisted
+                (name, binding_model.avatar_url.clone())
+            } else if let Some(name) = binding_model.matched_username.clone() {
+                // Fallback to matched username if display name missing
+                (name, None)
             } else {
+                // Final fallback: derive from email local-part
                 (
                     binding_model
                         .author_email
@@ -197,7 +192,6 @@ pub trait ApiHandler: Send + Sync {
                         .unwrap_or(&binding_model.author_email)
                         .to_string(),
                     None,
-                    false,
                 )
             };
 

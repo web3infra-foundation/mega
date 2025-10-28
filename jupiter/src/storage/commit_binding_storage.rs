@@ -30,6 +30,8 @@ impl CommitBindingStorage {
         author_email: &str,
         matched_username: Option<String>,
         is_anonymous: bool,
+        display_name: Option<String>,
+        avatar_url: Option<String>,
     ) -> Result<(), MegaError> {
         let now = chrono::Utc::now().naive_utc();
         let model = ActiveModel {
@@ -37,6 +39,8 @@ impl CommitBindingStorage {
             commit_sha: ActiveValue::Set(sha.to_string()),
             author_email: ActiveValue::Set(author_email.to_string()),
             matched_username: ActiveValue::Set(matched_username.clone()),
+            display_name: ActiveValue::Set(display_name.clone()),
+            avatar_url: ActiveValue::Set(avatar_url.clone()),
             is_anonymous: ActiveValue::Set(is_anonymous),
             matched_at: ActiveValue::Set(Some(now)),
             created_at: ActiveValue::Set(now),
@@ -53,6 +57,8 @@ impl CommitBindingStorage {
         if let Some(e) = existing {
             let mut am = e.into_active_model();
             am.matched_username = ActiveValue::Set(matched_username.clone());
+            am.display_name = ActiveValue::Set(display_name.clone());
+            am.avatar_url = ActiveValue::Set(avatar_url.clone());
             am.is_anonymous = ActiveValue::Set(is_anonymous);
             am.matched_at = ActiveValue::Set(Some(now));
             am.update(conn).await?;

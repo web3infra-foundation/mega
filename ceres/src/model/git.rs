@@ -98,19 +98,10 @@ impl From<Commit> for LatestCommitInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Default)]
 pub struct UserInfo {
     pub display_name: String,
     pub avatar_url: String,
-}
-
-impl Default for UserInfo {
-    fn default() -> Self {
-        UserInfo {
-            display_name: String::default(),
-            avatar_url: "default_url".to_string(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
