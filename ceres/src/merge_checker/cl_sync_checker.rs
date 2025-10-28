@@ -46,7 +46,7 @@ impl Checker for ClSyncChecker {
         let refs = self
             .storage
             .mono_storage()
-            .get_ref(&cl_info.path)
+            .get_main_ref(&cl_info.path)
             .await?
             .expect("Err: CL Related Refs Not Found");
         Ok(serde_json::json!({

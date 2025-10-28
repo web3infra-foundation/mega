@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::pin::Pin;
 
 use anyhow::Result;
@@ -64,7 +65,7 @@ impl SmartProtocol {
         let service_type = self.service_type.unwrap();
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
-        let (head_hash, git_refs) = repo_handler.head_hash().await;
+        let (head_hash, git_refs) = repo_handler.refs_with_head_hash().await;
         let name = if head_hash == ZERO_ID {
             "capabilities^{}"
         } else {
@@ -92,8 +93,8 @@ impl SmartProtocol {
     ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut), ProtocolError> {
         let repo_handler = self.repo_handler().await?;
 
-        let mut want: Vec<String> = Vec::new();
-        let mut have: Vec<String> = Vec::new();
+        let mut want: HashSet<String> = HashSet::new();
+        let mut have: HashSet<String> = HashSet::new();
         let mut last_common_commit = String::new();
 
         let mut read_first_line = false;
@@ -112,10 +113,10 @@ impl SmartProtocol {
 
             match commands {
                 b"want" => {
-                    want.push(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                    want.insert(String::from_utf8(dst[5..45].to_vec()).unwrap());
                 }
                 b"have" => {
-                    have.push(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                    have.insert(String::from_utf8(dst[5..45].to_vec()).unwrap());
                 }
                 b"done" => break,
                 other => {
@@ -142,8 +143,11 @@ impl SmartProtocol {
         let pack_data;
         let mut protocol_buf = BytesMut::new();
 
+        let want: Vec<String> = want.into_iter().collect();
+        let have: Vec<String> = have.into_iter().collect();
+
         if have.is_empty() {
-            pack_data = repo_handler.full_pack(want.clone()).await.unwrap();
+            pack_data = repo_handler.full_pack(want).await.unwrap();
             add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {

@@ -10,12 +10,11 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect,
 };
 
-use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::model::Pagination;
-use common::utils::{MEGA_BRANCH_NAME, generate_id};
+use common::utils::MEGA_BRANCH_NAME;
 use git_internal::internal::object::ObjectTrait;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::{object::commit::Commit, pack::entry::Entry};
@@ -24,6 +23,7 @@ use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;
 use crate::storage::user_storage::UserStorage;
 use crate::utils::converter::MegaModelConverter;
+use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
 
 #[derive(Clone)]
 pub struct MonoStorage {
@@ -67,29 +67,11 @@ impl MonoStorage {
         }
     }
 
-    pub async fn save_ref(
-        &self,
-        path: &str,
-        ref_name: Option<String>,
-        ref_commit_hash: &str,
-        ref_tree_hash: &str,
-        is_cl: bool,
-    ) -> Result<(), MegaError> {
-        let model = mega_refs::Model {
-            id: generate_id(),
-            path: path.to_owned(),
-            ref_name: ref_name.unwrap_or(MEGA_BRANCH_NAME.to_owned()),
-            ref_commit_hash: ref_commit_hash.to_owned(),
-            ref_tree_hash: ref_tree_hash.to_owned(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-            is_cl,
-        };
+    pub async fn save_refs(&self, model: mega_refs::Model) -> Result<(), MegaError> {
         model
             .into_active_model()
             .insert(self.get_connection())
-            .await
-            .unwrap();
+            .await?;
         Ok(())
     }
 
@@ -130,17 +112,24 @@ impl MonoStorage {
         Ok(result)
     }
 
-    pub async fn get_refs(&self, path: &str) -> Result<Vec<mega_refs::Model>, MegaError> {
-        let result = mega_refs::Entity::find()
+    pub async fn get_all_refs(
+        &self,
+        path: &str,
+        filter_cl: bool,
+    ) -> Result<Vec<mega_refs::Model>, MegaError> {
+        let mut query = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
-            // .filter(mega_refs::Column::IsCl.eq(false))
-            .order_by_asc(mega_refs::Column::RefName)
-            .all(self.get_connection())
-            .await?;
+            .order_by_asc(mega_refs::Column::RefName);
+
+        if filter_cl {
+            query = query.filter(mega_refs::Column::IsCl.eq(false));
+        }
+        let result = query.all(self.get_connection()).await?;
+
         Ok(result)
     }
 
-    pub async fn get_ref(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
+    pub async fn get_main_ref(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
             .filter(mega_refs::Column::RefName.eq(MEGA_BRANCH_NAME.to_owned()))
@@ -374,7 +363,7 @@ impl MonoStorage {
     }
 
     pub async fn init_monorepo(&self, mono_config: &MonoConfig) {
-        if self.get_ref("/").await.unwrap().is_some() {
+        if self.get_main_ref("/").await.unwrap().is_some() {
             tracing::info!("Monorepo Directory Already Inited, skip init process!");
             return;
         }
