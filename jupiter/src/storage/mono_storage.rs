@@ -338,9 +338,7 @@ impl MonoStorage {
                     "Processed binding for commit {} (anonymous: {}, username: {})",
                     commit_sha,
                     is_anonymous,
-                    matched_username
-                        .clone()
-                        .unwrap_or_else(|| "anonymous".to_string())
+                    matched_username.unwrap_or_else(|| "anonymous".to_string())
                 );
             }
         }

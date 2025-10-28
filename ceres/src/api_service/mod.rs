@@ -117,8 +117,8 @@ pub trait ApiHandler: Send + Sync {
                 && binding.matched_username.is_some()
             {
                 let username = binding.matched_username.unwrap();
-                commit_info.author.display_name = username.clone();
-                commit_info.committer.display_name = username;
+                commit_info.author = username.clone();
+                commit_info.committer = username;
             }
 
             return Ok(commit_info);
@@ -149,8 +149,8 @@ pub trait ApiHandler: Send + Sync {
                     && binding.matched_username.is_some()
                 {
                     let username = binding.matched_username.unwrap();
-                    commit_info.author.display_name = username.clone();
-                    commit_info.committer.display_name = username;
+                    commit_info.author = username.clone();
+                    commit_info.committer = username;
                 }
                 Ok(commit_info)
             }

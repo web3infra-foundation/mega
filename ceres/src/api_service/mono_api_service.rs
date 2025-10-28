@@ -513,10 +513,6 @@ impl ApiHandler for MonoApiService {
                 let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
                 for item in tree.tree_items {
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
-                        if commit_id.is_empty() {
-                            // already filtered, but keep a safeguard here
-                            continue;
-                        }
                         let commit = commit_map.get(commit_id).cloned();
                         if commit.is_none() {
                             tracing::warn!(
