@@ -40,7 +40,7 @@ pub mod monorepo;
 pub trait RepoHandler: Send + Sync + 'static {
     fn is_monorepo(&self) -> bool;
 
-    async fn head_hash(&self) -> (String, Vec<Refs>);
+    async fn refs_with_head_hash(&self) -> (String, Vec<Refs>);
 
     async fn receiver_handler(
         self: Arc<Self>,

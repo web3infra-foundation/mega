@@ -61,7 +61,7 @@ use neptune::neptune_engine::Diff;
 use regex::Regex;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_cl, mega_tag, mega_tree};
+use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{Pagination, TagInfo};
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
@@ -411,7 +411,7 @@ impl ApiHandler for MonoApiService {
 
     async fn get_root_tree(&self) -> Tree {
         let storage = self.storage.mono_storage();
-        let refs = storage.get_ref("/").await.unwrap().unwrap();
+        let refs = storage.get_main_ref("/").await.unwrap().unwrap();
 
         Tree::from_mega_model(
             storage
@@ -618,7 +618,7 @@ impl ApiHandler for MonoApiService {
         // lightweight refs from refs table under path
         let repo_path = repo_path.as_deref().unwrap_or("/");
         let mut lightweight_refs: Vec<TagInfo> = vec![];
-        if let Ok(refs) = mono_storage.get_refs(repo_path).await {
+        if let Ok(refs) = mono_storage.get_all_refs(repo_path, false).await {
             for r in refs {
                 if r.ref_name.starts_with("refs/tags/") {
                     let tag_name = r.ref_name.trim_start_matches("refs/tags/").to_string();
@@ -869,16 +869,10 @@ impl MonoApiService {
                 // try to write ref; if ref write fails, rollback DB insert
                 let path_str = repo_path.unwrap_or_else(|| "/".to_string());
                 let tree_hash = common::utils::ZERO_ID.to_string();
-                if let Err(e) = mono_storage
-                    .save_ref(
-                        &path_str,
-                        Some(full_ref.clone()),
-                        &object_id,
-                        &tree_hash,
-                        false,
-                    )
-                    .await
-                {
+                let refs =
+                    mega_refs::Model::new(&path_str, full_ref.clone(), object_id, tree_hash, false);
+
+                if let Err(e) = mono_storage.save_refs(refs).await {
                     // attempt to remove DB record
                     if let Err(del_e) = mono_storage.delete_tag_by_name(&name).await {
                         tracing::error!(
@@ -915,19 +909,18 @@ impl MonoApiService {
         let path_str = repo_path.unwrap_or_else(|| "/".to_string());
         let object_id = target.clone().unwrap_or_default();
         let tree_hash = common::utils::ZERO_ID.to_string();
-        mono_storage
-            .save_ref(
-                &path_str,
-                Some(full_ref.clone()),
-                &object_id,
-                &tree_hash,
-                false,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to write lightweight tag ref: {}", e);
-                GitError::CustomError("[code:500] Failed to write lightweight tag ref".to_string())
-            })?;
+
+        let refs = mega_refs::Model::new(
+            &path_str,
+            full_ref.clone(),
+            object_id.clone(),
+            tree_hash,
+            false,
+        );
+        mono_storage.save_refs(refs).await.map_err(|e| {
+            tracing::error!("Failed to write lightweight tag ref: {}", e);
+            GitError::CustomError("[code:500] Failed to write lightweight tag ref".to_string())
+        })?;
         // Fetch saved ref to use its creation time
         let saved_ref = mono_storage
             .get_ref_by_name(&full_ref)
@@ -1016,7 +1009,7 @@ impl MonoApiService {
     }
     pub async fn merge_cl(&self, username: &str, cl: mega_cl::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-        let refs = storage.get_ref(&cl.path).await.unwrap().unwrap();
+        let refs = storage.get_main_ref(&cl.path).await.unwrap().unwrap();
 
         if cl.from_hash == refs.ref_commit_hash {
             let commit: Commit = Commit::from_mega_model(

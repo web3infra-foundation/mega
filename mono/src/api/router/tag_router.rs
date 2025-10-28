@@ -75,10 +75,10 @@ async fn resolve_target_commit_id(
             // path is outside import_dir → mono
             let mono = state.storage.mono_storage();
             let resolved_path = path_context.unwrap_or("/");
-            if let Ok(Some(r)) = mono.get_ref(resolved_path).await {
+            if let Ok(Some(r)) = mono.get_main_ref(resolved_path).await {
                 return Ok(r.ref_commit_hash);
             }
-            if let Ok(Some(root_ref)) = mono.get_ref("/").await {
+            if let Ok(Some(root_ref)) = mono.get_main_ref("/").await {
                 return Ok(root_ref.ref_commit_hash);
             }
             return Ok("HEAD".to_string());
@@ -87,7 +87,7 @@ async fn resolve_target_commit_id(
 
     // Default fallback: try mono root ref
     let mono = state.storage.mono_storage();
-    if let Ok(Some(root_ref)) = mono.get_ref("/").await {
+    if let Ok(Some(root_ref)) = mono.get_main_ref("/").await {
         return Ok(root_ref.ref_commit_hash);
     }
     Ok("HEAD".to_string())
