@@ -16,12 +16,16 @@ use import_refs::RefCommand;
 use jupiter::storage::Storage;
 use repo::Repo;
 
-use crate::auth::{DefaultUserAuthExtractor, PushUserInfo, UserAuthExtractor};
 use crate::pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 
 pub mod import_refs;
 pub mod repo;
 pub mod smart;
+
+#[derive(Clone, Debug)]
+pub struct PushUserInfo {
+    pub username: String,
+}
 
 #[derive(Clone)]
 pub struct SmartProtocol {
@@ -243,28 +247,9 @@ impl SmartProtocol {
                     && username == auth_config.test_user_name
                     && token == auth_config.test_user_token
                 {
-                    // For test user, create a basic PushUserInfo
-                    match self.create_user_auth_extractor() {
-                        Ok(user_auth) => {
-                            if let Ok(user_info) =
-                                user_auth.extract_user_from_username(username).await
-                            {
-                                self.authenticated_user = Some(user_info);
-                                return true;
-                            } else {
-                                tracing::warn!(
-                                    "Failed to extract user info for test user: {}",
-                                    username
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to create user auth extractor for test user: {}",
-                                e
-                            );
-                        }
-                    }
+                    self.authenticated_user = Some(PushUserInfo {
+                        username: username.to_string(),
+                    });
                     return true;
                 }
                 let token_valid = self
@@ -275,37 +260,17 @@ impl SmartProtocol {
                     .unwrap_or(false);
 
                 if token_valid {
-                    // Extract user information for valid token
-                    match self.create_user_auth_extractor() {
-                        Ok(user_auth) => {
-                            if let Ok(user_info) =
-                                user_auth.extract_user_from_username(username).await
-                            {
-                                self.authenticated_user = Some(user_info);
-                                return true;
-                            } else {
-                                tracing::warn!(
-                                    "Failed to extract user info for username: {}",
-                                    username
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to create user auth extractor: {}", e);
-                        }
-                    }
+                    // Valid token: set minimal authenticated user info
+                    self.authenticated_user = Some(PushUserInfo {
+                        username: username.to_string(),
+                    });
+                    return true;
                 }
 
                 return token_valid;
             }
         }
         false
-    }
-
-    /// Create a user authentication extractor
-    fn create_user_auth_extractor(&self) -> Result<DefaultUserAuthExtractor, MegaError> {
-        let user_storage = self.storage.user_storage();
-        Ok(DefaultUserAuthExtractor::new(user_storage))
     }
 }
 

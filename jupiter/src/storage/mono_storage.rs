@@ -308,30 +308,13 @@ impl MonoStorage {
         commits: &[(String, String)],
         authenticated_username: Option<&str>,
     ) -> Result<(), MegaError> {
-        let user_storage = self.user_storage();
         let commit_binding_storage = self.commit_binding_storage();
 
-        for (commit_sha, author_email) in commits {
+        for (commit_sha, _author_email) in commits {
             // Try to find user by authenticated username first
             let matched_username = if let Some(username) = authenticated_username {
-                // If authenticated username is available, use it to find user
-                match user_storage.find_user_by_name(username).await {
-                    Ok(Some(_user)) => {
-                        tracing::info!("Found user for username: {}", username);
-                        Some(username.to_string())
-                    }
-                    Ok(None) => {
-                        tracing::warn!(
-                            "Authenticated username {} not found in user table",
-                            username
-                        );
-                        None
-                    }
-                    Err(e) => {
-                        tracing::error!("Error finding user by username {}: {}", username, e);
-                        None
-                    }
-                }
+                // Local users table removed: accept authenticated username directly
+                Some(username.to_string())
             } else {
                 // No authenticated username, commit will be anonymous
                 tracing::info!(
@@ -345,17 +328,19 @@ impl MonoStorage {
 
             // Save or update binding
             if let Err(e) = commit_binding_storage
-                .upsert_binding(commit_sha, author_email, matched_username, is_anonymous)
+                .upsert_binding(commit_sha, matched_username.clone(), is_anonymous)
                 .await
             {
                 tracing::error!("Failed to save commit binding for {}: {}", commit_sha, e);
                 // Continue processing other commits even if one fails
             } else {
                 tracing::info!(
-                    "Processed binding for commit {} with email {} (anonymous: {})",
+                    "Processed binding for commit {} (anonymous: {}, username: {})",
                     commit_sha,
-                    author_email,
-                    is_anonymous
+                    is_anonymous,
+                    matched_username
+                        .clone()
+                        .unwrap_or_else(|| "anonymous".to_string())
                 );
             }
         }

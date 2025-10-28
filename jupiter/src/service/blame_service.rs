@@ -485,8 +485,8 @@ impl BlameService {
         compute_diff(old_lines, new_lines)
     }
 
-    /// Get user info (email and username) from commit_auths table
-    async fn get_campsite_user_info(&self, commit_hash: &str) -> Option<(String, String)> {
+    /// Get matched username from commit_auths table (username-only model)
+    async fn get_campsite_user_info(&self, commit_hash: &str) -> Option<String> {
         let commit_binding_storage = self.mono_storage.commit_binding_storage();
 
         // Try to find binding by commit hash
@@ -496,16 +496,11 @@ impl BlameService {
             } else if let Some(matched_username) = binding.matched_username {
                 matched_username
             } else {
-                // Extract username from email (part before @)
-                binding
-                    .author_email
-                    .split('@')
-                    .next()
-                    .unwrap_or(&binding.author_email)
-                    .to_string()
+                // No username available
+                return None;
             };
 
-            return Some((binding.author_email, username));
+            return Some(username);
         }
 
         // No binding found
@@ -537,7 +532,7 @@ impl BlameService {
                 }
             } else {
                 // Create new contributor
-                let username = if let Some((_, username)) = self
+                let username = if let Some(username) = self
                     .get_campsite_user_info(&block.blame_info.commit_hash)
                     .await
                 {
@@ -620,27 +615,25 @@ impl BlameService {
 
             let commit_hash_str = attr.commit_hash.to_string();
 
-            // Try to get author info from commit_auths table, fallback to git commit
-            let (author_email, author_username) = if let Some((email, username)) =
-                self.get_campsite_user_info(&commit_hash_str).await
-            {
-                (email, Some(username))
-            } else {
-                // No binding found in commit_auths table, use git commit info
-                // Extract username from git email as fallback
-                let git_email = commit.author.email.clone();
-                let fallback_username = git_email
-                    .split('@')
-                    .next()
-                    .unwrap_or(&git_email)
-                    .to_string();
-                (git_email, Some(fallback_username))
-            };
+            // Username binding (from commit_auths) and author email (from git commit)
+            let git_email = commit.author.email.clone();
+            let author_username =
+                if let Some(username) = self.get_campsite_user_info(&commit_hash_str).await {
+                    Some(username)
+                } else {
+                    // Fallback: derive username from git email prefix
+                    let fallback_username = git_email
+                        .split('@')
+                        .next()
+                        .unwrap_or(&git_email)
+                        .to_string();
+                    Some(fallback_username)
+                };
 
             let blame_info = BlameInfo {
                 commit_hash: commit_hash_str.clone(),
                 commit_short_id: commit_hash_str.chars().take(7).collect(),
-                author_email,
+                author_email: git_email,
                 commit_time: commit.committer.timestamp as i64,
                 commit_message: commit.message.clone(),
                 commit_summary: commit.message.lines().next().unwrap_or("").to_string(),
@@ -1330,36 +1323,21 @@ enable_https = true
             .app_service
             .mono_storage
             .commit_binding_storage()
-            .upsert_binding(
-                &commit1.id.to_string(),
-                users[0].1,
-                Some(users[0].0.to_string()),
-                false,
-            ) // Bob
+            .upsert_binding(&commit1.id.to_string(), Some(users[0].0.to_string()), false) // Bob
             .await
             .expect("Failed to save commit binding for user 1");
         storage
             .app_service
             .mono_storage
             .commit_binding_storage()
-            .upsert_binding(
-                &commit2.id.to_string(),
-                users[1].1,
-                Some(users[1].0.to_string()),
-                false,
-            ) // Alice
+            .upsert_binding(&commit2.id.to_string(), Some(users[1].0.to_string()), false) // Alice
             .await
             .expect("Failed to save commit binding for user 2");
         storage
             .app_service
             .mono_storage
             .commit_binding_storage()
-            .upsert_binding(
-                &commit3.id.to_string(),
-                users[2].1,
-                Some(users[2].0.to_string()),
-                false,
-            ) // Tony
+            .upsert_binding(&commit3.id.to_string(), Some(users[2].0.to_string()), false) // Tony
             .await
             .expect("Failed to save commit binding for user 3");
 

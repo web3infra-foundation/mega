@@ -70,10 +70,6 @@ pub struct LatestCommitInfo {
 pub struct CommitBindingInfo {
     pub matched_username: Option<String>,
     pub is_anonymous: bool,
-    pub is_verified_user: bool,
-    pub display_name: String,
-    pub avatar_url: Option<String>,
-    pub author_email: String,
 }
 
 impl From<Commit> for LatestCommitInfo {
@@ -98,19 +94,10 @@ impl From<Commit> for LatestCommitInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Default)]
 pub struct UserInfo {
     pub display_name: String,
     pub avatar_url: String,
-}
-
-impl Default for UserInfo {
-    fn default() -> Self {
-        UserInfo {
-            display_name: String::default(),
-            avatar_url: "default_url".to_string(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]

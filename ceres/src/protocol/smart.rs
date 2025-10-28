@@ -9,7 +9,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
-use crate::auth::UserAuthExtractor;
 use crate::protocol::ZERO_ID;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -353,142 +352,34 @@ impl SmartProtocol {
         }
     }
 
-    /// Bind a single commit to a user based on authenticated user and author email
+    /// Bind a single commit to a user based on authenticated user only (username-only model)
     async fn bind_commit_to_user(
         &self,
         commit_sha: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let repo_handler = self.repo_handler().await?;
         let commit_binding_storage = self.storage.commit_binding_storage();
 
-        // Extract author email from commit based on repo type
-        let author_email = if repo_handler.is_monorepo() {
-            // For monorepo, get from mono storage
-            let commit = self
-                .storage
-                .mono_storage()
-                .get_commit_by_hash(commit_sha)
-                .await?;
-
-            if let Some(commit_model) = commit {
-                // Extract author email from commit (assuming author field contains "Name <email>" format)
-                if let Some(author) = &commit_model.author {
-                    extract_email_from_author(author)
-                } else {
-                    return Ok(()); // Skip if no author info
-                }
-            } else {
-                return Ok(()); // Skip if commit not found
-            }
-        } else {
-            // For import repo, we need to find the repo_id first
-            let import_dir = self.storage.config().monorepo.import_dir.clone();
-            if !self.path.starts_with(import_dir) {
-                return Ok(()); // Skip if not in import directory
-            }
-
-            let path_str = self.path.to_str().unwrap();
-            let repo = self
-                .storage
-                .git_db_storage()
-                .find_git_repo_exact_match(path_str)
-                .await?;
-
-            if let Some(repo) = repo {
-                let commit = self
-                    .storage
-                    .git_db_storage()
-                    .get_commit_by_hash(repo.id, commit_sha)
-                    .await?;
-
-                if let Some(commit_model) = commit {
-                    // Extract author email from commit
-                    if let Some(author) = &commit_model.author {
-                        extract_email_from_author(author)
-                    } else {
-                        return Ok(()); // Skip if no author info
-                    }
-                } else {
-                    return Ok(()); // Skip if commit not found
-                }
-            } else {
-                return Ok(()); // Skip if repo not found
-            }
-        };
-
-        if author_email.is_empty() {
-            return Ok(()); // Skip if no valid email
-        }
-
-        // Enhanced user matching logic based on authentication status
-        let (final_user_id, is_anonymous) = if let Some(authenticated_user) =
-            &self.authenticated_user
-        {
-            // User is authenticated - check if commit author email belongs to them
-            match self.create_user_auth_extractor() {
-                Ok(user_auth) => {
-                    let email_belongs_to_user = user_auth
-                        .verify_email_ownership(&authenticated_user.username, &author_email)
-                        .await
-                        .unwrap_or(false);
-
-                    if email_belongs_to_user {
-                        // Author email belongs to authenticated user
-                        (Some(authenticated_user.username.clone()), false)
-                    } else {
-                        // Author email doesn't belong to authenticated user - try general matching
-                        let user_storage = self.storage.user_storage();
-                        let matched_user = user_storage.find_user_by_email(&author_email).await?;
-
-                        if let Some(user) = matched_user {
-                            (Some(user.name.clone()), false)
-                        } else {
-                            // Mark as anonymous since we can't match the email
-                            (None, true)
-                        }
-                    }
-                }
-                Err(e) => {
-                    // Log the error from create_user_auth_extractor for debugging
-                    tracing::warn!(
-                        "Failed to create user auth extractor for commit binding: {}. \
-                         Falling back to email-based matching.",
-                        e
-                    );
-
-                    // Fallback to email-based matching if auth extractor fails
-                    let user_storage = self.storage.user_storage();
-                    let matched_user = user_storage.find_user_by_email(&author_email).await?;
-                    if let Some(user) = matched_user {
-                        (Some(user.name.clone()), false)
-                    } else {
-                        (None, true)
-                    }
-                }
-            }
-        } else {
-            // No authenticated user - try to match by email only
-            let user_storage = self.storage.user_storage();
-            let matched_user = user_storage.find_user_by_email(&author_email).await?;
-
-            if let Some(user) = matched_user {
-                (Some(user.name.clone()), false)
+        // If there is an authenticated user, bind to their username; otherwise anonymous
+        let (matched_username, is_anonymous) =
+            if let Some(authenticated_user) = &self.authenticated_user {
+                (Some(authenticated_user.username.clone()), false)
             } else {
                 (None, true)
-            }
-        };
+            };
 
-        // Upsert the binding
+        // Upsert the binding using the simplified storage API
         commit_binding_storage
-            .upsert_binding(commit_sha, &author_email, final_user_id, is_anonymous)
+            .upsert_binding(commit_sha, matched_username.clone(), is_anonymous)
             .await?;
 
         tracing::info!(
-            "Bound commit {} (author: {}) to user: {:?} (authenticated: {})",
+            "Bound commit {} -> {}",
             commit_sha,
-            author_email,
-            if is_anonymous { "anonymous" } else { "matched" },
-            self.authenticated_user.is_some()
+            if is_anonymous {
+                "anonymous".to_string()
+            } else {
+                matched_username.unwrap_or_else(|| "unknown".to_string())
+            }
         );
 
         Ok(())
@@ -559,18 +450,6 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
     tracing::debug!("pkt line: {:?}", pkt_line);
 
     (pkt_length, pkt_line)
-}
-
-/// Extract email address from Git author string (format: "Name <email>")
-fn extract_email_from_author(author: &str) -> String {
-    if let Some(start) = author.rfind('<')
-        && let Some(end) = author.rfind('>')
-        && start < end
-    {
-        return author[start + 1..end].trim().to_string();
-    }
-
-    String::new()
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use callisto::{access_token, ssh_keys, user};
+use callisto::{access_token, ssh_keys};
 use common::{errors::MegaError, utils::generate_id};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -23,28 +23,6 @@ impl Deref for UserStorage {
 }
 
 impl UserStorage {
-    pub async fn find_user_by_email(&self, email: &str) -> Result<Option<user::Model>, MegaError> {
-        let res = user::Entity::find()
-            .filter(user::Column::Email.eq(email))
-            .one(self.get_connection())
-            .await?;
-        Ok(res)
-    }
-
-    pub async fn find_user_by_name(&self, name: &str) -> Result<Option<user::Model>, MegaError> {
-        let res = user::Entity::find()
-            .filter(user::Column::Name.eq(name))
-            .one(self.get_connection())
-            .await?;
-        Ok(res)
-    }
-
-    pub async fn save_user(&self, user: user::Model) -> Result<(), MegaError> {
-        let a_model = user.into_active_model();
-        a_model.insert(self.get_connection()).await.unwrap();
-        Ok(())
-    }
-
     pub async fn save_ssh_key(
         &self,
         username: String,
