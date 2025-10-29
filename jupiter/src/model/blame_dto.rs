@@ -163,8 +163,5 @@ pub struct Contributor {
 pub struct CommitBindingInfo {
     pub matched_username: Option<String>,
     pub is_anonymous: bool,
-    pub is_verified_user: bool,
-    pub display_name: String,
-    pub avatar_url: Option<String>,
     pub author_email: String,
 }

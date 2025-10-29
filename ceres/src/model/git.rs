@@ -61,8 +61,8 @@ pub struct LatestCommitInfo {
     pub oid: String,
     pub date: String,
     pub short_message: String,
-    pub author: UserInfo,
-    pub committer: UserInfo,
+    pub author: String,
+    pub committer: String,
     pub status: String,
 }
 
@@ -70,48 +70,23 @@ pub struct LatestCommitInfo {
 pub struct CommitBindingInfo {
     pub matched_username: Option<String>,
     pub is_anonymous: bool,
-    pub is_verified_user: bool,
-    pub display_name: String,
-    pub avatar_url: Option<String>,
-    pub author_email: String,
 }
 
 impl From<Commit> for LatestCommitInfo {
     fn from(commit: Commit) -> Self {
         let message = commit.format_message();
-        let committer = UserInfo {
-            display_name: commit.committer.name,
-            ..Default::default()
-        };
-        let author = UserInfo {
-            display_name: commit.author.name,
-            ..Default::default()
-        };
         Self {
             oid: commit.id.to_string(),
             date: commit.committer.timestamp.to_string(),
             short_message: message,
-            author,
-            committer,
+            author: commit.author.name,
+            committer: commit.committer.name,
             status: "success".to_string(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct UserInfo {
-    pub display_name: String,
-    pub avatar_url: String,
-}
-
-impl Default for UserInfo {
-    fn default() -> Self {
-        UserInfo {
-            display_name: String::default(),
-            avatar_url: "default_url".to_string(),
-        }
-    }
-}
+// UserInfo removed: author/committer are now plain strings
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct TreeCommitItem {

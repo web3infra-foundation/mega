@@ -27,7 +27,6 @@ impl CommitBindingStorage {
     pub async fn upsert_binding(
         &self,
         sha: &str,
-        author_email: &str,
         matched_username: Option<String>,
         is_anonymous: bool,
     ) -> Result<(), MegaError> {
@@ -35,7 +34,6 @@ impl CommitBindingStorage {
         let model = ActiveModel {
             id: ActiveValue::Set(Uuid::new_v4().to_string()),
             commit_sha: ActiveValue::Set(sha.to_string()),
-            author_email: ActiveValue::Set(author_email.to_string()),
             matched_username: ActiveValue::Set(matched_username.clone()),
             is_anonymous: ActiveValue::Set(is_anonymous),
             matched_at: ActiveValue::Set(Some(now)),

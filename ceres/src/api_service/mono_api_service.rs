@@ -483,7 +483,10 @@ impl ApiHandler for MonoApiService {
                     .collect();
                 let trees = storage.get_trees_by_hashes(tree_hashes).await.unwrap();
                 for tree in trees {
-                    item_to_commit.insert(tree.tree_id, tree.commit_id);
+                    // Skip invalid/empty commit ids to avoid noise and incorrect mapping
+                    if !tree.commit_id.is_empty() {
+                        item_to_commit.insert(tree.tree_id, tree.commit_id);
+                    }
                 }
 
                 let blob_hashes = tree
@@ -494,7 +497,9 @@ impl ApiHandler for MonoApiService {
                     .collect();
                 let blobs = storage.get_mega_blobs_by_hashes(blob_hashes).await.unwrap();
                 for blob in blobs {
-                    item_to_commit.insert(blob.blob_id, blob.commit_id);
+                    if !blob.commit_id.is_empty() {
+                        item_to_commit.insert(blob.blob_id, blob.commit_id);
+                    }
                 }
 
                 let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
@@ -508,12 +513,15 @@ impl ApiHandler for MonoApiService {
                 let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
                 for item in tree.tree_items {
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
-                        let commit = if let Some(commit) = commit_map.get(commit_id) {
-                            Some(commit.to_owned())
-                        } else {
-                            tracing::warn!("failed fetch from commit map: {}", commit_id);
-                            None
-                        };
+                        let commit = commit_map.get(commit_id).cloned();
+                        if commit.is_none() {
+                            tracing::warn!(
+                                item_name = %item.name,
+                                item_mode = ?item.mode,
+                                commit_id = %commit_id,
+                                "failed fetch from commit map"
+                            );
+                        }
                         result.insert(item, commit);
                     }
                 }
@@ -868,7 +876,8 @@ impl MonoApiService {
             Ok(saved_tag) => {
                 // try to write ref; if ref write fails, rollback DB insert
                 let path_str = repo_path.unwrap_or_else(|| "/".to_string());
-                let tree_hash = common::utils::ZERO_ID.to_string();
+                // Resolve tree hash from target commit so ref metadata is complete
+                let tree_hash = self.resolve_tree_hash_for_commit(&object_id).await?;
                 let refs =
                     mega_refs::Model::new(&path_str, full_ref.clone(), object_id, tree_hash, false);
 
@@ -908,7 +917,13 @@ impl MonoApiService {
 
         let path_str = repo_path.unwrap_or_else(|| "/".to_string());
         let object_id = target.clone().unwrap_or_default();
-        let tree_hash = common::utils::ZERO_ID.to_string();
+        if object_id.is_empty() {
+            return Err(GitError::CustomError(
+                "[code:400] Missing target commit for lightweight tag".to_string(),
+            ));
+        }
+        // Resolve tree hash from target commit
+        let tree_hash = self.resolve_tree_hash_for_commit(&object_id).await?;
 
         let refs = mega_refs::Model::new(
             &path_str,
@@ -937,6 +952,32 @@ impl MonoApiService {
             message: String::new(),
             created_at: saved_ref.created_at.and_utc().to_rfc3339(),
         })
+    }
+
+    /// Resolve the tree hash for a given commit id with proper error mapping/logging
+    async fn resolve_tree_hash_for_commit(&self, commit_id: &str) -> Result<String, GitError> {
+        let mono_storage = self.storage.mono_storage();
+        match mono_storage.get_commit_by_hash(commit_id).await {
+            Ok(Some(commit_model)) => Ok(commit_model.tree.clone()),
+            Ok(None) => {
+                tracing::error!(
+                    "Target commit '{}' not found while resolving tree hash",
+                    commit_id
+                );
+                Err(GitError::CustomError(format!(
+                    "[code:404] Target commit '{}' not found",
+                    commit_id
+                )))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "DB error fetching commit '{}' for tree hash resolution: {}",
+                    commit_id,
+                    e
+                );
+                Err(GitError::CustomError("[code:500] DB error".to_string()))
+            }
+        }
     }
     async fn validate_target_commit_mono(&self, target: Option<&String>) -> Result<(), GitError> {
         let mono_storage = self.storage.mono_storage();
