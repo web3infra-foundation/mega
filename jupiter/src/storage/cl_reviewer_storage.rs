@@ -79,7 +79,7 @@ impl ClReviewerStorage {
             })?
             .is_some();
 
-        if is_reviewer { Ok(true) } else { Ok(false) }
+        Ok(is_reviewer)
     }
 
     pub async fn list_reviewers(

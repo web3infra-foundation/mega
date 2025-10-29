@@ -637,7 +637,7 @@ async fn review_resolve(
     let res = state
         .storage
         .reviewer_storage()
-        .is_reviewer(&link, &user.campsite_user_id)
+        .is_reviewer(&link, &user.username)
         .await?;
 
     if !res {
