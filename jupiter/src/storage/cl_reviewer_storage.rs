@@ -68,7 +68,7 @@ impl ClReviewerStorage {
     }
 
     pub async fn is_reviewer(&self, cl_link: &str, username: &str) -> Result<bool, MegaError> {
-        mega_cl_reviewer::Entity::find()
+        let is_reviewer = mega_cl_reviewer::Entity::find()
             .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
             .filter(mega_cl_reviewer::Column::Username.eq(username))
             .one(self.get_connection())
@@ -76,9 +76,10 @@ impl ClReviewerStorage {
             .map_err(|e| {
                 tracing::error!("Error finding the reviewer: {}", e);
                 e
-            })?;
+            })?
+            .is_some();
 
-        Ok(true)
+        if is_reviewer { Ok(true) } else { Ok(false) }
     }
 
     pub async fn list_reviewers(

@@ -634,11 +634,17 @@ async fn review_resolve(
     Path(link): Path<String>,
     Json(payload): Json<ChangeReviewStatePayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state
+    let res = state
         .storage
-        .cl_storage()
-        .is_assignee(&link, &user.username)
+        .reviewer_storage()
+        .is_reviewer(&link, &user.campsite_user_id)
         .await?;
+
+    if !res {
+        return Err(ApiError::from(MegaError::with_message(
+            "Only reviewer can resolve the review comments",
+        )));
+    }
 
     state
         .storage
