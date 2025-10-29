@@ -44,7 +44,11 @@ pub enum Error {
 
 #[allow(clippy::result_large_err)]
 impl CedarContext {
-    pub fn from(entities: EntityStore, schema_content: &str, policy_content: &str) -> Result<Self, ContextError> {
+    pub fn from(
+        entities: EntityStore,
+        schema_content: &str,
+        policy_content: &str,
+    ) -> Result<Self, ContextError> {
         let (schema, _) = Schema::from_cedarschema_str(schema_content).unwrap();
         let policies = policy_content.parse()?;
         let validator = Validator::new(schema.clone());
