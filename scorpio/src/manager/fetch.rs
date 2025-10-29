@@ -848,13 +848,13 @@ pub async fn fetch_parent_commit() -> Result<Commit, Box<dyn std::error::Error>>
         let parent_info = response.json::<LatestCommitInfo>().await?;
         let author_sign = Signature::new(
             SignatureType::Author,
-            parent_info.author.display_name.clone(),
-            parent_info.author.avatar_url.clone(),
+            parent_info.author.clone(),
+            String::new(),
         );
         let committer_sign = Signature::new(
             SignatureType::Committer,
-            parent_info.committer.display_name.clone(),
-            parent_info.committer.avatar_url.clone(),
+            parent_info.committer.clone(),
+            String::new(),
         );
         Ok(Commit::new(
             author_sign,

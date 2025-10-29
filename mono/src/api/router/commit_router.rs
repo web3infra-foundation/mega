@@ -41,73 +41,28 @@ async fn update_commit_binding(
     Json(request): Json<UpdateCommitBindingRequest>,
 ) -> Result<Json<CommonResult<CommitBindingResponse>>, ApiError> {
     let commit_binding_storage = state.storage.commit_binding_storage();
-    let user_storage = state.storage.user_storage();
 
-    // First check if commit binding exists
-    let existing_binding = commit_binding_storage
-        .find_by_sha(&sha)
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Database query failed: {}", e)))?;
-
-    let author_email = if let Some(ref binding) = existing_binding {
-        binding.author_email.clone()
+    // Derive final username from request (ignore username when explicitly anonymous)
+    let final_username = if request.is_anonymous {
+        None
     } else {
-        // If no binding exists, we need the author email - this could be passed in request or derived from git
-        return Err(ApiError::from(anyhow::anyhow!(
-            "No existing binding found for commit {}",
-            sha
-        )));
+        request.username.as_ref().and_then(|u| {
+            let t = u.trim();
+            if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        })
     };
 
-    // Validate user if not anonymous
-    if !request.is_anonymous {
-        if let Some(ref username) = request.username {
-            let user_exists = user_storage
-                .find_user_by_name(username)
-                .await
-                .map_err(|e| ApiError::from(anyhow::anyhow!("User validation failed: {}", e)))?;
-
-            if user_exists.is_none() {
-                return Err(ApiError::from(anyhow::anyhow!(
-                    "User not found: {}",
-                    username
-                )));
-            }
-        } else {
-            return Err(ApiError::from(anyhow::anyhow!(
-                "Username required when not anonymous"
-            )));
-        }
-    }
-
-    // Update the binding
+    // Update binding with simplified schema (no author_email)
     commit_binding_storage
-        .upsert_binding(
-            &sha,
-            &author_email,
-            request.username.clone(),
-            request.is_anonymous,
-        )
+        .upsert_binding(&sha, final_username.clone(), final_username.is_none())
         .await
         .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update binding: {}", e)))?;
 
-    // Prepare response with updated information
-    let (display_name, avatar_url, is_verified_user) = if request.is_anonymous {
-        ("Anonymous".to_string(), None, false)
-    } else if let Some(ref username) = request.username {
-        // Get user info for verified response
-        match user_storage.find_user_by_name(username).await {
-            Ok(Some(user)) => (user.name.clone(), Some(user.avatar_url.clone()), true),
-            _ => (username.clone(), None, true),
-        }
-    } else {
-        ("Anonymous".to_string(), None, false)
-    };
-
-    // Return success response with complete information
     Ok(Json(CommonResult::success(Some(CommitBindingResponse {
-        display_name,
-        avatar_url,
-        is_verified_user,
+        username: final_username,
     }))))
 }

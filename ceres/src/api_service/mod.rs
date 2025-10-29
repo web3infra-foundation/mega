@@ -109,21 +109,24 @@ pub trait ApiHandler: Send + Sync {
         // 1) Try as directory path first
         if let Some(tree) = self.search_tree_by_path(&path).await? {
             let commit = self.get_tree_relate_commit(tree.id, path).await?;
-            let mut commit_info: LatestCommitInfo = commit.into();
+            let mut commit_info: LatestCommitInfo = commit.clone().into();
 
-            if let Some(binding) = self.build_commit_binding_info(&commit_info.oid).await? {
-                let display = binding.display_name.clone();
-                let avatar = binding.avatar_url.clone().unwrap_or_default();
-                commit_info.author.display_name = display;
-                commit_info.author.avatar_url = avatar;
+            // If commit has a username binding, prefer showing that username
+            if let Ok(Some(binding)) = self.build_commit_binding_info(&commit.id.to_string()).await
+                && !binding.is_anonymous
+                && binding.matched_username.is_some()
+            {
+                let username = binding.matched_username.unwrap();
+                commit_info.author = username.clone();
+                commit_info.committer = username;
             }
 
             return Ok(commit_info);
         }
 
-        // 2) If not a directory, try as file path: lookup parent directory and map blob -> commit
-        let file_name = path
-            .file_name()
+        // 2) If not a directory, try as file path
+        // basic validation for file path
+        path.file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
         let parent = path
@@ -136,29 +139,25 @@ pub trait ApiHandler: Send + Sync {
                 "can't find target parent tree under latest commit".to_string(),
             ));
         };
-
-        // Use directory item -> commit mapping to find the file's latest commit
-        let map = self.item_to_commit_map(parent.to_path_buf()).await?;
-        // Find matching blob item in the directory
-        let matched_commit = map.into_iter().find_map(|(item, commit_opt)| {
-            if item.mode == TreeItemMode::Blob && item.name == file_name {
-                commit_opt
-            } else {
-                None
+        match self.resolve_latest_commit_for_file_path(&path).await? {
+            Some(commit) => {
+                let mut commit_info: LatestCommitInfo = commit.clone().into();
+                // If commit has a username binding, prefer showing that username
+                if let Ok(Some(binding)) =
+                    self.build_commit_binding_info(&commit.id.to_string()).await
+                    && !binding.is_anonymous
+                    && binding.matched_username.is_some()
+                {
+                    let username = binding.matched_username.unwrap();
+                    commit_info.author = username.clone();
+                    commit_info.committer = username;
+                }
+                Ok(commit_info)
             }
-        });
-
-        let commit = matched_commit
-            .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
-
-        let mut commit_info: LatestCommitInfo = commit.into();
-        if let Some(binding) = self.build_commit_binding_info(&commit_info.oid).await? {
-            let display = binding.display_name.clone();
-            let avatar = binding.avatar_url.clone().unwrap_or_default();
-            commit_info.author.display_name = display;
-            commit_info.author.avatar_url = avatar;
+            None => Err(GitError::CustomError(
+                "[code:404] File not found".to_string(),
+            )),
         }
-        Ok(commit_info)
     }
 
     /// Build commit binding information for a given commit SHA
@@ -168,46 +167,11 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<Option<CommitBindingInfo>, GitError> {
         let storage = self.get_context();
         let commit_binding_storage = storage.commit_binding_storage();
-        let user_storage = storage.user_storage();
 
         if let Ok(Some(binding_model)) = commit_binding_storage.find_by_sha(commit_sha).await {
-            // Get user information if not anonymous
-            let user_info =
-                if !binding_model.is_anonymous && binding_model.matched_username.is_some() {
-                    let username = binding_model.matched_username.as_ref().unwrap();
-                    if let Ok(Some(user)) = user_storage.find_user_by_name(username).await {
-                        Some((user.name.clone(), user.avatar_url.clone()))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-            let (display_name, avatar_url, is_verified_user) = if binding_model.is_anonymous {
-                ("Anonymous".to_string(), None, false)
-            } else if let Some((username, avatar)) = user_info {
-                (username, Some(avatar), true)
-            } else {
-                (
-                    binding_model
-                        .author_email
-                        .split('@')
-                        .next()
-                        .unwrap_or(&binding_model.author_email)
-                        .to_string(),
-                    None,
-                    false,
-                )
-            };
-
             Ok(Some(CommitBindingInfo {
                 matched_username: binding_model.matched_username,
                 is_anonymous: binding_model.is_anonymous,
-                is_verified_user,
-                display_name,
-                avatar_url,
-                author_email: binding_model.author_email,
             }))
         } else {
             Ok(None)
@@ -312,6 +276,73 @@ pub trait ApiHandler: Send + Sync {
         _refs: Option<&str>,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
         self.item_to_commit_map(path).await
+    }
+
+    /// Precise algorithm: walk commit history from HEAD and return the newest commit
+    /// where the file blob at `path` differs from its parent (or was added).
+    /// Returns Ok(Some(commit)) on success, Ok(None) if file not found at HEAD.
+    async fn resolve_latest_commit_for_file_path(
+        &self,
+        path: &Path,
+    ) -> Result<Option<Commit>, GitError> {
+        // Ensure file exists at HEAD and capture its blob id
+        let head_tree = self.get_root_tree().await;
+        let head_commit = self
+            .get_tree_relate_commit(head_tree.id, PathBuf::from("/"))
+            .await?;
+
+        let current_blob = self
+            .get_file_blob_id(path, Some(&head_commit.id.to_string()))
+            .await?;
+        let Some(mut curr_blob) = current_blob else {
+            return Ok(None);
+        };
+
+        let mut curr_commit = head_commit.clone();
+        // Safety guard to avoid pathological loops on very deep histories
+        let mut steps: u32 = 0;
+        const MAX_STEPS: u32 = 10_000;
+
+        loop {
+            steps += 1;
+            if steps > MAX_STEPS {
+                // Fallback: give up and return HEAD commit to avoid timeouts
+                tracing::warn!(
+                    "resolve_latest_commit_for_file_path hit MAX_STEPS for path: {:?}",
+                    path
+                );
+                return Ok(Some(curr_commit));
+            }
+
+            // Single-parent traversal (our commits are linear fast-forward in Mono)
+            let parent_id_opt = curr_commit.parent_commit_ids.first().cloned();
+            let Some(parent_id) = parent_id_opt else {
+                // Reached root of history; current commit introduced the file or first reference
+                return Ok(Some(curr_commit));
+            };
+
+            let Some(parent_commit) = self.get_commit_by_hash(&parent_id.to_string()).await else {
+                // Parent commit missing in storage; return current best
+                return Ok(Some(curr_commit));
+            };
+
+            let parent_blob = self
+                .get_file_blob_id(path, Some(&parent_commit.id.to_string()))
+                .await?;
+
+            if parent_blob.is_none() {
+                // File did not exist in parent, so current commit added it
+                return Ok(Some(curr_commit));
+            }
+            let p_blob = parent_blob.unwrap();
+            if p_blob != curr_blob {
+                // Blob changed between parent and current -> current touched the path
+                return Ok(Some(curr_commit));
+            }
+            // Otherwise continue walking back
+            curr_commit = parent_commit;
+            curr_blob = p_blob;
+        }
     }
 
     // Tag related operations shared across mono/import implementations.

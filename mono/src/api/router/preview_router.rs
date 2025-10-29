@@ -77,13 +77,19 @@ async fn create_entry(
     let handler = state.api_handler(json.path.as_ref()).await?;
     let commit_id = handler.create_monorepo_entry(json.clone()).await?;
 
-    // If frontend provided author info, bind commit to that user (same as save_edit)
-    if let Some(email) = json.author_email.as_ref() {
-        let stg = state.storage.commit_binding_storage();
-        stg.upsert_binding(&commit_id, email, json.author_username.clone(), false)
-            .await
-            .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
-    }
+    // Bind commit to optional username; empty/"anonymous" -> anonymous
+    let stg = state.storage.commit_binding_storage();
+    let final_username = json.author_username.as_deref().and_then(|u| {
+        let t = u.trim();
+        if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
+    stg.upsert_binding(&commit_id, final_username.clone(), final_username.is_none())
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -365,18 +371,23 @@ async fn save_edit(
     let handler = state.api_handler(payload.path.as_ref()).await?;
     let res = handler.save_file_edit(payload.clone()).await?;
 
-    // If frontend provided author info, bind commit to that user
-    if let Some(email) = payload.author_email.as_ref() {
-        let stg = state.storage.commit_binding_storage();
-        stg.upsert_binding(
-            &res.commit_id,
-            email,
-            payload.author_username.clone(),
-            false,
-        )
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
-    }
+    // Bind commit to optional username; empty/"anonymous" -> anonymous
+    let stg = state.storage.commit_binding_storage();
+    let final_username = payload.author_username.as_deref().and_then(|u| {
+        let t = u.trim();
+        if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
+    stg.upsert_binding(
+        &res.commit_id,
+        final_username.clone(),
+        final_username.is_none(),
+    )
+    .await
+    .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
 
     Ok(Json(CommonResult::success(Some(res))))
 }
