@@ -7,13 +7,13 @@ use callisto::{
 };
 use common::errors::MegaError;
 use common::model::Pagination;
-use sea_orm::RelationTrait;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QuerySelect, Set,
 };
+use sea_orm::{QueryOrder, RelationTrait};
 
 use crate::model::common::{ItemDetails, ListParams};
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -69,7 +69,7 @@ impl ClStorage {
             ]
         };
 
-        let query = mega_cl::Entity::find()
+        let base_query = mega_cl::Entity::find()
             .join(
                 JoinType::LeftJoin,
                 callisto::entity_ext::mega_cl::Relation::ItemLabels.def(),
@@ -80,20 +80,23 @@ impl ClStorage {
             )
             .filter(mega_cl::Column::Status.is_in(status))
             .filter(cond)
-            .distinct();
+            .distinct()
+            .order_by_asc(mega_cl::Column::Id);
 
         let mut sort_map = HashMap::new();
         sort_map.insert("created_at", mega_cl::Column::CreatedAt);
         sort_map.insert("updated_at", mega_cl::Column::UpdatedAt);
 
-        let query = apply_sort(query, params.sort_by.as_deref(), params.asc, &sort_map);
-        let paginator = query.paginate(self.get_connection(), page.per_page);
-        let num_pages = paginator.num_items().await?;
+        let sorted_query = apply_sort(base_query, params.sort_by.as_deref(), params.asc, &sort_map);
 
-        let (cl_list, page) = paginator
-            .fetch_page(page.page - 1)
-            .await
-            .map(|m| (m, num_pages))?;
+        let paginator = sorted_query.paginate(self.get_connection(), page.per_page);
+        let total = paginator.num_items().await?;
+
+        let cl_list = paginator.fetch_page(page.page - 1).await?;
+
+        if cl_list.is_empty() {
+            return Ok((vec![], 0));
+        }
 
         let ids = cl_list.iter().map(|m| m.id).collect::<Vec<_>>();
 
@@ -124,7 +127,7 @@ impl ClStorage {
 
         let res = combine_item_list::<mega_cl::Entity>(labels, assignees, conversations);
 
-        Ok((res, page))
+        Ok((res, total))
     }
 
     pub async fn get_cl_suggestions_by_query(

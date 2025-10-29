@@ -18,10 +18,10 @@ saturn = { workspace = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
-    "sqlx-mysql",
     "sqlx-sqlite",
     "runtime-tokio-rustls",
     "macros",
+    "debug-print",
 ] }
 sea-orm-migration = { workspace = true }
 
@@ -43,4 +43,4 @@ anyhow = { workspace = true }
 tempfile = { workspace = true }
 indexmap = { workspace = true }
 url = { workspace = true }
-pgp = {workspace = true}
+pgp = { workspace = true }
