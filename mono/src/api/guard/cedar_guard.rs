@@ -36,7 +36,7 @@ pub async fn cedar_guard(
     State(state): State<MonoApiServiceState>,
     req: Request,
     _next: Next,
-) -> Result< () , ApiError> {
+) -> Result<(), ApiError> {
     let method = req.uri().path();
     let action = CL_ROUTER_ACTIONS.get(method).ok_or_else(|| {
         MegaError::with_message(format!("No action mapping found for method: {}", method))
@@ -45,7 +45,7 @@ pub async fn cedar_guard(
     let user = req
         .extensions()
         .get::<LoginUser>()
-        .cloned() // Option<&LoginUser> → Option<LoginUser> （要求 LoginUser: Clone）
+        .cloned() 
         .ok_or_else(|| {
             MegaError::with_message("Missing LoginUser injection")
         })?;
@@ -74,7 +74,7 @@ async fn authorize(
     let role_entity = EntityTypeName::from_str("User")?;    
     let actiontype_entity = EntityTypeName::from_str("Action")?; 
 
-    let principle = saturn::util::EntityUid::from(
+    let principal = saturn::util::EntityUid::from(
         EntityUid::from_type_name_and_id(role_entity,user_entity)
     );
     let action = saturn::util::EntityUid::from(
@@ -92,7 +92,7 @@ async fn authorize(
     }), None)?;
 
     cedar_context.is_authorized(
-        &principle,
+        &principal,
         &action,
         &resource,
         context,

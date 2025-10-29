@@ -49,7 +49,7 @@ impl CedarContext {
         schema_content: &str,
         policy_content: &str,
     ) -> Result<Self, ContextError> {
-        let (schema, _) = Schema::from_cedarschema_str(schema_content).unwrap();
+        let (schema, _) = Schema::from_cedarschema_str(schema_content)?;
         let policies = policy_content.parse()?;
         let validator = Validator::new(schema.clone());
         let output = validator.validate(&policies, ValidationMode::default());

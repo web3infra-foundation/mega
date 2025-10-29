@@ -13,6 +13,7 @@ use axum::routing::get;
 use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
+use saturn::entitystore::EntityStore;
 use time::Duration;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -111,6 +112,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
         session_store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
         listen_addr: format!("http://{host}:{port}"),
+        entity_store: EntityStore::new(),
     };
 
     let origins: Vec<HeaderValue> = oauth_config

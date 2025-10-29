@@ -6,6 +6,7 @@ use oauth2::{
         BasicTokenResponse,
     },
 };
+use saturn::entitystore::EntityStore;
 use std::path::Path;
 use tower_sessions::MemoryStore;
 
@@ -29,6 +30,7 @@ pub mod error;
 pub mod notes;
 pub mod oauth;
 pub mod router;
+pub mod guard;
 
 pub type GithubClient<
     HasAuthUrl = EndpointSet,
@@ -55,6 +57,7 @@ pub struct MonoApiServiceState {
     pub oauth_client: Option<GithubClient>,
     pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
+    pub entity_store: EntityStore,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -78,6 +81,12 @@ impl FromRef<MonoApiServiceState> for GithubClient {
 impl FromRef<MonoApiServiceState> for UserStorage {
     fn from_ref(state: &MonoApiServiceState) -> Self {
         state.storage.user_storage()
+    }
+}
+
+impl FromRef<MonoApiServiceState> for EntityStore {
+    fn from_ref(state: &MonoApiServiceState) -> Self {
+        state.entity_store.clone()
     }
 }
 
