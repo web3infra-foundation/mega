@@ -228,7 +228,6 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
               <span>/</span>
             </React.Fragment>
           ))}
-          {pathSegments.length > 0 && <span className='font-medium text-blue-600'></span>}
 
           <input
             type='text'
