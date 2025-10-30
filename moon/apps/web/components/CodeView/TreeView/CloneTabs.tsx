@@ -24,16 +24,15 @@ const CloneTabs = () => {
     }
   }, [pathname])
 
+  const url = new URL(MONO_API_URL)
+
   const handleCopy = () => {
-    const url = new URL(MONO_API_URL)
     const text = active_tab === 'HTTP' ? `${url.href}${repo_name}.git` : `ssh://git@${url.host}/${repo_name}.git`
 
     copy(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000) // Reset after 2 seconds
   }
-
-  const url = new URL(MONO_API_URL)
   const tabContent = [
     {
       value: 'HTTP',

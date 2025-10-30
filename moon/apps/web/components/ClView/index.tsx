@@ -48,6 +48,10 @@ import { Heading } from './catalyst/heading'
 
 type ItemsType = NonNullable<PostApiClListData['data']>['items']
 
+const escapeRegExp = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export default function CLView() {
   const { scope } = useScope()
   const [clList, setClList] = useState<ItemsType>([])
@@ -223,7 +227,8 @@ export default function CLView() {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Author']) {
-          const newQuery = searchQuery.replace(new RegExp(`author:${sort['Author']}\\s*`, 'g'), '').trim()
+          const escapedAuthor = escapeRegExp(sort['Author'])
+          const newQuery = searchQuery.replace(new RegExp(`author:${escapedAuthor}\\s*`, 'g'), '').trim()
 
           setSearchQuery(newQuery)
           setSort({
@@ -249,7 +254,8 @@ export default function CLView() {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Assignees']) {
-          const newQuery = searchQuery.replace(new RegExp(`assignee:${sort['Assignees']}\\s*`, 'g'), '').trim()
+          const escapedAssignee = escapeRegExp(sort['Assignees'])
+          const newQuery = searchQuery.replace(new RegExp(`assignee:${escapedAssignee}\\s*`, 'g'), '').trim()
 
           setSearchQuery(newQuery)
           setSort({
@@ -281,12 +287,14 @@ export default function CLView() {
       onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
         if (label?.includes(String(item.id))) {
-          const newQuery = searchQuery.replace(new RegExp(`label:"${item.name}"\\s*`, 'g'), '').trim()
+          const escapedLabelName = escapeRegExp(item.name)
+          const newQuery = searchQuery.replace(new RegExp(`label:"${escapedLabelName}"\\s*`, 'g'), '').trim()
 
           setSearchQuery(newQuery)
           setLabel(label.filter((i) => i !== String(item.id)))
         } else {
-          const newQuery = searchQuery ? `${searchQuery} label:"${item.name}"` : `label:"${item.name}"`
+          const escapedLabelName = escapeRegExp(item.name)
+          const newQuery = searchQuery ? `${searchQuery} label:"${escapedLabelName}"` : `label:"${escapedLabelName}"`
 
           setSearchQuery(newQuery)
           setLabel([...label, String(item.id)])
@@ -305,12 +313,14 @@ export default function CLView() {
       onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
         if (item === review) {
-          const newQuery = searchQuery.replace(new RegExp(`review:${review}\\s*`, 'g'), '').trim()
+          const escapedReview = escapeRegExp(review)
+          const newQuery = searchQuery.replace(new RegExp(`review:${escapedReview}\\s*`, 'g'), '').trim()
 
           setSearchQuery(newQuery)
           setReview('')
         } else {
-          let newQuery = searchQuery.replace(new RegExp(`review:${review}\\s*`, 'g'), '').trim()
+          const escapedReview = escapeRegExp(review)
+          let newQuery = searchQuery.replace(new RegExp(`review:${escapedReview}\\s*`, 'g'), '').trim()
 
           newQuery = newQuery ? `${newQuery} review:${item}` : `review:${item}`
           setSearchQuery(newQuery)

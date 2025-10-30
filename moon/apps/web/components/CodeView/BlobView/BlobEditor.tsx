@@ -148,7 +148,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         >
           {contentLines.map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className='leading-6' style={{ height: '1.5rem' }}>
+            <div key={index} className='leading-6'>
               {index + 1}
             </div>
           ))}
