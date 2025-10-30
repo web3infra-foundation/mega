@@ -9,7 +9,7 @@ use crate::{
     util::EntityUid,
 };
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct EntityStore {
     users: HashMap<EntityUid, User>,
     repos: HashMap<EntityUid, Repo>,

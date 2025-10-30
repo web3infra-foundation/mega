@@ -44,6 +44,36 @@ pub enum Error {
 
 #[allow(clippy::result_large_err)]
 impl CedarContext {
+    pub fn from(
+        entities: EntityStore,
+        schema_content: &str,
+        policy_content: &str,
+    ) -> Result<Self, ContextError> {
+        let (schema, _) = Schema::from_cedarschema_str(schema_content)?;
+        let policies = policy_content.parse()?;
+        let validator = Validator::new(schema.clone());
+        let output = validator.validate(&policies, ValidationMode::default());
+
+        if output.validation_passed() {
+            tracing::info!("All policy validation passed!");
+            let authorizer = Authorizer::new();
+            let c = Self {
+                entities,
+                authorizer,
+                policies,
+                schema,
+            };
+
+            Ok(c)
+        } else {
+            let error_string = output
+                .validation_errors()
+                .map(|err| format!("{err}"))
+                .join("\n");
+            Err(ContextError::Validation(error_string))
+        }
+    }
+
     pub fn new(entities: EntityStore) -> Result<Self, ContextError> {
         let schema_content = include_str!("../mega.cedarschema");
         let policy_content = include_str!("../mega_policies.cedar");
