@@ -20,6 +20,7 @@ import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
 import { getLangFromFileName } from '@/utils/getLanguageDetection'
 
+import BlobEditor from './BlobEditor'
 import styles from './CodeContent.module.css'
 
 ;(typeof global !== 'undefined' ? global : window).Prism = Prism
@@ -94,6 +95,7 @@ const CodeContent = ({
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
   const [manualViewMode, setManualViewMode] = useState<ViewMode | null>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
 
   const nextRouter = useNextRouter()
 
@@ -124,6 +126,7 @@ const CodeContent = ({
 
   useEffect(() => {
     setManualViewMode(null)
+    setIsEditMode(false)
   }, [path])
 
   const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename])
@@ -335,7 +338,7 @@ const CodeContent = ({
 
     return blameData.data.blocks.map((block) => {
       const colorClass = getBlameColorClass(
-        block.blame_info?.author_time || 0,
+        block.blame_info?.commit_time || 0,
         blameData.data?.earliest_commit_time || 0,
         blameData.data?.latest_commit_time || 0
       )
@@ -484,11 +487,11 @@ const CodeContent = ({
                   <div className='flex-shrink-0 border-r border-gray-200' style={{ width: '350px' }}>
                     <div className='top-0 z-10 flex items-center px-3 py-2'>
                       <span className='w-[100px] truncate text-xs text-gray-600'>
-                        {formatRelativeTime(block.blameInfo?.author_time || 0)}
+                        {formatRelativeTime(block.blameInfo?.commit_time || 0)}
                       </span>
                       <UserAvatar
                         username={block.blameInfo?.author_username || ''}
-                        zIndex={block.blameInfo?.author_time || 0}
+                        zIndex={block.blameInfo?.commit_time || 0}
                       />
                       <div className='ml-2 flex w-[200px] items-center'>
                         <span className='truncate text-xs text-gray-600' title={block.blameInfo?.commit_summary}>
@@ -595,6 +598,18 @@ const CodeContent = ({
     )
   }, [fileContent, isCodeLoading])
 
+  const handleEditClick = useCallback(() => {
+    setIsEditMode(true)
+  }, [])
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditMode(false)
+  }, [])
+
+  if (isEditMode) {
+    return <BlobEditor fileContent={fileContent} filePath={filePath} fileName={filename} onCancel={handleCancelEdit} />
+  }
+
   return (
     <div>
       <div className={styles.toolbar}>
@@ -639,9 +654,11 @@ const CodeContent = ({
             Download
           </button>
         </div>
-        {version === 'main' && (
+        {version === 'main' && !lfs && (
           <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
-            <button className={styles.toolbarRightButton}>Edit</button>
+            <button className={styles.toolbarRightButton} onClick={handleEditClick}>
+              Edit
+            </button>
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { Avatar, Button, ClockIcon, EyeIcon } from '@gitmono/ui'
 
 import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { useGetLatestCommit } from '@/hooks/useGetLatestCommit'
+import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 
 import CommitDetails from './CommitDetails'
 
@@ -25,6 +26,7 @@ interface CommitHistoryProps {
 export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) {
   const [Expand, setExpand] = useState(false)
   const { data: commitData } = useGetLatestCommit(path, refs)
+  const { data: memberData } = useGetOrganizationMember({ username: commitData?.author, enabled: !!commitData?.author })
 
   const ExpandDetails = () => {
     setExpand(!Expand)
@@ -44,10 +46,10 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
     <>
       <div style={CommitHyStyle}>
         <Flex align='center' className='p-1'>
-          <MemberHovercard username={commit.author.display_name} role='member'>
+          <MemberHovercard username={commit.author} role='member'>
             <Flex align='center'>
-              <Avatar src={commit.author.avatar_url} />
-              <span className='mx-3 font-bold'>{commit.author.display_name}</span>
+              <Avatar src={memberData?.user?.avatar_url || ''} />
+              <span className='mx-3 font-bold'>{commit.author}</span>
             </Flex>
           </MemberHovercard>
           <span className='min-w-0 flex-1 truncate text-sm text-gray-500'>{commit.short_message}</span>

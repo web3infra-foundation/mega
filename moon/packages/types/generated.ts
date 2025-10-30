@@ -3061,18 +3061,14 @@ export type BlameBlock = {
 /** Blame information for a specific commit */
 export type BlameInfo = {
   author_email: string
-  /** @format int64 */
-  author_time: number
   author_username?: string | null
   commit_detail_url: string
   commit_hash: string
   commit_message: string
   commit_short_id: string
   commit_summary: string
-  committer_email: string
   /** @format int64 */
-  committer_time: number
-  committer_username?: string | null
+  commit_time: number
   /** @min 0 */
   original_line_number: number
 }
@@ -3175,9 +3171,7 @@ export type CloneRepoPayload = {
 }
 
 export type CommitBindingResponse = {
-  avatar_url?: string | null
-  display_name: string
-  is_verified_user: boolean
+  username?: string | null
 }
 
 export type CommonPage = {
@@ -3250,9 +3244,7 @@ export type CommonResultCLDetailRes = {
 
 export type CommonResultCommitBindingResponse = {
   data?: {
-    avatar_url?: string | null
-    display_name: string
-    is_verified_user: boolean
+    username?: string | null
   }
   err_message: string
   req_result: boolean
@@ -3759,8 +3751,8 @@ export type LabelUpdatePayload = {
 }
 
 export type LatestCommitInfo = {
-  author: UserInfo
-  committer: UserInfo
+  author: string
+  committer: string
   date: string
   oid: string
   short_message: string
@@ -3957,11 +3949,6 @@ export type UpdateRequest = {
   /** @format int32 */
   description_schema_version: number
   description_state: string
-}
-
-export type UserInfo = {
-  avatar_url: string
-  display_name: string
 }
 
 /** Data transfer object for build information in API responses */
