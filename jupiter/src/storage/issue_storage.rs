@@ -5,7 +5,7 @@ use callisto::sea_orm_active_enums::ReferenceTypeEnum;
 use sea_orm::prelude::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
-    PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use callisto::{
@@ -53,7 +53,8 @@ impl IssueStorage {
             )
             .filter(mega_issue::Column::Status.eq(params.status))
             .filter(cond)
-            .distinct();
+            .distinct()
+            .order_by_asc(mega_issue::Column::Id);
 
         let mut sort_map = HashMap::new();
         sort_map.insert("created_at", mega_issue::Column::CreatedAt);
@@ -62,11 +63,12 @@ impl IssueStorage {
         let query = apply_sort(query, params.sort_by.as_deref(), params.asc, &sort_map);
 
         let paginator = query.paginate(self.get_connection(), page.per_page);
-        let num_pages = paginator.num_items().await?;
-        let (issues, page) = paginator
-            .fetch_page(page.page - 1)
-            .await
-            .map(|m| (m, num_pages))?;
+        let total = paginator.num_items().await?;
+        let issues = paginator.fetch_page(page.page - 1).await?;
+
+        if issues.is_empty() {
+            return Ok((vec![], 0));
+        }
 
         let issue_ids = issues.iter().map(|m| m.id).collect::<Vec<_>>();
 
@@ -99,7 +101,7 @@ impl IssueStorage {
 
         let res = combine_item_list::<mega_issue::Entity>(labels, assignees, conversations);
 
-        Ok((res, page))
+        Ok((res, total))
     }
 
     pub async fn get_issue_suggestions_by_query(
