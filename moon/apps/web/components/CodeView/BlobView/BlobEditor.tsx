@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 import toast from 'react-hot-toast'
 
@@ -41,6 +41,9 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
   const [diffFile, setDiffFile] = useState<DiffFile | null>(null)
 
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false)
+
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const contentLines = useMemo(() => content.split('\n'), [content])
 
@@ -129,23 +132,35 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     setDiffFile(null)
   }
 
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }, [])
+
   const renderEditView = () => {
     return (
-      <div className='flex h-full w-full font-mono text-sm leading-6'>
-        <div className='select-none border-r border-gray-200 bg-gray-50 px-4 text-right text-gray-400'>
+      <div className='flex h-full w-full overflow-hidden font-mono text-sm leading-6'>
+        <div
+          ref={lineNumbersRef}
+          className='h-full select-none overflow-hidden border-r border-gray-200 bg-gray-50 px-4 text-right text-gray-400'
+          style={{ flexShrink: 0 }}
+        >
           {contentLines.map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className='leading-6'>
+            <div key={index} className='leading-6' style={{ height: '1.5rem' }}>
               {index + 1}
             </div>
           ))}
         </div>
 
-        <div className='flex-1 pl-4'>
+        <div className='flex-1 overflow-hidden'>
           <textarea
+            ref={textareaRef}
             value={content}
             onChange={handleTextareaChange}
-            className='h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 focus:outline-none'
+            onScroll={handleScroll}
+            className='h-full w-full resize-none overflow-auto border-0 bg-transparent p-0 pl-4 font-mono text-sm leading-6 focus:outline-none'
             spellCheck={false}
             style={{ tabSize: 2 }}
           />
@@ -218,8 +233,8 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
   }
 
   return (
-    <div className='flex h-full w-full flex-col gap-2'>
-      <div className='flex min-h-14 w-full items-center justify-between px-2'>
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-2'>
+      <div className='flex min-h-14 w-full flex-shrink-0 items-center justify-between px-2'>
         <div className='flex max-w-[900px] flex-wrap items-center gap-x-1 gap-y-2 text-gray-700'>
           {pathSegments.map((seg, i) => (
             // eslint-disable-next-line react/no-array-index-key
@@ -249,8 +264,8 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         </div>
       </div>
 
-      <div className='flex h-full min-h-0 w-full flex-col rounded-xl border border-[#bec7ce]'>
-        <div className='flex h-14 w-full items-center rounded-t-xl border-b border-[#d0d9e0] bg-[#f9fbfd] px-4'>
+      <div className='flex min-h-0 w-full flex-1 flex-col rounded-xl border border-[#bec7ce]'>
+        <div className='flex h-14 w-full flex-shrink-0 items-center rounded-t-xl border-b border-[#d0d9e0] bg-[#f9fbfd] px-4'>
           <div className='inline-flex rounded-md border border-gray-300 bg-white'>
             <button
               onClick={() => setViewMode('edit')}
@@ -271,7 +286,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
           </div>
         </div>
 
-        <div className='flex-1 overflow-auto'>
+        <div className='min-h-0 flex-1 overflow-hidden'>
           {viewMode === 'edit' && renderEditView()}
           {viewMode === 'preview' && renderPreviewView()}
         </div>

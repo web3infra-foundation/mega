@@ -97,6 +97,7 @@ export default function TagSwitcher() {
                             key={t.name}
                             value={t.name}
                             title={t.name}
+                            className='h-auto min-h-8 py-1.5'
                             onSelect={() => {
                               setOpen(false)
                               if (t.name) {
@@ -104,7 +105,7 @@ export default function TagSwitcher() {
                               }
                             }}
                           >
-                            <div className='flex min-w-0 flex-col'>
+                            <div className='flex min-w-0 flex-col gap-0.5'>
                               <span className='truncate'>{t.name}</span>
                               {t.message && (
                                 <UIText quaternary size='text-[12px]' className='truncate'>
