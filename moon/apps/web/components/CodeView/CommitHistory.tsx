@@ -26,7 +26,7 @@ interface CommitHistoryProps {
 export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) {
   const [Expand, setExpand] = useState(false)
   const { data: commitData } = useGetLatestCommit(path, refs)
-  const { data: memberData } = useGetOrganizationMember({ username: commitData?.author })
+  const { data: memberData } = useGetOrganizationMember({ username: commitData?.author, enabled: !!commitData?.author })
 
   const ExpandDetails = () => {
     setExpand(!Expand)
