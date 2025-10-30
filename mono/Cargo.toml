@@ -60,7 +60,7 @@ utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 neptune = { workspace = true }
-
+once_cell = { workspace = true }
 
 
 [target.'cfg(not(windows))'.dependencies]
