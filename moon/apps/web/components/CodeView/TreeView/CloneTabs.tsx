@@ -7,36 +7,32 @@ import { MONO_API_URL } from '@gitmono/config'
 import { Button, cn, Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '@gitmono/ui'
 import { CheckIcon, CopyIcon, DownloadIcon } from '@gitmono/ui/Icons'
 
-const CloneTabs = ({ endpoint }: any) => {
+const CloneTabs = () => {
   const pathname = usePathname()
-  const [text, setText] = useState<string>(pathname || '')
   const [copied, setCopied] = useState<boolean>(false)
   const [active_tab, setActiveTab] = useState<string>('HTTP')
   const [open, setOpen] = useState(false)
   const [repo_name, setRepo_name] = useState<string>('')
-  const url = new URL(MONO_API_URL)
 
   useEffect(() => {
-    if (MONO_API_URL) {
-      const url = new URL(MONO_API_URL)
+    if (pathname) {
+      const pathParts = pathname?.split('/code/tree/')[1]?.split('/') ?? []
+      const filteredParts = pathParts[0] === 'main' ? pathParts.slice(1) : pathParts
+      const repoName = filteredParts.join('/')
 
-      setRepo_name(pathname?.split("/code/tree/")[1]!!)
-
-      if (active_tab === 'HTTP') {
-        setText(`${ url.href }${ repo_name }.git`)
-      }
-      if(active_tab === 'SSH') {
-        setText(`ssh://git@${ url.host }/${ repo_name }.git`)
-      }
+      setRepo_name(repoName)
     }
-  }, [pathname, active_tab, endpoint, repo_name])
+  }, [pathname])
+
+  const url = new URL(MONO_API_URL)
 
   const handleCopy = () => {
+    const text = active_tab === 'HTTP' ? `${url.href}${repo_name}.git` : `ssh://git@${url.host}/${repo_name}.git`
+
     copy(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000) // Reset after 2 seconds
   }
-
   const tabContent = [
     {
       value: 'HTTP',
@@ -86,17 +82,17 @@ const CloneTabs = ({ endpoint }: any) => {
                   {tabContent?.map((_item) => {
                     return (
                       <Tabs.Content value={_item.value} key={_item.value}>
-                          <Flex align='center'>
-                            <input
-                              value={_item.inputValue}
-                              className='bg-gray-150 m-2 w-[350px] border-b border-r p-1'
-                              style={{ borderRadius: '5px' }}
-                            />
-                            <Button onClick={handleCopy} size='sm' variant='text' className='text-gray-600'>
-                              {copied ? <CheckIcon /> : <CopyIcon />}
-                            </Button>
-                          </Flex>
-                          <div className='ml-2 text-gray-500'>{_item.info}</div>
+                        <Flex align='center'>
+                          <input
+                            value={_item.inputValue}
+                            className='bg-gray-150 m-2 w-[350px] border-b border-r p-1'
+                            style={{ borderRadius: '5px' }}
+                          />
+                          <Button onClick={handleCopy} size='sm' variant='text' className='text-gray-600'>
+                            {copied ? <CheckIcon /> : <CopyIcon />}
+                          </Button>
+                        </Flex>
+                        <div className='ml-2 text-gray-500'>{_item.info}</div>
                       </Tabs.Content>
                     )
                   })}
