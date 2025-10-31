@@ -1159,6 +1159,7 @@ impl BlameService {
 
 #[cfg(test)]
 mod tests {
+    use git_internal::internal::metadata::EntryMeta;
     use super::*;
     use crate::storage::base_storage::StorageConnector;
     use callisto::mega_refs;
@@ -1285,7 +1286,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree1, tree2, tree3.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
@@ -1504,7 +1505,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
@@ -1660,7 +1661,7 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
             .into_iter()
             .map(|tree| {
-                let mut tree_model: mega_tree::Model = tree.into_mega_model();
+                let mut tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
                 tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })

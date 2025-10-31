@@ -63,7 +63,12 @@ mod m20250930_024736_mr_to_cl;
 mod m20251011_091944_tasks_mr_id_to_cl_id;
 mod m20251012_071700_mr_to_cl_batch;
 mod m20251021_073817_rename_mr_sync_to_cl_sync;
+
 mod m20251026_065433_drop_user_table;
+
+mod m20251027_062734_add_metadata_to_object;
+
+
 /// Creates a primary key column definition with big integer type.
 ///
 /// # Arguments
@@ -114,7 +119,11 @@ impl MigratorTrait for Migrator {
             Box::new(m20251011_091944_tasks_mr_id_to_cl_id::Migration),
             Box::new(m20251012_071700_mr_to_cl_batch::Migration),
             Box::new(m20251021_073817_rename_mr_sync_to_cl_sync::Migration),
+
             Box::new(m20251026_065433_drop_user_table::Migration),
+
+            Box::new(m20251027_062734_add_metadata_to_object::Migration),
+
         ]
     }
 }

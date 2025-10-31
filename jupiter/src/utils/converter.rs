@@ -12,6 +12,7 @@ use callisto::{
     sea_orm_active_enums::StorageTypeEnum,
 };
 
+use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
 use git_internal::internal::pack::entry::Entry;
 // git_internal types
@@ -55,12 +56,12 @@ fn commit_from_model(
 
 pub trait IntoMegaModel {
     type MegaTarget;
-    fn into_mega_model(self) -> Self::MegaTarget;
+    fn into_mega_model(self,ext_meta: EntryMeta) -> Self::MegaTarget;
 }
 
 pub trait IntoGitModel {
     type GitTarget;
-    fn into_git_model(self) -> Self::GitTarget;
+    fn into_git_model(self,ext_meta: EntryMeta) -> Self::GitTarget;
 }
 
 pub trait FromMegaModel {
@@ -97,25 +98,25 @@ pub enum MegaObjectModel {
 }
 
 impl GitObject {
-    pub fn convert_to_mega_model(self) -> MegaObjectModel {
+    pub fn convert_to_mega_model(self, meta: EntryMeta) -> MegaObjectModel {
         match self {
-            GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into_mega_model()),
-            GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into_mega_model()),
+            GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into_mega_model(meta)),
+            GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into_mega_model(meta)),
             GitObject::Blob(blob) => {
-                MegaObjectModel::Blob(blob.clone().into_mega_model(), blob.to_raw_blob())
+                MegaObjectModel::Blob(blob.clone().into_mega_model(meta), blob.to_raw_blob())
             }
-            GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into_mega_model()),
+            GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into_mega_model(meta)),
         }
     }
 
-    pub fn convert_to_git_model(self) -> GitObjectModel {
+    pub fn convert_to_git_model(self,meta: EntryMeta) -> GitObjectModel {
         match self {
-            GitObject::Commit(commit) => GitObjectModel::Commit(commit.into_git_model()),
-            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model()),
+            GitObject::Commit(commit) => GitObjectModel::Commit(commit.into_git_model(meta)),
+            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model(meta)),       
             GitObject::Blob(blob) => {
-                GitObjectModel::Blob(blob.clone().into_git_model(), blob.to_raw_blob())
+                GitObjectModel::Blob(blob.clone().into_git_model(meta), blob.to_raw_blob())   
             }
-            GitObject::Tag(tag) => GitObjectModel::Tag(tag.into_git_model()),
+            GitObject::Tag(tag) => GitObjectModel::Tag(tag.into_git_model(meta)),
         }
     }
 }
@@ -144,13 +145,17 @@ impl IntoMegaModel for Blob {
     /// # Returns
     ///
     /// A new mega_blob::Model instance populated with data from the blob
-    fn into_mega_model(self) -> Self::MegaTarget {
+    fn into_mega_model(self, meta: EntryMeta) -> Self::MegaTarget {
         mega_blob::Model {
             id: generate_id(),
             blob_id: self.id.to_string(),
             size: 0,
             commit_id: String::new(),
             name: String::new(),
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            file_path: meta.file_path.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
+            is_delta_in_pack: meta.is_delta.unwrap_or(false),
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -172,7 +177,7 @@ impl IntoMegaModel for Commit {
     /// # Panics
     ///
     /// This function will panic if author or committer signature data cannot be converted to bytes
-    fn into_mega_model(self) -> Self::MegaTarget {
+    fn into_mega_model(self, meta: EntryMeta) -> Self::MegaTarget {
         mega_commit::Model {
             id: generate_id(),
             commit_id: self.id.to_string(),
@@ -187,6 +192,8 @@ impl IntoMegaModel for Commit {
                 String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
             ),
             content: Some(self.message.clone()),
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -208,7 +215,7 @@ impl IntoMegaModel for Tag {
     /// # Panics
     ///
     /// This function will panic if tagger signature data cannot be converted to bytes
-    fn into_mega_model(self) -> Self::MegaTarget {
+    fn into_mega_model(self,meta: EntryMeta) -> Self::MegaTarget {
         mega_tag::Model {
             id: generate_id(),
             tag_id: self.id.to_string(),
@@ -217,6 +224,8 @@ impl IntoMegaModel for Tag {
             tag_name: self.tag_name,
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -238,13 +247,15 @@ impl IntoMegaModel for Tree {
     /// # Panics
     ///
     /// This function will panic if the tree's data cannot be serialized
-    fn into_mega_model(self) -> Self::MegaTarget {
+    fn into_mega_model(self, meta: EntryMeta) -> Self::MegaTarget {
         mega_tree::Model {
             id: generate_id(),
             tree_id: self.id.to_string(),
             sub_trees: self.to_data().unwrap(),
             size: 0,
             commit_id: String::new(),
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -291,13 +302,17 @@ impl IntoGitModel for Blob {
     /// # Returns
     ///
     /// A new git_blob::Model instance populated with data from the blob
-    fn into_git_model(self) -> Self::GitTarget {
+    fn into_git_model(self, meta: EntryMeta) -> Self::GitTarget {
         git_blob::Model {
             id: generate_id(),
             repo_id: 0,
             blob_id: self.id.to_string(),
             size: 0,
             name: None,
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
+            file_path: meta.file_path.unwrap_or(String::new()),
+            is_delta_in_pack: meta.is_delta.unwrap_or(false),
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -320,7 +335,7 @@ impl IntoGitModel for Commit {
     /// # Panics
     ///
     /// This function will panic if author or committer signature data cannot be converted to bytes
-    fn into_git_model(self) -> Self::GitTarget {
+    fn into_git_model(self, meta: EntryMeta) -> Self::GitTarget {
         git_commit::Model {
             id: generate_id(),
             repo_id: 0,
@@ -336,6 +351,8 @@ impl IntoGitModel for Commit {
                 String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
             ),
             content: Some(self.message.clone()),
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -358,7 +375,7 @@ impl IntoGitModel for Tag {
     /// # Panics
     ///
     /// This function will panic if tagger signature data cannot be converted to bytes
-    fn into_git_model(self) -> Self::GitTarget {
+    fn into_git_model(self, meta: EntryMeta) -> Self::GitTarget {
         git_tag::Model {
             id: generate_id(),
             repo_id: 0,
@@ -368,6 +385,8 @@ impl IntoGitModel for Tag {
             tag_name: self.tag_name,
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -390,13 +409,15 @@ impl IntoGitModel for Tree {
     /// # Panics
     ///
     /// This function will panic if the tree's data cannot be serialized
-    fn into_git_model(self) -> Self::GitTarget {
+    fn into_git_model(self, meta: EntryMeta) -> Self::GitTarget {
         git_tree::Model {
             id: generate_id(),
             repo_id: 0,
             tree_id: self.id.to_string(),
             sub_trees: self.to_data().unwrap(),
             size: 0,
+            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -461,7 +482,7 @@ pub struct MegaModelConverter {
 impl MegaModelConverter {
     fn traverse_from_root(&self) {
         let root_tree = &self.root_tree;
-        let mut mega_tree: mega_tree::Model = root_tree.clone().into_mega_model();
+        let mut mega_tree: mega_tree::Model = root_tree.clone().into_mega_model(EntryMeta::new());
         mega_tree.commit_id = self.commit.id.to_string();
         self.mega_trees
             .borrow_mut()
@@ -473,7 +494,7 @@ impl MegaModelConverter {
         for item in &tree.tree_items {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
-                let mut mega_tree: mega_tree::Model = child_tree.clone().into_mega_model();
+                let mut mega_tree: mega_tree::Model = child_tree.clone().into_mega_model(EntryMeta::new());
                 mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
@@ -481,7 +502,7 @@ impl MegaModelConverter {
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model = blob.clone().into_mega_model();
+                let mut mega_blob: mega_blob::Model = blob.clone().into_mega_model(EntryMeta::new());
                 mega_blob.commit_id = self.commit.id.to_string();
                 self.mega_blobs
                     .borrow_mut()

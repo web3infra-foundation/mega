@@ -4,12 +4,14 @@ use std::sync::{Arc, Mutex};
 
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
+
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect,
 };
 
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
@@ -18,7 +20,7 @@ use common::utils::MEGA_BRANCH_NAME;
 use git_internal::internal::object::ObjectTrait;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::{object::commit::Commit, pack::entry::Entry};
-
+use sea_orm::sea_query::Expr;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;
 use crate::storage::user_storage::UserStorage;
@@ -29,6 +31,8 @@ use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process
 pub struct MonoStorage {
     pub base: BaseStorage,
 }
+
+
 
 impl Deref for MonoStorage {
     type Target = BaseStorage;
@@ -221,7 +225,7 @@ impl MonoStorage {
     pub async fn save_entry(
         &self,
         commit_id: &str,
-        entry_list: Vec<Entry>,
+        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
         authenticated_username: Option<String>,
     ) -> Result<(), MegaError> {
         let git_objects = Arc::new(Mutex::new(GitObjects {
@@ -240,10 +244,10 @@ impl MonoStorage {
                 let git_objects = git_objects.clone();
                 let commits_to_process = commits_to_process.clone();
                 async move {
-                    let entry_data = entry.data.clone();
-                    let entry_hash = entry.hash;
-                    let raw_obj = process_entry(entry);
-                    let model = raw_obj.convert_to_mega_model();
+                    let entry_data = entry.inner.data.clone();
+                    let entry_hash = entry.inner.hash;
+                    let raw_obj = process_entry(entry.inner);
+                    let model = raw_obj.convert_to_mega_model(entry.meta);
                     let mut git_objects = git_objects.lock().unwrap();
                     match model {
                         MegaObjectModel::Commit(commit) => {
@@ -302,6 +306,72 @@ impl MonoStorage {
         Ok(())
     }
 
+
+    pub async fn update_blob_filepath(&self, blob_id: &str, file_path: &str) -> Result<(), MegaError> {
+        if let Some(model) = mega_blob::Entity::find()
+            .filter(mega_blob::Column::BlobId.eq(blob_id))
+            .one(self.get_connection()).await?
+        {
+            
+            let mut active: mega_blob::ActiveModel = model.into();
+
+            
+            active.file_path = Set(file_path.to_string());
+
+           
+            active.update(self.get_connection()).await?;
+        }
+
+        Ok(())
+    }
+    
+    
+    pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
+        
+
+        let conn = self.get_connection();
+
+        // 
+        let txn: DatabaseTransaction = conn.begin().await?;
+
+        // 
+        let tables = [
+            ("mega_blob", mega_blob::Entity::update_many()
+                .col_expr(mega_blob::Column::PackId, Expr::value(pack_id))
+                .filter(mega_blob::Column::PackId.eq(temp_pack_id))
+                .exec(&txn)
+                .await?),
+            ("mega_tree", mega_tree::Entity::update_many()
+                .col_expr(mega_tree::Column::PackId, Expr::value(pack_id))
+                .filter(mega_tree::Column::PackId.eq(temp_pack_id))
+                .exec(&txn)
+                .await?),
+            ("mega_tag", mega_tag::Entity::update_many()
+                .col_expr(mega_tag::Column::PackId, Expr::value(pack_id))
+                .filter(mega_tag::Column::PackId.eq(temp_pack_id))
+                .exec(&txn)
+                .await?),
+            ("mega_commit", mega_commit::Entity::update_many()
+                .col_expr(mega_commit::Column::PackId, Expr::value(pack_id))
+                .filter(mega_commit::Column::PackId.eq(temp_pack_id))
+                .exec(&txn)
+                .await?),
+        ];
+
+        // 
+        for (name, res) in tables {
+            if res.rows_affected > 0 {
+                tracing::info!("mega object Updated {} rows in {}", res.rows_affected, name);
+            }
+        }
+
+        // 
+        txn.commit().await?;
+        Ok(())
+        
+    }
+    
+    
     /// Process commit author bindings
     async fn process_commit_bindings(
         &self,
@@ -351,7 +421,7 @@ impl MonoStorage {
             return;
         }
         let converter = MegaModelConverter::init(mono_config);
-        let commit: mega_commit::Model = converter.commit.into_mega_model();
+        let commit: mega_commit::Model = converter.commit.into_mega_model(EntryMeta::default());
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())
             .await
@@ -372,7 +442,7 @@ impl MonoStorage {
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
         let save_models: Vec<mega_commit::ActiveModel> = commits
             .into_iter()
-            .map(|c| c.into_mega_model())
+            .map(|c| c.into_mega_model(EntryMeta::default()))
             .map(|m| m.into_active_model())
             .collect();
         self.batch_save_model(save_models).await.unwrap();
@@ -386,7 +456,7 @@ impl MonoStorage {
     ) -> Result<(), MegaError> {
         let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
             .iter()
-            .map(|b| (*b).clone().into_mega_model())
+            .map(|b| (*b).clone().into_mega_model(EntryMeta::default()))
             .map(|mut m: mega_blob::Model| {
                 m.commit_id = commit_id.to_owned();
                 m.into_active_model()

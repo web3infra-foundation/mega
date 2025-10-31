@@ -220,7 +220,7 @@ impl SmartProtocol {
             .unpack_stream(&self.storage.config().pack, data_stream)
             .await?;
 
-        let unpack_result = repo_handler.clone().receiver_handler(receiver).await;
+        let unpack_result = repo_handler.clone().receiver_handler(receiver.0,receiver.1).await;
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
