@@ -1183,13 +1183,26 @@ impl MonoApiService {
                 );
                 let commit_id = commit.id.to_string();
                 new_commit_id = commit_id.clone();
+
+                // Store two versions of the commit:
+                // - `commit`: the original one (with parent), used for normal commit history
+                // - `parentless_commit`: a detached version without parent, used for ref updates and isolated builds
+                let parentless_commit = Commit::new(
+                    commit.author.clone(),
+                    commit.committer.clone(),
+                    update.tree_id,
+                    vec![],
+                    &commit.message,
+                );
+
                 commits.push(commit);
+                commits.push(parentless_commit.clone());
 
                 let mut push_update = |ref_name: &str| {
                     updates.push(RefUpdateData {
                         path: p_ref.path.clone(),
                         ref_name: ref_name.to_string(),
-                        commit_id: commit_id.clone(),
+                        commit_id: parentless_commit.id.to_string(),
                         tree_hash: update.tree_id.to_string(),
                     });
                 };
