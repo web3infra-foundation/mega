@@ -1,30 +1,30 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestIcon } from '@primer/octicons-react'
+import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestIcon, XIcon } from '@primer/octicons-react'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
 import { LabelItem, SyncOrganizationMember as Member, PostApiClListData } from '@gitmono/types/generated'
-import { Button, CheckIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
+import { Button, CheckIcon, ChevronDownIcon, OrderedListIcon, SearchIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { IssueIndexTabFilter as CLIndexTabFilter } from '@/components/Issues/IssueIndex'
 import {
+  ListItem as CLItem,
+  IssueList as ClList,
   Dropdown,
   DropdownItemwithAvatar,
   DropdownItemwithLabel,
   DropdownOrder,
   DropdownReview,
-  ListBanner,
-  ListItem as CLItem,
-  IssueList as ClList
+  ListBanner
 } from '@/components/Issues/IssueList'
 import { useScope } from '@/contexts/scope'
-import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { usePostClList } from '@/hooks/CL/usePostClList'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -34,7 +34,7 @@ import { AdditionType, ItemLabels, ItemRightIcons } from '../Issues/IssuesConten
 import { Pagination } from '../Issues/Pagenation'
 import { orderTags, reviewTags } from '../Issues/utils/consts'
 import { generateAllMenuItems, MenuConfig } from '../Issues/utils/generateAllMenuItems'
-import { filterAtom, clCloseCurrentPage, clidAtom, clOpenCurrentPage, sortAtom } from '../Issues/utils/store'
+import { clCloseCurrentPage, clidAtom, clOpenCurrentPage, filterAtom, sortAtom } from '../Issues/utils/store'
 import { Heading } from './catalyst/heading'
 
 // interface ClInfoItem {
@@ -47,6 +47,10 @@ import { Heading } from './catalyst/heading'
 // }
 
 type ItemsType = NonNullable<PostApiClListData['data']>['items']
+
+const escapeRegExp = (str: string): string => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 export default function CLView() {
   const { scope } = useScope()
@@ -80,6 +84,8 @@ export default function CLView() {
   const [label, setLabel] = useAtom(labelAtom)
 
   const [review, setReview] = useAtom(reviewAtom)
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const additions = useCallback(
     (labels: number[]): AdditionType => {
@@ -179,11 +185,8 @@ export default function CLView() {
           <>
             opened {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} by{' '}
             <MemberHovercard username={item.author}>
-              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
-                {item.author}
-              </span>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
             </MemberHovercard>
-
           </>
         )
       case 'merged':
@@ -192,13 +195,10 @@ export default function CLView() {
             <>
               by{' '}
               <MemberHovercard username={item.author}>
-                <span className='cursor-pointer hover:text-blue-600 hover:underline'>
-                  {item.author}
-                </span>
+                <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
               </MemberHovercard>
               {' was merged '}
               {formatDistance(fromUnixTime(item.merge_timestamp ?? 0), new Date(), { addSuffix: true })}
-
             </>
           )
         } else {
@@ -209,16 +209,10 @@ export default function CLView() {
           <>
             by{' '}
             <MemberHovercard username={item.author}>
-              <span className='cursor-pointer hover:text-blue-600 hover:underline'>
-                {item.author}
-              </span>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
             </MemberHovercard>
-
             {' was closed '}
-
             {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
-
-
           </>
         )
       default:
@@ -233,12 +227,18 @@ export default function CLView() {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Author']) {
-          loadClList()
+          const escapedAuthor = escapeRegExp(sort['Author'])
+          const newQuery = searchQuery.replace(new RegExp(`author:${escapedAuthor}\\s*`, 'g'), '').trim()
+
+          setSearchQuery(newQuery)
           setSort({
             ...sort,
             Author: ''
           })
         } else {
+          const newQuery = searchQuery ? `${searchQuery} author:${item.user.username}` : `author:${item.user.username}`
+
+          setSearchQuery(newQuery)
           setSort({
             ...sort,
             Author: item.user.username
@@ -254,12 +254,20 @@ export default function CLView() {
       onSelectFactory: (item: Member) => (e: Event) => {
         e.preventDefault()
         if (item.user.username === sort['Assignees']) {
-          loadClList()
+          const escapedAssignee = escapeRegExp(sort['Assignees'])
+          const newQuery = searchQuery.replace(new RegExp(`assignee:${escapedAssignee}\\s*`, 'g'), '').trim()
+
+          setSearchQuery(newQuery)
           setSort({
             ...sort,
             Assignees: ''
           })
         } else {
+          const newQuery = searchQuery
+            ? `${searchQuery} assignee:${item.user.username}`
+            : `assignee:${item.user.username}`
+
+          setSearchQuery(newQuery)
           setSort({
             ...sort,
             Assignees: item.user.username
@@ -279,8 +287,16 @@ export default function CLView() {
       onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
         if (label?.includes(String(item.id))) {
+          const escapedLabelName = escapeRegExp(item.name)
+          const newQuery = searchQuery.replace(new RegExp(`label:"${escapedLabelName}"\\s*`, 'g'), '').trim()
+
+          setSearchQuery(newQuery)
           setLabel(label.filter((i) => i !== String(item.id)))
         } else {
+          const escapedLabelName = escapeRegExp(item.name)
+          const newQuery = searchQuery ? `${searchQuery} label:"${escapedLabelName}"` : `label:"${escapedLabelName}"`
+
+          setSearchQuery(newQuery)
           setLabel([...label, String(item.id)])
         }
       },
@@ -297,8 +313,17 @@ export default function CLView() {
       onSelectFactory: (item) => (e: Event) => {
         e.preventDefault()
         if (item === review) {
+          const escapedReview = escapeRegExp(review)
+          const newQuery = searchQuery.replace(new RegExp(`review:${escapedReview}\\s*`, 'g'), '').trim()
+
+          setSearchQuery(newQuery)
           setReview('')
         } else {
+          const escapedReview = escapeRegExp(review)
+          let newQuery = searchQuery.replace(new RegExp(`review:${escapedReview}\\s*`, 'g'), '').trim()
+
+          newQuery = newQuery ? `${newQuery} review:${item}` : `review:${item}`
+          setSearchQuery(newQuery)
           setReview(item)
         }
       },
@@ -445,6 +470,13 @@ export default function CLView() {
 
   const router = useRouter()
 
+  const clearAllFilters = () => {
+    setSearchQuery('')
+    setSort({ ...sort, Author: '', Assignees: '' })
+    setLabel([])
+    setReview('')
+  }
+
   return (
     <div className='relative m-4 flex h-screen flex-col'>
       <Heading>Change List</Heading>
@@ -452,6 +484,38 @@ export default function CLView() {
       <IndexPageContainer>
         <IndexPageContent id='/[org]/cl' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
           <div className='flex h-full flex-col'>
+            <div className='mb-4'>
+              <div className='group flex min-h-[42px] items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm transition-all focus-within:border-blue-500 focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-100 hover:border-gray-400'>
+                <div className='flex items-center text-gray-400'>
+                  <SearchIcon className='h-4 w-4' />
+                </div>
+
+                <input
+                  type='text'
+                  className='w-full flex-1 border-none bg-transparent py-1 text-sm text-gray-400 outline-none ring-0 focus:outline-none focus:ring-0'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      loadClList()
+                    }
+                  }}
+                />
+
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      clearAllFilters()
+                    }}
+                    className='flex items-center justify-center rounded-md p-1 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600'
+                    title='Clear search'
+                  >
+                    <XIcon className='h-4 w-4' />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <ClList
               isLoading={isLoading}
               Issuelists={clList}
@@ -487,7 +551,7 @@ export default function CLView() {
                     }}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      <span className="mr-2">#{i.link}</span>
+                      <span className='mr-2'>#{i.link}</span>
                       {getDescription(i)}
                       {' • ChangeList'}
                     </div>

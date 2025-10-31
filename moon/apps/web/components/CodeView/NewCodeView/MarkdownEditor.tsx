@@ -21,7 +21,7 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
     onUpdate: ({ editor }) => {
       const text = editor.getText().replace(/\n\n/g, '\n')
 
-      setContent(editor.getText())
+      setContent(text)
       setLineCount(text.split('\n').length || 1)
     },
     editorProps: {
