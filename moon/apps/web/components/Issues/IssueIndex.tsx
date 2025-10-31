@@ -27,6 +27,15 @@ export const IssueIndex = () => {
   // const isSearchLoading = queryDebounced.length > 0 && getNotes.isFetching
   // const isSearchLoading = queryDebounced.length > 0
 
+  const [filterQuery, setFilterQuery] = useState('')
+  const [onClearFilters, setOnClearFilters] = useState<(() => void) | undefined>()
+
+  const handleClearFilters = () => {
+    if (onClearFilters) {
+      onClearFilters()
+    }
+  }
+
   return (
     <>
       <FloatingNewDocButton />
@@ -36,8 +45,12 @@ export const IssueIndex = () => {
             <IssueBreadcrumbIcon />
           </BreadcrumbTitlebar>
           <IndexPageContent id='/[org]/issue' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
-            <IssueSearch />
-            <IssuesContent searching={isSearching} />
+            <IssueSearch filterQuery={filterQuery} onClearFilters={handleClearFilters} />
+            <IssuesContent 
+              searching={isSearching} 
+              setFilterQuery={setFilterQuery}
+              onRegisterClearFilters={setOnClearFilters}
+            />
           </IndexPageContent>
         </IndexPageContainer>
         <SplitViewDetail />
