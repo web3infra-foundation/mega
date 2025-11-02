@@ -271,7 +271,7 @@ impl RepoHandler for MonoRepo {
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
         let encoder = PackEncoder::new(obj_num.into_inner(), 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
-
+        // todo: For now, send metadata only for blob objects.
         for c in want_commits {
             self.traverse(
                 want_trees.get(&c.tree_id).unwrap().clone(),
@@ -279,7 +279,7 @@ impl RepoHandler for MonoRepo {
                 Some(&entry_tx),
             )
             .await;
-            entry_tx.send(c.into()).await.unwrap();
+            entry_tx.send(MetaAttached{inner:c.into(),meta:EntryMeta::new()}).await.unwrap();
         }
         drop(entry_tx);
 
@@ -308,17 +308,27 @@ impl RepoHandler for MonoRepo {
             .await
     }
 
-    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<EntryMeta>, MegaError> {
-        let p = self.storage
+    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<HashMap<String,EntryMeta>, MegaError> {
+        let models = self.storage
             .mono_storage()
-            .get_mega_blobs_by_hashes(hashes).await?.iter()
-            .map(|blob| EntryMeta {
-                pack_id: Some(blob.pack_id.clone()),
-                pack_offset: Some(blob.pack_offset as usize),
-                file_path: Some(blob.file_path.clone()),
-                is_delta: Some(blob.is_delta_in_pack),
-            } ).collect();
-        Ok(p)
+            .get_mega_blobs_by_hashes(hashes).await?;
+        
+        let map = models
+            .into_iter()
+            .map(|blob| {
+                (
+                    blob.blob_id.clone(),
+                    EntryMeta {
+                        pack_id: Some(blob.pack_id.clone()),
+                        pack_offset: Some(blob.pack_offset as usize),
+                        file_path: Some(blob.file_path.clone()),
+                        is_delta: Some(blob.is_delta_in_pack),
+                    },
+                )
+            })
+            .collect::<HashMap<String, EntryMeta>>();
+        
+        Ok(map)
     }
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
@@ -361,15 +371,10 @@ impl RepoHandler for MonoRepo {
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
         let commit_guard = self.current_commit.read().await;
         
-        // 检查 current_commit 是否存在
         let commit_opt = match commit_guard.as_ref() {
             Some(commit) => commit,
             None => {
-                // 当 current_commit 为 None 时，记录日志并优雅地跳过文件路径更新
-                // 这种情况通常发生在：
-                // 1. 只更新分支引用而没有新的 commit 对象
-                // 2. pack 文件为空的推送操作
-                // 3. 只推送 blob/tree 对象而没有 commit 对象
+                
                 tracing::info!(
                     "Skipping file path update: no current commit available. \
                      This typically occurs when only updating references or pushing empty pack files."
@@ -377,8 +382,7 @@ impl RepoHandler for MonoRepo {
                 return Ok(());
             }
         };
-
-        // 获取根树对象，添加错误处理
+        
         let tree_hashes = vec![commit_opt.tree_id.to_string()];
         let trees = self.storage
             .mono_storage()
@@ -400,13 +404,12 @@ impl RepoHandler for MonoRepo {
 
         let root_tree = Tree::from_mega_model(trees[0].clone());
         
-        // 记录开始更新文件路径的日志
         tracing::info!(
             "Starting file path update for commit {} with root tree {}", 
             commit_opt.id, commit_opt.tree_id
         );
 
-        // 执行文件路径更新
+        
         self.traverses_and_update_filepath(root_tree, PathBuf::new()).await
             .map_err(|e| {
                 MegaError::with_message(&format!(

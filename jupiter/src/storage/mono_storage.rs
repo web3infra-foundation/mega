@@ -6,10 +6,7 @@ use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
 
 use sea_orm::ActiveValue::Set;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, DatabaseTransaction, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait};
 
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};

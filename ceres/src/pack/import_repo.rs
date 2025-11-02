@@ -346,18 +346,18 @@ impl RepoHandler for ImportRepo {
     }
 
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
-        let (current_head, refs) = self.head_hash().await;
+        //let (current_head, refs) = self.head_hash().await;
+        let (current_head, _refs) = self.refs_with_head_hash().await;
         let commit = Commit::from_git_model(self.storage
                     .git_db_storage()
                     .get_commit_by_hash(self.repo.repo_id,&current_head)
-                    .await.unwrap().unwrap());
+                    .await?.unwrap());
 
         let root_tree  = Tree::from_git_model(
                                 self.storage
                                     .git_db_storage()
                                     .get_tree_by_hash(self.repo.repo_id,&commit.tree_id.to_string())
-                                    .await
-                                    .unwrap().unwrap().clone());
+                                    .await?.unwrap().clone());
         self.traverses_and_update_filepath(root_tree,PathBuf::new()).await?;
         Ok(())
     }
@@ -373,8 +373,7 @@ impl ImportRepo {
                     self.storage
                         .git_db_storage()
                         .get_tree_by_hash(self.repo.repo_id,&item.id.to_string())
-                        .await
-                        .unwrap().unwrap().clone());
+                        .await?.unwrap().clone());
                 self.traverses_and_update_filepath(tree, path.join(item.name)).await?;
             } else {
                 let id = item.id.to_string();

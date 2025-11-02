@@ -6,7 +6,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-
+use std::collections::HashMap;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{Stream, future::join_all};
@@ -51,7 +51,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         mut rx_pack_id: UnboundedReceiver<SHA1>,
     ) -> Result<(), GitError> {
         let mut entry_list = vec![];
-        let semaphore = Arc::new(Semaphore::new(4));
+        let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
         let mut join_tasks = vec![];
 
         let temp_pack_id = Uuid::new_v4().to_string();
@@ -148,7 +148,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     async fn get_blob_metadata_by_hashes( 
         &self,
         hashes: Vec<String>,
-    ) -> Result<Vec<EntryMeta>, MegaError>;
+    ) -> Result<HashMap<String,EntryMeta>, MegaError>;
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
 
@@ -245,7 +245,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
-        sender: Option<&tokio::sync::mpsc::Sender<Entry>>,
+        sender: Option<&tokio::sync::mpsc::Sender<MetaAttached<Entry,EntryMeta>>>,
     ) {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
@@ -263,10 +263,12 @@ pub trait RepoHandler: Send + Sync + 'static {
 
         if let Some(sender) = sender {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
+            let blobs_ext_data = self.get_blob_metadata_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
                 let data = b.data.unwrap_or_default();
                 let blob: Blob = Blob::from_content_bytes(data);
-                sender.send(blob.into()).await.unwrap();
+                let ext_data = blobs_ext_data.get(&b.sha1).unwrap();
+                sender.send(MetaAttached{inner:blob.into(),meta:ext_data.to_owned()}).await.unwrap();
             }
         }
 
@@ -276,7 +278,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            sender.send(tree.into()).await.unwrap();
+            sender.send(MetaAttached{inner:tree.into(),meta:EntryMeta::new()}).await.unwrap();
         }
     }
 
