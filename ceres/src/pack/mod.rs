@@ -55,11 +55,9 @@ pub trait RepoHandler: Send + Sync + 'static {
         let mut join_tasks = vec![];
 
         let temp_pack_id = Uuid::new_v4().to_string();
-        let mut update_flag = false;
+        
         while let Some(mut entry) = rx.recv().await {
-            if self.check_entry(&entry.inner).await?{
-                update_flag = true;
-            };
+            self.check_entry(&entry.inner).await?;
             entry.meta.set_pack_id(temp_pack_id.clone());
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
@@ -106,10 +104,7 @@ pub trait RepoHandler: Send + Sync + 'static {
             }
         }
         
-        // // if have new commit traverse trees and update filepath of blobs 
-        // if update_flag {
-        //     
-        // }
+        
         
         Ok(())
     }
@@ -120,7 +115,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError>;
 
-    async fn check_entry(&self, entry: &Entry) -> Result<bool, GitError>;
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
@@ -262,7 +257,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
+            let blobs = self.get_blobs_by_hashes(search_blob_ids.clone()).await.unwrap();
             let blobs_ext_data = self.get_blob_metadata_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
                 let data = b.data.unwrap_or_default();

@@ -152,8 +152,8 @@ impl IntoMegaModel for Blob {
             size: 0,
             commit_id: String::new(),
             name: String::new(),
-            pack_id: meta.pack_id.unwrap_or(String::new()),
-            file_path: meta.file_path.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
+            file_path: meta.file_path.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             is_delta_in_pack: meta.is_delta.unwrap_or(false),
             created_at: chrono::Utc::now().naive_utc(),
@@ -192,7 +192,7 @@ impl IntoMegaModel for Commit {
                 String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
             ),
             content: Some(self.message.clone()),
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -224,7 +224,7 @@ impl IntoMegaModel for Tag {
             tag_name: self.tag_name,
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -254,7 +254,7 @@ impl IntoMegaModel for Tree {
             sub_trees: self.to_data().unwrap(),
             size: 0,
             commit_id: String::new(),
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -309,9 +309,9 @@ impl IntoGitModel for Blob {
             blob_id: self.id.to_string(),
             size: 0,
             name: None,
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64,
-            file_path: meta.file_path.unwrap_or(String::new()),
+            file_path: meta.file_path.unwrap_or_default(),
             is_delta_in_pack: meta.is_delta.unwrap_or(false),
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -351,7 +351,7 @@ impl IntoGitModel for Commit {
                 String::from_utf8_lossy(&self.committer.to_data().unwrap()).to_string(),
             ),
             content: Some(self.message.clone()),
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -385,7 +385,7 @@ impl IntoGitModel for Tag {
             tag_name: self.tag_name,
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -416,7 +416,7 @@ impl IntoGitModel for Tree {
             tree_id: self.id.to_string(),
             sub_trees: self.to_data().unwrap(),
             size: 0,
-            pack_id: meta.pack_id.unwrap_or(String::new()),
+            pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
             created_at: chrono::Utc::now().naive_utc(),
         }

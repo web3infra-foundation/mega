@@ -16,7 +16,7 @@ use tokio::sync::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{git_blob, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
+use callisto::{ mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
 use git_internal::{
     errors::GitError,
@@ -80,8 +80,8 @@ impl RepoHandler for ImportRepo {
         storage.update_pack_id(temp_pack_id, pack_id).await
     }
 
-    async fn check_entry(&self, _: &Entry) -> Result<bool, GitError> {
-        Ok(false)
+    async fn check_entry(&self, _: &Entry) -> Result<(), GitError> {
+        Ok(())
     }
 
     async fn full_pack(&self, _: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
@@ -89,6 +89,7 @@ impl RepoHandler for ImportRepo {
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
+        
         let storage = self.storage.git_db_storage();
         let raw_storage = self.storage.raw_db_storage();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
@@ -103,7 +104,7 @@ impl RepoHandler for ImportRepo {
                 match model {
                     Ok(m) => {
                         let c: Commit = Commit::from_git_model(m);
-                        let entry = c.into();
+                        let entry = MetaAttached{inner:c.into(),meta:EntryMeta::new()};
                         entry_tx.send(entry).await.unwrap();
                     }
                     Err(err) => eprintln!("Error: {err:?}"),
@@ -116,7 +117,7 @@ impl RepoHandler for ImportRepo {
                 match model {
                     Ok(m) => {
                         let t: Tree = Tree::from_git_model(m);
-                        let entry = t.into();
+                        let entry = MetaAttached{inner:t.into(),meta:EntryMeta::new()};
                         entry_tx.send(entry).await.unwrap();
                     }
                     Err(err) => eprintln!("Error: {err:?}"),
@@ -146,7 +147,24 @@ impl RepoHandler for ImportRepo {
                             // TODO handle storage type
                             let data = m.data.unwrap_or_default();
                             let b: Blob = Blob::from_content_bytes(data);
-                            let entry: Entry = b.into();
+                            // let blob_with_data = storage.get_blobs_by_hashes(repo_id,vec![b.id.to_string()]).await?.iter().next().unwrap();
+                            let blob_with_data = storage
+                                .get_blobs_by_hashes(repo_id, vec![b.id.to_string()])
+                                .await
+                                .expect("get_blobs_by_hashes failed")
+                                .into_iter()
+                                .next()
+                                .expect("blob metadata not found");
+                            
+                            let meta_data = EntryMeta {
+                                pack_id: Some(blob_with_data.pack_id.clone()),
+                                pack_offset: Some(blob_with_data.pack_offset as usize),
+                                file_path: Some(blob_with_data.file_path.clone()),
+                                is_delta: Some(blob_with_data.is_delta_in_pack),
+                            };
+                                
+                            
+                            let entry = MetaAttached{inner:b.into(),meta:meta_data};
                             sender_clone.send(entry).await.unwrap();
                         }
                         Err(err) => eprintln!("Error: {err:?}"),
@@ -161,7 +179,7 @@ impl RepoHandler for ImportRepo {
             let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
             for m in tags.into_iter() {
                 let c: Tag = Tag::from_git_model(m);
-                let entry: Entry = c.into();
+                let entry = MetaAttached{inner:c.into(),meta:EntryMeta::new()};
                 entry_tx.send(entry).await.unwrap();
             }
             drop(entry_tx);
@@ -263,7 +281,7 @@ impl RepoHandler for ImportRepo {
                 Some(&entry_tx),
             )
             .await;
-            entry_tx.send(c.into()).await.unwrap();
+            entry_tx.send(MetaAttached{inner:c.into(),meta:EntryMeta::new()}).await.unwrap();
         }
         drop(entry_tx);
 
@@ -292,17 +310,28 @@ impl RepoHandler for ImportRepo {
             .await
     }
 
-    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<EntryMeta>, MegaError> {
-        let p = self.storage
+    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<HashMap<String,EntryMeta>, MegaError> {
+        
+        let models = self.storage
             .git_db_storage()
-            .get_blobs_by_hashes(self.repo.repo_id,hashes).await?.iter()
-            .map(|blob| EntryMeta {
-                pack_id: Some(blob.pack_id.clone()),
-                pack_offset: Some(blob.pack_offset as usize),
-                file_path: Some(blob.file_path.clone()),
-                is_delta: Some(blob.is_delta_in_pack),
-            } ).collect();
-        Ok(p)
+            .get_blobs_by_hashes(self.repo.repo_id,hashes).await?;
+
+        let map = models
+            .into_iter()
+            .map(|blob| {
+                (
+                    blob.blob_id.clone(),
+                    EntryMeta {
+                        pack_id: Some(blob.pack_id.clone()),
+                        pack_offset: Some(blob.pack_offset as usize),
+                        file_path: Some(blob.file_path.clone()),
+                        is_delta: Some(blob.is_delta_in_pack),
+                    },
+                )
+            })
+            .collect::<HashMap<String, EntryMeta>>();
+            
+        Ok(map)
     }
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {

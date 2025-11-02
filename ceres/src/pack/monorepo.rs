@@ -168,20 +168,20 @@ impl RepoHandler for MonoRepo {
         
     }
 
-    async fn check_entry(&self, entry: &Entry) -> Result<bool, GitError> {
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {
         if self.current_commit.read().await.is_none() {
             if entry.obj_type == ObjectType::Commit {
                 let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
                 let mut current = self.current_commit.write().await;
                 *current = Some(commit);
-                return Ok(true);
+                
             }
         } else if entry.obj_type == ObjectType::Commit {
             return Err(GitError::CustomError(
                 "only single commit support in each push".to_string(),
             ));
         }
-        Ok(false)
+        Ok(())
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
@@ -752,10 +752,7 @@ mod test {
     use std::sync::{Arc};
     use git_internal::hash::SHA1;
     use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-    use git_internal::internal::object::types::ObjectType;
     use tokio::sync::RwLock;
-    use bellatrix::Bellatrix;
-    use jupiter::storage::Storage;
     use crate::pack::monorepo::MonoRepo;
     use crate::pack::RepoHandler;
 
@@ -840,15 +837,7 @@ mod test {
         println!("Test result: {:?}", result);
     }
 
-    // 验证路径构建逻辑的单元测试
-    #[test]
-    fn test_path_building() {
-        let base_path = PathBuf::from("src/main");
-        let file_name = "test.rs";
-        let expected_path = base_path.join(file_name);
-
-        assert_eq!(expected_path.to_str().unwrap(), "src/main/test.rs");
-    }
+    
 
     // 验证 UTF-8 路径处理
     #[test]

@@ -11,7 +11,7 @@ use sea_orm::{PaginatorTrait, QueryOrder};
 use tokio::sync::Mutex;
 
 use crate::utils::converter::{GitObjectModel, process_entry};
-use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob};
+use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
 use common::errors::MegaError;
 use common::model::Pagination;
 use git_internal::internal::pack::entry::Entry;

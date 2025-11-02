@@ -1,7 +1,7 @@
 # the directory where the data files is located, such as logs, database, etc.
 # can be overridden by environment variable `MEGA_BASE_DIR`
 # When using monobean, this option will be ignored, you should set it in monobean preference GUI.
-base_dir = "F:/rustProject/.mono"
+base_dir = "/tmp/.mono"
 
 # Filling the following environment variables with values you set
 ## Logging Configuration
@@ -19,31 +19,30 @@ print_std = true
 [database]
 # "sqlite" | "postgres"
 # "sqlite" will use `db_path` and ignore `db_url`
-db_type = "sqlite"
+db_type = "postgres"
 
 # used for sqlite
 db_path = "${base_dir}/mega.db"
 
 # database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
-# For SQLite, must include "sqlite://" prefix
-db_url = "sqlite://F:/rustProject/.mono/mega.db"
+db_url = "postgres://mono:mono@localhost:5432/mono"
 #db_url = "postgres://mono:mono@127.0.0.1:5432/mono"
 
 # Maximum number of database connections in the pool.
 # A good rule of thumb is to set this to ~2 × CPU cores.
-max_connection = 1
+max_connection = 16
 
 # Minimum number of database connections maintained in the pool.
 # Typically set to ~1 × CPU cores to ensure baseline concurrency.
-min_connection = 1
+min_connection = 8
 
 # Timeout (in seconds) for acquiring a connection from the pool.
 # If exceeded, the request will fail.
-acquire_timeout = 30
+acquire_timeout = 3
 
 # Timeout (in seconds) for establishing a new database connection.
 # If exceeded, the connection attempt will fail.
-connect_timeout = 30
+connect_timeout = 3
 
 # Whether to disabling SQLx Log
 sqlx_logging = false

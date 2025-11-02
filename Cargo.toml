@@ -33,8 +33,8 @@ bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 neptune = { path = "neptune" }
 
-# git-internal = "0.1.0"
-git-internal = { path = "F:\\rustProject\\git-internal" }
+ git-internal = "0.1.0"
+#git-internal = { path = "F:\\rustProject\\git-internal" }
 #====
 anyhow = "1.0.100"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -56,7 +56,7 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 axum = { version = "0.8.6", features = ["macros", "json"] }
 axum-extra = "0.10.3"
-russh = "0.52.1"
+russh = "0.54.6"
 tower-http = "0.6.6"
 tower = "0.5.2"
 tower-sessions = { version = "0.12.3", features = ["memory-store"] }
