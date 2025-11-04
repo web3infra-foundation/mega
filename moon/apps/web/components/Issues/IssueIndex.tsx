@@ -44,10 +44,13 @@ export const IssueIndex = () => {
           <BreadcrumbTitlebar className='justify-between'>
             <IssueBreadcrumbIcon />
           </BreadcrumbTitlebar>
-          <IndexPageContent id='/[org]/issue' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
+          <IndexPageContent
+            id='/[org]/issue'
+            className={cn('@container', 'max-w-full lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl')}
+          >
             <IssueSearch filterQuery={filterQuery} onClearFilters={handleClearFilters} />
-            <IssuesContent 
-              searching={isSearching} 
+            <IssuesContent
+              searching={isSearching}
               setFilterQuery={setFilterQuery}
               onRegisterClearFilters={setOnClearFilters}
             />

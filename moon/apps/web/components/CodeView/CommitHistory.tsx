@@ -8,8 +8,6 @@ import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { useGetLatestCommit } from '@/hooks/useGetLatestCommit'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 
-import CommitDetails from './CommitDetails'
-
 const CommitHyStyle = {
   width: '100%',
   background: '#fff',
@@ -78,7 +76,14 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
           </Button>
         </Flex>
       </div>
-      {Expand && <CommitDetails />}
+
+      {Expand && commitData && (
+        <p className='ml-4 text-neutral-500'>
+          Signed-off-by: {commitData.author} {'<'}
+          {memberData?.user?.email}
+          {'>'}
+        </p>
+      )}
     </>
   )
 }

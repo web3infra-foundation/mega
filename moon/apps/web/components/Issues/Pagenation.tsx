@@ -34,7 +34,7 @@ export const Pagination = <T extends number>({ totalNum, pageSize, onChange, cur
   }, [current, totalPages])
   return (
     <>
-      <BreadcrumbTitlebar className='h-auto justify-center gap-2 border-b-transparent'>
+      <BreadcrumbTitlebar className='h-auto justify-center gap-2 border-b-transparent pt-1'>
         {current === 1 ? (
           <PreviousOrNext isNext={false} disabled={true} color='text-[#818b98]' />
         ) : (
