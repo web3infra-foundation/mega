@@ -1,6 +1,5 @@
 'use client'
 
-
 export const LANGUAGE_MAP: Record<string, string> = {
   '.js': 'javascript',
   '.mjs': 'javascript',
@@ -83,30 +82,36 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.babelrc': 'json',
   '.editorconfig': 'ini',
   '.buckconfig': 'toml',
-  '.swcrc': 'json',
+  '.swcrc': 'json'
 }
 
-
 export const SPECIAL_FILE_MAP: Record<string, string> = {
-  'dockerfile': 'dockerfile',
-  'rakefile': 'ruby',
-  'gemfile': 'ruby',
-  'podfile': 'ruby',
-  'fastfile': 'ruby',
-  'cartfile': 'swift',
+  dockerfile: 'dockerfile',
+  rakefile: 'ruby',
+  gemfile: 'ruby',
+  podfile: 'ruby',
+  fastfile: 'ruby',
+  cartfile: 'swift',
   'package.json': 'json',
   'tsconfig.json': 'json',
   'composer.json': 'json',
   'pom.xml': 'xml',
   'build.gradle': 'groovy',
   'settings.gradle': 'groovy',
-  'buck': 'python',
-  'makefile': 'makefile',
+  buck: 'python',
+  bzl: 'python',
+  build: 'python',
+  workspace: 'python',
+  'workspace.bazel': 'python',
+  'build.bazel': 'python',
+  '.bazelrc': 'ini',
+  '.buckconfig': 'toml',
+  '.buckversion': 'text',
+  makefile: 'makefile',
   'makefile.linux': 'makefile',
   'makefile.win': 'makefile',
-  'makefile.mac': 'makefile',
+  'makefile.mac': 'makefile'
 }
-
 
 export const COMPOUND_EXTENSIONS: Record<string, string> = {
   '.d.ts': 'typescript',
@@ -150,9 +155,8 @@ export const COMPOUND_EXTENSIONS: Record<string, string> = {
   'vitest.config.json': 'json',
   'vitest.config.yaml': 'yaml',
   'vitest.config.yml': 'yaml',
-  'vitest.config.toml': 'toml',
+  'vitest.config.toml': 'toml'
 }
-
 
 export function getLangFromFileName(fileName: string): string {
   if (!fileName) return 'text'
