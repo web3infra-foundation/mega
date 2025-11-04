@@ -15,7 +15,7 @@ const CodeViewHeader = () => {
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
           <Button
-            variant="ghost"
+            variant="ghost" 
             size="1"
             className="p-1 hover:bg-gray-100 rounded "
           >
@@ -25,7 +25,7 @@ const CodeViewHeader = () => {
       </div>
 
       {/* Action Buttons */}
-      <Flex gap="3" className="w-full max-w-4xl">
+      <Flex gap="3" className="w-full max-w-4xl" style={{ marginTop: '16px' }}>
         <Button
           variant="soft"
           size="3"

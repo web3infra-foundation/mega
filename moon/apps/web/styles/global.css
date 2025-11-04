@@ -374,3 +374,16 @@ details summary::-webkit-details-marker {
   border-radius: inherit;
   content: '';
 }
+
+[data-component="Timeline"] [data-component="Timeline.Body"] {
+  margin-top: 4px !important;
+}
+
+.ClBox-MergeSection {
+  margin-top: 12px !important;
+}
+
+/* Protect CodeViewHeader Flex from global style pollution */
+[class*="rt-Flex"][class*="max-w-4xl"] {
+  margin-top: 16px !important;
+}
