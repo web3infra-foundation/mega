@@ -110,7 +110,10 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
-        session_store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
+        session_store: Some(CampsiteApiStore::new(
+            oauth_config.campsite_api_domain,
+            storage.user_storage(),
+        )),
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
     };
