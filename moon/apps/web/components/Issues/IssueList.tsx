@@ -40,7 +40,7 @@ export function IssueList<T>({
   return (
     <>
       {!isDark ? (
-        <div className='max-h-[600px] overflow-auto rounded-md border border-[#d0d7de]'>
+        <div className='overflow-auto rounded-md border border-[#d0d7de]'>
           {header}
 
           {isLoading ? (

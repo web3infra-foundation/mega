@@ -494,7 +494,10 @@ export default function CLView() {
       <Heading>Change List</Heading>
       <br />
       <IndexPageContainer>
-        <IndexPageContent id='/[org]/cl' className={cn('@container', '3xl:max-w-7xl max-w-7xl')}>
+        <IndexPageContent
+          id='/[org]/cl'
+          className={cn('@container', 'max-w-full lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl')}
+        >
           <div className='flex h-full flex-col'>
             <div className='mb-4'>
               <div className='group flex min-h-[42px] items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm transition-all focus-within:border-blue-500 focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-100 hover:border-gray-400'>
