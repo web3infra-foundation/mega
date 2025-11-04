@@ -135,15 +135,7 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     let opt = setup_option(db_config);
     let conn = Database::connect(opt).await?;
 
-    // // Enable WAL mode for better concurrency in SQLite //这里是暂时ai生成
-    // // This allows multiple readers and one writer simultaneously, reducing lock contention
-    // use sea_orm::{ConnectionTrait, Statement};
-    // let stmt = Statement::from_string(
-    //     sea_orm::DatabaseBackend::Sqlite,
-    //     "PRAGMA journal_mode=WAL;".to_owned(),
-    // );
-    // conn.execute(stmt).await?;
-    // log::info!("SQLite WAL mode enabled");
+    
 
     Ok(conn)
 }

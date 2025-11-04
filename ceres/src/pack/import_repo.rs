@@ -429,7 +429,7 @@ impl ImportRepo {
         tree: Tree,
         path: PathBuf,
     ) -> Result<(), MegaError> {
-        Ok(for item in tree.tree_items {
+        for item in tree.tree_items {
             if item.is_tree() {
                 let tree = Tree::from_git_model(
                     self.storage
@@ -439,6 +439,8 @@ impl ImportRepo {
                         .unwrap()
                         .clone(),
                 );
+
+                // 递归调用
                 self.traverses_and_update_filepath(tree, path.join(item.name))
                     .await?;
             } else {
@@ -446,9 +448,11 @@ impl ImportRepo {
                 self.storage
                     .git_db_storage()
                     .update_git_blob_filepath(&id, path.join(item.name).to_str().unwrap())
-                    .await?
+                    .await?;
             }
-        })
+        }
+
+        Ok(())
     }
 
     // attach import repo to monorepo parent tree

@@ -401,14 +401,14 @@ impl RepoHandler for MonoRepo {
             .get_trees_by_hashes(tree_hashes)
             .await
             .map_err(|e| {
-                MegaError::with_message(&format!(
+                MegaError::with_message(format!(
                     "Failed to retrieve root tree for commit {}: {}",
                     commit_opt.id, e
                 ))
             })?;
 
         if trees.is_empty() {
-            return Err(MegaError::with_message(&format!(
+            return Err(MegaError::with_message(format!(
                 "Root tree {} not found for commit {}",
                 commit_opt.tree_id, commit_opt.id
             )));
@@ -425,7 +425,7 @@ impl RepoHandler for MonoRepo {
         self.traverses_and_update_filepath(root_tree, PathBuf::new())
             .await
             .map_err(|e| {
-                MegaError::with_message(&format!(
+                MegaError::with_message(format!(
                     "Failed to update file paths for commit {}: {}",
                     commit_opt.id, e
                 ))
@@ -451,7 +451,7 @@ impl MonoRepo {
             let item_path = path.join(&item.name);
 
             if item.is_tree() {
-                // 处理子树
+                
                 let tree_hash = item.id.to_string();
                 let trees = self
                     .storage
@@ -459,7 +459,7 @@ impl MonoRepo {
                     .get_trees_by_hashes(vec![tree_hash.clone()])
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(&format!(
+                        MegaError::with_message(format!(
                             "Failed to retrieve tree {} at path '{}': {}",
                             tree_hash,
                             item_path.display(),
@@ -468,7 +468,7 @@ impl MonoRepo {
                     })?;
 
                 if trees.is_empty() {
-                    return Err(MegaError::with_message(&format!(
+                    return Err(MegaError::with_message(format!(
                         "Tree {} not found at path '{}'",
                         tree_hash,
                         item_path.display()
@@ -477,11 +477,11 @@ impl MonoRepo {
 
                 let child_tree = Tree::from_mega_model(trees[0].clone());
 
-                // 递归处理子树
+                
                 self.traverses_and_update_filepath(child_tree, item_path.clone())
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(&format!(
+                        MegaError::with_message(format!(
                             "Failed to process subtree {} at path '{}': {}",
                             tree_hash,
                             item_path.display(),
@@ -489,23 +489,23 @@ impl MonoRepo {
                         ))
                     })?;
             } else {
-                // 处理 blob 文件
+               
                 let blob_id = item.id.to_string();
                 let file_path_str = item_path.to_str().ok_or_else(|| {
-                    MegaError::with_message(&format!(
+                    MegaError::with_message(format!(
                         "Invalid UTF-8 path for blob {}: '{}'",
                         blob_id,
                         item_path.display()
                     ))
                 })?;
 
-                // 更新 blob 的文件路径
+                
                 self.storage
                     .mono_storage()
                     .update_blob_filepath(&blob_id, file_path_str)
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(&format!(
+                        MegaError::with_message(format!(
                             "Failed to update file path for blob {} at '{}': {}",
                             blob_id, file_path_str, e
                         ))
