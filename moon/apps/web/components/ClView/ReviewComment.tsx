@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
@@ -41,7 +41,7 @@ interface ReviewCommentProps {
   editorRef: React.RefObject<SimpleNoteContentRef>
 }
 
-const ReviewComment = ({reviewers, conv, id, whoamI, editorRef }: ReviewCommentProps) => {
+const ReviewComment = React.memo<ReviewCommentProps>(({reviewers, conv, id, whoamI, editorRef }: ReviewCommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
   const { data: currentUser } = useGetCurrentUser()
   const { mutate: resolveReview } = usePostClReviewResolve()
@@ -197,7 +197,9 @@ const ReviewComment = ({reviewers, conv, id, whoamI, editorRef }: ReviewCommentP
       </div>
     </div>
   )
-}
+})
+
+ReviewComment.displayName = 'ReviewComment'
 
 const EditInput = forwardRef(({ comment }: { comment: ConversationItem }, ref) => {
   const editorRef = useRef<SimpleNoteContentRef>(null)

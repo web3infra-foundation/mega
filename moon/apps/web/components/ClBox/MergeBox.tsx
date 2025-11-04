@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { legacyApiClient } from '@/utils/queryClient';
 import { useGetCurrentUser } from "@/hooks/useGetCurrentUser";
 
-export function MergeBox({ prId }: { prId: string }) {
+export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
   const { checks, refresh } = useMergeChecks(prId);
   const [hasCheckFailures, setHasCheckFailures] = useState(true);
   const { mutate: approveCl, isPending: clMergeIsPending } = usePostClMerge(prId)
@@ -108,4 +108,6 @@ export function MergeBox({ prId }: { prId: string }) {
       ) }
     </div>
   );
-}
+})
+
+MergeBox.displayName = 'MergeBox'

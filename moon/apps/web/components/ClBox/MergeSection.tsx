@@ -10,7 +10,7 @@ interface MergeSectionProps {
   isMerging: boolean;
 }
 
-export function MergeSection({ isAllReviewerApproved, hasCheckFailures, isNowUserApprove, onMerge, onApprove, isMerging }: MergeSectionProps) {
+export const MergeSection = React.memo<MergeSectionProps>(({ isAllReviewerApproved, hasCheckFailures, isNowUserApprove, onMerge, onApprove, isMerging }) => {
   let statusNode: React.ReactNode;
   const isMergeable = isAllReviewerApproved && !hasCheckFailures;
 
@@ -40,21 +40,21 @@ export function MergeSection({ isAllReviewerApproved, hasCheckFailures, isNowUse
   return (
     <div className="p-3">
       {statusNode}
-      <div className="flex items-center justify-center space-x-4">
+      <div className="ClBox-MergeSection flex items-center justify-center gap-4" style={{ marginTop: '12px' }}>
         <button
           onClick={onApprove}
           disabled={isNowUserApprove === undefined || isNowUserApprove}
-          className="w-full mt-3 px-4 py-2 font-bold text-white bg-green-600 rounded-md
+          className="w-full px-4 py-2 font-bold text-white bg-green-600 rounded-md
                    hover:bg-green-800
                    duration-500
                    disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {"Approve"}
+          Approve
         </button>
         <button
           onClick={onMerge}
           disabled={!isMergeable}
-          className="w-full mt-3 px-4 py-2 font-bold text-white bg-green-600 rounded-md
+          className="w-full px-4 py-2 font-bold text-white bg-green-600 rounded-md
                    hover:bg-green-800
                    duration-500
                    disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -64,4 +64,6 @@ export function MergeSection({ isAllReviewerApproved, hasCheckFailures, isNowUse
       </div>
     </div>
   );
-}
+})
+
+MergeSection.displayName = 'MergeSection'

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 import toast from 'react-hot-toast'
 
@@ -35,7 +35,7 @@ interface CommentProps {
   editorRef: React.RefObject<SimpleNoteContentRef>
 }
 
-const Comment = ({ conv, id, whoamI, editorRef }: CommentProps) => {
+const Comment = React.memo<CommentProps>(({ conv, id, whoamI, editorRef }: CommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
 
   const extensions = useMemo(() => getNoteExtensions({ linkUnfurl: {} }), [])
@@ -125,7 +125,9 @@ const Comment = ({ conv, id, whoamI, editorRef }: CommentProps) => {
       </div>
     </div>
   )
-}
+})
+
+Comment.displayName = 'Comment'
 
 const EditInput = forwardRef(({ comment }: { comment: ConversationItem }, ref) => {
   const editorRef = useRef<SimpleNoteContentRef>(null)
