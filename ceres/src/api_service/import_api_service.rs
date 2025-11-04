@@ -444,12 +444,21 @@ impl ApiHandler for ImportApiService {
                 Commit::from_tree_id(new_root_id, vec![parent_id], &payload.commit_message);
             let new_commit_id = new_commit.id.to_string();
 
-            let mut entries: Vec<MetaAttached<Entry,EntryMeta>> = Vec::new();
+            let mut entries: Vec<MetaAttached<Entry, EntryMeta>> = Vec::new();
             for t in updated_trees.iter().cloned() {
-                entries.push(MetaAttached{inner:Entry::from(t),meta:EntryMeta::new()});
+                entries.push(MetaAttached {
+                    inner: Entry::from(t),
+                    meta: EntryMeta::new(),
+                });
             }
-            entries.push(MetaAttached{inner:Entry::from(new_blob.clone()),meta:EntryMeta::new()});
-            entries.push(MetaAttached{inner:Entry::from(new_commit.clone()),meta:EntryMeta::new()});
+            entries.push(MetaAttached {
+                inner: Entry::from(new_blob.clone()),
+                meta: EntryMeta::new(),
+            });
+            entries.push(MetaAttached {
+                inner: Entry::from(new_commit.clone()),
+                meta: EntryMeta::new(),
+            });
             git_storage
                 .save_entry(self.repo.repo_id, entries)
                 .await
@@ -790,8 +799,8 @@ impl ImportApiService {
             tagger: tagger_info,
             message: message.unwrap_or_default(),
             pack_id: String::new(),
-            pack_offset:0,
-            
+            pack_offset: 0,
+
             created_at: chrono::Utc::now().naive_utc(),
         }
     }

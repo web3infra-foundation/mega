@@ -15,7 +15,7 @@ pub struct Model {
     pub size: i32,
     pub commit_id: String,
     pub pack_id: String,
-    pub pack_offset: i64, 
+    pub pack_offset: i64,
     pub created_at: DateTime,
 }
 

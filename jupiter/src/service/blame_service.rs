@@ -1159,11 +1159,11 @@ impl BlameService {
 
 #[cfg(test)]
 mod tests {
-    use git_internal::internal::metadata::EntryMeta;
     use super::*;
     use crate::storage::base_storage::StorageConnector;
     use callisto::mega_refs;
     use common::utils::MEGA_BRANCH_NAME;
+    use git_internal::internal::metadata::EntryMeta;
     use git_internal::internal::object::blob::Blob;
     use git_internal::internal::object::commit::Commit;
     use git_internal::internal::object::signature::{Signature, SignatureType};

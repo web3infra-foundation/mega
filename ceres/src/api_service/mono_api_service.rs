@@ -1046,8 +1046,8 @@ impl MonoApiService {
             tag_name: name,
             tagger: tagger_info,
             message: message.unwrap_or_default(),
-            pack_id:String::new(),
-            pack_offset:0,
+            pack_id: String::new(),
+            pack_offset: 0,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }

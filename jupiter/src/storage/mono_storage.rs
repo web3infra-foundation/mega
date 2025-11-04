@@ -6,30 +6,31 @@ use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
 
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, DatabaseTransaction, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseTransaction, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+};
 
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
-use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
-use common::config::MonoConfig;
-use common::errors::MegaError;
-use common::model::Pagination;
-use common::utils::MEGA_BRANCH_NAME;
-use git_internal::internal::object::ObjectTrait;
-use git_internal::internal::object::blob::Blob;
-use git_internal::internal::{object::commit::Commit, pack::entry::Entry};
-use sea_orm::sea_query::Expr;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::commit_binding_storage::CommitBindingStorage;
 use crate::storage::user_storage::UserStorage;
 use crate::utils::converter::MegaModelConverter;
 use crate::utils::converter::{IntoMegaModel, MegaObjectModel, ToRawBlob, process_entry};
+use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
+use common::config::MonoConfig;
+use common::errors::MegaError;
+use common::model::Pagination;
+use common::utils::MEGA_BRANCH_NAME;
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
+use git_internal::internal::object::ObjectTrait;
+use git_internal::internal::object::blob::Blob;
+use git_internal::internal::{object::commit::Commit, pack::entry::Entry};
+use sea_orm::sea_query::Expr;
 
 #[derive(Clone)]
 pub struct MonoStorage {
     pub base: BaseStorage,
 }
-
-
 
 impl Deref for MonoStorage {
     type Target = BaseStorage;
@@ -303,72 +304,80 @@ impl MonoStorage {
         Ok(())
     }
 
-
-    pub async fn update_blob_filepath(&self, blob_id: &str, file_path: &str) -> Result<(), MegaError> {
+    pub async fn update_blob_filepath(
+        &self,
+        blob_id: &str,
+        file_path: &str,
+    ) -> Result<(), MegaError> {
         if let Some(model) = mega_blob::Entity::find()
             .filter(mega_blob::Column::BlobId.eq(blob_id))
-            .one(self.get_connection()).await?
+            .one(self.get_connection())
+            .await?
         {
-            
             let mut active: mega_blob::ActiveModel = model.into();
 
-            
             active.file_path = Set(file_path.to_string());
 
-           
             active.update(self.get_connection()).await?;
         }
 
         Ok(())
     }
-    
-    
-    pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
-        
 
+    pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
         let conn = self.get_connection();
 
-        // 
+        //
         let txn: DatabaseTransaction = conn.begin().await?;
 
-        // 
+        //
         let tables = [
-            ("mega_blob", mega_blob::Entity::update_many()
-                .col_expr(mega_blob::Column::PackId, Expr::value(pack_id))
-                .filter(mega_blob::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("mega_tree", mega_tree::Entity::update_many()
-                .col_expr(mega_tree::Column::PackId, Expr::value(pack_id))
-                .filter(mega_tree::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("mega_tag", mega_tag::Entity::update_many()
-                .col_expr(mega_tag::Column::PackId, Expr::value(pack_id))
-                .filter(mega_tag::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("mega_commit", mega_commit::Entity::update_many()
-                .col_expr(mega_commit::Column::PackId, Expr::value(pack_id))
-                .filter(mega_commit::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
+            (
+                "mega_blob",
+                mega_blob::Entity::update_many()
+                    .col_expr(mega_blob::Column::PackId, Expr::value(pack_id))
+                    .filter(mega_blob::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "mega_tree",
+                mega_tree::Entity::update_many()
+                    .col_expr(mega_tree::Column::PackId, Expr::value(pack_id))
+                    .filter(mega_tree::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "mega_tag",
+                mega_tag::Entity::update_many()
+                    .col_expr(mega_tag::Column::PackId, Expr::value(pack_id))
+                    .filter(mega_tag::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "mega_commit",
+                mega_commit::Entity::update_many()
+                    .col_expr(mega_commit::Column::PackId, Expr::value(pack_id))
+                    .filter(mega_commit::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
         ];
 
-        // 
+        //
         for (name, res) in tables {
             if res.rows_affected > 0 {
                 tracing::info!("mega object Updated {} rows in {}", res.rows_affected, name);
             }
         }
 
-        // 
+        //
         txn.commit().await?;
         Ok(())
-        
     }
-    
-    
+
     /// Process commit author bindings
     async fn process_commit_bindings(
         &self,

@@ -1,3 +1,5 @@
+use async_recursion::async_recursion;
+use async_trait::async_trait;
 use std::{
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
@@ -8,8 +10,6 @@ use std::{
     },
     vec,
 };
-use async_recursion::async_recursion;
-use async_trait::async_trait;
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -21,6 +21,7 @@ use common::{
     errors::MegaError,
     utils::{self, ZERO_ID},
 };
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::{
     errors::GitError,
     hash::SHA1,
@@ -29,7 +30,6 @@ use git_internal::{
         pack::{encode::PackEncoder, entry::Entry},
     },
 };
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use jupiter::storage::Storage;
 use jupiter::utils::converter::FromMegaModel;
 
@@ -149,7 +149,10 @@ impl RepoHandler for MonoRepo {
         Ok(())
     }
 
-    async fn save_entry(&self, entry_list: Vec<MetaAttached<Entry,EntryMeta>>) -> Result<(), MegaError> {
+    async fn save_entry(
+        &self,
+        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
+    ) -> Result<(), MegaError> {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
         let commit_id = if let Some(commit) = &*current_commit {
@@ -165,7 +168,6 @@ impl RepoHandler for MonoRepo {
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
         let storage = self.storage.mono_storage();
         storage.update_pack_id(temp_pack_id, pack_id).await
-        
     }
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {
@@ -174,7 +176,6 @@ impl RepoHandler for MonoRepo {
                 let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
                 let mut current = self.current_commit.write().await;
                 *current = Some(commit);
-                
             }
         } else if entry.obj_type == ObjectType::Commit {
             return Err(GitError::CustomError(
@@ -279,7 +280,13 @@ impl RepoHandler for MonoRepo {
                 Some(&entry_tx),
             )
             .await;
-            entry_tx.send(MetaAttached{inner:c.into(),meta:EntryMeta::new()}).await.unwrap();
+            entry_tx
+                .send(MetaAttached {
+                    inner: c.into(),
+                    meta: EntryMeta::new(),
+                })
+                .await
+                .unwrap();
         }
         drop(entry_tx);
 
@@ -308,11 +315,16 @@ impl RepoHandler for MonoRepo {
             .await
     }
 
-    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<HashMap<String,EntryMeta>, MegaError> {
-        let models = self.storage
+    async fn get_blob_metadata_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<HashMap<String, EntryMeta>, MegaError> {
+        let models = self
+            .storage
             .mono_storage()
-            .get_mega_blobs_by_hashes(hashes).await?;
-        
+            .get_mega_blobs_by_hashes(hashes)
+            .await?;
+
         let map = models
             .into_iter()
             .map(|blob| {
@@ -327,7 +339,7 @@ impl RepoHandler for MonoRepo {
                 )
             })
             .collect::<HashMap<String, EntryMeta>>();
-        
+
         Ok(map)
     }
 
@@ -370,11 +382,10 @@ impl RepoHandler for MonoRepo {
 
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
         let commit_guard = self.current_commit.read().await;
-        
+
         let commit_opt = match commit_guard.as_ref() {
             Some(commit) => commit,
             None => {
-                
                 tracing::info!(
                     "Skipping file path update: no current commit available. \
                      This typically occurs when only updating references or pushing empty pack files."
@@ -382,44 +393,46 @@ impl RepoHandler for MonoRepo {
                 return Ok(());
             }
         };
-        
+
         let tree_hashes = vec![commit_opt.tree_id.to_string()];
-        let trees = self.storage
+        let trees = self
+            .storage
             .mono_storage()
             .get_trees_by_hashes(tree_hashes)
             .await
             .map_err(|e| {
                 MegaError::with_message(&format!(
-                    "Failed to retrieve root tree for commit {}: {}", 
+                    "Failed to retrieve root tree for commit {}: {}",
                     commit_opt.id, e
                 ))
             })?;
 
         if trees.is_empty() {
             return Err(MegaError::with_message(&format!(
-                "Root tree {} not found for commit {}", 
+                "Root tree {} not found for commit {}",
                 commit_opt.tree_id, commit_opt.id
             )));
         }
 
         let root_tree = Tree::from_mega_model(trees[0].clone());
-        
+
         tracing::info!(
-            "Starting file path update for commit {} with root tree {}", 
-            commit_opt.id, commit_opt.tree_id
+            "Starting file path update for commit {} with root tree {}",
+            commit_opt.id,
+            commit_opt.tree_id
         );
 
-        
-        self.traverses_and_update_filepath(root_tree, PathBuf::new()).await
+        self.traverses_and_update_filepath(root_tree, PathBuf::new())
+            .await
             .map_err(|e| {
                 MegaError::with_message(&format!(
-                    "Failed to update file paths for commit {}: {}", 
+                    "Failed to update file paths for commit {}: {}",
                     commit_opt.id, e
                 ))
             })?;
 
         tracing::info!(
-            "Successfully completed file path update for commit {}", 
+            "Successfully completed file path update for commit {}",
             commit_opt.id
         );
 
@@ -429,39 +442,50 @@ impl RepoHandler for MonoRepo {
 
 impl MonoRepo {
     #[async_recursion]
-    async fn traverses_and_update_filepath(&self, tree: Tree, path: PathBuf) -> Result<(), MegaError> {
+    async fn traverses_and_update_filepath(
+        &self,
+        tree: Tree,
+        path: PathBuf,
+    ) -> Result<(), MegaError> {
         for item in tree.tree_items {
             let item_path = path.join(&item.name);
-            
+
             if item.is_tree() {
                 // 处理子树
                 let tree_hash = item.id.to_string();
-                let trees = self.storage
+                let trees = self
+                    .storage
                     .mono_storage()
                     .get_trees_by_hashes(vec![tree_hash.clone()])
                     .await
                     .map_err(|e| {
                         MegaError::with_message(&format!(
-                            "Failed to retrieve tree {} at path '{}': {}", 
-                            tree_hash, item_path.display(), e
+                            "Failed to retrieve tree {} at path '{}': {}",
+                            tree_hash,
+                            item_path.display(),
+                            e
                         ))
                     })?;
 
                 if trees.is_empty() {
                     return Err(MegaError::with_message(&format!(
-                        "Tree {} not found at path '{}'", 
-                        tree_hash, item_path.display()
+                        "Tree {} not found at path '{}'",
+                        tree_hash,
+                        item_path.display()
                     )));
                 }
 
                 let child_tree = Tree::from_mega_model(trees[0].clone());
-                
+
                 // 递归处理子树
-                self.traverses_and_update_filepath(child_tree, item_path.clone()).await
+                self.traverses_and_update_filepath(child_tree, item_path.clone())
+                    .await
                     .map_err(|e| {
                         MegaError::with_message(&format!(
-                            "Failed to process subtree {} at path '{}': {}", 
-                            tree_hash, item_path.display(), e
+                            "Failed to process subtree {} at path '{}': {}",
+                            tree_hash,
+                            item_path.display(),
+                            e
                         ))
                     })?;
             } else {
@@ -469,29 +493,32 @@ impl MonoRepo {
                 let blob_id = item.id.to_string();
                 let file_path_str = item_path.to_str().ok_or_else(|| {
                     MegaError::with_message(&format!(
-                        "Invalid UTF-8 path for blob {}: '{}'", 
-                        blob_id, item_path.display()
+                        "Invalid UTF-8 path for blob {}: '{}'",
+                        blob_id,
+                        item_path.display()
                     ))
                 })?;
 
                 // 更新 blob 的文件路径
-                self.storage.mono_storage()
+                self.storage
+                    .mono_storage()
                     .update_blob_filepath(&blob_id, file_path_str)
                     .await
                     .map_err(|e| {
                         MegaError::with_message(&format!(
-                            "Failed to update file path for blob {} at '{}': {}", 
+                            "Failed to update file path for blob {} at '{}': {}",
                             blob_id, file_path_str, e
                         ))
                     })?;
 
                 tracing::debug!(
-                    "Updated file path for blob {} to '{}'", 
-                    blob_id, file_path_str
+                    "Updated file path for blob {} to '{}'",
+                    blob_id,
+                    file_path_str
                 );
             }
         }
-        
+
         Ok(())
     }
     async fn fetch_or_new_cl_link(&self) -> Result<String, MegaError> {
@@ -747,14 +774,14 @@ fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, SHA1)> {
 
 #[cfg(test)]
 mod test {
-    use std::path::{Component, Path, PathBuf};
-    use std::str::FromStr;
-    use std::sync::{Arc};
+    use crate::pack::RepoHandler;
+    use crate::pack::monorepo::MonoRepo;
     use git_internal::hash::SHA1;
     use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+    use std::path::{Component, Path, PathBuf};
+    use std::str::FromStr;
+    use std::sync::Arc;
     use tokio::sync::RwLock;
-    use crate::pack::monorepo::MonoRepo;
-    use crate::pack::RepoHandler;
 
     #[test]
     fn get_component_reverse() {
@@ -772,18 +799,18 @@ mod test {
 
     // 创建测试用的 MonoRepo 实例
     async fn create_test_mono_repo() -> MonoRepo {
-        use common::config::BuildConfig;
         use bellatrix::Bellatrix;
+        use common::config::BuildConfig;
         use jupiter::tests::test_storage;
         use tempfile::TempDir;
-        
+
         // 创建临时目录和测试存储
         let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let storage = test_storage(temp_dir.path()).await;
-        
+
         // 创建测试 Bellatrix
         let bellatrix = Arc::new(Bellatrix::new(BuildConfig::default()));
-        
+
         MonoRepo {
             storage,
             path: PathBuf::from("/test/repo"),
@@ -804,7 +831,10 @@ mod test {
         let result = mono_repo.traverses_tree_and_update_filepath().await;
 
         // 应该优雅地处理这种情况，记录日志并跳过更新
-        assert!(result.is_ok(), "Should handle None current_commit gracefully");
+        assert!(
+            result.is_ok(),
+            "Should handle None current_commit gracefully"
+        );
     }
 
     #[tokio::test]
@@ -813,14 +843,11 @@ mod test {
 
         // 创建测试树结构
         let blob_sha1 = SHA1::from_str("1234567890abcdef1234567890abcdef12345678").unwrap();
-        let tree_items = vec![
-            TreeItem {
-                mode: TreeItemMode::Blob,
-                name: "test_file.txt".to_string(),
-                id: blob_sha1,
-                
-            }
-        ];
+        let tree_items = vec![TreeItem {
+            mode: TreeItemMode::Blob,
+            name: "test_file.txt".to_string(),
+            id: blob_sha1,
+        }];
 
         let tree = Tree {
             id: SHA1::from_str("abcdef1234567890abcdef1234567890abcdef12").unwrap(),
@@ -837,8 +864,6 @@ mod test {
         println!("Test result: {:?}", result);
     }
 
-    
-
     // 验证 UTF-8 路径处理
     #[test]
     fn test_utf8_path_handling() {
@@ -848,5 +873,4 @@ mod test {
         assert!(path_str.is_some(), "Should handle UTF-8 paths correctly");
         assert_eq!(path_str.unwrap(), "src/测试文件.txt");
     }
-
 }

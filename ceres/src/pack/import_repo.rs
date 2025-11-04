@@ -1,3 +1,6 @@
+use async_recursion::async_recursion;
+use async_trait::async_trait;
+use futures::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -7,17 +10,15 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use async_recursion::async_recursion;
-use async_trait::async_trait;
-use futures::StreamExt;
 use tokio::sync::{
     Mutex,
     mpsc::{self},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{ mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
+use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::{
     errors::GitError,
     internal::{
@@ -26,7 +27,6 @@ use git_internal::{
     },
 };
 use git_internal::{hash::SHA1, internal::pack::encode::PackEncoder};
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use jupiter::storage::{Storage, base_storage::StorageConnector};
 use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 
@@ -70,7 +70,10 @@ impl RepoHandler for ImportRepo {
         self.attach_to_monorepo_parent().await
     }
 
-    async fn save_entry(&self, entry_list: Vec<MetaAttached<Entry,EntryMeta>>) -> Result<(), MegaError> {
+    async fn save_entry(
+        &self,
+        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
+    ) -> Result<(), MegaError> {
         let storage = self.storage.git_db_storage();
         storage.save_entry(self.repo.repo_id, entry_list).await
     }
@@ -89,7 +92,6 @@ impl RepoHandler for ImportRepo {
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
-        
         let storage = self.storage.git_db_storage();
         let raw_storage = self.storage.raw_db_storage();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
@@ -104,7 +106,10 @@ impl RepoHandler for ImportRepo {
                 match model {
                     Ok(m) => {
                         let c: Commit = Commit::from_git_model(m);
-                        let entry = MetaAttached{inner:c.into(),meta:EntryMeta::new()};
+                        let entry = MetaAttached {
+                            inner: c.into(),
+                            meta: EntryMeta::new(),
+                        };
                         entry_tx.send(entry).await.unwrap();
                     }
                     Err(err) => eprintln!("Error: {err:?}"),
@@ -117,7 +122,10 @@ impl RepoHandler for ImportRepo {
                 match model {
                     Ok(m) => {
                         let t: Tree = Tree::from_git_model(m);
-                        let entry = MetaAttached{inner:t.into(),meta:EntryMeta::new()};
+                        let entry = MetaAttached {
+                            inner: t.into(),
+                            meta: EntryMeta::new(),
+                        };
                         entry_tx.send(entry).await.unwrap();
                     }
                     Err(err) => eprintln!("Error: {err:?}"),
@@ -155,16 +163,18 @@ impl RepoHandler for ImportRepo {
                                 .into_iter()
                                 .next()
                                 .expect("blob metadata not found");
-                            
+
                             let meta_data = EntryMeta {
                                 pack_id: Some(blob_with_data.pack_id.clone()),
                                 pack_offset: Some(blob_with_data.pack_offset as usize),
                                 file_path: Some(blob_with_data.file_path.clone()),
                                 is_delta: Some(blob_with_data.is_delta_in_pack),
                             };
-                                
-                            
-                            let entry = MetaAttached{inner:b.into(),meta:meta_data};
+
+                            let entry = MetaAttached {
+                                inner: b.into(),
+                                meta: meta_data,
+                            };
                             sender_clone.send(entry).await.unwrap();
                         }
                         Err(err) => eprintln!("Error: {err:?}"),
@@ -179,7 +189,10 @@ impl RepoHandler for ImportRepo {
             let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
             for m in tags.into_iter() {
                 let c: Tag = Tag::from_git_model(m);
-                let entry = MetaAttached{inner:c.into(),meta:EntryMeta::new()};
+                let entry = MetaAttached {
+                    inner: c.into(),
+                    meta: EntryMeta::new(),
+                };
                 entry_tx.send(entry).await.unwrap();
             }
             drop(entry_tx);
@@ -281,7 +294,13 @@ impl RepoHandler for ImportRepo {
                 Some(&entry_tx),
             )
             .await;
-            entry_tx.send(MetaAttached{inner:c.into(),meta:EntryMeta::new()}).await.unwrap();
+            entry_tx
+                .send(MetaAttached {
+                    inner: c.into(),
+                    meta: EntryMeta::new(),
+                })
+                .await
+                .unwrap();
         }
         drop(entry_tx);
 
@@ -310,11 +329,15 @@ impl RepoHandler for ImportRepo {
             .await
     }
 
-    async fn get_blob_metadata_by_hashes(&self, hashes: Vec<String>) -> Result<HashMap<String,EntryMeta>, MegaError> {
-        
-        let models = self.storage
+    async fn get_blob_metadata_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<HashMap<String, EntryMeta>, MegaError> {
+        let models = self
+            .storage
             .git_db_storage()
-            .get_blobs_by_hashes(self.repo.repo_id,hashes).await?;
+            .get_blobs_by_hashes(self.repo.repo_id, hashes)
+            .await?;
 
         let map = models
             .into_iter()
@@ -330,7 +353,7 @@ impl RepoHandler for ImportRepo {
                 )
             })
             .collect::<HashMap<String, EntryMeta>>();
-            
+
         Ok(map)
     }
 
@@ -377,43 +400,57 @@ impl RepoHandler for ImportRepo {
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
         //let (current_head, refs) = self.head_hash().await;
         let (current_head, _refs) = self.refs_with_head_hash().await;
-        let commit = Commit::from_git_model(self.storage
-                    .git_db_storage()
-                    .get_commit_by_hash(self.repo.repo_id,&current_head)
-                    .await?.unwrap());
+        let commit = Commit::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_commit_by_hash(self.repo.repo_id, &current_head)
+                .await?
+                .unwrap(),
+        );
 
-        let root_tree  = Tree::from_git_model(
-                                self.storage
-                                    .git_db_storage()
-                                    .get_tree_by_hash(self.repo.repo_id,&commit.tree_id.to_string())
-                                    .await?.unwrap().clone());
-        self.traverses_and_update_filepath(root_tree,PathBuf::new()).await?;
+        let root_tree = Tree::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_tree_by_hash(self.repo.repo_id, &commit.tree_id.to_string())
+                .await?
+                .unwrap()
+                .clone(),
+        );
+        self.traverses_and_update_filepath(root_tree, PathBuf::new())
+            .await?;
         Ok(())
     }
 }
 
 impl ImportRepo {
-
     #[async_recursion]
-    async fn traverses_and_update_filepath(&self, tree: Tree,path: PathBuf) -> Result<(), MegaError> {
+    async fn traverses_and_update_filepath(
+        &self,
+        tree: Tree,
+        path: PathBuf,
+    ) -> Result<(), MegaError> {
         Ok(for item in tree.tree_items {
             if item.is_tree() {
                 let tree = Tree::from_git_model(
                     self.storage
                         .git_db_storage()
-                        .get_tree_by_hash(self.repo.repo_id,&item.id.to_string())
-                        .await?.unwrap().clone());
-                self.traverses_and_update_filepath(tree, path.join(item.name)).await?;
+                        .get_tree_by_hash(self.repo.repo_id, &item.id.to_string())
+                        .await?
+                        .unwrap()
+                        .clone(),
+                );
+                self.traverses_and_update_filepath(tree, path.join(item.name))
+                    .await?;
             } else {
                 let id = item.id.to_string();
-                self.storage.git_db_storage()
-                    .update_git_blob_filepath(&id, path.join(item.name).to_str().unwrap()).await?
+                self.storage
+                    .git_db_storage()
+                    .update_git_blob_filepath(&id, path.join(item.name).to_str().unwrap())
+                    .await?
             }
         })
     }
 
-
-    
     // attach import repo to monorepo parent tree
     pub(crate) async fn attach_to_monorepo_parent(&self) -> Result<(), MegaError> {
         // 1. find branch command

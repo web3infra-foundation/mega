@@ -56,12 +56,12 @@ fn commit_from_model(
 
 pub trait IntoMegaModel {
     type MegaTarget;
-    fn into_mega_model(self,ext_meta: EntryMeta) -> Self::MegaTarget;
+    fn into_mega_model(self, ext_meta: EntryMeta) -> Self::MegaTarget;
 }
 
 pub trait IntoGitModel {
     type GitTarget;
-    fn into_git_model(self,ext_meta: EntryMeta) -> Self::GitTarget;
+    fn into_git_model(self, ext_meta: EntryMeta) -> Self::GitTarget;
 }
 
 pub trait FromMegaModel {
@@ -109,12 +109,12 @@ impl GitObject {
         }
     }
 
-    pub fn convert_to_git_model(self,meta: EntryMeta) -> GitObjectModel {
+    pub fn convert_to_git_model(self, meta: EntryMeta) -> GitObjectModel {
         match self {
             GitObject::Commit(commit) => GitObjectModel::Commit(commit.into_git_model(meta)),
-            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model(meta)),       
+            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model(meta)),
             GitObject::Blob(blob) => {
-                GitObjectModel::Blob(blob.clone().into_git_model(meta), blob.to_raw_blob())   
+                GitObjectModel::Blob(blob.clone().into_git_model(meta), blob.to_raw_blob())
             }
             GitObject::Tag(tag) => GitObjectModel::Tag(tag.into_git_model(meta)),
         }
@@ -193,7 +193,7 @@ impl IntoMegaModel for Commit {
             ),
             content: Some(self.message.clone()),
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -215,7 +215,7 @@ impl IntoMegaModel for Tag {
     /// # Panics
     ///
     /// This function will panic if tagger signature data cannot be converted to bytes
-    fn into_mega_model(self,meta: EntryMeta) -> Self::MegaTarget {
+    fn into_mega_model(self, meta: EntryMeta) -> Self::MegaTarget {
         mega_tag::Model {
             id: generate_id(),
             tag_id: self.id.to_string(),
@@ -225,7 +225,7 @@ impl IntoMegaModel for Tag {
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -255,7 +255,7 @@ impl IntoMegaModel for Tree {
             size: 0,
             commit_id: String::new(),
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -352,7 +352,7 @@ impl IntoGitModel for Commit {
             ),
             content: Some(self.message.clone()),
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -386,7 +386,7 @@ impl IntoGitModel for Tag {
             tagger: String::from_utf8_lossy(&self.tagger.to_data().unwrap()).to_string(),
             message: self.message,
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -417,7 +417,7 @@ impl IntoGitModel for Tree {
             sub_trees: self.to_data().unwrap(),
             size: 0,
             pack_id: meta.pack_id.unwrap_or_default(),
-            pack_offset: meta.pack_offset.unwrap_or(0) as i64, 
+            pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -494,7 +494,8 @@ impl MegaModelConverter {
         for item in &tree.tree_items {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
-                let mut mega_tree: mega_tree::Model = child_tree.clone().into_mega_model(EntryMeta::new());
+                let mut mega_tree: mega_tree::Model =
+                    child_tree.clone().into_mega_model(EntryMeta::new());
                 mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
@@ -502,7 +503,8 @@ impl MegaModelConverter {
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model = blob.clone().into_mega_model(EntryMeta::new());
+                let mut mega_blob: mega_blob::Model =
+                    blob.clone().into_mega_model(EntryMeta::new());
                 mega_blob.commit_id = self.commit.id.to_string();
                 self.mega_blobs
                     .borrow_mut()

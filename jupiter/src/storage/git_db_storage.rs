@@ -6,7 +6,10 @@ use common::utils::generate_id;
 use futures::{Stream, StreamExt, stream};
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use sea_orm::sea_query::Expr;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbBackend, DbErr, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbBackend, DbErr, EntityTrait,
+    IntoActiveModel, QueryFilter, QueryTrait, Set, TransactionTrait,
+};
 use sea_orm::{PaginatorTrait, QueryOrder};
 use tokio::sync::Mutex;
 
@@ -22,8 +25,6 @@ use crate::storage::base_storage::{BaseStorage, StorageConnector};
 pub struct GitDbStorage {
     pub base: BaseStorage,
 }
-
-
 
 impl Deref for GitDbStorage {
     type Target = BaseStorage;
@@ -146,7 +147,11 @@ impl GitDbStorage {
         Ok(result > 0)
     }
 
-    pub async fn save_entry(&self, repo_id: i64, entry_list: Vec<MetaAttached<Entry,EntryMeta>>) -> Result<(), MegaError> {
+    pub async fn save_entry(
+        &self,
+        repo_id: i64,
+        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
+    ) -> Result<(), MegaError> {
         let git_objects = Arc::new(Mutex::new(GitObjects {
             commits: Vec::new(),
             trees: Vec::new(),
@@ -198,62 +203,73 @@ impl GitDbStorage {
         Ok(())
     }
 
-
     pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
-       
         let conn = self.get_connection();
 
-        // 
+        //
         let txn: DatabaseTransaction = conn.begin().await?;
 
-        // 
+        //
         let tables = [
-            ("git_blob", git_blob::Entity::update_many()
-                .col_expr(git_blob::Column::PackId, Expr::value(pack_id))
-                .filter(git_blob::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("git_tree", git_tree::Entity::update_many()
-                .col_expr(git_tree::Column::PackId, Expr::value(pack_id))
-                .filter(git_tree::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("git_tag", git_tag::Entity::update_many()
-                .col_expr(git_tag::Column::PackId, Expr::value(pack_id))
-                .filter(git_tag::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
-            ("git_commit", git_commit::Entity::update_many()
-                .col_expr(git_commit::Column::PackId, Expr::value(pack_id))
-                .filter(git_commit::Column::PackId.eq(temp_pack_id))
-                .exec(&txn)
-                .await?),
+            (
+                "git_blob",
+                git_blob::Entity::update_many()
+                    .col_expr(git_blob::Column::PackId, Expr::value(pack_id))
+                    .filter(git_blob::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "git_tree",
+                git_tree::Entity::update_many()
+                    .col_expr(git_tree::Column::PackId, Expr::value(pack_id))
+                    .filter(git_tree::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "git_tag",
+                git_tag::Entity::update_many()
+                    .col_expr(git_tag::Column::PackId, Expr::value(pack_id))
+                    .filter(git_tag::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
+            (
+                "git_commit",
+                git_commit::Entity::update_many()
+                    .col_expr(git_commit::Column::PackId, Expr::value(pack_id))
+                    .filter(git_commit::Column::PackId.eq(temp_pack_id))
+                    .exec(&txn)
+                    .await?,
+            ),
         ];
 
-        // 
+        //
         for (name, res) in tables {
             if res.rows_affected > 0 {
                 tracing::info!(" git object Updated {} rows in {}", res.rows_affected, name);
             }
         }
 
-        // 
+        //
         txn.commit().await?;
         Ok(())
-
     }
 
-    pub async fn update_git_blob_filepath(&self, blob_id: &String, file_path: &str) -> Result<(), MegaError> {
+    pub async fn update_git_blob_filepath(
+        &self,
+        blob_id: &String,
+        file_path: &str,
+    ) -> Result<(), MegaError> {
         if let Some(model) = git_blob::Entity::find()
             .filter(git_blob::Column::BlobId.eq(blob_id))
-            .one(self.get_connection()).await?
+            .one(self.get_connection())
+            .await?
         {
-
             let mut active: git_blob::ActiveModel = model.into();
 
-
             active.file_path = Set(file_path.to_string());
-
 
             active.update(self.get_connection()).await?;
         }

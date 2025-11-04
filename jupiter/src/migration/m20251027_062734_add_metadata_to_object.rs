@@ -1,5 +1,4 @@
-use sea_orm_migration::{prelude::*};
-
+use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -16,7 +15,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaBlob::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -30,7 +29,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaBlob::FilePath)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -43,7 +42,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaBlob::PackOffset)
                             .big_integer()
-                            .default(0)
+                            .default(0),
                     )
                     .to_owned(),
             )
@@ -57,7 +56,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaBlob::IsDeltaInPack)
                             .boolean()
                             .not_null()
-                            .default(false)
+                            .default(false),
                     )
                     .to_owned(),
             )
@@ -72,7 +71,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitBlob::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -86,7 +85,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitBlob::FilePath)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -96,11 +95,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitBlob::Table)
-                    .add_column(
-                        ColumnDef::new(GitBlob::PackOffset)
-                            .big_integer()
-                            .default(0)
-                    )
+                    .add_column(ColumnDef::new(GitBlob::PackOffset).big_integer().default(0))
                     .to_owned(),
             )
             .await?;
@@ -113,7 +108,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitBlob::IsDeltaInPack)
                             .boolean()
                             .not_null()
-                            .default(false)
+                            .default(false),
                     )
                     .to_owned(),
             )
@@ -128,7 +123,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaCommit::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -141,7 +136,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaCommit::PackOffset)
                             .big_integer()
-                            .default(0)
+                            .default(0),
                     )
                     .to_owned(),
             )
@@ -156,7 +151,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitCommit::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -169,7 +164,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(GitCommit::PackOffset)
                             .big_integer()
-                            .default(0)
+                            .default(0),
                     )
                     .to_owned(),
             )
@@ -184,7 +179,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaTag::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -194,11 +189,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(MegaTag::Table)
-                    .add_column(
-                        ColumnDef::new(MegaTag::PackOffset)
-                            .big_integer()
-                            .default(0)
-                    )
+                    .add_column(ColumnDef::new(MegaTag::PackOffset).big_integer().default(0))
                     .to_owned(),
             )
             .await?;
@@ -212,7 +203,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitTag::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -222,11 +213,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitTag::Table)
-                    .add_column(
-                        ColumnDef::new(GitTag::PackOffset)
-                            .big_integer()
-                            .default(0)
-                    )
+                    .add_column(ColumnDef::new(GitTag::PackOffset).big_integer().default(0))
                     .to_owned(),
             )
             .await?;
@@ -240,7 +227,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(MegaTree::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -253,7 +240,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaTree::PackOffset)
                             .big_integer()
-                            .default(0)
+                            .default(0),
                     )
                     .to_owned(),
             )
@@ -268,7 +255,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GitTree::PackId)
                             .string()
                             .not_null()
-                            .default("")
+                            .default(""),
                     )
                     .to_owned(),
             )
@@ -278,16 +265,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitTree::Table)
-                    .add_column(
-                        ColumnDef::new(GitTree::PackOffset)
-                            .big_integer()
-                            .default(0)
-                    )
+                    .add_column(ColumnDef::new(GitTree::PackOffset).big_integer().default(0))
                     .to_owned(),
             )
             .await?;
         Ok(())
-       
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -514,7 +496,6 @@ enum GitTag {
     PackId,
     PackOffset,
 }
-
 
 #[derive(Iden)]
 enum MegaTree {
