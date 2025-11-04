@@ -135,8 +135,6 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     let opt = setup_option(db_config);
     let conn = Database::connect(opt).await?;
 
-    
-
     Ok(conn)
 }
 

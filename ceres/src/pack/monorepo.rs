@@ -451,7 +451,6 @@ impl MonoRepo {
             let item_path = path.join(&item.name);
 
             if item.is_tree() {
-                
                 let tree_hash = item.id.to_string();
                 let trees = self
                     .storage
@@ -477,7 +476,6 @@ impl MonoRepo {
 
                 let child_tree = Tree::from_mega_model(trees[0].clone());
 
-                
                 self.traverses_and_update_filepath(child_tree, item_path.clone())
                     .await
                     .map_err(|e| {
@@ -489,7 +487,6 @@ impl MonoRepo {
                         ))
                     })?;
             } else {
-               
                 let blob_id = item.id.to_string();
                 let file_path_str = item_path.to_str().ok_or_else(|| {
                     MegaError::with_message(format!(
@@ -499,7 +496,6 @@ impl MonoRepo {
                     ))
                 })?;
 
-                
                 self.storage
                     .mono_storage()
                     .update_blob_filepath(&blob_id, file_path_str)
