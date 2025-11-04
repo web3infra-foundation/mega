@@ -92,7 +92,7 @@ pub trait StorageConnector {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BaseStorage {
     pub connection: Arc<DatabaseConnection>,
 }

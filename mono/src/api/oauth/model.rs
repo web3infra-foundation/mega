@@ -1,4 +1,3 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -30,7 +29,6 @@ impl From<GitHubUserJson> for LoginUser {
             email: value.email.unwrap_or_default(),
             avatar_url: value.avatar_url,
             campsite_user_id: String::new(),
-            created_at: Utc::now().naive_utc(),
         }
     }
 }
@@ -41,7 +39,6 @@ pub struct CampsiteUserJson {
     pub id: String,
     pub avatar_url: String,
     pub email: Option<String>,
-    pub created_at: DateTime<Utc>,
 }
 
 impl From<CampsiteUserJson> for LoginUser {
@@ -51,16 +48,14 @@ impl From<CampsiteUserJson> for LoginUser {
             email: value.email.unwrap_or_default(),
             avatar_url: value.avatar_url,
             campsite_user_id: value.id,
-            created_at: value.created_at.naive_utc(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct LoginUser {
     pub campsite_user_id: String,
     pub username: String,
     pub avatar_url: String,
     pub email: String,
-    pub created_at: NaiveDateTime,
 }

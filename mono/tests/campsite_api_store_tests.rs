@@ -3,6 +3,7 @@
 //! These tests cover the CampsiteApiStore's ability to load user information from an external API.
 
 use axum::Router;
+use jupiter::storage::user_storage::UserStorage;
 use mono::api::oauth::campsite_store::CampsiteApiStore;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -53,7 +54,7 @@ async fn test_load_user_from_api_success() {
     let (addr, _handle) = create_mock_campsite_server().await;
     let api_url = format!("http://{}", addr);
 
-    let store = CampsiteApiStore::new(api_url);
+    let store = CampsiteApiStore::new(api_url, UserStorage::mock());
 
     // Test with a valid cookie
     let result = store
@@ -78,7 +79,8 @@ async fn test_load_user_from_api_invalid_cookie() {
 
     // Test with an invalid cookie that causes a 401 response
     // We'll simulate this by using a non-existent endpoint
-    let invalid_store = CampsiteApiStore::new(format!("http://{}/nonexistent", addr));
+    let invalid_store =
+        CampsiteApiStore::new(format!("http://{}/nonexistent", addr), UserStorage::mock());
 
     let result = invalid_store
         .load_user_from_api("invalid_session_cookie".to_string())
@@ -100,7 +102,7 @@ async fn test_load_user_from_api_server_error() {
     let (addr, _handle) = create_mock_campsite_server().await;
     let api_url = format!("http://{}", addr);
 
-    let store = CampsiteApiStore::new(format!("{}/v1/users/error", api_url));
+    let store = CampsiteApiStore::new(format!("{}/v1/users/error", api_url), UserStorage::mock());
 
     let result = store.load_user_from_api("any_cookie".to_string()).await;
 
@@ -118,7 +120,10 @@ async fn test_load_user_from_api_server_error() {
 #[tokio::test]
 async fn test_load_user_from_api_network_error() {
     // Test with an invalid URL that will cause a network error
-    let store = CampsiteApiStore::new("http://invalid.domain.localhost:12345".to_string());
+    let store = CampsiteApiStore::new(
+        "http://invalid.domain.localhost:12345".to_string(),
+        UserStorage::mock(),
+    );
 
     let result = store.load_user_from_api("any_cookie".to_string()).await;
 
