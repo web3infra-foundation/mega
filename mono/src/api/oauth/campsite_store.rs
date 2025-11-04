@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use async_trait::async_trait;
 use http::header::COOKIE;
+use jupiter::storage::user_storage::UserStorage;
 use reqwest::Client;
 use reqwest::Url;
 use tower_sessions::{
@@ -20,6 +21,7 @@ pub struct CampsiteApiStore {
     client: Arc<Client>,
     // cookie_store: Arc<Jar>,
     api_base_url: String,
+    user_storage: UserStorage,
 }
 
 #[async_trait]
@@ -42,7 +44,7 @@ impl SessionStore for CampsiteApiStore {
 }
 
 impl CampsiteApiStore {
-    pub fn new(api_base_url: String) -> Self {
+    pub fn new(api_base_url: String, user_storage: UserStorage) -> Self {
         let client = Client::builder()
             .no_proxy()
             .build()
@@ -50,6 +52,7 @@ impl CampsiteApiStore {
         Self {
             client: Arc::new(client),
             api_base_url,
+            user_storage,
         }
     }
 
@@ -81,5 +84,16 @@ impl CampsiteApiStore {
             tracing::error!("load user from API failed with status: {}", resp.status());
             Ok(None)
         }
+    }
+
+    pub async fn load_user_from_token(&self, token: String) -> anyhow::Result<Option<LoginUser>> {
+        if let Some(username) = self.user_storage.find_user_by_token(&token).await? {
+            let user = LoginUser {
+                username,
+                ..Default::default()
+            };
+            return Ok(Some(user));
+        }
+        Ok(None)
     }
 }

@@ -6,7 +6,11 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::get,
 };
-use axum_extra::{TypedHeader, headers, typed_header::TypedHeaderRejectionReason};
+use axum_extra::{
+    TypedHeader,
+    headers::{self, Authorization, authorization::Bearer},
+    typed_header::TypedHeaderRejectionReason,
+};
 use chrono::{Duration, Utc};
 use http::request::Parts;
 use oauth2::{
@@ -203,6 +207,25 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let store = CampsiteApiStore::from_ref(state);
 
+        // Try Bearer Token for CLI authentication
+        if let Ok(TypedHeader(Authorization(bearer))) =
+            parts.extract::<TypedHeader<Authorization<Bearer>>>().await
+        {
+            let token = bearer.token().to_string();
+            match store.load_user_from_token(token).await {
+                Ok(Some(user)) => return Ok(user),
+                Ok(None) => {
+                    tracing::error!("Invalid or expired bearer token");
+                    return Err(AuthRedirect);
+                }
+                Err(e) => {
+                    tracing::error!("Error validating bearer token: {:?}", e);
+                    return Err(AuthRedirect);
+                }
+            }
+        }
+
+        // Fall back to Cookie Session (UI)
         let cookies = parts
             .extract::<TypedHeader<headers::Cookie>>()
             .await
@@ -217,15 +240,16 @@ where
         let session_cookie = cookies.get(CAMPSITE_API_COOKIE).ok_or(AuthRedirect)?;
 
         // Load user from external API
-        let user = store
-            .load_user_from_api(session_cookie.to_string())
-            .await
-            .map_err(|e| {
-                tracing::error!("load_user_from_api error: {:?}", e);
-                AuthRedirect
-            })?
-            .ok_or(AuthRedirect)?;
-
-        Ok(user)
+        match store.load_user_from_api(session_cookie.to_string()).await {
+            Ok(Some(user)) => Ok(user),
+            Ok(None) => {
+                tracing::error!("Invalid or expired session cookie");
+                Err(AuthRedirect)
+            }
+            Err(e) => {
+                tracing::error!("Error loading user from cookie session: {:?}", e);
+                Err(AuthRedirect)
+            }
+        }
     }
 }

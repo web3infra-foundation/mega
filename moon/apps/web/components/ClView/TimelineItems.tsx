@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 
 import '@primer/primitives/dist/css/functional/themes/light.css'
 
@@ -44,19 +44,21 @@ interface TimelineWrapperProps {
   convItems?: ConvItem[]
 }
 
-const TimelineItem = ({ badge, children, isOver }: TimelineItemProps) => {
+const TimelineItem = React.memo(({ badge, children, isOver }: TimelineItemProps) => {
   return (
     <>
       <Timeline.Item>
         <Timeline.Badge>{badge}</Timeline.Badge>
-        <Timeline.Body>{children}</Timeline.Body>
+        <Timeline.Body style={{ marginTop: '4px' } as React.CSSProperties}>{children}</Timeline.Body>
       </Timeline.Item>
       {isOver && <Timeline.Break />}
     </>
   )
-}
+})
 
-const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => {
+TimelineItem.displayName = 'TimelineItem'
+
+const TimelineWrapper = React.memo<TimelineWrapperProps>(({ convItems = [] }) => {
   return (
     <ThemeProvider>
       <BaseStyles>
@@ -70,10 +72,12 @@ const TimelineWrapper: React.FC<TimelineWrapperProps> = ({ convItems = [] }) => 
       </BaseStyles>
     </ThemeProvider>
   )
-}
+})
 
-const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef>; reviewers?: ReviewerInfo[] }> = ({ detail, id, type, editorRef, reviewers = [] }) => {
-  const convItems: ConvItem[] = detail!!.conversations.map((conv: ConversationItem) => {
+TimelineWrapper.displayName = 'TimelineWrapper'
+
+const TimelineItems = React.memo<{detail: CommonDetailData; id: string; type: string; editorRef: React.RefObject<SimpleNoteContentRef>; reviewers?: ReviewerInfo[] }>(({ detail, id, type, editorRef, reviewers = [] }) => {
+  const convItems: ConvItem[] = useMemo(() => detail!!.conversations.map((conv: ConversationItem) => {
     let icon
     let children
     let isOver = false
@@ -123,9 +127,11 @@ const TimelineItems: React.FC<{detail: CommonDetailData; id: string; type: strin
     }
 
     return { badge: icon, children, isOver, id: conv.id }
-  }) !!
+  }), [detail, id, type, editorRef, reviewers])
 
   return <TimelineWrapper convItems={convItems} />
-}
+})
+
+TimelineItems.displayName = 'TimelineItems'
 
 export default TimelineItems

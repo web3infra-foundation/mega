@@ -10,7 +10,7 @@ use common::{errors::MegaError, utils::generate_id};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct UserStorage {
     pub base: BaseStorage,
 }
@@ -23,6 +23,11 @@ impl Deref for UserStorage {
 }
 
 impl UserStorage {
+    pub fn mock() -> Self {
+        let mock = BaseStorage::mock();
+        Self { base: mock }
+    }
+
     pub async fn save_ssh_key(
         &self,
         username: String,

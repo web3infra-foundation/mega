@@ -26,7 +26,7 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
     },
     editorProps: {
       attributes: {
-        class: 'max-w-full focus:outline-none font-mono text-sm leading-6'
+        class: 'max-w-full focus:outline-none font-mono text-sm leading-6 h-full p-2'
       }
     }
   })
@@ -75,14 +75,21 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
             <Markdown>{content}</Markdown>
           </div>
         ) : (
-          <div className='flex w-full font-mono text-sm leading-6'>
+          <div className='flex h-full w-full font-mono text-sm leading-6'>
             <div className='select-none rounded-l-xl border-r border-gray-200 bg-gray-50 px-4 text-right text-gray-400'>
               {lineNumbers.map((n) => (
                 <div key={n}>{n}</div>
               ))}
             </div>
-            <div className={`flex-1 pl-4 ${disabled ? 'cursor-not-allowed' : ''}`}>
-              <EditorContent editor={textEditor} />
+            <div 
+              className={`flex h-full flex-1 flex-col pl-4 ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
+              onClick={() => {
+                if (!disabled && textEditor) {
+                  textEditor.commands.focus()
+                }
+              }}
+            >
+              <EditorContent editor={textEditor} className='h-full w-full' />
             </div>
           </div>
         )}

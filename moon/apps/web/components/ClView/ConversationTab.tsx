@@ -106,9 +106,9 @@ export const ConversationTab = React.memo<ConversationTabProps>(({
       )}
       <div style={{ marginTop: '12px' }} className='prose'>
         <div className='w-full'>{clDetail && clDetail.status === 'Open' && <MergeBox prId={id} />}</div>
-        <h2>Add a comment</h2>
+        <h2 style={{ marginTop: '15px', marginBottom: '15px' }}>Add a comment</h2>
         <input {...dropzone.getInputProps()} />
-        <div className='rounded-lg border p-6'>
+        <div className='rounded-lg border p-6' style={{ marginTop: '15px', marginBottom: '15px' }}>
           <SimpleNoteContent
             commentId='temp'
             ref={editorRef}
@@ -274,7 +274,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(({
       <BadgeItem title='Type' items={labels} />
       <BadgeItem title='Projects' items={labels} />
       <BadgeItem title='Milestones' items={labels} />
-      <div className='mt-6 w-full'>
+      <div className='w-full' style={{ marginTop: '24px' }}>
         <WorkWithChatDialog />
       </div>
     </div>

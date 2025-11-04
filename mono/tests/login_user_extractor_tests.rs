@@ -3,6 +3,7 @@
 //! These tests cover the LoginUser extractor's ability to extract user information from requests.
 //! Since the extractor relies on CampsiteApiStore, we focus on testing the underlying functionality.
 
+use jupiter::storage::user_storage::UserStorage;
 use mono::api::oauth::campsite_store::CampsiteApiStore;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -44,7 +45,7 @@ async fn test_login_user_extractor_success() {
     let _api_url = format!("http://{}", addr);
 
     // Create a mock store
-    let store = CampsiteApiStore::new(format!("http://{}", addr));
+    let store = CampsiteApiStore::new(format!("http://{}", addr), UserStorage::mock());
 
     // Test the load_user_from_api method directly
     let result = store
@@ -68,7 +69,7 @@ async fn test_login_user_extractor_invalid_cookie() {
     let _api_url = format!("http://{}", addr);
 
     // Create a mock store with a non-existent endpoint to simulate an invalid cookie
-    let store = CampsiteApiStore::new(format!("http://{}/nonexistent", addr));
+    let store = CampsiteApiStore::new(format!("http://{}/nonexistent", addr), UserStorage::mock());
 
     // Test the load_user_from_api method directly
     let result = store
@@ -90,7 +91,7 @@ async fn test_login_user_extractor_missing_cookie() {
     let _api_url = format!("http://{}", addr);
 
     // Create a mock store
-    let store = CampsiteApiStore::new(format!("http://{}", addr));
+    let store = CampsiteApiStore::new(format!("http://{}", addr), UserStorage::mock());
 
     // Test with an empty cookie string to simulate missing cookie
     let result = store.load_user_from_api("".to_string()).await;
@@ -106,7 +107,10 @@ async fn test_login_user_extractor_missing_cookie() {
 #[tokio::test]
 async fn test_login_user_extractor_network_error() {
     // Test with an invalid URL that will cause a network error
-    let store = CampsiteApiStore::new("http://invalid.domain.localhost:12345".to_string());
+    let store = CampsiteApiStore::new(
+        "http://invalid.domain.localhost:12345".to_string(),
+        UserStorage::mock(),
+    );
 
     let result = store.load_user_from_api("any_cookie".to_string()).await;
 
