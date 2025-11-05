@@ -87,6 +87,7 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.babelrc': 'json',
   '.editorconfig': 'ini',
   '.buckconfig': 'toml',
+  '.buckversion': 'text',
   '.swcrc': 'json'
 }
 
@@ -104,14 +105,10 @@ export const SPECIAL_FILE_MAP: Record<string, string> = {
   'build.gradle': 'groovy',
   'settings.gradle': 'groovy',
   "buck": 'python',
-  "bzl": 'python',
   "build": 'python',
   "workspace": 'python',
   'workspace.bazel': 'python',
   'build.bazel': 'python',
-  '.bazelrc': 'ini',
-  '.buckconfig': 'toml',
-  '.buckversion': 'text',
   "makefile": 'makefile',
   'makefile.linux': 'makefile',
   'makefile.win': 'makefile',
