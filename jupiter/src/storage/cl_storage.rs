@@ -11,7 +11,7 @@ use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
-    PaginatorTrait, QueryFilter, QuerySelect, Set,
+    PaginatorTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
 use sea_orm::{QueryOrder, RelationTrait};
 
@@ -79,6 +79,9 @@ impl ClStorage {
                 callisto::entity_ext::mega_cl::Relation::ItemAssignees.def(),
             )
             .filter(mega_cl::Column::Status.is_in(status))
+            .apply_if(params.author, |q, author| {
+                q.filter(mega_cl::Column::Username.eq(author))
+            })
             .filter(cond)
             .distinct()
             .order_by_asc(mega_cl::Column::Id);
