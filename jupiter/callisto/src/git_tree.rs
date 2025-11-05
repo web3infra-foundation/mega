@@ -13,6 +13,8 @@ pub struct Model {
     #[sea_orm(column_type = "VarBinary(StringLen::None)")]
     pub sub_trees: Vec<u8>,
     pub size: i32,
+    pub pack_id: String,
+    pub pack_offset: i64,
     pub created_at: DateTime,
 }
 

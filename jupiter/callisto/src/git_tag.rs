@@ -19,6 +19,8 @@ pub struct Model {
     pub tagger: String,
     #[sea_orm(column_type = "Text")]
     pub message: String,
+    pub pack_id: String,
+    pub pack_offset: i64,
     pub created_at: DateTime,
 }
 

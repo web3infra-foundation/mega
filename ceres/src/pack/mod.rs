@@ -1,3 +1,7 @@
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures::{Stream, future::join_all};
+use std::collections::HashMap;
 use std::{
     collections::HashSet,
     pin::Pin,
@@ -6,10 +10,6 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-
-use async_trait::async_trait;
-use bytes::Bytes;
-use futures::{Stream, future::join_all};
 use sysinfo::System;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
@@ -21,6 +21,8 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
+use git_internal::hash::SHA1;
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::internal::pack::Pack;
 use git_internal::{
     errors::GitError,
@@ -32,6 +34,7 @@ use git_internal::{
         pack::entry::Entry,
     },
 };
+use uuid::Uuid;
 
 pub mod import_repo;
 pub mod monorepo;
@@ -44,14 +47,18 @@ pub trait RepoHandler: Send + Sync + 'static {
 
     async fn receiver_handler(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<Entry>,
+        mut rx: UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
+        mut rx_pack_id: UnboundedReceiver<SHA1>,
     ) -> Result<(), GitError> {
         let mut entry_list = vec![];
-        let semaphore = Arc::new(Semaphore::new(4));
+        let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
         let mut join_tasks = vec![];
 
-        while let Some(entry) = rx.recv().await {
-            self.check_entry(&entry).await?;
+        let temp_pack_id = Uuid::new_v4().to_string();
+
+        while let Some(mut entry) = rx.recv().await {
+            self.check_entry(&entry.inner).await?;
+            entry.meta.set_pack_id(temp_pack_id.clone());
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
                 let acquired = semaphore.clone().acquire_owned().await.unwrap();
@@ -84,12 +91,37 @@ pub trait RepoHandler: Send + Sync + 'static {
                 }
             }
         }
+
+        // receive pack_id and update it
+        if let Some(real_pack_id) = rx_pack_id.recv().await {
+            let real_pack_id_str = real_pack_id.to_string();
+            tracing::debug!(
+                "Received real pack_id: {}, updating database from temp_pack_id: {}",
+                real_pack_id_str,
+                temp_pack_id
+            );
+
+            // 通过数据库操作更新 pack_id
+            if let Err(e) = self.update_pack_id(&temp_pack_id, &real_pack_id_str).await {
+                tracing::error!("Failed to update pack_id in database: {:?}", e);
+                return Err(GitError::CustomError(format!(
+                    "Failed to update pack_id: {:?}",
+                    e
+                )));
+            }
+        }
+
         Ok(())
     }
 
     async fn post_receive_pack(&self) -> Result<(), MegaError>;
 
-    async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError>;
+    async fn save_entry(
+        &self,
+        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
+    ) -> Result<(), MegaError>;
+
+    async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError>;
 
     async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
@@ -116,6 +148,11 @@ pub trait RepoHandler: Send + Sync + 'static {
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
+    async fn get_blob_metadata_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<HashMap<String, EntryMeta>, MegaError>;
+
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
@@ -136,7 +173,13 @@ pub trait RepoHandler: Send + Sync + 'static {
         &self,
         pack_config: &PackConfig,
         stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
-    ) -> Result<UnboundedReceiver<Entry>, ProtocolError> {
+    ) -> Result<
+        (
+            UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
+            UnboundedReceiver<SHA1>,
+        ),
+        ProtocolError,
+    > {
         let total_mem = || {
             let sys = System::new_all();
             Ok(sys.total_memory() as usize)
@@ -149,14 +192,16 @@ pub trait RepoHandler: Send + Sync + 'static {
             };
 
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let (pack_id_sender, pack_id_receiver) = tokio::sync::mpsc::unbounded_channel();
+
         let p = Pack::new(
             None,
             Some(cache_mem),
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
-        p.decode_stream(stream, sender).await;
-        Ok(receiver)
+        p.decode_stream(stream, sender, Some(pack_id_sender)).await;
+        Ok((receiver, pack_id_receiver))
     }
 
     async fn traverse_for_count(
@@ -209,7 +254,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
-        sender: Option<&tokio::sync::mpsc::Sender<Entry>>,
+        sender: Option<&tokio::sync::mpsc::Sender<MetaAttached<Entry, EntryMeta>>>,
     ) {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
@@ -226,11 +271,25 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
+            let blobs = self
+                .get_blobs_by_hashes(search_blob_ids.clone())
+                .await
+                .unwrap();
+            let blobs_ext_data = self
+                .get_blob_metadata_by_hashes(search_blob_ids)
+                .await
+                .unwrap();
             for b in blobs {
                 let data = b.data.unwrap_or_default();
                 let blob: Blob = Blob::from_content_bytes(data);
-                sender.send(blob.into()).await.unwrap();
+                let ext_data = blobs_ext_data.get(&b.sha1).unwrap();
+                sender
+                    .send(MetaAttached {
+                        inner: blob.into(),
+                        meta: ext_data.to_owned(),
+                    })
+                    .await
+                    .unwrap();
             }
         }
 
@@ -240,7 +299,15 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            sender.send(tree.into()).await.unwrap();
+            sender
+                .send(MetaAttached {
+                    inner: tree.into(),
+                    meta: EntryMeta::new(),
+                })
+                .await
+                .unwrap();
         }
     }
+
+    async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError>;
 }

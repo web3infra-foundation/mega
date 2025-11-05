@@ -52,6 +52,7 @@ use bytes::Bytes;
 use common::utils::MEGA_BRANCH_NAME;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
+use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -283,7 +284,7 @@ impl ApiHandler for MonoApiService {
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model();
+                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                     tree_model.commit_id.clone_from(&new_commit_id);
                     tree_model.into()
                 })
@@ -390,7 +391,7 @@ impl ApiHandler for MonoApiService {
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model();
+                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                     tree_model.commit_id.clone_from(&new_commit_id);
                     tree_model.into()
                 })
@@ -1045,6 +1046,8 @@ impl MonoApiService {
             tag_name: name,
             tagger: tagger_info,
             message: message.unwrap_or_default(),
+            pack_id: String::new(),
+            pack_offset: 0,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -1229,7 +1232,7 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let mut tree_model: mega_tree::Model = save_t.into_mega_model();
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                 tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })

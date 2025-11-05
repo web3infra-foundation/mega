@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use async_trait::async_trait;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
+use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use git_internal::internal::pack::entry::Entry;
@@ -443,12 +444,21 @@ impl ApiHandler for ImportApiService {
                 Commit::from_tree_id(new_root_id, vec![parent_id], &payload.commit_message);
             let new_commit_id = new_commit.id.to_string();
 
-            let mut entries: Vec<Entry> = Vec::new();
+            let mut entries: Vec<MetaAttached<Entry, EntryMeta>> = Vec::new();
             for t in updated_trees.iter().cloned() {
-                entries.push(Entry::from(t));
+                entries.push(MetaAttached {
+                    inner: Entry::from(t),
+                    meta: EntryMeta::new(),
+                });
             }
-            entries.push(Entry::from(new_blob.clone()));
-            entries.push(Entry::from(new_commit.clone()));
+            entries.push(MetaAttached {
+                inner: Entry::from(new_blob.clone()),
+                meta: EntryMeta::new(),
+            });
+            entries.push(MetaAttached {
+                inner: Entry::from(new_commit.clone()),
+                meta: EntryMeta::new(),
+            });
             git_storage
                 .save_entry(self.repo.repo_id, entries)
                 .await
@@ -788,6 +798,9 @@ impl ImportApiService {
             tag_name: name,
             tagger: tagger_info,
             message: message.unwrap_or_default(),
+            pack_id: String::new(),
+            pack_offset: 0,
+
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
