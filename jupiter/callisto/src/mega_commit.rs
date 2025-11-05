@@ -18,6 +18,8 @@ pub struct Model {
     pub committer: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
+    pub pack_id: String,
+    pub pack_offset: i64,
     pub created_at: DateTime,
 }
 

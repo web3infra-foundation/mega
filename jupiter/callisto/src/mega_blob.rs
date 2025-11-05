@@ -14,6 +14,10 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub name: String,
     pub size: i32,
+    pub pack_id: String,
+    pub file_path: String,
+    pub pack_offset: i64,
+    pub is_delta_in_pack: bool,
     pub created_at: DateTime,
 }
 
