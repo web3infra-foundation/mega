@@ -1,6 +1,0 @@
-.tag {
-    background-color: alpha(@accent_bg_color, 0.15);
-    color: @accent_color;
-    padding: 4px 8px;
-    border-radius: 6px;
-}

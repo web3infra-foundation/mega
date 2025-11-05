@@ -5,7 +5,8 @@ use callisto::sea_orm_active_enums::ReferenceTypeEnum;
 use sea_orm::prelude::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationTrait, Set,
+    TransactionTrait,
 };
 
 use callisto::{
@@ -39,7 +40,6 @@ impl IssueStorage {
     ) -> Result<(Vec<ItemDetails>, u64), MegaError> {
         let cond = Condition::all();
         let cond = filter_by_labels(cond, params.labels);
-        let cond = filter_by_author(cond, params.author);
         let cond = filter_by_assignees(cond, params.assignees);
 
         let query = mega_issue::Entity::find()
@@ -52,6 +52,9 @@ impl IssueStorage {
                 callisto::entity_ext::mega_issue::Relation::ItemAssignees.def(),
             )
             .filter(mega_issue::Column::Status.eq(params.status))
+            .apply_if(params.author, |q, author| {
+                q.filter(mega_issue::Column::Author.eq(author))
+            })
             .filter(cond)
             .distinct()
             .order_by_asc(mega_issue::Column::Id);
@@ -376,13 +379,5 @@ impl IssueStorage {
             .await?;
 
         Ok(res)
-    }
-}
-
-fn filter_by_author(cond: Condition, author: Option<String>) -> Condition {
-    if let Some(value) = author {
-        cond.add(mega_issue::Column::Author.eq(value))
-    } else {
-        cond
     }
 }
