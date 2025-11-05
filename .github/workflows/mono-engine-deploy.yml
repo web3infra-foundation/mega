@@ -10,14 +10,12 @@ on:
       - 'docker/**'
       - 'docs/**'
       - 'extensions/**'
-      - 'monobean/**'
       - 'moon/**'
       - 'orion/**'
       - 'orion-server/**'
       - 'scorpio/**'
       - 'scripts/**'
       - 'tests/**'
-      - 'toolchains/**'
 
 env:
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
