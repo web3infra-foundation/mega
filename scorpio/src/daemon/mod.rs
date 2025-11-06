@@ -113,7 +113,7 @@ pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
         .route("/api/fs/mount", post(mount_handler))
         .route("/api/fs/mpoint", get(mounts_handler))
         .route("/api/fs/select/{request_id}", get(select_handler))
-        .route("/api/fs/umount", post(umount_handler))
+        .route("/api/fs/unmount", post(unmount_handler))
         .route("/api/config", get(config_handler))
         .route("/api/config", post(update_config_handler))
         .route("/api/git/status", get(git::git_status_handler))
@@ -152,38 +152,44 @@ async fn mount_handler(
     // Store the task in the shared task map for status tracking
     state.tasks.insert(request_id.clone(), mount_status);
 
-    // Spawn background task to perform the actual mount operation
-    let state_clone = state.clone();
-    let req_clone = req.0.clone();
-    let request_id_clone = request_id.clone();
+    // Perform the mount operation synchronously
+    let mount_result = perform_mount_task(state.clone(), req.0.clone()).await;
 
-    tokio::spawn(async move {
-        // Clone state to avoid ownership issues in the async task
-        let state_for_task = state_clone.clone();
-        let mount_result = perform_mount_task(state_for_task, req_clone).await;
+    // Update the task status based on mount operation result
+    if let Some(mut task) = state.tasks.get_mut(&request_id) {
+        match mount_result {
+            Ok(mount_info) => {
+                task.status = "finished".to_string();
+                task.result = Some(mount_info);
+                axum::Json(MountResponse {
+                    status: SUCCESS.to_string(),
+                    request_id,
+                    message: "Mount task completed".to_string(),
+                })
+            }
+            Err(err) => {
+                task.status = "error".to_string();
+                let message =
+                    if err.contains("already mounted") || err.contains("already checked-out") {
+                        "please unmount".to_string()
+                    } else {
+                        format!("Mount failed: {}", err)
+                    };
 
-        // Update the task status based on mount operation result
-        if let Some(mut task) = state_clone.tasks.get_mut(&request_id_clone) {
-            match mount_result {
-                Ok(mount_info) => {
-                    task.status = "finished".to_string();
-                    task.result = Some(mount_info);
-                }
-                Err(err) => {
-                    task.status = "error".to_string();
-                    println!("Mount task {request_id_clone} failed: {err}");
-                    // Could add error details here in the future
-                }
+                axum::Json(MountResponse {
+                    status: FAIL.to_string(),
+                    request_id,
+                    message,
+                })
             }
         }
-    });
-
-    // Return immediately with the request ID for client tracking
-    axum::Json(MountResponse {
-        status: SUCCESS.to_string(),
-        request_id,
-        message: "Mount task started successfully".to_string(),
-    })
+    } else {
+        axum::Json(MountResponse {
+            status: FAIL.to_string(),
+            request_id,
+            message: "task not found".to_string(),
+        })
+    }
 }
 
 /// Helper function to perform the actual mount operation.
@@ -191,7 +197,11 @@ async fn mount_handler(
 /// It handles both temporary mounts (for buck2) and regular mounts with proper error handling.
 async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountInfo, String> {
     // Normalize the path format using GPath utility
-    let mono_path = GPath::from(req.path.clone()).to_string();
+    let mono_path = if let Some(cl) = &req.cl {
+        format!("{}_{}", GPath::from(req.path.clone()), cl)
+    } else {
+        GPath::from(req.path.clone()).to_string()
+    };
 
     // Determine if this is a temporary mount for buck2 workflow
     let mut temp_mount = false;
@@ -200,7 +210,11 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
     let inode = match state.fuse.get_inode(&mono_path).await {
         Ok(a) => a,
         Err(_) => {
-            temp_mount = true;
+            // If there is no CL (change list) specified, this is considered a "temporary mount"
+            // (e.g., for buck2 workflows or ephemeral mounts). For CL mounts, we do not set
+            // temp_mount, as those are expected to be persistent or managed differently.
+            // The temp_mount flag is used later to determine cleanup and lifecycle behavior.
+            temp_mount = req.cl.is_none();
             state
                 .fuse
                 .dic
@@ -219,7 +233,7 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
     // Acquire manager lock and check for existing checkouts
     let mut ml = state.manager.lock().await;
     if let Err(mounted_path) = ml.check_before_mount(&mono_path) {
-        return Err(format!("The {mounted_path} is already check-out"));
+        return Err(format!("The {mounted_path} is already checked-out"));
     }
 
     let store_path = config::store_path();
@@ -236,7 +250,7 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
         // Perform the actual overlay mount
         state
             .fuse
-            .overlay_mount(inode, store_path, false)
+            .overlay_mount(inode, store_path, false, None)
             .await
             .map_err(|e| format!("Failed to overlay mount: {e}"))?;
 
@@ -258,15 +272,16 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
     }
 
     // Handle regular mount case - fetch repository information
-    let work_dir = fetch(&mut ml, inode, mono_path)
+    let work_dir = fetch(&mut ml, inode, mono_path.clone(), &req.path)
         .await
         .map_err(|e| format!("Failed to fetch: {e}"))?;
+
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
 
     // Handle Change List (CL) layer if provided
     if let Some(m) = &req.cl {
-        let cl_store_path = PathBuf::from(&store_path).join("cl");
-        if let Err(e) = cl::build_cl_layer(m, cl_store_path).await {
+        let cl_store_path = PathBuf::from(&store_path).join("cl").join(m);
+        if let Err(e) = cl::build_cl_layer(m, cl_store_path, &req.path).await {
             return Err(format!("Failed to build cl layer: {e}"));
         }
     }
@@ -274,7 +289,7 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
     // Perform the final overlay mount with CL layer if applicable
     state
         .fuse
-        .overlay_mount(inode, store_path, req.cl.is_some())
+        .overlay_mount(inode, store_path, req.cl.is_some(), req.cl.as_deref())
         .await
         .map_err(|e| format!("Mount process error: {e}"))?;
 
@@ -306,7 +321,6 @@ async fn select_handler(
 
         // Clean up completed tasks from memory to prevent memory leaks
         if task.status == "finished" || task.status == "error" {
-            println!("{:?} now be removed", task.request_id);
             drop(task); // Release the reference before removing
             state.tasks.remove(&request_id);
         }
@@ -341,7 +355,8 @@ async fn mounts_handler(State(state): State<ScoState>) -> axum::Json<MountsRespo
     })
 }
 
-async fn umount_handler(
+/// Unmounts filesystem and removes CL layer files
+async fn unmount_handler(
     State(state): State<ScoState>,
     req: axum::Json<UmountRequest>,
 ) -> axum::Json<UmountResponse> {
@@ -358,8 +373,8 @@ async fn umount_handler(
     }
     match handle {
         Ok(_) => {
-            if let Some(path) = &req.path {
-                let _ = state.manager.lock().await.remove_workspace(path).await;
+            let path_str = if let Some(path) = &req.path {
+                path.clone()
             } else {
                 //todo be path by inode .
                 let path = state
@@ -369,14 +384,23 @@ async fn umount_handler(
                     .find_path(req.inode.unwrap())
                     .await
                     .unwrap();
+                path.to_string()
+            };
 
-                let _ = state
-                    .manager
-                    .lock()
-                    .await
-                    .remove_workspace(&path.to_string())
-                    .await;
+            // Try to get the CL link from the path and clean up CL layer
+            if let Some(cl_pos) = path_str.rfind('_') {
+                let potential_cl_link = &path_str[cl_pos + 1..];
+                // Simple validation - CL links are usually not entire paths
+                if !potential_cl_link.contains('/') && !potential_cl_link.is_empty() {
+                    let store_path = config::store_path();
+                    let _ = state
+                        .fuse
+                        .remove_cl_layer_by_cl_link(store_path, potential_cl_link)
+                        .await;
+                }
             }
+
+            let _ = state.manager.lock().await.remove_workspace(&path_str).await;
 
             axum::Json(UmountResponse {
                 status: SUCCESS.into(),
