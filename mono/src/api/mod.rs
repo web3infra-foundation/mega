@@ -23,7 +23,6 @@ use jupiter::storage::{
     issue_storage::IssueStorage, user_storage::UserStorage,
 };
 use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
-
 pub mod api_common;
 pub mod api_router;
 pub mod error;

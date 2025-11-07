@@ -8,6 +8,7 @@ pub mod gpg_storage;
 pub mod init;
 pub mod issue_storage;
 pub mod lfs_db_storage;
+pub mod merge_queue_storage;
 pub mod mono_storage;
 pub mod note_storage;
 pub mod raw_db_storage;
@@ -23,13 +24,15 @@ use common::config::Config;
 use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
 use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
+use crate::service::merge_queue_service::MergeQueueService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
     cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
     git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
-    lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage,
-    relay_storage::RelayStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+    lfs_db_storage::LfsDbStorage, merge_queue_storage::MergeQueueStorage,
+    mono_storage::MonoStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
+    user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -53,6 +56,7 @@ pub struct AppService {
     pub note_storage: NoteStorage,
     pub commit_binding_storage: CommitBindingStorage,
     pub reviewer_storage: ClReviewerStorage,
+    pub merge_queue_storage: MergeQueueStorage,
 }
 
 impl AppService {
@@ -74,6 +78,7 @@ impl AppService {
             note_storage: NoteStorage { base: mock.clone() },
             commit_binding_storage: CommitBindingStorage { base: mock.clone() },
             reviewer_storage: ClReviewerStorage { base: mock.clone() },
+            merge_queue_storage: MergeQueueStorage::new(mock.clone()),
         })
     }
 }
@@ -83,6 +88,7 @@ pub struct Storage {
     pub(crate) app_service: Arc<AppService>,
     pub issue_service: IssueService,
     pub cl_service: CLService,
+    pub merge_queue_service: MergeQueueService,
     pub config: Weak<Config>,
 }
 
@@ -106,9 +112,10 @@ impl Storage {
         let note_storage = NoteStorage { base: base.clone() };
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
+        let merge_queue_storage = MergeQueueStorage::new(base.clone());
 
         let app_service = AppService {
-            mono_storage,
+            mono_storage: mono_storage.clone(),
             git_db_storage,
             gpg_storage,
             raw_db_storage,
@@ -116,19 +123,29 @@ impl Storage {
             relay_storage,
             user_storage,
             vault_storage,
-            cl_storage,
+            cl_storage: cl_storage.clone(),
             issue_storage,
             conversation_storage,
             lfs_file_storage,
             note_storage,
             commit_binding_storage,
             reviewer_storage,
+            merge_queue_storage: merge_queue_storage.clone(),
         };
+        let merge_queue_service = MergeQueueService::new(base.clone());
+
+        // Start the merge queue processor automatically on application startup
+        merge_queue_service.start_processor();
+        tracing::info!(
+            "Merge queue processor started automatically during application initialization"
+        );
+
         Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
             issue_service: IssueService::new(base.clone()),
             cl_service: CLService::new(base.clone()),
+            merge_queue_service,
         }
     }
 
@@ -196,6 +213,10 @@ impl Storage {
         self.app_service.reviewer_storage.clone()
     }
 
+    pub fn merge_queue_storage(&self) -> MergeQueueStorage {
+        self.app_service.merge_queue_storage.clone()
+    }
+
     pub fn mock() -> Self {
         // During test time, we don't need a AppContext,
         // Put config in a leaked static variable thus the weak reference will always be valid.
@@ -205,6 +226,7 @@ impl Storage {
             app_service: AppService::mock(),
             issue_service: IssueService::mock(),
             cl_service: CLService::mock(),
+            merge_queue_service: MergeQueueService::mock(),
             config: Arc::downgrade(&*CONFIG),
         }
     }
