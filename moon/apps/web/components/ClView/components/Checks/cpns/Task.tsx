@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from '@primer/octicons-react'
 import { useAtom } from 'jotai'
+import { format } from 'date-fns'
 
 import { BuildDTO, TaskInfoDTO } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
@@ -8,6 +9,19 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 import { buildIdAtom } from '@/components/Issues/utils/store'
 
 import { Status } from './store'
+
+/**
+ * Format ISO date string to readable format
+ * @param isoDate - ISO 8601 date string (e.g., "2025-11-03T13:16:36.477167+00:00")
+ * @returns Formatted date string (e.g., "2025-11-04 11:22")
+ */
+const formatDateTime = (isoDate: string): string => {
+  try {
+    return format(new Date(isoDate), 'yyyy-MM-dd HH:mm')
+  } catch {
+    return isoDate
+  }
+}
 
 export const mocks = [
   {
@@ -59,7 +73,7 @@ export const Task = ({ list }: { list: TaskInfoDTO }) => {
         {extend ? <ChevronRightIcon size={16} /> : <ChevronDownIcon size={16} />}
         <div className='flex flex-col justify-center'>
           <span className='font-weight fz-[14px] text-[#1f2328]'>{list.task_name}</span>
-          <span className='fz-[12px] font-light text-[#59636e]'>{list.created_at}</span>
+          <span className='fz-[12px] font-light text-[#59636e]'>{formatDateTime(list.created_at)}</span>
         </div>
         {/* {extend && list} */}
       </div>
