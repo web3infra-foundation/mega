@@ -18,9 +18,9 @@ pub struct Model {
     pub tagger: String,
     #[sea_orm(column_type = "Text")]
     pub message: String,
+    pub created_at: DateTime,
     pub pack_id: String,
     pub pack_offset: i64,
-    pub created_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

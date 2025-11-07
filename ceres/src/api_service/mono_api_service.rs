@@ -47,8 +47,15 @@ use crate::model::git::CreateEntryInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
 use crate::protocol::{SmartProtocol, TransportProtocol};
+
 use async_trait::async_trait;
 use bytes::Bytes;
+use regex::Regex;
+
+use callisto::sea_orm_active_enums::ConvTypeEnum;
+use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
+use common::errors::MegaError;
+use common::model::{Pagination, TagInfo};
 use common::utils::MEGA_BRANCH_NAME;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
@@ -56,21 +63,14 @@ use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use jupiter::storage::mono_storage::RefUpdateData;
-use neptune::model::diff_model::DiffItem;
-use neptune::neptune_engine::Diff;
-use regex::Regex;
-
-use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
-use common::errors::MegaError;
-use common::model::{Pagination, TagInfo};
-use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
-
 use jupiter::service::blame_service::BlameService;
 use jupiter::storage::Storage;
 use jupiter::storage::base_storage::StorageConnector;
+use jupiter::storage::mono_storage::RefUpdateData;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
+use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
+use neptune::model::diff_model::DiffItem;
+use neptune::neptune_engine::Diff;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -91,6 +91,12 @@ pub struct RefUpdate {
 impl ApiHandler for MonoApiService {
     fn get_context(&self) -> Storage {
         self.storage.clone()
+    }
+
+    async fn get_root_commit(&self) -> Commit {
+        let storage = self.storage.mono_storage();
+        let refs = storage.get_main_ref("/").await.unwrap().unwrap();
+        self.get_commit_by_hash(&refs.ref_commit_hash).await
     }
 
     /// Save file edit in monorepo with optimistic concurrency check
@@ -129,7 +135,7 @@ impl ApiHandler for MonoApiService {
             .apply_update_result(&result, &payload.commit_message, None)
             .await?;
         storage
-            .save_mega_blobs(vec![&new_blob], &new_commit_id)
+            .save_mega_blobs(vec![&new_blob])
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
@@ -279,13 +285,12 @@ impl ApiHandler for MonoApiService {
                 .apply_update_result(&update_result, &entry_info.commit_msg(), None)
                 .await?;
 
-            storage.save_mega_blobs(vec![&blob], &new_commit_id).await?;
+            storage.save_mega_blobs(vec![&blob]).await?;
 
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
-                    tree_model.commit_id.clone_from(&new_commit_id);
+                    let tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                     tree_model.into()
                 })
                 .collect();
@@ -384,15 +389,14 @@ impl ApiHandler for MonoApiService {
                 .await?;
 
             storage
-                .save_mega_blobs(vec![&blob], &new_commit_id)
+                .save_mega_blobs(vec![&blob])
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
 
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
                 .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
-                    tree_model.commit_id.clone_from(&new_commit_id);
+                    let tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                     tree_model.into()
                 })
                 .collect();
@@ -434,27 +438,15 @@ impl ApiHandler for MonoApiService {
         )
     }
 
-    async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
-        match self.storage.mono_storage().get_commit_by_hash(hash).await {
-            Ok(Some(commit)) => Some(Commit::from_mega_model(commit)),
-            _ => None,
-        }
-    }
-
-    async fn get_tree_relate_commit(&self, t_hash: SHA1, _: PathBuf) -> Result<Commit, GitError> {
-        let storage = self.storage.mono_storage();
-        let tree_info = storage
-            .get_tree_by_hash(&t_hash.to_string())
-            .await
-            .unwrap()
-            .unwrap();
-        Ok(Commit::from_mega_model(
-            storage
-                .get_commit_by_hash(&tree_info.commit_id)
+    async fn get_commit_by_hash(&self, hash: &str) -> Commit {
+        Commit::from_mega_model(
+            self.storage
+                .mono_storage()
+                .get_commit_by_hash(hash)
                 .await
                 .unwrap()
                 .unwrap(),
-        ))
+        )
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -467,72 +459,7 @@ impl ApiHandler for MonoApiService {
         Ok(commits.into_iter().map(Commit::from_mega_model).collect())
     }
 
-    async fn item_to_commit_map(
-        &self,
-        path: PathBuf,
-    ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
-        match self.search_tree_by_path(&path).await? {
-            Some(tree) => {
-                let mut item_to_commit = HashMap::new();
-
-                let storage = self.storage.mono_storage();
-                let tree_hashes = tree
-                    .tree_items
-                    .iter()
-                    .filter(|x| x.mode == TreeItemMode::Tree)
-                    .map(|x| x.id.to_string())
-                    .collect();
-                let trees = storage.get_trees_by_hashes(tree_hashes).await.unwrap();
-                for tree in trees {
-                    // Skip invalid/empty commit ids to avoid noise and incorrect mapping
-                    if !tree.commit_id.is_empty() {
-                        item_to_commit.insert(tree.tree_id, tree.commit_id);
-                    }
-                }
-
-                let blob_hashes = tree
-                    .tree_items
-                    .iter()
-                    .filter(|x| x.mode == TreeItemMode::Blob)
-                    .map(|x| x.id.to_string())
-                    .collect();
-                let blobs = storage.get_mega_blobs_by_hashes(blob_hashes).await.unwrap();
-                for blob in blobs {
-                    if !blob.commit_id.is_empty() {
-                        item_to_commit.insert(blob.blob_id, blob.commit_id);
-                    }
-                }
-
-                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
-                let commits = self
-                    .get_commits_by_hashes(commit_ids.into_iter().collect())
-                    .await
-                    .unwrap();
-                let commit_map: HashMap<String, Commit> =
-                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
-
-                let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
-                for item in tree.tree_items {
-                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
-                        let commit = commit_map.get(commit_id).cloned();
-                        if commit.is_none() {
-                            tracing::warn!(
-                                item_name = %item.name,
-                                item_mode = ?item.mode,
-                                commit_id = %commit_id,
-                                "failed fetch from commit map"
-                            );
-                        }
-                        result.insert(item, commit);
-                    }
-                }
-                Ok(result)
-            }
-            None => Ok(HashMap::new()),
-        }
-    }
     // helper to convert mega_tag model into TagInfo (defined on MonoApiService below)
-
     async fn create_tag(
         &self,
         repo_path: Option<String>,
@@ -1187,25 +1114,13 @@ impl MonoApiService {
                 let commit_id = commit.id.to_string();
                 new_commit_id = commit_id.clone();
 
-                // Store two versions of the commit:
-                // - `commit`: the original one (with parent), used for normal commit history
-                // - `parentless_commit`: a detached version without parent, used for ref updates and isolated builds
-                let parentless_commit = Commit::new(
-                    commit.author.clone(),
-                    commit.committer.clone(),
-                    update.tree_id,
-                    vec![],
-                    &commit.message,
-                );
-
                 commits.push(commit);
-                commits.push(parentless_commit.clone());
 
                 let mut push_update = |ref_name: &str| {
                     updates.push(RefUpdateData {
                         path: p_ref.path.clone(),
                         ref_name: ref_name.to_string(),
-                        commit_id: parentless_commit.id.to_string(),
+                        commit_id: commit_id.to_string(),
                         tree_hash: update.tree_id.to_string(),
                     });
                 };
@@ -1232,8 +1147,7 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
-                tree_model.commit_id.clone_from(&new_commit_id);
+                let tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
                 tree_model.into()
             })
             .collect();

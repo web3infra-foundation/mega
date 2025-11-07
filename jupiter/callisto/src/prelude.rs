@@ -22,6 +22,7 @@ pub use super::lfs_objects::Entity as LfsObjects;
 pub use super::lfs_split_relations::Entity as LfsSplitRelations;
 pub use super::mega_blob::Entity as MegaBlob;
 pub use super::mega_cl::Entity as MegaCl;
+pub use super::mega_cl_commits::Entity as MegaClCommits;
 pub use super::mega_cl_reviewer::Entity as MegaClReviewer;
 pub use super::mega_commit::Entity as MegaCommit;
 pub use super::mega_conversation::Entity as MegaConversation;

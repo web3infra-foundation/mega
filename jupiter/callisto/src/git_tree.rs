@@ -13,9 +13,9 @@ pub struct Model {
     #[sea_orm(column_type = "VarBinary(StringLen::None)")]
     pub sub_trees: Vec<u8>,
     pub size: i32,
+    pub created_at: DateTime,
     pub pack_id: String,
     pub pack_offset: i64,
-    pub created_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
