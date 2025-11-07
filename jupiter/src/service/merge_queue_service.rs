@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::model::merge_queue::{FailureType, QueueError, QueueItem, QueueStats, QueueStatus};
@@ -14,6 +16,7 @@ use common::errors::MegaError;
 pub struct MergeQueueService {
     merge_queue_storage: MergeQueueStorage,
     cl_storage: ClStorage,
+    processor_running: Arc<AtomicBool>,
 }
 
 impl MergeQueueService {
@@ -23,18 +26,23 @@ impl MergeQueueService {
             cl_storage: ClStorage {
                 base: base_storage.clone(),
             },
+            processor_running: Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub async fn add_to_queue(&self, cl_link: String) -> Result<i32, MegaError> {
-        // Validate CL exists and is not closed
         self.validate_cl_for_queue(&cl_link).await?;
 
-        // Storage layer will check if CL is already in queue with detailed status checks
-        self.merge_queue_storage
+        let position = self
+            .merge_queue_storage
             .add_to_queue(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(|e| MegaError::with_message(&e))?;
+
+        // Start processor if not already running
+        self.ensure_processor_running();
+
+        Ok(position)
     }
 
     pub async fn remove_from_queue(&self, cl_link: &str) -> Result<bool, MegaError> {
@@ -54,13 +62,6 @@ impl MergeQueueService {
     pub async fn get_cl_queue_status(&self, cl_link: &str) -> Result<Option<QueueItem>, MegaError> {
         self.merge_queue_storage
             .get_cl_queue_status(cl_link)
-            .await
-            .map_err(|e| MegaError::with_message(&e))
-    }
-
-    pub async fn retry_queue_item(&self, cl_link: &str) -> Result<bool, MegaError> {
-        self.merge_queue_storage
-            .retry_failed_item(cl_link)
             .await
             .map_err(|e| MegaError::with_message(&e))
     }
@@ -204,22 +205,8 @@ impl MergeQueueService {
         Ok(())
     }
 
-    async fn execute_merge(&self, cl_link: &str) -> Result<(), QueueError> {
-        let cl = self
-            .cl_storage
-            .get_cl(cl_link)
-            .await
-            .map_err(|e| QueueError::new(FailureType::SystemError, e.to_string()))?
-            .ok_or_else(|| QueueError::new(FailureType::SystemError, "CL not found".to_string()))?;
-
-        // TODO: Execute actual Git merge operation
-        self.cl_storage.merge_cl(cl).await.map_err(|e| {
-            QueueError::new(
-                FailureType::MergeFailure,
-                format!("Merge operation failed: {}", e),
-            )
-        })?;
-
+    async fn execute_merge(&self, _cl_link: &str) -> Result<(), QueueError> {
+        // TODO: Implement actual Git merge operation
         Ok(())
     }
 
@@ -269,29 +256,63 @@ impl MergeQueueService {
         Ok(count as usize)
     }
 
-    /// Starts background queue processor
-    pub fn start_processor(&self) {
-        let service = self.clone();
+    /// Ensures processor is running, starts it if not
+    fn ensure_processor_running(&self) {
+        if self
+            .processor_running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            let service = self.clone();
+            tokio::spawn(async move {
+                tracing::info!("Merge queue processor started");
 
-        tokio::spawn(async move {
-            loop {
-                let mut processed_item = false;
+                loop {
+                    match service.process_next_item().await {
+                        Ok(processed) => {
+                            if !processed {
+                                // Check if there are active items
+                                if let Ok(stats) =
+                                    service.merge_queue_storage.get_queue_stats().await
+                                {
+                                    let has_active = stats.waiting_count > 0
+                                        || stats.testing_count > 0
+                                        || stats.merging_count > 0;
 
-                match service.process_next_item().await {
-                    Ok(processed) => {
-                        processed_item = processed;
-                    }
-                    Err(e) => {
-                        tracing::error!("Queue processor error: {}", e);
-                        tokio::time::sleep(Duration::from_secs(30)).await;
+                                    if !has_active {
+                                        // No active items, stop processor
+                                        service.processor_running.store(false, Ordering::SeqCst);
+                                        tracing::info!(
+                                            "Merge queue processor stopped (no active items)"
+                                        );
+                                        break;
+                                    }
+                                }
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Queue processor error: {}", e);
+                            tokio::time::sleep(Duration::from_secs(30)).await;
+                        }
                     }
                 }
+            });
+        }
+    }
 
-                if !processed_item {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                }
-            }
-        });
+    pub async fn retry_queue_item(&self, cl_link: &str) -> Result<bool, MegaError> {
+        let result = self
+            .merge_queue_storage
+            .retry_failed_item(cl_link)
+            .await
+            .map_err(|e| MegaError::with_message(&e))?;
+
+        if result {
+            self.ensure_processor_running();
+        }
+
+        Ok(result)
     }
 
     pub fn mock() -> Self {

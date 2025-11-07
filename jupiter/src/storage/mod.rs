@@ -134,12 +134,6 @@ impl Storage {
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
 
-        // Start the merge queue processor automatically on application startup
-        merge_queue_service.start_processor();
-        tracing::info!(
-            "Merge queue processor started automatically during application initialization"
-        );
-
         Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
