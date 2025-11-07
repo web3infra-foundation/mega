@@ -25,6 +25,7 @@ pub mod lfs_objects;
 pub mod lfs_split_relations;
 pub mod mega_blob;
 pub mod mega_cl;
+pub mod mega_cl_commits;
 pub mod mega_cl_reviewer;
 pub mod mega_commit;
 pub mod mega_conversation;

@@ -83,7 +83,7 @@ impl RepoHandler for ImportRepo {
         storage.update_pack_id(temp_pack_id, pack_id).await
     }
 
-    async fn check_entry(&self, _: &Entry) -> Result<(), GitError> {
+    async fn collect_commits(&self, _: &Entry) -> Result<(), GitError> {
         Ok(())
     }
 
@@ -507,8 +507,7 @@ impl ImportRepo {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|tree| {
-                let mut model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
-                model.commit_id = new_commit.id.to_string();
+                let model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
                 model.into()
             })
             .collect();

@@ -7,6 +7,7 @@ use callisto::{
 };
 use common::errors::MegaError;
 use common::model::Pagination;
+use git_internal::internal::object::commit::Commit;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
@@ -329,5 +330,23 @@ impl ClStorage {
             .all(self.get_connection())
             .await?;
         Ok(models)
+    }
+
+    pub async fn save_cl_commits(&self, link: &str, commits: Vec<Commit>) -> Result<(), MegaError> {
+        let mut save_models = vec![];
+        for commit in commits {
+            let model = callisto::mega_cl_commits::ActiveModel {
+                cl_link: Set(link.to_string()),
+                commit_sha: Set(commit.id.to_string()),
+                author_name: Set(commit.author.name.clone()),
+                author_email: Set(commit.author.email.clone()),
+                message: Set(commit.format_message()),
+                created_at: Set(chrono::Utc::now().naive_utc()),
+                updated_at: Set(chrono::Utc::now().naive_utc()),
+            };
+            save_models.push(model);
+        }
+        self.batch_save_model(save_models).await?;
+        Ok(())
     }
 }

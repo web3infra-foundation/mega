@@ -222,7 +222,6 @@ impl MonoStorage {
 
     pub async fn save_entry(
         &self,
-        commit_id: &str,
         entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
         authenticated_username: Option<String>,
     ) -> Result<(), MegaError> {
@@ -264,12 +263,10 @@ impl MonoStorage {
                             }
                             git_objects.commits.push(commit.into_active_model())
                         }
-                        MegaObjectModel::Tree(mut tree) => {
-                            commit_id.clone_into(&mut tree.commit_id);
+                        MegaObjectModel::Tree(tree) => {
                             git_objects.trees.push(tree.into_active_model());
                         }
-                        MegaObjectModel::Blob(mut blob, raw) => {
-                            commit_id.clone_into(&mut blob.commit_id);
+                        MegaObjectModel::Blob(blob, raw) => {
                             git_objects.blobs.push(blob.clone().into_active_model());
                             git_objects.raw_blobs.push(raw.into_active_model());
                         }
@@ -455,18 +452,11 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn save_mega_blobs(
-        &self,
-        blobs: Vec<&Blob>,
-        commit_id: &str,
-    ) -> Result<(), MegaError> {
+    pub async fn save_mega_blobs(&self, blobs: Vec<&Blob>) -> Result<(), MegaError> {
         let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
             .iter()
             .map(|b| (*b).clone().into_mega_model(EntryMeta::default()))
-            .map(|mut m: mega_blob::Model| {
-                m.commit_id = commit_id.to_owned();
-                m.into_active_model()
-            })
+            .map(|m: mega_blob::Model| m.into_active_model())
             .collect();
         self.batch_save_model(mega_blobs).await.unwrap();
 

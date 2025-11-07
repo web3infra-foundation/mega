@@ -26,6 +26,7 @@ sea-orm = { workspace = true, features = [
 sea-orm-migration = { workspace = true }
 
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 async-trait = { workspace = true }

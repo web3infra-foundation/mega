@@ -4,18 +4,18 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "mega_tree")]
+#[sea_orm(table_name = "mega_cl_commits")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub id: i64,
-    #[sea_orm(unique)]
-    pub tree_id: String,
-    #[sea_orm(column_type = "VarBinary(StringLen::None)")]
-    pub sub_trees: Vec<u8>,
-    pub size: i32,
     pub created_at: DateTime,
-    pub pack_id: String,
-    pub pack_offset: i64,
+    pub updated_at: DateTime,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub cl_link: String,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub commit_sha: String,
+    pub author_name: String,
+    pub author_email: String,
+    #[sea_orm(column_type = "Text")]
+    pub message: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
