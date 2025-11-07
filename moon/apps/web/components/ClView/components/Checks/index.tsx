@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 import { useAtom } from 'jotai'
 
@@ -10,11 +10,14 @@ import { useTaskSSE } from '../../hook/useSSM'
 import { statusMapAtom } from './cpns/store'
 import { Task } from './cpns/Task'
 
+type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
+
 const Checks = ({ cl }: { cl: number }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
-  const { data: tasks } = useGetClTask(cl)
+  const { data: tasks, isError: isTasksError } = useGetClTask(cl)
+  const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
 
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
@@ -23,33 +26,68 @@ const Checks = ({ cl }: { cl: number }) => {
 
     if (allBuildIds.length === 0) return
 
-    allBuildIds.forEach((id) => setEventSource(id))
+    allBuildIds.forEach((id) => {
+      setEventSource(id)
+      setLogStatus((prev) => ({ ...prev, [id]: 'loading' }))
+    })
 
     const fetchLogs = async () => {
       const logsResult = await Promise.allSettled(
         allBuildIds.map(async (id) => {
-          const res = await fetchHTTPLog({ id, type: 'full' })
+          try {
 
-          return { id, res }
+            const res = await fetchHTTPLog({ id, type: 'full' })
+
+            return { id, res, error: null }
+          } catch (error) {
+            return { id, res: null, error }
+          }
         })
       )
 
-      const newLogsMap = logsResult.reduce(
-        (acc, item) => {
-          if (item.status === 'fulfilled' && item.value) {
-            const { id, res } = item.value
-            const logText = Array.isArray(res.data)
-              ? res.data.join('\n')
-              : (res.data || 'empty logs, please check it later')
+      const newLogsMap: Record<string, string> = {}
+      const newLogStatus: Record<string, LogStatus> = {}
 
-            acc[id] = logText
+      logsResult.forEach((item) => {
+        if (item.status === 'fulfilled' && item.value) {
+          const { id, res, error } = item.value
+          
+          if (error) {
+            // fetchHTTPLog threw an error
+            newLogStatus[id] = 'error'
+            newLogsMap[id] = ''
+          } else if (!res || !res.data) {
+            // Response is null/undefined
+            newLogStatus[id] = 'empty'
+            newLogsMap[id] = ''
+          } else if (Array.isArray(res.data) && res.data.length === 0) {
+            // Response data is empty array
+            newLogStatus[id] = 'empty'
+            newLogsMap[id] = ''
+          } else if (res.len === 0) {
+            // Response len is 0
+            newLogStatus[id] = 'empty'
+            newLogsMap[id] = ''
+          } else {
+            // Success case
+            const logText = Array.isArray(res.data) ? res.data.join('\n') : String(res.data || '')
+
+            newLogStatus[id] = 'success'
+            newLogsMap[id] = logText
           }
-          return acc
-        },
-        {} as Record<string, string>
-      )
+        } else {
+          // Promise.allSettled rejected (shouldn't happen with try-catch, but defensive)
+          const id = allBuildIds[logsResult.indexOf(item)]
+
+          if (id) {
+            newLogStatus[id] = 'error'
+            newLogsMap[id] = ''
+          }
+        }
+      })
 
       setLogsMap(newLogsMap)
+      setLogStatus((prev) => ({ ...prev, ...newLogStatus }))
     }
 
     fetchLogs()
@@ -64,6 +102,94 @@ const Checks = ({ cl }: { cl: number }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks])
 
+  // Handle tasks error or empty state
+  if (isTasksError) {
+    return (
+      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+          <span>
+            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+          </span>
+        </div>
+        <div className='flex h-full items-center justify-center text-red-500'>
+          <span>Failed to fetch tasks</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!tasks || tasks.length === 0) {
+    return (
+      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+          <span>
+            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+          </span>
+        </div>
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <span>No tasks available</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Render log viewer with status handling
+  const renderLogContent = () => {
+    if (!buildid) {
+      return (
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <span>Select a build to view logs</span>
+        </div>
+      )
+    }
+
+    const status = logStatus[buildid]
+
+    // If status is undefined or idle, user needs to select a build
+    if (!status || status === 'idle') {
+      return (
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <span>Select a build to view logs</span>
+        </div>
+      )
+    }
+
+    if (status === 'loading') {
+      return (
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <span>Loading logs...</span>
+        </div>
+      )
+    }
+
+    if (status === 'error') {
+      return (
+        <div className='flex h-full items-center justify-center text-red-500'>
+          <span>Failed to fetch logs</span>
+        </div>
+      )
+    }
+
+    if (status === 'empty') {
+      return (
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <span>No logs available</span>
+        </div>
+      )
+    }
+
+    if (status === 'success' && logsMap[buildid] && eventSourcesRef.current[buildid]) {
+      return <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+    }
+
+    // Fallback: show select prompt
+    return (
+      <div className='flex h-full items-center justify-center text-gray-500'>
+        <span>Select a build to view logs</span>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
@@ -73,24 +199,10 @@ const Checks = ({ cl }: { cl: number }) => {
           </span>
         </div>
         <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
-          <div className='h-full w-[40%] border-r'>
-            {tasks && tasks.map((t) => <Task key={t.task_id} list={t} />)}
+          <div className='h-full w-[40%] overflow-y-auto border-r'>
+            {tasks.map((t) => <Task key={t.task_id} list={t} />)}
           </div>
-          <div className='flex-1'>
-            {buildid ? (
-              logsMap[buildid] && eventSourcesRef.current[buildid] ? (
-                <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
-              ) : (
-                <div className='flex h-full items-center justify-center text-gray-500'>
-                  <span>Loading logs...</span>
-                </div>
-              )
-            ) : (
-              <div className='flex h-full items-center justify-center text-gray-500'>
-                <span>Select a build to view logs</span>
-              </div>
-            )}
-          </div>
+          <div className='flex-1'>{renderLogContent()}</div>
         </div>
       </div>
     </>
