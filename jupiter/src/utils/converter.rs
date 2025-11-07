@@ -150,7 +150,6 @@ impl IntoMegaModel for Blob {
             id: generate_id(),
             blob_id: self.id.to_string(),
             size: 0,
-            commit_id: String::new(),
             name: String::new(),
             pack_id: meta.pack_id.unwrap_or_default(),
             file_path: meta.file_path.unwrap_or_default(),
@@ -253,7 +252,6 @@ impl IntoMegaModel for Tree {
             tree_id: self.id.to_string(),
             sub_trees: self.to_data().unwrap(),
             size: 0,
-            commit_id: String::new(),
             pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64,
             created_at: chrono::Utc::now().naive_utc(),
@@ -482,8 +480,7 @@ pub struct MegaModelConverter {
 impl MegaModelConverter {
     fn traverse_from_root(&self) {
         let root_tree = &self.root_tree;
-        let mut mega_tree: mega_tree::Model = root_tree.clone().into_mega_model(EntryMeta::new());
-        mega_tree.commit_id = self.commit.id.to_string();
+        let mega_tree: mega_tree::Model = root_tree.clone().into_mega_model(EntryMeta::new());
         self.mega_trees
             .borrow_mut()
             .insert(root_tree.id, mega_tree.clone().into());
@@ -494,18 +491,15 @@ impl MegaModelConverter {
         for item in &tree.tree_items {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
-                let mut mega_tree: mega_tree::Model =
+                let mega_tree: mega_tree::Model =
                     child_tree.clone().into_mega_model(EntryMeta::new());
-                mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
                     .insert(child_tree.id, mega_tree.clone().into());
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model =
-                    blob.clone().into_mega_model(EntryMeta::new());
-                mega_blob.commit_id = self.commit.id.to_string();
+                let mega_blob: mega_blob::Model = blob.clone().into_mega_model(EntryMeta::new());
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());

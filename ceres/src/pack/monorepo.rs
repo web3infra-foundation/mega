@@ -46,9 +46,9 @@ pub struct MonoRepo {
     pub path: PathBuf,
     pub from_hash: String,
     pub to_hash: String,
-    // current_commit only exists when an unpack operation occurs.
-    // When only a branch is updated and the pack file is empty, this value will be None.
-    pub current_commit: Arc<RwLock<Option<Commit>>>,
+    // upload_commits only exists when an unpack operation occurs.
+    // When only a branch is updated and the pack file is empty, this value will be empty.
+    pub upload_commits: Arc<RwLock<Vec<Commit>>>,
     pub cl_link: Arc<RwLock<Option<String>>>,
     pub bellatrix: Arc<Bellatrix>,
     pub username: Option<String>,
@@ -154,15 +154,7 @@ impl RepoHandler for MonoRepo {
         entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
     ) -> Result<(), MegaError> {
         let storage = self.storage.mono_storage();
-        let current_commit = self.current_commit.read().await;
-        let commit_id = if let Some(commit) = &*current_commit {
-            commit.id.to_string()
-        } else {
-            String::new()
-        };
-        storage
-            .save_entry(&commit_id, entry_list, self.username.clone())
-            .await
+        storage.save_entry(entry_list, self.username.clone()).await
     }
 
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
@@ -170,17 +162,11 @@ impl RepoHandler for MonoRepo {
         storage.update_pack_id(temp_pack_id, pack_id).await
     }
 
-    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError> {
-        if self.current_commit.read().await.is_none() {
-            if entry.obj_type == ObjectType::Commit {
-                let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
-                let mut current = self.current_commit.write().await;
-                *current = Some(commit);
-            }
-        } else if entry.obj_type == ObjectType::Commit {
-            return Err(GitError::CustomError(
-                "only single commit support in each push".to_string(),
-            ));
+    async fn collect_commits(&self, entry: &Entry) -> Result<(), GitError> {
+        if entry.obj_type == ObjectType::Commit {
+            let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
+            let mut upload_commits = self.upload_commits.write().await;
+            upload_commits.push(commit);
         }
         Ok(())
     }
@@ -345,24 +331,28 @@ impl RepoHandler for MonoRepo {
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-        let current_commit = self.current_commit.read().await;
         let cl_link = self.fetch_or_new_cl_link().await.unwrap();
         let ref_name = utils::cl_ref_name(&cl_link);
-        if let Some(c) = &*current_commit {
-            if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
-                cl_ref.ref_commit_hash = refs.new_id.clone();
-                cl_ref.ref_tree_hash = c.tree_id.to_string();
-                storage.update_ref(cl_ref).await.unwrap();
-            } else {
-                let refs = mega_refs::Model::new(
-                    &self.path,
-                    ref_name,
-                    refs.new_id.clone(),
-                    c.tree_id.to_string(),
-                    true,
-                );
-                storage.save_refs(refs).await.unwrap();
-            }
+        let commit = storage
+            .get_commit_by_hash(&refs.new_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
+            cl_ref.ref_commit_hash = refs.new_id.clone();
+            cl_ref.ref_tree_hash = commit.tree.clone();
+
+            storage.update_ref(cl_ref).await.unwrap();
+        } else {
+            let refs = mega_refs::Model::new(
+                &self.path,
+                ref_name,
+                refs.new_id.clone(),
+                commit.tree.clone(),
+                true,
+            );
+            storage.save_refs(refs).await.unwrap();
         }
         Ok(())
     }
@@ -381,10 +371,14 @@ impl RepoHandler for MonoRepo {
     }
 
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
-        let commit_guard = self.current_commit.read().await;
+        let model = self
+            .storage
+            .mono_storage()
+            .get_commit_by_hash(&self.to_hash)
+            .await?;
 
-        let commit_opt = match commit_guard.as_ref() {
-            Some(commit) => commit,
+        let commit_opt = match model {
+            Some(model) => Commit::from_mega_model(model),
             None => {
                 tracing::info!(
                     "Skipping file path update: no current commit available. \
@@ -666,15 +660,22 @@ impl MonoRepo {
         let path_str = self.path.to_str().unwrap();
         let username = self.username();
 
-        match storage.get_open_cl_by_path(path_str, &username).await? {
+        let cl_link = match storage.get_open_cl_by_path(path_str, &username).await? {
             Some(cl) => {
+                let cl_link = cl.link.clone();
                 self.update_existing_cl(cl).await?;
+                cl_link
             }
             None => {
                 let link_guard = self.cl_link.read().await;
                 let cl_link = link_guard.as_ref().unwrap();
-                let commit_guard = self.current_commit.read().await;
-                let title = if let Some(commit) = commit_guard.as_ref() {
+                let to_commit = self
+                    .storage
+                    .mono_storage()
+                    .get_commit_by_hash(&self.to_hash)
+                    .await?;
+                let title = if let Some(commit) = to_commit {
+                    let commit: Commit = Commit::from_mega_model(commit);
                     commit.format_message()
                 } else {
                     String::new()
@@ -689,8 +690,12 @@ impl MonoRepo {
                         &username,
                     )
                     .await?;
+                cl_link.to_owned()
             }
         };
+        storage
+            .save_cl_commits(&cl_link, self.upload_commits.read().await.clone())
+            .await?;
         Ok(())
     }
 
@@ -812,7 +817,7 @@ mod test {
             path: PathBuf::from("/test/repo"),
             from_hash: "from_hash".to_string(),
             to_hash: "to_hash".to_string(),
-            current_commit: Arc::new(RwLock::new(None)),
+            upload_commits: Arc::new(RwLock::new(vec![])),
             cl_link: Arc::new(RwLock::new(None)),
             bellatrix,
             username: Some("test_user".to_string()),

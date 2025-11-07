@@ -63,10 +63,9 @@ mod m20250930_024736_mr_to_cl;
 mod m20251011_091944_tasks_mr_id_to_cl_id;
 mod m20251012_071700_mr_to_cl_batch;
 mod m20251021_073817_rename_mr_sync_to_cl_sync;
-
 mod m20251026_065433_drop_user_table;
-
 mod m20251027_062734_add_metadata_to_object;
+mod m20251107_025431_add_cl_commits;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -110,8 +109,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250828_092729_create_standalone_table::Migration),
             Box::new(m20250903_013904_create_task_table::Migration),
             Box::new(m20250903_071928_add_issue_refs::Migration),
-            Box::new(m20250904_120000_add_commit_auths::Migration),
             Box::new(m20250904_074945_modify_tasks_and_builds::Migration),
+            Box::new(m20250904_120000_add_commit_auths::Migration),
             Box::new(m20250905_163011_add_mr_reviewer::Migration),
             Box::new(m20250910_153212_add_username_to_reviewer::Migration),
             Box::new(m20250930_024736_mr_to_cl::Migration),
@@ -120,6 +119,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251021_073817_rename_mr_sync_to_cl_sync::Migration),
             Box::new(m20251026_065433_drop_user_table::Migration),
             Box::new(m20251027_062734_add_metadata_to_object::Migration),
+            Box::new(m20251107_025431_add_cl_commits::Migration),
         ]
     }
 }
