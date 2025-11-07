@@ -12,11 +12,11 @@ pub struct Model {
     pub blob_id: String,
     pub name: Option<String>,
     pub size: i32,
+    pub created_at: DateTime,
     pub pack_id: String,
     pub file_path: String,
     pub pack_offset: i64,
     pub is_delta_in_pack: bool,
-    pub created_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
