@@ -42,6 +42,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaBlob::PackOffset)
                             .big_integer()
+                            .not_null()
                             .default(0),
                     )
                     .to_owned(),
@@ -95,7 +96,12 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitBlob::Table)
-                    .add_column(ColumnDef::new(GitBlob::PackOffset).big_integer().default(0))
+                    .add_column(
+                        ColumnDef::new(GitBlob::PackOffset)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -136,6 +142,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaCommit::PackOffset)
                             .big_integer()
+                            .not_null()
                             .default(0),
                     )
                     .to_owned(),
@@ -164,6 +171,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(GitCommit::PackOffset)
                             .big_integer()
+                            .not_null()
                             .default(0),
                     )
                     .to_owned(),
@@ -189,7 +197,12 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(MegaTag::Table)
-                    .add_column(ColumnDef::new(MegaTag::PackOffset).big_integer().default(0))
+                    .add_column(
+                        ColumnDef::new(MegaTag::PackOffset)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -213,7 +226,12 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitTag::Table)
-                    .add_column(ColumnDef::new(GitTag::PackOffset).big_integer().default(0))
+                    .add_column(
+                        ColumnDef::new(GitTag::PackOffset)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -240,6 +258,7 @@ impl MigrationTrait for Migration {
                     .add_column(
                         ColumnDef::new(MegaTree::PackOffset)
                             .big_integer()
+                            .not_null()
                             .default(0),
                     )
                     .to_owned(),
@@ -265,7 +284,12 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(GitTree::Table)
-                    .add_column(ColumnDef::new(GitTree::PackOffset).big_integer().default(0))
+                    .add_column(
+                        ColumnDef::new(GitTree::PackOffset)
+                            .big_integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -453,7 +477,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum MegaBlob {
     Table,
     PackId,
@@ -461,7 +485,7 @@ enum MegaBlob {
     PackOffset,
     IsDeltaInPack,
 }
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum GitBlob {
     Table,
     PackId,
@@ -470,41 +494,41 @@ enum GitBlob {
     IsDeltaInPack,
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum MegaCommit {
     Table,
     PackId,
     PackOffset,
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum GitCommit {
     Table,
     PackId,
     PackOffset,
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum MegaTag {
     Table,
     PackId,
     PackOffset,
 }
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum GitTag {
     Table,
     PackId,
     PackOffset,
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum MegaTree {
     Table,
     PackId,
     PackOffset,
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum GitTree {
     Table,
     PackId,
