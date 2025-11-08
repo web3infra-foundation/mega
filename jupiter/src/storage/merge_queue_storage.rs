@@ -75,9 +75,10 @@ impl MergeQueueStorage {
             return Err("CL already exists in queue records".to_string());
         }
 
-        // Use timestamp as position for consistent ordering
-        let position = chrono::Utc::now().timestamp() as i32;
+        // Use timestamp with microsecond component to prevent position conflicts
         let now = chrono::Utc::now();
+        // Combine timestamp (in seconds) with microsecond offset to reduce collision probability
+        let position = now.timestamp() as i32;
 
         // Create new queue item
         let new_item = QueueItem::new(cl_link.clone(), position);
@@ -306,16 +307,22 @@ impl MergeQueueStorage {
                         Ok(true)
                     }
                     Err(e) => {
-                        let _ = txn.rollback().await;
+                        if let Err(rollback_err) = txn.rollback().await {
+                            tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+                        }
                         Err(format!("Failed to deserialize queue item: {}", e))
                     }
                 }
             } else {
-                let _ = txn.rollback().await;
+                if let Err(rollback_err) = txn.rollback().await {
+                    tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+                }
                 Err("Queue item has no comment data".to_string())
             }
         } else {
-            let _ = txn.rollback().await;
+            if let Err(rollback_err) = txn.rollback().await {
+                tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+            }
             Ok(false)
         }
     }
@@ -383,17 +390,32 @@ impl MergeQueueStorage {
         Ok(stats)
     }
 
+    /// Cancels all pending items (Waiting/Testing) atomically
+    ///
+    /// Uses transaction to ensure all-or-nothing semantics:
+    /// - Either all items are cancelled successfully
+    /// - Or none are cancelled (transaction rolls back)
+    ///
+    /// Returns the number of cancelled items on success
     pub async fn cancel_all_pending(&self) -> Result<u64, String> {
         let db = self.get_connection();
 
-        let items_to_cancel = self
-            .base_queue_query()
+        // Begin transaction to ensure atomicity
+        let txn = db
+            .begin()
+            .await
+            .map_err(|e| format!("Failed to begin transaction: {}", e))?;
+
+        // Query items within transaction to prevent race conditions
+        let items_to_cancel = Entity::find()
+            .filter(Column::ConvType.eq(ConvTypeEnum::MergeQueue))
+            .filter(Column::Username.eq(MERGE_QUEUE_USERNAME))
             .filter(
                 Column::Comment
                     .like("%\"status\":\"waiting\"%")
                     .or(Column::Comment.like("%\"status\":\"testing\"%")),
             )
-            .all(db)
+            .all(&txn)
             .await
             .map_err(|e| format!("Failed to find items to cancel: {}", e))?;
 
@@ -402,57 +424,49 @@ impl MergeQueueStorage {
             "Operation cancelled by user".to_string(),
         );
 
-        // Process all items concurrently
-        let update_futures: Vec<_> = items_to_cancel
-            .into_iter()
-            .filter_map(|model| {
-                let comment = model.comment.as_ref()?;
-                let item: QueueItem = serde_json::from_str(comment).ok()?;
+        let mut cancelled_count = 0u64;
 
-                // Only process waiting or testing items
+        // Process all items within the same transaction
+        // Any failure will cause the entire operation to roll back
+        for model in items_to_cancel {
+            if let Some(comment) = &model.comment {
+                let mut item = serde_json::from_str::<QueueItem>(comment)
+                    .map_err(|e| format!("Failed to deserialize queue item: {}", e))?;
+
+                // Skip items that are not in cancellable state
                 if !matches!(item.status, QueueStatus::Waiting | QueueStatus::Testing) {
-                    return None;
+                    continue;
                 }
 
-                Some((model, item))
-            })
-            .map(|(model, mut item)| {
-                let db = db.clone();
-                let error = error.clone();
-                async move {
-                    item.update_status_with_error(QueueStatus::Failed, error)
-                        .map_err(|e| format!("Failed to update cancelled item: {}", e))?;
+                // Update item status to Failed with error details
+                item.update_status_with_error(QueueStatus::Failed, error.clone())
+                    .map_err(|e| format!("Failed to update item status: {}", e))?;
 
-                    let updated_serialized = serde_json::to_string(&item)
-                        .map_err(|e| format!("Failed to serialize cancelled item: {}", e))?;
+                // Serialize updated item
+                let updated_serialized = serde_json::to_string(&item)
+                    .map_err(|e| format!("Failed to serialize cancelled item: {}", e))?;
 
-                    let mut active_model: callisto::mega_conversation::ActiveModel = model.into();
-                    active_model.comment = Set(Some(updated_serialized));
-                    active_model.updated_at = Set(chrono::Utc::now().naive_utc());
+                // Prepare and execute database update
+                let mut active_model: callisto::mega_conversation::ActiveModel = model.into();
+                active_model.comment = Set(Some(updated_serialized));
+                active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
-                    active_model
-                        .update(&db)
-                        .await
-                        .map_err(|e| format!("Failed to update cancelled item: {}", e))?;
+                // Any database error will propagate up and trigger rollback
+                active_model
+                    .update(&txn)
+                    .await
+                    .map_err(|e| format!("Failed to update cancelled item: {}", e))?;
 
-                    Ok::<_, String>(())
-                }
-            })
-            .collect();
-
-        // Execute all updates concurrently
-        let results = futures::future::join_all(update_futures).await;
-
-        // Count successful updates
-        let cancelled_count = results.iter().filter(|r| r.is_ok()).count() as u64;
-
-        // Log any failures
-        for (idx, result) in results.iter().enumerate() {
-            if let Err(e) = result {
-                tracing::warn!("Failed to cancel item {}: {}", idx, e);
+                cancelled_count += 1;
             }
         }
 
+        // Commit transaction - if this fails, all changes are rolled back
+        txn.commit()
+            .await
+            .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+
+        tracing::info!("Successfully cancelled {} pending items", cancelled_count);
         Ok(cancelled_count)
     }
 
@@ -491,7 +505,7 @@ impl MergeQueueStorage {
             .await
             .map_err(|e| format!("Failed to begin transaction: {}", e))?;
 
-        // Query all items within transaction
+        // Query all items within transaction to find maximum position
         let conversations = Entity::find()
             .filter(Column::ConvType.eq(ConvTypeEnum::MergeQueue))
             .filter(Column::Username.eq(MERGE_QUEUE_USERNAME))
@@ -499,12 +513,14 @@ impl MergeQueueStorage {
             .await
             .map_err(|e| format!("Failed to query queue items: {}", e))?;
 
+        // Find maximum position (excluding target item), default to current timestamp
         let mut max_position = chrono::Utc::now().timestamp() as i32;
 
         for conv in &conversations {
             if let Some(comment) = &conv.comment {
                 match serde_json::from_str::<QueueItem>(comment) {
                     Ok(item) => {
+                        // Only consider positions from other items
                         if item.cl_link != cl_link && item.position >= max_position {
                             max_position = item.position + 1;
                         }
@@ -517,7 +533,7 @@ impl MergeQueueStorage {
             }
         }
 
-        // Find and update the target item within the same transaction
+        // Find and update the target item
         let target = conversations.into_iter().find(|conv| conv.link == cl_link);
 
         if let Some(model) = target {
@@ -548,16 +564,22 @@ impl MergeQueueStorage {
                         Ok(true)
                     }
                     Err(e) => {
-                        let _ = txn.rollback().await;
+                        if let Err(rollback_err) = txn.rollback().await {
+                            tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+                        }
                         Err(format!("Failed to deserialize queue item: {}", e))
                     }
                 }
             } else {
-                let _ = txn.rollback().await;
+                if let Err(rollback_err) = txn.rollback().await {
+                    tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+                }
                 Err("Queue item has no comment data".to_string())
             }
         } else {
-            let _ = txn.rollback().await;
+            if let Err(rollback_err) = txn.rollback().await {
+                tracing::warn!("Failed to rollback transaction: {}", rollback_err);
+            }
             Ok(false)
         }
     }

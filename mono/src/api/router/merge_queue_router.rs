@@ -56,10 +56,7 @@ async fn add_to_queue(
             };
             Ok(Json(CommonResult::success(Some(response))))
         }
-        Err(e) => {
-            // Return detailed error message as Ok with failed result
-            Ok(Json(CommonResult::failed(&e.to_string())))
-        }
+        Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
     }
 }
 
@@ -171,10 +168,7 @@ async fn retry_queue_item(
             };
             Ok(Json(CommonResult::success(Some(response))))
         }
-        Err(e) => {
-            // Return detailed error message as Ok with failed result
-            Ok(Json(CommonResult::failed(&e.to_string())))
-        }
+        Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
     }
 }
 
