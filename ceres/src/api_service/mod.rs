@@ -903,9 +903,9 @@ pub trait ApiHandler: Send + Sync {
     }
 
     async fn get_latest_commit_with_refs(
-        &self, 
-        path: PathBuf, 
-        _refs: Option<&str>
+        &self,
+        path: PathBuf,
+        _refs: Option<&str>,
     ) -> Result<LatestCommitInfo, GitError> {
         // Default implementation: fallback to the version without refs
         self.get_latest_commit(path).await
