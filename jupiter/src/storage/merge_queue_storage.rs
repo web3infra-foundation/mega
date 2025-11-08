@@ -10,6 +10,9 @@ use std::ops::Deref;
 /// Username for merge queue system operations
 const MERGE_QUEUE_USERNAME: &str = "system";
 
+/// Maximum number of retry attempts for failed items
+const MAX_RETRY_ATTEMPTS: i32 = 3;
+
 /// Merge queue storage layer
 #[derive(Clone)]
 pub struct MergeQueueStorage {
@@ -29,7 +32,9 @@ impl MergeQueueStorage {
         Self { base }
     }
 
-    /// Base query with common filters
+    /// Constructs base query with common filters for merge queue items
+    ///
+    /// Filters by ConvType=MergeQueue and Username=system
     fn base_queue_query(&self) -> sea_orm::Select<callisto::mega_conversation::Entity> {
         Entity::find()
             .filter(Column::ConvType.eq(ConvTypeEnum::MergeQueue))
@@ -251,7 +256,11 @@ impl MergeQueueStorage {
         Ok(next_item.map(|(item, _)| item))
     }
 
-    /// Updates queue item with modifier function using transaction for concurrency safety
+    /// Atomically updates a queue item using a transaction
+    ///
+    /// The modifier function receives a mutable reference to the item.
+    /// Returns Ok(true) if updated, Ok(false) if not found, Err on failure.
+    /// Transaction is rolled back on any error to prevent partial updates.
     async fn update_queue_item<F>(&self, cl_link: &str, modifier: F) -> Result<bool, String>
     where
         F: FnOnce(&mut QueueItem) -> Result<(), String>,
@@ -458,7 +467,7 @@ impl MergeQueueStorage {
                 return Err("Item is not in failed state".to_string());
             }
 
-            if !item.can_retry(3) {
+            if !item.can_retry(MAX_RETRY_ATTEMPTS) {
                 return Err("Item has exceeded maximum retry attempts".to_string());
             }
 

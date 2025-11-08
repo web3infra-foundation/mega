@@ -11,6 +11,12 @@ use crate::storage::{
 use callisto::sea_orm_active_enums::MergeStatusEnum;
 use common::errors::MegaError;
 
+/// Queue polling interval in seconds when no items are processed
+const QUEUE_POLL_INTERVAL_SECS: u64 = 5;
+
+/// Error backoff interval in seconds after processing failure
+const ERROR_BACKOFF_SECS: u64 = 30;
+
 /// Merge queue service for CL processing
 #[derive(Clone)]
 pub struct MergeQueueService {
@@ -113,6 +119,9 @@ impl MergeQueueService {
         }
     }
 
+    /// Orchestrates the merge workflow: validation → testing → conflict check → merge
+    ///
+    /// Updates queue and CL status on success or returns QueueError on failure
     async fn process_merge_workflow(&self, cl_link: &str) -> Result<(), QueueError> {
         // Validate CL still exists and is not closed before processing
         let cl = self.cl_storage.get_cl(cl_link).await.map_err(|e| {
@@ -177,6 +186,7 @@ impl MergeQueueService {
         Ok(())
     }
 
+    /// Validates CL exists and is not closed before adding to queue
     async fn validate_cl_for_queue(&self, cl_link: &str) -> Result<(), MegaError> {
         let cl = self.cl_storage.get_cl(cl_link).await?;
 
@@ -191,25 +201,21 @@ impl MergeQueueService {
         }
     }
 
-    async fn check_conflicts(&self, cl_link: &str) -> Result<(), QueueError> {
-        // TODO: Implement conflict detection logic with Git
-        // Mock implementation for testing
-        if cl_link.contains("conflict") {
-            tracing::warn!("Mock conflict detected for: {}", cl_link);
-            return Err(QueueError::new(
-                FailureType::Conflict,
-                "Mock conflict detected".to_string(),
-            ));
-        }
-
+    /// Checks for merge conflicts using Git internals
+    ///
+    /// TODO: Implement actual Git conflict detection
+    async fn check_conflicts(&self, _cl_link: &str) -> Result<(), QueueError> {
         Ok(())
     }
 
+    /// Executes Git merge operation for the CL
+    ///
+    /// TODO: Implement actual Git merge operation
     async fn execute_merge(&self, _cl_link: &str) -> Result<(), QueueError> {
-        // TODO: Implement actual Git merge operation
         Ok(())
     }
 
+    /// Executes Buck2 tests for the CL and returns error if tests fail
     async fn execute_testing(&self, cl_link: &str) -> Result<(), QueueError> {
         let cl = self
             .cl_storage
@@ -236,14 +242,12 @@ impl MergeQueueService {
         }
     }
 
-    async fn run_buck2_tests(&self, cl: &callisto::mega_cl::Model) -> Result<bool, QueueError> {
-        // TODO: Implement actual Buck2 test execution
-        // Mock implementation for testing
-        if cl.link.contains("fail-test") {
-            tracing::warn!("Mock test failure for CL: {}", cl.link);
-            return Ok(false);
-        }
-
+    /// Runs Buck2 tests for the CL
+    ///
+    /// Returns Ok(true) if tests pass, Ok(false) if tests fail
+    ///
+    /// TODO: Implement actual Buck2 test execution
+    async fn run_buck2_tests(&self, _cl: &callisto::mega_cl::Model) -> Result<bool, QueueError> {
         Ok(true)
     }
 
@@ -256,7 +260,10 @@ impl MergeQueueService {
         Ok(count as usize)
     }
 
-    /// Ensures processor is running, starts it if not
+    /// Ensures the background merge processor is running
+    ///
+    /// Uses atomic flag to guarantee only one processor task runs at a time.
+    /// Processor automatically stops when no active items remain in queue.
     fn ensure_processor_running(&self) {
         if self
             .processor_running
@@ -288,12 +295,13 @@ impl MergeQueueService {
                                         break;
                                     }
                                 }
-                                tokio::time::sleep(Duration::from_secs(5)).await;
+                                tokio::time::sleep(Duration::from_secs(QUEUE_POLL_INTERVAL_SECS))
+                                    .await;
                             }
                         }
                         Err(e) => {
                             tracing::error!("Queue processor error: {}", e);
-                            tokio::time::sleep(Duration::from_secs(30)).await;
+                            tokio::time::sleep(Duration::from_secs(ERROR_BACKOFF_SECS)).await;
                         }
                     }
                 }
