@@ -111,6 +111,7 @@ async fn get_latest_commit(
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
     let query_path: std::path::PathBuf = query.path.into();
     let import_dir = state.storage.config().monorepo.import_dir.clone();
+    
     if let Ok(rest) = query_path.strip_prefix(import_dir)
         && rest.components().count() == 1
     {
@@ -121,11 +122,19 @@ async fn get_latest_commit(
         return Ok(Json(res));
     }
 
-    let res = state
-        .api_handler(&query_path)
-        .await?
-        .get_latest_commit(query_path)
-        .await?;
+    let api_handler = state.api_handler(&query_path).await?;
+    
+    // Choose method based on whether refs is empty
+    let res = if query.refs.is_empty() {
+        // No refs specified, use original method
+        tracing::debug!("No refs specified, using default get_latest_commit");
+        api_handler.get_latest_commit(query_path).await?
+    } else {
+        // Refs specified, use new method
+        tracing::debug!("Refs specified: {}, using get_latest_commit_with_refs", query.refs);
+        api_handler.get_latest_commit_with_refs(query_path, Some(query.refs.as_str())).await?
+    };
+    
     Ok(Json(res))
 }
 
