@@ -1,15 +1,15 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-
-use crate::model::merge_queue::{FailureType, QueueError, QueueItem, QueueStats, QueueStatus};
+use crate::model::merge_queue_dto::QueueStats;
 use crate::storage::{
     base_storage::{BaseStorage, StorageConnector},
     cl_storage::ClStorage,
     merge_queue_storage::MergeQueueStorage,
 };
 use callisto::sea_orm_active_enums::MergeStatusEnum;
+use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
 use common::errors::MegaError;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 /// Queue polling interval in seconds when no items are processed
 const QUEUE_POLL_INTERVAL_SECS: u64 = 5;
@@ -36,7 +36,7 @@ impl MergeQueueService {
         }
     }
 
-    pub async fn add_to_queue(&self, cl_link: String) -> Result<i32, MegaError> {
+    pub async fn add_to_queue(&self, cl_link: String) -> Result<i64, MegaError> {
         self.validate_cl_for_queue(&cl_link).await?;
 
         let position = self
@@ -58,14 +58,17 @@ impl MergeQueueService {
             .map_err(|e| MegaError::with_message(&e))
     }
 
-    pub async fn get_queue_list(&self) -> Result<Vec<QueueItem>, MegaError> {
+    pub async fn get_queue_list(&self) -> Result<Vec<callisto::merge_queue::Model>, MegaError> {
         self.merge_queue_storage
             .get_queue_list()
             .await
             .map_err(|e| MegaError::with_message(&e))
     }
 
-    pub async fn get_cl_queue_status(&self, cl_link: &str) -> Result<Option<QueueItem>, MegaError> {
+    pub async fn get_cl_queue_status(
+        &self,
+        cl_link: &str,
+    ) -> Result<Option<callisto::merge_queue::Model>, MegaError> {
         self.merge_queue_storage
             .get_cl_queue_status(cl_link)
             .await
@@ -88,7 +91,7 @@ impl MergeQueueService {
 
         if let Some(item) = next_item {
             self.merge_queue_storage
-                .update_item_status(&item.cl_link, QueueStatus::Testing)
+                .update_item_status(&item.cl_link, QueueStatusEnum::Testing)
                 .await
                 .map_err(|e| MegaError::with_message(&e))?;
 
@@ -96,19 +99,28 @@ impl MergeQueueService {
 
             let processed = match self.process_merge_workflow(&cl_link).await {
                 Ok(()) => true,
-                Err(queue_error) => {
-                    if matches!(queue_error.failure_type, FailureType::Conflict) {
-                        let _ = self.merge_queue_storage.move_item_to_tail(&cl_link).await;
+                Err((failure_type, message)) => {
+                    if matches!(failure_type, QueueFailureTypeEnum::Conflict) {
+                        if let Err(e) = self.merge_queue_storage.move_item_to_tail(&cl_link).await {
+                            tracing::warn!(
+                                "Failed to move conflicting item {} to tail: {}",
+                                cl_link,
+                                e
+                            );
+                        }
                         false
                     } else {
-                        let _ = self
+                        if let Err(e) = self
                             .merge_queue_storage
-                            .update_item_status_with_error(
-                                &cl_link,
-                                QueueStatus::Failed,
-                                queue_error,
-                            )
-                            .await;
+                            .update_item_status_with_error(&cl_link, failure_type, message)
+                            .await
+                        {
+                            tracing::error!(
+                                "Failed to update item {} status to failed: {}",
+                                cl_link,
+                                e
+                            );
+                        }
                         true
                     }
                 }
@@ -122,11 +134,14 @@ impl MergeQueueService {
     /// Orchestrates the merge workflow: validation → testing → conflict check → merge
     ///
     /// Updates queue and CL status on success or returns QueueError on failure
-    async fn process_merge_workflow(&self, cl_link: &str) -> Result<(), QueueError> {
+    async fn process_merge_workflow(
+        &self,
+        cl_link: &str,
+    ) -> Result<(), (QueueFailureTypeEnum, String)> {
         // Validate CL still exists and is not closed before processing
         let cl = self.cl_storage.get_cl(cl_link).await.map_err(|e| {
-            QueueError::new(
-                FailureType::SystemError,
+            (
+                QueueFailureTypeEnum::SystemError,
                 format!("Failed to fetch CL: {}", e),
             )
         })?;
@@ -134,16 +149,16 @@ impl MergeQueueService {
         let cl_model = match cl {
             Some(cl_model) => {
                 if cl_model.status == MergeStatusEnum::Closed {
-                    return Err(QueueError::new(
-                        FailureType::SystemError,
+                    return Err((
+                        QueueFailureTypeEnum::SystemError,
                         "CL has been closed, cannot merge".to_string(),
                     ));
                 }
                 cl_model
             }
             None => {
-                return Err(QueueError::new(
-                    FailureType::SystemError,
+                return Err((
+                    QueueFailureTypeEnum::SystemError,
                     "CL no longer exists, cannot merge".to_string(),
                 ));
             }
@@ -153,11 +168,11 @@ impl MergeQueueService {
         self.check_conflicts(cl_link).await?;
 
         self.merge_queue_storage
-            .update_item_status(cl_link, QueueStatus::Merging)
+            .update_item_status(cl_link, QueueStatusEnum::Merging)
             .await
             .map_err(|e| {
-                QueueError::new(
-                    FailureType::SystemError,
+                (
+                    QueueFailureTypeEnum::SystemError,
                     format!("Failed to update status to merging: {}", e),
                 )
             })?;
@@ -166,19 +181,19 @@ impl MergeQueueService {
 
         // Update merge queue status
         self.merge_queue_storage
-            .update_item_status(cl_link, QueueStatus::Merged)
+            .update_item_status(cl_link, QueueStatusEnum::Merged)
             .await
             .map_err(|e| {
-                QueueError::new(
-                    FailureType::SystemError,
+                (
+                    QueueFailureTypeEnum::SystemError,
                     format!("Failed to update status to merged: {}", e),
                 )
             })?;
 
         // Update CL status in mega_cl table
         self.cl_storage.merge_cl(cl_model).await.map_err(|e| {
-            QueueError::new(
-                FailureType::SystemError,
+            (
+                QueueFailureTypeEnum::SystemError,
                 format!("Failed to update CL status: {}", e),
             )
         })?;
@@ -191,12 +206,11 @@ impl MergeQueueService {
         let cl = self.cl_storage.get_cl(cl_link).await?;
 
         match cl {
-            Some(cl_model) => {
-                if cl_model.status == MergeStatusEnum::Closed {
-                    return Err(MegaError::with_message("Cannot queue a closed CL"));
-                }
-                Ok(())
-            }
+            Some(cl_model) => match cl_model.status {
+                MergeStatusEnum::Open => Ok(()),
+                MergeStatusEnum::Closed => Err(MegaError::with_message("Cannot queue a closed CL")),
+                MergeStatusEnum::Merged => Err(MegaError::with_message("Cannot queue a merged CL")),
+            },
             None => Err(MegaError::with_message("CL not found")),
         }
     }
@@ -204,40 +218,45 @@ impl MergeQueueService {
     /// Checks for merge conflicts using Git internals
     ///
     /// TODO: Implement actual Git conflict detection
-    async fn check_conflicts(&self, _cl_link: &str) -> Result<(), QueueError> {
+    async fn check_conflicts(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
         Ok(())
     }
 
     /// Executes Git merge operation for the CL
     ///
     /// TODO: Implement actual Git merge operation
-    async fn execute_merge(&self, _cl_link: &str) -> Result<(), QueueError> {
+    async fn execute_merge(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
         Ok(())
     }
 
     /// Executes Buck2 tests for the CL and returns error if tests fail
-    async fn execute_testing(&self, cl_link: &str) -> Result<(), QueueError> {
+    async fn execute_testing(&self, cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
         let cl = self
             .cl_storage
             .get_cl(cl_link)
             .await
-            .map_err(|e| QueueError::new(FailureType::SystemError, e.to_string()))?
-            .ok_or_else(|| QueueError::new(FailureType::SystemError, "CL not found".to_string()))?;
+            .map_err(|e| (QueueFailureTypeEnum::SystemError, e.to_string()))?
+            .ok_or_else(|| {
+                (
+                    QueueFailureTypeEnum::SystemError,
+                    "CL not found".to_string(),
+                )
+            })?;
 
         match self.run_buck2_tests(&cl).await {
             Ok(success) => {
                 if success {
                     Ok(())
                 } else {
-                    Err(QueueError::new(
-                        FailureType::TestFailure,
+                    Err((
+                        QueueFailureTypeEnum::TestFailure,
                         "Buck2 tests failed".to_string(),
                     ))
                 }
             }
-            Err(e) => Err(QueueError::new(
-                FailureType::SystemError,
-                format!("Buck2 test execution error: {}", e),
+            Err((failure_type, message)) => Err((
+                failure_type,
+                format!("Buck2 test execution error: {}", message),
             )),
         }
     }
@@ -247,17 +266,20 @@ impl MergeQueueService {
     /// Returns Ok(true) if tests pass, Ok(false) if tests fail
     ///
     /// TODO: Implement actual Buck2 test execution
-    async fn run_buck2_tests(&self, _cl: &callisto::mega_cl::Model) -> Result<bool, QueueError> {
+    async fn run_buck2_tests(
+        &self,
+        _cl: &callisto::mega_cl::Model,
+    ) -> Result<bool, (QueueFailureTypeEnum, String)> {
         Ok(true)
     }
 
-    pub async fn cancel_all_pending(&self) -> Result<usize, MegaError> {
+    pub async fn cancel_all_pending(&self) -> Result<u64, MegaError> {
         let count = self
             .merge_queue_storage
             .cancel_all_pending()
             .await
             .map_err(|e| MegaError::with_message(&e))?;
-        Ok(count as usize)
+        Ok(count)
     }
 
     /// Ensures the background merge processor is running
@@ -326,163 +348,5 @@ impl MergeQueueService {
     pub fn mock() -> Self {
         let base_storage = BaseStorage::mock();
         Self::new(base_storage)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::merge_queue::QueueData;
-    use chrono::Utc;
-
-    /// Tests queue item business logic without database
-    #[test]
-    fn test_queue_item_status_transitions() {
-        println!("\n🧪 QUEUE ITEM STATUS TRANSITION TEST\n");
-
-        let mut item = QueueItem::new("cl-test".to_string(), 12345);
-
-        // Test initial state
-        assert_eq!(item.status, QueueStatus::Waiting);
-        assert_eq!(item.retry_count, 0);
-        println!("✓ Initial status: Waiting");
-
-        // Test valid transitions
-        assert!(item.update_status(QueueStatus::Testing).is_ok());
-        assert_eq!(item.status, QueueStatus::Testing);
-        println!("✓ Waiting -> Testing");
-
-        assert!(item.update_status(QueueStatus::Merging).is_ok());
-        assert_eq!(item.status, QueueStatus::Merging);
-        println!("✓ Testing -> Merging");
-
-        assert!(item.update_status(QueueStatus::Merged).is_ok());
-        assert_eq!(item.status, QueueStatus::Merged);
-        println!("✓ Merging -> Merged");
-
-        // Test failure path
-        let mut item2 = QueueItem::new("cl-fail".to_string(), 12346);
-        item2.update_status(QueueStatus::Testing).unwrap();
-
-        let error = QueueError::new(FailureType::TestFailure, "Test failed".to_string());
-        assert!(
-            item2
-                .update_status_with_error(QueueStatus::Failed, error)
-                .is_ok()
-        );
-        assert_eq!(item2.status, QueueStatus::Failed);
-        assert!(item2.error_details.is_some());
-        println!("✓ Testing -> Failed (with error)");
-
-        // Test retry increment
-        item2.update_status(QueueStatus::Waiting).unwrap();
-        item2.increment_retry();
-        assert_eq!(item2.status, QueueStatus::Waiting);
-        assert_eq!(item2.retry_count, 1);
-        println!("✓ Failed -> Waiting with retry counter incremented");
-
-        println!("\n✅ ALL STATUS TRANSITION TESTS PASSED");
-    }
-
-    /// Tests failure type classification
-    #[test]
-    fn test_failure_types() {
-        println!("\n🧪 FAILURE TYPE TEST\n");
-
-        let error_types = vec![
-            (FailureType::Conflict, "Conflict"),
-            (FailureType::TestFailure, "Test Failure"),
-            (FailureType::BuildFailure, "Build Failure"),
-            (FailureType::MergeFailure, "Merge Failure"),
-            (FailureType::SystemError, "System Error"),
-            (FailureType::Timeout, "Timeout"),
-        ];
-
-        for (err_type, expected_display) in error_types {
-            let error = QueueError::new(err_type, "Mock error".to_string());
-            assert_eq!(format!("{}", err_type), expected_display);
-            assert!(error.occurred_at <= Utc::now());
-            println!("✓ {} error type works correctly", expected_display);
-        }
-
-        // Test conflict retriability logic (defined in service layer)
-        assert_eq!(FailureType::Conflict as i32, 0, "Conflict is first variant");
-        println!("✓ Conflict type is distinguishable for auto-requeue");
-
-        println!("\n✅ FAILURE TYPE TESTS PASSED");
-    }
-
-    /// Tests queue data operations
-    #[test]
-    fn test_queue_data_operations() {
-        println!("\n🧪 QUEUE DATA OPERATIONS TEST\n");
-
-        let mut queue = QueueData::new();
-
-        // Test add items
-        let pos1 = queue.add_item("cl-1".to_string());
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let pos2 = queue.add_item("cl-2".to_string());
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let pos3 = queue.add_item("cl-3".to_string());
-
-        assert_eq!(queue.items.len(), 3);
-        assert!(
-            pos2 >= pos1 && pos3 >= pos2,
-            "Positions should be sequential"
-        );
-        println!("✓ Added 3 items with sequential positions");
-
-        // Test remove item
-        assert!(queue.remove_item("cl-2"));
-        assert_eq!(queue.items.len(), 2);
-        assert!(!queue.remove_item("cl-nonexistent"));
-        println!("✓ Remove item works correctly");
-
-        // Test statistics calculation manually (follow valid status transitions)
-        queue.items[0].update_status(QueueStatus::Testing).unwrap();
-        queue.items[0].update_status(QueueStatus::Merging).unwrap();
-        queue.items[0].update_status(QueueStatus::Merged).unwrap();
-
-        queue.items[1].update_status(QueueStatus::Testing).unwrap();
-        let error = QueueError::new(FailureType::TestFailure, "Failed".to_string());
-        queue.items[1]
-            .update_status_with_error(QueueStatus::Failed, error)
-            .unwrap();
-
-        let merged_count = queue
-            .items
-            .iter()
-            .filter(|i| i.status == QueueStatus::Merged)
-            .count();
-        let failed_count = queue
-            .items
-            .iter()
-            .filter(|i| i.status == QueueStatus::Failed)
-            .count();
-        assert_eq!(queue.items.len(), 2);
-        assert_eq!(merged_count, 1);
-        assert_eq!(failed_count, 1);
-        println!("✓ Status tracking works correctly");
-
-        println!("\n✅ QUEUE DATA OPERATIONS TESTS PASSED");
-    }
-
-    /// Tests timestamp-based position assignment
-    #[test]
-    fn test_timestamp_positioning() {
-        println!("\n🧪 TIMESTAMP POSITIONING TEST\n");
-
-        let pos1 = chrono::Utc::now().timestamp() as i32;
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let pos2 = chrono::Utc::now().timestamp() as i32;
-
-        assert!(pos2 >= pos1, "Later timestamp should be greater or equal");
-        assert!(pos1 > 1000000000, "Should be valid Unix timestamp");
-        println!("✓ Timestamp-based positioning works correctly");
-        println!("  Position 1: {}", pos1);
-        println!("  Position 2: {}", pos2);
-
-        println!("\n✅ TIMESTAMP POSITIONING TEST PASSED");
     }
 }

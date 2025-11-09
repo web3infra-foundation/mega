@@ -1,3 +1,5 @@
+use callisto::merge_queue::Model;
+use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -35,7 +37,7 @@ pub struct QueueError {
 pub struct QueueItem {
     pub cl_link: String,
     pub status: QueueStatus,
-    pub position: i32,
+    pub position: i64,
     pub created_at: String,
     pub updated_at: String,
     pub retry_count: i32,
@@ -63,7 +65,7 @@ pub struct AddToQueueRequest {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AddToQueueResponse {
     pub success: bool,
-    pub position: i32,
+    pub position: i64,
     pub message: String,
 }
 
@@ -87,61 +89,72 @@ pub struct QueueStatsResponse {
     pub stats: QueueStats,
 }
 
-impl From<jupiter::model::merge_queue::QueueStatus> for QueueStatus {
-    fn from(status: jupiter::model::merge_queue::QueueStatus) -> Self {
+impl From<QueueStatusEnum> for QueueStatus {
+    fn from(status: QueueStatusEnum) -> Self {
         match status {
-            jupiter::model::merge_queue::QueueStatus::Waiting => QueueStatus::Waiting,
-            jupiter::model::merge_queue::QueueStatus::Testing => QueueStatus::Testing,
-            jupiter::model::merge_queue::QueueStatus::Merging => QueueStatus::Merging,
-            jupiter::model::merge_queue::QueueStatus::Merged => QueueStatus::Merged,
-            jupiter::model::merge_queue::QueueStatus::Failed => QueueStatus::Failed,
+            QueueStatusEnum::Waiting => QueueStatus::Waiting,
+            QueueStatusEnum::Testing => QueueStatus::Testing,
+            QueueStatusEnum::Merging => QueueStatus::Merging,
+            QueueStatusEnum::Merged => QueueStatus::Merged,
+            QueueStatusEnum::Failed => QueueStatus::Failed,
         }
     }
 }
 
-impl From<jupiter::model::merge_queue::FailureType> for FailureType {
-    fn from(failure_type: jupiter::model::merge_queue::FailureType) -> Self {
+impl From<QueueFailureTypeEnum> for FailureType {
+    fn from(failure_type: QueueFailureTypeEnum) -> Self {
         match failure_type {
-            jupiter::model::merge_queue::FailureType::TestFailure => FailureType::TestFailure,
-            jupiter::model::merge_queue::FailureType::BuildFailure => FailureType::BuildFailure,
-            jupiter::model::merge_queue::FailureType::Conflict => FailureType::Conflict,
-            jupiter::model::merge_queue::FailureType::MergeFailure => FailureType::MergeFailure,
-            jupiter::model::merge_queue::FailureType::SystemError => FailureType::SystemError,
-            jupiter::model::merge_queue::FailureType::Timeout => FailureType::Timeout,
+            QueueFailureTypeEnum::TestFailure => FailureType::TestFailure,
+            QueueFailureTypeEnum::BuildFailure => FailureType::BuildFailure,
+            QueueFailureTypeEnum::Conflict => FailureType::Conflict,
+            QueueFailureTypeEnum::MergeFailure => FailureType::MergeFailure,
+            QueueFailureTypeEnum::SystemError => FailureType::SystemError,
+            QueueFailureTypeEnum::Timeout => FailureType::Timeout,
         }
     }
 }
 
-impl From<jupiter::model::merge_queue::QueueError> for QueueError {
-    fn from(error: jupiter::model::merge_queue::QueueError) -> Self {
-        QueueError {
-            failure_type: error.failure_type.into(),
-            message: error.message,
-            occurred_at: error.occurred_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        }
-    }
-}
+impl From<Model> for QueueItem {
+    fn from(item: Model) -> Self {
+        let error = item.failure_type.map(|ft| {
+            let occurred_at_local = item
+                .updated_at
+                .and_utc()
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string();
 
-impl From<jupiter::model::merge_queue::QueueItem> for QueueItem {
-    fn from(item: jupiter::model::merge_queue::QueueItem) -> Self {
+            QueueError {
+                failure_type: ft.into(),
+                message: item.error_message.unwrap_or_default(),
+                occurred_at: occurred_at_local,
+            }
+        });
+
         QueueItem {
             cl_link: item.cl_link,
             status: item.status.into(),
             position: item.position,
-            created_at: item.added_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: item
+                .created_at
+                .and_utc()
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
             updated_at: item
-                .last_retry_at
-                .unwrap_or(item.added_at)
+                .updated_at
+                .and_utc()
+                .with_timezone(&chrono::Local)
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string(),
             retry_count: item.retry_count,
-            error: item.error_details.map(|e| e.into()),
+            error,
         }
     }
 }
 
-impl From<jupiter::model::merge_queue::QueueStats> for QueueStats {
-    fn from(stats: jupiter::model::merge_queue::QueueStats) -> Self {
+impl From<jupiter::model::merge_queue_dto::QueueStats> for QueueStats {
+    fn from(stats: jupiter::model::merge_queue_dto::QueueStats) -> Self {
         QueueStats {
             total_items: stats.total_items,
             waiting_count: stats.waiting_count,
@@ -153,8 +166,8 @@ impl From<jupiter::model::merge_queue::QueueStats> for QueueStats {
     }
 }
 
-impl From<Vec<jupiter::model::merge_queue::QueueItem>> for QueueListResponse {
-    fn from(items: Vec<jupiter::model::merge_queue::QueueItem>) -> Self {
+impl From<Vec<Model>> for QueueListResponse {
+    fn from(items: Vec<Model>) -> Self {
         let total_count = items.len();
         let api_items: Vec<QueueItem> = items.into_iter().map(|item| item.into()).collect();
 
@@ -165,8 +178,8 @@ impl From<Vec<jupiter::model::merge_queue::QueueItem>> for QueueListResponse {
     }
 }
 
-impl From<Option<jupiter::model::merge_queue::QueueItem>> for QueueStatusResponse {
-    fn from(item: Option<jupiter::model::merge_queue::QueueItem>) -> Self {
+impl From<Option<Model>> for QueueStatusResponse {
+    fn from(item: Option<Model>) -> Self {
         match item {
             Some(queue_item) => QueueStatusResponse {
                 in_queue: true,
@@ -180,10 +193,16 @@ impl From<Option<jupiter::model::merge_queue::QueueItem>> for QueueStatusRespons
     }
 }
 
-impl From<jupiter::model::merge_queue::QueueStats> for QueueStatsResponse {
-    fn from(stats: jupiter::model::merge_queue::QueueStats) -> Self {
-        QueueStatsResponse {
-            stats: stats.into(),
-        }
+impl From<jupiter::model::merge_queue_dto::QueueStats> for QueueStatsResponse {
+    fn from(stats: jupiter::model::merge_queue_dto::QueueStats) -> Self {
+        let ceres_stats: QueueStats = stats.into();
+
+        ceres_stats.into()
+    }
+}
+
+impl From<QueueStats> for QueueStatsResponse {
+    fn from(stats: QueueStats) -> Self {
+        QueueStatsResponse { stats }
     }
 }
