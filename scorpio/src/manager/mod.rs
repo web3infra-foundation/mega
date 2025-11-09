@@ -178,12 +178,21 @@ impl ScorpioManager {
 
     pub fn check_before_mount(&self, mono_path: &str) -> Result<(), String> {
         for work in &self.works {
-            if work.path.starts_with(mono_path) || mono_path.starts_with(&work.path) {
+            // check if work.path and mono_path are equal or parent/child
+            if work.path == mono_path
+                || (work.path.starts_with(mono_path)
+                    && work.path.len() > mono_path.len()
+                    && work.path.as_bytes()[mono_path.len()] == b'/')
+                || (mono_path.starts_with(&work.path)
+                    && mono_path.len() > work.path.len()
+                    && mono_path.as_bytes()[work.path.len()] == b'/')
+            {
                 return Err(work.path.clone());
             }
         }
         Ok(())
     }
+
     /// Iterate through the manager's works to find the specified path's workspace and remove it.
     pub async fn remove_workspace(
         &mut self,

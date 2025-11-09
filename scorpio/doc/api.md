@@ -55,7 +55,7 @@ This server provides endpoints to manage file system mounting and configuration 
 ```
 
 ### 3. **Unmount Directory**
-**URL**: `/api/fs/umount`  
+**URL**: `/api/fs/unmount`  
 **Method**: POST  
 **Description**: Unmounts a directory using its path or inode.
 

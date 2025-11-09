@@ -382,6 +382,7 @@ pub struct DirItem {
     hash: String,
     file_list: HashMap<String, bool>,
 }
+
 pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     // dirs: Arc<Mutex<HashMap<String, DirItem>>>, //save all the dirs.

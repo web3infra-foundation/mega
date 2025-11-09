@@ -25,6 +25,7 @@ struct FilesListResp {
 pub async fn build_cl_layer(
     link: &str,
     cl_path: PathBuf,
+    repo_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let files_list = fetch_files_list(link).await?;
 
@@ -40,13 +41,18 @@ pub async fn build_cl_layer(
     let mut download_files = Vec::new();
     for file in files_list.data {
         // fetched path is absolute path, here we convert it to path repo
-        let relative_path: PathBuf =
-            PathBuf::from(file.path.strip_prefix('/').unwrap_or(&file.path))
-                .components()
-                .skip(1)
-                .collect();
-        let file_path = cl_path.join(relative_path);
+        let file_path_clean = file.path.trim_start_matches('/');
+        let repo_path_clean = repo_path.trim_start_matches('/');
 
+        if !file_path_clean.starts_with(repo_path_clean) {
+            continue;
+        }
+        let relative_path = file_path_clean
+            .strip_prefix(repo_path_clean)
+            .expect("strip_prefix failed: file_path_clean must start with repo_path_clean")
+            .trim_start_matches('/');
+
+        let file_path = cl_path.join(relative_path);
         match file.action.as_str() {
             "new" | "modified" => {
                 if let Some(parent) = file_path.parent() {

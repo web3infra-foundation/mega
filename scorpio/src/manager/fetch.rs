@@ -423,9 +423,11 @@ pub async fn fetch<P: AsRef<Path>>(
     manager: &mut ScorpioManager,
     inode: u64,
     monopath: P,
+    orion_path: &str,
 ) -> std::io::Result<WorkDir> {
     let path = monopath.as_ref().to_str().unwrap().to_string();
     let p = GPath::from(path);
+    let o = GPath::from(orion_path.to_string());
     // Get the tree and its hash value, for name dictionary .
     let tree = fetch_tree(&p).await.unwrap();
     let workdir = WorkDir {
@@ -438,7 +440,7 @@ pub async fn fetch<P: AsRef<Path>>(
     let store_path = config::store_path();
     let work_path = PathBuf::from(store_path).join(&workdir.hash);
     let _lower = work_path.join("lower");
-    fetch_code(&p, _lower).await?;
+    fetch_code(&o, _lower).await?;
     manager.works.push(workdir.clone());
     let config_file = config::config_file();
     let _ = manager.to_toml(config_file);
@@ -579,7 +581,6 @@ async fn worker_ro_thread(
 /// Download remote data to local and store it in Overlay format
 async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Result<()> {
     let target_path = save_path.as_ref().to_path_buf();
-    // println!("fetch_code starting for path: {path}");
 
     let download_manager = DownloadManager::get_global();
     download_manager.start_completion_coordinator();
@@ -642,10 +643,7 @@ async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Resul
 
         workers.push(tokio::spawn(async move {
             while producers.load(Ordering::Acquire) > 0 || !queue.is_empty() {
-                // println!("worker_id {:?} left {:?} {:?}", worker_id, current_count, queue_len);
                 if let Some((current_path, current_target)) = queue.pop() {
-                    // println!("Worker {} processing path: {}", worker_id, current_path);
-
                     // Fetch tree for this directory
                     match fetch_tree(&current_path).await {
                         Ok(tree) => {
