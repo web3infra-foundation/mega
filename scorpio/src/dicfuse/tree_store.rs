@@ -15,7 +15,7 @@ pub struct TreeStorage {
     db: Db,
 }
 
-#[derive(Serialize, Deserialize, Clone, Encode, Decode)]
+#[derive(Serialize, Deserialize, Clone, Encode, Decode, Debug)]
 pub struct StorageItem {
     inode: u64,
     parent: u64,

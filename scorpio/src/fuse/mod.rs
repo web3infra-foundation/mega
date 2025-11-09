@@ -71,7 +71,7 @@ impl MegaFuse {
         for dir in &manager.works {
             let _lower = PathBuf::from(store_path).join(&dir.hash);
             megafuse
-                .overlay_mount(dir.node, &_lower, false)
+                .overlay_mount(dir.node, &_lower, false, None)
                 .await
                 .unwrap();
         }
@@ -88,6 +88,8 @@ impl MegaFuse {
     /// # Parameters
     /// - `inode`: The inode to associate with the overlay filesystem.
     /// - `store_path`: The path where the overlay filesystem should be mounted.
+    /// - `need_cl`: Used for creating the CL layer.
+    /// - `cl_link`: Optional CL link identifier. When provided with `need_cl=true`, determines the subdirectory name for the CL layer.
     ///
     /// # Returns
     /// A result indicating whether the mounting operation was successful.
@@ -96,14 +98,20 @@ impl MegaFuse {
         inode: u64,
         store_path: P,
         need_cl: bool, // if need cl, then create cl layer.
+        cl_link: Option<&str>,
     ) -> std::io::Result<()> {
+        // Set up the directory structure
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
         let mut lowerdir = vec![lower];
+
+        // If a CL layer is needed, create a directory bound to cl_link.
         if need_cl {
-            let cl_path = store_path.as_ref().join("cl");
-            let _ = std::fs::create_dir_all(&cl_path);
-            lowerdir.push(cl_path);
+            if let Some(link) = cl_link {
+                let cl_path = store_path.as_ref().join("cl").join(link);
+                std::fs::create_dir_all(&cl_path)?;
+                lowerdir.insert(0, cl_path);
+            }
         }
         let upperdir = upper;
 
@@ -112,6 +120,7 @@ impl MegaFuse {
             do_import: true,
             ..Default::default()
         };
+
         // Create lower layers
         let mut lower_layers = Vec::new();
         for lower in &lowerdir {
@@ -126,6 +135,7 @@ impl MegaFuse {
                 lower_layers.push(Arc::new(layer));
             }
         }
+
         // Check if the upper directory exists
         let upper_path = Path::new(&upperdir);
         if !upper_path.exists() {
@@ -143,6 +153,7 @@ impl MegaFuse {
                 }
             }
         }
+
         // Create upper layer
         let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).await?);
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode)?;
@@ -151,6 +162,29 @@ impl MegaFuse {
             .await
             .insert(inode, Arc::new(overlayfs));
         self.after_mount_new().await;
+        Ok(())
+    }
+
+    /// Removes the CL (Change List) layer data from disk for a given store path and CL link.
+    ///
+    /// This function deletes the CL layer directory located at `store_path/cl/cl_link`.
+    /// It's used to clean up CL data after it's no longer needed (e.g., when CL is closed).
+    ///
+    /// # Parameters
+    /// - `store_path`: The base path where the CL directory is located.
+    /// - `cl_link`: The specific CL link identifier to remove.
+    ///
+    /// # Returns
+    /// A result indicating whether the removal operation was successful.
+    pub async fn remove_cl_layer_by_cl_link<P: AsRef<Path>>(
+        &self,
+        store_path: P,
+        cl_link: &str,
+    ) -> std::io::Result<()> {
+        let cl_path = store_path.as_ref().join("cl").join(cl_link);
+        if cl_path.exists() {
+            std::fs::remove_dir_all(&cl_path)?;
+        }
         Ok(())
     }
 
