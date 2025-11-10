@@ -236,11 +236,13 @@ pub const CONV_TAG: &str = "Conversation and Comment";
 pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
 pub const USER_TAG: &str = "User Management";
 pub const REPO_TAG: &str = "Repo creation and synchronisation";
+pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
 #[derive(OpenApi)]
 #[openapi(
     tags(
         (name = CODE_PREVIEW, description = "Git API endpoints"),
-        (name = CL_TAG, description = "Change List API endpoints")
+        (name = CL_TAG, description = "Change List API endpoints"),
+        (name = MERGE_QUEUE_TAG, description = "Merge Queue Management API endpoints")
     ),
     components(schemas(
         BlameBlock,

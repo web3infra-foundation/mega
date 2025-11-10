@@ -3,3 +3,4 @@
 pub mod blame_service;
 pub mod cl_service;
 pub mod issue_service;
+pub mod merge_queue_service;
