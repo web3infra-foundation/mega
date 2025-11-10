@@ -6,8 +6,6 @@ import { LabelItem } from '@gitmono/types'
 import { DropdownItemwithLabel } from '../DropdownItems'
 import { FilterDropdown } from '../FilterDropdown'
 
-
-
 interface LabelsDropdownProps {
   labels: LabelItem[]
   value: string[]
@@ -35,16 +33,12 @@ export function LabelsDropdown({ labels, value, onChange, onClose }: LabelsDropd
         if (foundLabel) {
           initializedRef.current = true
           const labelId = String(foundLabel.id)
+
           onChange([labelId])
         }
       }
     }
   }, [labels, value.length, onChange, router.query.q])
-
-
-
-
-
 
   const items = labels.map((label) => ({
     type: 'item' as const,
@@ -62,13 +56,9 @@ export function LabelsDropdown({ labels, value, onChange, onClose }: LabelsDropd
     }
   }))
 
-
   const selectedItems = items.filter((item) => {
     const labelItem = labels.find(
-      (l) =>
-        item.label &&
-        React.isValidElement(item.label) &&
-        (item.label.props as { label?: typeof l }).label === l
+      (l) => item.label && React.isValidElement(item.label) && (item.label.props as { label?: typeof l }).label === l
     )
 
     return labelItem && value.includes(String(labelItem.id))
@@ -79,6 +69,7 @@ export function LabelsDropdown({ labels, value, onChange, onClose }: LabelsDropd
       onClose(value)
     }
   }
+
 
   return (
     <FilterDropdown
@@ -91,4 +82,3 @@ export function LabelsDropdown({ labels, value, onChange, onClose }: LabelsDropd
     />
   )
 }
-

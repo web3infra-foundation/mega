@@ -15,13 +15,11 @@ interface UseFilterStateOptions {
 }
 
 export function useFilterState({ type, initialFilters = {} }: UseFilterStateOptions) {
-
   const [author, setAuthor] = useState<string>(initialFilters.author || '')
   const [assignees, setAssignees] = useState<string[]>(initialFilters.assignees || [])
   const [labels, setLabels] = useState<string[]>(initialFilters.labels || [])
   const [review, setReview] = useState<string>(initialFilters.review || '')
   // const [ order, setOrder ] = useState<string>(initialFilters.order || '')
-
 
   const [lastFilterState, setLastFilterState] = useState<string>('')
 
@@ -35,7 +33,6 @@ export function useFilterState({ type, initialFilters = {} }: UseFilterStateOpti
     // 清空时重置上次状态
     setLastFilterState('')
   }, [type])
-
 
   const toApiParams = useCallback(() => {
     const params: {
@@ -53,7 +50,6 @@ export function useFilterState({ type, initialFilters = {} }: UseFilterStateOpti
 
     return params
   }, [author, assignees, labels, review, type])
-
 
   const toQueryString = useCallback(
     (labelsData: { id: number | string; name: string }[]) => {
@@ -112,4 +108,3 @@ export function useFilterState({ type, initialFilters = {} }: UseFilterStateOpti
     clearAllFilters
   }
 }
-
