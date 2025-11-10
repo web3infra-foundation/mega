@@ -33,6 +33,7 @@ pub mod mega_issue;
 pub mod mega_refs;
 pub mod mega_tag;
 pub mod mega_tree;
+pub mod merge_queue;
 pub mod mq_storage;
 pub mod notes;
 pub mod path_check_configs;

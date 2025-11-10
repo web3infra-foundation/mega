@@ -6,6 +6,7 @@ pub mod git;
 pub mod gpg;
 pub mod issue;
 pub mod label;
+pub mod merge_queue;
 pub mod tag;
 pub mod third_party;
 pub mod user;
