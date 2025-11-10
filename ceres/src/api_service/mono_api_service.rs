@@ -44,6 +44,7 @@ use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
+use crate::model::git::LatestCommitInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
 use crate::protocol::{SmartProtocol, TransportProtocol};
@@ -757,6 +758,45 @@ impl ApiHandler for MonoApiService {
                 Err(e)
             }
         }
+    }
+
+    async fn get_latest_commit_with_refs(
+        &self,
+        path: PathBuf,
+        refs: Option<&str>,
+    ) -> Result<LatestCommitInfo, GitError> {
+        tracing::debug!(
+            "get_latest_commit_with_refs called with path: {:?}, refs: {:?}",
+            path,
+            refs
+        );
+        // If browsing by Tag, use the commit pointed to by the Tag
+        if let Some(ref_name) = refs
+            && (ref_name.starts_with("refs/tags/") || !ref_name.contains('/'))
+        {
+            tracing::debug!("Tag browsing detected: {}", ref_name);
+            match self.resolve_tag_commit(ref_name).await {
+                Ok(tag_commit_id) => {
+                    tracing::debug!("Using tag commit: {} for path: {:?}", tag_commit_id, path);
+
+                    let commit = self.get_commit_by_hash(&tag_commit_id).await;
+
+                    let commit_info: LatestCommitInfo = commit.into();
+
+                    return Ok(commit_info);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to resolve tag '{}': {}, falling back to default behavior",
+                        ref_name,
+                        e
+                    );
+                    // Fall back to default behavior
+                }
+            }
+        }
+        // Default behavior: use the existing get_latest_commit logic
+        self.get_latest_commit(path).await
     }
 }
 
@@ -1501,6 +1541,31 @@ impl MonoApiService {
             }
         }
         Ok(result)
+    }
+
+    async fn resolve_tag_commit(&self, tag_name: &str) -> Result<String, GitError> {
+        let storage = self.storage.mono_storage();
+
+        // First check if it is an annotated tag
+        if let Ok(Some(tag)) = storage.get_tag_by_name(tag_name).await {
+            return Ok(tag.object_id);
+        }
+
+        // Check if it is a lightweight tag (ref)
+        let full_ref = if tag_name.starts_with("refs/tags/") {
+            tag_name.to_string()
+        } else {
+            format!("refs/tags/{}", tag_name)
+        };
+
+        if let Ok(Some(ref_record)) = storage.get_ref_by_name(&full_ref).await {
+            return Ok(ref_record.ref_commit_hash);
+        }
+
+        Err(GitError::CustomError(format!(
+            "Tag '{}' not found",
+            tag_name
+        )))
     }
 }
 
