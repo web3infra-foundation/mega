@@ -220,7 +220,7 @@ function LabelsPage() {
                     rightIcon={<div className='self-auto text-center text-sm text-gray-500'>{label.description}</div>}
                   >
                     <div
-                      className="rounded-[16px] px-2 py-1 text-xs font-semibold text-center justify-center bg-[#label.color] w-full"
+                      className="rounded-[16px] px-2 py-1 text-xs font-semibold text-center justify-center w-full"
                       style={{
                         backgroundColor: label.color,
                         color: fontColor.toHex(),
