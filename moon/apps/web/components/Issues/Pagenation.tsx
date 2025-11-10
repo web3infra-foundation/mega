@@ -52,29 +52,25 @@ export const Pagination = ({
           )}
 
 
-          {totalPages === 1 ? (
-            <PaginationItem tooltip='1'>1</PaginationItem>
-          ) : (
-            pages.map((p, index) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <React.Fragment key={index}>
-                {p === '...' ? (
-                  <PaginationItem disabled={true} variant='plain' key={p}>
-                    {p}
-                  </PaginationItem>
-                ) : (
-                  <PaginationItem
-                    onClick={() => handleChange(p)}
-                    variant={currentPage === p ? 'flat' : 'plain'}
-                    key={p}
-                    tooltip={p.toString()}
-                  >
-                    {p}
-                  </PaginationItem>
-                )}
-              </React.Fragment>
-            ))
-          )}
+          {pages.map((p, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <React.Fragment key={index}>
+              {p === '...' ? (
+                <PaginationItem disabled={true} variant='plain' key={p}>
+                  {p}
+                </PaginationItem>
+              ) : (
+                <PaginationItem
+                  onClick={() => handleChange(p)}
+                  variant={currentPage === p ? 'flat' : 'plain'}
+                  key={p}
+                  tooltip={p.toString()}
+                >
+                  {p}
+                </PaginationItem>
+              )}
+            </React.Fragment>
+          ))}
 
 
 
