@@ -9,8 +9,10 @@ use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
 use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
+use crate::service::merge_queue_service::MergeQueueService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::gpg_storage::GpgStorage;
+use crate::storage::merge_queue_storage::MergeQueueStorage;
 use crate::storage::note_storage::NoteStorage;
 use crate::storage::{AppService, Storage};
 use crate::storage::{
@@ -60,6 +62,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         note_storage: NoteStorage { base: base.clone() },
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: ClReviewerStorage { base: base.clone() },
+        merge_queue_storage: MergeQueueStorage::new(base.clone()),
     };
 
     apply_migrations(&connection, true).await.unwrap();
@@ -68,6 +71,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         app_service: Arc::new(svc),
         issue_service: IssueService::mock(),
         cl_service: CLService::mock(),
+        merge_queue_service: MergeQueueService::mock(),
         config: Arc::downgrade(&config),
     }
 }

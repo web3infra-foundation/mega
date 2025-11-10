@@ -66,6 +66,7 @@ mod m20251021_073817_rename_mr_sync_to_cl_sync;
 mod m20251026_065433_drop_user_table;
 mod m20251027_062734_add_metadata_to_object;
 mod m20251107_025431_add_cl_commits;
+mod m20251109_073000_add_merge_queue;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -120,6 +121,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251026_065433_drop_user_table::Migration),
             Box::new(m20251027_062734_add_metadata_to_object::Migration),
             Box::new(m20251107_025431_add_cl_commits::Migration),
+            Box::new(m20251109_073000_add_merge_queue::Migration),
         ]
     }
 }

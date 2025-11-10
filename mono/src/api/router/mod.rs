@@ -5,6 +5,7 @@ pub mod gpg_router;
 pub mod issue_router;
 pub mod label_router;
 pub mod lfs_router;
+pub mod merge_queue_router;
 pub mod preview_router;
 pub mod repo_router;
 pub mod tag_router;

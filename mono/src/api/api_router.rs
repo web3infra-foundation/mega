@@ -18,7 +18,7 @@ use crate::api::{
     notes::note_router,
     router::{
         cl_router, commit_router, conv_router, gpg_router, issue_router, label_router,
-        preview_router, repo_router, tag_router, user_router,
+        merge_queue_router, preview_router, repo_router, tag_router, user_router,
     },
 };
 use crate::server::http_server::SYSTEM_COMMON;
@@ -35,6 +35,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(issue_router::routers())
         .merge(label_router::routers())
         .merge(conv_router::routers())
+        .merge(merge_queue_router::routers())
         .merge(note_router::routers())
         .merge(commit_router::routers())
         .merge(tag_router::routers())
