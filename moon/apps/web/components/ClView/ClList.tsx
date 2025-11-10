@@ -36,7 +36,7 @@ export function List<T>({
         <div className='flex h-[200px] items-center justify-center bg-secondary'>
           <div className='text-center '>
             <strong className='text-xl'>No results</strong>
-            <p className="text-gray-500">Try adjusting your search filters.</p>
+            <p className='text-gray-500'>Try adjusting your search filters.</p>
           </div>
         </div>
       ) : (
