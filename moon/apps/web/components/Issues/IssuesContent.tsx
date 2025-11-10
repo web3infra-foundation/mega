@@ -5,7 +5,7 @@ import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
-import { LabelItem, PostApiClListData } from '@gitmono/types/generated'
+import { LabelItem, PostApiIssueListData } from '@gitmono/types/generated'
 
 import {
   IndexTabFilter as IssueIndexTabFilter,
@@ -43,7 +43,7 @@ interface IssuesContentProps {
   setShouldClearFilters?: (callback: boolean) => void
 }
 
-type ItemsType = NonNullable<PostApiClListData['data']>['items']
+export type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
 
 export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldClearFilters }: IssuesContentProps) {
   const { scope } = useScope()
