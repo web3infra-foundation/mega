@@ -1,343 +1,123 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react'
+// import { useInfiniteQuery } from '@tanstack/react-query'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
-import {
-  LabelItem,
-  SyncOrganizationMember as Member,
-  PageParamsListPayload,
-  PostApiIssueListData
-} from '@gitmono/types/generated'
-import { Button, ChatBubbleIcon, ChevronDownIcon, OrderedListIcon } from '@gitmono/ui'
+import { LabelItem, PostApiClListData } from '@gitmono/types/generated'
 
-// import { MenuItem } from '@gitmono/ui/Menu'
-
-import { EmptySearchResults } from '@/components/Feed/EmptySearchResults'
-import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import {
-  Dropdown,
-  DropdownItemwithAvatar,
-  DropdownItemwithLabel,
-  DropdownOrder,
-  IssueList,
+  IndexTabFilter as IssueIndexTabFilter,
+  List as IssueList,
+  ItemLabels,
+  ItemRightIcons,
   ListBanner,
   ListItem
-} from '@/components/Issues/IssueList'
+} from '@/components/ClView/ClList'
 import {
-  filterAtom,
-  idAtom,
-  issueCloseCurrentPage,
-  issueOpenCurrentPage,
-  sortAtom
-} from '@/components/Issues/utils/store'
+  AssigneesDropdown,
+  AuthorDropdown,
+  LabelsDropdown,
+  MilestonesDropdown,
+  OrderDropdown,
+  ProjectsDropdown,
+  TypesDropdown,
+  useFilterState
+} from '@/components/ClView/filters'
+// import { MenuItem } from '@gitmono/ui/Menu'
+
+import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
+import { issueIdAtom } from '@/components/Issues/utils/store'
 import { useScope } from '@/contexts/scope'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
-import { getFontColor } from '@/utils/getFontColor'
 
-import { IssueIndexTabFilter } from './IssueIndex'
-import { MemberHoverAvatarList } from './MemberHoverAvatarList'
 import { Pagination } from './Pagenation'
-import { orderTags } from './utils/consts'
-import { generateAllMenuItems, MenuConfig } from './utils/generateAllMenuItems'
 
-interface Props {
-  getIssues?: ReturnType<typeof useInfiniteQuery<PostApiIssueListData>>
-  searching?: boolean
-  hideProject?: boolean
-  filterQuery?: string
+interface IssuesContentProps {
   setFilterQuery?: (query: string) => void
-  onRegisterClearFilters?: (callback: () => void) => void
+  shouldClearFilters: boolean
+  setShouldClearFilters?: (callback: boolean) => void
 }
 
-export interface Item {
-  closed_at?: number | null
-  link: string
-  author: string
-  title: string
-  status: string
-  open_timestamp: number
-  updated_at: number
-}
+type ItemsType = NonNullable<PostApiClListData['data']>['items']
 
-export type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
-
-export type AdditionType = NonNullable<PageParamsListPayload>['additional']
-
-export interface Label {
-  id: string
-  name: string
-  color: string
-  remarks: string
-  checked: boolean
-}
-
-export function IssuesContent({ searching, setFilterQuery, onRegisterClearFilters }: Props) {
-  const { mutate: issueLists } = useGetIssueLists()
-
+export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldClearFilters }: IssuesContentProps) {
   const { scope } = useScope()
-
-  const [pageSize, _setPageSize] = useState(10)
-
-  const [status, _setStatus] = useAtom(filterAtom({ part: 'issue' }))
+  const router = useRouter()
 
   const [issueList, setIssueList] = useState<ItemsType>([])
-
-  const [loading, setLoading] = useState(false)
-
   const [numTotal, setNumTotal] = useState(0)
+  const [pageSize, _setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
+  const [status, setStatus] = useState('open')
 
-  const [sort, setSort] = useAtom(sortAtom({ scope, filter: 'sortPicker' }))
+  const [_issueId, setIssueId] = useAtom(issueIdAtom)
+
+
+  const { mutate: issueLists } = useGetIssueLists()
+  const { members } = useSyncedMembers()
+
+  const filterState = useFilterState({ scope: scope as string, type: 'issue' })
+
+  const filterStateRef = useRef(filterState)
+
+  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:label`, []), [scope])
+  const [labels] = useAtom(labelsAtom)
 
   const orderAtom = useMemo(
     () => atomWithWebStorage(`${scope}:issue-order`, { sort: 'Created On', time: 'Newest' }),
     [scope]
   )
-  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:issue-label`, []), [scope])
-
-  const [label, setLabel] = useState<string[]>([])
-
   const [order, setOrder] = useAtom(orderAtom)
-
-  const [labels] = useAtom(labelsAtom)
-
-  const { members } = useSyncedMembers()
-
-  const router = useRouter()
-
-  const [openCurrent, setopenCurrent] = useAtom(issueOpenCurrentPage)
-  const [closeCurrent, setcloseCurrent] = useAtom(issueCloseCurrentPage)
-
-  const autoGeneratedQuery = useMemo(() => {
-    const parts: string[] = []
-
-    if (sort.Author) {
-      parts.push(`author:${sort.Author}`)
-    }
-
-    if (sort.Assignees) {
-      parts.push(`assignee:${sort.Assignees}`)
-    }
-
-    if (label.length > 0) {
-      const labelNames = label
-        .map((id) => labels.find((l) => String(l.id) === id)?.name)
-        .filter((name): name is string => Boolean(name))
-
-      labelNames.forEach((name) => {
-        parts.push(`label:${name}`)
-      })
-    }
-
-    return parts.join(' ')
-  }, [sort, label, labels])
+  const orderRef = useRef(order)
 
   useEffect(() => {
-    setFilterQuery?.(autoGeneratedQuery)
-  }, [autoGeneratedQuery, setFilterQuery])
+    orderRef.current = order
+    filterStateRef.current = filterState
+  }, [order, filterState])
 
-  const clearAllFilters = useCallback(() => {
-    setSort({ ...sort, Author: '', Assignees: '' })
-    setLabel([])
-  }, [sort, setSort])
+  const fetchIssueListData = useCallback(() => {
+    setIsLoading(true)
 
-  useEffect(() => {
-    onRegisterClearFilters?.(() => clearAllFilters)
-  }, [onRegisterClearFilters, clearAllFilters])
-
-  const MemberConfig: MenuConfig<Member>[] = [
-    {
-      key: 'Author',
-      isChosen: (item) => item.user.username === sort['Author'],
-      onSelectFactory: (item: Member) => (e: Event) => {
-        e.preventDefault()
-        if (item.user.username === sort['Author']) {
-          setSort({ ...sort, Author: '' })
-        } else {
-          setSort({ ...sort, Author: item.user.username })
-        }
-        status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
-      },
-      className: 'overflow-hidden',
-      labelFactory: (item: Member) => <DropdownItemwithAvatar member={item} classname='text-sm' />
-    },
-    {
-      key: 'Assignees',
-      isChosen: (item: Member) => item.user.username === sort['Assignees'],
-      onSelectFactory: (item: Member) => (e: Event) => {
-        e.preventDefault()
-        if (item.user.username === sort['Assignees']) {
-          setSort({ ...sort, Assignees: '' })
-        } else {
-          setSort({ ...sort, Assignees: item.user.username })
-        }
-        status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
-      },
-      className: 'overflow-hidden',
-      labelFactory: (item: Member) => <DropdownItemwithAvatar member={item} classname='text-sm' />
+    const params = filterStateRef.current.toApiParams()
+    const currentOrder = orderRef.current
+    const additional: any = {
+      status,
+      asc: currentOrder.time === 'Oldest',
+      sort_by: handleSort(currentOrder.sort),
+      ...params
     }
-  ]
 
-  const LabelConfig: MenuConfig<LabelItem>[] = [
-    {
-      key: 'Labels',
-      isChosen: (item) => label?.includes(String(item.id)),
-
-      onSelectFactory: (item) => (e: Event) => {
-        e.preventDefault()
-        if (label?.includes(String(item.id))) {
-          setLabel(label.filter((i) => i !== String(item.id)))
-        } else {
-          setLabel([...label, String(item.id)])
+    issueLists(
+      {
+        data: {
+          pagination: { page, per_page: pageSize },
+          additional: additional
         }
       },
-      className: 'overflow-hidden',
-      labelFactory: (item) => <DropdownItemwithLabel label={item} />
-    }
-  ]
+      {
+        onSuccess: (response) => {
+          const data = response.data
 
-  const OrderConfig: MenuConfig<string>[] = [
-    {
-      key: 'Order',
-      isChosen: (item) => item === 'Newest' || item === 'Oldest',
-
-      onSelectFactory: (item) => (e: Event) => {
-        e.preventDefault()
-        if (item === 'Newest') {
-          setOrder({
-            ...order,
-            time: 'Newest'
-          })
-        } else if (item === 'Oldest') {
-          setOrder({
-            ...order,
-            time: 'Oldest'
-          })
-        } else {
-          setOrder({
-            ...order,
-            sort: item
-          })
+          setIssueList(data?.items ?? [])
+          setNumTotal(data?.total ?? 0)
+        },
+        onError: apiErrorToast,
+        onSettled: () => {
+          setIsLoading(false)
         }
-      },
-      className: 'overflow-hidden',
-      labelFactory: (item) => (
-        <div className='flex items-center gap-2'>
-          <div className='h-4 w-4'>
-            {order.sort === item && <CheckIcon />}
-            {order.time === item && <CheckIcon />}
-          </div>
-          <span className='flex-1'>{item}</span>
-        </div>
-      )
-    }
-  ]
-
-  const additions = useCallback(
-    (labels: number[]): AdditionType => {
-      const additional: AdditionType = { status, asc: false }
-
-      if (sort['Assignees']) additional.assignees = [sort['Assignees']]
-
-      if (sort['Author']) additional.author = sort['Author'] as string
-
-      if (labels.length) additional.labels = [...labels]
-
-      if (order.time === 'Newest') {
-        additional.asc = false
-      } else if (order.time === 'Oldest') {
-        additional.asc = true
       }
-      additional.sort_by = handleSort(order['sort'])
-      return additional
-    },
-    [order, sort, status]
-  )
+    )
+  }, [page, pageSize, status, issueLists])
 
-  const member = generateAllMenuItems(members, MemberConfig)
-
-  const labelList = generateAllMenuItems(labels, LabelConfig)
-
-  const orders = generateAllMenuItems(orderTags, OrderConfig)
-
-  const handleOpen = (open: boolean) => {
-    if (!open) {
-      const news = label.map((i) => Number(i))
-      const addtion = additions(news)
-
-      status === 'open' ? setopenCurrent(1) : setcloseCurrent(1)
-      fetchData(1, pageSize, addtion)
-    }
-  }
-
-  const ListHeaderItem = (p: string) => {
-    switch (p) {
-      case 'Author':
-        return (
-          <Dropdown
-            isChosen={sort['Author'] === ''}
-            key={p}
-            name={p}
-            dropdownArr={member?.get('Author').all}
-            dropdownItem={member?.get('Author').chosen}
-          />
-        )
-      case 'Assignees':
-        return (
-          <Dropdown
-            isChosen={sort['Assignees'] === ''}
-            key={p}
-            name={p}
-            dropdownArr={member?.get('Assignees').all}
-            dropdownItem={member?.get('Assignees').chosen}
-          />
-        )
-      case 'Labels':
-        return (
-          <Dropdown
-            onOpen={handleOpen}
-            isChosen={!label?.length}
-            key={p}
-            name={p}
-            dropdownArr={labelList?.get('Labels').all}
-            dropdownItem={labelList?.get('Labels').chosen}
-          />
-        )
-      case `${order.sort}`:
-        return (
-          <DropdownOrder
-            key={p}
-            name={p}
-            dropdownArr={orders?.get('Order').all}
-            dropdownItem={orders?.get('Order').chosen}
-            inside={
-              <>
-                <div className='flex items-center'>
-                  {p}
-                  <OrderedListIcon />
-                </div>
-              </>
-            }
-          />
-        )
-      default:
-        return (
-          <>
-            <Button size='sm' variant={'plain'} tooltipShortcut={p}>
-              <div className='flex items-center justify-center'>
-                {p}
-                <ChevronDownIcon />
-              </div>
-            </Button>
-          </>
-        )
-    }
-  }
+  useEffect(() => {
+    fetchIssueListData()
+  }, [page, pageSize, status, fetchIssueListData])
 
   const handleSort = (str: string): string => {
     switch (str) {
@@ -351,61 +131,96 @@ export function IssuesContent({ searching, setFilterQuery, onRegisterClearFilter
     }
   }
 
-  const fetchData = useCallback(
-    (page: number, per_page: number, additional?: AdditionType) => {
-      setLoading(true)
-      // 使用当前的label状态生成labelIds,避免label丢失
-      const labelIds = label.map((i) => Number(i))
-      const addittion = additional ? additional : additions(labelIds)
+  const handleFilterClose = useCallback(() => {
+    if (!filterState.hasChanged()) {
+      return
+    }
 
-      issueLists(
-        {
-          data: {
-            pagination: { page, per_page },
-            additional: addittion
-          }
-        },
-        {
-          onSuccess: (response) => {
-            const data = response.data
+    if (page !== 1) {
+      setPage(1)
+    } else {
+      fetchIssueListData()
+    }
+  }, [page, fetchIssueListData, filterState])
 
-            setIssueList(data?.items ?? [])
-            setNumTotal(data?.total ?? 0)
-          },
-          onError: apiErrorToast,
-          onSettled: () => {
-            setLoading(false)
-          }
-        }
-      )
+  const handleOrderChange = useCallback(
+    (sort: string, time: string) => {
+      if (order.sort === sort && order.time === time) {
+        return
+      }
+
+      setOrder({ sort, time })
+      if (page !== 1) {
+        setPage(1)
+      } else {
+        setTimeout(() => fetchIssueListData(), 0)
+      }
     },
-
-    [issueLists, additions, label]
+    [page, order, setOrder, fetchIssueListData]
   )
-  const [_iddAtom, setIdAtom] = useAtom(idAtom)
+
+  const clearAllFilters = useCallback(() => {
+    filterStateRef.current.clearAllFilters()
+
+    if (router.query.q) {
+      const newQuery = { ...router.query }
+
+      delete newQuery.q
+
+      router.push({
+        pathname: router.pathname,
+        query: newQuery
+      }, undefined, { shallow: true })
+    }
+
+    if (page !== 1) {
+      setPage(1)
+    } else {
+      setTimeout(() => fetchIssueListData(), 0)
+    }
+  }, [fetchIssueListData, page, router])
 
   useEffect(() => {
-    if (status === 'open') {
-      fetchData(openCurrent, pageSize)
-    } else if (status === 'closed') {
-      fetchData(closeCurrent, pageSize)
+    if (shouldClearFilters) {
+      clearAllFilters()
+      setShouldClearFilters?.(false)
     }
-  }, [pageSize, fetchData, openCurrent, closeCurrent, status])
+  }, [shouldClearFilters, clearAllFilters, setShouldClearFilters])
 
-  // if (loading) {
-  //   return <IndexPageInstantLoading />
-  // }
+  useEffect(() => {
+    setFilterQuery?.(filterState.toQueryString(labels))
+  }, [filterState, labels, setFilterQuery])
 
-  // if (!issueList.length) {
-  //   return searching ? <EmptySearchResults /> : <IssueIndexEmptyState />
-  // }
-  if (!issueList.length && searching) {
-    return <EmptySearchResults />
-  }
 
-  const handlePageChange = (page: number) => {
-    status === 'open' ? setopenCurrent(page) : setcloseCurrent(page)
-  }
+
+  const prevLabelsRef = useRef<string[]>([])
+  const urlInitTriggeredRef = useRef(false)
+
+  useEffect(() => {
+    const q = router.query.q as string
+    const currentLabels = filterState.filters.labels
+    const prevLabels = prevLabelsRef.current
+
+    if (
+      prevLabels.length === 0 &&
+      currentLabels.length > 0 &&
+      q &&
+      q.match(/^label:/) &&
+      labels.length > 0 &&
+      !urlInitTriggeredRef.current
+    ) {
+      urlInitTriggeredRef.current = true
+      if (page !== 1) {
+        setPage(1)
+      } else {
+        setTimeout(() => {
+          fetchIssueListData()
+        }, 0)
+      }
+    }
+
+    prevLabelsRef.current = currentLabels
+  }, [filterState.filters.labels, router.query.q, labels.length, page, fetchIssueListData])
 
   const getStatusIcon = (status: string) => {
     const normalizedStatus = status.toLowerCase()
@@ -460,135 +275,82 @@ export function IssuesContent({ searching, setFilterQuery, onRegisterClearFilter
 
   return (
     <>
-      {/* TODO:Searching logic need to be completed */}
-      {searching ? (
-        <>
-          <IssueSearchList searchIssueList={issueList} />
-          <Pagination currentPage={issueOpenCurrentPage} totalNum={numTotal} pageSize={pageSize} />
-        </>
-      ) : (
-        <>
-          <IssueList
-            isLoading={loading}
-            Issuelists={issueList}
-            header={
-              <ListBanner
-                pickerTypes={['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Types', `${order.sort}`]}
-                tabfilter={
-                  <IssueIndexTabFilter openTooltip='Issues that are still open and need attention' part='issue' />
-                }
-              >
-                {(p) => ListHeaderItem(p)}
-              </ListBanner>
+      <IssueList
+        isLoading={isLoading}
+        lists={issueList}
+        header={
+          <ListBanner
+            tabfilter={
+              <IssueIndexTabFilter
+                part={status}
+                openTooltip='Issues that are still open and need attention'
+                setPart={(newStatus) => {
+                  setStatus(newStatus)
+                  setPage(1)
+                }}
+              />
             }
           >
-            {(issueList) => {
-              return issueList.map((i) => (
-                <ListItem
-                  key={i.link}
-                  title={i.title}
-                  leftIcon={getStatusIcon(i.status)}
-                  labels={<ItemLabels item={i} />}
-                  rightIcon={<ItemRightIcons item={i} />}
-                  onClick={() => {
-                    setIdAtom(i.id)
-                    router.push(`/${scope}/issue/${i.link}`)
-                  }}
-                >
-                  <div className='text-xs text-[#59636e]'>
-                    <span className='mr-2'>#{i.link}</span>
-                    {getIssueDescription(i)}
-                  </div>
-                </ListItem>
-              ))
-            }}
-          </IssueList>
-
-          {status === 'open' && (
-            <div className='mt-auto'>
-              <Pagination
-                currentPage={issueOpenCurrentPage}
-                totalNum={numTotal}
-                pageSize={pageSize}
-                onChange={(page: number) => handlePageChange(page)}
-              />
-            </div>
-          )}
-          {status === 'closed' && (
-            <div className='mt-auto'>
-              <Pagination
-                currentPage={issueCloseCurrentPage}
-                totalNum={numTotal}
-                pageSize={pageSize}
-                onChange={(page: number) => handlePageChange(page)}
-              />
-            </div>
-          )}
-        </>
-      )}
-    </>
-  )
-}
-
-function IssueSearchList(_props: { searchIssueList?: Item[]; hideProject?: boolean }) {
-  return (
-    <>
-      {/* <IssueList Issuelists={searchIssueList} /> */}
-      {/* <IssueList Issuelists={issueList} /> <Pagination totalNum={100} pageSize={5} /> */}
-    </>
-  )
-}
-
-export const ItemLabels = ({ item }: { item: ItemsType[number] }) => {
-  return (
-    <div
-      style={{
-        visibility: `${item.labels.length === 0 ? 'hidden' : 'unset'}`
-      }}
-      className='flex items-center gap-2 text-sm'
-    >
-      {item.labels.map((label) => {
-        const fontColor = getFontColor(label.color)
-
-        return (
-          <span
-            key={label.id}
-            style={{
-              backgroundColor: label.color,
-              color: fontColor.toHex(),
-              borderRadius: '16px',
-              padding: '0px 8px',
-              fontSize: '12px',
-              fontWeight: '550',
-              justifyContent: 'center',
-              textAlign: 'center'
-            }}
-          >
-            {label.name}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-export const ItemRightIcons = ({ item }: { item: ItemsType[number] }) => {
-  return (
-    // <div className='mr-10 flex w-fit items-center justify-between gap-10'>
-    <div className='flex items-center gap-4'>
-      <div
-        style={{
-          visibility: `${item.comment_num === 0 ? 'hidden' : 'unset'}`
-        }}
-        className='flex items-center gap-1 text-sm text-gray-500'
+            {/* Author, Labels, Projects, Milestones, Assignees, Types, Order */}
+            <AuthorDropdown
+              members={members}
+              value={filterState.filters.author}
+              onChange={filterState.setAuthor}
+              onClose={handleFilterClose}
+            />
+            <LabelsDropdown
+              labels={labels}
+              value={filterState.filters.labels}
+              onChange={filterState.setLabels}
+              onClose={handleFilterClose}
+            />
+            <ProjectsDropdown />
+            <MilestonesDropdown />
+            <AssigneesDropdown
+              members={members}
+              value={filterState.filters.assignees}
+              onChange={filterState.setAssignees}
+              onClose={handleFilterClose}
+            />
+            <TypesDropdown />
+            <OrderDropdown
+              sortOptions={['Created On', 'Last updated']}
+              timeOptions={['Newest', 'Oldest']}
+              currentSort={order.sort}
+              currentTime={order.time}
+              onChange={handleOrderChange}
+            />
+          </ListBanner>
+        }
       >
-        <ChatBubbleIcon />
-        <span>{item.comment_num}</span>
-      </div>
+        {(issueList) =>
+          issueList.map((i) => (
+            <ListItem
+              key={i.link}
+              title={i.title}
+              leftIcon={getStatusIcon(i.status)}
+              labels={<ItemLabels item={i} />}
+              rightIcon={<ItemRightIcons item={i} />}
+              onClick={() => {
+                setIssueId(i.id)
+                router.push(`/${scope}/issue/${i.link}`)
+              }}
+            >
+              <div className='text-xs text-[#59636e]'>
+                <span className='mr-2'>#{i.link}</span>
+                {getIssueDescription(i)}
+              </div>
+            </ListItem>
+          ))
+        }
+      </IssueList>
 
-      <div className='min-w-15'>
-        <MemberHoverAvatarList users={item} />
-      </div>
-    </div>
+      <Pagination
+        totalNum={numTotal}
+        currentPage={page}
+        pageSize={pageSize}
+        onChange={(page: number) => setPage(page)}
+      />
+    </>
   )
 }

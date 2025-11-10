@@ -1,135 +1,52 @@
 'use client'
 
-import { useState } from 'react'
-import { useAtom } from 'jotai'
-
-// import { useDebounce } from 'use-debounce'
-
-import { Button, LayeredHotkeys, Link, UIText } from '@gitmono/ui'
+import {  useState } from 'react'
 import { cn } from '@gitmono/ui/src/utils'
 
-import { FloatingNewDocButton } from '@/components/FloatingButtons/NewDoc'
-import { IndexPageContainer, IndexPageContent, IndexPageEmptyState } from '@/components/IndexPages/components'
-import { SplitViewContainer, SplitViewDetail } from '@/components/SplitView'
-import { IssueBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
+import { IndexPageContainer, IndexPageContent } from '@/components/IndexPages/components'
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
-import { useScope } from '@/contexts/scope'
 
 import { IssuesContent } from './IssuesContent'
 import IssueSearch from './IssueSearch'
-import { filterAtom } from './utils/store'
+import { IssueBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
+
 
 export const IssueIndex = () => {
-  const [query, _setQuery] = useState('')
-  // const [queryDebounced] = useDebounce(query, 150)
 
-  const isSearching = query.length > 0
-  // const isSearchLoading = queryDebounced.length > 0 && getNotes.isFetching
-  // const isSearchLoading = queryDebounced.length > 0
-
-  const [filterQuery, setFilterQuery] = useState('')
-  const [onClearFilters, setOnClearFilters] = useState<(() => void) | undefined>()
+  const [filterQuery, setFilterQuery] = useState('');
+  const [shouldClearFilters, setShouldClearFilters] = useState(false);
 
   const handleClearFilters = () => {
-    if (onClearFilters) {
-      onClearFilters()
-    }
-  }
+    setShouldClearFilters(true);
+  };
 
   return (
     <>
-      <FloatingNewDocButton />
-      <SplitViewContainer>
         <IndexPageContainer>
-          <BreadcrumbTitlebar className='justify-between'>
+          <BreadcrumbTitlebar >
             <IssueBreadcrumbIcon />
           </BreadcrumbTitlebar>
+
           <IndexPageContent
             id='/[org]/issue'
             className={cn('@container', 'max-w-full lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl')}
           >
-            <IssueSearch filterQuery={filterQuery} onClearFilters={handleClearFilters} />
+            <IssueSearch
+              filterQuery={filterQuery}
+              onClearFilters={handleClearFilters}
+            />
             <IssuesContent
-              searching={isSearching}
               setFilterQuery={setFilterQuery}
-              onRegisterClearFilters={setOnClearFilters}
+              shouldClearFilters={shouldClearFilters}
+              setShouldClearFilters={setShouldClearFilters}
             />
           </IndexPageContent>
+
         </IndexPageContainer>
-        <SplitViewDetail />
-      </SplitViewContainer>
+
     </>
   )
 }
 
-export function IssueIndexTabFilter({
-  part,
-  fullWidth = false,
-  openNum,
-  closeNum,
-  openTooltip,
-  closeTooltip
-}: {
-  part: string
-  fullWidth?: boolean
-  openNum?: number
-  closeNum?: number
-  openTooltip?: string
-  closeTooltip?: string
-}) {
-  // const [filter, setFilter] = useAtom(filterAtom({ scope, part: `${part}` }))
-  const [filter, setFilter] = useAtom(filterAtom({ part }))
 
-  return (
-    <>
-      <LayeredHotkeys keys='1' callback={() => setFilter('open')} />
-      <LayeredHotkeys keys='2' callback={() => setFilter('closed')} />
 
-      <Button
-        size='sm'
-        fullWidth={fullWidth}
-        onClick={() => setFilter('open')}
-        variant={filter === 'open' ? 'flat' : 'plain'}
-        tooltip={openTooltip}
-      >
-        Open {openNum}
-      </Button>
-      <Button
-        size='sm'
-        fullWidth={fullWidth}
-        onClick={() => setFilter('closed')}
-        variant={filter === 'closed' ? 'flat' : 'plain'}
-        tooltip={closeTooltip}
-      >
-        Closed {closeNum}
-      </Button>
-    </>
-  )
-}
-
-export const NewIssueButton = () => {
-  const { scope } = useScope()
-
-  return (
-    <Link href={`/${scope}/issue/new`}>
-      <Button variant='primary' className='bg-[#1f883d]' size={'base'}>
-        New Issue
-      </Button>
-    </Link>
-  )
-}
-
-export function IssueIndexEmptyState() {
-  return (
-    <IndexPageEmptyState>
-      <div className='flex flex-col gap-1'>
-        <UIText size='text-base' weight='font-semibold'>
-          No results
-        </UIText>
-        <UIText size='text-base' tertiary>
-          Try adjusting your search filters.
-        </UIText>
-      </div>
-    </IndexPageEmptyState>
-  )
-}
