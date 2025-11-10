@@ -136,12 +136,19 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
       return
     }
 
+    const currentFilterString = filterState.toQueryString(labels);
+
+    if (!currentFilterString || currentFilterString.trim() === '') {
+      return;
+    }
+
+
     if (page !== 1) {
       setPage(1)
     } else {
       fetchIssueListData()
     }
-  }, [page, fetchIssueListData, filterState])
+  }, [filterState, labels, page, fetchIssueListData])
 
   const handleOrderChange = useCallback(
     (sort: string, time: string) => {
