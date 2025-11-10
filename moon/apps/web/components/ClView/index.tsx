@@ -135,7 +135,7 @@ export default function CLView() {
         return 'updated_at'
 
       default:
-        return 'Created on'
+        return 'created_at'
     }
   }
 
