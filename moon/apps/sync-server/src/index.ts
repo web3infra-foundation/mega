@@ -6,7 +6,6 @@ import * as dotenv from 'dotenv'
 import { database, getResource, sendVersionToConnections } from './database'
 import { AuthenticationError, Context } from './types'
 
-
 dotenv.config()
 
 const server = new Hocuspocus({
