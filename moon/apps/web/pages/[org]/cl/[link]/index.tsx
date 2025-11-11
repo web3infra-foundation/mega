@@ -9,6 +9,10 @@ import { toast } from 'react-hot-toast'
 
 import { CommonResultCLDetailRes } from '@gitmono/types/generated'
 
+import { tabAtom } from '@/components/ClView/components/Checks/cpns/store'
+import { ConversationTab } from '@/components/ClView/ConversationTab'
+import { FileChangeTab } from '@/components/ClView/FileChangeTab'
+import { useReviewerSelector } from '@/components/ClView/useReviewerSelector'
 import TitleInput from '@/components/Issues/TitleInput'
 import {
   useAssigneesSelector,
@@ -19,30 +23,26 @@ import {
   useLabelsSelector,
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
-import { useReviewerSelector } from '@/components/ClView/useReviewerSelector'
-import { editIdAtom, FALSE_EDIT_VAL, clIdAtom, refreshAtom } from '@/components/Issues/utils/store'
+import { clIdAtom, editIdAtom, FALSE_EDIT_VAL, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { TabLayout } from '@/components/Layout/TabLayout'
-import { tabAtom } from '@/components/ClView/components/Checks/cpns/store'
 import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { SimpleNoteContentRef } from '@/components/SimpleNoteEditor/SimpleNoteContent'
 import { useScope } from '@/contexts/scope'
-import { usePostCLAssignees } from '@/hooks/CL/usePostCLAssignees'
+import { useDeleteClReviewers } from '@/hooks/CL/useDeleteClReviewers'
 import { useGetClDetail } from '@/hooks/CL/useGetClDetail'
+import { useGetClReviewers } from '@/hooks/CL/useGetClReviewers'
+import { usePostCLAssignees } from '@/hooks/CL/usePostCLAssignees'
 import { usePostClClose } from '@/hooks/CL/usePostClClose'
 import { usePostClComment } from '@/hooks/CL/usePostClComment'
 import { usePostCLLabels } from '@/hooks/CL/usePostCLLabels'
 import { usePostClReopen } from '@/hooks/CL/usePostClReopen'
+import { usePostClReviewers } from '@/hooks/CL/usePostClReviewers'
 import { useUploadHelpers } from '@/hooks/useUploadHelpers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { trimHtml } from '@/utils/trimHtml'
 import { PageWithLayout } from '@/utils/types'
-import { useGetClReviewers } from '@/hooks/CL/useGetClReviewers'
-import { usePostClReviewers } from '@/hooks/CL/usePostClReviewers'
-import { useDeleteClReviewers } from '@/hooks/CL/useDeleteClReviewers'
-import { ConversationTab } from '@/components/ClView/ConversationTab'
-import { FileChangeTab } from '@/components/ClView/FileChangeTab'
 
 const CLDetailPage: PageWithLayout<any> = () => {
   const router = useRouter()
@@ -54,11 +54,9 @@ const CLDetailPage: PageWithLayout<any> = () => {
   const [login, _setLogin] = useState(true)
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
 
-
   const id = typeof tempId === 'string' ? tempId : ''
   const { data: ClDetailData, isLoading: detailIsLoading, refetch } = useGetClDetail(id)
   const { reviewers, isLoading: ReviewIsLoading } = useGetClReviewers(id)
-
 
   const clDetail = ClDetailData?.data as CommonResultCLDetailRes['data'] | undefined
   const { closeHint, needComment, handleChange } = useChange({ title: 'Close Change List' })
@@ -71,6 +69,8 @@ const CLDetailPage: PageWithLayout<any> = () => {
   const [refresh, setRefresh] = useAtom(refreshAtom)
 
   useEffect(() => {
+    if (refresh === 0) return
+
     const load = async () => {
       await refetch()
       setEditId(FALSE_EDIT_VAL)
@@ -78,7 +78,6 @@ const CLDetailPage: PageWithLayout<any> = () => {
     }
 
     load()
-
   }, [refresh, refetch, setEditId, setRefresh])
 
   const { mutate: closeCl, isPending: clCloseIsPending } = usePostClClose(id)
@@ -127,7 +126,6 @@ const CLDetailPage: PageWithLayout<any> = () => {
         }
       )
     }
-
   }
 
   const buttonClasses = 'cursor-pointer'
@@ -208,17 +206,17 @@ const CLDetailPage: PageWithLayout<any> = () => {
           data: {
             item_id: Number(item_id),
             label_ids: selected,
-            link: `${tempId}` 
-    }
-    },
-      {
-        onSuccess: async () => {
-          editorRef.current?.clearAndBlur()
-          await refetch({ throwOnError: true })
+            link: `${tempId}`
+          }
         },
+        {
+          onSuccess: async () => {
+            editorRef.current?.clearAndBlur()
+            await refetch({ throwOnError: true })
+          },
           onError: apiErrorToast
-      }
-    )
+        }
+      )
     }
   })
 
