@@ -1,48 +1,68 @@
 .codeLineNumber {
-    margin-left: 4px;
-    width: 50px;
-    align-items: center;
-    align-self: center;
-    user-select: none;
+  margin-left: 4px;
+  width: 50px;
+  align-items: center;
+  align-self: center;
+  user-select: none;
 }
 
 .toolbar {
-    background-color: #f6f8fa;
-    display: flex;
-    align-items: center;
-    text-align: center;
-    height: 50px;
-    border-bottom: 1px solid #d1d9e0;
+  background-color: #f6f8fa;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  height: 50px;
+  border-bottom: 1px solid #d1d9e0;
 }
 
 .toolbarLeftButton {
-    padding:0 20px;
-    height: 100%;
-    border-radius: 0.5rem;
+  padding: 0 20px;
+  height: 100%;
+  border-radius: 0.5rem;
 }
 
 .toolbarLeftButton.active {
-    background-color: #ffffff;
-    border: solid 1px #818b98;
+  background-color: #ffffff;
+  border: solid 1px #818b98;
 }
 
 .toolbarRightButton {
-    padding:0 20px;
-    height: 100%;
+  padding: 0 20px;
+  height: 100%;
 }
 
 .toolbarRightButton:hover {
-    background-color: #e0e5ea;
-    transition: all 0.5s;
+  background-color: #e0e5ea;
+  transition: all 0.5s;
 }
 
-.bg-blame-1 { background-color: rgb(255, 223, 182); }
-.bg-blame-2 { background-color: rgb(255, 198, 128); }
-.bg-blame-3 { background-color: rgb(240, 136, 62); }
-.bg-blame-4 { background-color: rgb(240, 136, 62); }
-.bg-blame-5 { background-color: rgb(219, 109, 40); }
-.bg-blame-6 { background-color: rgb(189, 86, 29); }
-.bg-blame-7 { background-color: rgb(155, 66, 21); }
-.bg-blame-8 { background-color: rgb(118, 45, 10); }
-.bg-blame-9 { background-color: rgb(90, 30, 2); }
-.bg-blame-10 { background-color: rgb(61, 19, 0); }
+.bg-blame-1 {
+  background-color: rgb(255, 223, 182);
+}
+.bg-blame-2 {
+  background-color: rgb(255, 198, 128);
+}
+.bg-blame-3 {
+  background-color: rgb(240, 136, 62);
+}
+.bg-blame-4 {
+  background-color: rgb(240, 136, 62);
+}
+.bg-blame-5 {
+  background-color: rgb(219, 109, 40);
+}
+.bg-blame-6 {
+  background-color: rgb(189, 86, 29);
+}
+.bg-blame-7 {
+  background-color: rgb(155, 66, 21);
+}
+.bg-blame-8 {
+  background-color: rgb(118, 45, 10);
+}
+.bg-blame-9 {
+  background-color: rgb(90, 30, 2);
+}
+.bg-blame-10 {
+  background-color: rgb(61, 19, 0);
+}

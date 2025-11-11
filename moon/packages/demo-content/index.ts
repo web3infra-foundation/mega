@@ -791,7 +791,7 @@ Object.values(posts).forEach((post) => {
   if ('poll' in post) {
     post.poll.options.forEach((option) => {
       if (option.description.length > 32) {
-        console.warn(`Poll option "${option.description}" must be 32 characters or fewer.`)
+        // console.warn(`Poll option "${option.description}" must be 32 characters or fewer.`)
       }
     })
   }
@@ -800,13 +800,13 @@ Object.values(posts).forEach((post) => {
   if ('comments' in post) {
     post.comments.forEach((comment) => {
       if (comment.body_html.length > 3 && !comment.body_html.includes('<')) {
-        console.warn(`Comment "${comment.body_html}" is missing HTML tags.`)
+        // console.warn(`Comment "${comment.body_html}" is missing HTML tags.`)
       }
 
       if ('replies' in comment && comment.replies) {
         comment.replies.forEach((reply) => {
           if (reply.body_html.length > 3 && !reply.body_html.includes('<')) {
-            console.warn(`Reply "${reply.body_html}" is missing HTML tags.`)
+            // console.warn(`Reply "${reply.body_html}" is missing HTML tags.`)
           }
         })
       }
