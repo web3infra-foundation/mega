@@ -227,17 +227,15 @@ pub trait ApiHandler: Send + Sync {
         path: PathBuf,
         refs: Option<&str>,
     ) -> Result<Vec<TreeCommitItem>, GitError> {
-        tracing::debug!("get_tree_commit_info called with path: {:?}, refs: {:?}", path, refs);
-        
         let maybe = refs.unwrap_or("").trim();
         
-        if !maybe.is_empty() && (maybe.starts_with("refs/tags/") || !maybe.contains('/')) {
-            tracing::debug!("Tag browsing detected: '{}', using default behavior for individual file commits", maybe);
-        } else if !maybe.is_empty() {
-            tracing::debug!("Refs provided but not a tag: '{}', using default behavior", maybe);
-        } else {
-            tracing::debug!("No refs provided, using default behavior");
-        }
+        tracing::debug!(
+            "get_tree_commit_info: path={:?}, refs='{}' (tag: {}, empty: {})",
+            path,
+            maybe,
+            !maybe.is_empty() && (maybe.starts_with("refs/tags/") || !maybe.contains('/')),
+            maybe.is_empty()
+        );
         
         let commit_map = self.item_to_commit_map(path).await?;
         let mut items: Vec<TreeCommitItem> =

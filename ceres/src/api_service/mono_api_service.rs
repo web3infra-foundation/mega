@@ -1520,30 +1520,6 @@ impl MonoApiService {
         Ok(result)
     }
 
-    async fn resolve_tag_commit(&self, tag_name: &str) -> Result<String, GitError> {
-        let storage = self.storage.mono_storage();
-
-        // First check if it is an annotated tag
-        if let Ok(Some(tag)) = storage.get_tag_by_name(tag_name).await {
-            return Ok(tag.object_id);
-        }
-
-        // Check if it is a lightweight tag (ref)
-        let full_ref = if tag_name.starts_with("refs/tags/") {
-            tag_name.to_string()
-        } else {
-            format!("refs/tags/{}", tag_name)
-        };
-
-        if let Ok(Some(ref_record)) = storage.get_ref_by_name(&full_ref).await {
-            return Ok(ref_record.ref_commit_hash);
-        }
-
-        Err(GitError::CustomError(format!(
-            "Tag '{}' not found",
-            tag_name
-        )))
-    }
 }
 
 #[cfg(test)]
