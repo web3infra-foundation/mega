@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 
 const fetchLabelList = legacyApiClient.v1.postApiLabelList()
 const getLabelListAtom = atomFamily((scope: string) =>
-  atomWithWebStorage<LabelItem[]>(`${scope}:issue-label`, [])
+  atomWithWebStorage<LabelItem[]>(`${scope}:label`, [])
 )
 
 export const useGetLabelList = () => {

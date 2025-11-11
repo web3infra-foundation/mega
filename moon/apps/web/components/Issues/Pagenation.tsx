@@ -1,54 +1,58 @@
 import React, { useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
 
 import { Button, ButtonProps, ChevronLeftIcon, ChevronRightIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
-import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
-import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
+import {  BreadcrumbTitlebarContainer } from '@/components/Titlebar/BreadcrumbTitlebar'
 
 import { getPages } from './utils/getPages'
 
 // import { currentPage } from './utils/store'
 
-interface PaginationType<T> {
+interface PaginationType {
   totalNum: number
   pageSize: number
-  onChange?: (page: number) => void
-  currentPage: ReturnType<typeof atomWithWebStorage<T>>
+  currentPage: number
+  onChange: (page: number) => void
 }
 
-export const Pagination = <T extends number>({ totalNum, pageSize, onChange, currentPage }: PaginationType<T>) => {
+export const Pagination = ({
+                                               totalNum,
+                                               pageSize,
+                                               onChange,
+                                               currentPage,
+                                             }: PaginationType ) => {
   if (totalNum < 0 || pageSize < 0) throw new Error('invalid props')
   const totalPages = Math.ceil(totalNum / pageSize)
   const [pages, setPages] = useState<(number | '...')[]>([])
-  const [current, setCurrent] = useAtom(currentPage)
+
   const handleChange = (page: number) => {
     if (page < 1 || page > totalPages) return
-    setCurrent(page as T)
     onChange?.(page)
   }
 
   useEffect(() => {
-    setPages(getPages(current, totalPages))
-  }, [current, totalPages])
+    setPages(getPages(currentPage, totalPages))
+  }, [currentPage, totalPages])
   return (
     <>
-      <BreadcrumbTitlebar className='h-auto justify-center gap-2 border-b-transparent pt-1'>
-        {current === 1 ? (
-          <PreviousOrNext isNext={false} disabled={true} color='text-[#818b98]' />
-        ) : (
-          <PreviousOrNext
-            onClick={() => handleChange(current - 1)}
-            isNext={false}
-            disabled={false}
-            color='text-[#0969da]'
-          />
-        )}
-        {totalPages === 1 ? (
-          <PaginationItem tooltip='1'>1</PaginationItem>
-        ) : (
-          pages.map((p, index) => (
+      {totalPages <= 1 ? (
+          <div></div>
+      ): (
+        <BreadcrumbTitlebarContainer className='h-auto justify-center gap-2 border-b-transparent pt-1 '>
+          {currentPage === 1 ? (
+            <PreviousOrNext isNext={false} disabled={true} color='text-[#818b98]' />
+          ) : (
+            <PreviousOrNext
+              onClick={() => handleChange(currentPage - 1)}
+              isNext={false}
+              disabled={false}
+              color='text-[#0969da]'
+            />
+          )}
+
+
+          {pages.map((p, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <React.Fragment key={index}>
               {p === '...' ? (
@@ -58,7 +62,7 @@ export const Pagination = <T extends number>({ totalNum, pageSize, onChange, cur
               ) : (
                 <PaginationItem
                   onClick={() => handleChange(p)}
-                  variant={current === p ? 'flat' : 'plain'}
+                  variant={currentPage === p ? 'flat' : 'plain'}
                   key={p}
                   tooltip={p.toString()}
                 >
@@ -66,19 +70,22 @@ export const Pagination = <T extends number>({ totalNum, pageSize, onChange, cur
                 </PaginationItem>
               )}
             </React.Fragment>
-          ))
-        )}
-        {current === totalPages ? (
-          <PreviousOrNext isNext={true} disabled={true} color='text-[#818b98]' />
-        ) : (
-          <PreviousOrNext
-            onClick={() => handleChange(current + 1)}
-            isNext={true}
-            disabled={false}
-            color='text-[#0969da]'
-          />
-        )}
-      </BreadcrumbTitlebar>
+          ))}
+
+
+
+          {currentPage === totalPages ? (
+            <PreviousOrNext isNext={true} disabled={true} color='text-[#818b98]' />
+          ) : (
+            <PreviousOrNext
+              onClick={() => handleChange(currentPage + 1)}
+              isNext={true}
+              disabled={false}
+              color='text-[#0969da]'
+            />
+          )}
+        </BreadcrumbTitlebarContainer>
+      )}
     </>
   )
 }
