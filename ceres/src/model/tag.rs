@@ -2,6 +2,17 @@ use common::model::CommonPage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct TagInfo {
+    pub name: String,
+    pub tag_id: String,
+    pub object_id: String,
+    pub object_type: String,
+    pub tagger: String,
+    pub message: String,
+    pub created_at: String,
+}
+
 /// Request to create a tag
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateTagRequest {
