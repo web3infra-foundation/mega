@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Avatar } from '@gitmono/ui/Avatar';
-import { CommentEditor } from './CommentEditor';
-import { CommentItem } from './CommentItem';
+import React, { useState } from 'react'
+
+import { Avatar } from '@gitmono/ui/Avatar'
+
+import { CommentEditor } from './CommentEditor'
+import { CommentItem } from './CommentItem'
 
 interface Comment {
   id: string
@@ -64,10 +66,10 @@ export function CommentSection({
       setIsSubmitting(false)
     }
   }
-  
+
   const handleEditComment = async (commentId: string, content: string) => {
     if (!currentUser) return
-    
+
     setIsSubmitting(true)
     try {
       if (onEditComment) {

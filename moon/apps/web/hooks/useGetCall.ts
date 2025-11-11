@@ -5,7 +5,7 @@ import { useQueryNormalizer } from '@/utils/normy/QueryNormalizerProvider'
 import { apiClient } from '@/utils/queryClient'
 import { getNormalizedData } from '@/utils/queryNormalization'
 
-type Props = {
+interface Props {
   id?: string
   enabled?: boolean
 }

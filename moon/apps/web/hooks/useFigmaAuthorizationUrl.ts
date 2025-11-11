@@ -5,7 +5,7 @@ import { RAILS_API_URL } from '@gitmono/config'
 import { useGetCurrentUser } from './useGetCurrentUser'
 import { useIntegrationAuthUrl } from './useIntegrationAuthUrl'
 
-type Props = {
+interface Props {
   successPath?: string
 }
 

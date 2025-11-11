@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { apiClient } from '@/utils/queryClient'
 
-type DeclineProps = {
+interface DeclineProps {
   id: string
   slug: string
 }

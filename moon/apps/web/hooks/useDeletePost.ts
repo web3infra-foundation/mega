@@ -8,7 +8,7 @@ import { usePusherSocketIdHeader } from '@/contexts/pusher'
 import { useScope } from '@/contexts/scope'
 import { apiClient, setTypedInfiniteQueriesData, setTypedQueryData } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   post: Post
 }
 

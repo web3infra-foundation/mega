@@ -7,7 +7,7 @@ import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getMembers()
 
-type Options = {
+interface Options {
   query?: string
   status?: OrganizationMembersGetRequest['status']
   roles?: OrganizationMembersGetRequest['roles']

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { GetApiTagsByNameData, RequestParams } from '@gitmono/types'
+
 import { legacyApiClient } from '@/utils/queryClient'
 
 const getTag = legacyApiClient.v1.getApiTagsByName()

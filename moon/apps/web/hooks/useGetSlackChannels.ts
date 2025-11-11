@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const getIntegrationsSlackChannels = apiClient.organizations.getIntegrationsSlackChannels()
 
-type Options = {
+interface Options {
   query?: string
 }
 

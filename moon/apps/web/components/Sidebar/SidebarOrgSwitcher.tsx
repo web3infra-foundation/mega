@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
-import { PublicOrganization } from '@gitmono/types'
-import { Avatar, LayeredHotkeys, Link, PlusIcon, Tooltip } from '@gitmono/ui'
-import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
-import { cn } from '@gitmono/ui/src/utils'
 import { Reorder } from 'framer-motion'
 import { useAtomValue } from 'jotai'
 import { useRouter } from 'next/router'
 import { isMacOs } from 'react-device-detect'
+
+import { PublicOrganization } from '@gitmono/types'
+import { Avatar, LayeredHotkeys, Link, PlusIcon, Tooltip } from '@gitmono/ui'
+import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
+import { cn } from '@gitmono/ui/src/utils'
 
 import { OrganizationSwitchHoverCard } from '@/components/InboxItems/OrganizationSwitchHoverCard'
 import { sidebarCollapsedAtom } from '@/components/Layout/AppLayout'

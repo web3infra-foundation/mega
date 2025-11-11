@@ -4,7 +4,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.integrations.getIntegrationsFigmaIntegration()
 
-type Props = {
+interface Props {
   enabled?: boolean
 }
 

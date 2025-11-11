@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from '@primer/octicons-react'
-import { useAtom } from 'jotai'
 import { format } from 'date-fns'
+import { useAtom } from 'jotai'
 
 import { BuildDTO, TaskInfoDTO } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'

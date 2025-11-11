@@ -11,7 +11,7 @@ export interface MenuConfig<T> {
   isChosen: (item: T) => boolean
 }
 
-export const generateAllMenuItems = <T,>(members: T[], config: MenuConfig<T>[]) => {
+export const generateAllMenuItems = <T>(members: T[], config: MenuConfig<T>[]) => {
   const result = new Map()
 
   config.map((c) => result.set(c.key, { chosen: [], all: [] }))

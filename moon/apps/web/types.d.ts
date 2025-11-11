@@ -4,9 +4,8 @@ declare namespace JSX {
   }
 }
 
-
 declare module 'prismjs/components/prism-*' {
-  const content: any;
+  const content: any
 
-  export default content;
+  export default content
 }

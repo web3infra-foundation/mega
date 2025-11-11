@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 
-import {AssigneeUpdatePayload,  PostApiClAssigneesData, RequestParams } from '@gitmono/types/generated'
+import { AssigneeUpdatePayload, PostApiClAssigneesData, RequestParams } from '@gitmono/types/generated'
 
 import { legacyApiClient } from '@/utils/queryClient'
 

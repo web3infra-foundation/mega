@@ -12,7 +12,7 @@ const getMembersMeViewerNotes = apiClient.organizations.getMembersMeViewerNotes(
 const getProjectsNotes = apiClient.organizations.getProjectsNotes()
 const getForMeNotes = apiClient.organizations.getMembersMeForMeNotes()
 
-type Props = {
+interface Props {
   noteId: string
   noteProjectId?: string
 }

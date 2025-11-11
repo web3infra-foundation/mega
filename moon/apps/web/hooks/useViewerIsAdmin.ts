@@ -4,7 +4,7 @@ import { Organization } from '@gitmono/types'
 
 import { useGetCurrentOrganization } from './useGetCurrentOrganization'
 
-type Props = {
+interface Props {
   enabled?: boolean
 }
 

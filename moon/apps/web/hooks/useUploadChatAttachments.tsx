@@ -32,7 +32,7 @@ export const getLocalSrcAtom = atom((get) => {
   }
 })
 
-type Props = {
+interface Props {
   enabled?: boolean
 }
 

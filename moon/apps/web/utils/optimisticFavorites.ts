@@ -7,7 +7,7 @@ import { apiClient, getTypedQueryData, setTypedQueriesData } from './queryClient
 
 const optimisticPrefix = 'temp'
 
-type InsertOptimisticFavoriteOpts = {
+interface InsertOptimisticFavoriteOpts {
   queryClient: QueryClient
   scope: CookieValueTypes
   favoritableId: string
@@ -57,7 +57,7 @@ export function isOptimisticFavorite(favorite: Favorite) {
   return favorite.id.startsWith(optimisticPrefix)
 }
 
-type ReplaceOptimisticFavoriteOpts = {
+interface ReplaceOptimisticFavoriteOpts {
   queryClient: QueryClient
   scope: CookieValueTypes
   favoritableId: string
@@ -83,7 +83,7 @@ export function replaceOptimisticFavorite({ queryClient, scope, favoritableId, d
   })
 }
 
-type RemoveFavoriteOpts = {
+interface RemoveFavoriteOpts {
   queryClient: QueryClient
   scope: CookieValueTypes
   resourceId: string

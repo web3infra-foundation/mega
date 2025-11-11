@@ -7,8 +7,8 @@ import { Button } from '@gitmono/ui/Button'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 import { UIText } from '@gitmono/ui/Text'
 
-import { usePostIssueTitle } from '@/hooks/issues/usePostIssueTitle'
 import { usePostClTitle } from '@/hooks/CL/usePostClTitle'
+import { usePostIssueTitle } from '@/hooks/issues/usePostIssueTitle'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 
 const TitleInput = ({

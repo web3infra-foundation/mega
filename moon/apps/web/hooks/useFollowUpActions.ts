@@ -14,7 +14,7 @@ import { useCreatePostFollowUp } from './useCreatePostFollowUp'
 import { useDeleteCommentFollowUp } from './useDeleteCommentFollowUp'
 import { useDeletePostFollowUp } from './useDeletePostFollowUp'
 
-type Props = {
+interface Props {
   subject_id: string
   subject_type: string
   onCreate?: () => void

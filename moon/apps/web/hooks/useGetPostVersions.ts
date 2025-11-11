@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getPostsVersions()
 
-type Options = {
+interface Options {
   enabled?: boolean
   keepPreviousData?: boolean
   gcTime?: number

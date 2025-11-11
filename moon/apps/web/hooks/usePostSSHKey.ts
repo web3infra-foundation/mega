@@ -1,5 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query'
+
 import { AddSSHKey, PostApiUserSshData, RequestParams } from '@gitmono/types'
+
 import { legacyApiClient } from '@/utils/queryClient'
 
 export function usePostSSHKey() {

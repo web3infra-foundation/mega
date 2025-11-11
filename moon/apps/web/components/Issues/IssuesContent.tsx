@@ -58,7 +58,6 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
 
   const [_issueId, setIssueId] = useAtom(issueIdAtom)
 
-
   const { mutate: issueLists } = useGetIssueLists()
   const { members } = useSyncedMembers()
 
@@ -136,12 +135,11 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
       return
     }
 
-    const currentFilterString = filterState.toQueryString(labels);
+    const currentFilterString = filterState.toQueryString(labels)
 
     if (!currentFilterString || currentFilterString.trim() === '') {
-      return;
+      return
     }
-
 
     if (page !== 1) {
       setPage(1)
@@ -174,10 +172,14 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
 
       delete newQuery.q
 
-      router.push({
-        pathname: router.pathname,
-        query: newQuery
-      }, undefined, { shallow: true })
+      router.push(
+        {
+          pathname: router.pathname,
+          query: newQuery
+        },
+        undefined,
+        { shallow: true }
+      )
     }
 
     if (page !== 1) {
@@ -197,8 +199,6 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
   useEffect(() => {
     setFilterQuery?.(filterState.toQueryString(labels))
   }, [filterState, labels, setFilterQuery])
-
-
 
   const prevLabelsRef = useRef<string[]>([])
   const urlInitTriggeredRef = useRef(false)

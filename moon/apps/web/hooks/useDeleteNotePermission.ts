@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { useScope } from '@/contexts/scope'
 import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   noteId: string
   permissionId: string
 }

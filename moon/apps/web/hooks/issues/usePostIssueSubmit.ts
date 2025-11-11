@@ -1,5 +1,6 @@
-import { NewIssue, PostApiIssueNewData } from '@gitmono/types/generated'
 import { useMutation } from '@tanstack/react-query'
+
+import { NewIssue, PostApiIssueNewData } from '@gitmono/types/generated'
 
 import { legacyApiClient } from '@/utils/queryClient'
 

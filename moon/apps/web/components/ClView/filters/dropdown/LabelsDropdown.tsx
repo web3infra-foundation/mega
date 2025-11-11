@@ -70,7 +70,6 @@ export function LabelsDropdown({ labels, value, onChange, onClose }: LabelsDropd
     }
   }
 
-
   return (
     <FilterDropdown
       name='Labels'

@@ -1,5 +1,6 @@
-import { Note } from '@gitmono/types/generated'
 import * as Tabs from '@radix-ui/react-tabs'
+
+import { Note } from '@gitmono/types/generated'
 
 import { ShareTab } from '@/components/NoteSharePopover/ShareTab'
 import { PostComposerType, usePostComposer } from '@/components/PostComposer'

@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 
 import { apiClient } from '@/utils/queryClient'
 
-type JoinProps = {
+interface JoinProps {
   token: string
   scope: string
 }

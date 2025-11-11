@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getNotesPermissions()
 
-type Props = {
+interface Props {
   noteId: string
   enabled?: boolean
 }

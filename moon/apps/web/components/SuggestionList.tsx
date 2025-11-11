@@ -4,12 +4,7 @@ import { EditorState, PluginKey } from '@tiptap/pm/state'
 import { v4 as uuid } from 'uuid'
 
 import { Suggestion, SuggestionOptions } from '@gitmono/editor/extensions/Suggestion'
-import {
-  isMarkActiveInRange,
-  isNodeActiveInRange,
-  isRemoteTransaction,
-  recreateTransform
-} from '@gitmono/editor/index'
+import { isMarkActiveInRange, isNodeActiveInRange, isRemoteTransaction, recreateTransform } from '@gitmono/editor/index'
 import {
   cn,
   Command,

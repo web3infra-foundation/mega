@@ -38,7 +38,7 @@ export function updateProjectMembershipByProjectId(
   })
 }
 
-type Props = {
+interface Props {
   enabled?: boolean
 }
 

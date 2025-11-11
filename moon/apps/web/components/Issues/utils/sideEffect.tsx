@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { ItemInput } from '@primer/react/lib/SelectPanel/types'
 
+import { LabelItem } from '@gitmono/types'
+
 import { MemberAvatar } from '@/components/MemberAvatar'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 
 import { extractTextArray } from './extractText'
-import { useGetLabelList } from '@/hooks/useGetLabelList'
-import { LabelItem } from '@gitmono/types'
 
 export const useAvatars = () => {
   const { members } = useSyncedMembers()

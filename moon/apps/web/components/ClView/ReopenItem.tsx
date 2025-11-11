@@ -1,11 +1,12 @@
+import { ConversationItem } from '@gitmono/types/generated'
 import { ConditionalWrap } from '@gitmono/ui'
+
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
+
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { MemberAvatar } from '../MemberAvatar'
-import { UserLinkByName } from './components/UserLinkByName'
 import HandleTime from './components/HandleTime'
-import { ConversationItem } from '@gitmono/types/generated'
-
+import { UserLinkByName } from './components/UserLinkByName'
 
 export interface ReopenItemProps {
   conv: ConversationItem
@@ -32,7 +33,7 @@ const ReopenItem = ({ conv }: ReopenItemProps) => {
         </div>
         <div>{conv.comment}</div>
         <div className='text-sm text-gray-500 hover:text-gray-700'>
-            <HandleTime created_at={conv.created_at}/>
+          <HandleTime created_at={conv.created_at} />
         </div>
       </div>
     </>

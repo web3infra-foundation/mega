@@ -10,7 +10,7 @@ import { useQueryNormalizer } from '@/utils/normy/QueryNormalizerProvider'
 import { apiClient, setTypedInfiniteQueriesData, setTypedQueriesData } from '@/utils/queryClient'
 import { getNormalizedData, setNormalizedData } from '@/utils/queryNormalization'
 
-type Props = {
+interface Props {
   subject_id: string
   comment_id: string
   parent_id: string | null

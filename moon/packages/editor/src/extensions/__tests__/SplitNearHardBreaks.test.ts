@@ -44,6 +44,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning empty selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection(1).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -51,6 +52,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with trailing empty selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection(8).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -58,6 +60,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid empty selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection(4).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -65,6 +68,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with full range selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection({ from: 1, to: 8 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -72,6 +76,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with full range selection including break', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection({ from: 1, to: 9 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -79,6 +84,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid range selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection({ from: 3, to: 5 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -86,6 +92,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning range selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection({ from: 1, to: 3 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -93,6 +100,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with end range selection', () => {
       const editor = setupEditor('<p>Foo bar<br>Cat dog</p>')
+
       editor.chain().setTextSelection({ from: 4, to: 8 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -129,6 +137,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection(9).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -136,6 +145,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with trailing empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection(16).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -143,6 +153,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection(12).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -150,6 +161,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with full range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection({ from: 9, to: 16 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -157,6 +169,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection({ from: 10, to: 12 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -164,6 +177,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection({ from: 9, to: 10 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -171,6 +185,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with end range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar</p>')
+
       editor.chain().setTextSelection({ from: 12, to: 16 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -216,6 +231,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection(9).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -223,6 +239,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with trailing empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection(16).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -230,6 +247,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid empty selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection(12).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -237,6 +255,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with full range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection({ from: 9, to: 16 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -244,6 +263,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with mid range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection({ from: 10, to: 12 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -251,6 +271,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with beginning range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection({ from: 9, to: 10 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)
@@ -258,6 +279,7 @@ describe('SplitNearHardBreaks', () => {
 
     it('splits with end range selection', () => {
       const editor = setupEditor('<p>Cat dog<br>Foo bar<br>Pig cow</p>')
+
       editor.chain().setTextSelection({ from: 12, to: 16 }).splitNearHardBreaks().toggleHeading({ level: 1 }).run()
 
       expect(editor.getJSON()).toEqual(EXPECT)

@@ -10,7 +10,7 @@ import {
   useOptimisticTimelineEventMemberActor
 } from '@/utils/timelineEvents/optimistic'
 
-type Props = {
+interface Props {
   postId: string
   projectId: string
 }
