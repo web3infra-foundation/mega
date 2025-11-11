@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/dist
+**/out
+**/.next
+**/.turbo
+script
+vendor
+.venv
+.vercel
+.vscode
+.github
+zapier
