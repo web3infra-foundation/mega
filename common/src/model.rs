@@ -75,14 +75,3 @@ pub struct CommonPage<T> {
     pub total: u64,
     pub items: Vec<T>,
 }
-
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
-pub struct TagInfo {
-    pub name: String,
-    pub tag_id: String,
-    pub object_id: String,
-    pub object_type: String,
-    pub tagger: String,
-    pub message: String,
-    pub created_at: String,
-}

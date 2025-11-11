@@ -87,6 +87,12 @@ impl From<MegaError> for GitError {
     }
 }
 
+impl From<GitError> for MegaError {
+    fn from(val: GitError) -> Self {
+        MegaError::with_message(val.to_string())
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum GitLFSError {
     #[error("Something went wrong in Git LFS: {0}")]

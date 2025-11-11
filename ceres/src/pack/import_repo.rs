@@ -31,7 +31,7 @@ use jupiter::storage::{Storage, base_storage::StorageConnector};
 use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
 
 use crate::{
-    api_service::{ApiHandler, mono_api_service::MonoApiService},
+    api_service::{mono_api_service::MonoApiService, tree_ops},
     pack::RepoHandler,
     protocol::{
         import_refs::{CommandType, RefCommand, Refs},
@@ -473,7 +473,7 @@ impl ImportRepo {
             storage: self.storage.clone(),
         };
         let storage = self.storage.mono_storage();
-        let save_trees = mono_api_service.search_and_create_tree(&path).await?;
+        let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
         // 3. get root ref
         let mut root_ref = storage
