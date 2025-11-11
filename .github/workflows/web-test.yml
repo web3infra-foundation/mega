@@ -52,6 +52,10 @@ jobs:
         working-directory: ./moon
         run: pnpm run lint
 
+      - name: Check code formatting
+        working-directory: ./moon
+        run: pnpm prettier --check .
+
       - name: Build Next.js application
         working-directory: ./moon
         run: pnpm run build

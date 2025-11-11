@@ -25,8 +25,8 @@
     "yjs": "catalog:"
   },
   "devDependencies": {
-    "@gitmono/tsconfig": "workspace:*",
     "@flydotio/dockerfile": "catalog:",
+    "@gitmono/tsconfig": "workspace:*",
     "@sentry/cli": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:"
