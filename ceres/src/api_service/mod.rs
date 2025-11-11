@@ -227,46 +227,18 @@ pub trait ApiHandler: Send + Sync {
         path: PathBuf,
         refs: Option<&str>,
     ) -> Result<Vec<TreeCommitItem>, GitError> {
-        // If refs provided, resolve to commit and list items from that commit's tree at path,
-        // attaching the same commit info to each item for consistent, minimal behavior.
+        tracing::debug!("get_tree_commit_info called with path: {:?}, refs: {:?}", path, refs);
+        
         let maybe = refs.unwrap_or("").trim();
-        if !maybe.is_empty() {
-            // Resolve commit from refs (SHA or tag)
-            let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
-            let mut commit_hash = String::new();
-            if is_hex_sha1(maybe) {
-                commit_hash = maybe.to_string();
-            } else if let Ok(Some(tag)) = self.get_tag(None, maybe.to_string()).await {
-                commit_hash = tag.object_id;
-            }
-
-            if !commit_hash.is_empty() {
-                let commit = self.get_commit_by_hash(&commit_hash).await;
-                // Use refs-aware tree search
-                if let Some(tree) = self.search_tree_by_path_with_refs(&path, refs).await? {
-                    let mut items: Vec<TreeCommitItem> = tree
-                        .tree_items
-                        .into_iter()
-                        .map(|item| TreeCommitItem::from((item, Some(commit.clone()))))
-                        .collect();
-                    items.sort_by(|a, b| {
-                        a.content_type
-                            .cmp(&b.content_type)
-                            .then(a.name.cmp(&b.name))
-                    });
-                    return Ok(items);
-                } else {
-                    // path not found under this refs
-                    return Ok(vec![]);
-                }
-            } else {
-                return Err(GitError::CustomError(
-                    "Invalid refs: tag or commit not found".to_string(),
-                ));
-            }
+        
+        if !maybe.is_empty() && (maybe.starts_with("refs/tags/") || !maybe.contains('/')) {
+            tracing::debug!("Tag browsing detected: '{}', using default behavior for individual file commits", maybe);
+        } else if !maybe.is_empty() {
+            tracing::debug!("Refs provided but not a tag: '{}', using default behavior", maybe);
+        } else {
+            tracing::debug!("No refs provided, using default behavior");
         }
-
-        // No refs provided: fallback to existing behavior
+        
         let commit_map = self.item_to_commit_map(path).await?;
         let mut items: Vec<TreeCommitItem> =
             commit_map.into_iter().map(TreeCommitItem::from).collect();
@@ -275,6 +247,7 @@ pub trait ApiHandler: Send + Sync {
                 .cmp(&b.content_type)
                 .then(a.name.cmp(&b.name))
         });
+        tracing::debug!("Default behavior returning {} items", items.len());
         Ok(items)
     }
 
