@@ -46,6 +46,7 @@ use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
 use crate::model::git::LatestCommitInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
+use crate::model::tag::TagInfo;
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
 use crate::protocol::{SmartProtocol, TransportProtocol};
 
@@ -56,7 +57,7 @@ use regex::Regex;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
 use common::errors::MegaError;
-use common::model::{Pagination, TagInfo};
+use common::model::Pagination;
 use common::utils::MEGA_BRANCH_NAME;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
@@ -415,17 +416,33 @@ impl ApiHandler for MonoApiService {
         Ok(path.to_path_buf())
     }
 
-    async fn get_root_tree(&self) -> Tree {
-        let storage = self.storage.mono_storage();
-        let refs = storage.get_main_ref("/").await.unwrap().unwrap();
+    async fn get_root_tree(&self, refs: Option<&str>) -> Result<Tree, MegaError> {
+        let refs = refs.unwrap_or("").trim();
 
-        Tree::from_mega_model(
-            storage
-                .get_tree_by_hash(&refs.ref_tree_hash)
-                .await
-                .unwrap()
-                .unwrap(),
-        )
+        // condition 1: empty refs, return default root tree
+        if refs.is_empty() {
+            let storage = self.storage.mono_storage();
+            let refs = storage.get_main_ref("/").await.unwrap().unwrap();
+            return Ok(self.get_tree_by_hash(&refs.ref_tree_hash).await);
+        }
+
+        // condition 2: commit hash
+        if refs.len() == 40 && refs.chars().all(|c| c.is_ascii_hexdigit()) {
+            let commit = self.get_commit_by_hash(refs).await;
+            return Ok(self.get_tree_by_hash(&commit.tree_id.to_string()).await);
+        }
+
+        // condition 3: tag name
+        if let Ok(Some(tag)) = self.get_tag(None, refs.to_string()).await {
+            let commit = self.get_commit_by_hash(&tag.object_id).await;
+            return Ok(self.get_tree_by_hash(&commit.tree_id.to_string()).await);
+        }
+
+        // condition 4: invalid refs
+        Err(MegaError::with_message(format!(
+            "Invalid refs: '{}' is not a valid commit hash or tag",
+            refs
+        )))
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {

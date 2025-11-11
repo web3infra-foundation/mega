@@ -34,7 +34,7 @@ use jupiter::storage::Storage;
 use jupiter::utils::converter::FromMegaModel;
 
 use crate::{
-    api_service::{ApiHandler, mono_api_service::MonoApiService},
+    api_service::{mono_api_service::MonoApiService, tree_ops},
     merge_checker::CheckerRegistry,
     model::change_list::BuckFile,
     pack::RepoHandler,
@@ -605,7 +605,10 @@ impl MonoRepo {
             let mut path = Some(cl_path);
             while let Some(p) = path {
                 if p.parent().is_some()
-                    && let Some(tree) = mono_api_service.search_tree_by_path(p).await.ok().flatten()
+                    && let Some(tree) = tree_ops::search_tree_by_path(&mono_api_service, p, None)
+                        .await
+                        .ok()
+                        .flatten()
                     && let Some(buck) = self.try_extract_buck(tree, cl_path)
                 {
                     return Ok(vec![buck]);

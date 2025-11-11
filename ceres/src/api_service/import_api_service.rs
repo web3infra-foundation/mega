@@ -6,7 +6,6 @@ use async_trait::async_trait;
 
 use callisto::{git_tag, import_refs};
 use common::errors::MegaError;
-use common::model::TagInfo;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
@@ -19,6 +18,7 @@ use jupiter::utils::converter::FromGitModel;
 use crate::api_service::ApiHandler;
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
+use crate::model::tag::TagInfo;
 use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
@@ -59,7 +59,9 @@ impl ApiHandler for ImportApiService {
         self.get_commit_by_hash(&refs.ref_git_id).await
     }
 
-    async fn get_root_tree(&self) -> Tree {
+    /// Note: The `refs` parameter is intentionally ignored for import repositories,
+    /// as they do not support selecting refs. The default ref is always used.
+    async fn get_root_tree(&self, _: Option<&str>) -> Result<Tree, MegaError> {
         let storage = self.storage.git_db_storage();
         let refs = storage
             .get_default_ref(self.repo.repo_id)
@@ -72,13 +74,13 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap()
             .unwrap();
-        Tree::from_git_model(
+        Ok(Tree::from_git_model(
             storage
                 .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
                 .await
                 .unwrap()
                 .unwrap(),
-        )
+        ))
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
