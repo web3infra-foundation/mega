@@ -20,7 +20,7 @@ import {
   useMemberMap
 } from '@/components/Issues/utils/sideEffect'
 import { useReviewerSelector } from '@/components/ClView/useReviewerSelector'
-import { editIdAtom, FALSE_EDIT_VAL, clidAtom, refreshAtom } from '@/components/Issues/utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, clIdAtom, refreshAtom } from '@/components/Issues/utils/store'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { TabLayout } from '@/components/Layout/TabLayout'
 import { tabAtom } from '@/components/ClView/components/Checks/cpns/store'
@@ -47,13 +47,19 @@ import { FileChangeTab } from '@/components/ClView/FileChangeTab'
 const CLDetailPage: PageWithLayout<any> = () => {
   const router = useRouter()
   const { link: tempId } = router.query
-  const [item_id] = useAtom(clidAtom)
+
+  const [item_id] = useAtom(clIdAtom)
+
   const { scope } = useScope()
   const [login, _setLogin] = useState(true)
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
+
+
   const id = typeof tempId === 'string' ? tempId : ''
   const { data: ClDetailData, isLoading: detailIsLoading, refetch } = useGetClDetail(id)
   const { reviewers, isLoading: ReviewIsLoading } = useGetClReviewers(id)
+
+
   const clDetail = ClDetailData?.data as CommonResultCLDetailRes['data'] | undefined
   const { closeHint, needComment, handleChange } = useChange({ title: 'Close Change List' })
   const { mutate: clAssignees } = usePostCLAssignees()

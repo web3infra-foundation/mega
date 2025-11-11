@@ -41,11 +41,11 @@ import {
   useLabelsSelector,
   useMemberMap
 } from './utils/sideEffect'
-import { editIdAtom, FALSE_EDIT_VAL, idAtom, refreshAtom } from './utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, issueIdAtom, refreshAtom } from './utils/store'
 import { WorkWithChatDialog } from './WorkWithChatDialog'
 
 export default function IssueDetailPage({ link }: { link: string }) {
-  const [id] = useAtom(idAtom)
+  const [id] = useAtom(issueIdAtom)
   const [login, setLogin] = useState(false)
   const [info, setInfo] = useState<Partial<CommonResultIssueDetailRes['data']>>({
     status: '',
