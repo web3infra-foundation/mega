@@ -1,5 +1,5 @@
-import { diffChars, diffWordsWithSpace } from 'diff'
 import { ReplaceStep, Transform } from '@tiptap/pm/transform'
+import { diffChars, diffWordsWithSpace } from 'diff'
 import { applyPatch, createPatch } from 'rfc6902'
 
 function getReplaceStep(fromDoc, toDoc) {

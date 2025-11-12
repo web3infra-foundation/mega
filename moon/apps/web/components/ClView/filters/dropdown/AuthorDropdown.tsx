@@ -27,15 +27,11 @@ export function AuthorDropdown({ members, value, onChange, onClose }: AuthorDrop
 
   const selectedItems = items.filter((item) => {
     const member = members.find(
-      (m) =>
-        item.label &&
-        React.isValidElement(item.label) &&
-        (item.label.props as { member?: typeof m }).member === m
+      (m) => item.label && React.isValidElement(item.label) && (item.label.props as { member?: typeof m }).member === m
     )
 
     return member && value.includes(member.user.username)
   })
-
 
   const handleOpenChange = (open: boolean) => {
     if (!open && onClose) {
@@ -54,4 +50,3 @@ export function AuthorDropdown({ members, value, onChange, onClose }: AuthorDrop
     />
   )
 }
-

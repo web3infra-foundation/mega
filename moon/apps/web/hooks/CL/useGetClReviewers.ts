@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { legacyApiClient } from '@/utils/queryClient'
-import { GetApiClReviewersData, ReviewerInfo } from "@gitmono/types";
 
-export const useGetClReviewers = (link: string): {
-  reviewers: ReviewerInfo[],
-  isLoading: boolean,
+import { GetApiClReviewersData, ReviewerInfo } from '@gitmono/types'
+
+import { legacyApiClient } from '@/utils/queryClient'
+
+export const useGetClReviewers = (
+  link: string
+): {
+  reviewers: ReviewerInfo[]
+  isLoading: boolean
   refetch: () => void
 } => {
   const { data, isLoading, refetch } = useQuery<GetApiClReviewersData>({

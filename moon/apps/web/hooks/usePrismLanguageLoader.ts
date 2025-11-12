@@ -1,10 +1,10 @@
 'use client'
+
 import { useEffect } from 'react'
 
 const loadedLanguages = new Set<string>()
 
 const PRISM_LANGUAGE_MAP: Record<string, () => Promise<any>> = {
-
   css: () => import('prismjs/components/prism-css'),
   scss: () => import('prismjs/components/prism-scss'),
   sass: () => import('prismjs/components/prism-sass'),
@@ -38,11 +38,8 @@ const PRISM_LANGUAGE_MAP: Record<string, () => Promise<any>> = {
   makefile: () => import('prismjs/components/prism-makefile')
 }
 
-
-
 export function usePrismLanguageLoader(language: string) {
   useEffect(() => {
-
     if (language === 'text' || loadedLanguages.has(language)) {
       return
     }
@@ -53,10 +50,12 @@ export function usePrismLanguageLoader(language: string) {
       return
     }
 
-    languageLoader().then(() => {
-      loadedLanguages.add(language)
-    }).catch(() => {
-      //
-    })
+    languageLoader()
+      .then(() => {
+        loadedLanguages.add(language)
+      })
+      .catch(() => {
+        //
+      })
   }, [language])
 }

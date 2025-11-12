@@ -1,4 +1,4 @@
-type Props = {
+interface Props {
   userId: string
   displayName: string
   username: string

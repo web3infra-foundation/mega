@@ -26,15 +26,15 @@ const extensionToLangMap: Record<string, string> = {
   '.html': 'html',
   '.vue': 'vue',
   '.toml': 'toml',
-  'dockerfile': 'dockerfile',
+  dockerfile: 'dockerfile',
   '.dockerfile': 'dockerfile',
   'license-mit': 'plaintext',
-  'buck': 'plaintext',
+  buck: 'plaintext',
   '.gitignore': 'plaintext',
   '.env': 'plaintext',
   'license-third-party': 'plaintext',
   'license-apache': 'plaintext',
-  'workspace': 'plaintext',
+  workspace: 'plaintext',
   '.buckroot': 'plaintext',
   '.buckconfig': 'plaintext'
 }
@@ -83,15 +83,13 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
     }
 
     let diffWithHeader = block.data
-    const headerRegex = /^(diff|index|---|\+\+\+|new file mode|@@)/;
-    const hunkContent = block.data
-      .split('\n')
-      .filter(line => !headerRegex.test(line.trim()));
+    const headerRegex = /^(diff|index|---|\+\+\+|new file mode|@@)/
+    const hunkContent = block.data.split('\n').filter((line) => !headerRegex.test(line.trim()))
 
-    const isEmptyHunk = hunkContent.every(line => line.trim() === '');
+    const isEmptyHunk = hunkContent.every((line) => line.trim() === '')
 
     if (!block.data.includes('@@') || isEmptyHunk) {
-      diffWithHeader = 'EMPTY_DIFF_MARKER';
+      diffWithHeader = 'EMPTY_DIFF_MARKER'
     }
 
     if (!diffWithHeader.endsWith('\n')) {

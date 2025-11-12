@@ -4,15 +4,7 @@ import { isMobile } from 'react-device-detect'
 import toast from 'react-hot-toast'
 
 import { Post } from '@gitmono/types'
-import {
-  CopyIcon,
-  LayeredHotkeys,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverPortal,
-  ReplyIcon
-} from '@gitmono/ui'
+import { CopyIcon, LayeredHotkeys, Popover, PopoverAnchor, PopoverContent, PopoverPortal, ReplyIcon } from '@gitmono/ui'
 import { ANIMATION_CONSTANTS } from '@gitmono/ui/src/utils'
 
 import { draftKey } from '@/atoms/markdown'

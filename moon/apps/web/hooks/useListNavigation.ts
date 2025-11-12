@@ -3,7 +3,10 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useLayeredHotkeys } from '@gitmono/ui/DismissibleLayer'
 import { useCallbackRef } from '@gitmono/ui/hooks'
 
-type Item = { groupIndex: number; itemIndex: number }
+interface Item {
+  groupIndex: number
+  itemIndex: number
+}
 
 export type SelectGroupItemFn = (args: { groupIndex: number; itemIndex: number; scroll?: boolean }) => void
 

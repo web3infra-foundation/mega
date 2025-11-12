@@ -17,7 +17,7 @@ const syncedMembersAtom = atomFamily((scope: string) =>
 
 const getSyncMembers = apiClient.organizations.getSyncMembers()
 
-type Props = {
+interface Props {
   enabled?: boolean
   includeDeactivated?: boolean
   deactivated?: boolean

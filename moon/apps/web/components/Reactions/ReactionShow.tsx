@@ -5,7 +5,7 @@ import { Reactions } from '.'
 import { useHandleExpression } from '../ClView/hook/useHandleExpression'
 import { ReactionPicker } from './ReactionPicker'
 
-export function ReactionShow({ comment, id, type }: { comment: ConversationItem, id: string, type: string }) {
+export function ReactionShow({ comment, id, type }: { comment: ConversationItem; id: string; type: string }) {
   const handleReactionSelect = useHandleExpression({ conv: comment, id: id, type: type })
 
   if (!comment.grouped_reactions.length) return null

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-type Props = {
+interface Props {
   containerId: string
   onCheckboxClick?: ({ index, checked }: { index: number; checked: boolean }) => void
 }

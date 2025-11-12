@@ -13,7 +13,7 @@ import { createPendingReaction, pendingReactionMutations } from '@/utils/reactio
 const postMessagesReactions = apiClient.organizations.postMessagesReactions()
 const getMessages = apiClient.organizations.getThreadsMessages()
 
-type Props = {
+interface Props {
   threadId: string
   messageId: string
   reaction: StandardReaction | SyncCustomReaction

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { EditorContent, useEditor } from '@tiptap/react'
+
 import { getMarkdownExtensions } from '@gitmono/editor/markdown'
 import { Button } from '@gitmono/ui/Button'
 
@@ -12,12 +13,12 @@ interface CommentEditorProps {
 }
 
 export function CommentEditor({
-                                onSubmit,
-                                onCancel,
-                                placeholder = '写下您的评论...',
-                                initialContent = '',
-                                isSubmitting = false
-                              }: CommentEditorProps) {
+  onSubmit,
+  onCancel,
+  placeholder = '写下您的评论...',
+  initialContent = '',
+  isSubmitting = false
+}: CommentEditorProps) {
   const [content, setContent] = useState(initialContent)
 
   const editor = useEditor({
@@ -63,36 +64,27 @@ export function CommentEditor({
   }
 
   return (
-    <div className="border rounded-lg bg-white shadow-sm">
-      <div className="relative">
-        <EditorContent
-          editor={editor}
-          onKeyDown={handleKeyDown}
-          className="min-h-[80px]"
-        />
+    <div className='rounded-lg border bg-white shadow-sm'>
+      <div className='relative'>
+        <EditorContent editor={editor} onKeyDown={handleKeyDown} className='min-h-[80px]' />
       </div>
 
-      <div className="flex items-center justify-between p-3 border-t bg-gray-50">
-        <div className="flex items-center space-x-2 text-xs text-gray-500">
+      <div className='flex items-center justify-between border-t bg-gray-50 p-3'>
+        <div className='flex items-center space-x-2 text-xs text-gray-500'>
           <span>支持 Markdown 语法</span>
           <span>•</span>
           <span>`Ctrl` + `Enter` 快速发布</span>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className='flex items-center space-x-2'>
           {onCancel && (
-            <Button
-              variant="text"
-              size="sm"
-              onClick={onCancel}
-              disabled={isSubmitting}
-            >
+            <Button variant='text' size='sm' onClick={onCancel} disabled={isSubmitting}>
               取消
             </Button>
           )}
           <Button
-            variant="primary"
-            size="sm"
+            variant='primary'
+            size='sm'
             onClick={handleSubmit}
             disabled={!content.trim() || isSubmitting}
             loading={isSubmitting}

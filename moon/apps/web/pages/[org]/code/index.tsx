@@ -23,7 +23,7 @@ const OrganizationTestPage: PageWithLayout<any> = () => {
 OrganizationTestPage.getProviders = (page, pageProps) => {
   return (
     <AuthAppProviders {...pageProps}>
-        <AppLayout {...pageProps}>{page}</AppLayout>
+      <AppLayout {...pageProps}>{page}</AppLayout>
     </AuthAppProviders>
   )
 }

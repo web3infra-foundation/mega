@@ -7,7 +7,7 @@ import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getProjectsMembers()
 
-type Options = {
+interface Options {
   projectId?: string
   organizationMembershipId?: string
   after?: string

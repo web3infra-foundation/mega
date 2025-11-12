@@ -5,7 +5,7 @@ import { GetProjectsCallsParams } from '@gitmono/types/generated'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   projectId: string
   query?: GetProjectsCallsParams['q']
 }

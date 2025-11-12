@@ -1,18 +1,11 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ImageIcon, DiscussionClosedIcon, MentionIcon, HashIcon } from '@primer/octicons-react'
 import BuildIcon from '@mui/icons-material/Build'
+import { DiscussionClosedIcon, HashIcon, ImageIcon, MentionIcon } from '@primer/octicons-react'
 import { isWindows } from 'react-device-detect'
 
-import {
-  Button,
-  ArrowUpIcon,
-  MicrophoneIcon,
-  SparklesIcon,
-  ChevronDownIcon,
-  UIText
-} from '@gitmono/ui'
+import { ArrowUpIcon, Button, ChevronDownIcon, MicrophoneIcon, SparklesIcon, UIText } from '@gitmono/ui'
 
 export function WorkWithChatDialog() {
   const hintText = `'↑↓' to navigate input history, '${isWindows ? 'Ctrl' : '⌘'}↲' to insert a new line`
@@ -35,7 +28,6 @@ export function WorkWithChatDialog() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-
     const value = e.target.value
 
     setMessage(value)
@@ -48,7 +40,10 @@ export function WorkWithChatDialog() {
     <div className='w-full rounded-lg bg-gray-100'>
       {/* Top Icon and Title - White background */}
       <div className='mb-0 flex flex-col items-center rounded-t-lg p-4' style={{ backgroundColor: '#ffffff' }}>
-        <div className='mb-3 flex h-16 w-16 items-center justify-center rounded-lg' style={{ backgroundColor: '#52b5f2' }}>
+        <div
+          className='mb-3 flex h-16 w-16 items-center justify-center rounded-lg'
+          style={{ backgroundColor: '#52b5f2' }}
+        >
           <DiscussionClosedIcon size={24} className='text-black' />
         </div>
         <UIText size='text-lg' weight='font-medium' className='text-gray-700'>
@@ -78,20 +73,20 @@ export function WorkWithChatDialog() {
         <div className='relative min-h-[100px] p-3'>
           {/* Text area - takes most of the space */}
           <div className='mb-10'>
-          <textarea
-            value={message}
-            onChange={handleChange}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            placeholder=''
-            className='w-full resize-none border-0 bg-transparent text-sm focus:outline-none focus:ring-0'
-            style={{
-              minHeight: '60px',
-              lineHeight: '1.4',
-              color: isShowingHint ? '#8d9297' : '#374151'
-            }}
-            rows={3}
-          />
+            <textarea
+              value={message}
+              onChange={handleChange}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              placeholder=''
+              className='w-full resize-none border-0 bg-transparent text-sm focus:outline-none focus:ring-0'
+              style={{
+                minHeight: '60px',
+                lineHeight: '1.4',
+                color: isShowingHint ? '#8d9297' : '#374151'
+              }}
+              rows={3}
+            />
           </div>
 
           {/* Bottom toolbar */}
@@ -143,7 +138,7 @@ export function WorkWithChatDialog() {
 
               {/* Microphone icon */}
               <div
-                className='flex h-6 w-6 items-center justify-center rounded-md cursor-pointer hover:opacity-80'
+                className='flex h-6 w-6 cursor-pointer items-center justify-center rounded-md hover:opacity-80'
                 style={{ backgroundColor: '#e2e4e7' }}
               >
                 <MicrophoneIcon size={16} style={{ color: '#45484d' }} />
@@ -151,7 +146,7 @@ export function WorkWithChatDialog() {
 
               {/* Send button */}
               <div
-                className='flex h-6 w-6 items-center justify-center rounded-md cursor-pointer hover:opacity-80'
+                className='flex h-6 w-6 cursor-pointer items-center justify-center rounded-md hover:opacity-80'
                 style={{ backgroundColor: '#d2e6d8' }}
               >
                 <ArrowUpIcon size={16} strokeWidth='2.5' style={{ color: '#101011' }} />

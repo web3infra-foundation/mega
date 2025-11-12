@@ -74,4 +74,3 @@ export function OrderDropdown({ sortOptions, timeOptions, currentSort, currentTi
     />
   )
 }
-

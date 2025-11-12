@@ -1,46 +1,50 @@
-import React, { useState } from 'react';
-import { LoadingSpinner, LockIcon, Button, TextField, PlusIcon } from '@gitmono/ui'
+import React, { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+
+import { GpgKey } from '@gitmono/types'
+import { Button, LoadingSpinner, LockIcon, PlusIcon, TextField } from '@gitmono/ui'
 import * as Dialog from '@gitmono/ui/src/Dialog'
-import { DateAndTimePicker } from "@/components/DateAndTimePicker";
+
+import HandleTime from '@/components/ClView/components/HandleTime'
+import { DateAndTimePicker } from '@/components/DateAndTimePicker'
+import { useDeleteGPGKeyById } from '@/hooks/useDeleteGPGKeyById'
 import { useGetGPGList } from '@/hooks/useGetGPGList'
 import { usePostGPGKey } from '@/hooks/usePostGPGKey'
-import { useDeleteGPGKeyById } from '@/hooks/useDeleteGPGKeyById'
-import { legacyApiClient } from "@/utils/queryClient";
-import { useQueryClient } from "@tanstack/react-query";
-import HandleTime from "@/components/ClView/components/HandleTime";
-import { GpgKey } from "@gitmono/types";
+import { legacyApiClient } from '@/utils/queryClient'
 
-const GpgKeyItem = ({ keyData } : { keyData: GpgKey }) => {
+const GpgKeyItem = ({ keyData }: { keyData: GpgKey }) => {
   const { mutate: deleteGPGKey } = useDeleteGPGKeyById()
   const fetchGPGList = legacyApiClient.v1.getApiGpgList()
   const queryClient = useQueryClient()
 
   return (
-    <div className="flex items-center justify-between py-4 border-b border-gray-200 last:border-b-0">
-      <div className="flex items-start">
-        <LockIcon className="w-6 h-6 text-gray-400" aria-hidden="true"/>
-        <div className="ml-4">
-          <p className="text-base font-bold text-gray-900">{ keyData.fingerprint }</p>
-          <p className="text-sm font-mono text-gray-500 mt-1">{ keyData.fingerprint }</p>
-          <p className="text-xs text-gray-500 mt-2">
-            <HandleTime created_at={ Math.floor(new Date(keyData.created_at).getTime()) }/>
+    <div className='flex items-center justify-between border-b border-gray-200 py-4 last:border-b-0'>
+      <div className='flex items-start'>
+        <LockIcon className='h-6 w-6 text-gray-400' aria-hidden='true' />
+        <div className='ml-4'>
+          <p className='text-base font-bold text-gray-900'>{keyData.fingerprint}</p>
+          <p className='mt-1 font-mono text-sm text-gray-500'>{keyData.fingerprint}</p>
+          <p className='mt-2 text-xs text-gray-500'>
+            <HandleTime created_at={Math.floor(new Date(keyData.created_at).getTime())} />
           </p>
         </div>
       </div>
       <button
-        onClick={ () => deleteGPGKey(
-          {
-            data: {
-              key_id: keyData.key_id,
+        onClick={() =>
+          deleteGPGKey(
+            {
+              data: {
+                key_id: keyData.key_id
+              }
+            },
+            {
+              onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: fetchGPGList.requestKey() })
+              }
             }
-          },
-          {
-            onSuccess: () => {
-              queryClient.invalidateQueries({ queryKey: fetchGPGList.requestKey() })
-            }
-          })
+          )
         }
-        className="px-4 py-1 text-sm font-semibold text-red-500 border border-gray-300 rounded-md hover:bg-red-500 hover:text-white transition-colors duration-200"
+        className='rounded-md border border-gray-300 px-4 py-1 text-sm font-semibold text-red-500 transition-colors duration-200 hover:bg-red-500 hover:text-white'
       >
         Delete
       </button>
@@ -49,8 +53,8 @@ const GpgKeyItem = ({ keyData } : { keyData: GpgKey }) => {
 }
 
 interface NewGPGKeyDialogProps {
-  open: boolean;
-  setOpen: (open: boolean) => void;
+  open: boolean
+  setOpen: (open: boolean) => void
 }
 
 const NewGPGKeyDialog = ({ open, setOpen }: NewGPGKeyDialogProps) => {
@@ -95,36 +99,23 @@ const NewGPGKeyDialog = ({ open, setOpen }: NewGPGKeyDialogProps) => {
   }
 
   return (
-    <Dialog.Root
-      open={ open }
-      onOpenChange={ setOpen }
-      visuallyHiddenDescription='Add a new GPG key'
-    >
-      <Dialog.Title className="p-4 w-full">
-        Add GPG key
-      </Dialog.Title>
-      <Dialog.Content className="p-4 w-full max-w-md">
-        {/*<div className='mb-4'>*/ }
-        {/*  <TextField*/ }
-        {/*    autoFocus*/ }
-        {/*    label='title'*/ }
-        {/*    value={title}*/ }
-        {/*    onChange={setTitle}*/ }
-        {/*  />*/ }
-        {/*  {errors.title && <span className='text-red-500 text-xs'>{errors.title}</span>}*/ }
-        {/*</div>*/ }
+    <Dialog.Root open={open} onOpenChange={setOpen} visuallyHiddenDescription='Add a new GPG key'>
+      <Dialog.Title className='w-full p-4'>Add GPG key</Dialog.Title>
+      <Dialog.Content className='w-full max-w-md p-4'>
+        {/*<div className='mb-4'>*/}
+        {/*  <TextField*/}
+        {/*    autoFocus*/}
+        {/*    label='title'*/}
+        {/*    value={title}*/}
+        {/*    onChange={setTitle}*/}
+        {/*  />*/}
+        {/*  {errors.title && <span className='text-red-500 text-xs'>{errors.title}</span>}*/}
+        {/*</div>*/}
 
         <div className='flex h-full w-full flex-col gap-3'>
-          <TextField
-            label='expires_days'
-            value={ expires_days.toISOString() }
-            disabled
-          />
-          <div className="justify-center w-full items-center">
-            <DateAndTimePicker
-              value={ expires_days }
-              onChange={ setExpiresDays }
-            />
+          <TextField label='expires_days' value={expires_days.toISOString()} disabled />
+          <div className='w-full items-center justify-center'>
+            <DateAndTimePicker value={expires_days} onChange={setExpiresDays} />
           </div>
         </div>
 
@@ -132,30 +123,33 @@ const NewGPGKeyDialog = ({ open, setOpen }: NewGPGKeyDialogProps) => {
           <TextField
             placeholder='begins with "-----BEGIN GPG PUBLIC KEY BLOCK-----"'
             multiline
-            minRows={ 8 }
+            minRows={8}
             label='gpg_key'
-            value={ gpg_content }
-            onChange={ setGpg_content }
+            value={gpg_content}
+            onChange={setGpg_content}
           />
-          { errors.gpgKey && <span className='text-red-500 text-xs'>{ errors.gpgKey }</span> }
+          {errors.gpgKey && <span className='text-xs text-red-500'>{errors.gpgKey}</span>}
         </div>
       </Dialog.Content>
 
       <Dialog.Footer>
         <Dialog.TrailingActions>
-          <Button variant='flat' onClick={ () => {
-            setOpen(false)
-            setGpg_content("")
-            setExpiresDays(new Date())
-          } }>
+          <Button
+            variant='flat'
+            onClick={() => {
+              setOpen(false)
+              setGpg_content('')
+              setExpiresDays(new Date())
+            }}
+          >
             Cancel
           </Button>
           <Button
             variant='primary'
-            className="bg-[#1f883d]"
-            onClick={ handleSubmit }
-            disabled={ isPending || !gpg_content.trim() }
-            loading={ isPending }
+            className='bg-[#1f883d]'
+            onClick={handleSubmit}
+            disabled={isPending || !gpg_content.trim()}
+            loading={isPending}
           >
             Add key
           </Button>
@@ -171,46 +165,32 @@ const GPGKeys = () => {
 
   return (
     <>
-      <div className="bg-white text-gray-700 p-8 rounded-lg border border-gray-200 max-w-4xl mx-auto font-sans">
-        <header className="flex items-center justify-between pb-4">
-          <h1 className="text-3xl font-bold text-gray-900">GPG keys</h1>
-          <Button
-            variant='primary'
-            className="bg-[#1f883d]"
-            leftSlot={ <PlusIcon/> }
-            onClick={ () => setOpen(true) }
-          >
+      <div className='mx-auto max-w-4xl rounded-lg border border-gray-200 bg-white p-8 font-sans text-gray-700'>
+        <header className='flex items-center justify-between pb-4'>
+          <h1 className='text-3xl font-bold text-gray-900'>GPG keys</h1>
+          <Button variant='primary' className='bg-[#1f883d]' leftSlot={<PlusIcon />} onClick={() => setOpen(true)}>
             New GPG key
           </Button>
         </header>
 
-        <p className="mb-8">
+        <p className='mb-8'>
           This is a list of GPG keys associated with your account. Remove any keys that you do not recognize.
         </p>
 
         <section>
-          <h2 className="text-xl font-semibold text-gray-900 pb-2 border-b border-gray-200">
-            Authentication keys
-          </h2>
-          { isGPGLoading? (
+          <h2 className='border-b border-gray-200 pb-2 text-xl font-semibold text-gray-900'>Authentication keys</h2>
+          {isGPGLoading ? (
             <div className='flex h-[400px] items-center justify-center'>
-              <LoadingSpinner/>
+              <LoadingSpinner />
             </div>
           ) : (
-            <div>
-              { gpgKeys?.map((key) => (
-                <GpgKeyItem key={ key.key_id } keyData={ key }/>
-              )) }
-            </div>
-          ) }
+            <div>{gpgKeys?.map((key) => <GpgKeyItem key={key.key_id} keyData={key} />)}</div>
+          )}
         </section>
       </div>
-      <NewGPGKeyDialog
-        open={ open }
-        setOpen={ setOpen }
-      />
+      <NewGPGKeyDialog open={open} setOpen={setOpen} />
     </>
-  );
-};
+  )
+}
 
-export default GPGKeys;
+export default GPGKeys

@@ -155,12 +155,12 @@ export const EditorBubbleMenu = memo(function EditorBubbleMemo({
       const target = event.target as Node
       const editorElement = editor?.view.dom
       const menuElement = containerRef.current
-      
+
       // Check if click is outside both editor and menu
       if (editorElement && menuElement) {
         const isClickInsideEditor = editorElement.contains(target)
         const isClickInsideMenu = menuElement.contains(target)
-        
+
         if (!isClickInsideEditor && !isClickInsideMenu) {
           // Clear selection to hide the bubble menu
           editor?.commands.setTextSelection(editor.state.selection.from)
@@ -176,7 +176,7 @@ export const EditorBubbleMenu = memo(function EditorBubbleMemo({
       // eslint-disable-next-line no-console
       console.warn('Failed to add click outside listener:', error)
     }
-    
+
     return () => {
       try {
         document.removeEventListener('mousedown', handleClickOutside)

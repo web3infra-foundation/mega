@@ -5,7 +5,7 @@ import { useQueryNormalizer } from '@/utils/normy/QueryNormalizerProvider'
 import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 import { createNormalizedOptimisticUpdate } from '@/utils/queryNormalization'
 
-type Props = {
+interface Props {
   pinId: string
   callId: string
   projectId: string

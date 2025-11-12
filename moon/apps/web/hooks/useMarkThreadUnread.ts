@@ -11,7 +11,7 @@ import { useUpdateBadgeCount } from './useGetUnreadNotificationsCount'
 const deleteThreadsReads = apiClient.organizations.deleteThreadsReads()
 const getMeNotificationsUnreadAllCount = apiClient.users.getMeNotificationsUnreadAllCount()
 
-type Props = {
+interface Props {
   threadId: string
 }
 

@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { Dialog } from '@gitmono/ui/Dialog'
+import React, { useState } from 'react'
+
 import {
   Button,
+  LazyLoadingSpinner,
   RadioGroup,
   RadioGroupItem,
-  UIText,
   SelectCommandContainer,
   SelectCommandEmpty,
   SelectCommandGroup,
@@ -12,20 +12,20 @@ import {
   SelectCommandItem,
   SelectCommandList,
   SelectCommandSeparator,
-  LazyLoadingSpinner
+  UIText
 } from '@gitmono/ui'
+import { Dialog } from '@gitmono/ui/Dialog'
 
 import { useCreateMonoTag } from '@/hooks/useCreateMonoTag'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
-import { useGetLatestCommit } from '../../../hooks/useGetLatestCommit'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
-import React from 'react'
 
+import { useGetLatestCommit } from '../../../hooks/useGetLatestCommit'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated?: (tag: any) => void 
+  onCreated?: (tag: any) => void
 }
 
 export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Props) {
@@ -47,7 +47,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
 
     for (const it of items) {
       const id = it.commit_id
-      
+
       if (!id) continue
       if (!map.has(id)) {
         map.set(id, { id, message: it.commit_message || '', date: it.date || '' })
@@ -58,9 +58,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
     const q = pickerQuery.trim().toLowerCase()
 
     if (q) {
-      arr = arr.filter(
-        (c) => c.id.toLowerCase().includes(q) || c.message.toLowerCase().includes(q)
-      )
+      arr = arr.filter((c) => c.id.toLowerCase().includes(q) || c.message.toLowerCase().includes(q))
     }
     arr.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
     return arr
@@ -69,8 +67,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
   const canSubmit = name.trim().length > 0 && !isPending
 
   async function onCreate() {
-    const resolvedTarget =
-      targetMode === 'commit' ? (target || latestCommit?.oid || undefined) : undefined
+    const resolvedTarget = targetMode === 'commit' ? target || latestCommit?.oid || undefined : undefined
 
     try {
       const result = await mutateAsync({
@@ -105,7 +102,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
         </Dialog.Header>
         <div className='flex flex-col gap-3 py-2'>
           <div className='flex flex-col gap-2'>
-            <label className='text-sm text-quaternary'>Name</label>
+            <label className='text-quaternary text-sm'>Name</label>
             <input
               className='rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
               value={name}
@@ -114,7 +111,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
             />
           </div>
           <div className='flex flex-col gap-2'>
-            <label className='text-sm text-quaternary'>Message (optional)</label>
+            <label className='text-quaternary text-sm'>Message (optional)</label>
             <textarea
               className='rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
               value={message}
@@ -124,25 +121,21 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
             />
           </div>
           <div className='flex flex-col gap-2'>
-            <label className='text-sm text-quaternary'>Target</label>
+            <label className='text-quaternary text-sm'>Target</label>
             <RadioGroup
               value={targetMode}
               onValueChange={(v) => setTargetMode(v as 'branch' | 'commit')}
               className='flex flex-col gap-2'
             >
-              <RadioGroupItem value='branch'>
-                Branch (default HEAD)
-              </RadioGroupItem>
-              <RadioGroupItem value='commit'>
-                Recent commit
-              </RadioGroupItem>
+              <RadioGroupItem value='branch'>Branch (default HEAD)</RadioGroupItem>
+              <RadioGroupItem value='commit'>Recent commit</RadioGroupItem>
             </RadioGroup>
 
             {targetMode === 'commit' && (
               <div className='mt-2 flex flex-col gap-2 rounded-md border p-2'>
                 <div className='flex items-center gap-2'>
                   <input
-                    className='rounded-md border px-2 py-1 text-sm outline-none focus:ring-2 flex-1'
+                    className='flex-1 rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
                     value={target}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTarget(e.target.value)}
                     placeholder='Commit SHA'
@@ -161,10 +154,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
                 <div className='rounded-md border p-0'>
                   <SelectCommandContainer className='flex max-h-[280px] flex-col'>
                     <div className='flex items-center gap-2 p-2'>
-                      <SelectCommandInput
-                        value={pickerQuery}
-                        onValueChange={(v) => setPickerQuery(v)}
-                      />
+                      <SelectCommandInput value={pickerQuery} onValueChange={(v) => setPickerQuery(v)} />
                     </div>
                     <SelectCommandSeparator alwaysRender />
                     <SelectCommandList>
@@ -184,7 +174,9 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
                                 onSelect={() => setTarget(c.id)}
                               >
                                 <div className='flex min-w-0 flex-col'>
-                                  <span className='truncate'>{c.id.substring(0, 12)} · {c.message}</span>
+                                  <span className='truncate'>
+                                    {c.id.substring(0, 12)} · {c.message}
+                                  </span>
                                 </div>
                               </SelectCommandItem>
                             ))}
@@ -196,13 +188,17 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
                 </div>
                 <div>
                   {latestLoading ? (
-                    <UIText quaternary size='text-[12px]'>Loading latest commit…</UIText>
+                    <UIText quaternary size='text-[12px]'>
+                      Loading latest commit…
+                    </UIText>
                   ) : latestCommit?.oid ? (
                     <UIText quaternary size='text-[12px]'>
                       {latestCommit.oid.substring(0, 8)} · {latestCommit.short_message}
                     </UIText>
                   ) : (
-                    <UIText quaternary size='text-[12px]'>No recent commit info</UIText>
+                    <UIText quaternary size='text-[12px]'>
+                      No recent commit info
+                    </UIText>
                   )}
                 </div>
               </div>
@@ -211,7 +207,9 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
         </div>
         <Dialog.Footer>
           <Dialog.TrailingActions>
-            <Button disabled={!canSubmit} onClick={onCreate} loading={isPending}>Create tag</Button>
+            <Button disabled={!canSubmit} onClick={onCreate} loading={isPending}>
+              Create tag
+            </Button>
           </Dialog.TrailingActions>
         </Dialog.Footer>
       </Dialog.Content>

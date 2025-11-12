@@ -6,7 +6,7 @@ import { SyncCustomReaction } from '@gitmono/types'
 import { legacyApiClient } from '@/utils/queryClient'
 import { getStandardReaction, StandardReaction } from '@/utils/reactions'
 
-type Props = {
+interface Props {
   reaction: StandardReaction | SyncCustomReaction
 }
 

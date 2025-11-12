@@ -1,6 +1,6 @@
 import { User } from '@gitmono/types'
 
-type Props = {
+interface Props {
   users: User[]
   limit?: number
   prefix?: string

@@ -1,4 +1,5 @@
 import { format, formatDistance, fromUnixTime } from 'date-fns'
+
 import { Tooltip } from '@gitmono/ui'
 
 interface HandleTimeProps {
@@ -12,7 +13,7 @@ const HandleTime = ({ created_at }: HandleTimeProps) => {
 
     return format(date, 'yyyy-MM-dd HH:mm:ss')
   }
-  
+
   return (
     <>
       <Tooltip label={formatTimestamp(created_at)}>

@@ -1,4 +1,5 @@
 import { Link, LinkProps } from '@gitmono/ui/Link'
+
 import { useScope } from '@/contexts/scope'
 
 export function UserLinkByName({
@@ -8,7 +9,7 @@ export function UserLinkByName({
 }: Omit<LinkProps, 'href'> & { username: string; children: React.ReactNode }) {
   const { scope } = useScope()
 
-  if(!username) return <>{children}</>
+  if (!username) return <>{children}</>
 
   return (
     <Link {...linkProps} href={`/${scope}/people/${username}`}>
