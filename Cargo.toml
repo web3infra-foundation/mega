@@ -130,6 +130,8 @@ envsubst = "0.2.1"
 diffs = "0.5.1"
 directories = "6.0.0"
 dotenv = "0.15"
+sqlx = { version = "0.8.5", features = ["runtime-tokio-rustls", "macros", "sqlite"] }
+
 
 [profile.release]
 debug = true
