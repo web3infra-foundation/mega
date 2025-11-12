@@ -8,7 +8,7 @@ import { useBindChannelEvent } from '@/hooks/useBindChannelEvent'
 import { useCallRoomChannel } from '@/hooks/useCallRoomChannel'
 import { apiClient } from '@/utils/queryClient'
 
-type Options = {
+interface Options {
   callRoom?: CallRoom
 }
 

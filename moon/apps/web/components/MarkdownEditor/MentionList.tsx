@@ -1,9 +1,11 @@
 import { ComponentPropsWithoutRef } from 'react'
 import { uniqBy } from 'remeda'
-import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
+import { useDebounce } from 'use-debounce'
+
 import { LinkIssue, Mention } from '@gitmono/editor/extensions'
 import { OrganizationMember, SyncOrganizationMember } from '@gitmono/types/generated'
 import { GitCommitIcon, UIText } from '@gitmono/ui'
+import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 
 import { AppBadge } from '@/components/AppBadge'
 import { GuestBadge } from '@/components/GuestBadge'
@@ -12,7 +14,6 @@ import { SuggestionItem, SuggestionRoot, useSuggestionEmpty, useSuggestionQuery 
 import { useGetIssueIssueSuggester } from '@/hooks/issues/useGetIssueIssueSuggester'
 import { useGetOauthApplications } from '@/hooks/useGetOauthApplications'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
-import { useDebounce } from 'use-debounce'
 
 type Props = Pick<ComponentPropsWithoutRef<typeof SuggestionRoot>, 'editor'> & {
   defaultMentions?: (OrganizationMember | SyncOrganizationMember)[]
@@ -20,8 +21,8 @@ type Props = Pick<ComponentPropsWithoutRef<typeof SuggestionRoot>, 'editor'> & {
 }
 
 export function MentionList({ editor, defaultMentions, modal }: Props) {
-  useGetIssueIssueSuggester({ query: '' });
-  
+  useGetIssueIssueSuggester({ query: '' })
+
   return (
     <>
       <SuggestionRoot
@@ -123,63 +124,56 @@ function InnerMentionList({ editor, defaultMentions }: Pick<Props, 'editor' | 'd
 }
 
 function InnerIssueList({ editor }: Pick<Props, 'editor'>) {
-  const query = useSuggestionQuery();
-  const [debouncedQuery] = useDebounce(query, 400);
+  const query = useSuggestionQuery()
+  const [debouncedQuery] = useDebounce(query, 400)
 
-  const { data: issueSuggestions } = useGetIssueIssueSuggester(
-    { query: debouncedQuery }
-  );
-  
+  const { data: issueSuggestions } = useGetIssueIssueSuggester({ query: debouncedQuery })
+
   if (!issueSuggestions?.data || issueSuggestions.data.length === 0) {
     return (
       <div className='flex items-center gap-2 p-2 text-sm'>
-        <UIText>No results</UIText>  
+        <UIText>No results</UIText>
       </div>
-    );
+    )
   }
-  
+
   return issueSuggestions.data.map((item) => {
+    let suggestionType = ''
 
-  let suggestionType = ''
-
-  switch (item.type) {
-    case 'issue_closed':
-    case 'issue_open':
-      suggestionType = 'issue'
-      break
-    case 'change_list_closed':
-    case 'change_list':
-      suggestionType = 'change_list'
-      break
-    default:
-      break
-  }
+    switch (item.type) {
+      case 'issue_closed':
+      case 'issue_open':
+        suggestionType = 'issue'
+        break
+      case 'change_list_closed':
+      case 'change_list':
+        suggestionType = 'change_list'
+        break
+      default:
+        break
+    }
 
     return (
-    <SuggestionItem
-      key={item.link}
-      editor={editor}
-      value={item.link}
-      forceMount={true}
-      onSelect={({ editor, range }) =>
-        editor.commands.insertIssue({
-          range,
-          id: item.link,
-          label: item.link,
-          suggestionType: suggestionType
-        })
-      }
-    >
-      <span className="h-5 w-5">
-        {suggestionType === 'change_list'
-          ? <GitCommitIcon /> 
-          : <ChatBubblePlusIcon />}
-      </span>
-      <div className='flex flex-1 items-center justify-between'>
-        <UIText className='max-w-[300px] truncate'>{item.title}</UIText>
-        <UIText className='justify-self-end truncate text-sm text-gray-500'>{item.link}</UIText>
-      </div>
-    </SuggestionItem>
-  )
+      <SuggestionItem
+        key={item.link}
+        editor={editor}
+        value={item.link}
+        forceMount={true}
+        onSelect={({ editor, range }) =>
+          editor.commands.insertIssue({
+            range,
+            id: item.link,
+            label: item.link,
+            suggestionType: suggestionType
+          })
+        }
+      >
+        <span className='h-5 w-5'>{suggestionType === 'change_list' ? <GitCommitIcon /> : <ChatBubblePlusIcon />}</span>
+        <div className='flex flex-1 items-center justify-between'>
+          <UIText className='max-w-[300px] truncate'>{item.title}</UIText>
+          <UIText className='justify-self-end truncate text-sm text-gray-500'>{item.link}</UIText>
+        </div>
+      </SuggestionItem>
+    )
   })
 }

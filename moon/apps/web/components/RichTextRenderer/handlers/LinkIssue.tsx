@@ -1,6 +1,8 @@
 import { Link } from '@gitmono/ui/Link'
-import { NodeHandler } from '.'
+
 import { useScope } from '@/contexts/scope'
+
+import { NodeHandler } from '.'
 
 export const LinkIssue: NodeHandler = ({ node, children }) => {
   const { scope } = useScope()
@@ -25,8 +27,8 @@ export const LinkIssue: NodeHandler = ({ node, children }) => {
   }
 
   return (
-    <Link data-type='issue' href={url} className="issue-link">
-      <span className='text-blue-500 border-b border-blue-500'>${label}</span>
+    <Link data-type='issue' href={url} className='issue-link'>
+      <span className='border-b border-blue-500 text-blue-500'>${label}</span>
     </Link>
   )
 }

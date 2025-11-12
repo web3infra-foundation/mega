@@ -1,11 +1,12 @@
-import { LayeredHotkeys } from '@gitmono/ui'
-import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
-import { cn } from '@gitmono/ui/src/utils'
 import { m } from 'framer-motion'
 import { useAtom, useAtomValue } from 'jotai'
 import Router from 'next/router'
 import { isMacOs } from 'react-device-detect'
 import { useInView } from 'react-intersection-observer'
+
+import { LayeredHotkeys } from '@gitmono/ui'
+import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
+import { cn } from '@gitmono/ui/src/utils'
 
 import { DesktopAppNavigationButtons } from '@/components/DesktopAppNavigationButtons'
 import { sidebarCollapsedAtom } from '@/components/Layout/AppLayout'
@@ -37,11 +38,11 @@ import { useShowOrgSwitcherSidebar } from '@/hooks/useShowOrgSwitcherSidebar'
 
 import { RecentlyViewedPopover } from './RecentlyViewed/RecentlyViewedPopover'
 import { SidebarCode } from './SidebarCode'
+import { SidebarCratespro } from './SidebarCratespro'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
-import { SiderbarChangeList } from './SiderbarChangeList'
-import { SidebarCratespro } from './SidebarCratespro'
 import { SidebarTags } from './SidebarTags'
+import { SiderbarChangeList } from './SiderbarChangeList'
 
 export function SidebarContainer() {
   const { scope } = useScope()

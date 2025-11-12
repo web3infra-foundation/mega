@@ -1,15 +1,15 @@
-import {legacyApiClient} from "@/utils/queryClient";
-import {atomFamily} from "jotai/utils";
-import {atomWithWebStorage} from "@/utils/atomWithWebStorage";
-import {ListSSHKey} from "@gitmono/types";
-import {useAtom} from "jotai";
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {useEffect} from 'react'
+import { useAtom } from 'jotai'
+import { atomFamily } from 'jotai/utils'
+
+import { ListSSHKey } from '@gitmono/types'
+
+import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
+import { legacyApiClient } from '@/utils/queryClient'
 
 const fetchSSHList = legacyApiClient.v1.getApiUserSshList()
-const getSSHListAtom = atomFamily(() =>
-  atomWithWebStorage<ListSSHKey[]>(`ssh-key`, [])
-)
+const getSSHListAtom = atomFamily(() => atomWithWebStorage<ListSSHKey[]>(`ssh-key`, []))
 
 export const useGetSSHList = () => {
   const [sshKeys, setSSHList] = useAtom(getSSHListAtom('ssh-key'))
@@ -20,14 +20,14 @@ export const useGetSSHList = () => {
       const result = await fetchSSHList.request()
 
       return result.data
-    },
-  });
+    }
+  })
 
   useEffect(() => {
-    if(data){
+    if (data) {
       setSSHList(data)
     }
-  }, [data, setSSHList]);
+  }, [data, setSSHList])
 
   return { sshKeys, isLoading, isPending, isFetching }
 }

@@ -1,6 +1,6 @@
 import { notEmpty } from './notEmpty'
 
-type ClipboardEvent = {
+interface ClipboardEvent {
   clipboardData?: DataTransfer | null
   nativeEvent: {
     clipboardData?: DataTransfer | null

@@ -2,10 +2,8 @@
 export { useFilterState } from './useFilterState'
 export type { FilterState } from './useFilterState'
 
-
 export { FilterDropdown } from './FilterDropdown'
 export { DropdownItemwithAvatar, DropdownItemwithLabel } from './DropdownItems'
-
 
 export { AuthorDropdown } from './dropdown/AuthorDropdown'
 export { AssigneesDropdown } from './dropdown/AssigneesDropdown'

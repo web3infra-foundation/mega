@@ -10,7 +10,7 @@ export const EMPTY_JSON: JSONContent = {
   ]
 }
 
-type Props = {
+interface Props {
   postId?: string
   replyingToCommentId?: string
   attachmentId?: string

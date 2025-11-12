@@ -1,14 +1,12 @@
 import React, { forwardRef, memo, ReactNode } from 'react'
 
+import { PostApiIssueListData } from '@gitmono/types'
 import { Button, ChatBubbleIcon, Command, ConditionalWrap, LoadingSpinner, useCommand } from '@gitmono/ui'
 
+import { MemberHoverAvatarList } from '@/components/Issues/MemberHoverAvatarList'
 import { SubjectCommand } from '@/components/Subject/SubjectCommand'
 import { BreadcrumbTitlebarContainer } from '@/components/Titlebar/BreadcrumbTitlebar'
-import {  PostApiIssueListData } from '@gitmono/types'
 import { getFontColor } from '@/utils/getFontColor'
-import { MemberHoverAvatarList } from '@/components/Issues/MemberHoverAvatarList'
-
-
 
 export function List<T>({
   lists,
@@ -25,16 +23,16 @@ export function List<T>({
   const needsCommandWrap = !useCommand()
 
   return (
-    <div className='overflow-auto rounded-md border border-primary bg-primary'>
+    <div className='border-primary bg-primary overflow-auto rounded-md border'>
       {header}
 
       {isLoading ? (
-        <div className='flex h-[400px] items-center justify-center bg-secondary'>
+        <div className='bg-secondary flex h-[400px] items-center justify-center'>
           <LoadingSpinner />
         </div>
       ) : lists.length === 0 ? (
-        <div className='flex h-[200px] items-center justify-center bg-secondary'>
-          <div className='text-center '>
+        <div className='bg-secondary flex h-[200px] items-center justify-center'>
+          <div className='text-center'>
             <strong className='text-xl'>No results</strong>
             <p className='text-gray-500'>Try adjusting your search filters.</p>
           </div>
@@ -55,13 +53,12 @@ export function List<T>({
   )
 }
 
-
 export function IndexTabFilter({
-                                      part,
-                                      setPart,
-                                      openTooltip,
-                                      closeTooltip
-                                    }: {
+  part,
+  setPart,
+  openTooltip,
+  closeTooltip
+}: {
   part: string
   setPart: (part: string) => void
   openTooltip?: string
@@ -89,7 +86,6 @@ export function IndexTabFilter({
   )
 }
 
-
 interface ListBannerProps {
   children?: React.ReactNode
   tabfilter?: React.ReactNode
@@ -104,7 +100,7 @@ export const ListBanner = forwardRef<HTMLDivElement, ListBannerProps>(
             <ConditionalWrap condition={true} wrap={(c) => <div>{c}</div>}>
               {tabfilter}
             </ConditionalWrap>
-            <ConditionalWrap condition={true} wrap={(c) => <div className='flex items-center '>{c}</div>}>
+            <ConditionalWrap condition={true} wrap={(c) => <div className='flex items-center'>{c}</div>}>
               {children}
             </ConditionalWrap>
           </BreadcrumbTitlebarContainer>
@@ -115,8 +111,6 @@ export const ListBanner = forwardRef<HTMLDivElement, ListBannerProps>(
 )
 
 ListBanner.displayName = 'ListBanner'
-
-
 
 export const ListItem = memo(
   ({
@@ -136,7 +130,7 @@ export const ListItem = memo(
   }) => {
     return (
       <>
-        <div className='container flex justify-between border-b border-secondary px-3.5 py-3 hover:bg-tertiary'>
+        <div className='border-secondary hover:bg-tertiary container flex justify-between border-b px-3.5 py-3'>
           <div className='left flex gap-3'>
             <div className='mt-1'>{leftIcon}</div>
 
@@ -165,7 +159,6 @@ export const ListItem = memo(
 )
 
 ListItem.displayName = 'ListItem'
-
 
 export type ItemsType = NonNullable<PostApiIssueListData['data']>['items']
 

@@ -1,5 +1,6 @@
 // import { CookieValueTypes } from 'cookies-next'
 import { atom } from 'jotai'
+
 // import { atomFamily } from 'jotai/utils'
 
 // import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -17,12 +18,8 @@ import { atom } from 'jotai'
 //   (a, b) => a.part === b.part
 // )
 
-
-
 export const issueIdAtom = atom(0)
 export const clIdAtom = atom(0)
-
-
 
 export const FALSE_EDIT_VAL = -1
 export const editIdAtom = atom(0)

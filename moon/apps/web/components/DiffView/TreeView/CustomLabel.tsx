@@ -1,12 +1,12 @@
-import * as React from 'react';
-import { TreeItemLabel } from '@mui/x-tree-view/TreeItem';
-import { Box } from '@mui/material';
+import * as React from 'react'
+import { Box } from '@mui/material'
+import { TreeItemLabel } from '@mui/x-tree-view/TreeItem'
 
 interface CustomLabelProps {
-  children: React.ReactNode;
-  icon?: React.ElementType;
-  expandable?: boolean;
-  onClick?: (event: React.MouseEvent) => void;
+  children: React.ReactNode
+  icon?: React.ElementType
+  expandable?: boolean
+  onClick?: (event: React.MouseEvent) => void
 }
 
 // Custom label component used to render each node in the tree structure
@@ -16,17 +16,11 @@ export function CustomLabel({ icon: Icon, children, ...other }: CustomLabelProps
       {...other}
       sx={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'center'
       }}
     >
-      {Icon && (
-        <Box component={Icon} className="labelIcon" color="inherit" sx={{ mr: 1, fontSize: '1.2rem' }} />
-      )}
-      <div
-        style={{fontSize: '14px', cursor: 'pointer'}}
-      >
-        {children}
-      </div>
+      {Icon && <Box component={Icon} className='labelIcon' color='inherit' sx={{ mr: 1, fontSize: '1.2rem' }} />}
+      <div style={{ fontSize: '14px', cursor: 'pointer' }}>{children}</div>
     </TreeItemLabel>
-  );
+  )
 }

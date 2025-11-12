@@ -7,7 +7,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getPostsSeoInfo()
 
-type Options = {
+interface Options {
   initialData?: PostSeoInfo
 }
 

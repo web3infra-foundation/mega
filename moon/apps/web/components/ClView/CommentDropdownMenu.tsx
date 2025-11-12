@@ -1,4 +1,6 @@
+import { generateJSON } from '@tiptap/core'
 import { useAtom } from 'jotai'
+import toast from 'react-hot-toast'
 
 import { ConversationItem } from '@gitmono/types/generated'
 import {
@@ -14,13 +16,11 @@ import {
 import { DropdownMenu } from '@gitmono/ui/DropdownMenu'
 import { buildMenuItems } from '@gitmono/ui/Menu'
 
-import { useDeleteIssueComment } from '@/hooks/issues/useDeleteIssueComment'
 import { useDeleteClCommentDelete } from '@/hooks/CL/useDeleteClCommentDelete'
+import { useDeleteIssueComment } from '@/hooks/issues/useDeleteIssueComment'
 
 import { editIdAtom } from '../Issues/utils/store'
-import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent';
-import { generateJSON } from '@tiptap/core';
-import toast from 'react-hot-toast';
+import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
 
 interface CommentDropdownMenuProps {
   id: string
@@ -29,14 +29,11 @@ interface CommentDropdownMenuProps {
   editorRef: React.RefObject<SimpleNoteContentRef>
 }
 
-
 export function CommentDropdownMenu({ Conversation, id, CommentType, editorRef }: CommentDropdownMenuProps) {
   const { mutate: deleteComment } = useDeleteClCommentDelete(id)
   const { mutate: deleteIssueComment } = useDeleteIssueComment(id)
   const [_editId, setEditId] = useAtom(editIdAtom)
-  const commentContent = typeof Conversation.comment === 'string' 
-  ? Conversation.comment 
-  : String(Conversation.comment)
+  const commentContent = typeof Conversation.comment === 'string' ? Conversation.comment : String(Conversation.comment)
 
   const handleDelete = () => {
     switch (CommentType) {
@@ -53,24 +50,27 @@ export function CommentDropdownMenu({ Conversation, id, CommentType, editorRef }
 
   const handleQuote = () => {
     if (!editorRef?.current?.editor || !Conversation.comment) return
-    
+
     try {
       const jsonContent = generateJSON(commentContent, editorRef.current.editor.extensionManager.extensions)
-      
-      editorRef.current.editor.chain().insertContent([
-        {
-          type: 'blockquote',
-          content: jsonContent.content,
-        },
-        {
-          type: 'paragraph',
-          content: []
-        }
-      ]).run()
+
+      editorRef.current.editor
+        .chain()
+        .insertContent([
+          {
+            type: 'blockquote',
+            content: jsonContent.content
+          },
+          {
+            type: 'paragraph',
+            content: []
+          }
+        ])
+        .run()
 
       setTimeout(() => {
         const editorDom = editorRef.current?.editor?.view?.dom
-        
+
         if (editorDom) {
           editorDom.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
@@ -79,79 +79,76 @@ export function CommentDropdownMenu({ Conversation, id, CommentType, editorRef }
           }, 150)
         }
       }, 300)
-
     } catch (error) {
       toast.error('Quote failed, Please try again later.')
     }
   }
 
-
-    const handleCopy = () => {
-    let value = commentContent;
+  const handleCopy = () => {
+    let value = commentContent
 
     if (value.includes('<') && value.includes('>')) {
-      const tempDiv = document.createElement('div');
+      const tempDiv = document.createElement('div')
 
-      tempDiv.innerHTML = value;
-      value = tempDiv.textContent || tempDiv.innerText || '';
+      tempDiv.innerHTML = value
+      value = tempDiv.textContent || tempDiv.innerText || ''
     }
 
-    value = value.trim();
+    value = value.trim()
 
-    if (!value) return;
+    if (!value) return
 
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(value)
-      .catch(() => {
+      navigator.clipboard.writeText(value).catch(() => {
         toast.error('Copy failed, Please try again later.')
       })
     } else {
-      const textArea = document.createElement('textarea');
+      const textArea = document.createElement('textarea')
 
-      textArea.value = value;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-9999px';
-      textArea.style.top = '-9999px';
-      textArea.style.opacity = '0';
-      textArea.style.pointerEvents = 'none';
-      textArea.style.zIndex = '-1000';
-      document.body.appendChild(textArea);
-      
+      textArea.value = value
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '-9999px'
+      textArea.style.opacity = '0'
+      textArea.style.pointerEvents = 'none'
+      textArea.style.zIndex = '-1000'
+      document.body.appendChild(textArea)
+
       setTimeout(() => {
         try {
-          textArea.focus();
-          
+          textArea.focus()
+
           setTimeout(() => {
-            textArea.select();
-            textArea.setSelectionRange(0, textArea.value.length);
-            
-            const successful = document.execCommand('copy');
-            
+            textArea.select()
+            textArea.setSelectionRange(0, textArea.value.length)
+
+            const successful = document.execCommand('copy')
+
             if (!successful) {
               toast.error('Copy failed, Please try again later.')
             }
-            
-            document.body.removeChild(textArea);
-          }, 10);
+
+            document.body.removeChild(textArea)
+          }, 10)
         } catch (err) {
-          document.body.removeChild(textArea);
+          document.body.removeChild(textArea)
         }
-      }, 10);
+      }, 10)
     }
-  };
+  }
 
   const items = buildMenuItems([
     {
       type: 'item',
       label: 'Copy',
       leftSlot: <CopyIcon />,
-      onSelect: () => handleCopy(),
+      onSelect: () => handleCopy()
     },
     {
       type: 'item',
       label: 'Quote',
       leftSlot: <QuoteIcon />,
-      onSelect: () => handleQuote(),
+      onSelect: () => handleQuote()
     },
     {
       type: 'item',

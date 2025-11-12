@@ -62,11 +62,7 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
             Preview
           </button>
         </div>
-        {disabled && (
-          <span className='ml-4 text-sm italic text-gray-500'>
-            Folders don&apos;t need content
-          </span>
-        )}
+        {disabled && <span className='ml-4 text-sm italic text-gray-500'>Folders don&apos;t need content</span>}
       </div>
 
       <div className={`flex flex-1 overflow-x-auto ${disabled ? 'bg-gray-100' : ''}`}>
@@ -81,7 +77,7 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
                 <div key={n}>{n}</div>
               ))}
             </div>
-            <div 
+            <div
               className={`flex h-full flex-1 flex-col pl-4 ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
               onClick={() => {
                 if (!disabled && textEditor) {

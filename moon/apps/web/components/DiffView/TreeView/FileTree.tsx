@@ -1,16 +1,18 @@
-import * as React from 'react';
-import { useCallback, useEffect } from 'react';
-import { Box, Skeleton } from '@mui/material';
-import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
-import { convertToTreeData, getDescendantIds } from './TreeUtils';
-import { CustomTreeItem } from './CustomTreeItem';
-import { useAtom } from 'jotai';
-import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom';
-import { useTreeViewApiRef } from "@mui/x-tree-view";
-import { useGetClFileTree } from "@/hooks/CL/useGetClFileTree";
+import * as React from 'react'
+import { useCallback, useEffect } from 'react'
+import { Box, Skeleton } from '@mui/material'
+import { useTreeViewApiRef } from '@mui/x-tree-view'
+import { RichTreeView } from '@mui/x-tree-view/RichTreeView'
+import { useAtom } from 'jotai'
+
+import { useGetClFileTree } from '@/hooks/CL/useGetClFileTree'
+
+import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom'
+import { CustomTreeItem } from './CustomTreeItem'
+import { convertToTreeData, getDescendantIds } from './TreeUtils'
 
 const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath: string) => void }) => {
-  const apiRef = useTreeViewApiRef();
+  const apiRef = useTreeViewApiRef()
 
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
@@ -24,23 +26,26 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
 
       setTreeAllData(convertedData)
     }
-  }, [treeResponse, setTreeAllData]);
+  }, [treeResponse, setTreeAllData])
 
-  const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeIds: string[]) => {
-    const collapsedNodes = expandedNodes.filter(id => !nodeIds.includes(id));
+  const handleNodeToggle = useCallback(
+    (_event: React.SyntheticEvent | null, nodeIds: string[]) => {
+      const collapsedNodes = expandedNodes.filter((id) => !nodeIds.includes(id))
 
-    let newExpandedIds = [...nodeIds];
+      let newExpandedIds = [...nodeIds]
 
-    if (collapsedNodes.length > 0) {
-      collapsedNodes.forEach(collapsedId => {
-        const descendantIds = getDescendantIds(treeAllData, collapsedId);
+      if (collapsedNodes.length > 0) {
+        collapsedNodes.forEach((collapsedId) => {
+          const descendantIds = getDescendantIds(treeAllData, collapsedId)
 
-        newExpandedIds = newExpandedIds.filter(id => !descendantIds.includes(id));
-      });
-    }
+          newExpandedIds = newExpandedIds.filter((id) => !descendantIds.includes(id))
+        })
+      }
 
-    setExpandedNodes(newExpandedIds);
-  }, [expandedNodes, treeAllData, setExpandedNodes]);
+      setExpandedNodes(newExpandedIds)
+    },
+    [expandedNodes, treeAllData, setExpandedNodes]
+  )
 
   const handleItemClick = (_e: React.SyntheticEvent | null, itemId: string) => {
     const item = apiRef.current!.getItem(itemId)
@@ -75,30 +80,25 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
   return (
     <>
       {isLoading || treeAllData?.length === 0 ? (
-          <Box sx={{ display: 'flex', paddingLeft: '16px' }}>
-            <Skeleton width="200px" height="30px" />
-          </Box>
-        )
-        : (
-          <RichTreeView
-            apiRef={apiRef}
-            items={treeAllData}
-            onItemFocus={handleFocusItem}
-            onItemClick={handleItemClick}
-            expandedItems={expandedNodes}
-            onExpandedItemsChange={handleNodeToggle}
-            sx={{ flexGrow: 1, width: '100%', overflow: 'auto' }}
-            slots={{
-              item: (itemProps) => (
-                <CustomTreeItem
-                  {...itemProps}
-                />
-              )
-            }}
-          />
-        )}
+        <Box sx={{ display: 'flex', paddingLeft: '16px' }}>
+          <Skeleton width='200px' height='30px' />
+        </Box>
+      ) : (
+        <RichTreeView
+          apiRef={apiRef}
+          items={treeAllData}
+          onItemFocus={handleFocusItem}
+          onItemClick={handleItemClick}
+          expandedItems={expandedNodes}
+          onExpandedItemsChange={handleNodeToggle}
+          sx={{ flexGrow: 1, width: '100%', overflow: 'auto' }}
+          slots={{
+            item: (itemProps) => <CustomTreeItem {...itemProps} />
+          }}
+        />
+      )}
     </>
-  );
-};
+  )
+}
 
-export default FileTree;
+export default FileTree

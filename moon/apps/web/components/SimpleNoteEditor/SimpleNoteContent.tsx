@@ -120,13 +120,13 @@ export const SimpleNoteContent = memo(
         },
         getLinkedIssues: () => {
           const issues: string[] = []
-          
+
           editor.state.doc.descendants((node) => {
             if (node.type.name === 'linkIssue' && node.attrs.id) {
               issues.push(node.attrs.id)
             }
           })
-        
+
           return Array.from(new Set(issues))
         },
         uploadAndAppendAttachments,

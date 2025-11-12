@@ -4,7 +4,7 @@ import { apiClient } from '@/utils/queryClient'
 
 export type Theme = 'light' | 'dark' | 'system'
 
-type UpdateThemeProps = {
+interface UpdateThemeProps {
   theme: Theme
 }
 

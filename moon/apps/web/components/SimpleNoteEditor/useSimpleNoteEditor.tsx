@@ -5,14 +5,13 @@ import { ActiveEditorComment, BlurAtTopOptions, getNoteExtensions, PostNoteAttac
 
 import { InlineResourceMentionRenderer } from '@/components/InlineResourceMentionRenderer'
 import { useControlClickLink } from '@/components/MarkdownEditor/ControlClickLink'
+import { LinkUnfurlRenderer } from '@/components/Post/LinkUnfurlRenderer'
 import { MediaGalleryRenderer } from '@/components/Post/MediaGalleryRenderer'
+import { NoteAttachmentRenderer } from '@/components/Post/Notes/Attachments/NoteAttachmentRenderer'
+import { DragAndDrop } from '@/components/Post/Notes/DragAndDrop'
 import { InlineRelativeTimeRenderer } from '@/components/RichTextRenderer/handlers/RelativeTime'
 import { useCurrentUserOrOrganizationHasFeature } from '@/hooks/useCurrentUserOrOrganizationHasFeature'
 import { notEmpty } from '@/utils/notEmpty'
-
-import { LinkUnfurlRenderer } from '@/components/Post/LinkUnfurlRenderer'
-import { NoteAttachmentRenderer } from '@/components/Post/Notes/Attachments/NoteAttachmentRenderer'
-import { DragAndDrop } from '@/components/Post/Notes/DragAndDrop'
 
 interface SimpleNoteEditorOptions {
   content: string
@@ -33,7 +32,7 @@ export function useSimpleNoteEditor({
   onHoverComment,
   onActiveComment,
   onOpenAttachment,
-  onBlurAtTop,
+  onBlurAtTop
 }: SimpleNoteEditorOptions) {
   const linkOptions = useControlClickLink()
   const hasRelativeTime = useCurrentUserOrOrganizationHasFeature('relative_time')
@@ -110,8 +109,7 @@ export function useSimpleNoteEditor({
       shouldRerenderOnTransaction: false,
       editorProps: {
         attributes: {
-          class:
-            'new-posts prose select-text focus:outline-none w-full relative note min-w-full px-4',
+          class: 'new-posts prose select-text focus:outline-none w-full relative note min-w-full px-4',
           style: "overflow-anchor: ''"
         },
         ...editorProps

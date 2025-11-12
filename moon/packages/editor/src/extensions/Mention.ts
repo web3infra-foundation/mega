@@ -34,7 +34,7 @@ export interface MentionNodeAttrs {
   label?: string | null
 }
 
-export type MentionOptions = {
+export interface MentionOptions {
   HTMLAttributes: Record<string, any>
 }
 

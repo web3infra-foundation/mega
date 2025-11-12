@@ -1,5 +1,6 @@
-import { DeleteApiConversationByCommentIdData, RequestParams } from '@gitmono/types/generated'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+
+import { DeleteApiConversationByCommentIdData, RequestParams } from '@gitmono/types/generated'
 
 import { legacyApiClient } from '@/utils/queryClient'
 

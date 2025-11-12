@@ -27,6 +27,7 @@ describe('PostNoteAttachment', () => {
     describe('selection', () => {
       it('inserts before the paragraph', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().setTextSelection(1).insertAttachments([SAMPLE_ATTACHMENT]).run()
 
         expect(editor.getJSON()).toEqual({
@@ -53,6 +54,7 @@ describe('PostNoteAttachment', () => {
 
       it('splits paragraph', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().setTextSelection(4).insertAttachments([SAMPLE_ATTACHMENT]).run()
 
         expect(editor.getJSON()).toEqual({
@@ -88,6 +90,7 @@ describe('PostNoteAttachment', () => {
 
       it('inserts between paragraphs', () => {
         const editor = setupEditor('<p>Foo</p><p>Bar</p>')
+
         editor.chain().setTextSelection(4).insertAttachments([SAMPLE_ATTACHMENT]).run()
 
         expect(editor.getJSON()).toEqual({
@@ -123,6 +126,7 @@ describe('PostNoteAttachment', () => {
 
       it('inserts a paragraph at tail', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().setTextSelection(8).insertAttachments([SAMPLE_ATTACHMENT]).run()
 
         expect(editor.getJSON()).toEqual({
@@ -154,6 +158,7 @@ describe('PostNoteAttachment', () => {
     describe('pos', () => {
       it('inserts before the paragraph', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 0).run()
 
         expect(editor.getJSON()).toEqual({
@@ -180,6 +185,7 @@ describe('PostNoteAttachment', () => {
 
       it('splits paragraph', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 4).run()
 
         expect(editor.getJSON()).toEqual({
@@ -215,6 +221,7 @@ describe('PostNoteAttachment', () => {
 
       it('inserts between paragraphs', () => {
         const editor = setupEditor('<p>Foo</p><p>Bar</p>')
+
         editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 4).run()
 
         expect(editor.getJSON()).toEqual({
@@ -250,6 +257,7 @@ describe('PostNoteAttachment', () => {
 
       it('inserts a paragraph at tail', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 8).run()
 
         expect(editor.getJSON()).toEqual({
@@ -281,6 +289,7 @@ describe('PostNoteAttachment', () => {
     describe('end', () => {
       it('inserts a paragraph at tail', () => {
         const editor = setupEditor('<p>Foo bar</p>')
+
         editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 'end').run()
 
         expect(editor.getJSON()).toEqual({
@@ -313,6 +322,7 @@ describe('PostNoteAttachment', () => {
   describe('updateAttachment', () => {
     it('updates an attachment', () => {
       const editor = setupEditor('<p>Foo bar</p>')
+
       editor.chain().insertAttachments([SAMPLE_ATTACHMENT], 'end').run()
 
       editor.commands.updateAttachment(SAMPLE_ATTACHMENT.optimistic_id, { width: 150, id: 'foo-bar' })

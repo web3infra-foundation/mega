@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { PageParamsString, PostApiTagsListData, RequestParams } from '@gitmono/types'
+
 import { legacyApiClient } from '@/utils/queryClient'
 
 const fetchTagsList = legacyApiClient.v1.postApiTagsList()

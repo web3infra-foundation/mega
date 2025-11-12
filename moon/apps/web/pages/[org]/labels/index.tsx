@@ -129,7 +129,6 @@ function LabelsPage() {
     setIsNewLabelDialogOpen(false)
   }
 
-
   const clearQuery = () => {
     setQuery('')
     if (page !== 1) {
@@ -138,7 +137,6 @@ function LabelsPage() {
       setTimeout(() => fetchLabels(), 0)
     }
   }
-
 
   return (
     <>
@@ -151,9 +149,8 @@ function LabelsPage() {
           id='/[org]/labels'
           className={cn('@container', 'max-w-full lg:max-w-3xl xl:max-w-4xl 2xl:max-w-5xl')}
         >
-
-          <div className='flex min-h-[35px] items-center gap-2 '>
-            <div className='relative flex flex-1 flex-row items-center gap-2 overflow-hidden rounded-md border border-gray-300 px-2  focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500'>
+          <div className='flex min-h-[35px] items-center gap-2'>
+            <div className='relative flex flex-1 flex-row items-center gap-2 overflow-hidden rounded-md border border-gray-300 px-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500'>
               <input
                 className='flex-1 border-none bg-transparent p-0 text-sm outline-none ring-0 focus:ring-0'
                 placeholder='Search...'
@@ -191,7 +188,7 @@ function LabelsPage() {
 
             <Button
               variant='primary'
-              className='bg-[#1f883d]  '
+              className='bg-[#1f883d]'
               size={'base'}
               onClick={() => setIsNewLabelDialogOpen(true)}
             >
@@ -220,15 +217,14 @@ function LabelsPage() {
                     rightIcon={<div className='self-auto text-center text-sm text-gray-500'>{label.description}</div>}
                   >
                     <div
-                      className="rounded-[16px] px-2 py-1 text-xs font-semibold text-center justify-center w-full"
+                      className='w-full justify-center rounded-[16px] px-2 py-1 text-center text-xs font-semibold'
                       style={{
                         backgroundColor: label.color,
-                        color: fontColor.toHex(),
+                        color: fontColor.toHex()
                       }}
                     >
                       {label.name}
                     </div>
-
                   </ListItem>
                 )
               })
@@ -243,7 +239,6 @@ function LabelsPage() {
           />
         </IndexPageContent>
       </IndexPageContainer>
-
 
       <NewLabelDialog
         isOpen={isNewLabelDialogOpen}

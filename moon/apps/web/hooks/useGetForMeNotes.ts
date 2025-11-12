@@ -5,7 +5,7 @@ import { GetMembersMeForMeNotesParams } from '@gitmono/types'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   enabled?: boolean
   order?: GetMembersMeForMeNotesParams['order']
   query?: GetMembersMeForMeNotesParams['q']

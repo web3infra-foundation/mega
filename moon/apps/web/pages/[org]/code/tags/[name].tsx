@@ -1,12 +1,13 @@
-import { useRouter } from 'next/router'
-import Head from 'next/head'
 import { Theme } from '@radix-ui/themes'
+import Head from 'next/head'
+import { useRouter } from 'next/router'
+
 import { Button, UIText } from '@gitmono/ui'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
-import { useGetMonoTag } from '@/hooks/useGetMonoTag'
 import { useDeleteMonoTag } from '@/hooks/useDeleteMonoTag'
+import { useGetMonoTag } from '@/hooks/useGetMonoTag'
 
 function CodeTagDetailPage() {
   const router = useRouter()
@@ -36,7 +37,9 @@ function CodeTagDetailPage() {
               <InfoItem label='Tagger' value={data.data.tagger} />
               <InfoItem label='Created at' value={data.data.created_at} />
               <div className='col-span-2'>
-                <UIText quaternary className='mb-1'>Message</UIText>
+                <UIText quaternary className='mb-1'>
+                  Message
+                </UIText>
                 <div className='rounded-md border p-2 text-sm'>{data.data.message || '-'}</div>
               </div>
             </div>

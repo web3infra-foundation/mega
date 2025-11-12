@@ -1,5 +1,6 @@
-import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 import router from 'next/router'
+
+import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 
 import { useScope } from '@/contexts/scope'
 

@@ -5,7 +5,7 @@ import { OrganizationCallsGetRequest } from '@gitmono/types/generated'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   enabled?: boolean
   filter?: OrganizationCallsGetRequest['filter']
   limit?: number

@@ -31,10 +31,7 @@ export function AssigneesDropdown({ members, value, onChange, onClose }: Assigne
 
   const selectedItems = items.filter((item) => {
     const member = members.find(
-      (m) =>
-        item.label &&
-        React.isValidElement(item.label) &&
-        (item.label.props as { member?: typeof m }).member === m
+      (m) => item.label && React.isValidElement(item.label) && (item.label.props as { member?: typeof m }).member === m
     )
 
     return member && value.includes(member.user.username)
@@ -57,4 +54,3 @@ export function AssigneesDropdown({ members, value, onChange, onClose }: Assigne
     />
   )
 }
-

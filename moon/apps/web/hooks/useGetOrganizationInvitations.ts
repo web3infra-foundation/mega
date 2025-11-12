@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const getOrganizationInvitations = apiClient.organizations.getInvitations()
 
-type Props = {
+interface Props {
   query?: string
   roleCounted?: boolean
 }

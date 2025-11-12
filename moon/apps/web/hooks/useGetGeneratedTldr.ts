@@ -9,7 +9,7 @@ import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getPostsGeneratedTldr()
 
-type Props = {
+interface Props {
   postId: string
   enabled: boolean
 }

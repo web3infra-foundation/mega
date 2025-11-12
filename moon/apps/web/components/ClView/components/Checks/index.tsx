@@ -35,7 +35,6 @@ const Checks = ({ cl }: { cl: number }) => {
       const logsResult = await Promise.allSettled(
         allBuildIds.map(async (id) => {
           try {
-
             const res = await fetchHTTPLog({ id, type: 'full' })
 
             return { id, res, error: null }
@@ -51,7 +50,7 @@ const Checks = ({ cl }: { cl: number }) => {
       logsResult.forEach((item) => {
         if (item.status === 'fulfilled' && item.value) {
           const { id, res, error } = item.value
-          
+
           if (error) {
             // fetchHTTPLog threw an error
             newLogStatus[id] = 'error'
@@ -200,7 +199,9 @@ const Checks = ({ cl }: { cl: number }) => {
         </div>
         <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
           <div className='h-full w-[40%] overflow-y-auto border-r'>
-            {tasks.map((t) => <Task key={t.task_id} list={t} />)}
+            {tasks.map((t) => (
+              <Task key={t.task_id} list={t} />
+            ))}
           </div>
           <div className='flex-1'>{renderLogContent()}</div>
         </div>

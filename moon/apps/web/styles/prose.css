@@ -86,7 +86,7 @@
     }
 
     .link-issue {
-      @apply text-blue-500 border-b border-blue-500 cursor-pointer;
+      @apply cursor-pointer border-b border-blue-500 text-blue-500;
     }
 
     :where(ul, ol):not(:where([class~='not-prose']) *) {

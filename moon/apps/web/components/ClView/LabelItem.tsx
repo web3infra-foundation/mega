@@ -1,42 +1,45 @@
-import {ConditionalWrap} from '@gitmono/ui'
-import {useGetOrganizationMember} from '@/hooks/useGetOrganizationMember'
-import {MemberHovercard} from '../InlinePost/MemberHovercard'
-import {MemberAvatar} from '../MemberAvatar'
-import {UserLinkByName} from './components/UserLinkByName'
+import { useMemo } from 'react'
+import { useQueries } from '@tanstack/react-query'
+
+import { ConversationItem } from '@gitmono/types/generated'
+import { ConditionalWrap } from '@gitmono/ui'
+
+import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
+import { getFontColor } from '@/utils/getFontColor'
+import { legacyApiClient } from '@/utils/queryClient'
+
+import { MemberHovercard } from '../InlinePost/MemberHovercard'
+import { MemberAvatar } from '../MemberAvatar'
 import HandleTime from './components/HandleTime'
-import {ConversationItem} from '@gitmono/types/generated'
-import {getFontColor} from "@/utils/getFontColor";
-import {legacyApiClient} from "@/utils/queryClient";
-import {useMemo} from "react";
-import {useQueries} from "@tanstack/react-query";
+import { UserLinkByName } from './components/UserLinkByName'
 
 interface LabelItemProps {
   conv: ConversationItem
 }
 
-function LabelItem({conv}: LabelItemProps) {
-  const {data: member} = useGetOrganizationMember({username: conv.username})
+function LabelItem({ conv }: LabelItemProps) {
+  const { data: member } = useGetOrganizationMember({ username: conv.username })
   const comment = conv.comment?.split(' ') ?? []
-  
-  const idList = useMemo(() => {
 
+  const idList = useMemo(() => {
     const match = conv.comment?.match(/\[(.*?)]/)
 
     if (!match || match.length <= 1) return []
-    return match[1].split(", ").map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+    return match[1]
+      .split(', ')
+      .map((id) => parseInt(id, 10))
+      .filter((id) => !isNaN(id))
   }, [conv.comment])
-  
+
   const labelQueries = useQueries({
-    queries: idList.map(id => ({
+    queries: idList.map((id) => ({
       queryKey: ['label', id],
       queryFn: () => legacyApiClient.v1.getApiLabelById().request(id),
-      enabled: id > 0,
+      enabled: id > 0
     }))
   })
-  
-  const labels = labelQueries
-    .filter(q => q.data?.data)
-    .map(q => q.data!.data!)
+
+  const labels = labelQueries.filter((q) => q.data?.data).map((q) => q.data!.data!)
 
   return (
     <>
@@ -51,16 +54,16 @@ function LabelItem({conv}: LabelItemProps) {
             </MemberHovercard>
           )}
         >
-          {member ? <MemberAvatar member={member} size='sm'/> : 'Avatar not found'}
+          {member ? <MemberAvatar member={member} size='sm' /> : 'Avatar not found'}
         </ConditionalWrap>
         <div>
           <span className='font-semibold'>{conv.username} </span>
           <span className='text-gray-400'>{comment[1]} </span>
-          {
-            labels.map(label => {
-              const fontColor = getFontColor(label.color)
+          {labels.map((label) => {
+            const fontColor = getFontColor(label.color)
 
-              return <span
+            return (
+              <span
                 key={label.id}
                 style={{
                   backgroundColor: label.color,
@@ -72,15 +75,15 @@ function LabelItem({conv}: LabelItemProps) {
                   justifyContent: 'center',
                   textAlign: 'center'
                 }}
-                className="mr-1"
+                className='mr-1'
               >
-              {label.name}
-            </span>
-            })
-          }
+                {label.name}
+              </span>
+            )
+          })}
         </div>
         <div className='text-sm text-gray-500 hover:text-gray-700'>
-          <HandleTime created_at={conv.created_at}/>
+          <HandleTime created_at={conv.created_at} />
         </div>
       </div>
     </>

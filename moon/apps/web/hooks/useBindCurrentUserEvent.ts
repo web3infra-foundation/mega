@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 import { useCurrentUserChannel } from './useCurrentUserChannel'
 
-type Options = {
+interface Options {
   enabled?: boolean
 }
 

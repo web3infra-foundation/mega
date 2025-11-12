@@ -5,7 +5,7 @@ import { Organization } from '@gitmono/types'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Props<T> = {
+interface Props<T> {
   enabled?: boolean
   select?: (data: Organization) => T | undefined
 }

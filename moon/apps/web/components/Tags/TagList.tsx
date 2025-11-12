@@ -55,8 +55,7 @@ export function TagsIndex() {
 
 function TagsIndexEmptyState() {
   return (
-    <IndexPageEmptyState>      
-
+    <IndexPageEmptyState>
       <div className='flex flex-col gap-1'>
         <UIText size='text-base' weight='font-semibold'>
           No tags yet
@@ -89,7 +88,6 @@ function InnerTagRow({ tag }: { tag: Tag }) {
   return (
     <li className='hover:bg-tertiary group-has-[button[aria-expanded="true"]]:bg-tertiary group relative -mx-3 flex items-center gap-3 rounded-md py-1.5 pl-3 pr-1.5'>
       <Link href={`/${scope}/tags/${tag.name}`} className='absolute inset-0 z-0' />
-
 
       <div className='flex flex-1 flex-row items-center gap-2'>
         <UIText weight='font-medium' size='text-[15px]' className='line-clamp-1'>

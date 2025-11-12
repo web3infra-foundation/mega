@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getCallRecordingsTranscription()
 
-type Props = {
+interface Props {
   callRecordingId: string
 }
 

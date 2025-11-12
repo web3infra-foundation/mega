@@ -9,7 +9,7 @@ import { apiClient, setTypedQueryData } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getPostsGeneratedResolution()
 
-type Props = {
+interface Props {
   postId: string
   commentId?: string
   enabled: boolean

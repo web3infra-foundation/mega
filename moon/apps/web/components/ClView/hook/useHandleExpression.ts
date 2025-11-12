@@ -1,15 +1,16 @@
 import { useCallback } from 'react'
+
 import { SyncCustomReaction } from '@gitmono/types'
-import { findGroupedReaction, StandardReaction } from '@/utils/reactions'
-import { ConversationItem, GroupedReaction } from '@gitmono/types/generated';
-import { usePostConversationReactions } from '@/hooks/conversation/usePostConversationReactions'
+import { ConversationItem, GroupedReaction } from '@gitmono/types/generated'
+
 import { useDeleteConversationReaction } from '@/hooks/conversation/useDeleteConversationReaction'
+import { usePostConversationReactions } from '@/hooks/conversation/usePostConversationReactions'
+import { findGroupedReaction, StandardReaction } from '@/utils/reactions'
 
-
-export function useHandleExpression({ conv, id, type }: { conv: ConversationItem, id: string, type: string}) {
+export function useHandleExpression({ conv, id, type }: { conv: ConversationItem; id: string; type: string }) {
   const { mutate: postConversationReactions } = usePostConversationReactions(conv.id, id, type)
   const { mutate: deleteConversationReaction } = useDeleteConversationReaction(id, type)
-  
+
   return useCallback(
     (reaction: StandardReaction | SyncCustomReaction) => {
       if (!conv) return

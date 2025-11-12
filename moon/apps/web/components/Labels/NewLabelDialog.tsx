@@ -1,45 +1,45 @@
 // components/Labels/NewLabelDialog.tsx
-import React, { useState } from 'react';
-import { Button, Dialog, TextField, RefreshIcon } from '@gitmono/ui';
-import { random } from 'colord';
+import React, { useState } from 'react'
+import { random } from 'colord'
+
+import { Button, Dialog, RefreshIcon, TextField } from '@gitmono/ui'
+
 import { getFontColor } from '@/utils/getFontColor'
 
 interface NewLabelDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreateLabel: (name: string, description: string, color: string) => void;
+  isOpen: boolean
+  onClose: () => void
+  onCreateLabel: (name: string, description: string, color: string) => void
 }
 
 export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose, onCreateLabel }) => {
-  const [color, setColor] = useState(random().toHex());
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [color, setColor] = useState(random().toHex())
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
 
   const fontColor = getFontColor(color)
 
   const generateRandomColor = () => {
-    setColor(random().toHex());
-  };
+    setColor(random().toHex())
+  }
 
   const handleCreateLabel = () => {
     if (name.trim()) {
-      onCreateLabel(name, description, color);
-      setName("")
-      setDescription("")
+      onCreateLabel(name, description, color)
+      setName('')
+      setDescription('')
       generateRandomColor()
-      onClose();
+      onClose()
     }
-  };
+  }
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Title className="p-4 w-full">
-        New Label
-      </Dialog.Title>
+      <Dialog.Title className='w-full p-4'>New Label</Dialog.Title>
       <Dialog.Content>
-        <div className="p-4 w-full max-w-md">
+        <div className='w-full max-w-md p-4'>
           {/* label preview */}
-          <div className="mb-4 items-center justify-center flex">
+          <div className='mb-4 flex items-center justify-center'>
             <div
               style={{
                 backgroundColor: color,
@@ -56,37 +56,28 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
             </div>
           </div>
 
-          <div className="mb-4">
-            <TextField
-              label="Name"
-              value={name}
-              onChange={(e) => setName(e)}
-              placeholder="Label name"
-            />
+          <div className='mb-4'>
+            <TextField label='Name' value={name} onChange={(e) => setName(e)} placeholder='Label name' />
           </div>
 
-          <div className="mb-4">
+          <div className='mb-4'>
             <TextField
-              label="Description"
+              label='Description'
               value={description}
               onChange={(e) => setDescription(e)}
-              placeholder="Optionally add a description."
+              placeholder='Optionally add a description.'
             />
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={generateRandomColor}
-                className={`flex-shrink-0 bg-[${color}]`}
-              >
-                <RefreshIcon className="w-4 h-4" />
+          <div className='mb-6'>
+            <label className='mb-1 block text-sm font-medium text-gray-700'>Color</label>
+            <div className='flex items-center gap-2'>
+              <Button size='sm' onClick={generateRandomColor} className={`flex-shrink-0 bg-[${color}]`}>
+                <RefreshIcon className='h-4 w-4' />
               </Button>
-              <div className="flex items-center gap-2 border rounded-md px-2 py-1 flex-grow">
+              <div className='flex flex-grow items-center gap-2 rounded-md border px-2 py-1'>
                 <input
-                  className="border-none bg-transparent p-0 text-sm outline-none ring-0 focus:ring-0 flex-grow"
+                  className='flex-grow border-none bg-transparent p-0 text-sm outline-none ring-0 focus:ring-0'
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
                 />
@@ -94,21 +85,14 @@ export const NewLabelDialog: React.FC<NewLabelDialogProps> = ({ isOpen, onClose,
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              className="bg-[#1f883d]"
-              onClick={handleCreateLabel}
-              disabled={!name.trim()}
-            >
+          <div className='flex justify-end gap-2'>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant='primary' className='bg-[#1f883d]' onClick={handleCreateLabel} disabled={!name.trim()}>
               Create label
             </Button>
           </div>
         </div>
       </Dialog.Content>
     </Dialog.Root>
-  );
-};
+  )
+}
