@@ -1,5 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
+
 import { ContentPayload, PostApiClTitleData, RequestParams } from '@gitmono/types/generated'
+
 import { legacyApiClient } from '@/utils/queryClient'
 
 export function usePostClTitle() {

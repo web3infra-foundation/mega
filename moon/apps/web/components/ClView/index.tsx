@@ -139,19 +139,15 @@ export default function CLView() {
     }
   }
 
-
-
-
   const handleFilterClose = useCallback(() => {
-    if ( !filterState.hasChanged()) {
+    if (!filterState.hasChanged()) {
       return
     }
-    const currentFilterString = filterState.toQueryString(labels);
+    const currentFilterString = filterState.toQueryString(labels)
 
     if (!currentFilterString || currentFilterString.trim() === '') {
-      return;
+      return
     }
-
 
     if (page !== 1) {
       setPage(1)
@@ -256,7 +252,7 @@ export default function CLView() {
               value={searchQuery}
               readOnly
               placeholder='Filter change list by author, labels , assignee, or review...'
-              className='w-full flex-1 border-none bg-transparent  text-sm text-gray-400 outline-none ring-0 focus:outline-none focus:ring-0'
+              className='w-full flex-1 border-none bg-transparent text-sm text-gray-400 outline-none ring-0 focus:outline-none focus:ring-0'
             />
 
             {searchQuery && (

@@ -1,8 +1,8 @@
 import { Button, FaceSmilePlusIcon } from '@gitmono/ui'
 
 import { MarkdownEditorRef } from '../MarkdownEditor'
-import { ReactionPicker } from './ReactionPicker'
 import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
+import { ReactionPicker } from './ReactionPicker'
 
 interface ComposerReactionPickerProps {
   open?: boolean

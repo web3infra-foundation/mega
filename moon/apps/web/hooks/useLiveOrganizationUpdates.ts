@@ -12,7 +12,7 @@ import { setNormalizedData } from '@/utils/queryNormalization'
 import { useBindChannelEvent } from './useBindChannelEvent'
 import { useOrganizationChannel } from './useOrganizationChannel'
 
-type NewPostEvent = {
+interface NewPostEvent {
   user_id?: string
   username?: string
   project_ids: string[]

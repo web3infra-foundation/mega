@@ -6,7 +6,7 @@ import { useQueryNormalizer } from '@/utils/normy/QueryNormalizerProvider'
 import { apiClient } from '@/utils/queryClient'
 import { setNormalizedData } from '@/utils/queryNormalization'
 
-type Props = {
+interface Props {
   commentId: string
   subjectId: string
   subjectType: 'post' | 'note'

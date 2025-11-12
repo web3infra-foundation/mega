@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   org?: string
   enabled?: boolean
 }

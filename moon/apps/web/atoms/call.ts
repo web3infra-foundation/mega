@@ -8,7 +8,7 @@ export const incomingCallRoomInvitationAtom = atom<CallRoomInvitation | undefine
 export const callRoomStateAtom = atom<CallRoomState>(HMSRoomState.Disconnected)
 export const callChatOpenAtom = atom(false)
 
-export type CallRoomInvitation = {
+export interface CallRoomInvitation {
   call_room_id: string
   call_room_url: string
   creator_member: OrganizationMember

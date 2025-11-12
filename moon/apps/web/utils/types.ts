@@ -1,6 +1,7 @@
 import { ReactElement, ReactNode } from 'react'
 import { NextPage } from 'next'
 import type { AppProps } from 'next/app'
+
 import { ConversationItem, LabelItem } from '@gitmono/types/generated'
 
 export interface ApiErrorResponse {

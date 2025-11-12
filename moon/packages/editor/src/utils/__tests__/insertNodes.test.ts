@@ -28,6 +28,7 @@ describe('insertNodes', () => {
 
   function paragraphNode(content = 'Hello, world!') {
     const textNode = editor.schema.text(content)
+
     return editor.schema.nodes.paragraph.create({}, textNode)
   }
 

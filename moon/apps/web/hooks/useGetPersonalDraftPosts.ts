@@ -5,7 +5,7 @@ import { GetMembersMePersonalDraftPostsParams } from '@gitmono/types'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Options = {
+interface Options {
   enabled?: boolean
   order?: GetMembersMePersonalDraftPostsParams['order']
 }

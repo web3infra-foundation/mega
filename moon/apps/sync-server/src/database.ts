@@ -30,7 +30,7 @@ export function sendVersionToConnections(document: Document, version: number) {
   })
 }
 
-type GetResourceProps = {
+interface GetResourceProps {
   token: string
   id: string
   type: string | null

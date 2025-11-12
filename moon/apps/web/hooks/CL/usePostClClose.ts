@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { legacyApiClient } from '@/utils/queryClient'
+
 import type { PostApiClCloseData, RequestParams } from '@gitmono/types'
+
+import { legacyApiClient } from '@/utils/queryClient'
 
 export function usePostClClose(link: string, params?: RequestParams) {
   const queryClient = useQueryClient()
@@ -10,8 +12,8 @@ export function usePostClClose(link: string, params?: RequestParams) {
     mutationFn: () => legacyApiClient.v1.postApiClClose().request(link, params),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: legacyApiClient.v1.getApiClDetail().requestKey(link),
+        queryKey: legacyApiClient.v1.getApiClDetail().requestKey(link)
       })
-    },
+    }
   })
 }

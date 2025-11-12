@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { Button, ButtonProps, ChevronLeftIcon, ChevronRightIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
-import {  BreadcrumbTitlebarContainer } from '@/components/Titlebar/BreadcrumbTitlebar'
+import { BreadcrumbTitlebarContainer } from '@/components/Titlebar/BreadcrumbTitlebar'
 
 import { getPages } from './utils/getPages'
 
@@ -16,12 +16,7 @@ interface PaginationType {
   onChange: (page: number) => void
 }
 
-export const Pagination = ({
-                                               totalNum,
-                                               pageSize,
-                                               onChange,
-                                               currentPage,
-                                             }: PaginationType ) => {
+export const Pagination = ({ totalNum, pageSize, onChange, currentPage }: PaginationType) => {
   if (totalNum < 0 || pageSize < 0) throw new Error('invalid props')
   const totalPages = Math.ceil(totalNum / pageSize)
   const [pages, setPages] = useState<(number | '...')[]>([])
@@ -37,9 +32,9 @@ export const Pagination = ({
   return (
     <>
       {totalPages <= 1 ? (
-          <div></div>
-      ): (
-        <BreadcrumbTitlebarContainer className='h-auto justify-center gap-2 border-b-transparent pt-1 '>
+        <div></div>
+      ) : (
+        <BreadcrumbTitlebarContainer className='h-auto justify-center gap-2 border-b-transparent pt-1'>
           {currentPage === 1 ? (
             <PreviousOrNext isNext={false} disabled={true} color='text-[#818b98]' />
           ) : (
@@ -50,7 +45,6 @@ export const Pagination = ({
               color='text-[#0969da]'
             />
           )}
-
 
           {pages.map((p, index) => (
             // eslint-disable-next-line react/no-array-index-key
@@ -71,8 +65,6 @@ export const Pagination = ({
               )}
             </React.Fragment>
           ))}
-
-
 
           {currentPage === totalPages ? (
             <PreviousOrNext isNext={true} disabled={true} color='text-[#818b98]' />

@@ -1,5 +1,6 @@
-import { PostApiIssueReopenData, RequestParams } from '@gitmono/types/generated'
 import { useMutation } from '@tanstack/react-query'
+
+import { PostApiIssueReopenData, RequestParams } from '@gitmono/types/generated'
 
 import { legacyApiClient } from '@/utils/queryClient'
 

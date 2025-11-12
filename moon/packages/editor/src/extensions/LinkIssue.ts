@@ -6,12 +6,7 @@ import { insertContent } from '../utils/insertContent'
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     issue: {
-      insertIssue: (props: {
-        id: string
-        label: string
-        suggestionType: string
-        range: Range
-      }) => ReturnType
+      insertIssue: (props: { id: string; label: string; suggestionType: string; range: Range }) => ReturnType
     }
   }
 }
@@ -27,7 +22,7 @@ export interface IssueNodeAttrs {
   label?: string | null
 }
 
-export type IssueOptions = {
+export interface IssueOptions {
   HTMLAttributes: Record<string, any>
 }
 

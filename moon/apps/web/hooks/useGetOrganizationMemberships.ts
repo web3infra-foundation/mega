@@ -6,7 +6,7 @@ import { useGetCurrentUser } from './useGetCurrentUser'
 
 const query = apiClient.organizationMemberships.getOrganizationMemberships()
 
-type Props = {
+interface Props {
   enabled?: boolean
 }
 

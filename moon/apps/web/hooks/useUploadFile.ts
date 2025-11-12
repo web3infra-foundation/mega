@@ -6,13 +6,13 @@ import { PresignedPostFields } from '@gitmono/types'
 import { apiClient } from '@/utils/queryClient'
 import { PresignedResource, TransformedFile } from '@/utils/types'
 
-type PresignedProps = {
+interface PresignedProps {
   file: TransformedFile
   resource: PresignedResource
   orgSlug?: string
 }
 
-type UploadProps = {
+interface UploadProps {
   file: Blob
   type: string
   resource: PresignedResource

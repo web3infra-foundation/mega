@@ -2,22 +2,24 @@ export type DataPrimitive = string | number | boolean | null | undefined | Date
 
 export type DataPrimitiveArray = string[] | number[] | boolean[] | null[] | undefined[] | Date[]
 
-export type DataObject = {
+export interface DataObject {
   // eslint-disable-next-line no-use-before-define
   [index: string]: Data
 }
 
 export type Data = DataPrimitive | DataObject | DataPrimitiveArray | DataObject[]
 
-export type NormalizerConfig = {
+export interface NormalizerConfig {
   getNormalizationObjectKey?: (obj: DataObject) => string | undefined
   devLogging?: boolean
   structuralSharing?: boolean
 }
 
-export type UsedKeys = { [path: string]: ReadonlyArray<string> }
+export interface UsedKeys {
+  [path: string]: ReadonlyArray<string>
+}
 
-export type NormalizedData = {
+export interface NormalizedData {
   queries: {
     [queryKey: string]: {
       data: Data

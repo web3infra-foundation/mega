@@ -5,7 +5,7 @@ import { OrganizationMembershipViewerNotesGetRequest } from '@gitmono/types'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Props = {
+interface Props {
   enabled?: boolean
   order?: OrganizationMembershipViewerNotesGetRequest['order']
   query?: OrganizationMembershipViewerNotesGetRequest['q']

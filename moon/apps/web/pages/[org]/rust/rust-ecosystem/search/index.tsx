@@ -1,9 +1,10 @@
+import { useCallback, useEffect, useState } from 'react'
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
+
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
-import { useState, useEffect, useCallback } from 'react'
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
-import { useRouter } from 'next/router'
 
 interface SearchItem {
   name: string
@@ -47,11 +48,11 @@ export default function SearchResultsPage() {
       setLoading(true)
       setError(null)
       const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
-      
+
       const response = await fetch(`${apiBaseUrl}/api/search`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           query: query.trim(),
@@ -65,9 +66,9 @@ export default function SearchResultsPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch search results')
       }
-      
+
       const data: SearchData = await response.json()
-      
+
       if (data.code === 200) {
         setSearchResults(data.data.items || [])
         setTotalResults(data.data.items.length)
@@ -139,11 +140,11 @@ export default function SearchResultsPage() {
       <Head>
         <title>Search Results - Rust Ecosystem</title>
       </Head>
-      <div className="h-screen flex flex-col">
+      <div className='flex h-screen flex-col'>
         {/* 搜索栏 - 固定在顶部 */}
-        <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#FFF' }}>
+        <div className='flex w-full flex-shrink-0 justify-center' style={{ background: '#FFF' }}>
           <div
-            className="flex items-center"
+            className='flex items-center'
             style={{
               width: '1680px',
               height: '43px',
@@ -153,18 +154,21 @@ export default function SearchResultsPage() {
               paddingLeft: 32,
               paddingRight: 32,
               background: '#FFF',
-              boxSizing: 'border-box',
+              boxSizing: 'border-box'
             }}
           >
-            <form onSubmit={handleSearch} className="flex-1 max-w-xl ml-8">
-              <div className="relative ml-0 mt-0">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ transform: 'translate(20px, 1px)' }}>
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            <form onSubmit={handleSearch} className='ml-8 max-w-xl flex-1'>
+              <div className='relative ml-0 mt-0'>
+                <div
+                  className='pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3'
+                  style={{ transform: 'translate(20px, 1px)' }}
+                >
+                  <MagnifyingGlassIcon className='h-5 w-5 text-gray-400' />
                 </div>
                 <input
-                  type="text"
-                  placeholder="Search..."
-                  className="block w-full pl-10 pr-3 py-2 border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 placeholder-gray-500"
+                  type='text'
+                  placeholder='Search...'
+                  className='block w-full border-0 bg-transparent py-2 pl-10 pr-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0'
                   style={{ transform: 'translate(20px, 1px)' }}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -188,7 +192,7 @@ export default function SearchResultsPage() {
               </div>
             </form>
           </div>
-          <div 
+          <div
             style={{
               width: '1680px',
               height: '8px',
@@ -197,23 +201,23 @@ export default function SearchResultsPage() {
               marginBottom: 0,
               paddingLeft: 32,
               paddingRight: 32,
-              boxSizing: 'border-box',
+              boxSizing: 'border-box'
             }}
           />
         </div>
-            
+
         {/* 分类标签 - 固定在搜索栏下方 */}
-        <div className="w-full flex justify-center flex-shrink-0" style={{ background: '#F4F4F5' }}>
+        <div className='flex w-full flex-shrink-0 justify-center' style={{ background: '#F4F4F5' }}>
           <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
-            <div className="flex space-x-8 mb-0">
+            <div className='mb-0 flex space-x-8'>
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`py-2 px-1 border-b-2 transition-colors ${
+                  className={`border-b-2 px-1 py-2 transition-colors ${
                     activeTab === tab.id
                       ? 'border-blue-500'
-                      : 'border-transparent hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent hover:border-gray-300 hover:text-gray-700'
                   }`}
                   style={{
                     color: activeTab === tab.id ? '#1c2024' : '#6b7280',
@@ -222,7 +226,7 @@ export default function SearchResultsPage() {
                     fontStyle: 'normal',
                     fontWeight: 500,
                     lineHeight: '20px',
-                    letterSpacing: '0',
+                    letterSpacing: '0'
                   }}
                 >
                   {tab.label}
@@ -233,19 +237,21 @@ export default function SearchResultsPage() {
         </div>
 
         {/* 可滚动内容区域 */}
-        <div className="flex-1 overflow-auto" style={{ background: '#F4F4F5' }}>
-          <div className="w-full flex justify-center pb-8">
+        <div className='flex-1 overflow-auto' style={{ background: '#F4F4F5' }}>
+          <div className='flex w-full justify-center pb-8'>
             <div style={{ width: '1370px', paddingLeft: 32, paddingRight: 32, paddingTop: 24 }}>
               {/* 搜索结果列表容器 */}
-              <div style={{ 
-                background: 'white', 
-                borderRadius: '8px',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                overflow: 'hidden'
-              }}>
+              <div
+                style={{
+                  background: 'white',
+                  borderRadius: '8px',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                  overflow: 'hidden'
+                }}
+              >
                 {/* 标题和结果数量 */}
-                <div className="flex items-center justify-between p-3 border-b border-gray-200">
-                  <h1 
+                <div className='flex items-center justify-between border-b border-gray-200 p-3'>
+                  <h1
                     style={{
                       display: '-webkit-box',
                       WebkitBoxOrient: 'vertical',
@@ -263,7 +269,7 @@ export default function SearchResultsPage() {
                   >
                     ALL
                   </h1>
-                  <span 
+                  <span
                     style={{
                       display: '-webkit-box',
                       WebkitBoxOrient: 'vertical',
@@ -286,26 +292,26 @@ export default function SearchResultsPage() {
 
                 {/* 加载状态 */}
                 {loading && (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="text-gray-500">搜索中...</div>
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='text-gray-500'>搜索中...</div>
                   </div>
                 )}
-                
+
                 {/* 错误状态 */}
                 {error && (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="text-red-500">{error}</div>
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='text-red-500'>{error}</div>
                   </div>
                 )}
-                
+
                 {/* 搜索结果列表 */}
                 {!loading && !error && searchResults.length > 0 && (
-                  <div className="space-y-0">
+                  <div className='space-y-0'>
                     {searchResults.map((item, index) => (
                       <div
                         key={`${item.name}-${item.version}-${item.nsfront}-${item.nsbehind}`}
-                        className="transition-colors cursor-pointer"
-                        style={{ 
+                        className='cursor-pointer transition-colors'
+                        style={{
                           display: 'flex',
                           minWidth: '100px',
                           minHeight: '44px',
@@ -324,17 +330,21 @@ export default function SearchResultsPage() {
                           e.currentTarget.style.background = '#ffffff00'
                         }}
                       >
-                        <div className="flex flex-col space-y-2">
-                          <span className="text-sm text-gray-500">
+                        <div className='flex flex-col space-y-2'>
+                          <span className='text-sm text-gray-500'>
                             {item.nsfront}/{item.nsbehind}
                           </span>
-                          <h3 
-                            className="text-lg font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                            onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/crate-info/${item.nsfront}/${item.nsbehind}/${item.name}/${item.version || '1.0.0'}`)}
+                          <h3
+                            className='cursor-pointer text-lg font-medium text-blue-600 hover:text-blue-800'
+                            onClick={() =>
+                              router.push(
+                                `/${router.query.org}/rust/rust-ecosystem/crate-info/${item.nsfront}/${item.nsbehind}/${item.name}/${item.version || '1.0.0'}`
+                              )
+                            }
                           >
                             {item.name}
                           </h3>
-                          <p className="text-sm text-gray-500">
+                          <p className='text-sm text-gray-500'>
                             Version {item.version} {item.date && `• Published ${item.date}`}
                           </p>
                         </div>
@@ -345,33 +355,35 @@ export default function SearchResultsPage() {
 
                 {/* 无结果状态 */}
                 {!loading && !error && searchResults.length === 0 && search.trim() && (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="text-gray-500">未找到相关结果</div>
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='text-gray-500'>未找到相关结果</div>
                   </div>
                 )}
 
                 {/* 分页 - 只在有结果时显示 */}
                 {!loading && !error && searchResults.length > 0 && totalPages > 1 && (
-                  <div className="flex justify-center items-center space-x-4 mt-8 mb-8">
-                    <button 
+                  <div className='mb-8 mt-8 flex items-center justify-center space-x-4'>
+                    <button
                       onClick={handlePreviousPage}
                       disabled={currentPage <= 1}
-                      className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className='flex items-center text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50'
                     >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      <svg className='mr-1 h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
                       </svg>
                       Previous
                     </button>
-                    <span className="text-lg font-bold text-gray-900">{currentPage} / {totalPages}</span>
-                    <button 
+                    <span className='text-lg font-bold text-gray-900'>
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
                       onClick={handleNextPage}
                       disabled={currentPage >= totalPages}
-                      className="flex items-center text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className='flex items-center text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50'
                     >
                       Next
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      <svg className='ml-1 h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
                       </svg>
                     </button>
                   </div>
@@ -392,4 +404,3 @@ SearchResultsPage.getProviders = (page: any, pageProps: any) => {
     </AuthAppProviders>
   )
 }
-

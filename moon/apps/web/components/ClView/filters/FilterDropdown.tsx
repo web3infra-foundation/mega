@@ -106,10 +106,7 @@ export function FilterDropdown({
   } else {
     const unselectedItems = items.filter(
       (item) =>
-        !selectedItems.find(
-          (selected) =>
-            'label' in item && 'label' in selected && selected.label === item.label
-        )
+        !selectedItems.find((selected) => 'label' in item && 'label' in selected && selected.label === item.label)
     )
 
     return (
@@ -146,4 +143,3 @@ export function FilterDropdown({
     )
   }
 }
-

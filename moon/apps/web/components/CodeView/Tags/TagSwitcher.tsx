@@ -31,8 +31,12 @@ export default function TagSwitcher() {
 
   const org = router.query.org as string
   const refs = router.query.version as string
-  
-  const pathArray = router.query.path ? (Array.isArray(router.query.path) ? router.query.path : [router.query.path]) : []
+
+  const pathArray = router.query.path
+    ? Array.isArray(router.query.path)
+      ? router.query.path
+      : [router.query.path]
+    : []
   const path = pathArray.join('/')
 
   const { data, isLoading, isFetching } = usePostMonoTagList({

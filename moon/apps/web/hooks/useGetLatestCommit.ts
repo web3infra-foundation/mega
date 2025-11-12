@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+
 import { legacyApiClient } from '@/utils/queryClient'
 
 const query = legacyApiClient.v1.getApiLatestCommit()

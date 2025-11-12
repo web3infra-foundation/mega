@@ -2,54 +2,22 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/components/*": [
-        "components/*"
-      ],
-      "@/contexts/*": [
-        "contexts/*"
-      ],
-      "@/atoms/*": [
-        "atoms/*"
-      ],
-      "@/hooks/*": [
-        "hooks/*"
-      ],
-      "@/pages/*": [
-        "pages/*"
-      ],
-      "@/utils/*": [
-        "utils/*"
-      ],
-      "@gitmono/editor/*": [
-        "../../packages/editor/src/*"
-      ],
-      "@gitmono/editor": [
-        "../../packages/editor/src/index"
-      ],
-      "@gitmono/config/*": [
-        "../../packages/config/src/*"
-      ],
-      "@gitmono/config": [
-        "../../packages/config/src/index"
-      ],
-      "@gitmono/ui/*": [
-        "../../packages/ui/src/*"
-      ],
-      "@gitmono/ui": [
-        "../../packages/ui/src/index"
-      ],
-      "@gitmono/types/*": [
-        "../../packages/types/*"
-      ],
-      "@gitmono/types": [
-        "../../packages/types/index"
-      ],
-      "@gitmono/regex/*": [
-        "../../packages/regex/*"
-      ],
-      "@gitmono/regex": [
-        "../../packages/regex/src/index.ts"
-      ]
+      "@/components/*": ["components/*"],
+      "@/contexts/*": ["contexts/*"],
+      "@/atoms/*": ["atoms/*"],
+      "@/hooks/*": ["hooks/*"],
+      "@/pages/*": ["pages/*"],
+      "@/utils/*": ["utils/*"],
+      "@gitmono/editor/*": ["../../packages/editor/src/*"],
+      "@gitmono/editor": ["../../packages/editor/src/index"],
+      "@gitmono/config/*": ["../../packages/config/src/*"],
+      "@gitmono/config": ["../../packages/config/src/index"],
+      "@gitmono/ui/*": ["../../packages/ui/src/*"],
+      "@gitmono/ui": ["../../packages/ui/src/index"],
+      "@gitmono/types/*": ["../../packages/types/*"],
+      "@gitmono/types": ["../../packages/types/index"],
+      "@gitmono/regex/*": ["../../packages/regex/*"],
+      "@gitmono/regex": ["../../packages/regex/src/index.ts"]
     },
     "plugins": [
       {
@@ -59,19 +27,6 @@
     "strictNullChecks": true
   },
   "extends": "@gitmono/tsconfig/nextjs.json",
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "vitest.config.mts",
-    "**/*.config.js",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    ".next",
-    "out"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "vitest.config.mts", "**/*.config.js", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "dist", "build", ".next", "out"]
 }

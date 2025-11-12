@@ -20,7 +20,7 @@ interface NewCodeViewProps {
   currentPath?: string
   onClose?: () => void
   defaultType?: 'folder' | 'file'
-  version?: string 
+  version?: string
 }
 
 const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version }: NewCodeViewProps) => {
@@ -85,7 +85,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
           if (fileType === 'file') {
             router.push(`/${scope}/code/blob/${version}${fullPath}`)
           } else {
-            router.push( `/${scope}/code/tree/${version}${fullPath}`)
+            router.push(`/${scope}/code/tree/${version}${fullPath}`)
           }
 
           onClose?.()

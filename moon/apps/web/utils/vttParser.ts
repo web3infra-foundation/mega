@@ -1,4 +1,4 @@
-type VttLine = {
+interface VttLine {
   index: number
   start: number
   end: number

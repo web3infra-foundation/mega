@@ -5,7 +5,7 @@ import { useQueryNormalizer } from '@/utils/normy/QueryNormalizerProvider'
 import { apiClient } from '@/utils/queryClient'
 import { createNormalizedOptimisticUpdate } from '@/utils/queryNormalization'
 
-type Props = {
+interface Props {
   noteId: string
   title?: string
 }

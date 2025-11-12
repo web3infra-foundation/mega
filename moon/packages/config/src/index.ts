@@ -1,25 +1,33 @@
 const SITE_URL_PROD = 'https://www.gitmono.com'
 const SITE_URL_DEV = 'http://gitmono.test:3003'
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const IS_PRODUCTION = process.env.APP_ENV === 'production'
 export const SCOPE_COOKIE_NAME = 'scope'
 export const POLL_OPTION_DESCRIPTION_LENGTH = 32
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const IS_NGROK = !!process.env.NEXT_PUBLIC_IS_NGROK
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://app.gitmega.com'
 export const SITE_URL = IS_PRODUCTION ? SITE_URL_PROD : SITE_URL_DEV
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const SYNC_URL = process.env.NEXT_PUBLIC_SYNC_URL || 'wss://sync.gitmega.com'
 
 export const DESKTOP_APP_PROTOCOL = IS_PRODUCTION ? 'campsite://' : 'campsite-dev://'
 export const LAST_CLIENT_JS_BUILD_ID_LS_KEY = 'latest-js-time'
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const RAILS_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.gitmega.com'
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const MONO_API_URL = process.env.NEXT_PUBLIC_MONO_API_URL || 'https://git.gitmega.com'
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const ORION_API_URL = process.env.NEXT_PUBLIC_ORION_API_URL || 'https://orion.gitmega.com'
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const RAILS_AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.gitmega.com'
 
 /*

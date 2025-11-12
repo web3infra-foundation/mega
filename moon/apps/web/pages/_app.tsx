@@ -8,16 +8,16 @@ import '@git-diff-view/react/styles/diff-view.css'
 
 import { useEffect } from 'react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { useSetAtom } from 'jotai'
 import { NextWebVitalsMetric } from 'next/app'
 import { Inter } from 'next/font/google'
 
 import { IS_PRODUCTION, LAST_CLIENT_JS_BUILD_ID_LS_KEY } from '@gitmono/config'
 
+import { expandedNodesAtom, treeAllDataAtom, useClearTreeAtoms } from '@/components/CodeView/TreeView/codeTreeAtom'
 import { useClearEmptyDrafts } from '@/hooks/useClearEmptyDrafts'
 import { useStoredState } from '@/hooks/useStoredState'
 import { AppPropsWithLayout } from '@/utils/types'
-import { useSetAtom } from "jotai";
-import { treeAllDataAtom, expandedNodesAtom, useClearTreeAtoms } from "@/components/CodeView/TreeView/codeTreeAtom";
 
 const inter = Inter({
   subsets: ['latin'],
@@ -28,13 +28,12 @@ export default function App<T>({ Component, pageProps }: AppPropsWithLayout<T>):
   const getProviders = Component.getProviders ?? ((page) => page)
   const [_, setLsLastChecked] = useStoredState<number | null>(LAST_CLIENT_JS_BUILD_ID_LS_KEY, null)
 
-  const setTreeAllData = useSetAtom(treeAllDataAtom);
-  const setExpandedNodes = useSetAtom(expandedNodesAtom);
+  const setTreeAllData = useSetAtom(treeAllDataAtom)
+  const setExpandedNodes = useSetAtom(expandedNodesAtom)
 
   // TODO: Delete this hook and implementation after 4/30/24
   useClearEmptyDrafts()
-  useClearTreeAtoms(setTreeAllData, setExpandedNodes);
-
+  useClearTreeAtoms(setTreeAllData, setExpandedNodes)
 
   /*
     Whenever the app mounts for the first time, track the current time in local storage

@@ -4,7 +4,7 @@ import * as Campsite from '@gitmono/types'
 
 // Amber and Hazel are not confirmed users; don't assign anything to them
 type UserKey = Exclude<keyof typeof users, 'Amber Glade' | 'Hazel Nutt'>
-type User = {
+interface User {
   avatar_path?: string
   internal_description?: string
 }
@@ -22,7 +22,7 @@ type Reaction = Pick<Campsite.Reaction, 'content'> & {
   user: UserKey
 }
 
-type Attachment = {
+interface Attachment {
   file_path: string
   file_type: string
   width: number
@@ -59,7 +59,7 @@ type ThreadMessage = Pick<Campsite.Message, 'content'> & {
   reactions?: Reaction[]
 }
 
-type Thread = {
+interface Thread {
   title?: string
   image_path?: string
   owner: UserKey
@@ -75,7 +75,7 @@ type Note = Pick<Campsite.Note, 'title' | 'description_html' | 'public_visibilit
   comments?: Comment[]
 }
 
-type Call = {
+interface Call {
   generated_title: string
   peers: UserKey[]
   recordings: {
@@ -158,6 +158,7 @@ const assignableUsers = {
   ...users
 }
 // @ts-ignore
+
 delete assignableUsers['Amber Glade']
 // @ts-ignore
 delete assignableUsers['Hazel Nutt']
@@ -737,11 +738,47 @@ const calls = [
           },
           {
             section: 'agenda',
-            response: `<p><strong>Meeting with Park Rangers</strong></p><ul><li><p>Daisy emphasized the importance of meeting with park rangers.</p></li><li><p>Cliff introduced Reed as the head of outdoor security.</p></li><li><p>Daisy expressed a desire to improve park safety.</p></li></ul><p><strong>Park Safety Concerns</strong></p><ul><li><p>Daisy and Ranger Rick discussed the need for better park safety measures.</p></li><li><p>Ranger Rick highlighted issues like lack of safety lights due to budget cuts.</p></li><li><p>Daisy committed to securing funds for better protection.</p></li></ul><p><strong>Tour of the Park</strong></p><ul><li><p>Ranger Rick led a tour, pointing out key areas and issues.</p></li><li><p>The team observed the park's condition and discussed safety challenges.</p></li><li><p>Reed and Daisy noted specific problem areas during the tour.</p></li></ul><p><strong>Equipment and Resources</strong></p><ul><li><p>Ranger Rick mentioned the loss and damage of park carts.</p></li><li><p>The team discussed the impact of limited resources on park safety.</p></li><li><p>Daisy and Cliff acknowledged the need for better equipment.</p></li></ul>`
+            response: `
+                        <p><strong>Meeting with Park Rangers</strong></p>
+                        <ul>
+                          <li><p>Daisy emphasized the importance of meeting with park rangers.</p></li>
+                          <li><p>Cliff introduced Reed as the head of outdoor security.</p></li>
+                          <li><p>Daisy expressed a desire to improve park safety.</p></li>
+                        </ul>
+                      
+                        <p><strong>Park Safety Concerns</strong></p>
+                        <ul>
+                          <li><p>Daisy and Ranger Rick discussed the need for better park safety measures.</p></li>
+                          <li><p>Ranger Rick highlighted issues like lack of safety lights due to budget cuts.</p></li>
+                          <li><p>Daisy committed to securing funds for better protection.</p></li>
+                        </ul>
+                      
+                        <p><strong>Tour of the Park</strong></p>
+                        <ul>
+                          <li><p>Ranger Rick led a tour, pointing out key areas and issues.</p></li>
+                          <li><p>The team observed the park's condition and discussed safety challenges.</p></li>
+                          <li><p>Reed and Daisy noted specific problem areas during the tour.</p></li>
+                        </ul>
+                      
+                        <p><strong>Equipment and Resources</strong></p>
+                        <ul>
+                          <li><p>Ranger Rick mentioned the loss and damage of park carts.</p></li>
+                          <li><p>The team discussed the impact of limited resources on park safety.</p></li>
+                          <li><p>Daisy and Cliff acknowledged the need for better equipment.</p></li>
+                        </ul>`
           },
           {
             section: 'next_steps',
-            response: `<ul><li><p><span class=\"mention\" data-type=\"mention\" data-id=\"t98ps3s7v4bm\" data-label=\"Daisy Meadows\" data-username=\"daisy_meadows\">@Daisy Meadows</span> will secure funding to enhance park safety.</p></li><li><p><span class=\"mention\" data-type=\"mention\" data-id=\"rsov90kley56\" data-label=\"Ranger Rick\" data-username=\"ranger_rick\">@Ranger Rick</span> will show the team the current problems and safety issues in the park.</p></li><li><p><span class=\"mention\" data-type=\"mention\" data-id=\"t98ps3s7v4bm\" data-label=\"Daisy Meadows\" data-username=\"daisy_meadows\">@Daisy Meadows</span> will coordinate with <span class=\"mention\" data-type=\"mention\" data-id=\"t8w9inw4hxoe\" data-label=\"Reed Marsh\" data-username=\"reed_marsh\">@Reed Marsh</span> to improve park security measures.</p></li><li><p><span class=\"mention\" data-type=\"mention\" data-id=\"h6dz7oobwajp\" data-label=\"Cliff Rockwell\" data-username=\"cliff_rockwell\">@Cliff Rockwell</span> will run alongside the cart during the park tour.</p></li><li><p><span class=\"mention\" data-type=\"mention\" data-id=\"rsov90kley56\" data-label=\"Ranger Rick\" data-username=\"ranger_rick\">@Ranger Rick</span> will provide a detailed tour of the park's problem areas.</p></li></ul>`
+            response: `<ul>
+                        <li>
+                          <p>
+                            <span class="mention" data-type="mention" data-id="t98ps3s7v4bm" data-label="Daisy Meadows" data-username="daisy_meadows">
+                              @Daisy Meadows
+                            </span>
+                            will secure funding...
+                          </p>
+                        </li>
+                      </ul>`
           }
         ]
       }
@@ -754,7 +791,7 @@ Object.values(posts).forEach((post) => {
   if ('poll' in post) {
     post.poll.options.forEach((option) => {
       if (option.description.length > 32) {
-        console.warn(`Poll option "${option.description}" must be 32 characters or fewer.`)
+        // console.warn(`Poll option "${option.description}" must be 32 characters or fewer.`)
       }
     })
   }
@@ -763,13 +800,13 @@ Object.values(posts).forEach((post) => {
   if ('comments' in post) {
     post.comments.forEach((comment) => {
       if (comment.body_html.length > 3 && !comment.body_html.includes('<')) {
-        console.warn(`Comment "${comment.body_html}" is missing HTML tags.`)
+        // console.warn(`Comment "${comment.body_html}" is missing HTML tags.`)
       }
 
       if ('replies' in comment && comment.replies) {
         comment.replies.forEach((reply) => {
           if (reply.body_html.length > 3 && !reply.body_html.includes('<')) {
-            console.warn(`Reply "${reply.body_html}" is missing HTML tags.`)
+            // console.warn(`Reply "${reply.body_html}" is missing HTML tags.`)
           }
         })
       }

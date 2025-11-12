@@ -1,6 +1,6 @@
 import { MutationOptions, QueryFilters, QueryKey, useMutation, useQueryClient } from '@tanstack/react-query'
 
-type OptimisticFn<T = any> = {
+interface OptimisticFn<T = any> {
   query: QueryKey | QueryFilters
   updater: (old: T) => T
 }

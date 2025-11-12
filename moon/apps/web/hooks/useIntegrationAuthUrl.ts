@@ -1,7 +1,7 @@
 import { RAILS_AUTH_URL } from '@gitmono/config'
 import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
 
-type IntegrationAuthParams = {
+interface IntegrationAuthParams {
   auth_url: string
   success_path?: string
   enable_notifications?: boolean

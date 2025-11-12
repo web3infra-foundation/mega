@@ -5,7 +5,7 @@ import { useScope } from '@/contexts/scope'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { apiClient } from '@/utils/queryClient'
 
-type ApproveProps = {
+interface ApproveProps {
   id: string
 }
 

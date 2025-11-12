@@ -1,33 +1,33 @@
-import { atomFamily } from 'jotai/utils'
-import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
-import { legacyApiClient } from '@/utils/queryClient'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAtom } from 'jotai'
-import {useEffect} from 'react'
+import { atomFamily } from 'jotai/utils'
+
 import { ListToken } from '@gitmono/types'
 
+import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
+import { legacyApiClient } from '@/utils/queryClient'
+
 const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
-const getTokenListAtom = atomFamily(() =>
-  atomWithWebStorage<ListToken[]>(`token`, [])
-)
+const getTokenListAtom = atomFamily(() => atomWithWebStorage<ListToken[]>(`token`, []))
 
 export const useGetTokenList = () => {
   const [tokenList, setTokenList] = useAtom(getTokenListAtom('token'))
 
-  const {data, isLoading, isPending, isFetching} = useQuery({
+  const { data, isLoading, isPending, isFetching } = useQuery({
     queryKey: fetchTokenList.requestKey(),
     queryFn: async () => {
       const result = await fetchTokenList.request()
 
       return result.data
-    },
+    }
   })
 
   useEffect(() => {
-    if(data){
+    if (data) {
       setTokenList(data)
     }
-  }, [data, setTokenList]);
+  }, [data, setTokenList])
 
   return {
     tokenList,

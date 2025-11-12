@@ -1,12 +1,8 @@
-import {
-  GetTaskBuildListByIdData,
-} from '@gitmono/types/generated'
+import { GetTaskBuildListByIdData } from '@gitmono/types/generated'
 
 import { orionApiClient } from '@/utils/queryClient'
 
 const getBaseUrl = () => (orionApiClient as any).baseUrl || ''
-
-
 
 export const taskStatus = async (taskId: string) => {
   const res = await fetch(`/sse/task-status/${taskId}`, {
@@ -35,7 +31,6 @@ export const ClTaskStatus = async (cl: string) => {
   }
   return res.json()
 }
-
 
 export const fetchAllbuildList = async (id: string): Promise<GetTaskBuildListByIdData> => {
   const res = await fetch(`${getBaseUrl()}/task-build-list/${id}`, {

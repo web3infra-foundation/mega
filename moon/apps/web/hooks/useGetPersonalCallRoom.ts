@@ -5,7 +5,7 @@ import { apiClient } from '@/utils/queryClient'
 
 const query = apiClient.organizations.getMembersMePersonalCallRoom()
 
-type Options = {
+interface Options {
   orgSlug?: string
 }
 

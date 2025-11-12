@@ -5,7 +5,7 @@ import { GetPostsParams } from '@gitmono/types/generated'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-type Options = {
+interface Options {
   limit?: number
   enabled?: boolean
   order?: GetPostsParams['order']
