@@ -141,14 +141,11 @@ const EditInput = forwardRef(({ comment }: { comment: ConversationItem }, ref) =
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
   const { mutateAsync: updateComment } = usePostComment()
 
-  const [_refresh, setRefresh] = useAtom(refreshAtom)
-
   const handleUpdate = async () => {
     const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>'
 
     if (trimHtml(currentContentHTML) === '') {
       toast.error('comment can not be empty!')
-      setRefresh(0)
       return
     }
 
@@ -158,9 +155,6 @@ const EditInput = forwardRef(({ comment }: { comment: ConversationItem }, ref) =
     } catch (err: any) {
       apiErrorToast(new Error(err.message))
     }
-    // finally {
-    //   setRefresh(Date.now())
-    // }
   }
 
   useImperativeHandle(ref, () => ({
