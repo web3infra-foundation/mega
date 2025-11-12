@@ -51,9 +51,9 @@ mod test {
     use cedar_policy::{Authorizer, Context, Entities, PolicySet, Request};
 
     use crate::{
-        context::{CedarContext, Error},
+        context::{CedarContext, SaturnContextError},
         entitystore::EntityStore,
-        util::EntityUid,
+        util::SaturnEUid,
     };
 
     static INIT: Once = Once::new();
@@ -106,17 +106,17 @@ mod test {
         let entities = serde_json::from_reader(entities_file).unwrap();
 
         let app_context = load_context(entities);
-        let admin: EntityUid = r#"User::"benjamin.747""#.parse().unwrap();
-        let maintainer: EntityUid = r#"User::"besscroft""#.parse().unwrap();
-        let anyone: EntityUid = r#"User::"anyone""#.parse().unwrap();
-        let resource: EntityUid = r#"Repository::"project""#.parse().unwrap();
+        let admin: SaturnEUid = r#"User::"benjamin.747""#.parse().unwrap();
+        let maintainer: SaturnEUid = r#"User::"besscroft""#.parse().unwrap();
+        let anyone: SaturnEUid = r#"User::"anyone""#.parse().unwrap();
+        let resource: SaturnEUid = r#"Repository::"project""#.parse().unwrap();
 
         // admin can view repo
         assert!(
             app_context
                 .is_authorized(
                     &admin,
-                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"viewRepo""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
@@ -127,7 +127,7 @@ mod test {
             app_context
                 .is_authorized(
                     &admin,
-                    r#"Action::"deleteRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"deleteRepo""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
@@ -139,7 +139,7 @@ mod test {
             app_context
                 .is_authorized(
                     &anyone,
-                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"viewRepo""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
@@ -150,7 +150,7 @@ mod test {
             app_context
                 .is_authorized(
                     &anyone,
-                    r#"Action::"openIssue""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"openIssue""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty(),
                 )
@@ -162,28 +162,28 @@ mod test {
             app_context
                 .is_authorized(
                     &anyone,
-                    r#"Action::"assignIssue""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"assignIssue""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
-                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+                .is_err_and(|e| matches!(e, SaturnContextError::AuthDenied(_)))
         );
         assert!(
             app_context
                 .is_authorized(
                     &anyone,
-                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"approveMergeRequest""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
-                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+                .is_err_and(|e| matches!(e, SaturnContextError::AuthDenied(_)))
         );
 
         assert!(
             app_context
                 .is_authorized(
                     &maintainer,
-                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"approveMergeRequest""#.parse::<SaturnEUid>().unwrap(),
                     &resource,
                     Context::empty()
                 )
@@ -203,17 +203,17 @@ mod test {
         entities.merge(parent_entities);
 
         let app_context = load_context(entities);
-        let p_admin: EntityUid = r#"User::"benjamin.747""#.parse().unwrap();
-        let admin: EntityUid = r#"User::"private""#.parse().unwrap();
-        let anyone: EntityUid = r#"User::"anyone""#.parse().unwrap();
-        let private_project: EntityUid = r#"Repository::"/project/bens_private""#.parse().unwrap();
+        let p_admin: SaturnEUid = r#"User::"benjamin.747""#.parse().unwrap();
+        let admin: SaturnEUid = r#"User::"private""#.parse().unwrap();
+        let anyone: SaturnEUid = r#"User::"anyone""#.parse().unwrap();
+        let private_project: SaturnEUid = r#"Repository::"/project/bens_private""#.parse().unwrap();
 
         // admin under project should also have permisisons
         assert!(
             app_context
                 .is_authorized(
                     &p_admin,
-                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"viewRepo""#.parse::<SaturnEUid>().unwrap(),
                     &private_project,
                     Context::empty()
                 )
@@ -224,7 +224,7 @@ mod test {
             app_context
                 .is_authorized(
                     &admin,
-                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"viewRepo""#.parse::<SaturnEUid>().unwrap(),
                     &private_project,
                     Context::empty()
                 )
@@ -236,11 +236,11 @@ mod test {
             app_context
                 .is_authorized(
                     &anyone,
-                    r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                    r#"Action::"viewRepo""#.parse::<SaturnEUid>().unwrap(),
                     &private_project,
                     Context::empty()
                 )
-                .is_err_and(|e| matches!(e, Error::AuthDenied(_)))
+                .is_err_and(|e| matches!(e, SaturnContextError::AuthDenied(_)))
         );
     }
 }

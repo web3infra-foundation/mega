@@ -6,16 +6,17 @@ use serde_json::{json, to_string_pretty};
 
 use crate::{
     objects::{Issue, MergeRequest, Repo, User, UserGroup},
-    util::EntityUid,
+    util::SaturnEUid,
 };
 
+/// An in-memory store for entities used in Cedar policies.
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct EntityStore {
-    users: HashMap<EntityUid, User>,
-    repos: HashMap<EntityUid, Repo>,
-    merge_requests: HashMap<EntityUid, MergeRequest>,
-    issues: HashMap<EntityUid, Issue>,
-    user_groups: HashMap<EntityUid, UserGroup>,
+    users: HashMap<SaturnEUid, User>,
+    repos: HashMap<SaturnEUid, Repo>,
+    merge_requests: HashMap<SaturnEUid, MergeRequest>,
+    issues: HashMap<SaturnEUid, Issue>,
+    user_groups: HashMap<SaturnEUid, UserGroup>,
 }
 
 impl EntityStore {
