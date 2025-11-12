@@ -1,5 +1,3 @@
-use std::fs;
-
 use cedar_policy::{
     Authorizer, CedarSchemaError, Context, Decision, Diagnostics, ParseErrors, PolicySet,
     PolicySetError, Request, Schema, SchemaError, ValidationMode, Validator,
@@ -47,8 +45,7 @@ pub enum SaturnContextError {
 #[allow(clippy::result_large_err)]
 impl CedarContext {
     pub fn from(entities: EntityStore, policy_content: &str) -> Result<Self, ContextError> {
-        let (schema, _) =
-            Schema::from_cedarschema_str(&fs::read_to_string("saturn/mega.cedarschema")?)?;
+        let (schema, _) = Schema::from_cedarschema_str(include_str!("../mega.cedarschema"))?;
         let policies = policy_content.parse()?;
         let validator = Validator::new(schema.clone());
         let output = validator.validate(&policies, ValidationMode::default());

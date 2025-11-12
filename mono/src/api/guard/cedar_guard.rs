@@ -46,8 +46,10 @@ pub async fn cedar_guard(
 ) -> Result<Response, ApiError> {
     let request_path = req.uri().path().trim_end_matches('/').to_owned();
     let mut segments = request_path.rsplitn(3, '/');
-    println!("route segments: {:?}", segments);
+    tracing::debug!(?segments, "route segments");
+
     let method = segments.next().unwrap_or_default();
+    //TODO: use link to get repository path
     let _link = match segments.next() {
         Some(segment) if !segment.is_empty() => segment.to_string(),
         _ => {
@@ -61,7 +63,7 @@ pub async fn cedar_guard(
 
     let action = match CL_ROUTER_ACTIONS.get(method) {
         Some(a) => {
-            println!("Cedar guard action: {:?}", method);
+            tracing::debug!("Cedar guard action: {:?}", method);
             a
         }
         None => {
@@ -70,6 +72,7 @@ pub async fn cedar_guard(
         }
     };
 
+    // TODO: use link to get repository path
     // let cl_model = state
     //     .cl_stg()
     //     .get_cl(&link)
@@ -95,7 +98,11 @@ pub async fn cedar_guard(
     authorize(&c, &username, &action.to_string())
         .await
         .map_err(|e| {
-            println!("Authorization failed: {}", &action.to_string());
+            tracing::debug!(
+                "Authorization failed for {}: {}",
+                &username,
+                &action.to_string()
+            );
             ApiError::with_status(
                 StatusCode::UNAUTHORIZED,
                 MegaError::with_message(format!("Guard Authorization failed: {}", e)),
@@ -104,7 +111,11 @@ pub async fn cedar_guard(
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
-        tracing::error!("Downstream returned a 4xx error");
+        tracing::error!(
+            status = %response.status(),
+            path = %request_path,
+            "Downstream returned a 4xx error"
+        );
     }
 
     Ok(response)

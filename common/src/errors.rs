@@ -86,7 +86,7 @@ impl From<pgp::errors::Error> for MegaError {
 
 impl From<Infallible> for MegaError {
     fn from(err: Infallible) -> MegaError {
-        MegaError::new(err.into(), 1)
+        match err {}
     }
 }
 
