@@ -21,7 +21,7 @@ import { trimHtml } from '@/utils/trimHtml'
 
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
 import { useChange } from '../Issues/utils/sideEffect'
-import { editIdAtom, FALSE_EDIT_VAL } from '../Issues/utils/store'
+import { editIdAtom, FALSE_EDIT_VAL, refreshAtom } from '../Issues/utils/store'
 import { MemberAvatar } from '../MemberAvatar'
 import { useHandleBottomScrollOffset } from '../NoteEditor/useHandleBottomScrollOffset'
 import { ComposerReactionPicker } from '../Reactions/ComposerReactionPicker'
@@ -56,6 +56,7 @@ const ReviewComment = React.memo<ReviewCommentProps>(
     const [editId, setEditId] = useAtom(editIdAtom)
     const editInputRef = useRef<{ handleUpdate: () => void }>()
     const [isResolved, setIsResolved] = useState(conv.resolved ?? false)
+    const [refresh, setRefresh] = useAtom(refreshAtom)
 
     const canResolve = useMemo(() => {
       if (!currentUser?.username) {
@@ -185,9 +186,13 @@ const ReviewComment = React.memo<ReviewCommentProps>(
             <>
               <EditInput ref={editInputRef} comment={conv} />
               <div className='flex justify-end gap-4'>
-                <Button onClick={() => setEditId(FALSE_EDIT_VAL)}>Cancel</Button>
+                <Button disabled={refresh !== 0} onClick={() => setEditId(FALSE_EDIT_VAL)}>
+                  Cancel
+                </Button>
                 <Button
+                  disabled={refresh !== 0}
                   onClick={() => {
+                    setRefresh(Date.now())
                     editInputRef.current && editInputRef.current.handleUpdate()
                   }}
                   className='bg-[#1f883d] text-white'

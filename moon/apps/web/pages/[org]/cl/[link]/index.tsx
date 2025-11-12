@@ -69,6 +69,8 @@ const CLDetailPage: PageWithLayout<any> = () => {
   const [refresh, setRefresh] = useAtom(refreshAtom)
 
   useEffect(() => {
+    if (refresh === 0) return
+
     const load = async () => {
       await refetch()
       setEditId(FALSE_EDIT_VAL)
