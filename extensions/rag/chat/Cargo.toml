@@ -22,3 +22,6 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 dotenv = { workspace = true }
 axum = { workspace = true }
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "macros"] }
+rdkafka = { workspace = true, features = ["cmake-build"] }
+futures = { workspace = true }

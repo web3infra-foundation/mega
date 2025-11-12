@@ -26,22 +26,15 @@ pub fn llm_url() -> String {
 
 pub const RAG_OUTPUT: &str = "output.json";
 
-// pub async fn search_context(query: &str) -> Result<String, Box<dyn std::error::Error>> {
-//     let search_node = SearchNode::new(&vect_url(), &qdrant_url(), "test_test_code_items")?;
-//     let context = match search_node.search(query).await? {
-//         Some((content, _item_type)) => content,
-//         None => query.to_string(),
-//     };
-//     Ok(context)
-// }
+pub fn consumer_group() -> String {
+    std::env::var("CONSUMER_GROUP").unwrap_or_else(|_| "cve-consumer-serials".to_string())
+}
 
-// pub async fn generate_suggestion(context: &str) -> Result<String, Box<dyn std::error::Error>> {
-//     let generation_node = GenerationNode::new(&llm_url());
-//     let result = generation_node.generate(context).await?;
-//     Ok(result)
-// }
+pub fn broker() -> String {
+    std::env::var("BROKER").unwrap_or_else(|_| "10.42.0.1:30092".to_string())
+}
 
-// pub async fn chat_response(query: &str) -> Result<String, Box<dyn std::error::Error>> {
-//     let context = search_context(query).await?;
-//     generate_suggestion(&context).await
-// }
+pub fn topic() -> String {
+    std::env::var("TOPIC").unwrap_or_else(|_| "RAG.full.20251104".to_string())
+}
+

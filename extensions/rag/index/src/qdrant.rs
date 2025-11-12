@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use qdrant_client::Qdrant;
-use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::fs;
 
 use crate::utils::CodeItem;
 
@@ -31,10 +31,7 @@ impl QdrantNode {
                 log::info!("Collection '{}' already exists", self.collection_name);
             }
             Ok(false) => {
-                log::info!(
-                    "Collection '{}' does not exist, creating...",
-                    self.collection_name
-                );
+                log::info!("Collection '{}' does not exist, creating...", self.collection_name);
                 if let Err(e) = self
                     .client
                     .create_collection(
@@ -49,10 +46,7 @@ impl QdrantNode {
                     )
                     .await
                 {
-                    log::error!(
-                        "Failed to create collection '{}': {e}",
-                        self.collection_name
-                    );
+                    log::error!("Failed to create collection '{}': {e}", self.collection_name);
                 }
             }
             Err(e) => {
@@ -60,6 +54,7 @@ impl QdrantNode {
             }
         }
     }
+    
 
     // async fn ensure_collection(&self) {
     //     if self
