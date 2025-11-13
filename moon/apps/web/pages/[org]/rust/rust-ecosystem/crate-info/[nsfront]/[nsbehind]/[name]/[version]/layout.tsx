@@ -13,130 +13,105 @@ interface CrateInfoLayoutProps {
 }
 
 const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutProps) => {
-  const router = useRouter()
-  const params = useParams()
+    const router = useRouter();
+    const params = useParams();
+    
+    // 从URL参数中获取crate信息 - 使用更稳定的依赖项
+    const crateName = useMemo(() => 
+        params?.name as string || "example-crate", 
+        [params?.name]
+    );
+    const version = useMemo(() => 
+        params?.version as string || "1.0.0", 
+        [params?.version]
+    );
+    const nsfront = useMemo(() => 
+        params?.nsfront as string || router.query.org as string, 
+        [params?.nsfront, router.query.org]
+    );
+    const nsbehind = useMemo(() => 
+        params?.nsbehind as string || "rust/rust-ecosystem/crate-info", 
+        [params?.nsbehind]
+    );
+    
+    // 稳定的crate信息对象，避免不必要的重新渲染
+    const crateInfo = useMemo(() => ({
+        crateName,
+        version,
+        nsfront,
+        nsbehind,
+        org: router.query.org as string
+    }), [crateName, version, nsfront, nsbehind, router.query.org]);
+    
+    // 版本选择相关状态
+    const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+    const [selectedVersion, setSelectedVersion] = useState<string>(version);
+    
+    // 当version参数变化时更新selectedVersion
+    useEffect(() => {
+        setSelectedVersion(version);
+    }, [version]);
+    
+    // 搜索相关状态
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // 搜索处理函数
+    const handleSearch = useCallback((e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchQuery.trim()) {
+            router.push({
+                pathname: `/${crateInfo.org}/rust/rust-ecosystem/search`,
+                query: { q: searchQuery.trim() }
+            });
+        }
+    }, [searchQuery, router, crateInfo.org]);
+    
+    // 根据当前路径确定activeTab
+    const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions' | 'cves'>('overview');
+    
+    useEffect(() => {
+        const path = router.asPath;
+        
+        if (path.includes('/dependencies')) {
+            setActiveTab('dependencies');
+        } else if (path.includes('/dependents')) {
+            setActiveTab('dependents');
+        } else if (path.includes('/compare')) {
+            setActiveTab('compare');
+        } else if (path.includes('/versions')) {
+            setActiveTab('versions');
+        } else if (path.includes('/cves')) {
+            setActiveTab('cves');
+        } else {
+            setActiveTab('overview');
+        }
+    }, [router.asPath]);
 
-  // 从URL参数中获取crate信息 - 使用更稳定的依赖项
-  const crateName = useMemo(() => (params?.name as string) || 'example-crate', [params?.name])
-  const version = useMemo(() => (params?.version as string) || '1.0.0', [params?.version])
-  const nsfront = useMemo(
-    () => (params?.nsfront as string) || (router.query.org as string),
-    [params?.nsfront, router.query.org]
-  )
-  const nsbehind = useMemo(() => (params?.nsbehind as string) || 'rust/rust-ecosystem/crate-info', [params?.nsbehind])
+    const handleTabClick = useCallback((href: string) => {
+        router.push(href, undefined, { shallow: true });
+    }, [router]);
 
-  // 稳定的crate信息对象，避免不必要的重新渲染
-  const crateInfo = useMemo(
-    () => ({
-      crateName,
-      version,
-      nsfront,
-      nsbehind,
-      org: router.query.org as string
-    }),
-    [crateName, version, nsfront, nsbehind, router.query.org]
-  )
+    // 版本选择处理函数
+    const handleVersionSelect = useCallback((newVersion: string) => {
+        if (newVersion === selectedVersion) return; // 如果版本相同，不执行任何操作
+        
+        setSelectedVersion(newVersion);
+        // 更新URL中的版本参数
+        const currentPath = router.asPath;
+        
+        const newPath = currentPath.replace(/\/[^/]+\/?$/, `/${newVersion}`);
 
-  // 版本选择相关状态
-  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
-  const [selectedVersion, setSelectedVersion] = useState<string>(version)
+        router.push(newPath, undefined, { shallow: true });
+    }, [router, selectedVersion]);
 
-  // 当version参数变化时更新selectedVersion
-  useEffect(() => {
-    setSelectedVersion(version)
-  }, [version])
-
-  // 搜索相关状态
-  const [searchQuery, setSearchQuery] = useState('')
-
-  // 搜索处理函数
-  const handleSearch = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault()
-      if (searchQuery.trim()) {
-        router.push({
-          pathname: `/${crateInfo.org}/rust/rust-ecosystem/search`,
-          query: { q: searchQuery.trim() }
-        })
-      }
-    },
-    [searchQuery, router, crateInfo.org]
-  )
-
-  // 根据当前路径确定activeTab
-  const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>(
-    'overview'
-  )
-
-  useEffect(() => {
-    const path = router.asPath
-
-    if (path.includes('/dependencies')) {
-      setActiveTab('dependencies')
-    } else if (path.includes('/dependents')) {
-      setActiveTab('dependents')
-    } else if (path.includes('/compare')) {
-      setActiveTab('compare')
-    } else if (path.includes('/versions')) {
-      setActiveTab('versions')
-    } else {
-      setActiveTab('overview')
-    }
-  }, [router.asPath])
-
-  const handleTabClick = useCallback(
-    (href: string) => {
-      router.push(href, undefined, { shallow: true })
-    },
-    [router]
-  )
-
-  // 版本选择处理函数
-  const handleVersionSelect = useCallback(
-    (newVersion: string) => {
-      if (newVersion === selectedVersion) return // 如果版本相同，不执行任何操作
-
-      setSelectedVersion(newVersion)
-      // 更新URL中的版本参数
-      const currentPath = router.asPath
-
-      const newPath = currentPath.replace(/\/[^/]+\/?$/, `/${newVersion}`)
-
-      router.push(newPath, undefined, { shallow: true })
-    },
-    [router, selectedVersion]
-  )
-
-  const navigationTabs = useMemo(
-    () => [
-      {
-        id: 'overview',
-        label: 'overview',
-        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}`
-      },
-      {
-        id: 'dependencies',
-        label: 'dependencies',
-        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependencies`
-      },
-      {
-        id: 'dependents',
-        label: 'dependents',
-        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependents`
-      },
-      {
-        id: 'compare',
-        label: 'compare',
-        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/compare`
-      },
-      {
-        id: 'versions',
-        label: 'versions',
-        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/versions`
-      }
-    ],
-    [crateInfo]
-  )
+    const navigationTabs = useMemo(() => [
+        { id: 'overview', label: 'overview', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}` },
+        { id: 'dependencies', label: 'dependencies', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependencies` },
+        { id: 'dependents', label: 'dependents', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/dependents` },
+        { id: 'compare', label: 'compare', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/compare` },
+        { id: 'versions', label: 'versions', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/versions` },
+        { id: 'cves', label: 'cves', href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/cves` }
+    ], [crateInfo]);
 
   return (
     <div className='flex h-screen flex-col bg-[#F4F4F5]'>

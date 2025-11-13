@@ -185,88 +185,79 @@ export default function EcosystemCVEPage() {
 
             {/* CVE列表 */}
             {!loading && !error && (
-              <div className='space-y-0'>
-                {cveList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item, idx) => {
-                  const itemWithTag = getCVEWithTag(item, idx)
-
-                  return (
-                    <div key={item.id} style={{ position: 'relative' }}>
-                      <div className='flex min-h-[51px] flex-col justify-between py-4 md:min-h-[51px] md:flex-row md:items-center'>
-                        <div className='mt-0 flex flex-1 flex-col gap-2 md:flex-row md:items-center'>
-                          <span
-                            className='cursor-pointer text-lg font-medium text-gray-900 hover:text-blue-600'
-                            style={{
-                              display: '-webkit-box',
-                              WebkitBoxOrient: 'vertical',
-                              WebkitLineClamp: 1,
-                              overflow: 'hidden',
-                              color: '#1c2024',
-                              textOverflow: 'ellipsis',
-                              fontFamily: 'HarmonyOS Sans SC',
-                              fontSize: '18px',
-                              fontStyle: 'normal',
-                              fontWeight: 400,
-                              lineHeight: '24px',
-                              letterSpacing: 'var(--Typography-Letter-spacing-3, 0)'
-                            }}
-                            onClick={() =>
-                              router.push(
-                                `/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${item.id}`
-                              )
-                            }
-                          >
-                            {item.id}
-                          </span>
-                          {itemWithTag.tag && (
-                            <span
-                              className={`ml-2 rounded px-2 py-0.5 bg-${itemWithTag.tag.color}-50 text-xs text-${itemWithTag.tag.color}-600 font-semibold`}
-                            >
-                              {itemWithTag.tag.text}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          className='ml-4 flex h-8 w-8 items-center justify-center'
-                          onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-                          style={{ outline: 'none', border: 'none', background: 'transparent', cursor: 'pointer' }}
+              <div className="space-y-0">
+                {cveList
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((item, idx) => {
+                    const itemWithTag = getCVEWithTag(item, idx)
+                    
+                    return (
+                      <div key={item.id} style={{ position: 'relative' }}>
+                        <div
+                          className="flex flex-col md:flex-row md:items-center  justify-between py-4 min-h-[51px] md:min-h-[51px] md:items-center"
                         >
-                          <Image
-                            src='/rust/rust-ecosystem/down.png'
-                            alt='toggle'
-                            width={20}
-                            height={20}
-                            style={{
-                              transition: 'transform 0.2s',
-                              transform: expandedIdx === idx ? 'rotate(180deg)' : 'none'
-                            }}
-                          />
-                        </button>
-                      </div>
-                      {expandedIdx === idx && (
-                        <div className='pb-4'>
-                          <div className='mb-2 text-sm text-gray-500'>
-                            <div className='mb-2'>
-                              <strong>描述：</strong>
-                              {item.description}
-                            </div>
-                            <div className='mb-2'>
-                              <strong>副标题：</strong>
-                              {item.subtitle}
-                            </div>
-                            {item.crate_name && (
-                              <div className='mb-2'>
-                                <strong>影响的包：</strong>
-                                {item.crate_name}
-                              </div>
-                            )}
-                            {item.start_version && item.end_version && (
-                              <div className='mb-2'>
-                                <strong>影响版本：</strong>
-                                {item.start_version} - {item.end_version}
-                              </div>
+                          <div className="flex flex-col md:flex-row md:items-center gap-2 mt-0 flex-1">
+                            <span 
+                              className="font-medium text-lg text-gray-900 cursor-pointer hover:text-blue-600"
+                              style={{
+                                display: '-webkit-box',
+                                WebkitBoxOrient: 'vertical',
+                                WebkitLineClamp: 1,
+                                overflow: 'hidden',
+                                color: '#1c2024',
+                                textOverflow: 'ellipsis',
+                                fontFamily: 'HarmonyOS Sans SC',
+                                fontSize: '18px',
+                                fontStyle: 'normal',
+                                fontWeight: 400,
+                                lineHeight: '24px',
+                                letterSpacing: 'var(--Typography-Letter-spacing-3, 0)',
+                              }}
+                              onClick={() => router.push(`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${item.id}`)}
+                            >
+                              {item.id}
+                            </span>
+                            {itemWithTag.tag && (
+                              <span className={`ml-2 px-2 py-0.5 rounded bg-${itemWithTag.tag.color}-50 text-xs text-${itemWithTag.tag.color}-600 font-semibold`}>
+                                {itemWithTag.tag.text}
+                              </span>
                             )}
                           </div>
-                          <div className='flex justify-end'>
+                          <button
+                            className="ml-4 flex items-center justify-center w-8 h-8"
+                            onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                            style={{ outline: 'none', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                          >
+                            <Image
+                              src="/rust/rust-ecosystem/down.png"
+                              alt="toggle"
+                              width={20}
+                              height={20}
+                              style={{transition: 'transform 0.2s', transform: expandedIdx === idx ? 'rotate(180deg)' : 'none' }}
+                            />
+                          </button>
+                        </div>
+                        {expandedIdx === idx && (
+                          <div className="pb-4">
+                            <div className="text-gray-500 text-sm mb-2">
+                              <div className="mb-2">
+                                <strong>Description: </strong>{item.description}
+                              </div>
+                              <div className="mb-2">
+                                <strong>Subtitle: </strong>{item.subtitle}
+                              </div>
+                              {item.crate_name && (
+                                <div className="mb-2">
+                                  <strong>影响的包：</strong>{item.crate_name}
+                                </div>
+                              )}
+                              {item.start_version && item.end_version && (
+                                <div className="mb-2">
+                                  <strong>影响版本：</strong>{item.start_version} - {item.end_version}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex justify-end">
                             <button
                               style={{
                                 display: 'inline-flex',
