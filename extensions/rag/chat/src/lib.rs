@@ -37,4 +37,3 @@ pub fn broker() -> String {
 pub fn topic() -> String {
     std::env::var("TOPIC").unwrap_or_else(|_| "RAG.full.20251104".to_string())
 }
-

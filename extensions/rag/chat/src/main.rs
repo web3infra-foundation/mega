@@ -1,21 +1,17 @@
-use futures::StreamExt;
-use rdkafka::consumer::CommitMode;
-use axum::{
-    routing::post, 
-    Json, 
-    Router
-};
+use axum::{routing::post, Json, Router};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
 use chat::{llm_url, qdrant_url, vect_url};
+use futures::StreamExt;
 use log::{error, info};
-use serde::{Deserialize, Serialize};
 use rdkafka::config::ClientConfig;
+use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
 use std::str::FromStr;
-use sqlx::postgres::{PgPoolOptions, PgPool};
 
 #[derive(Deserialize, Debug)]
 pub struct CveId {
@@ -34,7 +30,6 @@ struct CodeRequest {
     code: String,
 }
 
-
 #[allow(dead_code)]
 #[derive(Deserialize, sqlx::FromRow)]
 struct RustsecInfo {
@@ -52,9 +47,8 @@ struct RustsecInfo {
     patched: String,
     unaffected: String,
     description: String,
-    affected:String,
+    affected: String,
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 struct CveAnalyzeRes {
@@ -77,7 +71,6 @@ struct DepTriggerResult {
 //     dep_results: serde_json::Value,
 // }
 
-
 #[allow(dead_code)]
 #[derive(Clone)]
 struct AppState {
@@ -92,31 +85,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建数据库连接池
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://mega:mega@10.42.0.1:31432/cratespro".to_string());
-    
+
     // 将数据库URL解析为postgreSQL连接配置对象
     let connect_options = sqlx::postgres::PgConnectOptions::from_str(&database_url)
         .map_err(|e| format!("Failed to parse DATABASE_URL: {}", e))?;
-    
+
     // 创建连接池，目前设置最大连接数为10
     let pool = PgPoolOptions::new()
         .max_connections(10)
-        .connect_with(connect_options) 
+        .connect_with(connect_options)
         .await
         .map_err(|e| format!("DB connect error: {}", e))?;
-    
+
     info!("Database connection pool established.");
 
-    
     //把数据库连接池打包成应用状态，方便传给所有 HTTP handler
-    let app_state = AppState {
-        pool: pool.clone(),
-    };
+    let app_state = AppState { pool: pool.clone() };
 
     let app = Router::new()
-        .route("/chat", post(chat_handler))        
+        .route("/chat", post(chat_handler))
         .route("/code", post(code_handler))
         .route("/debug", post(debug_handler))
-        .with_state(app_state); 
+        .with_state(app_state);
 
     info!("Server running on http://0.0.0.0:30088");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:30088").await?;
@@ -134,9 +124,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn start_cve_consumer(pool: PgPool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let kafka_broker = env::var("KAFKA_BROKER").unwrap_or_else(|_| "10.42.0.1:30092".to_string());
-    let group_id = env::var("KAFKA_CONSUMER_GROUP_ID").unwrap_or_else(|_| "cve-consumer-serials".to_string());
+    let group_id =
+        env::var("KAFKA_CONSUMER_GROUP_ID").unwrap_or_else(|_| "cve-consumer-serials".to_string());
     let topic = env::var("KAFKA_TOPIC").unwrap_or_else(|_| "RAG.full.20251104".to_string());
-
 
     let max_poll_interval_ms = "18000000"; // 5小时
     let session_timeout_ms = "60000";
@@ -204,7 +194,6 @@ async fn start_cve_consumer(pool: PgPool) -> Result<(), Box<dyn std::error::Erro
 
 async fn process_cveid_and_analyze(cveid: CveId, pool: PgPool) -> Result<String, String> {
     info!("🔎 [CVEId] Received id: {}, url: {}", cveid.id, cveid.url);
-    
 
     let row = sqlx::query_as::<_, RustsecInfo>("SELECT id, subtitle, reported, issued, package, type, keywords, aliases, reference, patched, unaffected, description, affected FROM rustsec_info WHERE id = $1")
         .bind(&cveid.id)
@@ -214,7 +203,10 @@ async fn process_cveid_and_analyze(cveid: CveId, pool: PgPool) -> Result<String,
 
     match row {
         Some(rustsec_info) => {
-            info!("✅ [CVEId] Found RustsecInfo for id: {}. Starting full analysis...", cveid.id);
+            info!(
+                "✅ [CVEId] Found RustsecInfo for id: {}. Starting full analysis...",
+                cveid.id
+            );
             perform_cve_analysis(rustsec_info, &pool).await
         }
         None => {
@@ -282,53 +274,60 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
         fn ... {{ ... }}
         ```
         - No extra text, no markdown outside the single fenced code block.
-        - Do not include any explanations, comments, or thoughts.", 
-        id = payload.id, 
-        desc = payload.description, 
+        - Do not include any explanations, comments, or thoughts.",
+        id = payload.id,
+        desc = payload.description,
         affected = payload.affected
     );
     info!("📄 [LLM Prompt] CVE Context built for ID: {}", payload.id);
     let generation_node = GenerationNode::new(&llm_url(), None);
     let raw_vuln_func = match generation_node.generate(&cve_context).await {
-         Ok(msg) => {
-             info!("✅ [LLM] Vulnerable function analysis generated successfully for {}", payload.id);
-             msg
-         }
-         Err(e) => {
-             error!("❌ [LLM ERROR] Generation failed for {}: {}", payload.id, e);
-             return Err(format!("Function analysis failed: {}", e));
-         }
-     };
-     let vuln_func = extract_rust_code_block(&raw_vuln_func)
-        .unwrap_or_else(|| raw_vuln_func.trim().to_string());
+        Ok(msg) => {
+            info!(
+                "✅ [LLM] Vulnerable function analysis generated successfully for {}",
+                payload.id
+            );
+            msg
+        }
+        Err(e) => {
+            error!("❌ [LLM ERROR] Generation failed for {}: {}", payload.id, e);
+            return Err(format!("Function analysis failed: {}", e));
+        }
+    };
+    let vuln_func =
+        extract_rust_code_block(&raw_vuln_func).unwrap_or_else(|| raw_vuln_func.trim().to_string());
 
     // === 2️⃣ 连接数据库 + 自动建表 ===
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
     CREATE TABLE IF NOT EXISTS cve_full_analysis (
         id TEXT PRIMARY KEY,
         vuln_func TEXT,
         dep_results JSONB,
         created_at TIMESTAMP DEFAULT NOW()
     )
-    "#)
-    .execute(pool) 
+    "#,
+    )
+    .execute(pool)
     .await
     .map_err(|e| format!("Create table error: {}", e))?;
     info!("✅ [DB] Table cve_full_analysis ensured to exist.");
 
     // === 3️⃣ 查询分析结果 ===
-    let row: Option<(String,)> = sqlx::query_as::<_, (String,)>(
-        "SELECT res FROM cve_analysis_res WHERE id = $1"
-    )
-    .bind(&payload.id)
-    .fetch_optional(pool) 
-    .await
-    .map_err(|e| format!("DB query error: {}", e))?;
+    let row: Option<(String,)> =
+        sqlx::query_as::<_, (String,)>("SELECT res FROM cve_analysis_res WHERE id = $1")
+            .bind(&payload.id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| format!("DB query error: {}", e))?;
 
     let analysis_res: Vec<CveAnalyzeRes> = if let Some((json_str,)) = row {
         serde_json::from_str(&json_str).map_err(|e| format!("Deserialize error: {}", e))?
     } else {
-        error!("No analysis result found for {}. Task will be retried.", payload.id);
+        error!(
+            "No analysis result found for {}. Task will be retried.",
+            payload.id
+        );
         return Err(format!("No analysis result found for {}", payload.id));
     };
 
@@ -358,24 +357,35 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
             );
             let check_node = GenerationNode::new(&llm_url(), None);
             match check_node.generate(&check_prompt).await {
-                    Ok(resp) => {
-                        let parsed_json = serde_json::from_str::<serde_json::Value>(&resp)
-                            .ok()
-                            .or_else(|| {
-                                extract_first_json_object(&resp)
-                                    .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
-                            });
-    
-                        if let Some(value) = parsed_json {
-                            let dep_name = value.get("dep").and_then(|v| v.as_str()).unwrap_or(dep).to_string();
-                            let trigger_bool = match value.get("trigger") {
-                                Some(t) if t.is_boolean() => t.as_bool().unwrap(),
-                                Some(t) if t.is_string() => {
-                                    matches!(t.as_str().unwrap_or_default().to_lowercase().as_str(), "true" | "yes" | "y")
-                                }
-                                _ => false,
-                            };
-                        let reason_text = value.get("reason").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                Ok(resp) => {
+                    let parsed_json = serde_json::from_str::<serde_json::Value>(&resp)
+                        .ok()
+                        .or_else(|| {
+                            extract_first_json_object(&resp)
+                                .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+                        });
+
+                    if let Some(value) = parsed_json {
+                        let dep_name = value
+                            .get("dep")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(dep)
+                            .to_string();
+                        let trigger_bool = match value.get("trigger") {
+                            Some(t) if t.is_boolean() => t.as_bool().unwrap(),
+                            Some(t) if t.is_string() => {
+                                matches!(
+                                    t.as_str().unwrap_or_default().to_lowercase().as_str(),
+                                    "true" | "yes" | "y"
+                                )
+                            }
+                            _ => false,
+                        };
+                        let reason_text = value
+                            .get("reason")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
 
                         dep_results.push(DepTriggerResult {
                             crate_version: res.crate_version.clone(),
@@ -419,9 +429,9 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
         .bind(&payload.id)
         .bind(&vuln_func)
         .bind(&dep_json)
-        .execute(pool) 
-    .await
-    .map_err(|e| format!("Insert error: {}", e))?;
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Insert error: {}", e))?;
     info!("✅ [DB INSERT] Structured CVE analysis result saved.");
 
     // === 6️⃣ 返回结果给调用者 ===
@@ -430,7 +440,6 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
         payload.id
     ))
 }
-
 
 fn extract_first_json_object(s: &str) -> Option<String> {
     // 提取第一个JSON对象
@@ -443,11 +452,11 @@ fn extract_first_json_object(s: &str) -> Option<String> {
                 start = Some(i);
             }
             depth += 1;
-        } else if b == b'}' && depth > 0{
-                depth -= 1;
-                if depth == 0 {
-                    if let Some(st) = start {
-                        return Some(String::from_utf8_lossy(&bytes[st..=i]).to_string());
+        } else if b == b'}' && depth > 0 {
+            depth -= 1;
+            if depth == 0 {
+                if let Some(st) = start {
+                    return Some(String::from_utf8_lossy(&bytes[st..=i]).to_string());
                 }
             }
         }
@@ -513,7 +522,6 @@ async fn chat_handler(Json(payload): Json<ChatRequest>) -> Result<Json<String>, 
     Ok(Json(generated_message))
 }
 
-
 async fn code_handler(Json(payload): Json<CodeRequest>) -> Result<Json<String>, String> {
     info!("Received chat code: {}", payload.code);
     info!("Received chat request: {}", payload.message);
@@ -530,13 +538,16 @@ async fn code_handler(Json(payload): Json<CodeRequest>) -> Result<Json<String>, 
     // Execute search directly
     let search_result = match search_node.search(&payload.code).await {
         Ok(Some((content, item_type))) => {
-            info!("Search result found: type={}, content length={}", item_type, content.len());
+            info!(
+                "Search result found: type={}, content length={}",
+                item_type,
+                content.len()
+            );
             format!(
                 "RAG-enhanced related information (may be helpful but not necessarily accurate):\n\
                  Related information type: {}\n\
                  Content: {}",
-                item_type,
-                content
+                item_type, content
             )
         }
         Ok(None) => {
@@ -548,10 +559,10 @@ async fn code_handler(Json(payload): Json<CodeRequest>) -> Result<Json<String>, 
             return Err(format!("Search failed: {}", e));
         }
     };
-    
+
     info!("Search result for generation: {}", search_result);
 
-        // Combine message + code + search result into a dedicated prompt
+    // Combine message + code + search result into a dedicated prompt
     let dedicated_prompt = format!(
         "You are an expert Rust developer and code reviewer.\n\nUser Message:\n{}\n\nInput Code:\n{}\n\nRelated Information:\n{}\n\nInstructions:\n- Analyze the code above in the context of the user's message.\n- Identify any issues, bugs, or potential improvements.\n- Provide clear explanations or suggestions.\n- Optionally, give a corrected or optimized version if needed.\n\nYour response should be concise, informative, and actionable.",
         payload.message,  // 用户的说明文字
