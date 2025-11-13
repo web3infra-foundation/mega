@@ -106,7 +106,7 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
    - Run the `chat` module:
      ```bash
      docker build -t rag-chat -f ./extensions/rag/chat/Dockerfile .
-     docker run --rm -it  --name rag-chat --network mono-network --env-file ./extensions/rag/env -p 30088:30088 rag-chat
+     docker run --rm -it  --name rag-chat --network mono-network --env-file ./extensions/rag/chat/.env -p 30088:30088 rag-chat
      ```
 
      **Note**: The `chat` module listens on port 30088 inside the container. The `-p 30088:30088` flag maps the container's port 30088 to the host's port 30088, allowing external access to the chat API.

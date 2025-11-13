@@ -1,11 +1,5 @@
 use futures::StreamExt;
 use rdkafka::consumer::CommitMode;
-
-#[derive(Deserialize, Debug)]
-pub struct CveId {
-    pub id: String,
-    pub url: String,
-}
 use axum::{
     routing::post, 
     Json, 
@@ -23,6 +17,12 @@ use std::env;
 use std::str::FromStr;
 use sqlx::postgres::{PgPoolOptions, PgPool};
 
+#[derive(Deserialize, Debug)]
+pub struct CveId {
+    pub id: String,
+    pub url: String,
+}
+
 #[derive(Deserialize)]
 struct ChatRequest {
     prompt: String,
@@ -34,6 +34,8 @@ struct CodeRequest {
     code: String,
 }
 
+
+#[allow(dead_code)]
 #[derive(Deserialize, sqlx::FromRow)]
 struct RustsecInfo {
     id: String,
@@ -75,6 +77,8 @@ struct DepTriggerResult {
 //     dep_results: serde_json::Value,
 // }
 
+
+#[allow(dead_code)]
 #[derive(Clone)]
 struct AppState {
     pool: PgPool,
@@ -90,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "postgresql://mega:mega@10.42.0.1:31432/cratespro".to_string());
     
     // 将数据库URL解析为postgreSQL连接配置对象
-    let  connect_options = sqlx::postgres::PgConnectOptions::from_str(&database_url)
+    let connect_options = sqlx::postgres::PgConnectOptions::from_str(&database_url)
         .map_err(|e| format!("Failed to parse DATABASE_URL: {}", e))?;
     
     // 创建连接池，目前设置最大连接数为10
@@ -127,7 +131,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
 
 async fn start_cve_consumer(pool: PgPool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let kafka_broker = env::var("KAFKA_BROKER").unwrap_or_else(|_| "10.42.0.1:30092".to_string());
@@ -300,7 +303,6 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
         .unwrap_or_else(|| raw_vuln_func.trim().to_string());
 
     // === 2️⃣ 连接数据库 + 自动建表 ===
-    // (创建连接池的
     sqlx::query(r#"
     CREATE TABLE IF NOT EXISTS cve_full_analysis (
         id TEXT PRIMARY KEY,
@@ -431,7 +433,7 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
 
 
 fn extract_first_json_object(s: &str) -> Option<String> {
-    // 粗略提取首个 {...}，适合兜底，避免引入重型依赖
+    // 提取第一个JSON对象
     let bytes = s.as_bytes();
     let mut depth = 0usize;
     let mut start = None;
@@ -441,13 +443,11 @@ fn extract_first_json_object(s: &str) -> Option<String> {
                 start = Some(i);
             }
             depth += 1;
-        } else if b == b'}' {
-            if depth > 0 {
+        } else if b == b'}' && depth > 0{
                 depth -= 1;
                 if depth == 0 {
                     if let Some(st) = start {
                         return Some(String::from_utf8_lossy(&bytes[st..=i]).to_string());
-                    }
                 }
             }
         }
