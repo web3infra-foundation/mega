@@ -229,13 +229,217 @@ async fn reachable_in_tree<T: ApiHandler + ?Sized>(
     Ok(false)
 }
 
-/// Refs-aware version; default fallback to refs-unaware implementation
+/// Refs-aware version that builds a mapping from each TreeItem to its commit,
+/// starting from the commit specified by refs (tag or commit SHA).
+///
+/// This function is similar to `item_to_commit_map`, but instead of starting
+/// from the root commit, it starts from the commit specified by `refs`.
+/// This allows finding the last commit that modified each file/directory
+/// within the context of a specific tag or commit.
+///
+/// # Arguments
+/// - `path`: The path to the target directory or subtree to analyze.
+/// - `refs`: Optional commit SHA or tag name to start traversal from.
+///
+/// # Returns
+/// - `Ok(HashMap<TreeItem, Option<Commit>>)` — A mapping from each tree item
+///   to the earliest commit (by timestamp) where that item exists, starting
+///   from the refs-specified commit and traversing backwards.
+/// - `Err(GitError)` — If refs cannot be resolved or traversal fails.
 pub async fn item_to_commit_map_with_refs<T: ApiHandler + ?Sized>(
     handler: &T,
     path: PathBuf,
-    _refs: Option<&str>,
+    refs: Option<&str>,
 ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
-    item_to_commit_map(handler, path).await
+    // If no refs provided, fallback to default behavior
+    let maybe = refs.unwrap_or("").trim();
+    if maybe.is_empty() {
+        return item_to_commit_map(handler, path).await;
+    }
+
+    // Resolve commit from refs (SHA or tag)
+    let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
+    let mut commit_hash = String::new();
+    
+    if is_hex_sha1(maybe) {
+        // Direct commit SHA
+        commit_hash = maybe.to_string();
+    } else {
+        // Try to resolve as tag
+        // Handle both "refs/tags/xxx" and "xxx" formats
+        let tag_name = if maybe.starts_with("refs/tags/") {
+            maybe.strip_prefix("refs/tags/").unwrap_or(maybe)
+        } else {
+            maybe
+        };
+        
+        match handler.get_tag(None, tag_name.to_string()).await {
+            Ok(Some(tag)) => {
+                commit_hash = tag.object_id;
+            }
+            Ok(None) => {
+                // Tag not found
+                return Err(GitError::CustomError(format!(
+                    "Invalid refs: '{}' is not a valid commit hash or tag",
+                    maybe
+                )));
+            }
+            Err(e) => {
+                // Error during tag lookup
+                return Err(e);
+            }
+        }
+    }
+
+    if commit_hash.is_empty() {
+        return Err(GitError::CustomError(format!(
+            "Invalid refs: '{}' could not be resolved to a commit",
+            maybe
+        )));
+    }
+
+    // Get the starting commit
+    let start_commit = handler.get_commit_by_hash(&commit_hash).await;
+    let start_commit_arc = Arc::new(start_commit);
+
+    // Get the tree at the specified path using refs-aware search
+    let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? else {
+        return Ok(HashMap::new());
+    };
+
+    // For each item in the tree, traverse commit history to find its last modification
+    // We need to find the commit where the item's hash changed, not just where it first appeared
+    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
+    let mut result = HashMap::with_capacity(tree.tree_items.len());
+    
+    for item in tree.tree_items {
+        let commit = traverse_commit_history_for_last_modification(
+            handler,
+            &path,
+            start_commit_arc.clone(),
+            &item,
+            cache.clone(),
+        )
+        .await?;
+        result.insert(item, Some(commit));
+    }
+
+    Ok(result)
+}
+
+/// Traverses commit history from a starting commit to find the last commit
+/// where a specific TreeItem's hash changed (i.e., the item was modified).
+///
+/// This is different from `traverse_commit_history` which finds the earliest
+/// commit where an item exists. This function finds the most recent commit
+/// (closest to start_commit) where the item's hash differs from its parent.
+///
+/// # Arguments
+/// - `path`: The path at which the target item is expected to be found.
+/// - `start_commit`: The initial commit to begin traversal from (e.g., a tag's commit).
+/// - `search_item`: The `TreeItem` to search for.
+/// - `cache`: A shared cache for commits and trees.
+///
+/// # Returns
+/// - `Ok(Commit)` — The commit where the item was last modified, or start_commit if unchanged.
+/// - `Err(GitError)` — If traversal fails.
+async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
+    handler: &T,
+    path: &Path,
+    start_commit: Arc<Commit>,
+    search_item: &TreeItem,
+    cache: Arc<Mutex<GitObjectCache>>,
+) -> Result<Commit, GitError> {
+    // Get the current item's hash at the start commit
+    let start_tree = get_tree_from_cache(handler, start_commit.tree_id, &cache).await?;
+    let current_item_hash = {
+        let relative_path = handler
+            .strip_relative(path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let mut search_tree = start_tree.clone();
+        
+        // Navigate to the target directory
+        for component in relative_path.components() {
+            if component != Component::RootDir {
+                let target_name = component.as_os_str().to_str().unwrap();
+                if let Some(item) = search_tree.tree_items.iter().find(|x| x.name == target_name) {
+                    search_tree = get_tree_from_cache(handler, item.id, &cache).await?;
+                } else {
+                    // Path doesn't exist, return start commit
+                    return Ok((*start_commit).clone());
+                }
+            }
+        }
+        
+        // Find the item in the target directory
+        search_tree
+            .tree_items
+            .iter()
+            .find(|x| x.name == search_item.name && x.mode == search_item.mode)
+            .map(|x| x.id)
+    };
+
+    // If item doesn't exist at start commit, return start commit
+    let Some(current_hash) = current_item_hash else {
+        return Ok((*start_commit).clone());
+    };
+
+    // Traverse backwards to find when the hash changed
+    let mut visited = HashSet::new();
+    let mut commit_queue = VecDeque::new();
+    visited.insert(start_commit.id);
+    commit_queue.push_back(start_commit.clone());
+
+    while let Some(commit) = commit_queue.pop_front() {
+        // Check parent commits
+        for &parent_id in &commit.parent_commit_ids {
+            if visited.contains(&parent_id) {
+                continue;
+            }
+            visited.insert(parent_id);
+            
+            let parent_commit = get_commit_from_cache(handler, parent_id, &cache).await?;
+            let parent_tree = get_tree_from_cache(handler, parent_commit.tree_id, &cache).await?;
+            
+            // Navigate to the target directory in parent
+            let relative_path = handler
+                .strip_relative(path)
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
+            let mut search_tree = parent_tree;
+            
+            for component in relative_path.components() {
+                if component != Component::RootDir {
+                    let target_name = component.as_os_str().to_str().unwrap();
+                    if let Some(item) = search_tree.tree_items.iter().find(|x| x.name == target_name) {
+                        search_tree = get_tree_from_cache(handler, item.id, &cache).await?;
+                    } else {
+                        // Path doesn't exist in parent, this commit introduced it
+                        return Ok((*commit).clone());
+                    }
+                }
+            }
+            
+            // Check if item exists in parent and compare hash
+            if let Some(parent_item) = search_tree
+                .tree_items
+                .iter()
+                .find(|x| x.name == search_item.name && x.mode == search_item.mode)
+            {
+                if parent_item.id != current_hash {
+                    // Hash changed in this commit
+                    return Ok((*commit).clone());
+                }
+                // Hash is the same, continue traversing
+                commit_queue.push_back(parent_commit);
+            } else {
+                // Item doesn't exist in parent, this commit added it
+                return Ok((*commit).clone());
+            }
+        }
+    }
+
+    // If we've traversed all the way back and hash never changed, return start commit
+    Ok((*start_commit).clone())
 }
 
 /// Precise algorithm: walk commit history from HEAD and return the newest commit
