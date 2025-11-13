@@ -155,7 +155,7 @@ pub mod util {
 
     use cedar_policy::Context;
     use ceres::api_service::ApiHandler;
-    use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::EntityUid};
+    use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::SaturnEUid};
 
     use crate::api::MonoApiServiceState;
 
@@ -182,19 +182,19 @@ pub mod util {
         path: &str,
         operation: ActionEnum,
         state: State<MonoApiServiceState>,
-    ) -> Result<(), saturn::context::Error> {
+    ) -> Result<(), saturn::context::SaturnContextError> {
         let entities = get_entitystore(path.into(), state).await;
         let cedar_context = CedarContext::new(entities).unwrap();
         cedar_context.is_authorized(
             format!(r#"User::"{username}""#)
                 .to_owned()
-                .parse::<EntityUid>()
+                .parse::<SaturnEUid>()
                 .unwrap(),
             format!(r#"Action::"{operation}""#)
-                .parse::<EntityUid>()
+                .parse::<SaturnEUid>()
                 .unwrap(),
             format!(r#"Repository::"{path}""#)
-                .parse::<EntityUid>()
+                .parse::<SaturnEUid>()
                 .unwrap(),
             Context::empty(),
         )

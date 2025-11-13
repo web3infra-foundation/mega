@@ -5,7 +5,7 @@ use cedar_policy::{
 use itertools::Itertools;
 use thiserror::Error;
 
-use crate::{entitystore::EntityStore, util::EntityUid};
+use crate::{entitystore::EntityStore, util::SaturnEUid};
 
 pub struct CedarContext {
     pub entities: EntityStore,
@@ -35,7 +35,7 @@ pub enum ContextError {
 
 #[allow(dead_code)]
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum SaturnContextError {
     #[error("Authorization Denied")]
     AuthDenied(Diagnostics),
     #[error("Error constructing authorization request: {0}")]
@@ -44,12 +44,8 @@ pub enum Error {
 
 #[allow(clippy::result_large_err)]
 impl CedarContext {
-    pub fn from(
-        entities: EntityStore,
-        schema_content: &str,
-        policy_content: &str,
-    ) -> Result<Self, ContextError> {
-        let (schema, _) = Schema::from_cedarschema_str(schema_content)?;
+    pub fn from(entities: EntityStore, policy_content: &str) -> Result<Self, ContextError> {
+        let (schema, _) = Schema::from_cedarschema_str(include_str!("../mega.cedarschema"))?;
         let policies = policy_content.parse()?;
         let validator = Validator::new(schema.clone());
         let output = validator.validate(&policies, ValidationMode::default());
@@ -104,11 +100,11 @@ impl CedarContext {
 
     pub fn is_authorized(
         &self,
-        principal: impl AsRef<EntityUid>,
-        action: impl AsRef<EntityUid>,
-        resource: impl AsRef<EntityUid>,
+        principal: impl AsRef<SaturnEUid>,
+        action: impl AsRef<SaturnEUid>,
+        resource: impl AsRef<SaturnEUid>,
         context: Context,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SaturnContextError> {
         let es = self.entities.as_entities(&self.schema);
         let q = Request::new(
             principal.as_ref().clone().into(),
@@ -117,7 +113,7 @@ impl CedarContext {
             context,
             Some(&self.schema),
         )
-        .map_err(|e| Error::Request(e.to_string()))?;
+        .map_err(|e| SaturnContextError::Request(e.to_string()))?;
         tracing::info!(
             "is_authorized request: principal: {}, action: {}, resource: {}",
             principal.as_ref(),
@@ -128,7 +124,9 @@ impl CedarContext {
         tracing::info!("Auth response: {:?}", response);
         match response.decision() {
             Decision::Allow => Ok(()),
-            Decision::Deny => Err(Error::AuthDenied(response.diagnostics().clone())),
+            Decision::Deny => Err(SaturnContextError::AuthDenied(
+                response.diagnostics().clone(),
+            )),
         }
     }
 }
