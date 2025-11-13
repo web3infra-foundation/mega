@@ -50,16 +50,16 @@ pub async fn cedar_guard(
 
     let method = segments.next().unwrap_or_default();
     //TODO: use link to get repository path
-    let _link = match segments.next() {
-        Some(segment) if !segment.is_empty() => segment.to_string(),
-        _ => {
-            return Err(MegaError::with_message(format!(
-                "Unable to extract change list link from path: {}",
-                request_path
-            ))
-            .into());
-        }
-    };
+    // let _link = match segments.next() {
+    //     Some(segment) if !segment.is_empty() => segment.to_string(),
+    //     _ => {
+    //         return Err(MegaError::with_message(format!(
+    //             "Unable to extract change list link from path: {}",
+    //             request_path
+    //         ))
+    //         .into());
+    //     }
+    // };
 
     let action = match CL_ROUTER_ACTIONS.get(method) {
         Some(a) => {
