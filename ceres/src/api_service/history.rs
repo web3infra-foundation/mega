@@ -260,7 +260,7 @@ pub async fn item_to_commit_map_with_refs<T: ApiHandler + ?Sized>(
     // Resolve commit from refs (SHA or tag)
     let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
     let mut commit_hash = String::new();
-    
+
     if is_hex_sha1(maybe) {
         // Direct commit SHA
         commit_hash = maybe.to_string();
@@ -272,7 +272,7 @@ pub async fn item_to_commit_map_with_refs<T: ApiHandler + ?Sized>(
         } else {
             maybe
         };
-        
+
         match handler.get_tag(None, tag_name.to_string()).await {
             Ok(Some(tag)) => {
                 commit_hash = tag.object_id;
@@ -311,7 +311,7 @@ pub async fn item_to_commit_map_with_refs<T: ApiHandler + ?Sized>(
     // We need to find the commit where the item's hash changed, not just where it first appeared
     let cache = Arc::new(Mutex::new(GitObjectCache::default()));
     let mut result = HashMap::with_capacity(tree.tree_items.len());
-    
+
     for item in tree.tree_items {
         let commit = traverse_commit_history_for_last_modification(
             handler,
@@ -357,12 +357,16 @@ async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
             .strip_relative(path)
             .map_err(|e| GitError::CustomError(e.to_string()))?;
         let mut search_tree = start_tree.clone();
-        
+
         // Navigate to the target directory
         for component in relative_path.components() {
             if component != Component::RootDir {
                 let target_name = component.as_os_str().to_str().unwrap();
-                if let Some(item) = search_tree.tree_items.iter().find(|x| x.name == target_name) {
+                if let Some(item) = search_tree
+                    .tree_items
+                    .iter()
+                    .find(|x| x.name == target_name)
+                {
                     search_tree = get_tree_from_cache(handler, item.id, &cache).await?;
                 } else {
                     // Path doesn't exist, return start commit
@@ -370,7 +374,7 @@ async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
                 }
             }
         }
-        
+
         // Find the item in the target directory
         search_tree
             .tree_items
@@ -397,20 +401,24 @@ async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
                 continue;
             }
             visited.insert(parent_id);
-            
+
             let parent_commit = get_commit_from_cache(handler, parent_id, &cache).await?;
             let parent_tree = get_tree_from_cache(handler, parent_commit.tree_id, &cache).await?;
-            
+
             // Navigate to the target directory in parent
             let relative_path = handler
                 .strip_relative(path)
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
             let mut search_tree = parent_tree;
-            
+
             for component in relative_path.components() {
                 if component != Component::RootDir {
                     let target_name = component.as_os_str().to_str().unwrap();
-                    if let Some(item) = search_tree.tree_items.iter().find(|x| x.name == target_name) {
+                    if let Some(item) = search_tree
+                        .tree_items
+                        .iter()
+                        .find(|x| x.name == target_name)
+                    {
                         search_tree = get_tree_from_cache(handler, item.id, &cache).await?;
                     } else {
                         // Path doesn't exist in parent, this commit introduced it
@@ -418,7 +426,7 @@ async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
                     }
                 }
             }
-            
+
             // Check if item exists in parent and compare hash
             if let Some(parent_item) = search_tree
                 .tree_items
