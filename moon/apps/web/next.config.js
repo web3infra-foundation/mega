@@ -33,12 +33,13 @@ const cspResourcesByDirective = {
   'connect-src': [
     "'self'",
     'blob:',
-    'https://*.gitmono.com',
-    'wss://*.gitmono.com',
+    // Staging and production environments
     'wss://*.gitmega.com',
     'https://*.gitmega.com',
-    'ws://*.gitmega.com',
-    'http://*.gitmega.com',
+    // Crates Pro environments
+    'https://*.xuanwu.openatom.cn',
+    'wss://*.xuanwu.openatom.cn',
+    // Local development environments
     'http://*.gitmono.test:3001',
     'http://*.gitmono.test:8000',
     'http://*.gitmega.nju:8080',
@@ -61,8 +62,7 @@ const cspResourcesByDirective = {
     'https://gitmono.imgix.net',
     process.env.NODE_ENV !== 'production' && 'https://campsite-dev.imgix.net',
     'https://react-tweet.vercel.app', // for react-tweet embeds
-    'https://media.tenor.com', // used for Tenor gifs
-    'https://orion.gitmega.com'
+    'https://media.tenor.com' // used for Tenor gifs
   ],
   'font-src': ["'self'"],
   'img-src': [
