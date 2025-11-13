@@ -1,9 +1,12 @@
+use std::convert::Infallible;
+
 use anyhow::Result;
 use axum::{
     Json,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use cedar_policy::ParseErrors;
 use git_internal::errors::GitError;
 use thiserror::Error;
 
@@ -77,6 +80,18 @@ impl From<sea_orm::DbErr> for MegaError {
 
 impl From<pgp::errors::Error> for MegaError {
     fn from(err: pgp::errors::Error) -> MegaError {
+        MegaError::new(err.into(), 1)
+    }
+}
+
+impl From<Infallible> for MegaError {
+    fn from(err: Infallible) -> MegaError {
+        match err {}
+    }
+}
+
+impl From<ParseErrors> for MegaError {
+    fn from(err: ParseErrors) -> MegaError {
         MegaError::new(err.into(), 1)
     }
 }

@@ -6,19 +6,19 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct EntityUid(
+pub struct SaturnEUid(
     #[serde(serialize_with = "serialize_euid")]
     #[serde(deserialize_with = "deserialize_euid")]
     cedar_policy::EntityUid,
 );
 
-impl AsRef<EntityUid> for EntityUid {
-    fn as_ref(&self) -> &EntityUid {
+impl AsRef<SaturnEUid> for SaturnEUid {
+    fn as_ref(&self) -> &SaturnEUid {
         self
     }
 }
 
-impl FromStr for EntityUid {
+impl FromStr for SaturnEUid {
     type Err = ParseErrors;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -27,19 +27,19 @@ impl FromStr for EntityUid {
     }
 }
 
-impl std::fmt::Display for EntityUid {
+impl std::fmt::Display for SaturnEUid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl From<cedar_policy::EntityUid> for EntityUid {
+impl From<cedar_policy::EntityUid> for SaturnEUid {
     fn from(value: cedar_policy::EntityUid) -> Self {
         Self(value)
     }
 }
 
-impl Deref for EntityUid {
+impl Deref for SaturnEUid {
     type Target = cedar_policy::EntityUid;
 
     fn deref(&self) -> &Self::Target {
@@ -47,8 +47,8 @@ impl Deref for EntityUid {
     }
 }
 
-impl From<EntityUid> for cedar_policy::EntityUid {
-    fn from(value: EntityUid) -> Self {
+impl From<SaturnEUid> for cedar_policy::EntityUid {
+    fn from(value: SaturnEUid) -> Self {
         value.0
     }
 }

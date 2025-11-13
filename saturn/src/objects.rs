@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use cedar_policy::{Entity, RestrictedExpression};
 use serde::{Deserialize, Serialize};
 
-use crate::util::EntityUid;
+use crate::util::SaturnEUid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    euid: EntityUid,
-    parents: HashSet<EntityUid>,
+    euid: SaturnEUid,
+    parents: HashSet<SaturnEUid>,
 }
 
 impl From<User> for Entity {
@@ -22,8 +22,8 @@ impl From<User> for Entity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserGroup {
-    euid: EntityUid,
-    parents: HashSet<EntityUid>,
+    euid: SaturnEUid,
+    parents: HashSet<SaturnEUid>,
 }
 
 impl From<UserGroup> for Entity {
@@ -37,12 +37,12 @@ impl From<UserGroup> for Entity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repo {
-    euid: EntityUid,
+    euid: SaturnEUid,
     is_private: bool,
-    admins: EntityUid,
-    maintainers: EntityUid,
-    readers: EntityUid,
-    parents: HashSet<EntityUid>,
+    admins: SaturnEUid,
+    maintainers: SaturnEUid,
+    readers: SaturnEUid,
+    parents: HashSet<SaturnEUid>,
 }
 
 impl From<Repo> for Entity {
@@ -77,9 +77,9 @@ impl From<Repo> for Entity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MergeRequest {
-    euid: EntityUid,
-    repo: EntityUid,
-    parents: HashSet<EntityUid>,
+    euid: SaturnEUid,
+    repo: SaturnEUid,
+    parents: HashSet<SaturnEUid>,
 }
 
 impl From<MergeRequest> for Entity {
@@ -100,9 +100,9 @@ impl From<MergeRequest> for Entity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Issue {
-    euid: EntityUid,
-    repo: EntityUid,
-    parents: HashSet<EntityUid>,
+    euid: SaturnEUid,
+    repo: SaturnEUid,
+    parents: HashSet<SaturnEUid>,
 }
 
 impl From<Issue> for Entity {
