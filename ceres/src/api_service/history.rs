@@ -259,7 +259,7 @@ pub async fn item_to_commit_map_with_refs<T: ApiHandler + ?Sized>(
 
     // Resolve commit from refs (SHA or tag)
     let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
-    let mut commit_hash = String::new();
+    let commit_hash;
 
     if is_hex_sha1(maybe) {
         // Direct commit SHA
