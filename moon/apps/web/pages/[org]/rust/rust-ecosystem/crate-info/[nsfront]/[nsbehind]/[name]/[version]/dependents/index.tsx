@@ -40,60 +40,63 @@ const DependentsPage = () => {
   const [stats, setStats] = useState({ direct: 0, indirect: 0 })
   const searchTerm = ''
 
-    // 从URL参数中获取crate信息
-    const crateName = params?.name as string || "tokio";
-    const version = params?.version as string || "1.2.01";
-    const nsfront = params?.nsfront as string || router.query.org as string;
-    const nsbehind = params?.nsbehind as string || "rust/rust-ecosystem/crate-info";
+  // 从URL参数中获取crate信息
+  const crateName = (params?.name as string) || 'tokio'
+  const version = (params?.version as string) || '1.2.01'
+  const nsfront = (params?.nsfront as string) || (router.query.org as string)
+  const nsbehind = (params?.nsbehind as string) || 'rust/rust-ecosystem/crate-info'
 
-    // 从 API 获取 dependents 数据
-    useEffect(() => {
-        const fetchDependents = async () => {
-            if (!crateName || !version || !nsfront || !nsbehind) return;
-            
-            try {
-                setLoading(true);
-                setError(null);
-                
-                const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL;
-                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/dependents`);
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch dependents');
-                }
-                
-                const data: DependentInfo = await response.json();
+  // 从 API 获取 dependents 数据
+  useEffect(() => {
+    const fetchDependents = async () => {
+      if (!crateName || !version || !nsfront || !nsbehind) return
 
-                // 转换 API 数据为前端需要的格式
-                const transformedDependents: Dependent[] = data.data.map((dep, index) => ({
-                    id: `${dep.crate_name}-${dep.version}-${index}`,
-                    crate_name: dep.crate_name,
-                    version: dep.version,
-                    relation: dep.relation as 'Direct' | 'Indirect',
-                    expanded: false,
-                    description: `Dependent package: ${dep.crate_name}`,
-                    published: 'Unknown'
-                }));
-                
-                setDependents(transformedDependents);
-                setStats({
-                    direct: data.direct_count,
-                    indirect: data.indirect_count
-                });
-            } catch (err) {
-                setError('Failed to load dependents');
-            } finally {
-                setLoading(false);
-            }
-        };
+      try {
+        setLoading(true)
+        setError(null)
 
-        fetchDependents();
-    }, [crateName, version, nsfront, nsbehind]);
+        const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+        const response = await fetch(
+          `${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/dependents`
+        )
 
-    const filteredDependents = dependents.filter(dep =>
-        dep.crate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dep.version.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+        if (!response.ok) {
+          throw new Error('Failed to fetch dependents')
+        }
+
+        const data: DependentInfo = await response.json()
+
+        // 转换 API 数据为前端需要的格式
+        const transformedDependents: Dependent[] = data.data.map((dep, index) => ({
+          id: `${dep.crate_name}-${dep.version}-${index}`,
+          crate_name: dep.crate_name,
+          version: dep.version,
+          relation: dep.relation as 'Direct' | 'Indirect',
+          expanded: false,
+          description: `Dependent package: ${dep.crate_name}`,
+          published: 'Unknown'
+        }))
+
+        setDependents(transformedDependents)
+        setStats({
+          direct: data.direct_count,
+          indirect: data.indirect_count
+        })
+      } catch (err) {
+        setError('Failed to load dependents')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDependents()
+  }, [crateName, version, nsfront, nsbehind])
+
+  const filteredDependents = dependents.filter(
+    (dep) =>
+      dep.crate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dep.version.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   return (
     <>

@@ -1,15 +1,17 @@
+import { useCallback, useEffect, useState } from 'react'
 import Head from 'next/head'
+import Image from 'next/image'
 import { useRouter } from 'next/router'
+
 // import Link from 'next/link'
 import { Link } from '@gitmono/ui/Link'
+
+import { IndexSearchInput } from '@/components/IndexPages/components'
 // import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { PageWithLayout } from '@/utils/types'
-import { IndexSearchInput } from '@/components/IndexPages/components'
-import { useState, useCallback, useEffect } from 'react'
-import Image from 'next/image'
 
 const Logo = () => (
   <div className='flex items-center'>
@@ -38,7 +40,7 @@ const CratesproPage: PageWithLayout<any> = () => {
   const [latestCves, setLatestCves] = useState<LatestCve[]>([])
 
   const [cveLoading, setCveLoading] = useState<boolean>(false)
-  
+
   const [cveError, setCveError] = useState<string | null>(null)
 
   // 处理搜索功能
@@ -74,7 +76,6 @@ const CratesproPage: PageWithLayout<any> = () => {
 
   // 拉取最新 CVEs
   useEffect(() => {
-
     const fetchLatest = async () => {
       try {
         setCveLoading(true)
@@ -98,7 +99,7 @@ const CratesproPage: PageWithLayout<any> = () => {
         setCveLoading(false)
       }
     }
-    
+
     fetchLatest()
   }, [])
 
@@ -133,9 +134,12 @@ const CratesproPage: PageWithLayout<any> = () => {
             </div>
 
             {/* 中间：搜索栏 */}
-            <div className="flex-1 flex justify-end ml-60">
-              <div onKeyDownCapture={handleKeyDownCapture} className="relative max-w-xl w-full">
-                <div className="flex items-center gap-2 px-4 py-2 border rounded-full bg-white shadow-sm" style={{ borderColor: 'rgb(253,236,231)' }}>
+            <div className='ml-60 flex flex-1 justify-end'>
+              <div onKeyDownCapture={handleKeyDownCapture} className='relative w-full max-w-xl'>
+                <div
+                  className='flex items-center gap-2 rounded-full border bg-white px-4 py-2 shadow-sm'
+                  style={{ borderColor: 'rgb(253,236,231)' }}
+                >
                   <IndexSearchInput query={query} setQuery={setQuery} isSearchLoading={isSearchLoading} />
                 </div>
               </div>
@@ -148,43 +152,48 @@ const CratesproPage: PageWithLayout<any> = () => {
         </div>
 
         {/* 主体内容区域 - 左右并排布局 */}
-        <div className="max-w-7xl mx-auto w-full px-8">
+        <div className='mx-auto w-full max-w-7xl px-8'>
           {/* 主标题 - 左对齐，跨越整个宽度 */}
-          <h1 className="text-3xl sm:text-4xl font-bold mb-8 text-left">Rust Ecosystem Updates</h1>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <h1 className='mb-8 text-left text-3xl font-bold sm:text-4xl'>Rust Ecosystem Updates</h1>
+
+          <div className='grid grid-cols-1 gap-8 lg:grid-cols-2'>
             {/* Latest Crate Updates */}
-            <section className="flex flex-col">
-              <h2 className="text-2xl font-bold mb-4 pb-2 border-b" style={{ borderColor: 'rgb(253,236,231)' }}>Latest Crate Updates</h2>
-              <div className="flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm" style={{ borderColor: 'rgb(253,236,231)' }}>
-                <table className="w-full text-left h-full">
+            <section className='flex flex-col'>
+              <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
+                Latest Crate Updates
+              </h2>
+              <div
+                className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
+                style={{ borderColor: 'rgb(253,236,231)' }}
+              >
+                <table className='h-full w-full text-left'>
                   <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
                     <tr>
-                      <th className="px-6 py-3 text-sm font-semibold">Crate</th>
-                      <th className="px-6 py-3 text-sm font-semibold">Version</th>
-                      <th className="px-6 py-3 text-sm font-semibold">Updated</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Crate</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Version</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Updated</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y" style={{ borderColor: 'rgb(253,236,231)' }}>
+                  <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
                     <tr>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">serde</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">1.0.197</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">2024-07-26</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>serde</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.0.197</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-26</td>
                     </tr>
                     <tr>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">tokio</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">1.38.1</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">2024-07-25</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>tokio</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.38.1</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-25</td>
                     </tr>
                     <tr>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">actix-web</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">4.8.0</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">2024-07-24</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>actix-web</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>4.8.0</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-24</td>
                     </tr>
                     <tr>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">reqwest</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">0.12.5</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">2024-07-23</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>reqwest</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>0.12.5</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-23</td>
                     </tr>
                   </tbody>
                 </table>
@@ -192,47 +201,62 @@ const CratesproPage: PageWithLayout<any> = () => {
             </section>
 
             {/* Latest Rust CVEs */}
-            <section className="flex flex-col">
-              <h2 className="text-2xl font-bold mb-4 pb-2 border-b" style={{ borderColor: 'rgb(253,236,231)' }}>Latest Rust CVEs</h2>
-              <div className="flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm" style={{ borderColor: 'rgb(253,236,231)' }}>
-                <table className="w-full text-left h-full">
+            <section className='flex flex-col'>
+              <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
+                Latest Rust CVEs
+              </h2>
+              <div
+                className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
+                style={{ borderColor: 'rgb(253,236,231)' }}
+              >
+                <table className='h-full w-full text-left'>
                   <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
                     <tr>
-                      <th className="px-6 py-3 text-sm font-semibold">CVE ID</th>
-                      <th className="px-6 py-3 text-sm font-semibold">Description</th>
-                      <th className="px-6 py-3 text-sm font-semibold">Date</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>CVE ID</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Description</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y" style={{ borderColor: 'rgb(253,236,231)' }}>
+                  <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
                     {cveLoading && (
                       <tr>
-                        <td className="px-6 py-4 text-sm text-gray-600" colSpan={3}>Loading...</td>
+                        <td className='px-6 py-4 text-sm text-gray-600' colSpan={3}>
+                          Loading...
+                        </td>
                       </tr>
                     )}
                     {!cveLoading && cveError && (
                       <tr>
-                        <td className="px-6 py-4 text-sm text-red-500" colSpan={3}>{cveError}</td>
+                        <td className='px-6 py-4 text-sm text-red-500' colSpan={3}>
+                          {cveError}
+                        </td>
                       </tr>
                     )}
                     {!cveLoading && !cveError && latestCves.length === 0 && (
                       <tr>
-                        <td className="px-6 py-4 text-sm text-gray-500" colSpan={3}>No data</td>
+                        <td className='px-6 py-4 text-sm text-gray-500' colSpan={3}>
+                          No data
+                        </td>
                       </tr>
                     )}
-                    {!cveLoading && !cveError && latestCves.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          <Link
-                            href={`/${router.query.org || 'org'}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${encodeURIComponent(item.id)}`}
-                            className="text-gray-900 hover:text-blue-600 hover:underline"
-                          >
-                            {item.id}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.subtitle || item.description}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.issued}</td>
-                      </tr>
-                    ))}
+                    {!cveLoading &&
+                      !cveError &&
+                      latestCves.map((item) => (
+                        <tr key={item.id}>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
+                            <Link
+                              href={`/${router.query.org || 'org'}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${encodeURIComponent(item.id)}`}
+                              className='text-gray-900 hover:text-blue-600 hover:underline'
+                            >
+                              {item.id}
+                            </Link>
+                          </td>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
+                            {item.subtitle || item.description}
+                          </td>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>{item.issued}</td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>

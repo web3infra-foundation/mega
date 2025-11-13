@@ -32,51 +32,51 @@ import CrateInfoLayout from './layout'
 // }
 
 export interface cratesInfo {
-    "crate_name": string,
-    "description": string,
-    "dependencies": {
-        "direct": number,
-        "indirect": number
-    },
-    "dependents": {
-        "direct": number,
-        "indirect": number
-    },
-    "cves": Array<{
-        "id": string,
-        "subtitle": string,
-        "reported": string,
-        "issued": string,
-        "package": string,
-        "ttype": string,
-        "keywords": string,
-        "aliases": string,
-        "reference": string,
-        "patched": string,
-        "unaffected": string,
-        "description": string,
-        "url": string,
-    }>,
-    "dep_cves": Array<{
-        "id": string,
-        "subtitle": string,
-        "reported": string,
-        "issued": string,
-        "package": string,
-        "ttype": string,
-        "keywords": string,
-        "aliases": string,
-        "reference": string,
-        "patched": string,
-        "unaffected": string,
-        "description": string,
-        "url": string,
-    }>,
-    "license": string,
-    "dependency_license": Array<[string, number]>,
-    "github_url": string,
-    "doc_url": string,
-    "versions": string[],
+  crate_name: string
+  description: string
+  dependencies: {
+    direct: number
+    indirect: number
+  }
+  dependents: {
+    direct: number
+    indirect: number
+  }
+  cves: Array<{
+    id: string
+    subtitle: string
+    reported: string
+    issued: string
+    package: string
+    ttype: string
+    keywords: string
+    aliases: string
+    reference: string
+    patched: string
+    unaffected: string
+    description: string
+    url: string
+  }>
+  dep_cves: Array<{
+    id: string
+    subtitle: string
+    reported: string
+    issued: string
+    package: string
+    ttype: string
+    keywords: string
+    aliases: string
+    reference: string
+    patched: string
+    unaffected: string
+    description: string
+    url: string
+  }>
+  license: string
+  dependency_license: Array<[string, number]>
+  github_url: string
+  doc_url: string
+  versions: string[]
 }
 
 const CratePage = () => {
@@ -113,37 +113,39 @@ const CratePage = () => {
         setSenseleakError(null)
         const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
 
-                const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/senseleak`);
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch senseleak data');
-                }
-                
-                const data = await response.json();
-                // 后端 res 为字符串，这里尝试解析成数组，失败则保留原字符串
-                let resArray: any[] | null = null;
+        const response = await fetch(
+          `${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/senseleak`
+        )
 
-                if (data && typeof data.res === 'string') {
-                    try {
-                        const parsed = JSON.parse(data.res);
+        if (!response.ok) {
+          throw new Error('Failed to fetch senseleak data')
+        }
 
-                        if (Array.isArray(parsed)) {
-                            resArray = parsed;
-                        } else if (parsed) {
-                            resArray = [parsed];
-                        }
-                    } catch {
-                        // 保留为 null，使用原字符串降级展示
-                    }
-                }
+        const data = await response.json()
+        // 后端 res 为字符串，这里尝试解析成数组，失败则保留原字符串
+        let resArray: any[] | null = null
 
-                setSenseleakData({ ...data, resArray });
-            } catch (err) {
-                setSenseleakError('Failed to load senseleak data');
-            } finally {
-                setSenseleakLoading(false);
+        if (data && typeof data.res === 'string') {
+          try {
+            const parsed = JSON.parse(data.res)
+
+            if (Array.isArray(parsed)) {
+              resArray = parsed
+            } else if (parsed) {
+              resArray = [parsed]
             }
-        };
+          } catch {
+            // 保留为 null，使用原字符串降级展示
+          }
+        }
+
+        setSenseleakData({ ...data, resArray })
+      } catch (err) {
+        setSenseleakError('Failed to load senseleak data')
+      } finally {
+        setSenseleakLoading(false)
+      }
+    }
 
     if (crateName && version && nsfront && nsbehind) {
       fetchSenseleakData()
@@ -244,21 +246,21 @@ const CratePage = () => {
   //     return items.slice(start, end);
   // };
 
-    return (
-        <>
-            <Head>
-                <title>Crate Info - {crateName || 'Crate'}</title>
-            </Head>
-            <CrateInfoLayout versions={versions}>
-                <div className="flex justify-center pb-8">
-                    <div className="w-[1370px] px-8 py-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                            {/* 左侧内容区域 - 占据2列 */}
-                            <div className="lg:col-span-2 space-y-6" style={{ width: '800px' }}>
-                                {/* Licenses */}
-                                <div className="space-y-6">
-                                    {/* Licenses 标题 */}
-                                        {/* <div className="flex justify-between items-center">
+  return (
+    <>
+      <Head>
+        <title>Crate Info - {crateName || 'Crate'}</title>
+      </Head>
+      <CrateInfoLayout versions={versions}>
+        <div className='flex justify-center pb-8'>
+          <div className='w-[1370px] px-8 py-4'>
+            <div className='grid grid-cols-1 gap-12 lg:grid-cols-3'>
+              {/* 左侧内容区域 - 占据2列 */}
+              <div className='space-y-6 lg:col-span-2' style={{ width: '800px' }}>
+                {/* Licenses */}
+                <div className='space-y-6'>
+                  {/* Licenses 标题 */}
+                  {/* <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-[4px] h-[24px] flex-shrink-0 rounded-[2px] bg-[#4B68FF]"></div>
                                                 <h2 className="text-[24px] font-bold text-[#333333] tracking-[0.96px] font-['HarmonyOS_Sans_SC']">
@@ -266,13 +268,15 @@ const CratePage = () => {
                                                 </h2>
                                             </div>
                                         </div> */}
-                                    {/* Licenses 内容 */}
-                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
-                                        {/* 卡片头部 */}
-                                        <div className="flex justify-between items-center mb-6">
-                                           <div>
-                                                 <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">LICENSES</h3>
-                                                 {/* <p 
+                  {/* Licenses 内容 */}
+                  <div className='rounded-2xl bg-white p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]'>
+                    {/* 卡片头部 */}
+                    <div className='mb-6 flex items-center justify-between'>
+                      <div>
+                        <h3 className="font-['HarmonyOS_Sans_SC'] text-[24px] font-medium tracking-[0.96px] text-[#333333]">
+                          LICENSES
+                        </h3>
+                        {/* <p 
                                                    className="mt-3"
                                                    style={{
                                                        alignSelf: 'stretch',
@@ -287,85 +291,92 @@ const CratePage = () => {
                                                  >
                                                      In the dependencies
                                                  </p> */}
-                                                 {/* <span className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline cursor-pointer mt-2 block">
+                        {/* <span className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline cursor-pointer mt-2 block">
                                                      Learn more about license information.
                                                  </span> */}
-                                             </div>
-                                            <span 
-                                                className="flex-shrink-0 text-sm text-white"
-                                                style={{
-                                                    display: 'flex',
-                                                    width: '33px',
-                                                    height: '33px',
-                                                    flexDirection: 'column',
-                                                    justifyContent: 'center',
-                                                    alignItems: 'center',
-                                                    aspectRatio: '1/1',
-                                                    borderRadius: '6px',
-                                                    background: '#4B68FF'
-                                                }}
-                                            >
-            {results.dependency_license?.length || 0}
-                                            </span>
-                                        </div>
+                      </div>
+                      <span
+                        className='flex-shrink-0 text-sm text-white'
+                        style={{
+                          display: 'flex',
+                          width: '33px',
+                          height: '33px',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          aspectRatio: '1/1',
+                          borderRadius: '6px',
+                          background: '#4B68FF'
+                        }}
+                      >
+                        {results.dependency_license?.length || 0}
+                      </span>
+                    </div>
 
-                                        {/* 主许可证部分 */}
-                                        <div className="mb-6">
-                                            {/* <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide mb-2">
+                    {/* 主许可证部分 */}
+                    <div className='mb-6'>
+                      {/* <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide mb-2">
                                                 LICENSES
                                             </p> */}
-                                            <div className="text-[36px] font-['HarmonyOS_Sans_SC'] font-bold text-[#333333]">
-                                                {results.license || 'Unknown'}
-                                            </div>
-                                        </div>
+                      <div className="font-['HarmonyOS_Sans_SC'] text-[36px] font-bold text-[#333333]">
+                        {results.license || 'Unknown'}
+                      </div>
+                    </div>
 
-                                        {/* 依赖许可证部分（动态） */}
-                                        <div>
-                                            <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide mb-4">
-                                                DEPENDENCY LICENSES
-                                            </p>
-                                            <div className="space-y-4">
-                                                {results.dependency_license && results.dependency_license.length > 0 ? (
-                                                    (() => {
-                                                        const maxCount = Math.max(...results.dependency_license.map(([_, count]) => count));
+                    {/* 依赖许可证部分（动态） */}
+                    <div>
+                      <p className="mb-4 font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide text-[#666666]">
+                        DEPENDENCY LICENSES
+                      </p>
+                      <div className='space-y-4'>
+                        {results.dependency_license && results.dependency_license.length > 0 ? (
+                          (() => {
+                            const maxCount = Math.max(...results.dependency_license.map(([_, count]) => count))
 
-                                                        return (
-                                                            <>
-                                                                {results.dependency_license.map(([licenseName, count]) => (
-                                                                    <div key={licenseName} className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                                        <div 
-                                                                            className="capitalize"
-                                                                            style={{
-                                                                                color: '#002bb7c4',
-                                                                                fontFamily: '"HarmonyOS Sans SC"',
-                                                                                fontSize: '14px',
-                                                                                fontStyle: 'normal',
-                                                                                fontWeight: 400,
-                                                                                lineHeight: 'normal',
-                                                                                letterSpacing: 0
-                                                                            }}
-                                                                        >
-                                                                            {licenseName}
-                                                                        </div>
-                                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{count}</div>
-                                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                                            <div
-                                                                                className="h-full bg-[#4B68FF] rounded-lg"
-                                                                                style={{ width: `${maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0}%` }}
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </>
-                                                        );
-                                                    })()
-                                                ) : (
-                                                    <div className="text-[#666666]">No dependency license data</div>
-                                                )}
-                                            </div>
-                                        </div>
+                            return (
+                              <>
+                                {results.dependency_license.map(([licenseName, count]) => (
+                                  <div key={licenseName} className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
+                                    <div
+                                      className='capitalize'
+                                      style={{
+                                        color: '#002bb7c4',
+                                        fontFamily: '"HarmonyOS Sans SC"',
+                                        fontSize: '14px',
+                                        fontStyle: 'normal',
+                                        fontWeight: 400,
+                                        lineHeight: 'normal',
+                                        letterSpacing: 0
+                                      }}
+                                    >
+                                      {licenseName}
                                     </div>
-                                </div>
+                                    <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
+                                      {count}
+                                    </div>
+                                    <div
+                                      className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]'
+                                      style={{ width: '482px' }}
+                                    >
+                                      <div
+                                        className='h-full rounded-lg bg-[#4B68FF]'
+                                        style={{
+                                          width: `${maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0}%`
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            )
+                          })()
+                        ) : (
+                          <div className='text-[#666666]'>No dependency license data</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Dependencies */}
                 <div className='space-y-6'>
@@ -480,66 +491,70 @@ const CratePage = () => {
                   </div>
                 </div>
 
-                                {/* Dependents */}
-                                <div className="space-y-6">
-                                    {/* Dependents 内容 */}
-                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
-                                        {/* 卡片头部 */}
-                                        <div className="flex justify-between items-center mb-6">
-                                            <div>
-                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Dependents</h3>
-                                            </div>
-                                            <span 
-                                                className="flex-shrink-0 text-sm text-white"
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    minWidth: '33px',
-                                                    height: '33px',
-                                                    padding: '0 8px',
-                                                    flexDirection: 'column',
-                                                    justifyContent: 'center',
-                                                    alignItems: 'center',
-                                                    borderRadius: '6px',
-                                                    background: '#4B68FF',
-                                                    whiteSpace: 'nowrap'
-                                                }}
-                                            >
-                                                {results.dependents.direct + results.dependents.indirect}
-                                            </span>
-                                        </div>
-                                        
-                                        {results && results.dependents && (results.dependents.direct + results.dependents.indirect) > 0 ? (
-                                            <>
-                                                <div className="space-y-4">
-                                                    {/* Direct */}
-                                                    <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
-                                                        <div 
-                                                            className="capitalize"
-                                                            style={{
-                                                                color: '#002bb7c4',
-                                                                fontFamily: '"HarmonyOS Sans SC"',
-                                                                fontSize: '14px',
-                                                                fontStyle: 'normal',
-                                                                fontWeight: 400,
-                                                                lineHeight: 'normal',
-                                                                letterSpacing: 0
-                                                            }}
-                                                        >
-                                                            Direct
-                                                        </div>
-                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.direct}</div>
-                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
-                                                            <div
-                                                                className="h-full bg-[#4B68FF] rounded-lg"
-                                                                style={{
-                                                                    width: `${(results.dependents.direct / (results.dependents.direct + results.dependents.indirect)) * 100}%`
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
+                {/* Dependents */}
+                <div className='space-y-6'>
+                  {/* Dependents 内容 */}
+                  <div className='rounded-2xl bg-white p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]'>
+                    {/* 卡片头部 */}
+                    <div className='mb-6 flex items-center justify-between'>
+                      <div>
+                        <h3 className="font-['HarmonyOS_Sans_SC'] text-[24px] font-medium tracking-[0.96px] text-[#333333]">
+                          Dependents
+                        </h3>
+                      </div>
+                      <span
+                        className='flex-shrink-0 text-sm text-white'
+                        style={{
+                          display: 'inline-flex',
+                          minWidth: '33px',
+                          height: '33px',
+                          padding: '0 8px',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          borderRadius: '6px',
+                          background: '#4B68FF',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {results.dependents.direct + results.dependents.indirect}
+                      </span>
+                    </div>
 
-                                                    {/* Indirect */}
-                                                    {/* <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                    {results && results.dependents && results.dependents.direct + results.dependents.indirect > 0 ? (
+                      <>
+                        <div className='space-y-4'>
+                          {/* Direct */}
+                          <div className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
+                            <div
+                              className='capitalize'
+                              style={{
+                                color: '#002bb7c4',
+                                fontFamily: '"HarmonyOS Sans SC"',
+                                fontSize: '14px',
+                                fontStyle: 'normal',
+                                fontWeight: 400,
+                                lineHeight: 'normal',
+                                letterSpacing: 0
+                              }}
+                            >
+                              Direct
+                            </div>
+                            <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
+                              {results.dependents.direct}
+                            </div>
+                            <div className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]' style={{ width: '482px' }}>
+                              <div
+                                className='h-full rounded-lg bg-[#4B68FF]'
+                                style={{
+                                  width: `${(results.dependents.direct / (results.dependents.direct + results.dependents.indirect)) * 100}%`
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Indirect */}
+                          {/* <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
                                                         <div 
                                                             className="capitalize"
                                                             style={{
@@ -564,7 +579,7 @@ const CratePage = () => {
                                                             />
                                                         </div>
                                                     </div> */}
-                                                </div>
+                        </div>
 
                         <div className='mt-6 text-center'>
                           <Link href={`/${nsfront}/${nsbehind}/${name}/${version}/dependents`}>
@@ -584,119 +599,118 @@ const CratePage = () => {
                   </div>
                 </div>
 
-                                {/* Senseleak */}
-                                <div className="space-y-6">
-                                    {/* Senseleak 内容 */}
-                                    <div className="bg-white rounded-2xl p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]">
-                                        {/* 卡片头部 */}
-                                        <div className="flex justify-between items-center mb-6">
-                                            <div>
-                                                <h3 className="text-[24px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-medium tracking-[0.96px]">Senseleak</h3>
-                                                <p 
-                                                  className="mt-3"
-                                                  style={{
-                                                      alignSelf: 'stretch',
-                                                      color: '#1c2024',
-                                                      fontFamily: '"HarmonyOS Sans SC"',
-                                                      fontSize: '20px',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      lineHeight: '16px',
-                                                      letterSpacing: '0.04px'
-                                                  }}
-                                              >
-                                                  Security analysis results
-                                              </p>
-                                            </div>
-                                            <span 
-                                                className="flex-shrink-0 text-sm text-white"
-                                                style={{
-                                                    display: 'flex',
-                                                    width: '33px',
-                                                    height: '33px',
-                                                    flexDirection: 'column',
-                                                    justifyContent: 'center',
-                                                    alignItems: 'center',
-                                                    aspectRatio: '1/1',
-                                                    borderRadius: '6px',
-                                                    background: senseleakData?.exist ? '#E5484D' : '#4B68FF'
-                                                }}
-                                            >
-                                                {senseleakLoading
-                                                        ? '...'
-                                                        : senseleakData?.exist
-                                                            ? senseleakData?.resArray?.length || '!'
-                                                            : '0'}
+                {/* Senseleak */}
+                <div className='space-y-6'>
+                  {/* Senseleak 内容 */}
+                  <div className='rounded-2xl bg-white p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]'>
+                    {/* 卡片头部 */}
+                    <div className='mb-6 flex items-center justify-between'>
+                      <div>
+                        <h3 className="font-['HarmonyOS_Sans_SC'] text-[24px] font-medium tracking-[0.96px] text-[#333333]">
+                          Senseleak
+                        </h3>
+                        <p
+                          className='mt-3'
+                          style={{
+                            alignSelf: 'stretch',
+                            color: '#1c2024',
+                            fontFamily: '"HarmonyOS Sans SC"',
+                            fontSize: '20px',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            lineHeight: '16px',
+                            letterSpacing: '0.04px'
+                          }}
+                        >
+                          Security analysis results
+                        </p>
+                      </div>
+                      <span
+                        className='flex-shrink-0 text-sm text-white'
+                        style={{
+                          display: 'flex',
+                          width: '33px',
+                          height: '33px',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          aspectRatio: '1/1',
+                          borderRadius: '6px',
+                          background: senseleakData?.exist ? '#E5484D' : '#4B68FF'
+                        }}
+                      >
+                        {senseleakLoading ? '...' : senseleakData?.exist ? senseleakData?.resArray?.length || '!' : '0'}
+                      </span>
+                    </div>
 
-                                            </span>
-                                        </div>
-                                        
-                                        {senseleakLoading ? (
-                                            <div className="text-center py-8">
-                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
-                                                    Loading senseleak analysis...
-                                                </p>
-                                            </div>
-                                        ) : senseleakError ? (
-                                            <div className="text-center py-8">
-                                                <p className="text-[#FD5656] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
-                                                    {senseleakError}
-                                                </p>
-                                            </div>
-                                        ) : senseleakData ? (
-                                            <div className="space-y-4">
-                                                <div className="bg-gray-50 rounded-lg p-4">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide">
-                                                            ANALYSIS RESULT
-                                                        </span>
-                                                        <span className={`px-2 py-1 rounded text-[12px] font-['HarmonyOS_Sans_SC'] font-normal ${
-                                                            senseleakData.exist ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                                        }`}>
-                                                            {senseleakData.exist ? 'Issues Found' : 'No Issues'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
-                                                        {Array.isArray(senseleakData.resArray) ? (
-                                                            senseleakData.resArray.length > 0 ? (
-                                                                <div className="space-y-3">
-                                                                    {senseleakData.resArray.map((item: any) => {
-                                                                        const itemKey = item.id || item.name || JSON.stringify(item);
+                    {senseleakLoading ? (
+                      <div className='py-8 text-center'>
+                        <p className="font-['HarmonyOS_Sans_SC'] text-[18px] font-normal text-[#666666]">
+                          Loading senseleak analysis...
+                        </p>
+                      </div>
+                    ) : senseleakError ? (
+                      <div className='py-8 text-center'>
+                        <p className="font-['HarmonyOS_Sans_SC'] text-[18px] font-normal text-[#FD5656]">
+                          {senseleakError}
+                        </p>
+                      </div>
+                    ) : senseleakData ? (
+                      <div className='space-y-4'>
+                        <div className='rounded-lg bg-gray-50 p-4'>
+                          <div className='mb-2 flex items-center justify-between'>
+                            <span className="font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide text-[#666666]">
+                              ANALYSIS RESULT
+                            </span>
+                            <span
+                              className={`rounded px-2 py-1 font-['HarmonyOS_Sans_SC'] text-[12px] font-normal ${
+                                senseleakData.exist ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                              }`}
+                            >
+                              {senseleakData.exist ? 'Issues Found' : 'No Issues'}
+                            </span>
+                          </div>
+                          <div className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#333333]">
+                            {Array.isArray(senseleakData.resArray) ? (
+                              senseleakData.resArray.length > 0 ? (
+                                <div className='space-y-3'>
+                                  {senseleakData.resArray.map((item: any) => {
+                                    const itemKey = item.id || item.name || JSON.stringify(item)
 
-                                                                        return (
-                                                                            <div key={`senseleak-item-${itemKey}`} className="bg-white p-3 rounded border">
-                                                                                {Object.entries(item).map(([key, value]) => (
-                                                                                    <div key={key} className="text-sm">
-                                                                                        <span className="font-semibold text-gray-700">{key}:</span>{' '}
-                                                                                        <span className="text-gray-800">{String(value)}</span>
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="bg-white p-3 rounded border text-center">
-                                                                    <p className="text-[#666666]">No senseleak</p>
-                                                                </div>
-                                                            )
-                                                        ) : (
-                                                            <pre className="whitespace-pre-wrap break-words bg-white p-3 rounded border">
-                                                                {senseleakData.res || 'No senseleak'}
-                                                            </pre>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[18px] font-normal">
-                                                    No senseleak data available
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    return (
+                                      <div key={`senseleak-item-${itemKey}`} className='rounded border bg-white p-3'>
+                                        {Object.entries(item).map(([key, value]) => (
+                                          <div key={key} className='text-sm'>
+                                            <span className='font-semibold text-gray-700'>{key}:</span>{' '}
+                                            <span className='text-gray-800'>{String(value)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
+                              ) : (
+                                <div className='rounded border bg-white p-3 text-center'>
+                                  <p className='text-[#666666]'>No senseleak</p>
+                                </div>
+                              )
+                            ) : (
+                              <pre className='whitespace-pre-wrap break-words rounded border bg-white p-3'>
+                                {senseleakData.res || 'No senseleak'}
+                              </pre>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='py-8 text-center'>
+                        <p className="font-['HarmonyOS_Sans_SC'] text-[18px] font-normal text-[#666666]">
+                          No senseleak data available
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Unsafechecker */}
                 <div className='space-y-6'>
@@ -924,8 +938,8 @@ const CratePage = () => {
                   </a>
                 </div>
 
-                                {/* SCORE */}
-                                {/* <div>
+                {/* SCORE */}
+                {/* <div>
                                     <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
                                         SCORE
                                     </h3>
@@ -939,8 +953,8 @@ const CratePage = () => {
                                     </div>
                                 </div> */}
 
-                                {/* Security Policy */}
-                                {/* <div>
+                {/* Security Policy */}
+                {/* <div>
                                     <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
                                         Security Policy
                                     </h3>
@@ -971,14 +985,14 @@ const CratePage = () => {
                                         ))}
                                     </div>
                                 </div> */}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </CrateInfoLayout>
-        </>
-    );
-};
+              </div>
+            </div>
+          </div>
+        </div>
+      </CrateInfoLayout>
+    </>
+  )
+}
 
 // 添加 getProviders 方法以适配新的项目结构
 CratePage.getProviders = (page: any, pageProps: any) => {

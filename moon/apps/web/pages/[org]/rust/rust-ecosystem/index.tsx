@@ -60,7 +60,7 @@ export default function RustEcosystemPage() {
   const handleSearch = () => {
     if (search.trim()) {
       const org = router.query.org || 'org'
-      
+
       router.push(`/${org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`)
     }
   }
