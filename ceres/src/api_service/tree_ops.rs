@@ -14,7 +14,7 @@ use git_internal::{
 };
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 
-use crate::api_service::{ApiHandler, history::item_to_commit_map_with_refs};
+use crate::api_service::{ApiHandler, history::item_to_commit_map};
 use crate::model::git::{TreeBriefItem, TreeCommitItem, TreeHashItem};
 
 pub async fn get_tree_commit_info<T: ApiHandler + ?Sized>(
@@ -24,7 +24,7 @@ pub async fn get_tree_commit_info<T: ApiHandler + ?Sized>(
 ) -> Result<Vec<TreeCommitItem>, GitError> {
     // Use refs-aware commit mapping to get individual commit info for each file/directory
     // This ensures each item shows its own last modification commit, not just the tag commit
-    let commit_map = item_to_commit_map_with_refs(handler, path, refs).await?;
+    let commit_map = item_to_commit_map(handler, path, refs).await?;
     let mut items: Vec<TreeCommitItem> = commit_map.into_iter().map(TreeCommitItem::from).collect();
     items.sort_by(|a, b| {
         a.content_type
