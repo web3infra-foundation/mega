@@ -64,9 +64,9 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
   )
 
   // 根据当前路径确定activeTab
-  const [activeTab, setActiveTab] = useState<'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions'>(
-    'overview'
-  )
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions' | 'cves'
+  >('overview')
 
   useEffect(() => {
     const path = router.asPath
@@ -79,6 +79,8 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
       setActiveTab('compare')
     } else if (path.includes('/versions')) {
       setActiveTab('versions')
+    } else if (path.includes('/cves')) {
+      setActiveTab('cves')
     } else {
       setActiveTab('overview')
     }
@@ -133,6 +135,11 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
         id: 'versions',
         label: 'versions',
         href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/versions`
+      },
+      {
+        id: 'cves',
+        label: 'cves',
+        href: `/${crateInfo.org}/rust/rust-ecosystem/crate-info/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/cves`
       }
     ],
     [crateInfo]

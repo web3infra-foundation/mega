@@ -246,11 +246,11 @@ export default function EcosystemCVEPage() {
                         <div className='pb-4'>
                           <div className='mb-2 text-sm text-gray-500'>
                             <div className='mb-2'>
-                              <strong>描述：</strong>
+                              <strong>Description: </strong>
                               {item.description}
                             </div>
                             <div className='mb-2'>
-                              <strong>副标题：</strong>
+                              <strong>Subtitle: </strong>
                               {item.subtitle}
                             </div>
                             {item.crate_name && (
