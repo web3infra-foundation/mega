@@ -22,47 +22,9 @@ pub async fn get_tree_commit_info<T: ApiHandler + ?Sized>(
     path: PathBuf,
     refs: Option<&str>,
 ) -> Result<Vec<TreeCommitItem>, GitError> {
-    // If refs provided, resolve to commit and list items from that commit's tree at path,
-    // attaching the same commit info to each item for consistent, minimal behavior.
-    let maybe = refs.unwrap_or("").trim();
-    if !maybe.is_empty() {
-        // Resolve commit from refs (SHA or tag)
-        let is_hex_sha1 = |s: &str| s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit());
-        let mut commit_hash = String::new();
-        if is_hex_sha1(maybe) {
-            commit_hash = maybe.to_string();
-        } else if let Ok(Some(tag)) = handler.get_tag(None, maybe.to_string()).await {
-            commit_hash = tag.object_id;
-        }
-
-        if !commit_hash.is_empty() {
-            let commit = handler.get_commit_by_hash(&commit_hash).await;
-            // Use refs-aware tree search
-            if let Some(tree) = search_tree_by_path(handler, &path, refs).await? {
-                let mut items: Vec<TreeCommitItem> = tree
-                    .tree_items
-                    .into_iter()
-                    .map(|item| TreeCommitItem::from((item, Some(commit.clone()))))
-                    .collect();
-                items.sort_by(|a, b| {
-                    a.content_type
-                        .cmp(&b.content_type)
-                        .then(a.name.cmp(&b.name))
-                });
-                return Ok(items);
-            } else {
-                // path not found under this refs
-                return Ok(vec![]);
-            }
-        } else {
-            return Err(GitError::CustomError(
-                "Invalid refs: tag or commit not found".to_string(),
-            ));
-        }
-    }
-
-    // No refs provided: fallback to existing behavior
-    let commit_map = item_to_commit_map(handler, path).await?;
+    // Use refs-aware commit mapping to get individual commit info for each file/directory
+    // This ensures each item shows its own last modification commit, not just the tag commit
+    let commit_map = item_to_commit_map(handler, path, refs).await?;
     let mut items: Vec<TreeCommitItem> = commit_map.into_iter().map(TreeCommitItem::from).collect();
     items.sort_by(|a, b| {
         a.content_type
