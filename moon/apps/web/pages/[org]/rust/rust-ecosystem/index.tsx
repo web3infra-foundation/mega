@@ -56,6 +56,15 @@ export default function RustEcosystemPage() {
     fetchCVEList()
   }, [])
 
+  // 处理搜索功能
+  const handleSearch = () => {
+    if (search.trim()) {
+      const org = router.query.org || 'org'
+
+      router.push(`/${org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`)
+    }
+  }
+
   // 为每个CVE项生成随机标签
   const getCVEWithTag = (cve: CVEItem, index: number) => {
     const tags = [
@@ -120,11 +129,7 @@ export default function RustEcosystemPage() {
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
-                      if (search.trim()) {
-                        router.push(
-                          `/${router.query.org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`
-                        )
-                      }
+                      handleSearch()
                     }
                   }}
                 />
@@ -132,13 +137,7 @@ export default function RustEcosystemPage() {
                   type='button'
                   className='ml-3 inline-flex h-12 flex-shrink-0 items-center justify-center gap-3 whitespace-nowrap rounded-lg bg-[#1F2D5C] px-6 text-base font-medium text-white'
                   style={{ height: '48px', padding: '0 24px', borderRadius: '8px', background: '#1F2D5C' }}
-                  onClick={() => {
-                    if (search.trim()) {
-                      router.push(
-                        `/${router.query.org}/rust/rust-ecosystem/search?q=${encodeURIComponent(search.trim())}`
-                      )
-                    }
-                  }}
+                  onClick={handleSearch}
                 >
                   Search Crate
                 </button>
