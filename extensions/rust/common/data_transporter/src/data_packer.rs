@@ -9,7 +9,7 @@ pub struct DataPacker {
 impl DataPacker {
     pub async fn new() -> Self {
         let db = DBHandler::connect().await.unwrap();
-        db.clear_database().await.unwrap();
+
         db.create_tables().await.unwrap();
         Self { db }
     }
@@ -18,10 +18,10 @@ impl DataPacker {
         &self,
         program: Program,
         uprogram: UProgram,
-        versions: Vec<crate::VersionInfo>,
+        //versions: Vec<crate::VersionInfo>,
     ) {
         self.db
-            .insert_program_data(program, uprogram, versions)
+            .insert_program_data(program, uprogram)
             .await
             .unwrap();
     }

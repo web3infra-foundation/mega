@@ -4,7 +4,7 @@ metadata:
   name: import-tugraph
   namespace: crates-pro
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: import-tugraph
@@ -13,13 +13,14 @@ spec:
       labels:
         app: import-tugraph
     spec:
+      terminationGracePeriodSeconds: 600
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
       containers:
       - name: container-0
-        image: localhost:30500/cratespro-import-tugraph:local-20250903-0740
+        image: localhost:30500/crates-pro-import-tugraph:local-20250918-1525
         imagePullPolicy: IfNotPresent
         env:
         - name: MEGA_BASE_URL
@@ -47,8 +48,8 @@ spec:
       - name: output-volume
         hostPath:
           path: /mnt/devops/instances/test1/cratespro-backend/output
-          type: Directory
+          type: DirectoryOrCreate
       - name: lgraph-db-volume
         hostPath:
-          path: /home/rust/tugraph/lgraph_db
-          type: Directory
+          path: /mnt/devops/instances/test1/tugraph/lgraph_db
+          type: DirectoryOrCreate

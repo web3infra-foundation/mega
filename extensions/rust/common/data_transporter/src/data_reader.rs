@@ -5,7 +5,7 @@ use semver::Version;
 use serde_json::Value;
 use std::{
     cmp::Ordering,
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     error::Error,
     time::Instant,
 };
@@ -20,7 +20,7 @@ use crate::{
     },
     NameVersion,
 };
-
+#[allow(async_fn_in_trait)]
 pub trait DataReaderTrait {
     async fn get_all_programs_id(&self) -> Vec<String>;
     async fn get_program(&self, program_id: &str) -> Result<Program, Box<dyn Error>>;
@@ -354,7 +354,7 @@ impl DataReaderTrait for DataReader {
         Ok(res_deps)
     }
     #[allow(unused_assignments)]
-    async fn get_crates_front_info_from_tg(
+     async fn get_crates_front_info_from_tg(
         &self,
         nname: String,
         nversion: String,
@@ -753,6 +753,7 @@ RETURN n.doc_url
         Ok(visited)
     }
     async fn get_all_programs_id(&self) -> Vec<String> {
+        tracing::info!("start get all ids");
         let query = "
             MATCH (p: program)
             RETURN p 
@@ -770,7 +771,7 @@ RETURN n.doc_url
 
             programs.push(program.id);
         }
-
+    tracing::info!("finish get all ids");
         programs
     }
 
@@ -933,8 +934,28 @@ RETURN m.name_and_version as name_and_version
                 nodes.push(name_version);
             }
         }
-
-        Ok(nodes)
+        let mut real_nodes = vec![];
+        if !nodes.is_empty(){
+            let mut version_map: HashMap<String, Vec<String>> = HashMap::new();
+            for node in nodes.clone(){
+                version_map.entry(node.name)
+                .or_default()
+                .push(node.version);
+            }
+            for (name,versions) in version_map.clone(){
+                let mut sorting_versions: Vec<semver::Version> = versions
+                .iter()
+                .filter_map(|ver| semver::Version::parse(ver).ok()) // 将所有版本字符串解析为 Version 对象
+                .collect();
+                sorting_versions.sort();
+                if let Some(real_deps_version) = sorting_versions.first(){
+                    let real_deps_version = real_deps_version.to_string();
+                    let res_nv = NameVersion{ name, version: real_deps_version };
+                    real_nodes.push(res_nv);
+                }
+            }
+        }
+        Ok(real_nodes)
     }
     async fn get_indirect_dependency_nodes(
         &self,
@@ -1014,11 +1035,13 @@ RETURN m.name_and_version as name_and_version
         namespace: &str,
         nameversion: &str,
     ) -> Result<Vec<crate::NameVersion>, Box<dyn Error>> {
+        let _ = namespace;
         let query1 = format!(
             "
-                MATCH (p:program {{namespace: '{namespace}'}})-[:has_type]->(l)-[:has_version]->(lv {{name_and_version:'{nameversion}'}})-[:has_dep_version]->(vs:version)<-[:depends_on]-(m:version)
-RETURN m.name_and_version as name_and_version
-                "
+                MATCH (m:version)-[r:depends_on]->(vs:version{{name_and_version:'{}'}})
+                RETURN m.name_and_version as name_and_version 
+                ",
+            nameversion
         );
         let results1 = self.client.exec_query(&query1).await?;
         let mut res = vec![];
@@ -1085,10 +1108,16 @@ RETURN m.name_and_version as name_and_version
         namespace: String,
         name: String,
     ) -> Result<Vec<String>, Box<dyn Error>> {
+        let _ = namespace;
         let query = format!(
             "
-            MATCH (p:program {{namespace: '{namespace}'}})-[:has_type]->(l)-[:has_version]->(lv {{name:'{name}'}})
-RETURN lv.version"
+            MATCH (n:library_version {{name:'{}'}}) 
+            RETURN n.version as version
+            UNION 
+            MATCH (m:application_version {{name:'{}'}}) 
+            RETURN m.version as version",
+            name.clone(),
+            name.clone(),
         );
         let time1 = Instant::now();
         let results = self.client.exec_query(&query).await.unwrap();
@@ -1100,7 +1129,7 @@ RETURN lv.version"
 
         for res in unique_items {
             let parsed: Value = serde_json::from_str(&res).unwrap();
-            if let Some(version) = parsed.get("lv.version").and_then(|v| v.as_str()) {
+            if let Some(version) = parsed.get("version").and_then(|v| v.as_str()) {
                 realres.push(version.to_string());
             }
         }

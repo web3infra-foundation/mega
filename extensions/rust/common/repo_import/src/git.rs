@@ -113,10 +113,7 @@ pub(crate) async fn get_all_git_tags_with_time_sorted(
 
         // Convert annotated and light-weight tag into commit
         let commit = if let Some(tag) = obj.as_tag() {
-            /*tag.target()
-            .expect("Couldn't get tag target")
-            .peel_to_commit()
-            .expect("Couldn't peel to commit")*/
+            
             let tmp = tag.target().expect("Couldn't get tag target");
             match tmp.peel_to_commit() {
                 Ok(commit) => commit,

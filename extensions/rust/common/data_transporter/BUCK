@@ -16,6 +16,7 @@ rust_library(
         "//project/crates-pro:repo_import",
         "//project/crates-pro:search",
         "//project/crates-pro:tudriver",
+        "//third-party:actix-cors",
         "//third-party:actix-multipart",
         "//third-party:actix-web",
         "//third-party:async-trait",

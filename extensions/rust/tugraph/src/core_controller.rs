@@ -3,13 +3,15 @@
 //! parse them, and store it into tugraph, and notify
 //! other processes.
 
+
+use data_transporter::Transporter;
+//use neo4rs::{ConfigBuilder, Graph};
 //use analysis::analyse_once;
 #[allow(unused_imports)]
 use repo_import::ImportDriver;
 
 use crate::cli::CratesProCli;
 use futures_util::future::FutureExt;
-//use std::process::Command;
 //use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[allow(unused_imports)]
@@ -21,6 +23,7 @@ pub struct CoreController {
     pub cli: CratesProCli,
 
     pub import: bool,
+    pub package: bool,
 }
 struct SharedState {
     is_packaging: bool,
@@ -29,14 +32,17 @@ struct SharedState {
 impl CoreController {
     pub async fn new(cli: CratesProCli) -> Self {
         let import = env::var("CRATES_PRO_IMPORT").unwrap().eq("1");
+        let package = env::var("CRATES_PRO_PACKAGE").unwrap().eq("1");
         Self {
             cli,
             import,
+            package,
         }
     }
 
     pub async fn run(&self) {
         let import = self.import;
+        let package = self.package;
 
         let shared_state: Arc<tokio::sync::Mutex<SharedState>> =
             Arc::new(Mutex::new(SharedState {
@@ -56,6 +62,7 @@ impl CoreController {
                 }
 
                 let mut import_driver = ImportDriver::new(dont_clone).await;
+                //import_driver.context.version_updater.version_parser.version_map.entry("serde_json/1.0".to_string()).or_default().push("".to_string());
                 let mut count = 0;
                 let is_importing = Arc::new(AtomicBool::new(false));
                 let is_importing_clone = Arc::clone(&is_importing);
@@ -76,7 +83,7 @@ impl CoreController {
 
                     if !received_term && term_signal.recv().now_or_never().is_some() {
                         tracing::info!(
-                            "Import task received SIGTERM, will exit after current message"
+                            "Import task received SIGTERM:{:?}, will exit after current message",term_signal
                         );
                         received_term = true;
                     }
@@ -92,9 +99,17 @@ impl CoreController {
                     }
 
                     count += 1;
-                    if count == 10000 {
-                        import_driver.context.write_tugraph_import_files().await;
-                        let _ =import_driver.context.import_from_env_vars().await;
+                    if count == 100000 {
+                        
+                        tracing::info!("Import task saving checkpoint...");
+                        if let Err(e) = import_driver.save_checkpoint().await {
+                            tracing::error!("Failed to save checkpoint: {}", e);
+                        } else {
+                            tracing::info!("checkpoint saved successfully");
+                        }
+                        tracing::info!("finish save checkpoint");
+                        
+
                         count = 0;
                     }
                     drop(state);
@@ -105,11 +120,54 @@ impl CoreController {
                 }
             }
         });
+        let state_clone3: Arc<tokio::sync::Mutex<SharedState>> = Arc::clone(&shared_state);
+        let package_task = tokio::spawn(async move {
+            if package {
+                loop {
+                    {
+                        let mut state = state_clone3.lock().await;
+                        state.is_packaging = true;
+                    }
+
+                    // process here
+
+                    {
+                        let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").expect("TUGRAPH_BOLT_URL environment variable must be set");
+                        let tugraph_user_name = env::var("TUGRAPH_USER_NAME").expect("TUGRAPH_USER_NAME environment variable must be set");
+                        let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").expect("TUGRAPH_USER_PASSWORD environment variable must be set");
+                        let tugraph_cratespro_db = env::var("TUGRAPH_CRATESPRO_DB").expect("TUGRAPH_CRATESPRO_DB environment variable must be set");
+                        let mut transporter = Transporter::new(
+                            &tugraph_bolt_url,
+                            &tugraph_user_name,
+                            &tugraph_user_password,
+                            &tugraph_cratespro_db,
+                        )
+                        .await;
+
+                        if let Err(e) = transporter.transport_data().await {
+                            tracing::error!("Failed to transport data: {:?}", e);
+                        }
+                    }
+
+                    {
+                        let mut state = state_clone3.lock().await;
+                        state.is_packaging = false;
+                    }
+
+                    // after one day
+                    tokio::time::sleep(Duration::from_secs(86400)).await;
+                }
+            }
+        });
 
         // 只等待实际运行的任务
         if import {
             import_task.await.unwrap();
             tracing::info!("Import task completed");
+        }
+        if package {
+            package_task.await.unwrap();
+            tracing::info!("Package task completed");
         }
     }
 }

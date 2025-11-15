@@ -10,6 +10,8 @@ members = [
   "tugraph",
   "sensleak",
   "mirchecker",
+  "cve_analysis",
+  "get_cve_id",
 ]
 
 resolver = "2" # use resolver of version 2
@@ -23,8 +25,9 @@ search = { path = "common/search" }
 tudriver = { path = "common/tudriver" }
 database = { path = "common/database" }
 entity = { path = "common/database/entity" }
-import_tugraph = {path = "tugraph"}
+import_tugraph = {path = "import_tugraph"}
 sensleak_analysis = {path = "sensleak"}
 mirchecker_analysis = {path = "mirchecker"}
-
+cve_analysis = {path = "cve"}
+get_cve_id = {path = "get_cve_id"}
 # third-party (所有第三方依赖, 按字母表排序, 均保留1个小数点)

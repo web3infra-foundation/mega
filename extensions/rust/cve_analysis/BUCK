@@ -1,30 +1,34 @@
 load("@prelude//rust:cargo_package.bzl", "cargo")
 
 filegroup(
-    name = "import-tugraph-0.1.0.crate",
+    name = "cve-0.1.0.crate",
     srcs = [
-        "src/cli.rs",
-        "src/core_controller.rs",
+        "src/cve_info.rs",
+        "src/kafka_handler.rs",
         "src/main.rs",
+        "src/model.rs",
     ],
 )
 
 pkg_deps = [
-    "//project/crates-pro:repo_import",
     "//project/crates-pro:data_transporter",
     "//third-party:dotenvy",
-    "//third-party:futures-util",
+    "//third-party:rdkafka",
+    "//third-party:regex",
+    "//third-party:reqwest",
+    "//third-party:scraper",
+    "//third-party:serde",
     "//third-party:serde_json",
-    "//third-party:structopt",
     "//third-party:tokio",
+    "//third-party:tokio-postgres",
     "//third-party:tracing",
     "//third-party:tracing-subscriber",
 ]
 
 cargo.rust_binary(
-    name = "import_tugraph",
-    srcs = [":import-tugraph-0.1.0.crate"],
-    crate_root = "import-tugraph-0.1.0.crate/src/main.rs",
+    name = "cve",
+    srcs = [":cve-0.1.0.crate"],
+    crate_root = "cve-0.1.0.crate/src/main.rs",
     edition = "2024",
     deps = pkg_deps,
     visibility = ["PUBLIC"],

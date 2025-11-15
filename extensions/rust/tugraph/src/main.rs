@@ -19,7 +19,7 @@ async fn main() {
         .as_secs();
 
     // 创建带时间戳的日志文件
-    let log_path = format!("log/log_{timestamp}.ans");
+    let log_path = format!("target/log/log_{timestamp}.ans");
     let parent_dir = std::path::Path::new(&log_path)
             .parent() 
             .ok_or_else(|| std::io::Error::other("Invalid log path")).unwrap();
