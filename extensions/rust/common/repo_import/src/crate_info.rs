@@ -1,6 +1,6 @@
 use crate::{
     utils::{get_namespace_by_repo_path, insert_program_by_name,extract_middle_path},
-    Licenses,
+    
 };
 use model::tugraph_model::{Application, HasType, Library, Program, UProgram};
 use std::{
@@ -14,7 +14,7 @@ use walkdir::WalkDir;
 pub(crate) async fn extract_info_local(
     local_repo_path: PathBuf,
     git_url: String,
-    lic: &mut Vec<Licenses>,
+    //lic: &mut Vec<Licenses>,
 ) -> Vec<(Program, HasType, UProgram)> {
     let mut res = vec![];
 
@@ -54,7 +54,7 @@ pub(crate) async fn extract_info_local(
                         local_repo_path.clone(),
                         entry_path.to_path_buf(),
                         &id,
-                        lic,
+                        //lic,
                     )
                     .await
                     .unwrap();
@@ -92,9 +92,9 @@ pub(crate) async fn extract_info_local(
 
 async fn parse_crate_name(path: &Path) -> Result<String, String> {
     let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    tracing::info!("finish get content:\n{}",content);
+    
     let value = content.parse::<toml::Value>().map_err(|e| e.to_string())?;
-    tracing::info!("finish get value");
+    
     // a package name, no matter lib or bin
     let package_name = value
         .get("package")
@@ -142,23 +142,27 @@ async fn is_crate_lib(crate_path: &str) -> Result<bool, String> {
     // 如果没有明显的线索，回退为默认假设不是库
     Ok(false)
 }
-
+#[allow(clippy::collapsible_str_replace)]
 async fn from_cargo_toml(
     local_repo_path: PathBuf,
     cargo_toml_path: PathBuf,
     id: &str,
-    lic: &mut Vec<Licenses>,
+    //lic: &mut Vec<Licenses>,
 ) -> Result<Program, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(cargo_toml_path)?;
     let parsed = content.parse::<toml::Value>()?;
 
     // 处理description,将多行字符串转换为单行,用\n替换换行符
     let description = parsed["package"]
-        .get("decription")
+        .get("description")
         .unwrap_or(&toml::Value::String(String::from("None")))
         .as_str()
-        .map(|desc| desc.replace('\n', "\\n").replace('\r', ""));
-
+        .map(|desc| {
+            let mut processed = desc.replace('\n', "\\n").replace('\r', "");
+            processed = processed.replace('"', " ").replace('\'', " ");
+            processed}
+    );
+    
     let mut program = Program::new(
         id.to_string(),
         parsed["package"]["name"]
@@ -180,17 +184,6 @@ async fn from_cargo_toml(
             .as_str()
             .map(String::from),
     );
-    let license = parsed["package"]
-        .get("license")
-        .unwrap_or(&toml::Value::String(String::from("None")))
-        .as_str()
-        .map(String::from);
-    let newlicense = Licenses {
-        program_id: program.id.clone(),
-        program_name: program.name.clone(),
-        program_namespace: program.namespace.clone(),
-        license,
-    };
     if program.name.is_empty() {
         if let Some(ns) = program.namespace.clone() {
             let new_ns = ns.as_str();
@@ -210,6 +203,6 @@ async fn from_cargo_toml(
             program.github_url = Some("None".to_string());
         }
     }
-    lic.push(newlicense);
+    //lic.push(newlicense);
     Ok(program)
 }

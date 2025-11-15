@@ -4,6 +4,7 @@ name = "tudriver"
 version = "0.1.0"
 
 [dependencies]
+model = {workspace = true}
 # third-party (第三方依赖, 不写具体版本号, 具体版本只在根目录 Cargo.toml 中出现)
 base64 = "0.22"
 dotenvy = "0.15"
