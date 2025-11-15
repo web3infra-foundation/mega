@@ -76,11 +76,20 @@ impl MergeQueueService {
     }
 
     pub async fn get_display_position(&self, cl_link: &str) -> Result<Option<usize>, MegaError> {
-        let list = self.get_queue_list().await?;
-        Ok(list
-            .iter()
-            .position(|m| m.cl_link == cl_link)
-            .map(|idx| idx + 1))
+        self.merge_queue_storage
+            .get_display_position(cl_link)
+            .await
+            .map_err(|e| MegaError::with_message(&e))
+    }
+
+    pub async fn get_display_position_by_position(
+        &self,
+        position: i64,
+    ) -> Result<usize, MegaError> {
+        self.merge_queue_storage
+            .get_display_position_by_position(position)
+            .await
+            .map_err(|e| MegaError::with_message(&e))
     }
 
     pub async fn get_queue_stats(&self) -> Result<QueueStats, MegaError> {

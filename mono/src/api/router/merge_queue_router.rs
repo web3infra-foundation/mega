@@ -52,9 +52,17 @@ async fn add_to_queue(
             let display_position = state
                 .storage
                 .merge_queue_service
-                .get_display_position(&request.cl_link)
+                .get_display_position_by_position(position)
                 .await
-                .unwrap_or(None);
+                .map(Some)
+                .unwrap_or_else(|e| {
+                    tracing::warn!(
+                        "Failed to get display position after add for {}: {}",
+                        request.cl_link,
+                        e
+                    );
+                    None
+                });
 
             let response = AddToQueueResponse {
                 success: true,
@@ -140,13 +148,25 @@ async fn get_cl_queue_status(
     if let Some(ref mut item) = item_opt {
         match item.status {
             QueueStatus::Waiting | QueueStatus::Testing | QueueStatus::Merging => {
-                let index = state
+                let index_result = state
                     .storage
                     .merge_queue_service
                     .get_display_position(&item.cl_link)
-                    .await
-                    .unwrap_or(None);
-                item.display_position = index;
+                    .await;
+
+                match index_result {
+                    Ok(index) => {
+                        item.display_position = index;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to get display position for {}: {}",
+                            item.cl_link,
+                            e
+                        );
+                        item.display_position = None;
+                    }
+                }
             }
             _ => {}
         }
