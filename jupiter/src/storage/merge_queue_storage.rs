@@ -250,31 +250,39 @@ impl MergeQueueStorage {
     }
 
     pub async fn cancel_all_pending(&self) -> Result<u64, String> {
-        let update_result = Entity::update_many()
-            .filter(Column::Status.is_in([
-                //
-                QueueStatusEnum::Waiting,
-                QueueStatusEnum::Testing,
-            ]))
-            .col_expr(Column::Status, QueueStatusEnum::Failed.into())
-            .col_expr(
-                Column::FailureType,
-                Some(QueueFailureTypeEnum::SystemError).into(),
-            )
-            .col_expr(
-                Column::ErrorMessage,
-                Some("Operation cancelled by user".to_string()).into(),
-            )
-            .col_expr(Column::UpdatedAt, chrono::Utc::now().naive_utc().into())
-            .exec(self.get_connection())
-            .await
-            .map_err(|e| format!("Failed to cancel items: {}", e))?;
+        let db = self.get_connection();
 
-        tracing::info!(
-            "Successfully cancelled {} pending items",
-            update_result.rows_affected
-        );
-        Ok(update_result.rows_affected)
+        let items = Entity::find()
+            .filter(Column::Status.is_in([QueueStatusEnum::Waiting, QueueStatusEnum::Testing]))
+            .all(db)
+            .await
+            .map_err(|e| format!("Failed to find items to cancel: {}", e))?;
+
+        if items.is_empty() {
+            tracing::info!("No pending items to cancel");
+            return Ok(0);
+        }
+
+        let now = chrono::Utc::now().naive_utc();
+        let mut affected: u64 = 0;
+
+        for item in items {
+            let mut active: ActiveModel = item.into();
+            active.status = Set(QueueStatusEnum::Failed);
+            active.failure_type = Set(Some(QueueFailureTypeEnum::SystemError));
+            active.error_message = Set(Some("Operation cancelled by user".to_string()));
+            active.updated_at = Set(now);
+
+            active
+                .update(db)
+                .await
+                .map_err(|e| format!("Failed to cancel item: {}", e))?;
+
+            affected += 1;
+        }
+
+        tracing::info!("Successfully cancelled {} pending items", affected);
+        Ok(affected)
     }
 
     pub fn mock() -> Self {
