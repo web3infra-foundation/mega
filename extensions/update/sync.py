@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from git import Repo, Actor
 from kafka import KafkaProducer
-from packaging.version import parse as vparse
+from packaging.version import parse as vparse, InvalidVersion
 
 from .database import Base,engine
 from .do_utils import load_processed_from_db, update_repo_sync_result
@@ -45,7 +45,7 @@ DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "/opt/data/crates")
 MEGA_URL = os.environ.get("MEGA_URL", "http://git.gitmega.nju:30080")
 
 # Kafka 配置
-KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "172.17.0.1:30092")
+KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "10.42.0.1:30092")
 KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC", "ANALYSIS_TEST")
 KAFKA_TOPIC_INDEX = os.environ.get("KAFKA_TOPIC_INDEX", "INDEX_TEST")
 
@@ -146,14 +146,14 @@ def get_all_files(index_dir):
     except Exception as e:
         print(f"遍历目录失败：{e}")
     
-    # 打印结果
-    print("\n===== Crates 信息 =====")
-    for crate, info in crates.items():
-        print(f"crate: {crate}")
-        print(f"  prefix_dir: {info['prefix_dir']}")
-        for v in info["versions"]:
-            print(f"    - version: {v['version']}, checksum: {v['checksum']}, desc: {v['description']}")
-    print("========================\n")
+    # # 打印结果
+    # print("\n===== Crates 信息 =====")
+    # for crate, info in crates.items():
+    #     print(f"crate: {crate}")
+    #     print(f"  prefix_dir: {info['prefix_dir']}")
+    #     for v in info["versions"]:
+    #         print(f"    - version: {v['version']}, checksum: {v['checksum']}, desc: {v['description']}")
+    # print("========================\n")
         
     return crates
 
@@ -444,6 +444,8 @@ def download_all_crates():
 
     processed = load_processed_from_db()
 
+    print(f"数据库加载完毕")
+
     if ENABLE_CONCURRENCY:
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = []
@@ -458,15 +460,28 @@ def download_all_crates():
                 for ver_info in versions:
                     version = ver_info["version"]
                     checksum = ver_info["checksum"]
-                    if latest_version and vparse(version) <= vparse(latest_version):
-                        continue
-
-                    futures.append(
-                        executor.submit(
-                            _download_and_process,
-                            name, version, checksum, repo_id, prefix_dir
+                    
+                    # 版本号比较逻辑，添加异常处理
+                    skip = False
+                    if latest_version:
+                        try:
+                            # 尝试解析版本号并比较
+                            parsed_version = vparse(version)
+                            parsed_latest = vparse(latest_version)
+                            if parsed_version <= parsed_latest:
+                                skip = True
+                        except InvalidVersion:
+                            # 任何一方无法解析时，不跳过，直接处理
+                            print(f"版本号 {version} 或 {latest_version} 无法解析，将直接处理 {name}")
+                            skip = False
+                    
+                    if not skip:
+                        futures.append(
+                            executor.submit(
+                                _download_and_process,
+                                name, version, checksum, repo_id, prefix_dir
+                            )
                         )
-                    )
 
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -485,10 +500,24 @@ def download_all_crates():
             for ver_info in versions:
                 version = ver_info["version"]
                 checksum = ver_info["checksum"]
-                if latest_version and vparse(version) <= vparse(latest_version):
-                    continue
+                
+                # 版本号比较逻辑，添加异常处理
+                skip = False
+                if latest_version:
+                    try:
+                        # 尝试解析版本号并比较
+                        parsed_version = vparse(version)
+                        parsed_latest = vparse(latest_version)
+                        if parsed_version <= parsed_latest:
+                            skip = True
+                    except InvalidVersion:
+                        # 任何一方无法解析时，不跳过，直接处理
+                        print(f"版本号 {version} 或 {latest_version} 无法解析，将直接处理 {name}")
+                        skip = False
+                
+                if not skip:
+                    _download_and_process(name, version, checksum, repo_id, prefix_dir)
 
-                _download_and_process(name, version, checksum, repo_id, prefix_dir)
 
 
 

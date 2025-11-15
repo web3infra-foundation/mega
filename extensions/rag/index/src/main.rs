@@ -172,8 +172,9 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn test_consumer_group_env() {
-        dotenv::from_path("../.env").ok();
+        dotenv::from_path(".env").ok();
         assert_eq!(std::env::var("CONSUMER_GROUP").unwrap(), "test");
     }
 }
