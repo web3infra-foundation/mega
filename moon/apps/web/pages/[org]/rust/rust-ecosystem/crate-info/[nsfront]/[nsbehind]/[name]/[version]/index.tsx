@@ -73,6 +73,7 @@ export interface cratesInfo {
     url: string
   }>
   license: string
+  dependency_license: Array<[string, number]>
   github_url: string
   doc_url: string
   versions: string[]
@@ -121,8 +122,24 @@ const CratePage = () => {
         }
 
         const data = await response.json()
+        // 后端 res 为字符串，这里尝试解析成数组，失败则保留原字符串
+        let resArray: any[] | null = null
 
-        setSenseleakData(data)
+        if (data && typeof data.res === 'string') {
+          try {
+            const parsed = JSON.parse(data.res)
+
+            if (Array.isArray(parsed)) {
+              resArray = parsed
+            } else if (parsed) {
+              resArray = [parsed]
+            }
+          } catch {
+            // 保留为 null，使用原字符串降级展示
+          }
+        }
+
+        setSenseleakData({ ...data, resArray })
       } catch (err) {
         setSenseleakError('Failed to load senseleak data')
       } finally {
@@ -240,93 +257,6 @@ const CratePage = () => {
             <div className='grid grid-cols-1 gap-12 lg:grid-cols-3'>
               {/* 左侧内容区域 - 占据2列 */}
               <div className='space-y-6 lg:col-span-2' style={{ width: '800px' }}>
-                {/* Security Advisories 内容 */}
-                <div className='rounded-2xl bg-white p-6 shadow-[0_0_12px_0_rgba(43,88,221,0.09)]'>
-                  {/* 卡片头部 */}
-                  <div className='mb-6 flex items-center justify-between'>
-                    <div>
-                      <h3 className="font-['HarmonyOS_Sans_SC'] text-[24px] font-medium tracking-[0.96px] text-[#333333]">
-                        Security Advisories
-                      </h3>
-                      <p
-                        className='mt-3'
-                        style={{
-                          alignSelf: 'stretch',
-                          color: '#1c2024',
-                          fontFamily: '"HarmonyOS Sans SC"',
-                          fontSize: '20px',
-                          fontStyle: 'normal',
-                          fontWeight: 400,
-                          lineHeight: '16px',
-                          letterSpacing: '0.04px'
-                        }}
-                      >
-                        In the dependencies
-                      </p>
-                    </div>
-                    <span
-                      className='flex-shrink-0 text-sm text-white'
-                      style={{
-                        display: 'flex',
-                        width: '33px',
-                        height: '33px',
-                        flexDirection: 'column',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        aspectRatio: '1/1',
-                        borderRadius: '6px',
-                        background: '#E5484D'
-                      }}
-                    >
-                      {(results?.cves?.length || 0) + (results?.dep_cves?.length || 0)}
-                    </span>
-                  </div>
-
-                  {/* 安全公告列表 */}
-                  <div className='space-y-4'>
-                    {/* CVE列表 */}
-                    {results.cves.slice(0, 3).map((cve) => (
-                      <div key={cve.id} className='flex items-start justify-between border-b border-gray-100 py-3'>
-                        <div className='flex-1'>
-                          <p className="mb-1 font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] text-[#FD5656]">
-                            {cve.subtitle || cve.description}
-                          </p>
-                          <p className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#666666]">{cve.id}</p>
-                        </div>
-                        <Link href={`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${cve.id}`}>
-                          <button className="ml-4 rounded border border-[#4B68FF] px-4 py-2 font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#4B68FF] transition-colors hover:bg-[#4B68FF] hover:text-white">
-                            MORE DETAILS
-                          </button>
-                        </Link>
-                      </div>
-                    ))}
-
-                    {/* SIMILAR ADVISORIES 标题 */}
-                    <div className='py-1 pl-6'>
-                      <p className="font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide text-[#666666]">
-                        SIMILAR ADVISORIES
-                      </p>
-                    </div>
-
-                    {/* 依赖CVE列表 */}
-                    {results.dep_cves.slice(0, 2).map((cve) => (
-                      <div key={cve.id} className='flex items-start justify-between border-b border-gray-100 py-3 pl-6'>
-                        <div className='flex-1'>
-                          <p className="mb-1 font-['HarmonyOS_Sans_SC'] text-[16px] font-normal leading-[18px] text-[#FD5656]">
-                            {cve.subtitle || cve.description}
-                          </p>
-                          <p className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#666666]">{cve.id}</p>
-                        </div>
-                        <Link href={`/${router.query.org}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${cve.id}`}>
-                          <button className="ml-4 rounded border border-[#4B68FF] px-4 py-2 font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#4B68FF] transition-colors hover:bg-[#4B68FF] hover:text-white">
-                            MORE DETAILS
-                          </button>
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Licenses */}
                 <div className='space-y-6'>
                   {/* Licenses 标题 */}
@@ -344,26 +274,26 @@ const CratePage = () => {
                     <div className='mb-6 flex items-center justify-between'>
                       <div>
                         <h3 className="font-['HarmonyOS_Sans_SC'] text-[24px] font-medium tracking-[0.96px] text-[#333333]">
-                          Licenses
+                          LICENSES
                         </h3>
-                        <p
-                          className='mt-3'
-                          style={{
-                            alignSelf: 'stretch',
-                            color: '#1c2024',
-                            fontFamily: '"HarmonyOS Sans SC"',
-                            fontSize: '20px',
-                            fontStyle: 'normal',
-                            fontWeight: 400,
-                            lineHeight: '16px',
-                            letterSpacing: '0.04px'
-                          }}
-                        >
-                          In the dependencies
-                        </p>
-                        <span className="mt-2 block cursor-pointer font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#4B68FF] hover:underline">
-                          Learn more about license information.
-                        </span>
+                        {/* <p 
+                                                   className="mt-3"
+                                                   style={{
+                                                       alignSelf: 'stretch',
+                                                       color: '#1c2024',
+                                                       fontFamily: '"HarmonyOS Sans SC"',
+                                                       fontSize: '20px',
+                                                       fontStyle: 'normal',
+                                                       fontWeight: 400,
+                                                       lineHeight: '16px',
+                                                       letterSpacing: '0.04px'
+                                                   }}
+                                                 >
+                                                     In the dependencies
+                                                 </p> */}
+                        {/* <span className="text-[#4B68FF] text-[14px] font-['HarmonyOS_Sans_SC'] font-normal hover:underline cursor-pointer mt-2 block">
+                                                     Learn more about license information.
+                                                 </span> */}
                       </div>
                       <span
                         className='flex-shrink-0 text-sm text-white'
@@ -379,97 +309,70 @@ const CratePage = () => {
                           background: '#4B68FF'
                         }}
                       >
-                        3
+                        {results.dependency_license?.length || 0}
                       </span>
                     </div>
 
                     {/* 主许可证部分 */}
                     <div className='mb-6'>
-                      <p className="mb-2 font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide text-[#666666]">
-                        LICENSES
-                      </p>
+                      {/* <p className="text-[#666666] font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide mb-2">
+                                                LICENSES
+                                            </p> */}
                       <div className="font-['HarmonyOS_Sans_SC'] text-[36px] font-bold text-[#333333]">
                         {results.license || 'Unknown'}
                       </div>
                     </div>
 
-                    {/* 依赖许可证部分 */}
+                    {/* 依赖许可证部分（动态） */}
                     <div>
                       <p className="mb-4 font-['HarmonyOS_Sans_SC'] text-[12px] font-normal uppercase tracking-wide text-[#666666]">
                         DEPENDENCY LICENSES
                       </p>
                       <div className='space-y-4'>
-                        {/* MIT */}
-                        <div className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
-                          <div
-                            className='capitalize'
-                            style={{
-                              color: '#002bb7c4',
-                              fontFamily: '"HarmonyOS Sans SC"',
-                              fontSize: '14px',
-                              fontStyle: 'normal',
-                              fontWeight: 400,
-                              lineHeight: 'normal',
-                              letterSpacing: 0
-                            }}
-                          >
-                            MIT
-                          </div>
-                          <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
-                            77
-                          </div>
-                          <div className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]' style={{ width: '482px' }}>
-                            <div className='h-full rounded-lg bg-[#4B68FF]' style={{ width: '85%' }} />
-                          </div>
-                        </div>
+                        {results.dependency_license && results.dependency_license.length > 0 ? (
+                          (() => {
+                            const maxCount = Math.max(...results.dependency_license.map(([_, count]) => count))
 
-                        {/* BSD-2-Clause */}
-                        <div className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
-                          <div
-                            className='capitalize'
-                            style={{
-                              color: '#002bb7c4',
-                              fontFamily: '"HarmonyOS Sans SC"',
-                              fontSize: '14px',
-                              fontStyle: 'normal',
-                              fontWeight: 400,
-                              lineHeight: 'normal',
-                              letterSpacing: 0
-                            }}
-                          >
-                            BSD-2-Clause
-                          </div>
-                          <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
-                            55
-                          </div>
-                          <div className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]' style={{ width: '482px' }}>
-                            <div className='h-full rounded-lg bg-[#4B68FF]' style={{ width: '60%' }} />
-                          </div>
-                        </div>
-
-                        {/* ISC */}
-                        <div className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
-                          <div
-                            className='capitalize'
-                            style={{
-                              color: '#002bb7c4',
-                              fontFamily: '"HarmonyOS Sans SC"',
-                              fontSize: '14px',
-                              fontStyle: 'normal',
-                              fontWeight: 400,
-                              lineHeight: 'normal',
-                              letterSpacing: 0
-                            }}
-                          >
-                            ISC
-                          </div>
-                          <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
-                            22
-                          </div>
-                          <div className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]' style={{ width: '482px' }}>
-                            <div className='h-full rounded-lg bg-[#4B68FF]' style={{ width: '25%' }} />
-                          </div>
-                        </div>
+                            return (
+                              <>
+                                {results.dependency_license.map(([licenseName, count]) => (
+                                  <div key={licenseName} className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
+                                    <div
+                                      className='capitalize'
+                                      style={{
+                                        color: '#002bb7c4',
+                                        fontFamily: '"HarmonyOS Sans SC"',
+                                        fontSize: '14px',
+                                        fontStyle: 'normal',
+                                        fontWeight: 400,
+                                        lineHeight: 'normal',
+                                        letterSpacing: 0
+                                      }}
+                                    >
+                                      {licenseName}
+                                    </div>
+                                    <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
+                                      {count}
+                                    </div>
+                                    <div
+                                      className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]'
+                                      style={{ width: '482px' }}
+                                    >
+                                      <div
+                                        className='h-full rounded-lg bg-[#4B68FF]'
+                                        style={{
+                                          width: `${maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0}%`
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            )
+                          })()
+                        ) : (
+                          <div className='text-[#666666]'>No dependency license data</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -602,15 +505,16 @@ const CratePage = () => {
                       <span
                         className='flex-shrink-0 text-sm text-white'
                         style={{
-                          display: 'flex',
-                          width: '33px',
+                          display: 'inline-flex',
+                          minWidth: '33px',
                           height: '33px',
+                          padding: '0 8px',
                           flexDirection: 'column',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          aspectRatio: '1/1',
                           borderRadius: '6px',
-                          background: '#4B68FF'
+                          background: '#4B68FF',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         {results.dependents.direct + results.dependents.indirect}
@@ -650,33 +554,31 @@ const CratePage = () => {
                           </div>
 
                           {/* Indirect */}
-                          <div className='grid grid-cols-[80px_48px_1fr] items-center gap-3'>
-                            <div
-                              className='capitalize'
-                              style={{
-                                color: '#002bb7c4',
-                                fontFamily: '"HarmonyOS Sans SC"',
-                                fontSize: '14px',
-                                fontStyle: 'normal',
-                                fontWeight: 400,
-                                lineHeight: 'normal',
-                                letterSpacing: 0
-                              }}
-                            >
-                              Indirect
-                            </div>
-                            <div className="text-right font-['HarmonyOS_Sans_SC'] text-[18px] font-normal capitalize text-[#4B68FF]">
-                              {results.dependents.indirect}
-                            </div>
-                            <div className='h-2 overflow-hidden rounded-lg bg-[#F5F7FF]' style={{ width: '482px' }}>
-                              <div
-                                className='h-full rounded-lg bg-[#4B68FF]'
-                                style={{
-                                  width: `${(results.dependents.indirect / (results.dependents.direct + results.dependents.indirect)) * 100}%`
-                                }}
-                              />
-                            </div>
-                          </div>
+                          {/* <div className="grid grid-cols-[80px_48px_1fr] gap-3 items-center">
+                                                        <div 
+                                                            className="capitalize"
+                                                            style={{
+                                                                color: '#002bb7c4',
+                                                                fontFamily: '"HarmonyOS Sans SC"',
+                                                                fontSize: '14px',
+                                                                fontStyle: 'normal',
+                                                                fontWeight: 400,
+                                                                lineHeight: 'normal',
+                                                                letterSpacing: 0
+                                                            }}
+                                                        >
+                                                            Indirect
+                                                        </div>
+                                                        <div className="text-right text-[#4B68FF] text-[18px] font-['HarmonyOS_Sans_SC'] font-normal capitalize">{results.dependents.indirect}</div>
+                                                        <div className="h-2 rounded-lg overflow-hidden bg-[#F5F7FF]" style={{ width: '482px' }}>
+                                                            <div
+                                                                className="h-full bg-[#4B68FF] rounded-lg"
+                                                                style={{
+                                                                    width: `${(results.dependents.indirect / (results.dependents.direct + results.dependents.indirect)) * 100}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div> */}
                         </div>
 
                         <div className='mt-6 text-center'>
@@ -737,7 +639,7 @@ const CratePage = () => {
                           background: senseleakData?.exist ? '#E5484D' : '#4B68FF'
                         }}
                       >
-                        {senseleakLoading ? '...' : senseleakData?.exist ? '!' : '0'}
+                        {senseleakLoading ? '...' : senseleakData?.exist ? senseleakData?.resArray?.length || '!' : '0'}
                       </span>
                     </div>
 
@@ -769,9 +671,34 @@ const CratePage = () => {
                             </span>
                           </div>
                           <div className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#333333]">
-                            <pre className='whitespace-pre-wrap break-words rounded border bg-white p-3'>
-                              {senseleakData.res || 'No detailed information available'}
-                            </pre>
+                            {Array.isArray(senseleakData.resArray) ? (
+                              senseleakData.resArray.length > 0 ? (
+                                <div className='space-y-3'>
+                                  {senseleakData.resArray.map((item: any) => {
+                                    const itemKey = item.id || item.name || JSON.stringify(item)
+
+                                    return (
+                                      <div key={`senseleak-item-${itemKey}`} className='rounded border bg-white p-3'>
+                                        {Object.entries(item).map(([key, value]) => (
+                                          <div key={key} className='text-sm'>
+                                            <span className='font-semibold text-gray-700'>{key}:</span>{' '}
+                                            <span className='text-gray-800'>{String(value)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              ) : (
+                                <div className='rounded border bg-white p-3 text-center'>
+                                  <p className='text-[#666666]'>No senseleak</p>
+                                </div>
+                              )
+                            ) : (
+                              <pre className='whitespace-pre-wrap break-words rounded border bg-white p-3'>
+                                {senseleakData.res || 'No senseleak'}
+                              </pre>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1012,63 +939,52 @@ const CratePage = () => {
                 </div>
 
                 {/* SCORE */}
-                <div>
-                  <h3 className="mb-2 font-['HarmonyOS_Sans_SC'] text-[18px] font-bold tracking-[0.72px] text-[#333333]">
-                    SCORE
-                  </h3>
-                  <div className='space-y-2'>
-                    <p className="font-['HarmonyOS_Sans_SC'] text-[24px] font-bold text-[#333333]">8.2/10</p>
-                    <p className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#333333]">
-                      Scorecard as of June 16, 2025.
-                    </p>
-                  </div>
-                </div>
+                {/* <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        SCORE
+                                    </h3>
+                                    <div className="space-y-2">
+                                        <p className="text-[24px] font-bold text-[#333333] font-['HarmonyOS_Sans_SC']">
+                                            8.2/10
+                                        </p>
+                                        <p className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">
+                                            Scorecard as of June 16, 2025.
+                                        </p>
+                                    </div>
+                                </div> */}
 
                 {/* Security Policy */}
-                <div>
-                  <h3 className="mb-2 font-['HarmonyOS_Sans_SC'] text-[18px] font-bold tracking-[0.72px] text-[#333333]">
-                    Security Policy
-                  </h3>
-                  <div className='space-y-2'>
-                    {[
-                      {
-                        name: 'Security-Policy',
-                        score: '10/10',
-                        expanded: true,
-                        details: 'Found 28/30 approved changesets -- score normalized to 9'
-                      },
-                      { name: 'Code-Review', score: '10/10' },
-                      { name: 'Maintained', score: '10/10' },
-                      { name: 'CI/Best-Practices', score: '10/10' },
-                      { name: 'License', score: '10/10' },
-                      { name: 'Dangerous-Workflow', score: '10/10' },
-                      { name: 'Token-Permissions', score: '10/10' },
-                      { name: 'Binary-Artifacts', score: '10/10' },
-                      { name: 'Pinned-Dependencies', score: '10/10' }
-                    ].map((item) => (
-                      <div key={item.name} className='flex items-center gap-2'>
-                        <svg className='h-4 w-4 text-green-500' fill='currentColor' viewBox='0 0 20 20'>
-                          <path
-                            fillRule='evenodd'
-                            d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
-                            clipRule='evenodd'
-                          />
-                        </svg>
-                        <span className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#333333]">
-                          {item.name}
-                        </span>
-                        <span className="font-['HarmonyOS_Sans_SC'] text-[14px] font-normal text-[#333333]">
-                          {item.score}
-                        </span>
-                        {item.expanded && (
-                          <p className="ml-6 font-['HarmonyOS_Sans_SC'] text-[12px] font-normal text-[#666666]">
-                            {item.details}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {/* <div>
+                                    <h3 className="text-[18px] font-bold text-[#333333] tracking-[0.72px] font-['HarmonyOS_Sans_SC'] mb-2">
+                                        Security Policy
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {[
+                                            { name: 'Security-Policy', score: '10/10', expanded: true, details: 'Found 28/30 approved changesets -- score normalized to 9' },
+                                            { name: 'Code-Review', score: '10/10' },
+                                            { name: 'Maintained', score: '10/10' },
+                                            { name: 'CI/Best-Practices', score: '10/10' },
+                                            { name: 'License', score: '10/10' },
+                                            { name: 'Dangerous-Workflow', score: '10/10' },
+                                            { name: 'Token-Permissions', score: '10/10' },
+                                            { name: 'Binary-Artifacts', score: '10/10' },
+                                            { name: 'Pinned-Dependencies', score: '10/10' }
+                                        ].map((item) => (
+                                            <div key={item.name} className="flex items-center gap-2">
+                                                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                                <span className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">{item.name}</span>
+                                                <span className="text-[14px] text-[#333333] font-['HarmonyOS_Sans_SC'] font-normal">{item.score}</span>
+                                                {item.expanded && (
+                                                    <p className="text-[12px] text-[#666666] font-['HarmonyOS_Sans_SC'] font-normal ml-6">
+                                                        {item.details}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div> */}
               </div>
             </div>
           </div>

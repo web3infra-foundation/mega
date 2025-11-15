@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Head from 'next/head'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
+
+// import Link from 'next/link'
+import { Link } from '@gitmono/ui/Link'
 
 import { IndexSearchInput } from '@/components/IndexPages/components'
 // import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
@@ -28,6 +31,34 @@ const CratesproPage: PageWithLayout<any> = () => {
   const [query, setQuery] = useState('')
   const isSearchLoading = false // 如有异步搜索可改为实际loading
 
+  interface LatestCve {
+    id: string
+    subtitle: string
+    description: string
+    issued: string
+  }
+  const [latestCves, setLatestCves] = useState<LatestCve[]>([])
+
+  const [cveLoading, setCveLoading] = useState<boolean>(false)
+
+  const [cveError, setCveError] = useState<string | null>(null)
+
+  // 处理搜索功能
+  const handleSearch = useCallback(() => {
+    if (query.trim()) {
+      const org = router.query.org || 'org'
+
+      router.push(`/${org}/rust/rust-ecosystem/search?q=${encodeURIComponent(query.trim())}`)
+    }
+  }, [query, router])
+
+  // 在捕获阶段处理键盘事件，这样可以在 IndexSearchInput 阻止之前捕获
+  const handleKeyDownCapture = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
   const handleNavClick = (navKey: string) => {
     const org = router.query.org ? `/${router.query.org}` : ''
 
@@ -35,20 +66,42 @@ const CratesproPage: PageWithLayout<any> = () => {
       case 'crates':
         router.push(`${org}/rust/rust-ecosystem`)
         break
-      case 'news':
-        router.push(`${org}/rust/rust-news`)
-        break
       case 'cves':
         router.push(`${org}/rust/rust-ecosystem/ecosystem-cve`)
-        break
-      case 'releases':
-        // 暂时没有链接页面
-        alert('Releases 页面暂未开放')
         break
       default:
         break
     }
   }
+
+  // 拉取最新 CVEs
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        setCveLoading(true)
+        setCveError(null)
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+
+        const res = await fetch(`${apiBaseUrl}/api/latestcves`)
+
+        if (!res.ok) throw new Error('failed to load latest cves')
+        const json = await res.json()
+        // 兼容 { cves: LatestCve[] } 或直接数组
+        const list: LatestCve[] = Array.isArray(json) ? json : (json.cves ?? [])
+
+        setLatestCves(list)
+      } catch (e) {
+        setCveError('Failed to load latest CVEs')
+        // fallback: 空数组
+        setLatestCves([])
+      } finally {
+        setCveLoading(false)
+      }
+    }
+
+    fetchLatest()
+  }, [])
 
   return (
     <>
@@ -72,29 +125,17 @@ const CratesproPage: PageWithLayout<any> = () => {
                   Crates
                 </button>
                 <button
-                  onClick={() => handleNavClick('news')}
-                  className='font-medium text-gray-700 transition-colors hover:text-blue-600'
-                >
-                  News
-                </button>
-                <button
                   onClick={() => handleNavClick('cves')}
                   className='font-medium text-gray-700 transition-colors hover:text-blue-600'
                 >
                   CVEs
                 </button>
-                <button
-                  onClick={() => handleNavClick('releases')}
-                  className='font-medium text-gray-700 transition-colors hover:text-blue-600'
-                >
-                  Releases
-                </button>
               </div>
             </div>
 
             {/* 中间：搜索栏 */}
-            <div className='ml-38 flex flex-1 justify-center'>
-              <div className='relative w-full max-w-xl'>
+            <div className='ml-60 flex flex-1 justify-end'>
+              <div onKeyDownCapture={handleKeyDownCapture} className='relative w-full max-w-xl'>
                 <div
                   className='flex items-center gap-2 rounded-full border bg-white px-4 py-2 shadow-sm'
                   style={{ borderColor: 'rgb(253,236,231)' }}
@@ -110,212 +151,116 @@ const CratesproPage: PageWithLayout<any> = () => {
           <div className='w-full border-b border-gray-200' />
         </div>
 
-        {/* 主体内容区域 - 2x2 网格布局 */}
+        {/* 主体内容区域 - 左右并排布局 */}
         <div className='mx-auto w-full max-w-7xl px-8'>
           {/* 主标题 - 左对齐，跨越整个宽度 */}
           <h1 className='mb-8 text-left text-3xl font-bold sm:text-4xl'>Rust Ecosystem Updates</h1>
 
           <div className='grid grid-cols-1 gap-8 lg:grid-cols-2'>
-            {/* 左侧列 */}
-            <div className='space-y-8'>
-              {/* Latest Crate Updates */}
-              <section className='flex flex-col'>
-                <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
-                  Latest Crate Updates
-                </h2>
-                <div
-                  className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
-                  style={{ borderColor: 'rgb(253,236,231)' }}
-                >
-                  <table className='h-full w-full text-left'>
-                    <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <th className='px-6 py-3 text-sm font-semibold'>Crate</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Version</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Updated</th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>serde</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.0.197</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-26</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>tokio</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.38.1</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-25</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>actix-web</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>4.8.0</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-24</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>reqwest</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>0.12.5</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-23</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+            {/* Latest Crate Updates */}
+            <section className='flex flex-col'>
+              <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
+                Latest Crate Updates
+              </h2>
+              <div
+                className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
+                style={{ borderColor: 'rgb(253,236,231)' }}
+              >
+                <table className='h-full w-full text-left'>
+                  <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
+                    <tr>
+                      <th className='px-6 py-3 text-sm font-semibold'>Crate</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Version</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
+                    <tr>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>serde</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.0.197</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-26</td>
+                    </tr>
+                    <tr>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>tokio</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>1.38.1</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-25</td>
+                    </tr>
+                    <tr>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>actix-web</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>4.8.0</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-24</td>
+                    </tr>
+                    <tr>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>reqwest</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>0.12.5</td>
+                      <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-23</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-              {/* Latest Rust CVEs */}
-              <section className='flex flex-col'>
-                <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
-                  Latest Rust CVEs
-                </h2>
-                <div
-                  className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
-                  style={{ borderColor: 'rgb(253,236,231)' }}
-                >
-                  <table className='h-full w-full text-left'>
-                    <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
+            {/* Latest Rust CVEs */}
+            <section className='flex flex-col'>
+              <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
+                Latest Rust CVEs
+              </h2>
+              <div
+                className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
+                style={{ borderColor: 'rgb(253,236,231)' }}
+              >
+                <table className='h-full w-full text-left'>
+                  <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
+                    <tr>
+                      <th className='px-6 py-3 text-sm font-semibold'>CVE ID</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Description</th>
+                      <th className='px-6 py-3 text-sm font-semibold'>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
+                    {cveLoading && (
                       <tr>
-                        <th className='px-6 py-3 text-sm font-semibold'>CVE ID</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Description</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Severity</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>CVE-2024-1234</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
-                          Memory safety issue in crate X
+                        <td className='px-6 py-4 text-sm text-gray-600' colSpan={3}>
+                          Loading...
                         </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>High</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-27</td>
                       </tr>
+                    )}
+                    {!cveLoading && cveError && (
                       <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>CVE-2024-5678</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
-                          Denial of service in crate Y
+                        <td className='px-6 py-4 text-sm text-red-500' colSpan={3}>
+                          {cveError}
                         </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Medium</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-26</td>
                       </tr>
+                    )}
+                    {!cveLoading && !cveError && latestCves.length === 0 && (
                       <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>CVE-2024-9012</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
-                          Information leak in crate Z
+                        <td className='px-6 py-4 text-sm text-gray-500' colSpan={3}>
+                          No data
                         </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Low</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-25</td>
                       </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>CVE-2024-4321</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
-                          Integer overflow in crate A
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Medium</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-24</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-
-            {/* 右侧列 */}
-            <div className='space-y-8'>
-              {/* Latest Rust News */}
-              <section className='flex flex-col'>
-                <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
-                  Latest Rust News
-                </h2>
-                <div
-                  className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
-                  style={{ borderColor: 'rgb(253,236,231)' }}
-                >
-                  <table className='h-full w-full text-left'>
-                    <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <th className='px-6 py-3 text-sm font-semibold'>Title</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Source</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
-                          Rust 2024 Edition Released
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Rust Blog</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-27</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
-                          Async Rust Improvements
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>This Week in Rust</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-26</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
-                          New Web Framework Announced
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Rust Community Forum</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-25</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
-                          Exploring the future of unsafe Rust
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Rust Blog</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-24</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {/* Latest Rust Releases */}
-              <section className='flex flex-col'>
-                <h2 className='mb-4 border-b pb-2 text-2xl font-bold' style={{ borderColor: 'rgb(253,236,231)' }}>
-                  Latest Rust Releases
-                </h2>
-                <div
-                  className='flex-grow overflow-x-auto rounded-lg border bg-white shadow-sm'
-                  style={{ borderColor: 'rgb(253,236,231)' }}
-                >
-                  <table className='h-full w-full text-left'>
-                    <thead style={{ backgroundColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <th className='px-6 py-3 text-sm font-semibold'>Version</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Date</th>
-                        <th className='px-6 py-3 text-sm font-semibold'>Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y' style={{ borderColor: 'rgb(253,236,231)' }}>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>Rust 1.79.0</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-20</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Stable release</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
-                          Rust 1.80.0-beta.1
-                        </td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-13</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Beta release</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>Rust 1.78.1</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-07-06</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Patch release</td>
-                      </tr>
-                      <tr>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>Rust 1.78.0</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>2024-06-29</td>
-                        <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>Stable release</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
+                    )}
+                    {!cveLoading &&
+                      !cveError &&
+                      latestCves.map((item) => (
+                        <tr key={item.id}>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900'>
+                            <Link
+                              href={`/${router.query.org || 'org'}/rust/rust-ecosystem/ecosystem-cve/cve-info?cveId=${encodeURIComponent(item.id)}`}
+                              className='text-gray-900 hover:text-blue-600 hover:underline'
+                            >
+                              {item.id}
+                            </Link>
+                          </td>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>
+                            {item.subtitle || item.description}
+                          </td>
+                          <td className='whitespace-nowrap px-6 py-4 text-sm text-gray-600'>{item.issued}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </div>
       </div>
