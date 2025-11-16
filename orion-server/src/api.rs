@@ -3,6 +3,7 @@ use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     create_log_file, get_build_log_dir,
 };
+use anyhow::Result;
 use axum::{
     Json, Router,
     extract::{
@@ -27,7 +28,7 @@ use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, BufReader};
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
@@ -793,6 +794,7 @@ pub struct BuildDTO {
     pub output_file: String,
     pub created_at: String,
     pub status: TaskStatusEnum,
+    pub cause_by: Option<String>,
 }
 
 impl BuildDTO {
@@ -810,6 +812,7 @@ impl BuildDTO {
             output_file: model.output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             status,
+            cause_by: None,
         }
     }
 
@@ -889,15 +892,18 @@ pub async fn tasks_handler(
                     .unwrap_or_else(|_| vec![]);
 
                 // Convert build models to DTOs with individual status
-                let build_list: Vec<BuildDTO> = build_models
-                    .into_iter()
-                    .map(|build_model| {
-                        let build_id_str = build_model.id.to_string();
-                        let is_active = active_builds.contains_key(&build_id_str);
-                        let status = BuildDTO::determine_status(&build_model, is_active);
-                        BuildDTO::from_model(build_model, status)
-                    })
-                    .collect();
+                let mut build_list: Vec<BuildDTO> = Vec::new();
+                for build_model in build_models {
+                    let build_id_str = build_model.id.to_string();
+                    let is_active = active_builds.contains_key(&build_id_str);
+                    let status = BuildDTO::determine_status(&build_model, is_active);
+                    let mut dto = BuildDTO::from_model(build_model, status);
+                    dto.cause_by = find_caused_by_next_line(&dto.id).await.unwrap_or_else(|e| {
+                        tracing::error!("Failed to read cause by line: {}", e);
+                        None
+                    });
+                    build_list.push(dto);
+                }
 
                 tasks.push(TaskInfoDTO::from_model(m, build_list));
             }
@@ -912,6 +918,40 @@ pub async fn tasks_handler(
             ))
         }
     }
+}
+
+async fn find_caused_by_next_line(id: &str) -> Result<Option<String>> {
+    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
+    let log_path = std::path::Path::new(&log_path_str);
+    tracing::debug!("log path str: {}", log_path_str);
+
+    // Return Ok(None) if log file doesn't exist
+    if !log_path.exists() {
+        return Ok(None);
+    }
+
+    let file = tokio::fs::File::open(log_path)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to open log file {}: {}", log_path_str, e))?;
+
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+    let mut last_was_caused = false;
+
+    while let Some(line) = lines
+        .next_line()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to read log file: {}", e))?
+    {
+        if last_was_caused {
+            return Ok(Some(line));
+        }
+
+        if line.trim() == "Caused by:" {
+            last_was_caused = true;
+        }
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
