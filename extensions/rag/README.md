@@ -123,23 +123,6 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
        -H "Content-Type: application/json" \
        -d '{"prompt": "your question here"}'
 
-    curl -X POST http://0.0.0.0:30088/get_cve_full_info \
-      -H "Content-Type: application/json" \
-      -d '{
-      "id": "RUSTSEC-2025-0045",
-      "subtitle": "ConstStaticCell passes non-Send values across threads",
-      "reported": "2025-07-17",
-      "issued": "2025-07-17",
-      "package": "static_cell",
-      "ttype": "INFO Unsound",
-      "keywords": "#send #thread-safety",
-      "aliases": "",
-      "reference": "https://github.com/embassy-rs/static-cell/issues/19",
-      "patched": ">=2.1.1",
-      "unaffected": "<=2.0.0",
-      "description": "ConstStaticCell<T> could have been used to pass non-Send values to another thread, because T was not required to be Send while ConstStaticCell is Send. This was corrected by introducing a T: Send bound.",
-      "affected": "static_cell::ConstStaticCell::new (version 2.1.0)"
-    }'
      ```
 
 Please adjust and supplement according to the specific functions and needs of the project. If there is any other specific information that needs to be added, please let me know! I will update the `README.md` file.

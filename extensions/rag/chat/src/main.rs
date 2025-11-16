@@ -1,7 +1,7 @@
 use axum::{routing::post, Json, Router};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
-use chat::{llm_url, qdrant_url, vect_url};
+use chat::{broker, consumer_group, llm_url, qdrant_url, topic, vect_url};
 use futures::StreamExt;
 use log::{error, info};
 use rdkafka::config::ClientConfig;
@@ -78,7 +78,7 @@ struct AppState {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
@@ -99,6 +99,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Database connection pool established.");
 
+    init_db(&pool).await?;
+
     //把数据库连接池打包成应用状态，方便传给所有 HTTP handler
     let app_state = AppState { pool: pool.clone() };
 
@@ -111,22 +113,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Server running on http://0.0.0.0:30088");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:30088").await?;
 
-    tokio::spawn(async move {
-        if let Err(e) = start_cve_consumer(pool).await {
-            error!("CVE consumer exited with error: {}", e);
+    // spawn consumer
+    let consumer_handle = tokio::spawn({
+        let pool = pool.clone();
+        async move {
+            if let Err(e) = start_cve_consumer(pool).await {
+                error!("CVE consumer exited with error: {}", e);
+                return Err(e);
+            }
+            Ok(())
         }
     });
 
-    axum::serve(listener, app).await?;
+    // axum server future
+    let server = axum::serve(listener, app);
+
+    tokio::select! {
+        res = server => {
+            if let Err(e) = res {
+                error!("Axum server error: {}", e);
+                return Err(e.into());
+            }
+        }
+        res = consumer_handle => {
+            match res {
+                Ok(Ok(())) => {
+                    info!("CVE consumer exited normally");
+                }
+                Ok(Err(e)) => {
+                    error!("CVE consumer failed: {}", e);
+                    return Err(e.into());
+                }
+                Err(join_err) => {
+                    error!("CVE consumer panic: {}", join_err);
+                    return Err(join_err.into());
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn init_db(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS cve_full_analysis (
+            id TEXT PRIMARY KEY,
+            vuln_func TEXT,
+            dep_results JSONB,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
 
 async fn start_cve_consumer(pool: PgPool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let kafka_broker = env::var("KAFKA_BROKER").unwrap_or_else(|_| "10.42.0.1:30092".to_string());
-    let group_id =
-        env::var("KAFKA_CONSUMER_GROUP_ID").unwrap_or_else(|_| "cve-consumer-serials".to_string());
-    let topic = env::var("KAFKA_TOPIC").unwrap_or_else(|_| "RAG.full.20251104".to_string());
+    let group_id = consumer_group();
+    let kafka_broker = broker();
+    let topic = topic();
 
     let max_poll_interval_ms = "18000000"; // 5小时
     let session_timeout_ms = "60000";
@@ -296,22 +345,6 @@ async fn perform_cve_analysis(payload: RustsecInfo, pool: &PgPool) -> Result<Str
     };
     let vuln_func =
         extract_rust_code_block(&raw_vuln_func).unwrap_or_else(|| raw_vuln_func.trim().to_string());
-
-    // === 2️⃣ 连接数据库 + 自动建表 ===
-    sqlx::query(
-        r#"
-    CREATE TABLE IF NOT EXISTS cve_full_analysis (
-        id TEXT PRIMARY KEY,
-        vuln_func TEXT,
-        dep_results JSONB,
-        created_at TIMESTAMP DEFAULT NOW()
-    )
-    "#,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| format!("Create table error: {}", e))?;
-    info!("✅ [DB] Table cve_full_analysis ensured to exist.");
 
     // === 3️⃣ 查询分析结果 ===
     let row: Option<(String,)> =
