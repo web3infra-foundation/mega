@@ -117,18 +117,22 @@ impl ImportDriver {
         };
 
         tracing::info!("Finish to setup Kafka client.");
-        let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").unwrap();
-        let tugraph_user_name = env::var("TUGRAPH_USER_NAME").unwrap();
-        let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").unwrap();
+        let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").expect("must get TUGRAPH_BOLT_URL");
+        let tugraph_user_name = env::var("TUGRAPH_USER_NAME").expect("must get TUGRAPH_USER_NAME");
+        let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").expect("must get TUGRAPH_USER_PASSWORD");
+        let tugraph_db_name = env::var("TUGRAPH_CRATESPRO_DB").expect("must get TUGRAPH_CRATESPRO_DB");
+        let max_connections: u32 = env::var("TUGRAPH_MAX_CONNECTIONS").ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(160);
         let config = ConfigBuilder::default()
             .uri(&tugraph_bolt_url)
             .user(&tugraph_user_name)
             .password(&tugraph_user_password)
-            .db("cratespro")
-            .max_connections(160)
+            .db(&*tugraph_db_name)
+            .max_connections(max_connections.try_into().unwrap())
             .build()
-            .unwrap();
-        let graph = Graph::connect(config).await.unwrap();
+            .expect("failed to get TuGraph config");
+        let graph = Graph::connect(config).await.expect("failed to connect tugraph");
         let tugraphclient = TuGraphClient{graph};
         Self {
             context,
@@ -219,9 +223,9 @@ impl ImportDriver {
         };
         
         let namespace = extract_namespace(git_url.as_ref()).expect("Failed to parse URL");
-        /*if (namespace.clone() == *"crates/serde_json")||(namespace.clone()==*"crates/serde"){
-            return Ok(())
-        }*/
+        
+        
+
         let behind_dir = extract_path_from_segment(git_url.as_ref(),"crates").expect("Failed to parse behind_dir");
         let path = PathBuf::from(&clone_crates_dir).join(behind_dir.clone());
 
@@ -782,14 +786,22 @@ impl ImportContext {
                                         .collect();
                                         sorting_versions.sort();
                                         let max_version = sorting_versions.last().map(|v| v.to_string());
-                                        let stmt2 = format!("match (n:program{{namespace:'{}'}}) set n.max_version = '{}'",namespace.clone(),max_version.clone().unwrap_or_default());
-                                        let _ = tugraphclient.graph.run(query(&stmt2)).await;
+                                        let stmt2 = "MATCH (n:program {namespace: $namespace}) SET n.max_version = $max_version";
+                                        let _ = tugraphclient.graph.run(
+                                            query(stmt2)
+                                                .param("namespace", namespace.clone())
+                                                .param("max_version", max_version.clone().unwrap_or_default())
+                                        ).await;
                                         tracing::info!("Updated max_version for {} to {}",name.clone(),max_version.clone().unwrap_or_default());
                                     }
                                     Ok(None) => {
                                         tracing::info!("No program found with namespace: {}", namespace);
-                                        let stmt2 = format!("match (n:program{{namespace:'{}'}}) set n.max_version = '{}'",namespace.clone(),version.clone());
-                                        let _ = tugraphclient.graph.run(query(&stmt2)).await;
+                                        let stmt2 = "MATCH (n:program {namespace: $namespace}) SET n.max_version = $max_version";
+                                        let _ = tugraphclient.graph.run(
+                                            query(stmt2)
+                                                .param("namespace", namespace.clone())
+                                                .param("max_version", version.clone())
+                                        ).await;
                                     }
                                     Err(e) => {
                                         tracing::error!("Failed to query program: {}", e)
@@ -797,7 +809,7 @@ impl ImportContext {
                                 }
                             },
                             Err(_)=>{
-                                tracing::info!("faied to get_max_version_in_tugraph");
+                                tracing::info!("failed to get_max_version_in_tugraph");
                             }
                         }
                         

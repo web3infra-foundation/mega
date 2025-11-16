@@ -565,23 +565,19 @@ impl DBHandler {
                         )
                         .await
                         .unwrap();
-            } else if oneline_patched.clone().starts_with("^")||oneline_patched.clone().starts_with("=") {
-                //specific version
-                if let Some(trimmed) = oneline_patched.strip_prefix("=") {
-                    let res = trimmed.to_string();
-                    if version == res {
-                        matched = true;
-                    }
-                }
-                else if let Some(_trimmed) = oneline_patched.strip_prefix("^"){
-                    let full_string = oneline_patched.clone();
-                    let range = VersionReq::parse(&full_string).unwrap();
-    
-                    // 解析待检查的版本
-                    let target_version = Version::parse(&version).unwrap();
-                    
-                    // 检查是否匹配
-                    matched = range.matches(&target_version)
+            } else if oneline_patched.clone().starts_with("^") {
+                
+                let full_string = oneline_patched.clone();
+                let range = VersionReq::parse(&full_string)
+                    .expect("Failed to parse version range");
+                let target_version = Version::parse(&version)
+                    .expect("Failed to parse target version");
+                matched = range.matches(&target_version);
+            } else if let Some(trimmed) = oneline_patched.strip_prefix("=") {
+                
+                let res = trimmed.to_string();
+                if version == res {
+                    matched = true;
                 }
             } else {
                 //open interval

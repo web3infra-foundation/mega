@@ -65,10 +65,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("len:{}",real_ids.len());
         let connection_string = format!(
             "host={} port={} user={} password={} dbname=cratespro",
-            env::var("POSTGRES_HOST_IP").unwrap(),
-            env::var("POSTGRES_HOST_PORT").unwrap(),
-            env::var("POSTGRES_USER").unwrap(),
-            env::var("POSTGRES_PASSWORD").unwrap()
+            env::var("POSTGRES_HOST_IP").expect("Must get POSTGRES_HOST_IP"),
+            env::var("POSTGRES_HOST_PORT").expect("Must get POSTGRES_HOST_PORT"),
+            env::var("POSTGRES_USER").expect("Must get POSTGRES_USER"),
+            env::var("POSTGRES_PASSWORD").expect("Must get POSTGRES_PASSWORD")
         );
         let (client, connection) =
         tokio_postgres::connect(&connection_string, NoTls).await?;
@@ -94,8 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::info!("Insert new ID: {}", id.clone());
                 let sec_url = "https://rustsec.org/advisories/".to_string()+&id+".html";
                 let cve_info = CveId{ id, url:sec_url};
-                let kafka_broker = env::var("KAFKA_BROKER").unwrap();
-                let topic_test = env::var("KAFKA_CVEID_TOPIC").unwrap();
+                let kafka_broker = env::var("KAFKA_BROKER").expect("Must get KAFKA_BROKER");
+                let topic_test = env::var("KAFKA_CVEID_TOPIC").expect("Must get KAFKA_CVEID_TOPIC");
                 let sender_handler = KafkaHandler::new_producer(&kafka_broker).expect("Invalid import kafka handler");
                 sender_handler.send_message(&topic_test, "", &serde_json::to_string(&cve_info).unwrap()).await;
             } else {

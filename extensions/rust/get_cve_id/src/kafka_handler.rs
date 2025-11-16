@@ -35,10 +35,7 @@ impl ProducerContext for CustomContext {
         _result: &rdkafka::producer::DeliveryResult,
         _delivery_opaque: Self::DeliveryOpaque,
     ) {
-        // match result {
-        //     Ok(delivery) => tracing::info!("Delivered message to {:?}", delivery),
-        //     Err((error, _)) => tracing::error!("Failed to deliver message: {:?}", error),
-        // }
+        tracing::info!("Delivery result: {:?}", _result);
     }
 }
 #[allow(dead_code)]

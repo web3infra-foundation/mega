@@ -61,11 +61,17 @@ async fn main() {
             env::var("POSTGRES_USER").unwrap(),
             env::var("POSTGRES_PASSWORD").unwrap()
         );
-    let (client, connection) = tokio_postgres::connect(
+    let (client, connection) = match tokio_postgres::connect(
         &connection_string,
         NoTls,
     )
-    .await.unwrap();
+    .await {
+        Ok((client, connection)) => (client, connection),
+        Err(e) => {
+            tracing::error!("Failed to connect to PostgreSQL: {}", e);
+            std::process::exit(1);
+        }
+    };
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             tracing::error!("Database connection error: {}", e);
@@ -73,10 +79,10 @@ async fn main() {
     });
 
     let dbhandler = DBHandler{client};
-    let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").unwrap();
-            let tugraph_user_name = env::var("TUGRAPH_USER_NAME").unwrap();
-            let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").unwrap();
-            let tugraph_cratespro_db = env::var("TUGRAPH_CRATESPRO_DB").unwrap();
+    let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").expect("must get TUGRAPH_BOLT_URL");
+    let tugraph_user_name = env::var("TUGRAPH_USER_NAME").expect("must get TUGRAPH_USER_NAME");
+    let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").expect("must get TUGRAPH_USER_PASSWORD");
+    let tugraph_cratespro_db = env::var("TUGRAPH_CRATESPRO_DB").expect("must get TUGRAPH_CRATESPRO_DB");
 
     let datareader = DataReader::new(&tugraph_bolt_url,&tugraph_user_name,&tugraph_user_password,&tugraph_cratespro_db).await.unwrap();
 
@@ -92,15 +98,9 @@ async fn main() {
     loop{
         tokio::time::sleep(Duration::from_secs(1)).await;
         if let Ok(message) = import_handler.consume_once().await{
-            let model = match serde_json::from_slice::<model::CveId>(
-                message.payload().unwrap(),
-            ){
-                Ok(m) => Some(m.clone()),
-                Err(e) => {
-                    tracing::info!("Error while deserializing message payload: {:?}", e);
-                    None
-                }
-            };
+            let model = message.payload()
+                .and_then(|p| serde_json::from_slice::<model::CveId>(p).ok())
+                ;
             if model.is_none(){
                 continue;
             }
@@ -159,10 +159,17 @@ async fn main() {
             tracing::info!("start sending id {} to rag kafka topic",id.clone());
             let sec_url = "https://rustsec.org/advisories/".to_string()+&id+".html";
             let cve_info = CveId{ id, url:sec_url};
-            let kafka_broker = env::var("KAFKA_BROKER").unwrap();
-            let topic_rag = env::var("KAFKA_RAG_TOPIC").unwrap();
+            let kafka_broker = env::var("KAFKA_BROKER").expect("Must get KAFKA_BROKER");
+            let topic_rag = env::var("KAFKA_RAG_TOPIC").expect("Must get KAFKA_RAG_TOPIC");
             let sender_handler = KafkaHandler::new_producer(&kafka_broker).expect("Invalid import kafka handler");
-            sender_handler.send_message(&topic_rag, "", &serde_json::to_string(&cve_info).unwrap()).await;
+            let cve_info_json = match serde_json::to_string(&cve_info) {
+                Ok(json) => json,
+                Err(e) => {
+                    tracing::error!("Failed to serialize cve_info: {:?}", e);
+                    continue;
+                }
+            };
+            sender_handler.send_message(&topic_rag, "", &cve_info_json).await;
         }
         else{
             continue;

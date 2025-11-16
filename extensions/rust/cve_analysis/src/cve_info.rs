@@ -4,7 +4,7 @@ use regex::Regex;
 //use reqwest;
 use scraper::{Html, Selector};
 pub async fn get_cve_info(id:String,url:String)->Result<RustsecInfo,Box<dyn std::error::Error>>{
-        tracing::info!("Geting info {} in {}",id.clone(),url.clone());
+        tracing::info!("Getting info {} in {}",id.clone(),url.clone());
         let resp = reqwest::get(&url).await?;
 
         if !resp.status().is_success() {
@@ -204,13 +204,13 @@ pub async fn get_cve_info(id:String,url:String)->Result<RustsecInfo,Box<dyn std:
             description,
             affected,
         };
-        tracing::info!("Finish geting info {} in {}",id.clone(),url.clone());
+        tracing::info!("Finish getting info {} in {}",id.clone(),url.clone());
         Ok(res_info)
 }
 #[allow(clippy::never_loop)]
 pub async fn analyze_cve(datareader:&DataReader,dbhandler:&DBHandler,id:String)->Result<(),Box<dyn std::error::Error>>{
     tracing::info!("start analyze cve:{}",id.clone());
-    let rows = dbhandler.client.query("SELECT * FROM rustsec_info WHERE id = $1;",&[&id] ).await.unwrap();
+    let rows = dbhandler.client.query("SELECT * FROM rustsec_info WHERE id = $1;",&[&id] ).await.expect("failed to query rustsec_info");
     let mut cve_info = vec![];
     for row in rows{
         let subtitle:String = row.get("subtitle");
@@ -242,7 +242,7 @@ pub async fn analyze_cve(datareader:&DataReader,dbhandler:&DBHandler,id:String)-
         cve_info.push(info.clone());
         break;
     }
-    let re2 = Regex::new(r"^[A-Za-z0-9_-]+").unwrap();
+    let re2 = Regex::new(r"^[A-Za-z0-9_-]+").expect("Failed to create regex");
     for info in cve_info.clone(){
         let patched: String = if info.clone().patched.starts_with("no") {
             String::new()
@@ -262,7 +262,7 @@ pub async fn analyze_cve(datareader:&DataReader,dbhandler:&DBHandler,id:String)-
         let crate_name = re2.find(&info.package).map(|m| m.as_str()).unwrap_or("").to_string();
         tracing::info!("name:{},patched:{}",crate_name.clone(),combined.clone());
         let namespace = format!("crates/{}",crate_name.clone());
-        let all_versions = datareader.new_get_lib_version(namespace.clone(), crate_name.clone()).await.unwrap();
+        let all_versions = datareader.new_get_lib_version(namespace.clone(), crate_name.clone()).await.expect("failed to get all versions;");
         for version in all_versions.clone(){
             tracing::info!("all versions:{}",version.clone());
         }
@@ -275,7 +275,7 @@ pub async fn analyze_cve(datareader:&DataReader,dbhandler:&DBHandler,id:String)-
         tracing::info!("patched_string:{}",patched_string.clone());
         let mut matched_versions = vec![];
         for version in all_versions.clone(){
-            let matched = dbhandler.match_version(patched_string.clone(), version.clone()).await.unwrap();
+            let matched = dbhandler.match_version(patched_string.clone(), version.clone()).await.expect("failed to match version");
             if !matched{
                 matched_versions.push(version.clone());
             }
@@ -294,14 +294,14 @@ pub async fn analyze_cve(datareader:&DataReader,dbhandler:&DBHandler,id:String)-
             }
             let one_res = CveAnalyzeRes{ crate_version: name_and_version.clone(), dept_crate_version: all_depts.clone() };
             all_res.push(one_res);
-            let depts:String = serde_json::to_string(&all_depts).unwrap();
+            let depts:String = serde_json::to_string(&all_depts).expect("failed to serialize depts");
             tracing::info!("crate:{},version:{},depts:{}",crate_name.clone(),version.clone(),depts.clone());
         }
-        let value: String = serde_json::to_string(&all_res).unwrap();
+        let value: String = serde_json::to_string(&all_res).expect("failed to serialize all_res");
         tracing::info!("value:{}",value.clone());
         dbhandler.client.execute("INSERT INTO cve_analysis_res(id,res) VALUES ($1,$2) 
                                             ON CONFLICT (id) DO UPDATE SET 
-                                            res=EXCLUDED.res;", &[&id,&value]).await.unwrap();
+                                            res=EXCLUDED.res;", &[&id,&value]).await.expect("failed to insert/update cve_analysis_res");
     }
 
     Ok(())

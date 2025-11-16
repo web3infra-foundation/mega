@@ -23,7 +23,7 @@ impl Transporter {
             tracing::info!("id:{}", id);
             let program: model::tugraph_model::Program =
                 self.reader.get_program(&id).await.unwrap();
-            let (uprogram, _islib): (model::tugraph_model::UProgram, bool) =
+            let (uprogram, _): (model::tugraph_model::UProgram, bool) =
                 self.reader.get_type(&id).await.unwrap();
             
 
