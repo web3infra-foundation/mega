@@ -11,6 +11,7 @@ use rdkafka::message::Message;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
+use std::error::Error;
 use std::str::FromStr;
 
 #[derive(Deserialize, Debug)]
@@ -78,7 +79,7 @@ struct AppState {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
@@ -142,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
                 Ok(Err(e)) => {
                     error!("CVE consumer failed: {}", e);
-                    return Err(e.into());
+                    return Err(e);
                 }
                 Err(join_err) => {
                     error!("CVE consumer panic: {}", join_err);
