@@ -2,7 +2,8 @@ use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use callisto::merge_queue::{ActiveModel, Column, Entity, Model};
 use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use std::ops::Deref;
 
@@ -249,32 +250,77 @@ impl MergeQueueStorage {
         Ok(stats)
     }
 
-    pub async fn cancel_all_pending(&self) -> Result<u64, String> {
-        let update_result = Entity::update_many()
+    async fn calc_display_position(&self, position: i64) -> Result<usize, String> {
+        let db = self.get_connection();
+
+        let count = Entity::find()
             .filter(Column::Status.is_in([
-                //
                 QueueStatusEnum::Waiting,
                 QueueStatusEnum::Testing,
+                QueueStatusEnum::Merging,
             ]))
-            .col_expr(Column::Status, QueueStatusEnum::Failed.into())
-            .col_expr(
-                Column::FailureType,
-                Some(QueueFailureTypeEnum::SystemError).into(),
-            )
-            .col_expr(
-                Column::ErrorMessage,
-                Some("Operation cancelled by user".to_string()).into(),
-            )
-            .col_expr(Column::UpdatedAt, chrono::Utc::now().naive_utc().into())
-            .exec(self.get_connection())
+            .filter(Column::Position.lte(position))
+            .count(db)
             .await
-            .map_err(|e| format!("Failed to cancel items: {}", e))?;
+            .map_err(|e| format!("Failed to count queue position: {}", e))?;
 
-        tracing::info!(
-            "Successfully cancelled {} pending items",
-            update_result.rows_affected
-        );
-        Ok(update_result.rows_affected)
+        Ok(count as usize)
+    }
+
+    pub async fn get_display_position(&self, cl_link: &str) -> Result<Option<usize>, String> {
+        let db = self.get_connection();
+
+        let item = Entity::find()
+            .filter(Column::ClLink.eq(cl_link))
+            .filter(Column::Status.is_in([
+                QueueStatusEnum::Waiting,
+                QueueStatusEnum::Testing,
+                QueueStatusEnum::Merging,
+            ]))
+            .one(db)
+            .await
+            .map_err(|e| format!("Failed to find item for display position: {}", e))?;
+
+        let Some(item) = item else {
+            return Ok(None);
+        };
+
+        let display_position = self.calc_display_position(item.position).await?;
+
+        Ok(Some(display_position))
+    }
+
+    pub async fn get_display_position_by_position(&self, position: i64) -> Result<usize, String> {
+        self.calc_display_position(position).await
+    }
+
+    pub async fn cancel_all_pending(&self) -> Result<u64, String> {
+        let db = self.get_connection();
+
+        let now = chrono::Utc::now().naive_utc();
+
+        let update_result = Entity::update_many()
+            .set(ActiveModel {
+                status: Set(QueueStatusEnum::Failed),
+                failure_type: Set(Some(QueueFailureTypeEnum::SystemError)),
+                error_message: Set(Some("Operation cancelled by user".to_string())),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+            .filter(Column::Status.is_in([QueueStatusEnum::Waiting, QueueStatusEnum::Testing]))
+            .exec(db)
+            .await
+            .map_err(|e| format!("Failed to batch cancel items: {}", e))?;
+
+        let affected = update_result.rows_affected;
+
+        if affected == 0 {
+            tracing::info!("No pending items to cancel");
+        } else {
+            tracing::info!("Successfully cancelled {} pending items", affected);
+        }
+
+        Ok(affected)
     }
 
     pub fn mock() -> Self {

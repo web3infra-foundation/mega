@@ -38,6 +38,7 @@ pub struct QueueItem {
     pub cl_link: String,
     pub status: QueueStatus,
     pub position: i64,
+    pub display_position: Option<usize>,
     pub created_at: String,
     pub updated_at: String,
     pub retry_count: i32,
@@ -66,6 +67,7 @@ pub struct AddToQueueRequest {
 pub struct AddToQueueResponse {
     pub success: bool,
     pub position: i64,
+    pub display_position: Option<usize>,
     pub message: String,
 }
 
@@ -135,6 +137,7 @@ impl From<Model> for QueueItem {
             cl_link: item.cl_link,
             status: item.status.into(),
             position: item.position,
+            display_position: None,
             created_at: item
                 .created_at
                 .and_utc()
@@ -169,7 +172,10 @@ impl From<jupiter::model::merge_queue_dto::QueueStats> for QueueStats {
 impl From<Vec<Model>> for QueueListResponse {
     fn from(items: Vec<Model>) -> Self {
         let total_count = items.len();
-        let api_items: Vec<QueueItem> = items.into_iter().map(|item| item.into()).collect();
+        let mut api_items: Vec<QueueItem> = items.into_iter().map(|item| item.into()).collect();
+        for (idx, item) in api_items.iter_mut().enumerate() {
+            item.display_position = Some(idx + 1);
+        }
 
         QueueListResponse {
             items: api_items,
