@@ -16,6 +16,7 @@ pub struct Model {
     pub created_at: DateTime,
     pub pack_id: String,
     pub pack_offset: i64,
+    pub commit_id: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
