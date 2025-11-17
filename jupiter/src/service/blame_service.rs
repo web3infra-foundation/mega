@@ -1278,7 +1278,7 @@ enable_https = true
         storage
             .app_service
             .mono_storage
-            .save_mega_blobs(vec![&blob1, &blob2, &blob3])
+            .save_mega_blobs(&commit3.id.to_string(), vec![&blob1, &blob2, &blob3])
             .await
             .expect("Failed to save blobs");
 
@@ -1286,7 +1286,8 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree1, tree2, tree3.clone()]
             .into_iter()
             .map(|tree| {
-                let tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
+                let mut tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
+                tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
             .collect();
@@ -1496,7 +1497,7 @@ enable_https = true
         storage
             .app_service
             .mono_storage
-            .save_mega_blobs(vec![&blob])
+            .save_mega_blobs(&commit.id.to_string(), vec![&blob])
             .await
             .expect("Failed to save blob");
 
@@ -1651,7 +1652,7 @@ enable_https = true
         storage
             .app_service
             .mono_storage
-            .save_mega_blobs(vec![&blob])
+            .save_mega_blobs(&commit.id.to_string(), vec![&blob])
             .await
             .expect("Failed to save blob");
 
@@ -1659,7 +1660,8 @@ enable_https = true
         let save_trees: Vec<mega_tree::ActiveModel> = vec![tree.clone()]
             .into_iter()
             .map(|tree| {
-                let tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
+                let mut tree_model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
+                tree_model.commit_id = "test".to_string();
                 tree_model.into()
             })
             .collect();
