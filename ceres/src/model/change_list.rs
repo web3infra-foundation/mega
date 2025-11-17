@@ -264,6 +264,12 @@ pub struct ChangeReviewStatePayload {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct SetSystemReviewersPayload {
+    pub target_reviewer_usernames: Vec<String>,
+    pub is_system_required: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct ReviewerInfo {
     pub username: String,
     pub approved: bool,
