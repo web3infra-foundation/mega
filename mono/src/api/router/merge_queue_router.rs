@@ -8,8 +8,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use crate::api::{MonoApiServiceState, error::ApiError};
 use crate::server::http_server::MERGE_QUEUE_TAG;
 use ceres::model::merge_queue::{
-    AddToQueueRequest, AddToQueueResponse, QueueListResponse, QueueStatsResponse,
-    QueueStatusResponse,
+    AddToQueueRequest, AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse,
+    QueueStatus, QueueStatusResponse,
 };
 use common::model::CommonResult;
 
@@ -45,13 +45,29 @@ async fn add_to_queue(
     match state
         .storage
         .merge_queue_service
-        .add_to_queue(request.cl_link)
+        .add_to_queue(request.cl_link.clone())
         .await
     {
         Ok(position) => {
+            let display_position = state
+                .storage
+                .merge_queue_service
+                .get_display_position_by_position(position)
+                .await
+                .map(Some)
+                .unwrap_or_else(|e| {
+                    tracing::warn!(
+                        "Failed to get display position after add for {}: {}",
+                        request.cl_link,
+                        e
+                    );
+                    None
+                });
+
             let response = AddToQueueResponse {
                 success: true,
                 position,
+                display_position,
                 message: "Added to queue".to_string(),
             };
             Ok(Json(CommonResult::success(Some(response))))
@@ -121,12 +137,46 @@ async fn get_cl_queue_status(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<QueueStatusResponse>>, ApiError> {
-    let item = state
+    let item_model = state
         .storage
         .merge_queue_service
         .get_cl_queue_status(&cl_link)
         .await?;
-    let response = QueueStatusResponse::from(item);
+
+    let mut item_opt: Option<QueueItem> = item_model.map(|m| m.into());
+
+    if let Some(ref mut item) = item_opt {
+        match item.status {
+            QueueStatus::Waiting | QueueStatus::Testing | QueueStatus::Merging => {
+                let index_result = state
+                    .storage
+                    .merge_queue_service
+                    .get_display_position(&item.cl_link)
+                    .await;
+
+                match index_result {
+                    Ok(index) => {
+                        item.display_position = index;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to get display position for {}: {}",
+                            item.cl_link,
+                            e
+                        );
+                        item.display_position = None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let response = QueueStatusResponse {
+        in_queue: item_opt.is_some(),
+        item: item_opt,
+    };
+
     Ok(Json(CommonResult::success(Some(response))))
 }
 
