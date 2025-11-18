@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import { PostView } from '@/components/Post/PostView'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { SsrSecretHeader } from '@/utils/apiCookieHeaders'
-import { apiClient } from '@/utils/queryClient'
+import { ssrApiClient } from '@/utils/queryClient'
 import { PageWithLayout } from '@/utils/types'
 
 export interface PostRouteQuery {
@@ -50,9 +50,11 @@ PostPage.getInitialProps = async ({ asPath }: NextPageContext) => {
   }
 
   try {
-    const postSeoInfo = await apiClient.organizations.getPostsSeoInfo().request(`${params?.org}`, `${params?.postId}`, {
-      headers: SsrSecretHeader
-    })
+    const postSeoInfo = await ssrApiClient.organizations
+      .getPostsSeoInfo()
+      .request(`${params?.org}`, `${params?.postId}`, {
+        headers: SsrSecretHeader
+      })
 
     return { postSeoInfo }
   } catch {
