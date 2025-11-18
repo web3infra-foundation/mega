@@ -578,6 +578,7 @@ async fn list_reviewers(
         .map(|r| ReviewerInfo {
             username: r.username,
             approved: r.approved,
+            system_required: r.system_required,
         })
         .collect();
 

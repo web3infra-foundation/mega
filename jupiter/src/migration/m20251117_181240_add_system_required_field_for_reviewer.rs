@@ -11,7 +11,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(MegaMrReviewer::Table)
-                    .add_column(boolean(MegaMrReviewer::SystemRequired))
+                    .add_column(
+                        boolean(MegaMrReviewer::SystemRequired)
+                            .default(false)
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await?;

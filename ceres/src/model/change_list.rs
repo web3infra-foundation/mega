@@ -273,6 +273,7 @@ pub struct SetSystemReviewersPayload {
 pub struct ReviewerInfo {
     pub username: String,
     pub approved: bool,
+    pub system_required: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
