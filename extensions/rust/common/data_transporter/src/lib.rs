@@ -1,10 +1,13 @@
-mod data_packer;
-mod data_reader;
+pub mod data_packer;
+pub mod data_reader;
 pub mod db;
-mod handler;
-mod transporter;
-mod redis_store;
+pub mod handler;
+pub mod transporter;
+pub mod redis_store;
 
+//use std::env;
+
+use actix_cors::Cors;
 use model::tugraph_model::UVersion;
 use search::search_prepare;
 use serde::{Deserialize, Serialize};
@@ -156,7 +159,27 @@ pub async fn run_api_server() -> std::io::Result<()> {
     pre_search.prepare_tsv().await.unwrap();
     HttpServer::new(move || {
         tracing::info!("start route");
+        
+    
+    // 配置 CORS
+        let cors1 = std::env::var("CORS1").unwrap_or_else(|_| "http://local.gitmega.com".to_string());
+        let cors2 = std::env::var("CORS2").unwrap_or_else(|_| "https://app.gitmega.com".to_string());
+        let cors3 = std::env::var("CORS3").unwrap_or_else(|_| "http://app.gitmono.test".to_string());
+        let cors4 = std::env::var("CORS4").unwrap_or_else(|_| "https://app.xuanwu.openatom.cn/".to_string());
+        let cors = Cors::default()
+            .allowed_origin(&cors1)
+            .allowed_origin(&cors2)
+            .allowed_origin(&cors3)
+            .allowed_origin(&cors4)
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+            .allowed_headers(vec![
+                actix_web::http::header::AUTHORIZATION,
+                actix_web::http::header::ACCEPT,
+                actix_web::http::header::CONTENT_TYPE,
+            ])
+        .max_age(3600);
         App::new()
+            .wrap(cors)
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-docs/openapi.json", ApiDoc::openapi())

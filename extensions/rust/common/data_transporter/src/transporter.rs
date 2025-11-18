@@ -23,12 +23,11 @@ impl Transporter {
             tracing::info!("id:{}", id);
             let program: model::tugraph_model::Program =
                 self.reader.get_program(&id).await.unwrap();
-            let (uprogram, islib): (model::tugraph_model::UProgram, bool) =
+            let (uprogram, _): (model::tugraph_model::UProgram, bool) =
                 self.reader.get_type(&id).await.unwrap();
-            let versions: Vec<crate::VersionInfo> =
-                self.reader.get_versions(&id, islib).await.unwrap();
+            
 
-            self.packer.pack_into_db(program, uprogram, versions).await;
+            self.packer.pack_into_db(program, uprogram).await;
         }
         tracing::info!("finish to pack the data");
         Ok(())

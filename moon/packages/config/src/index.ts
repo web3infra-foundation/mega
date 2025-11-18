@@ -22,6 +22,8 @@ export const LAST_CLIENT_JS_BUILD_ID_LS_KEY = 'latest-js-time'
 export const RAILS_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.gitmega.com'
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
+export const RAILS_INTERNAL_API_URL = process.env.NEXT_PUBLIC_INTERNAL_API_URL || 'https://api.gitmega.com'
+// eslint-disable-next-line turbo/no-undeclared-env-vars
 export const MONO_API_URL = process.env.NEXT_PUBLIC_MONO_API_URL || 'https://git.gitmega.com'
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
