@@ -2,6 +2,8 @@ import { memo, useEffect, useState } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 import { useAtom } from 'jotai'
 
+import { LoadingSpinner } from '@gitmono/ui'
+
 import { buildIdAtom } from '@/components/Issues/utils/store'
 import { useGetClTask } from '@/hooks/SSE/useGetClTask'
 import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
@@ -16,7 +18,7 @@ const Checks = ({ cl }: { cl: number }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
-  const { data: tasks, isError: isTasksError } = useGetClTask(cl)
+  const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
   const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
 
   useEffect(() => {
@@ -101,6 +103,25 @@ const Checks = ({ cl }: { cl: number }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks])
 
+  // Handle tasks loading state
+  if (isTasksLoading) {
+    return (
+      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+          <span>
+            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+          </span>
+        </div>
+        <div className='flex h-full items-center justify-center text-gray-500'>
+          <div className='flex items-center gap-3'>
+            <LoadingSpinner />
+            <span>Loading tasks...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Handle tasks error or empty state
   if (isTasksError) {
     return (
@@ -117,7 +138,9 @@ const Checks = ({ cl }: { cl: number }) => {
     )
   }
 
-  if (!tasks || tasks.length === 0) {
+  const validTasks = tasks?.filter((t) => t.build_list && t.build_list.length > 0) || []
+
+  if (!isTasksLoading && (!tasks || tasks.length === 0 || validTasks.length === 0)) {
     return (
       <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
         <div className='flex h-[60px] items-center border-b bg-white px-4'>
@@ -199,8 +222,8 @@ const Checks = ({ cl }: { cl: number }) => {
         </div>
         <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
           <div className='h-full w-[40%] overflow-y-auto border-r'>
-            {tasks.map((t) => (
-              <Task key={t.task_id} list={t} />
+            {validTasks.map((t) => (
+              <Task key={t.task_id} list={t} logStatus={logStatus} />
             ))}
           </div>
           <div className='flex-1'>{renderLogContent()}</div>
