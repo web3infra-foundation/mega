@@ -49,66 +49,32 @@ impl ClReviewerStorage {
         Ok(())
     }
 
-    pub async fn set_system_required_reviewers(
+    pub async fn update_system_required_reviewers(
         &self,
         cl_link: &str,
         reviewers: &Vec<String>,
+        system_required: bool,
     ) -> Result<(), MegaError> {
         for reviewer in reviewers {
             let mut rev: mega_cl_reviewer::ActiveModel = mega_cl_reviewer::Entity::find()
                 .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
-                .filter(mega_cl_reviewer::Column::Username.eq(reviewer.clone()))
+                .filter(mega_cl_reviewer::Column::Username.eq(reviewer))
                 .one(self.get_connection())
                 .await
                 .map_err(|e| {
                     tracing::error!("{}", e);
-                    MegaError::with_message(format!("fail to find reviewer {}", reviewer.clone()))
+                    MegaError::with_message(format!("fail to find reviewer {}", reviewer))
                 })?
-                .ok_or_else(|| {
-                    MegaError::with_message(format!("reviewer {} not found", reviewer.clone()))
-                })?
+                .ok_or_else(|| MegaError::with_message(format!("reviewer {} not found", reviewer)))?
                 .into_active_model();
 
-            rev.system_required = Set(true);
+            rev.system_required = Set(system_required);
             rev.updated_at = Set(chrono::Utc::now().naive_utc());
             rev.update(self.get_connection()).await.map_err(|e| {
                 tracing::error!("{}", e);
                 MegaError::with_message(format!(
                     "fail to update system required for reviewer {}",
-                    reviewer.clone()
-                ))
-            })?;
-        }
-        Ok(())
-    }
-
-    pub async fn remove_system_required_reviewers(
-        &self,
-        cl_link: &str,
-        reviewers: &Vec<String>,
-    ) -> Result<(), MegaError> {
-        for reviewer in reviewers {
-            let mut rev: mega_cl_reviewer::ActiveModel = mega_cl_reviewer::Entity::find()
-                .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
-                .filter(mega_cl_reviewer::Column::Username.eq(reviewer.clone()))
-                .one(self.get_connection())
-                .await
-                .map_err(|e| {
-                    tracing::error!("{}", e);
-                    MegaError::with_message(format!("fail to find reviewer {}", reviewer.clone()))
-                })?
-                .ok_or_else(|| {
-                    MegaError::with_message(format!("reviewer {} not found", reviewer.clone()))
-                })?
-                .into_active_model();
-
-            rev.system_required = Set(false);
-            rev.updated_at = Set(chrono::Utc::now().naive_utc());
-            rev.update(self.get_connection()).await.map_err(|e| {
-                tracing::error!("{}", e);
-                MegaError::with_message(format!(
-                    "fail to update system required for reviewer {}",
-                    reviewer.clone()
+                    reviewer
                 ))
             })?;
         }

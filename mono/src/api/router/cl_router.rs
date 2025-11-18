@@ -663,7 +663,7 @@ async fn review_resolve(
     params (
         ("link", description = "the cl link")
     ),
-    path = "/{link}/reviewer/system/set",
+    path = "/{link}/reviewer/system-required/set",
     request_body (
         content = SetSystemReviewersPayload,
     ),
@@ -673,26 +673,21 @@ async fn review_resolve(
     tag = CL_TAG
 )]
 async fn set_system_required_reviewers(
+    _user: LoginUser,
     state: State<MonoApiServiceState>,
     Path(link): Path<String>,
     Json(payload): Json<SetSystemReviewersPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    match payload.is_system_required {
-        true => {
-            state
-                .storage
-                .reviewer_storage()
-                .set_system_required_reviewers(&link, &payload.target_reviewer_usernames)
-                .await?;
-        }
-        false => {
-            state
-                .storage
-                .reviewer_storage()
-                .remove_system_required_reviewers(&link, &payload.target_reviewer_usernames)
-                .await?;
-        }
-    };
+    // TODO: Add permission check with cedar policy
+    state
+        .storage
+        .reviewer_storage()
+        .update_system_required_reviewers(
+            &link,
+            &payload.target_reviewer_usernames,
+            payload.is_system_required,
+        )
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
