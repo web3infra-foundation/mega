@@ -36,15 +36,15 @@ async fn main() {
     
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("Time went backwards")
         .as_secs();
 
     let log_path = format!("log/log_{}.ans", timestamp);
     let parent_dir = std::path::Path::new(&log_path)
             .parent() 
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid log path")).unwrap();
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid log path")).expect("Failed to get parent directory");
 
-    fs::create_dir_all(parent_dir).unwrap();
+    fs::create_dir_all(parent_dir).expect("Failed to create log directory");
     let file = File::create(&log_path).expect("Unable to create log file");
     // 设置日志记录器
     tracing_subscriber::fmt()
@@ -56,10 +56,10 @@ async fn main() {
 
     let connection_string = format!(
             "host={} port={} user={} password={} dbname=cratespro",
-            env::var("POSTGRES_HOST_IP").unwrap(),
-            env::var("POSTGRES_HOST_PORT").unwrap(),
-            env::var("POSTGRES_USER").unwrap(),
-            env::var("POSTGRES_PASSWORD").unwrap()
+            env::var("POSTGRES_HOST_IP").expect("Must get POSTGRES_HOST_IP"),
+            env::var("POSTGRES_HOST_PORT").expect("Must get POSTGRES_HOST_PORT"),
+            env::var("POSTGRES_USER").expect("Must get POSTGRES_USER"),
+            env::var("POSTGRES_PASSWORD").expect("Must get POSTGRES_PASSWORD")
         );
     let (client, connection) = match tokio_postgres::connect(
         &connection_string,
@@ -84,15 +84,15 @@ async fn main() {
     let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").expect("must get TUGRAPH_USER_PASSWORD");
     let tugraph_cratespro_db = env::var("TUGRAPH_CRATESPRO_DB").expect("must get TUGRAPH_CRATESPRO_DB");
 
-    let datareader = DataReader::new(&tugraph_bolt_url,&tugraph_user_name,&tugraph_user_password,&tugraph_cratespro_db).await.unwrap();
+    let datareader = DataReader::new(&tugraph_bolt_url,&tugraph_user_name,&tugraph_user_password,&tugraph_cratespro_db).await.expect("Failed to create datareader");
 
-    let kafka_broker = env::var("KAFKA_BROKER").unwrap();
-    let consumer_group_id = env::var("KAFKA_CONSUMER_GROUP_ID").unwrap();
+    let kafka_broker = env::var("KAFKA_BROKER").expect("Must get KAFKA_BROKER");
+    let consumer_group_id = env::var("KAFKA_CONSUMER_GROUP_ID").expect("Must get KAFKA_CONSUMER_GROUP_ID");
 
     let import_handler = KafkaHandler::new_consumer(
         &kafka_broker,
         &consumer_group_id,
-        &env::var("KAFKA_CVEID_TOPIC").unwrap(),
+        &env::var("KAFKA_CVEID_TOPIC").expect("Must get KAFKA_CVEID_TOPIC"),
     )
     .expect("Invalid import kafka handler");
     loop{
@@ -113,12 +113,13 @@ async fn main() {
                 message.offset(),
                 message.timestamp()
             );
-            let url = model.clone().unwrap().url;
-            let id = model.clone().unwrap().id;
+            let url = model.clone().expect("failed to get url").url;
+            let id = model.clone().expect("failed to get id").id;
             let res_info = get_cve_info(id.clone(), url.clone()).await;
             if res_info.is_ok(){
                 tracing::info!("Start inserting/updating id {} to pg",id.clone());
-                let one_res = res_info.unwrap();
+                let one_res = res_info.expect("failed to get res_info");
+                
                 dbhandler.client.execute(
                     "INSERT INTO rustsec_info(
                         id, subtitle, reported, issued, package, type, 
@@ -152,10 +153,13 @@ async fn main() {
                         &one_res.description,
                         &one_res.affected,
                     ],
-                ).await.unwrap();
+                ).await.map_err(|e| {
+                    tracing::error!("Failed to insert/update id {} in pg: {:?}", id.clone(), e);
+                })
+                .ok();
             }
             tracing::info!("Finish inserting/updating id {} to pg",id.clone());
-            analyze_cve(&datareader, &dbhandler, id.clone()).await.unwrap();
+            analyze_cve(&datareader, &dbhandler, id.clone()).await.expect("Failed to analyze cve");
             tracing::info!("start sending id {} to rag kafka topic",id.clone());
             let sec_url = "https://rustsec.org/advisories/".to_string()+&id+".html";
             let cve_info = CveId{ id, url:sec_url};

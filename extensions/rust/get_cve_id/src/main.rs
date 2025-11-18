@@ -18,12 +18,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dotenvy::dotenv().ok();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("Time went backwards")
             .as_secs();
         let log_path = format!("log/log_{}.ans", timestamp);
         let parent_dir = std::path::Path::new(&log_path)
             .parent() 
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid log path")).unwrap();
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid log path")).expect("Failed to get parent directory");
 
         fs::create_dir_all(parent_dir)?;
 
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let body = resp.text().await?;
         let document = Html::parse_document(&body);
-        let subtitle_selector = Selector::parse("ul>li>h3>a").unwrap();
+        let subtitle_selector = Selector::parse("ul>li>h3>a").expect("Failed to create selector");
         let mut real_ids:Vec<String> = Vec::new();
         for element in document.select(&subtitle_selector) {
             let text = element.text().collect::<Vec<_>>().join("");
@@ -97,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let kafka_broker = env::var("KAFKA_BROKER").expect("Must get KAFKA_BROKER");
                 let topic_test = env::var("KAFKA_CVEID_TOPIC").expect("Must get KAFKA_CVEID_TOPIC");
                 let sender_handler = KafkaHandler::new_producer(&kafka_broker).expect("Invalid import kafka handler");
-                sender_handler.send_message(&topic_test, "", &serde_json::to_string(&cve_info).unwrap()).await;
+                sender_handler.send_message(&topic_test, "", &serde_json::to_string(&cve_info).expect("failed to get payload")).await;
             } else {
                 tracing::info!("ID exist,skip: {}", id);
             }

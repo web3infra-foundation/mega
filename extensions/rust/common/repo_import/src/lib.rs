@@ -124,12 +124,20 @@ impl ImportDriver {
         let max_connections: u32 = env::var("TUGRAPH_MAX_CONNECTIONS").ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(160);
+        #[allow(clippy::expect_fun_call)]
         let config = ConfigBuilder::default()
             .uri(&tugraph_bolt_url)
             .user(&tugraph_user_name)
             .password(&tugraph_user_password)
             .db(&*tugraph_db_name)
-            .max_connections(max_connections.try_into().unwrap())
+            .max_connections(
+                max_connections
+                    .try_into()
+                    .expect(&format!(
+                        "TUGRAPH_MAX_CONNECTIONS value {} cannot be converted to usize on this platform",
+                        max_connections
+                    ))
+            )
             .build()
             .expect("failed to get TuGraph config");
         let graph = Graph::connect(config).await.expect("failed to connect tugraph");

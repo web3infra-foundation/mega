@@ -1,12 +1,24 @@
 use crate::{model::CveAnalyzeRes, RustsecInfo};
 use data_transporter::{data_reader::{DataReader, DataReaderTrait}, db::{ DBHandler}};
 use regex::Regex;
+use reqwest::Url;
 //use reqwest;
 use scraper::{Html, Selector};
 pub async fn get_cve_info(id:String,url:String)->Result<RustsecInfo,Box<dyn std::error::Error>>{
         tracing::info!("Getting info {} in {}",id.clone(),url.clone());
-        let resp = reqwest::get(&url).await?;
-
+        let parsed_url = Url::parse(&url).map_err(|_| "Invalid URL format")?;
+        if parsed_url.scheme() != "https" {
+            tracing::error!("URL scheme is not https: {}", parsed_url.scheme());
+            return Err("URL scheme must be https".into());
+        }
+        match parsed_url.host_str() {
+            Some("rustsec.org") => {},
+            _ => {
+                tracing::error!("URL host is not rustsec.org: {:?}", parsed_url.host_str());
+                return Err("URL host must be rustsec.org".into());
+            }
+        }
+        let resp = reqwest::get(parsed_url.as_str()).await?;
         if !resp.status().is_success() {
             tracing::error!("HTTP request failed: {}", resp.status());
             return Err("HTTP request failed".into());

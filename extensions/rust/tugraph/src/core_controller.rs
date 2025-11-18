@@ -31,8 +31,8 @@ struct SharedState {
 
 impl CoreController {
     pub async fn new(cli: CratesProCli) -> Self {
-        let import = env::var("CRATES_PRO_IMPORT").unwrap().eq("1");
-        let package = env::var("CRATES_PRO_PACKAGE").unwrap().eq("1");
+        let import = env::var("CRATES_PRO_IMPORT").expect("CRATES_PRO_IMPORT environment variable must be set").eq("1");
+        let package = env::var("CRATES_PRO_PACKAGE").expect("CRATES_PRO_PACKAGE environment variable must be set").eq("1");
         Self {
             cli,
             import,

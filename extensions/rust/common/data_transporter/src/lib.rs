@@ -162,10 +162,15 @@ pub async fn run_api_server() -> std::io::Result<()> {
         
     
     // 配置 CORS
+        let cors1 = std::env::var("CORS1").unwrap_or_else(|_| "http://local.gitmega.com".to_string());
+        let cors2 = std::env::var("CORS2").unwrap_or_else(|_| "https://app.gitmega.com".to_string());
+        let cors3 = std::env::var("CORS3").unwrap_or_else(|_| "http://app.gitmono.test".to_string());
+        let cors4 = std::env::var("CORS4").unwrap_or_else(|_| "https://app.xuanwu.openatom.cn/".to_string());
         let cors = Cors::default()
-            .allowed_origin("http://local.gitmega.com")
-            .allowed_origin("https://app.gitmega.com")
-            .allowed_origin("http://app.gitmono.test")
+            .allowed_origin(&cors1)
+            .allowed_origin(&cors2)
+            .allowed_origin(&cors3)
+            .allowed_origin(&cors4)
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
             .allowed_headers(vec![
                 actix_web::http::header::AUTHORIZATION,

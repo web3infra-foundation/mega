@@ -152,16 +152,7 @@ async fn from_cargo_toml(
     let content = fs::read_to_string(cargo_toml_path)?;
     let parsed = content.parse::<toml::Value>()?;
 
-    // 处理description,将多行字符串转换为单行,用\n替换换行符
-    let description = parsed["package"]
-        .get("description")
-        .unwrap_or(&toml::Value::String(String::from("None")))
-        .as_str()
-        .map(|desc| {
-            let mut processed = desc.replace('\n', "\\n").replace('\r', "");
-            processed = processed.replace('"', " ").replace('\'', " ");
-            processed}
-    );
+    
     
     let mut program = Program::new(
         id.to_string(),
@@ -169,7 +160,7 @@ async fn from_cargo_toml(
             .as_str()
             .unwrap_or_default()
             .to_string(),
-        description,
+        None,
         get_namespace_by_repo_path(local_repo_path.to_str().unwrap()),
         None,
         parsed["package"]
