@@ -21,7 +21,7 @@ import { ScrollableContainer } from '@/components/ScrollableContainer'
 import { ScopeProvider } from '@/contexts/scope'
 import { useCreateNoteView } from '@/hooks/useCreateNoteView'
 import { QueryNormalizerProvider } from '@/utils/normy/QueryNormalizerProvider'
-import { apiClient, queryClient } from '@/utils/queryClient'
+import { queryClient, ssrApiClient } from '@/utils/queryClient'
 import { getNormalizedKey } from '@/utils/queryNormalization'
 import { PageWithLayout } from '@/utils/types'
 
@@ -188,7 +188,7 @@ export async function getStaticProps({ params }: GetStaticPropsContext) {
   }
 
   try {
-    const data = await apiClient.organizations.getNotesPublicNotes().request(org, parsedNoteId)
+    const data = await ssrApiClient.organizations.getNotesPublicNotes().request(org, parsedNoteId)
 
     return {
       props: {
