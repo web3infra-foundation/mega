@@ -59,7 +59,9 @@ export const mocks = [
   }
 ]
 
-export const Task = ({ list }: { list: TaskInfoDTO }) => {
+type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
+
+export const Task = ({ list, logStatus }: { list: TaskInfoDTO; logStatus: Record<string, LogStatus> }) => {
   const [extend, setExtend] = useState(false)
 
   // list = mocks
@@ -78,9 +80,9 @@ export const Task = ({ list }: { list: TaskInfoDTO }) => {
         {/* {extend && list} */}
       </div>
       {!extend && list && (
-        <div className='fz-[14px] border-b pl-4 font-medium text-[#0969da]'>
+        <div className='fz-[14px] border-b pl-4 font-medium'>
           {list.build_list.map((i) => (
-            <TaskItem key={i.id} build={i} />
+            <TaskItem key={i.id} build={i} logStatus={logStatus[i.id]} />
           ))}
         </div>
       )}
@@ -88,7 +90,7 @@ export const Task = ({ list }: { list: TaskInfoDTO }) => {
   )
 }
 
-export const TaskItem = ({ build }: { build: BuildDTO }) => {
+export const TaskItem = ({ build, logStatus }: { build: BuildDTO; logStatus?: LogStatus }) => {
   // const [statusMap] = useAtom(statusMapAtom)
 
   const [_, setBuildId] = useAtom(buildIdAtom)
@@ -100,6 +102,9 @@ export const TaskItem = ({ build }: { build: BuildDTO }) => {
     // setEventSource(build_id)
   }
 
+  const isHighlighted = logStatus === 'success'
+  const textColor = isHighlighted ? 'text-[#0969da]' : 'text-[#59636e]'
+
   return (
     <>
       <div
@@ -109,7 +114,7 @@ export const TaskItem = ({ build }: { build: BuildDTO }) => {
       >
         {/* {identifyStatus(statusMap.get(build.id)?.status || Status.NotFound)} */}
         {identifyStatus(build.status || Status.NotFound)}
-        <span className='cursor-pointer hover:text-[#1f2328]'>{build.id}</span>
+        <span className={`cursor-pointer hover:text-[#1f2328] ${textColor}`}>{build.id}</span>
       </div>
     </>
   )
