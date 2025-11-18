@@ -9,7 +9,7 @@ use crate::{
 };
 use chrono::{NaiveDateTime, SubsecRound};
 use model::tugraph_model::{Program, UProgram};
-use semver::Version;
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{Error, NoTls};
 use utoipa::ToSchema;
@@ -176,7 +176,7 @@ impl DBHandler {
         &self,
         program: Program,
         uprogram: UProgram,
-        _versions: Vec<crate::VersionInfo>,
+        //_versions: Vec<crate::VersionInfo>,
     ) -> Result<(), Error> {
         let (program_type, downloads, cratesio) = match &uprogram {
             UProgram::Library(lib) => ("Library", Some(lib.downloads), lib.cratesio.clone()),
@@ -190,7 +190,18 @@ impl DBHandler {
                 id, name, description, namespace, 
                 max_version, github_url, mega_url, doc_url,
                 program_type, downloads, cratesio
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+             ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                namespace = EXCLUDED.namespace,
+                max_version = EXCLUDED.max_version,
+                github_url = EXCLUDED.github_url,
+                mega_url = EXCLUDED.mega_url,
+                doc_url = EXCLUDED.doc_url,
+                program_type = EXCLUDED.program_type,
+                downloads = EXCLUDED.downloads,
+                cratesio = EXCLUDED.cratesio;
             ",
                 &[
                     &program.id,
@@ -337,6 +348,16 @@ impl DBHandler {
                 right = two_versions[0].clone();
             }
         }
+        left = if left.split('.').count() == 2 {
+            format!("{}.0", left) // "0.8" -> "0.8.0"
+        } else {
+            left
+        };
+        right = if right.split('.').count() == 2 {
+            format!("{}.0", right) // "0.8" -> "0.8.0"
+        } else {
+            right
+        };
         if (left.starts_with(">") && !left.starts_with(">="))
             && (right.starts_with("<") && !right.starts_with("<="))
         {
@@ -443,6 +464,11 @@ impl DBHandler {
         version: String,
     ) -> Result<bool, Error> {
         let mut matched = false;
+        let oneline_patched = if oneline_patched.split('.').count() == 2 {
+            format!("{}.0", oneline_patched) // "0.8" -> "0.8.0"
+        } else {
+            oneline_patched
+        };
         if oneline_patched.starts_with(">") && !oneline_patched.starts_with(">=") {
             let mut versions = vec![];
             let trimmed = &oneline_patched[1..];
@@ -539,13 +565,19 @@ impl DBHandler {
                         )
                         .await
                         .unwrap();
-            } else if oneline_patched.clone().contains("^") {
-                //specific version
-                if let Some(trimmed) = oneline_patched.strip_prefix("^") {
-                    let res = trimmed.to_string();
-                    if version == res {
-                        matched = true;
-                    }
+            } else if oneline_patched.clone().starts_with("^") {
+                
+                let full_string = oneline_patched.clone();
+                let range = VersionReq::parse(&full_string)
+                    .expect("Failed to parse version range");
+                let target_version = Version::parse(&version)
+                    .expect("Failed to parse target version");
+                matched = range.matches(&target_version);
+            } else if let Some(trimmed) = oneline_patched.strip_prefix("=") {
+                
+                let res = trimmed.to_string();
+                if version == res {
+                    matched = true;
                 }
             } else {
                 //open interval

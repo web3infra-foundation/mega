@@ -11,27 +11,32 @@ use crate::crate_info::extract_info_local;
 use crate::kafka_handler::KafkaHandler;
 use crate::utils::{
     extract_namespace, get_program_by_name, insert_namespace_by_repo_path, name_join_version,
-    write_into_csv,extract_path_from_segment,
+    extract_path_from_segment,
 };
 
+//use bincode::serialize_into;
 //use git::hard_reset_to_head;
 use git2::{ObjectType, Oid, Repository};
 use model::{repo_sync_model, tugraph_model::*};
+use neo4rs::{query, ConfigBuilder, Graph};
+//use neo4rs::*;
 use rdkafka::error::KafkaError;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
-use std::collections::{HashMap, HashSet};
+use tudriver::tugraph_client::TuGraphClient;
+//use tokio_util::io::SyncIoBridge;
+use std::collections::{ HashSet};
 use std::env;
 use std::error::Error;
-use std::fs;
+//use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+//use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+//use tokio::sync::Mutex;
 use url::Url;
 use version_info::VersionUpdater;
 
@@ -55,6 +60,7 @@ pub struct ImportDriver {
     pub import_handler: KafkaHandler,
     pub user_import_handler: KafkaHandler,
     pub sender_handler: KafkaHandler,
+    pub tugraphclient:TuGraphClient,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Licenses {
@@ -81,7 +87,7 @@ impl ImportDriver {
             let checkpoint_path = format!("{checkpoint_dir}/latest.json");
 
             match ImportContext::load_from_file(&checkpoint_path).await {
-                Ok(mut ctx) => {
+                Ok(ctx) => {
                     // 如果有保存的 offset 且不需要重置到0，则恢复到该位置
                     if let Some(offset) = ctx.kafka_offset {
                         tracing::info!("Restoring Kafka consumer to offset: {}", offset);
@@ -89,7 +95,7 @@ impl ImportDriver {
                             tracing::error!("Failed to seek to offset {}: {}", offset, e);
                         }
                     }
-                    ctx.write_tugraph_import_files().await;
+                    //ctx.write_tugraph_import_files().await;
                     tracing::info!("Restored context from checkpoint");
                     ctx
                 }
@@ -111,12 +117,37 @@ impl ImportDriver {
         };
 
         tracing::info!("Finish to setup Kafka client.");
-
+        let tugraph_bolt_url = env::var("TUGRAPH_BOLT_URL").expect("must get TUGRAPH_BOLT_URL");
+        let tugraph_user_name = env::var("TUGRAPH_USER_NAME").expect("must get TUGRAPH_USER_NAME");
+        let tugraph_user_password = env::var("TUGRAPH_USER_PASSWORD").expect("must get TUGRAPH_USER_PASSWORD");
+        let tugraph_db_name = env::var("TUGRAPH_CRATESPRO_DB").expect("must get TUGRAPH_CRATESPRO_DB");
+        let max_connections: u32 = env::var("TUGRAPH_MAX_CONNECTIONS").ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(160);
+        #[allow(clippy::expect_fun_call)]
+        let config = ConfigBuilder::default()
+            .uri(&tugraph_bolt_url)
+            .user(&tugraph_user_name)
+            .password(&tugraph_user_password)
+            .db(&*tugraph_db_name)
+            .max_connections(
+                max_connections
+                    .try_into()
+                    .expect(&format!(
+                        "TUGRAPH_MAX_CONNECTIONS value {} cannot be converted to usize on this platform",
+                        max_connections
+                    ))
+            )
+            .build()
+            .expect("failed to get TuGraph config");
+        let graph = Graph::connect(config).await.expect("failed to connect tugraph");
+        let tugraphclient = TuGraphClient{graph};
         Self {
             context,
             import_handler,
             user_import_handler,
             sender_handler,
+            tugraphclient,
         }
     }
 
@@ -178,7 +209,7 @@ impl ImportDriver {
         // 早一个offset，防止当前消息没解析完就结束了
         let offset = message.offset();
         self.context.kafka_offset = Some(offset);
-        if offset % 2000 == 0 {
+        if offset % 20000 == 0 {
             tracing::info!("Reached message offset: {}", offset);
             self.context.print_status().await;
         }
@@ -200,6 +231,9 @@ impl ImportDriver {
         };
         
         let namespace = extract_namespace(git_url.as_ref()).expect("Failed to parse URL");
+        
+        
+
         let behind_dir = extract_path_from_segment(git_url.as_ref(),"crates").expect("Failed to parse behind_dir");
         let path = PathBuf::from(&clone_crates_dir).join(behind_dir.clone());
 
@@ -221,15 +255,14 @@ impl ImportDriver {
             };
             let clone_need_time = clone_start_time.elapsed();
             tracing::trace!("clone need time: {:?}", clone_need_time);
-            
             let new_versions = self
                 .context
-                .parse_a_local_repo_and_return_new_versions(local_repo_path, mega_url_suffix)
+                .parse_a_local_repo_and_return_new_versions(local_repo_path, mega_url_suffix,&self.tugraphclient)
                 .await
                 .unwrap();
         } else {
             tracing::info!("dir {} already exist", path.to_str().unwrap().to_string());
-            let git_dir = path.join(".git");
+            /*let git_dir = path.join(".git");
             if git_dir.is_dir() {
                 tracing::info!("Performing git pull for repository: {}", path.display());
                 let pull_result = std::process::Command::new("git")
@@ -250,7 +283,7 @@ impl ImportDriver {
                 }
             } else {
                 tracing::warn!("{} is not a git repository, skipping pull", path.display());
-            }
+            }*/
             let insert_time = Instant::now();
             insert_namespace_by_repo_path(path.to_str().unwrap().to_string(), namespace.clone());
             let insert_need_time = insert_time.elapsed();
@@ -261,7 +294,7 @@ impl ImportDriver {
             
             let new_versions = self
                 .context
-                .parse_a_local_repo_and_return_new_versions(path, mega_url_suffix)
+                .parse_a_local_repo_and_return_new_versions(path, mega_url_suffix,&self.tugraphclient)
                 .await
                 .unwrap();
         } //changes
@@ -427,32 +460,32 @@ async fn init_kafka_handler() -> Result<(KafkaHandler, KafkaHandler, KafkaHandle
 
 /// internal structure,
 /// a context for repo parsing and importing.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone,Default, Serialize, Deserialize)]
 pub struct ImportContext {
     pub dont_clone: bool,
-
+    //pub graph:Graph,
     // data to write into
     /// vertex
-    pub programs: Vec<Program>,
+    //pub programs: Vec<Program>,
 
-    pub libraries: Vec<Library>,
-    pub applications: Vec<Application>,
-    pub library_versions: Vec<LibraryVersion>,
-    pub application_versions: Vec<ApplicationVersion>,
-    pub versions: Vec<Version>,
+    //pub libraries: Vec<Library>,
+    //pub applications: Vec<Application>,
+    //pub library_versions: Vec<LibraryVersion>,
+    //pub application_versions: Vec<ApplicationVersion>,
+    //pub versions: Vec<Version>,
     //pub max_versions: Arc<Mutex<HashMap<String, String>>>,
-    pub licenses: Vec<Licenses>,
+    //pub licenses: Vec<Licenses>,
     /// edge
-    has_lib_type: Vec<HasType>,
-    has_app_type: Vec<HasType>,
+    //has_lib_type: Vec<HasType>,
+    //has_app_type: Vec<HasType>,
 
-    lib_has_version: Vec<HasVersion>,
-    app_has_version: Vec<HasVersion>,
+    //lib_has_version: Vec<HasVersion>,
+    //app_has_version: Vec<HasVersion>,
 
-    lib_has_dep_version: Vec<HasDepVersion>,
-    app_has_dep_version: Vec<HasDepVersion>,
+    //lib_has_dep_version: Vec<HasDepVersion>,
+    //app_has_dep_version: Vec<HasDepVersion>,
 
-    pub depends_on: Vec<DependsOn>,
+    //pub depends_on: Vec<DependsOn>,
 
     /// help is judge whether it is a new program
     program_memory: HashSet<model::general_model::Program>,
@@ -464,6 +497,8 @@ pub struct ImportContext {
     // 新增字段保存 Kafka offset
     #[serde(default)]
     pub kafka_offset: Option<i64>,
+
+    //pub max_version_memory:HashMap<String,String>,
 }
 
 impl ImportContext {
@@ -506,7 +541,7 @@ impl ImportContext {
 
         Ok(std::cmp::Ordering::Equal)
     }
-    pub async fn update_max_version(&mut self) -> Result<String, Box<dyn Error>> {
+    /*pub async fn update_max_version(&mut self) -> Result<String, Box<dyn Error>> {
         let tmp_max_versions: Arc<Mutex<HashMap<String, String>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let mut tasks = vec![];
@@ -552,7 +587,7 @@ impl ImportContext {
             }
         }
         Ok("".to_string())
-    }
+    }*/
     pub async fn max_version(&mut self, v1: &str, v2: &str) -> String {
         let parts1: Vec<&str> = v1.split('.').collect();
         let parts2: Vec<&str> = v2.split('.').collect();
@@ -579,6 +614,7 @@ impl ImportContext {
         &mut self,
         repo_path: PathBuf,
         git_url: String,
+        tugraphclient:&TuGraphClient,
     ) -> Result<Vec<model::general_model::VersionWithTag>, String> {
         let mut new_versions = vec![];
 
@@ -610,24 +646,27 @@ impl ImportContext {
                     //
     
                     for (program, has_type, uprogram) in all_programs {
-                        self.programs.push(program.clone());
+                        //self.programs.push(program.clone());//插入点program
+                        let _ = tugraphclient.insert_program(program.id.clone(), program.name.clone(), program.description.clone(),
+                                    program.namespace.clone(), program.max_version.clone(), program.github_url.clone(), program.mega_url.clone(), program.doc_url.clone()).await;
+
                         match uprogram {
                             UProgram::Library(l) => {
-                                self.libraries.push(l.clone());
-                            
-                                self.has_lib_type.push(has_type.clone());
-                                
+                                //self.libraries.push(l.clone());//插入点library
+                                let _ = tugraphclient.insert_library(l.id.clone(), l.name.clone(), l.downloads, l.cratesio.clone()).await;
+                                //self.has_lib_type.push(has_type.clone());//插入边has_lib_type
+                                let _ = tugraphclient.insert_has_lib_type(has_type.SRC_ID, has_type.DST_ID).await;
                             }
                             UProgram::Application(a) => {
-                                self.applications.push(a.clone());
-                                
-                                self.has_app_type.push(has_type.clone());
-                                
+                                //self.applications.push(a.clone());//插入点application
+                                let _ = tugraphclient.insert_application(a.id.clone(), a.name.clone()).await;
+                                //self.has_app_type.push(has_type.clone());//插入边has_app_type
+                                let _ = tugraphclient.insert_has_app_type(has_type.SRC_ID, has_type.DST_ID).await;
                             }
                         };
 
                         // NOTE: memorize program
-                        self.program_memory
+                        self.program_memory//插入后是否存在该program去图中查询。无需记录，在图中已存在
                             .insert(model::general_model::Program::new(
                                 &program.name,
                                 &program.mega_url.clone().unwrap(),
@@ -652,9 +691,9 @@ impl ImportContext {
                                 continue;
                             }
                         };
-
-                        self.version_updater.update_depends_on(&dependencies).await;
-
+                        //let time1 = Instant::now();
+                        //let need_time = time1.elapsed();
+                        //tracing::info!("update_dependes_on need time:{:?}",need_time);
                         let has_version = HasVersion {
                             SRC_ID: program.id.clone(),
                             DST_ID: name_join_version(&name, &version), //FIXME: version id undecided
@@ -679,12 +718,17 @@ impl ImportContext {
                                 "???",
                             );
 
-                            self.library_versions.push(version.clone());
+                            //self.library_versions.push(version.clone());//插入点library_version
+                            let _ = tugraphclient.insert_library_version(version.id.clone(), version.name_and_version.clone(), version.name.clone(), version.version.clone(), version.documentation.clone()).await;
                             
-                            self.lib_has_version.push(has_version.clone());
+                            //self.versions.push(dep_version.clone());//插入点verison
+                            let _ = tugraphclient.insert_version(dep_version.name_and_version.clone()).await;
                             
-                            self.lib_has_dep_version.push(has_dep_version.clone());
+                            //self.lib_has_version.push(has_version.clone());//插入边lib_has_version
+                            let _ = tugraphclient.insert_lib_has_version(has_version.SRC_ID.clone(), has_version.DST_ID.clone()).await;
                             
+                            //self.lib_has_dep_version.push(has_dep_version.clone());//插入边lib_has_dep_version
+                            let _ = tugraphclient.insert_lib_has_dep_version(has_dep_version.SRC_ID, has_dep_version.DST_ID).await;
                         } else {
                             let version = ApplicationVersion::new(
                                 program.id.clone(),
@@ -692,15 +736,20 @@ impl ImportContext {
                                 version.clone(),
                             );
 
-                            self.application_versions.push(version.clone());
+                            //self.application_versions.push(version.clone());//插入点application_version
+                            let _ = tugraphclient.insert_application_version(version.id.clone(), version.name_and_version.clone(), version.name.clone(), version.version.clone()).await;
                             
-                            self.app_has_version.push(has_version.clone());
+                            //self.versions.push(dep_version.clone());//插入点verison
+                            let _ = tugraphclient.insert_version(dep_version.name_and_version.clone()).await;
+
+                            //self.app_has_version.push(has_version.clone());//插入边app_has_version
+                            let _ = tugraphclient.insert_app_has_version(has_version.SRC_ID.clone(), has_version.DST_ID.clone()).await;
                             
-                            self.app_has_dep_version.push(has_dep_version.clone());
-                            
+                            //self.app_has_dep_version.push(has_dep_version.clone());//插入边app_has_dep_version
+                            let _ = tugraphclient.insert_app_has_dep_version(has_dep_version.SRC_ID.clone(), has_dep_version.DST_ID.clone()).await;
                         }
-                        self.versions.push(dep_version.clone());
                         
+                        self.version_updater.update_depends_on(&dependencies,tugraphclient).await;
 
                         //self.depends_on
                         //    .clone_from(&(self.version_updater.to_depends_on_edges().await));
@@ -712,7 +761,71 @@ impl ImportContext {
                                 &dependencies.version,
                             ));
                     }
+
                     for dependency in all_dependencies.clone(){
+                        let name = dependency.crate_name;
+                        let version = dependency.version;
+                        let namespace = "crates/".to_string()+&name;
+                        let query_stmt = "MATCH (n:program {namespace: $namespace}) RETURN n.max_version as max_version";
+                        let q = query(query_stmt).param("namespace", namespace.clone());                
+                        match tugraphclient.graph.execute(q).await{
+                            Ok(mut result_set)=>{
+                                match result_set.next().await {
+                                    Ok(Some(row)) => {
+                                        let mut versions = vec![];
+                                        let tmp_max_version = match row.get("max_version") {
+                                            Ok(Some(val)) => val,  // 成功获取到值
+                                            Ok(None) => {
+                                                // 处理空值情况（如返回默认值）
+                                                tracing::warn!("max_version is null, using default");
+                                                "0.0.0".to_string()
+                                            }
+                                            Err(e) => {
+                                                // 处理获取失败（如字段不存在、类型错误）
+                                                tracing::error!("Failed to get max_version: {}", e);
+                                                "0.0.0".to_string()
+                                            }
+                                        };
+                                        versions.push(tmp_max_version.clone());
+                                        versions.push(version.clone());
+                                        let mut sorting_versions: Vec<semver::Version> = versions
+                                        .iter()
+                                        .filter_map(|ver| semver::Version::parse(ver).ok()) // 将所有版本字符串解析为 Version 对象
+                                        .collect();
+                                        sorting_versions.sort();
+                                        let max_version = sorting_versions.last().map(|v| v.to_string());
+                                        let stmt2 = "MATCH (n:program {namespace: $namespace}) SET n.max_version = $max_version";
+                                        let _ = tugraphclient.graph.run(
+                                            query(stmt2)
+                                                .param("namespace", namespace.clone())
+                                                .param("max_version", max_version.clone().unwrap_or_default())
+                                        ).await;
+                                        tracing::info!("Updated max_version for {} to {}",name.clone(),max_version.clone().unwrap_or_default());
+                                    }
+                                    Ok(None) => {
+                                        tracing::info!("No program found with namespace: {}", namespace);
+                                        let stmt2 = "MATCH (n:program {namespace: $namespace}) SET n.max_version = $max_version";
+                                        let _ = tugraphclient.graph.run(
+                                            query(stmt2)
+                                                .param("namespace", namespace.clone())
+                                                .param("max_version", version.clone())
+                                        ).await;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to query program: {}", e)
+                                    }
+                                }
+                            },
+                            Err(_)=>{
+                                tracing::info!("failed to get_max_version_in_tugraph");
+                            }
+                        }
+                        
+                        
+                    }
+
+
+                    /*for dependency in all_dependencies.clone(){
                         if let Some(tprogram) = self.programs.iter_mut()
                             .find(|p| p.name == dependency.clone().crate_name) 
                         {
@@ -734,7 +847,7 @@ impl ImportContext {
                             // 未找到匹配项时的处理（可选）
                             tracing::warn!("Program {} not found in self.programs",dependency.crate_name);
                         }
-                    }
+                    }*/
                     
                     let proccess_need_time = proccess_time.elapsed();
                     tracing::info!("Finish processing repo: {}", repo_path.display());
@@ -757,7 +870,7 @@ impl ImportContext {
         let all_programs: Vec<(Program, HasType, UProgram)> = extract_info_local(
             repo_path.to_path_buf(),
             git_url.to_owned(),
-            &mut self.licenses,
+            //&mut self.licenses,
         )
         .await
         .into_iter()
@@ -810,14 +923,41 @@ impl ImportContext {
         all_dependencies
     }
 
-    async fn normalize(&mut self) {
+    /*async fn normalize(&mut self) {
         self.depends_on
             .clone_from(&(self.version_updater.to_depends_on_edges().await));
-    }
+    }*/
+
+    /*pub async fn new_update_max_version(&mut self){
+        for program in self.programs.iter_mut(){
+            let name = program.name.clone();
+            let max_version_in_programs = program.max_version.clone();
+            if let Some(max_version_in_memory) = self.max_version_memory.get(&name){
+                if max_version_in_programs.is_none(){
+                    program.max_version = Some(max_version_in_memory.clone());
+                    tracing::info!("Updated programs_max_version for {} to {}", name.clone(), max_version_in_memory.clone());
+                }
+                else if let Some(tmp_max_version) = max_version_in_programs{
+                    match ImportContext::compare_versions(&tmp_max_version, &max_version_in_memory).await {
+                                    Ok(ordering) => {
+                                        if ordering == std::cmp::Ordering::Less {
+                                            program.max_version = Some(max_version_in_memory.clone());
+                                            tracing::info!("Updated programs_max_version for {} to {}", name.clone(), max_version_in_memory.clone());
+                                        }
+                                    }
+                                    Err(_) => {
+                                        //eprintln!("Error comparing versions for {}", name);
+                                    }
+                                };
+                }
+            }
+        }
+    }*/
+
 
     /// write data base into tugraph import files
-    pub async fn write_tugraph_import_files(&mut self) {
-        
+    /*pub async fn write_tugraph_import_files(&mut self) {
+        tracing::info!("start to write");
         self.normalize().await;
 
         let write_time = Instant::now();
@@ -894,11 +1034,12 @@ impl ImportContext {
         );
         
         let write_need_time = write_time.elapsed();
-        tracing::trace!("write need time: {:?}", write_need_time);
-    }
-
+        tracing::info!("finish to write");
+        tracing::info!("write need time: {:?}", write_need_time);
+    }*/
+#[allow(clippy::empty_line_after_doc_comments)]
     pub async fn save_to_file(&mut self, path: &str) -> Result<(), String> {
-        self.normalize().await;
+        //self.normalize().await;
         let serialized =
             bincode::serialize(self).map_err(|e| format!("Serialization error: {e}"))?;
 
@@ -911,6 +1052,24 @@ impl ImportContext {
             .map_err(|e| format!("Failed to write to file: {e}"))?;
 
         Ok(())
+        /*let mut file = File::create(path)
+        .await
+        .map_err(|e| format!("Failed to create file: {e}"))?;
+
+        // 2. 关键修复：用 SyncIoBridge 将异步 File 转换为同步 Write 实现
+        let mut writer = SyncIoBridge::new(&mut file);
+
+        // 3. 流式序列化（现在 writer 符合 std::io::Write 要求）
+        serialize_into(&mut writer, self)
+            .map_err(|e| format!("Serialization error: {e}"))?;
+
+        // 4. 确保数据刷入磁盘（原有逻辑不变）
+        file.flush().await
+            .map_err(|e| format!("Failed to flush file: {e}"))?;
+
+        tracing::info!("Successfully wrote to file: {}", path);
+        Ok(())*/
+        
     }
 
     pub async fn load_from_file(path: &str) -> Result<Self, String> {
@@ -923,8 +1082,8 @@ impl ImportContext {
         let context: ImportContext =
             bincode::deserialize(&content).map_err(|e| format!("Deserialization error: {e}"))?;
         tracing::info!(
-            "Context loaded successfully, there are {} programs",
-            context.programs.len()
+            "Context loaded successfully",
+            //context.programs.len()
         );
         Ok(context)
     }
@@ -936,64 +1095,51 @@ impl ImportContext {
              Kafka Offset: {}\n\
              \n\
              Collection Sizes:\n\
-             - Programs: {}\n\
-             - Libraries: {}\n\
-             - Applications: {}\n\
-             - Library Versions: {}\n\
-             - Application Versions: {}\n\
-             - Versions: {}\n\
-             - Licenses: {}\n\
              \n\
              Memory Sets:\n\
              - Program Memory: {}\n\
              - Version Memory: {}\n\
              \n\
-             Edge Collections:\n\
-             - Has Lib Type: {}\n\
-             - Has App Type: {}\n\
-             - Lib Has Version: {}\n\
-             - App Has Version: {}\n\
-             - Lib Has Dep Version: {}\n\
-             - App Has Dep Version: {}\n\
-             - Depends On: {}\n",
+             ",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
             self.kafka_offset.unwrap_or(-1),
-            self.programs.len(),
-            self.libraries.len(),
-            self.applications.len(),
-            self.library_versions.len(),
-            self.application_versions.len(),
-            self.versions.len(),
-            self.licenses.len(),
+            //self.programs.len(),
+            //self.libraries.len(),
+            //self.applications.len(),
+            //self.library_versions.len(),
+            //self.application_versions.len(),
+            //self.versions.len(),
+            //self.licenses.len(),
             self.program_memory.len(),
             self.version_memory.len(),
-            self.has_lib_type.len(),
-            self.has_app_type.len(),
-            self.lib_has_version.len(),
-            self.app_has_version.len(),
-            self.lib_has_dep_version.len(),
-            self.app_has_dep_version.len(),
-            self.depends_on.len(),
+            //self.has_lib_type.len(),
+            //self.has_app_type.len(),
+            //self.lib_has_version.len(),
+            //self.app_has_version.len(),
+            //self.lib_has_dep_version.len(),
+            //self.app_has_dep_version.len(),
+            //self.depends_on.len(),
         )
     }
 
     pub async fn print_status(&mut self) {
-        self.normalize().await;
+        //self.normalize().await;
         tracing::info!("{}", self.format_status());
     }
 
     pub async fn import_from_env_vars(&mut self) -> Result<(), Box<dyn Error>> {
         // 从环境变量获取配置
-        let lgraph_import_path = env::var("LGRAPH_IMPORT_PATH").unwrap();
+        let lgraph_import_path = env::var("LGRAPH_IMPORT_PATH")
+                .unwrap_or_else(|_| "/usr/local/bin/lgraph_import".to_string());
             
-        let config_path = env::var("LGRAPH_CONFIG_PATH").unwrap();
+        let config_path = env::var("LGRAPH_CONFIG_PATH").unwrap_or_else(|_| "/home/rust/lhw/import_tugraph/import.config".to_string());
             
-        let db_dir = env::var("LGRAPH_DB_DIR").unwrap();
+        let db_dir = env::var("LGRAPH_DB_DIR").unwrap_or_else(|_| "/home/rust/tugraph/lgraph_db".to_string());
             
-        let graph_name = env::var("TUGRAPH_CRATESPRO_DB").unwrap();
+        let graph_name = env::var("TUGRAPH_CRATESPRO_DB").unwrap_or_else(|_| "cratespro".to_string());
             
         let overwrite = true;
 
@@ -1001,27 +1147,27 @@ impl ImportContext {
         if !Path::new(&lgraph_import_path).exists() {
             return Err(format!("lgraph_import工具不存在: {lgraph_import_path}").into());
         }
-        
+        tracing::info!("lgraph_import工具存在");
         if !Path::new(&lgraph_import_path).is_file() {
             return Err(format!("{lgraph_import_path} 不是有效的文件").into());
         }
-
+        tracing::info!("lgraph_import_path是有效文件");
         // 验证配置文件是否存在
         if !Path::new(&config_path).exists() {
             return Err(format!("配置文件不存在: {config_path}").into());
         }
-        
+        tracing::info!("配置文件存在");
         if !Path::new(&config_path).is_file() {
             return Err(format!("{config_path} 不是有效的文件").into());
         }
-
+        tracing::info!("config_path是有效的文件");
         // 确保数据库目录存在
         let db_path = Path::new(&db_dir);
         if !db_path.exists() {
             std::fs::create_dir_all(db_path)?;
-            println!("创建数据库目录: {db_dir}");
+            tracing::info!("创建数据库目录: {db_dir}");
         }
-
+        tracing::info!("数据库目录存在/已创建");
         // 构建异步命令
         let mut cmd = Command::new(&lgraph_import_path);
 
@@ -1035,42 +1181,51 @@ impl ImportContext {
             cmd.arg("--overwrite").arg("true");
         }
         cmd.arg("--continue_on_error").arg("true");
-        // 异步执行命令并获取输出
-        let output = cmd.output().await?;
 
-        // 处理命令执行结果
-        if output.status.success() {
-            //println!("数据导入成功！");
-            
-            // 打印工具的标准输出
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            if !stdout.is_empty() {
-                println!("工具输出:\n{stdout}");
+        tracing::info!("command:{:?}",cmd);
+        // 异步执行命令并获取输出
+        if let Ok(output) = cmd.output().await{
+            tracing::info!("finish cmd");
+            // 处理命令执行结果
+            if output.status.success() {
+                tracing::info!("执行成功");
+                tracing::info!("数据导入成功！");
+                
+                // 打印工具的标准输出
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if !stdout.is_empty() {
+                    tracing::info!("工具输出:\n{stdout}");
+                }
+                Ok(())
+            } else {
+                // 处理错误情况
+                tracing::info!("执行失败");
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                
+                tracing::info!("数据导入失败！");
+                tracing::info!("退出代码: {}", output.status.code().unwrap_or(-1));
+                
+                if !stdout.is_empty() {
+                    tracing::info!("标准输出:\n{}", stdout);
+                }
+                
+                if !stderr.is_empty() {
+                    tracing::info!("错误信息:\n{}", stderr);
+                }
+                Err("lgraph_import命令执行失败".into())
             }
+        }
+        else{
+            tracing::info!("获取output失败");
             Ok(())
-        } else {
-            // 处理错误情况
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            
-            tracing::info!("数据导入失败！");
-            tracing::info!("退出代码: {}", output.status.code().unwrap_or(-1));
-            
-            if !stdout.is_empty() {
-                tracing::info!("标准输出:\n{}", stdout);
-            }
-            
-            if !stderr.is_empty() {
-                tracing::info!("错误信息:\n{}", stderr);
-            }
-            Err("lgraph_import命令执行失败".into())
         }
     }
 }
 
 impl ImportContext {
-    #[allow(unused)]
-    fn calculate_memory_usage(&self) -> String {
+    //#[allow(unused)]
+    /*fn calculate_memory_usage(&self) -> String {
         use std::fmt::Write;
         use std::mem;
         let mut output = String::new();
@@ -1161,5 +1316,5 @@ impl ImportContext {
         }
 
         output
-    }
+    }*/
 }

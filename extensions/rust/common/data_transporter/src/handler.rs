@@ -156,7 +156,7 @@ pub struct SenseleakRes {
     pub exist: bool,
     pub res: String,
 }
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema,Default)]
 pub struct MircheckerRes {
     pub run_state: bool,
     pub exist: bool,
@@ -186,9 +186,13 @@ pub async fn get_cves() -> impl Responder {
 
     let db_connection_config = db_connection_config_from_env();
     #[allow(unused_variables)]
-    let (client, connection) = tokio_postgres::connect(&db_connection_config, NoTls)
-        .await
-        .unwrap();
+    let (client, connection) = match tokio_postgres::connect(&db_connection_config, NoTls).await {
+        Ok(conn) => conn,
+        Err(e) => {
+            tracing::info!("Connection failed: {}", e);
+            return HttpResponse::InternalServerError().body(format!("数据库连接失败: {}", e));
+        }
+    };
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -302,6 +306,7 @@ pub async fn get_direct_dep_for_graph(nname: String, nversion: String) -> impl R
     ),
     tag = "search"
 )]
+#[allow(clippy::manual_is_multiple_of)]
 pub async fn query_crates(q: Query) -> impl Responder {
     let _handler = get_tugraph_api_handler().await;
     //add yj's search module

@@ -5,9 +5,14 @@ use git2::{Oid, Repository};
 use git2::{TreeWalkMode, TreeWalkResult};
 use model::tugraph_model::DependsOn;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
+//use tokio::sync::Semaphore;
+use tudriver::tugraph_client::TuGraphClient;
+use std::collections::{HashMap};
 use std::mem;
 use std::path::PathBuf;
+
+//use std::sync::Arc;
 use toml::Value;
 
 /// A representation for the info
@@ -188,22 +193,24 @@ impl VersionUpdater {
     }
 
     /// Given a dependency list,
-    pub async fn update_depends_on(&mut self, info: &Dependencies) {
+    pub async fn update_depends_on(&mut self, info: &Dependencies,tugraphclient:&TuGraphClient) {
         self.version_parser
             .insert_version(&info.crate_name, &info.version)
             .await;
         let cur_release = model::general_model::Version::new(&info.crate_name, &info.version);
-        self.ensure_dependencies(&cur_release, info).await;
-        self.ensure_dependents(&cur_release).await;
+        self.ensure_dependencies(&cur_release, info,tugraphclient).await;
+        self.ensure_dependents(&cur_release,tugraphclient).await;
     }
 
     async fn ensure_dependencies(
         &mut self,
         cur_release: &model::general_model::Version,
         info: &Dependencies,
+        tugraphclient:&TuGraphClient,
     ) {
         for (name, version) in &info.dependencies {
             //let dep = model::general_model::Version::new(&name, &version);
+            //tracing::info!("dep_name:{},dep_version:{}",name.clone(),version.clone());
             self.insert_reverse_dep(name, version, &cur_release.name, &cur_release.version)
                 .await;
         }
@@ -211,8 +218,9 @@ impl VersionUpdater {
         // a new version should not exist before.
         assert!(!self.actually_depends_on_map.contains_key(cur_release));
         let cur_dependencies = self.search_dependencies(info).await;
-        self.actually_depends_on_map
-            .insert(cur_release.clone(), cur_dependencies);
+        //self.actually_depends_on_map
+        //    .insert(cur_release.clone(), cur_dependencies.clone());//插入边depends_on
+        let _ = tugraphclient.insert_depends_on(cur_release.clone(), cur_dependencies.clone()).await;
     }
 
     async fn search_dependencies(&self, info: &Dependencies) -> Vec<model::general_model::Version> {
@@ -224,29 +232,32 @@ impl VersionUpdater {
                 .await;
 
             if let Some(dependency_actual_version) = &version_option {
-                let dependency =
-                    model::general_model::Version::new(dependency_name, dependency_actual_version);
-                res.push(dependency);
+                    let dependency =
+                        model::general_model::Version::new(dependency_name, dependency_actual_version);
+                    res.push(dependency);
+                
             }
         }
         res
     }
-
-    async fn ensure_dependents(&mut self, cur_release: &model::general_model::Version) {
+#[allow(clippy::if_same_then_else)]
+    async fn ensure_dependents(&mut self, cur_release: &model::general_model::Version,tugraphclient:&TuGraphClient,) {
         let sem_ver = semver::Version::parse(&cur_release.version)
             .unwrap_or_else(|_| panic!("failed to parse version {:?}", &cur_release));
         let wrapped_reverse_map = self.reverse_depends_on_map.get(&cur_release.name);
         if let Some(reverse_map) = wrapped_reverse_map {
+            //let mut tmp_versions:HashSet<String> = HashSet::new();
             for (required_version, reverse_dep) in reverse_map {
                 let requirement = match semver::VersionReq::parse(required_version) {
                     Ok(req) => req,
                     Err(_) => {
-                        tracing::error!("failed to transform to VersionReq");
+                        tracing::error!("failed to transform to VersionReq:{}",required_version.clone());
                         continue;
                     }
                 };
 
                 if requirement.matches(&sem_ver) {
+        
                     if let Some(v) = self.actually_depends_on_map.get_mut(reverse_dep) {
                         let mut found = false;
                         let mut exist = false;
@@ -263,30 +274,47 @@ impl VersionUpdater {
                                 //break;
                             }
                         }
-                        #[allow(clippy::if_same_then_else)]
+                        //#[allow(clippy::if_same_then_else)]
                         if !found {
-                            v.push(model::general_model::Version::new(
+                            //v.push(model::general_model::Version::new(
+                            //    &cur_release.name,
+                            //    &cur_release.version,
+                            //));
+                            let _ = tugraphclient.insert_depends_on(reverse_dep.clone(), vec![model::general_model::Version::new(
                                 &cur_release.name,
                                 &cur_release.version,
-                            ));
+                            )]).await;
+                            
                         } else if !exist {
-                            v.push(model::general_model::Version::new(
+                            //v.push(model::general_model::Version::new(
+                            //    &cur_release.name,
+                            //    &cur_release.version,
+                            //));
+                            let _ = tugraphclient.insert_depends_on(reverse_dep.clone(), vec![model::general_model::Version::new(
                                 &cur_release.name,
                                 &cur_release.version,
-                            ));
+                            )]).await;
+                           
                         }
                     } else {
                         // No vec
-                        self.actually_depends_on_map.insert(
+                        /*self.actually_depends_on_map.insert(
                             reverse_dep.clone(),
                             vec![model::general_model::Version::new(
                                 &cur_release.name,
                                 &cur_release.version,
                             )],
-                        );
+                        );*/
+                        let _ = tugraphclient.insert_depends_on(reverse_dep.clone(), vec![model::general_model::Version::new(
+                                &cur_release.name,
+                                &cur_release.version,
+                            )]).await;
+                        
                     }
                 }
             }
+            //futures::future::join_all(tasks).await;
+            
         }
     }
 
@@ -310,7 +338,7 @@ impl VersionUpdater {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct VersionParser {
-    version_map: HashMap<String, Vec<String>>,
+    pub version_map: HashMap<String, Vec<String>>,
 }
 
 impl VersionParser {
@@ -339,15 +367,15 @@ impl VersionParser {
     ) -> Option<String> {
         if let Some(lib_map) = self.version_map.get(target_lib) {
             // if the lib exists
-            let req_str = if target_version.contains('.') {
-                format!("^{target_version}")
-            } else {
-                format!("{target_version}.*")
-            };
+            
+            
 
-            let requirement = match semver::VersionReq::parse(&req_str) {
+            let requirement = match semver::VersionReq::parse(target_version) {
                 Ok(req) => req,
-                Err(_) => return None, // 如果无法解析为有效的版本请求，则返回 None
+                Err(_) => {
+                    //tracing::info!("failed to parse VersionReq in find_latest_matching_version:{}",req_str.clone());
+                    return None; 
+                }// 如果无法解析为有效的版本请求，则返回 None
             };
 
             let mut matching_versions: Vec<semver::Version> = lib_map
@@ -358,7 +386,7 @@ impl VersionParser {
 
             // Sort the matched versions and return the last (largest) one
             matching_versions.sort();
-            return matching_versions.last().map(|v| v.to_string());
+            return matching_versions.first().map(|v| v.to_string());
         }
         None
     }
@@ -411,7 +439,7 @@ impl VersionParser {
     }
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::VersionParser;
 
@@ -459,3 +487,4 @@ mod tests {
         );
     }
 }
+*/
