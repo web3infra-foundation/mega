@@ -36,6 +36,7 @@ const cspResourcesByDirective = {
     // Staging and production environments
     'wss://*.gitmega.com',
     'https://*.gitmega.com',
+    'http://*.gitmega.com',
     // Crates Pro environments
     'https://*.xuanwu.openatom.cn',
     'wss://*.xuanwu.openatom.cn',

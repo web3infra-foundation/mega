@@ -5,7 +5,7 @@ import { SCOPE_COOKIE_NAME } from '@gitmono/config'
 import { ApiErrorTypes } from '@gitmono/types'
 
 import { apiCookieHeaders } from '@/utils/apiCookieHeaders'
-import { apiClient, signinUrl } from '@/utils/queryClient'
+import { signinUrl, ssrApiClient } from '@/utils/queryClient'
 
 export default function IndexPage() {
   return <></>
@@ -16,7 +16,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
     const { device } = userAgentFromString(req.headers['user-agent'])
     const headers = apiCookieHeaders(req.cookies)
 
-    const organizations = await apiClient.organizationMemberships
+    const organizations = await ssrApiClient.organizationMemberships
       .getOrganizationMemberships()
       .request({ headers })
       .then((res) => res.map((m) => m.organization).filter((o) => o !== null))
@@ -50,7 +50,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
         }
       }
     } else {
-      await apiClient.organizations.postJoinByToken().request('mega', 's3AX1iyAx3sgGNygiM67', { headers })
+      await ssrApiClient.organizations.postJoinByToken().request('mega', 's3AX1iyAx3sgGNygiM67', { headers })
 
       if (device.type === 'mobile') {
         return {
