@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -10,12 +11,12 @@ use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::Tree;
+use git_internal::internal::object::tree::{Tree, TreeItem};
 use git_internal::internal::pack::entry::Entry;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::FromGitModel;
 
-use crate::api_service::ApiHandler;
+use crate::api_service::{ApiHandler, history};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
 use crate::model::tag::TagInfo;
@@ -111,6 +112,14 @@ impl ApiHandler for ImportApiService {
             .await
             .unwrap();
         Ok(commits.into_iter().map(Commit::from_git_model).collect())
+    }
+
+    async fn item_to_commit_map(
+        &self,
+        path: PathBuf,
+        reference: Option<&str>,
+    ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
+        history::item_to_commit_map(self, path, reference).await
     }
 
     async fn create_tag(

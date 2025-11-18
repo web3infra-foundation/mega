@@ -18,6 +18,7 @@ pub struct Model {
     pub file_path: String,
     pub pack_offset: i64,
     pub is_delta_in_pack: bool,
+    pub commit_id: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

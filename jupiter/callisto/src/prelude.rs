@@ -30,6 +30,7 @@ pub use super::mega_issue::Entity as MegaIssue;
 pub use super::mega_refs::Entity as MegaRefs;
 pub use super::mega_tag::Entity as MegaTag;
 pub use super::mega_tree::Entity as MegaTree;
+pub use super::merge_queue::Entity as MergeQueue;
 pub use super::mq_storage::Entity as MqStorage;
 pub use super::notes::Entity as Notes;
 pub use super::path_check_configs::Entity as PathCheckConfigs;

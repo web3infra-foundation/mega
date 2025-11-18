@@ -57,7 +57,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         let temp_pack_id = Uuid::new_v4().to_string();
 
         while let Some(mut entry) = rx.recv().await {
-            self.collect_commits(&entry.inner).await?;
+            self.check_entry(&entry.inner).await?;
             entry.meta.set_pack_id(temp_pack_id.clone());
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
@@ -123,7 +123,7 @@ pub trait RepoHandler: Send + Sync + 'static {
 
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError>;
 
-    async fn collect_commits(&self, entry: &Entry) -> Result<(), GitError>;
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
