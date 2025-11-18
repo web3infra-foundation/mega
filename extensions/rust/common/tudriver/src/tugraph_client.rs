@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read};
+//use std::time::Instant;
 
 /// doc: https://tugraph-db.readthedocs.io/zh-cn/latest/5.developer-manual/6.interface/1.query/1.cypher.html
 /// https://github.com/TuGraph-family/tugraph-db/blob/master/src/cypher/procedure/procedure.h
@@ -376,5 +377,322 @@ impl TuGraphClient {
         }
 
         Err(io::Error::new(io::ErrorKind::NotFound, "No data found").into())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_program(
+        &self,
+        id: String,
+        name: String,
+        description: Option<String>,
+        namespace: Option<String>,
+        max_version: Option<String>,
+        github_url: Option<String>,
+        mega_url: Option<String>,
+        doc_url: Option<String>,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "CREATE (n:program {id: $id, name: $name, description: $description, namespace: $namespace, max_version: $max_version, github_url: $github_url, mega_url: $mega_url, doc_url: $doc_url})";
+        let q = query(query_stmt)
+            .param("id", id.clone())
+            .param("name", name.clone())
+            .param("description", description.clone().unwrap_or_default())
+            .param("namespace", namespace.clone().unwrap_or_default())
+            .param("max_version", max_version.clone().unwrap_or_default())
+            .param("github_url", github_url.clone().unwrap_or_default())
+            .param("mega_url", mega_url.clone().unwrap_or_default())
+            .param("doc_url", doc_url.clone().unwrap_or_default());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert program:{}",name.clone());
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert program:{},{e}",name.clone());
+                tracing::info!("id:{},name:{},description:{},namespace:{},max_version:{},github_url:{},mega_url:{},doc_url:{}",id.clone(),name.clone(),description.clone().unwrap_or_default(),
+                                namespace.clone().unwrap_or_default(),max_version.clone().unwrap_or_default(),github_url.clone().unwrap_or_default(),mega_url.clone().unwrap_or_default(),doc_url.clone().unwrap_or_default());
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_library(
+        &self,
+        id: String,
+        name: String,
+        downloads: i64,
+        cratesio: Option<String>,
+    )->Result<(),Box<dyn Error>>{
+        let library_stmt = "CREATE (n:library {id: $id, name: $name, downloads: $downloads, cratesio: $cratesio})";
+
+        let q = query(library_stmt)
+            .param("id", id.clone())
+            .param("name", name.clone())
+            .param("downloads", downloads)
+            
+            .param("cratesio", cratesio.clone().unwrap_or_default());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert library:{}",name.clone());
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert library:{}",name.clone());
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_has_lib_type(
+        &self,
+        src:String,
+        dst:String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (p:program {id: $src}), (l:library {id: $dst}) CREATE (p)-[r:has_type]->(l)";
+
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert has_lib_type");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert has_lib_type");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_application(
+        &self,
+        id: String,
+        name: String,
+    )->Result<(),Box<dyn Error>>{
+        let application_stmt = "CREATE (n:application {id: $id, name: $name})";
+
+        let q = query(application_stmt)
+            .param("id", id.clone())
+            .param("name", name.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert application:{}",name.clone());
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert application:{}",name.clone());
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_has_app_type(
+        &self,
+        src:String,
+        dst:String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (p:program {id: $src}), (l:application {id: $dst}) CREATE (p)-[r:has_type]->(l)";
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert has_app_type");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert has_app_type");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_library_version(
+        &self,
+        id: String,
+        name_and_version: String,
+        name: String,
+        version: String,
+        documentation: String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "CREATE (n:library_version {id: $id, name_and_version: $name_and_version, name: $name, version: $version, documentation: $documentation})";
+        let q = query(query_stmt)
+            .param("id", id.clone())
+            .param("name_and_version", name_and_version.clone())
+            .param("name", name.clone())
+            .param("version", version.clone())
+            .param("documentation", documentation.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert library_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert library_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_version(
+        &self,
+        name_and_version: String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "CREATE (n:version {name_and_version: $name_and_version, degree: 0})";
+        let q = query(query_stmt)
+            .param("name_and_version", name_and_version.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_lib_has_version(
+        &self,
+        src: String,
+        dst: String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (n1:library {id: $src}), (n2:library_version {name_and_version: $dst}) CREATE (n1)-[r:has_version]->(n2)";
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert lib_has_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert lib_has_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_lib_has_dep_version(
+        &self,
+        src:String,
+        dst:String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (n1:library_version {name_and_version: $src}), (n2:version {name_and_version: $dst}) CREATE (n1)-[r:has_dep_version]->(n2)";
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert lib_has_dep_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert lib_has_dep_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_application_version(
+        &self,
+        id: String,
+        name_and_version: String,
+        name: String,
+        version: String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "CREATE (n:application_version {id: $id, name_and_version: $name_and_version, name: $name, version: $version})";
+        let q = query(query_stmt)
+            .param("id", id.clone())
+            .param("name_and_version", name_and_version.clone())
+            .param("name", name.clone())
+            .param("version", version.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert application_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert application_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_app_has_version(
+        &self,
+        src: String,
+        dst: String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (n1:application {id: $src}), (n2:application_version {name_and_version: $dst}) CREATE (n1)-[r:has_version]->(n2)";
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert app_has_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert app_has_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn insert_app_has_dep_version(
+        &self,
+        src:String,
+        dst:String,
+    )->Result<(),Box<dyn Error>>{
+        let query_stmt = "MATCH (n1:application_version {name_and_version: $src}), (n2:version {name_and_version: $dst}) CREATE (n1)-[r:has_dep_version]->(n2)";
+        let q = query(query_stmt)
+            .param("src", src.clone())
+            .param("dst", dst.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert app_has_dep_version");
+                Ok(())
+            },
+            Err(e) => {
+                tracing::info!("failed to insert app_has_dep_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    pub async fn update_max_version_to_tugraph(
+        &self,
+        namespace:String,
+        version:String,
+    )->Result<(),Box<dyn Error>>{
+        let stmt = "MATCH (n:program {namespace: $namespace}) SET n.max_version = $version";
+        let q = query(stmt)
+            .param("namespace", namespace.clone())
+            .param("version", version.clone());
+        match self.graph.run(q).await{
+            Ok(_) => {
+                //tracing::info!("insert app_has_dep_version");
+                Ok(())
+            },
+            Err(e) => {
+                //tracing::info!("failed to insert app_has_dep_version");
+                Err(Box::new(e))
+            },
+        }
+    }
+    #[allow(clippy::useless_format)]
+    pub async fn insert_depends_on(
+        &self,
+        cur_release:model::general_model::Version,
+        dependencies:Vec<model::general_model::Version>,
+    )->Result<(),Box<dyn Error>>{
+        for dependency in dependencies{
+            let cur = cur_release.name.clone()+"/"+&cur_release.version;
+            let dep = dependency.name+"/"+&dependency.version;
+            let stmt = "MATCH (n1:version {name_and_version: $cur}), (n2:version {name_and_version: $dep}) CREATE (n1)-[r:depends_on]->(n2) SET n2.degree = n2.degree + 1";
+            let query = query(stmt)
+                .param("cur", &*cur)
+                .param("dep", &*dep);
+            //let start_time = Instant::now();
+            match self.graph.run(query).await{
+                Ok(_) => {
+                    //tracing::info!("insert depends_on");
+                },
+                Err(_) => {
+                    //tracing::info!("failed to insert depends_on");
+                },
+            }
+           // tracing::info!("insert_depends_on time:{:?}",start_time.elapsed());
+        }
+        Ok(())
     }
 }

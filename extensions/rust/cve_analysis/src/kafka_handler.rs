@@ -5,8 +5,6 @@ use rdkafka::message::{BorrowedMessage, Headers};
 use rdkafka::producer::{BaseProducer, BaseRecord, ProducerContext};
 use rdkafka::util::Timeout;
 use rdkafka::{ClientContext, Message, TopicPartitionList};
-use std::env;
-use std::process::Command;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -42,6 +40,7 @@ impl ProducerContext for CustomContext {
         // }
     }
 }
+#[allow(dead_code)]
 pub enum KafkaHandler {
     Consumer(BaseConsumer<CustomContext>),
     Producer(BaseProducer<CustomContext>),
@@ -65,16 +64,6 @@ impl KafkaHandler {
         consumer.subscribe(&[topic])?;
 
         Ok(KafkaHandler::Consumer(consumer))
-    }
-
-    pub fn new_producer(brokers: &str) -> Result<Self, KafkaError> {
-        let context = CustomContext;
-
-        let producer: BaseProducer<CustomContext> = ClientConfig::new()
-            .set("bootstrap.servers", brokers)
-            .create_with_context(context)?;
-
-        Ok(KafkaHandler::Producer(producer))
     }
 
     pub async fn consume_once(&'_ self) -> Result<BorrowedMessage<'_>, KafkaError> {
@@ -102,7 +91,16 @@ impl KafkaHandler {
             unreachable!("Called consume_once on a producer");
         }
     }
+    pub fn new_producer(brokers: &str) -> Result<Self, KafkaError> {
+        let context = CustomContext;
 
+        let producer: BaseProducer<CustomContext> = ClientConfig::new()
+            .set("bootstrap.servers", brokers)
+            .create_with_context(context)?;
+
+        Ok(KafkaHandler::Producer(producer))
+    }
+    #[allow(irrefutable_let_patterns)]
     pub async fn send_message(&self, topic: &str, key: &str, payload: &str) {
         if let KafkaHandler::Producer(producer) = self {
             let record = BaseRecord::to(topic).key(key).payload(payload);
@@ -114,66 +112,9 @@ impl KafkaHandler {
                 Err(e) => tracing::error!("Failed to send message: {:?}", e),
             }
 
-            producer.poll(Timeout::Never);
+            producer.poll(Timeout::After(Duration::from_secs(1)));
         } else {
             tracing::error!("Called send_message on a consumer");
         }
     }
-
-    /// seek to offset
-    pub async fn seek_to_offset(&self, offset: i64) -> Result<(), rdkafka::error::KafkaError> {
-        tracing::info!("Start to seek to offset: {}", offset);
-        if let KafkaHandler::Consumer(consumer) = self {
-            tracing::info!("success find consumer");
-            let topic_partitions = consumer.assignment()?;
-            tracing::info!("success find topic_partition");
-            for topic_partition in topic_partitions.elements() {
-                tracing::info!("get topic patition");
-                consumer.seek(
-                    topic_partition.topic(),
-                    topic_partition.partition(),
-                    rdkafka::Offset::Offset(offset),
-                    None,
-                )?;
-                tracing::info!("finish seek");
-            }
-        }
-        Ok(())
-    }
-}
-
-/// reset the mq
-pub async fn reset_kafka_offset() -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Start to reset import kafka");
-    let kafka_broker = env::var("KAFKA_BROKER").unwrap();
-    let consumer_group_id = env::var("KAFKA_CONSUMER_GROUP_ID").unwrap();
-    let import_topic = env::var("KAFKA_ANALYSIS_TOPIC").unwrap();
-    let output = Command::new("/opt/kafka/bin/kafka-consumer-groups.sh")
-        .args([
-            "--bootstrap-server",
-            &kafka_broker,
-            "--group",
-            &consumer_group_id,
-            "--reset-offsets",
-            "--to-offset",
-            "0",
-            "--execute",
-            "--topic",
-            &import_topic,
-        ])
-        .output()
-        .expect("Failed to execute command");
-
-    if output.status.success() {
-        println!("Command executed successfully");
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("Output: {stdout}");
-    } else {
-        eprintln!("Command failed to execute");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("Error: {stderr}");
-    }
-
-    tracing::info!("Finish to reset import kafka");
-    Ok(())
 }
