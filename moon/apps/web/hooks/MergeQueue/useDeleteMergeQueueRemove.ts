@@ -15,16 +15,13 @@ export function useDeleteMergeQueueRemove() {
       if (response.data?.success) {
         toast.success(response.data.message || 'Removed from queue successfully')
 
-
         queryClient.invalidateQueries({
           queryKey: legacyApiClient.v1.getApiMergeQueueList().requestKey()
         })
 
-
         queryClient.invalidateQueries({
           queryKey: legacyApiClient.v1.getApiMergeQueueStats().requestKey()
         })
-
 
         queryClient.invalidateQueries({
           queryKey: legacyApiClient.v1.getApiMergeQueueStatusByClLink().requestKey(clLink)
