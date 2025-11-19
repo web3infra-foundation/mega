@@ -5,6 +5,19 @@ import type { PostApiMergeQueueAddData, RequestParams } from '@gitmono/types'
 
 import { legacyApiClient } from '@/utils/queryClient'
 
+/**
+ * Hook to add a change list (CL) to the merge queue.
+ *
+ * @returns A mutation object that adds a CL to the merge queue.
+ * The mutation accepts an object containing the CL link and optional request parameters,
+ * and invalidates related queries on success.
+ *
+ * @example
+ * ```tsx
+ * const { mutate: addToQueue } = usePostMergeQueueAdd()
+ * addToQueue({ cl_link: 'cl/123' })
+ * ```
+ */
 export function usePostMergeQueueAdd() {
   const queryClient = useQueryClient()
   const mutation = legacyApiClient.v1.postApiMergeQueueAdd()
@@ -12,7 +25,7 @@ export function usePostMergeQueueAdd() {
   return useMutation<PostApiMergeQueueAddData, Error, { cl_link: string } & RequestParams>({
     mutationFn: (data) => mutation.request(data),
     onSuccess: (response, variables) => {
-      if (response.data?.success) {
+      if (response.req_result && response.data?.success) {
         toast.success(response.data.message || 'Added to merge queue successfully')
 
         queryClient.invalidateQueries({
@@ -29,7 +42,7 @@ export function usePostMergeQueueAdd() {
           })
         }
       } else {
-        toast.error('Failed to add to queue')
+        toast.error(response.err_message || response.data?.message || 'Failed to add to queue')
       }
     },
     onError: (error) => {

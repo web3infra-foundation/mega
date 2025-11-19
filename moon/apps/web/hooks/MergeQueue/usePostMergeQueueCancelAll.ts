@@ -5,6 +5,18 @@ import type { PostApiMergeQueueCancelAllData, RequestParams } from '@gitmono/typ
 
 import { legacyApiClient } from '@/utils/queryClient'
 
+/**
+ * Hook to cancel all pending items in the merge queue.
+ *
+ * @returns A mutation object that cancels all pending merge queue items.
+ * The mutation accepts optional request parameters and invalidates queue-related queries on success.
+ *
+ * @example
+ * ```tsx
+ * const { mutate: cancelAll } = usePostMergeQueueCancelAll()
+ * cancelAll() // Cancel all pending items
+ * ```
+ */
 export function usePostMergeQueueCancelAll() {
   const queryClient = useQueryClient()
   const mutation = legacyApiClient.v1.postApiMergeQueueCancelAll()
@@ -12,8 +24,8 @@ export function usePostMergeQueueCancelAll() {
   return useMutation<PostApiMergeQueueCancelAllData, Error, RequestParams>({
     mutationFn: (params) => mutation.request(params),
     onSuccess: (response) => {
-      if (response.data?.success) {
-        toast.success(response.data.message || 'All pending items cancelled successfully')
+      if (response.req_result) {
+        toast.success('All pending items cancelled successfully')
 
         queryClient.invalidateQueries({
           queryKey: legacyApiClient.v1.getApiMergeQueueList().requestKey()
@@ -23,7 +35,7 @@ export function usePostMergeQueueCancelAll() {
           queryKey: legacyApiClient.v1.getApiMergeQueueStats().requestKey()
         })
       } else {
-        toast.error('Failed to cancel all items')
+        toast.error(response.err_message || 'Failed to cancel all items')
       }
     },
     onError: (error) => {

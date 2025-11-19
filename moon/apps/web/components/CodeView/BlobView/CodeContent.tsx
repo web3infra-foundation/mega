@@ -36,8 +36,7 @@ const UserAvatar = React.memo(({ username, zIndex }: { username?: string; zIndex
         alt={username}
         src={memberData?.user?.avatar_url || ''}
         sx={{ width: 20, height: 20, border: '2px solid #fff' }}
-        className={styles.avatar}
-        style={{ '--z-index': zIndex } as React.CSSProperties}
+        style={{ zIndex }}
       />
     </motion.div>
   )
