@@ -24,7 +24,7 @@ function CodeTagsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isFetching, refetch } = usePostMonoTagList({
+  const { data, isLoading, refetch } = usePostMonoTagList({
     additional: '/',
     pagination: { page: 1, per_page: 200 }
   })
@@ -90,16 +90,18 @@ function CodeTagsPage() {
               <UIText weight='font-semibold'>Tags</UIText>
             </div>
             <div className='flex items-center gap-2'>
-              <IndexSearchInput query={q} setQuery={setQ} isSearchLoading={isFetching} />
+              <IndexSearchInput query={q} setQuery={setQ} isSearchLoading={isLoading} />
               <Button onClick={() => setDialogOpen(true)}>New tag</Button>
             </div>
           </div>
 
           <IndexPageContent>
-            {(isLoading || isFetching) && <IndexPageLoading />}
-            {!isLoading && !hasTags && <EmptyState />}
-            {!isLoading && hasTags && (
+            {isLoading ? (
+              <IndexPageLoading />
+            ) : hasTags ? (
               <MonoTagList tags={filtered} defaultPath={defaultPath} onDelete={handleDeleteTag} />
+            ) : (
+              <EmptyState />
             )}
           </IndexPageContent>
         </IndexPageContainer>

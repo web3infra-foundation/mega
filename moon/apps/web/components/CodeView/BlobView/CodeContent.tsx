@@ -36,7 +36,8 @@ const UserAvatar = React.memo(({ username, zIndex }: { username?: string; zIndex
         alt={username}
         src={memberData?.user?.avatar_url || ''}
         sx={{ width: 20, height: 20, border: '2px solid #fff' }}
-        style={{ zIndex }}
+        className={styles.avatar}
+        style={{ '--z-index': zIndex } as React.CSSProperties}
       />
     </motion.div>
   )
@@ -361,7 +362,7 @@ const CodeContent = ({
       return (
         <div
           className='animate-pulse'
-          style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff', padding: '0 16px' }}
+          style={{ flex: 1, backgroundColor: '#fff', padding: '0 16px', overflow: 'hidden' }}
         >
           {Array.from({ length: 10 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
@@ -383,12 +384,12 @@ const CodeContent = ({
     }
 
     return (
-      <div style={{ height: 'calc(100vh - 215px)', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
           {({ style, tokens, getLineProps, getTokenProps }) => (
             <Virtuoso
               style={{
-                height: 'calc(100vh - 215px)',
+                flex: 1,
                 backgroundColor: '#fff'
               }}
               totalCount={tokens.length}
@@ -435,7 +436,7 @@ const CodeContent = ({
   const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
       return (
-        <div className='animate-pulse' style={{ height: 'calc(100vh - 255px)', backgroundColor: '#fff' }}>
+        <div className='animate-pulse' style={{ flex: 1, backgroundColor: '#fff', overflow: 'hidden' }}>
           {Array.from({ length: 10 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className='flex border-b border-gray-200 py-2'>
@@ -466,11 +467,11 @@ const CodeContent = ({
     }
 
     return (
-      <>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ContributionRecord contributors={blameData.data?.contributors} />
         <Virtuoso
           style={{
-            height: 'calc(100vh - 255px)',
+            flex: 1,
             backgroundColor: '#fff'
           }}
           totalCount={processedBlameBlocks.length}
@@ -555,7 +556,7 @@ const CodeContent = ({
             )
           }}
         />
-      </>
+      </div>
     )
   }, [
     isBlameLoading,
@@ -570,7 +571,7 @@ const CodeContent = ({
   const renderPreviewView = useCallback(() => {
     if (isCodeLoading) {
       return (
-        <div className='animate-pulse p-8' style={{ height: 'calc(100vh - 215px)', backgroundColor: '#fff' }}>
+        <div className='animate-pulse p-8' style={{ flex: 1, backgroundColor: '#fff', overflow: 'hidden' }}>
           {Array.from({ length: 3 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className='mb-4'>
@@ -588,7 +589,7 @@ const CodeContent = ({
       <div
         className='markdown-body p-8'
         style={{
-          height: 'calc(100vh - 215px)',
+          flex: 1,
           overflow: 'auto',
           backgroundColor: '#fff'
         }}
@@ -611,8 +612,8 @@ const CodeContent = ({
   }
 
   return (
-    <div>
-      <div className={styles.toolbar}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div className={styles.toolbar} style={{ flexShrink: 0 }}>
         <div className='m-2 h-8 rounded-lg bg-gray-200'>
           {isMarkdownFile && (
             <button
