@@ -13,7 +13,6 @@ path = "src/lib.rs"
 callisto = { workspace = true }
 common = { workspace = true }
 git-internal = { workspace = true }
-neptune = { workspace = true }
 saturn = { workspace = true }
 
 sea-orm = { workspace = true, features = [
