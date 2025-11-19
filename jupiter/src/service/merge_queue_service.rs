@@ -17,6 +17,9 @@ const QUEUE_POLL_INTERVAL_SECS: u64 = 5;
 /// Error backoff interval in seconds after processing failure
 const ERROR_BACKOFF_SECS: u64 = 30;
 
+/// Merge queue temporary status duration in seconds
+const MERGE_QUEUE_TEMP_SECS: u64 = 30;
+
 /// Merge queue service for CL processing
 #[derive(Clone)]
 pub struct MergeQueueService {
@@ -236,6 +239,8 @@ impl MergeQueueService {
     ///
     /// TODO: Implement actual Git conflict detection
     async fn check_conflicts(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
+        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
+
         Ok(())
     }
 
@@ -243,6 +248,8 @@ impl MergeQueueService {
     ///
     /// TODO: Implement actual Git merge operation
     async fn execute_merge(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
+        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
+
         Ok(())
     }
 
@@ -287,6 +294,8 @@ impl MergeQueueService {
         &self,
         _cl: &callisto::mega_cl::Model,
     ) -> Result<bool, (QueueFailureTypeEnum, String)> {
+        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
+
         Ok(true)
     }
 
