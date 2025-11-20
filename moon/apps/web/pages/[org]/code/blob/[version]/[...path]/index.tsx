@@ -14,8 +14,9 @@ const codeStyle = {
   borderRadius: 8,
   width: '80%',
   background: '#fff',
-  height: 'calc(100vh - 96px)',
-  overflow: 'auto',
+  display: 'flex',
+  flexDirection: 'column' as const,
+  overflow: 'hidden',
   paddingRight: '8px'
 }
 
@@ -25,7 +26,6 @@ const treeStyle = {
   minWidth: '300px',
   flexShrink: 0,
   background: '#fff',
-  height: 'calc(100vh - 96px)',
   overflow: 'auto',
   paddingRight: '8px'
 }
@@ -42,19 +42,21 @@ function BlobPage() {
 
   return (
     <Theme>
-      <div className='relative m-4 h-screen'>
+      <div className='relative m-4 flex flex-col' style={{ height: 'calc(100vh - 32px)' }}>
         <BreadCrumb path={path} />
         {/* tree */}
-        <div className='flex gap-4'>
+        <div className='flex flex-1 gap-4 overflow-hidden'>
           <div style={treeStyle}>
             <RepoTree />
           </div>
 
           <div style={codeStyle}>
-            <div>
+            <div style={{ flexShrink: 0 }}>
               <CommitHistory flag={'details'} path={new_path} refs={refs} />
             </div>
-            <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
+            </div>
           </div>
         </div>
       </div>

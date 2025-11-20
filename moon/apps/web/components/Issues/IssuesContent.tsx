@@ -5,7 +5,7 @@ import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
-import { LabelItem, PostApiIssueListData } from '@gitmono/types/generated'
+import { PostApiIssueListData } from '@gitmono/types/generated'
 
 import {
   IndexTabFilter as IssueIndexTabFilter,
@@ -31,6 +31,7 @@ import { MemberHovercard } from '@/components/InlinePost/MemberHovercard'
 import { issueIdAtom } from '@/components/Issues/utils/store'
 import { useScope } from '@/contexts/scope'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -65,8 +66,7 @@ export function IssuesContent({ setFilterQuery, shouldClearFilters, setShouldCle
 
   const filterStateRef = useRef(filterState)
 
-  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:label`, []), [scope])
-  const [labels] = useAtom(labelsAtom)
+  const { labels } = useGetLabelList()
 
   const orderAtom = useMemo(
     () => atomWithWebStorage(`${scope}:issue-order`, { sort: 'Created On', time: 'Newest' }),
