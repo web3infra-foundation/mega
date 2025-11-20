@@ -160,6 +160,7 @@ pub enum MergeStatus {
     Open,
     Merged,
     Closed,
+    Draft,
 }
 
 impl From<MergeStatusEnum> for MergeStatus {
@@ -168,6 +169,7 @@ impl From<MergeStatusEnum> for MergeStatus {
             MergeStatusEnum::Open => MergeStatus::Open,
             MergeStatusEnum::Merged => MergeStatus::Merged,
             MergeStatusEnum::Closed => MergeStatus::Closed,
+            MergeStatusEnum::Draft => MergeStatus::Draft,
         }
     }
 }
@@ -178,6 +180,7 @@ impl From<MergeStatus> for MergeStatusEnum {
             MergeStatus::Open => MergeStatusEnum::Open,
             MergeStatus::Merged => MergeStatusEnum::Merged,
             MergeStatus::Closed => MergeStatusEnum::Closed,
+            MergeStatus::Draft => MergeStatusEnum::Draft,
         }
     }
 }
@@ -240,6 +243,11 @@ pub enum RequirementsState {
 #[allow(dead_code)]
 pub struct VerifyClPayload {
     pub assignees: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct UpdateClStatusPayload {
+    pub status: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]

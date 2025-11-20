@@ -8,6 +8,7 @@ use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::model::change_list::{
     CLDetailRes, ChangeReviewStatePayload, ChangeReviewerStatePayload, ClFilesRes, Condition,
     FilesChangedPage, MergeBoxRes, MuiTreeNode, ReviewerInfo, ReviewerPayload, ReviewersResponse,
+    UpdateClStatusPayload,
 };
 use common::{
     errors::MegaError,
@@ -53,7 +54,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
             .routes(routes!(reviewer_approve))
-            .routes(routes!(review_resolve)),
+            .routes(routes!(review_resolve))
+            .routes(routes!(update_cl_status)),
     )
 }
 
@@ -166,6 +168,12 @@ async fn merge(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
+
+    if model.status == MergeStatusEnum::Draft {
+        return Err(ApiError::from(MegaError::with_message(
+            "CL 尚未准备评审",
+        )));
+    }
 
     if model.status == MergeStatusEnum::Open {
         // let path = model.path.clone();
@@ -391,7 +399,7 @@ async fn merge_box(
                 .collect();
             MergeBoxRes::from_condition(check_res)
         }
-        MergeStatusEnum::Merged | MergeStatusEnum::Closed => MergeBoxRes {
+        MergeStatusEnum::Draft | MergeStatusEnum::Merged | MergeStatusEnum::Closed => MergeBoxRes {
             merge_requirements: None,
         },
     };
@@ -605,6 +613,15 @@ async fn reviewer_approve(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ChangeReviewerStatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
+    let res = state.cl_stg().get_cl(&link).await?;
+    let model = res.ok_or(MegaError::with_message("CL Not Found"))?;
+
+    if model.status == MergeStatusEnum::Draft {
+        return Err(ApiError::from(MegaError::with_message(
+            "CL is not ready for review",
+        )));
+    }
+
     state
         .storage
         .reviewer_storage()
@@ -651,6 +668,74 @@ async fn review_resolve(
         .conversation_storage()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
+/// Update CL status (Draft ↔ Open)
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "CL link"),
+    ),
+    path = "/{link}/status",
+    request_body = UpdateClStatusPayload,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = CL_TAG
+)]
+async fn update_cl_status(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<UpdateClStatusPayload>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state.cl_stg().get_cl(&link).await?;
+    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+
+    let new_status = match payload.status.as_str() {
+        "draft" => MergeStatusEnum::Draft,
+        "open" => MergeStatusEnum::Open,
+        _ => {
+            return Err(ApiError::from(MegaError::with_message(
+                "Invalid status. Only 'draft' and 'open' are supported",
+            )));
+        }
+    };
+
+    // Only allow Draft ↔ Open transitions
+    match (&model.status, &new_status) {
+        (MergeStatusEnum::Draft, MergeStatusEnum::Open) => {
+            state.cl_stg().update_cl_status(model, new_status).await?;
+            state
+                .conv_stg()
+                .add_conversation(
+                    &link,
+                    &user.username,
+                    Some(format!("{} marked this as ready for review", user.username)),
+                    ConvTypeEnum::Reopen,
+                )
+                .await?;
+        }
+        (MergeStatusEnum::Open, MergeStatusEnum::Draft) => {
+            state.cl_stg().update_cl_status(model, new_status).await?;
+            state
+                .conv_stg()
+                .add_conversation(
+                    &link,
+                    &user.username,
+                    Some(format!("{} marked this as draft", user.username)),
+                    ConvTypeEnum::Edit,
+                )
+                .await?;
+        }
+        _ => {
+            return Err(ApiError::from(MegaError::with_message(
+                "Invalid status transition. Only Draft ↔ Open is allowed",
+            )));
+        }
+    }
 
     Ok(Json(CommonResult::success(None)))
 }
