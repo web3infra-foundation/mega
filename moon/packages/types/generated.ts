@@ -4098,6 +4098,7 @@ export type UpdateRequest = {
 /** Data transfer object for build information in API responses */
 export type BuildDTO = {
   args?: any
+  cause_by?: string | null
   created_at: string
   end_at?: string | null
   /** @format int32 */
