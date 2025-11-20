@@ -18,6 +18,7 @@ import { SidebarChatSectionGroup } from '@/components/Sidebar/SidebarChatSection
 import { SidebarDrafts } from '@/components/Sidebar/SidebarDrafts'
 import { SidebarFavoritesGroup } from '@/components/Sidebar/SidebarFavoritesGroup'
 import { SidebarIssue } from '@/components/Sidebar/SidebarIssue'
+import { SidebarMergeQueue } from '@/components/Sidebar/SidebarMergeQueue'
 import {
   SIDEBAR_SCROLL_CONTAINER_ID,
   SidebarMoreUnreadsBottom,
@@ -171,6 +172,7 @@ function SidebarContent() {
           <SidebarCode />
           <SidebarTags />
           <SiderbarChangeList />
+          <SidebarMergeQueue />
           <SidebarIssue />
           <SidebarCratespro />
         </SidebarGroup>

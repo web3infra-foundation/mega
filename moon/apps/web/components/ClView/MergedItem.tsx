@@ -1,6 +1,7 @@
 import { ConversationItem } from '@gitmono/types/generated'
 import { ConditionalWrap } from '@gitmono/ui'
 
+import { useScope } from '@/contexts/scope'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 
 import { MemberHovercard } from '../InlinePost/MemberHovercard'
@@ -13,6 +14,7 @@ interface MergedItemProps {
 }
 const MergedItem = ({ conv }: MergedItemProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
+  const { scope } = useScope()
 
   return (
     <>
@@ -31,7 +33,14 @@ const MergedItem = ({ conv }: MergedItemProps) => {
             {member ? <MemberAvatar member={member} size='sm' /> : 'Avatar not found'}
           </ConditionalWrap>
         </div>
-        <div>Merged via the queue into main</div>
+        <div>
+          Merged via the{' '}
+          <a href={`/${scope}/queue/main`} className='text-blue-600 underline hover:text-blue-800'>
+            queue
+          </a>{' '}
+          into main
+        </div>
+
         <div className='text-sm text-gray-500 hover:text-gray-700'>
           <HandleTime created_at={conv.created_at} />
         </div>

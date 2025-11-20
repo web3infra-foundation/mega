@@ -6,7 +6,7 @@ import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
-import { LabelItem, PostApiClListData } from '@gitmono/types/generated'
+import { PostApiClListData } from '@gitmono/types/generated'
 import { SearchIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
@@ -34,6 +34,7 @@ import { IssueBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { useScope } from '@/contexts/scope'
 import { usePostClList } from '@/hooks/CL/usePostClList'
+import { useGetLabelList } from '@/hooks/useGetLabelList'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
 import { apiErrorToast } from '@/utils/apiErrorToast'
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
@@ -63,8 +64,7 @@ export default function CLView() {
   const filterState = useFilterState({ scope: scope as string, type: 'cl' })
   const filterStateRef = useRef(filterState)
 
-  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:label`, []), [scope])
-  const [labels] = useAtom(labelsAtom)
+  const { labels } = useGetLabelList()
 
   const orderAtom = useMemo(
     () => atomWithWebStorage(`${scope}:cl-order`, { sort: 'Created On', time: 'Newest' }),

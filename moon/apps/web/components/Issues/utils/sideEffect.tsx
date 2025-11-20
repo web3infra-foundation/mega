@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { ItemInput } from '@primer/react/lib/SelectPanel/types'
+import { useAtom } from 'jotai'
 
 import { LabelItem } from '@gitmono/types'
 
 import { MemberAvatar } from '@/components/MemberAvatar'
-import { useGetLabelList } from '@/hooks/useGetLabelList'
+import { useScope } from '@/contexts/scope'
 import { useSyncedMembers } from '@/hooks/useSyncedMembers'
+import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 
 import { extractTextArray } from './extractText'
 
@@ -43,7 +45,9 @@ export const useMemberMap = () => {
 }
 
 export const useLabels = () => {
-  const { labels } = useGetLabelList()
+  const { scope } = useScope()
+  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:label`, []), [scope])
+  const [labels] = useAtom(labelsAtom)
 
   return useMemo(
     () =>
@@ -63,7 +67,9 @@ export const useLabels = () => {
 }
 
 export const useLabelMap = () => {
-  const { labels } = useGetLabelList()
+  const { scope } = useScope()
+  const labelsAtom = useMemo(() => atomWithWebStorage<LabelItem[]>(`${scope}:label`, []), [scope])
+  const [labels] = useAtom(labelsAtom)
 
   return useMemo(() => {
     const map = new Map()
