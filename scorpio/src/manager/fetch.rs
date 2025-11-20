@@ -447,7 +447,7 @@ pub async fn fetch<P: AsRef<Path>>(
 
     // Get the commit information of the previous version and
     // write it into the commit file.
-    set_parent_commit(&work_path).await?;
+    set_parent_commit(&work_path, orion_path).await?;
 
     Ok(workdir)
 }
@@ -729,8 +729,8 @@ async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Resul
 
 /// Get the previous version of the Commit information from the remote API,
 /// convert it into a Commit structure, and write it into the commit file.
-async fn set_parent_commit(work_path: &Path) -> std::io::Result<()> {
-    let parent_commit = match fetch_parent_commit().await {
+async fn set_parent_commit(work_path: &Path, repo_path: &str) -> std::io::Result<()> {
+    let parent_commit = match fetch_parent_commit(repo_path).await {
         Ok(info) => info,
         Err(e) => {
             eprintln!("Failed to fetch parent commit info: {e}");
@@ -838,8 +838,12 @@ pub async fn fetch_tree(path: &GPath) -> Result<Tree, String> {
 }
 
 /// Network operations, extracting parent commit Hash from HTTP byte streams
-pub async fn fetch_parent_commit() -> Result<Commit, Box<dyn std::error::Error>> {
-    let url = format!("{}/api/v1/latest-commit", config::base_url());
+pub async fn fetch_parent_commit(path: &str) -> Result<Commit, Box<dyn std::error::Error>> {
+    let url = format!(
+        "{}/api/v1/latest-commit?path=/{}",
+        config::base_url(),
+        path.trim_start_matches('/')
+    );
     let response = reqwest::get(&url).await?;
 
     if response.status().is_success() {
