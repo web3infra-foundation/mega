@@ -171,7 +171,7 @@ async fn merge(
 
     if model.status == MergeStatusEnum::Draft {
         return Err(ApiError::from(MegaError::with_message(
-            "CL 尚未准备评审",
+            "CL is not ready for review",
         )));
     }
 

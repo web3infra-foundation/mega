@@ -67,11 +67,8 @@ mod m20251026_065433_drop_user_table;
 mod m20251027_062734_add_metadata_to_object;
 mod m20251107_025431_add_cl_commits;
 mod m20251109_073000_add_merge_queue;
-<<<<<<< Updated upstream
 mod m20251117_101804_add_commit_id_in_mega_tree;
-=======
 mod m20251119_145041_add_draft_status;
->>>>>>> Stashed changes
 
 /// Creates a primary key column definition with big integer type.
 ///
