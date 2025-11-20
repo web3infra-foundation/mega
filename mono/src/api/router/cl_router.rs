@@ -694,7 +694,7 @@ async fn update_cl_status(
     let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
-    let new_status = match payload.status.as_str() {
+    let new_status = match payload.status.to_lowercase().as_str() {
         "draft" => MergeStatusEnum::Draft,
         "open" => MergeStatusEnum::Open,
         _ => {
@@ -714,7 +714,7 @@ async fn update_cl_status(
                     &link,
                     &user.username,
                     Some(format!("{} marked this as ready for review", user.username)),
-                    ConvTypeEnum::Reopen,
+                    ConvTypeEnum::Edit,
                 )
                 .await?;
         }

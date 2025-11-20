@@ -261,7 +261,7 @@ impl ClStorage {
         let mut a_model = model.into_active_model();
         a_model.status = Set(status);
         a_model.updated_at = Set(chrono::Utc::now().naive_utc());
-        a_model.update(self.get_connection()).await.unwrap();
+        a_model.update(self.get_connection()).await?;
         Ok(())
     }
 
