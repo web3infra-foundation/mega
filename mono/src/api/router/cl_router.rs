@@ -765,7 +765,7 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 #[cfg(test)]
 mod test {
     use crate::api::router::cl_router::build_forest;
-    use neptune::model::diff_model::DiffItem;
+    use common::model::DiffItem;
     use std::collections::HashMap;
 
     fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {

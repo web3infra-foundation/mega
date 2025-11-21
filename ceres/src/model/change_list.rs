@@ -7,10 +7,10 @@ use uuid::Uuid;
 
 use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
 use common::model::CommonPage;
+use common::model::DiffItem;
 use git_internal::hash::SHA1;
 use jupiter::model::cl_dto::CLDetails;
 use jupiter::model::common::ListParams;
-use neptune::model::diff_model::DiffItem;
 
 use crate::merge_checker::{CheckType, ConditionResult};
 use crate::model::{conversation::ConversationItem, label::LabelItem};

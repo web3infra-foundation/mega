@@ -24,11 +24,11 @@ export type AdditionalCheckItem = Condition
 export type AdditionalCheckType = CheckType
 
 export const ADDITIONAL_CHECK_LABELS: Record<AdditionalCheckType, string> = {
-  [CheckType.GpgSignature]: 'GPG签名验证',
-  [CheckType.BranchProtection]: '分支保护',
-  [CheckType.CommitMessage]: '提交信息规范',
-  [CheckType.CiStatus]: 'CI状态',
-  [CheckType.ClSync]: 'CL同步状态',
-  [CheckType.MergeConflict]: '合并冲突检测',
-  [CheckType.CodeReview]: '代码审查状态'
+  [CheckType.GpgSignature]: 'GPG Signature Verification',
+  [CheckType.BranchProtection]: 'Branch Protection',
+  [CheckType.CommitMessage]: 'Commit Message Format',
+  [CheckType.CiStatus]: 'CI Status',
+  [CheckType.ClSync]: 'CL Sync Status',
+  [CheckType.MergeConflict]: 'Merge Conflict Detection',
+  [CheckType.CodeReview]: 'Code Review Status'
 }

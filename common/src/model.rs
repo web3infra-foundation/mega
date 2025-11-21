@@ -75,3 +75,18 @@ pub struct CommonPage<T> {
     pub total: u64,
     pub items: Vec<T>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct DiffItem {
+    pub path: String,
+    pub data: String,
+}
+
+impl From<git_internal::diff::DiffItem> for DiffItem {
+    fn from(value: git_internal::diff::DiffItem) -> Self {
+        Self {
+            path: value.path,
+            data: value.data,
+        }
+    }
+}
