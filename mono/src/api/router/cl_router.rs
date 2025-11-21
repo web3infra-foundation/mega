@@ -674,28 +674,6 @@ async fn review_resolve(
 }
 
 /// Update CL status (Draft ↔ Open)
-///
-/// # Behavior
-///
-/// This endpoint allows changing the status of a CL from `Draft` to `Open` or vice versa.
-/// The CL must exist; otherwise, the request will fail with a "Not Found" error.
-/// Status transitions may also fail if:
-/// - The requested transition is not allowed (e.g., attempting to set the same status or transitioning from/to other statuses).
-/// - The status value is invalid (must be either "draft" or "open", case-insensitive).
-///
-/// # Request Payload Example
-///
-/// ```json
-/// {
-///   "status": "open"
-/// }
-/// ```
-///
-/// The `status` field must be either `"draft"` or `"open"` (case-insensitive).
-///
-/// # Response
-///
-/// Returns a [`CommonResult<()>`] indicating success or failure.
 #[utoipa::path(
     post,
     params(
@@ -704,7 +682,7 @@ async fn review_resolve(
     path = "/{link}/status",
     request_body = UpdateClStatusPayload,
     responses(
-        (status = 200, body = CommonResult<()>, content_type = "application/json")
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
     ),
     tag = CL_TAG
 )]
@@ -713,7 +691,7 @@ async fn update_cl_status(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<UpdateClStatusPayload>,
-) -> Result<Json<CommonResult<()>>, ApiError> {
+) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::with_message("Not Found"))?;
 
