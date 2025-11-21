@@ -5,12 +5,12 @@ import { ApiErrorTypes } from '@gitmono/types/generated'
 import { FullPageError } from '@/components/Error'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { apiCookieHeaders } from '@/utils/apiCookieHeaders'
-import { apiClient, signUpUrl } from '@/utils/queryClient'
+import { signUpUrl, ssrApiClient } from '@/utils/queryClient'
 
 export const getServerSideProps: GetServerSideProps = async ({ req, query }) => {
   try {
     const headers = apiCookieHeaders(req.cookies)
-    const result = await apiClient.invitationsByToken.postInvitationsByTokenAccept().request(query.token as string, {
+    const result = await ssrApiClient.invitationsByToken.postInvitationsByTokenAccept().request(query.token as string, {
       headers
     })
 

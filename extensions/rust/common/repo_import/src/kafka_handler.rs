@@ -42,7 +42,6 @@ impl ProducerContext for CustomContext {
         // }
     }
 }
-
 pub enum KafkaHandler {
     Consumer(BaseConsumer<CustomContext>),
     Producer(BaseProducer<CustomContext>),
@@ -125,14 +124,18 @@ impl KafkaHandler {
     pub async fn seek_to_offset(&self, offset: i64) -> Result<(), rdkafka::error::KafkaError> {
         tracing::info!("Start to seek to offset: {}", offset);
         if let KafkaHandler::Consumer(consumer) = self {
+            tracing::info!("success find consumer");
             let topic_partitions = consumer.assignment()?;
+            tracing::info!("success find topic_partition");
             for topic_partition in topic_partitions.elements() {
+                tracing::info!("get topic patition");
                 consumer.seek(
                     topic_partition.topic(),
                     topic_partition.partition(),
                     rdkafka::Offset::Offset(offset),
                     None,
                 )?;
+                tracing::info!("finish seek");
             }
         }
         Ok(())
@@ -144,7 +147,7 @@ pub async fn reset_kafka_offset() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Start to reset import kafka");
     let kafka_broker = env::var("KAFKA_BROKER").unwrap();
     let consumer_group_id = env::var("KAFKA_CONSUMER_GROUP_ID").unwrap();
-    let import_topic = env::var("KAFKA_ANALYSIS_TEST_TOPIC").unwrap();
+    let import_topic = env::var("KAFKA_ANALYSIS_TOPIC").unwrap();
     let output = Command::new("/opt/kafka/bin/kafka-consumer-groups.sh")
         .args([
             "--bootstrap-server",

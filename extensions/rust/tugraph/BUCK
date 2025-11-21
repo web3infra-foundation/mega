@@ -11,6 +11,7 @@ filegroup(
 
 pkg_deps = [
     "//project/crates-pro:repo_import",
+    "//project/crates-pro:data_transporter",
     "//third-party:dotenvy",
     "//third-party:futures-util",
     "//third-party:serde_json",

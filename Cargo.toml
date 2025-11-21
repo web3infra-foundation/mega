@@ -12,7 +12,6 @@ members = [
     "extensions/rag/index",
     "extensions/observatory",
     "context",
-    "neptune",
     "scorpio",
 ]
 default-members = ["mono", "orion", "orion-server"]
@@ -31,9 +30,8 @@ observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
-neptune = { path = "neptune" }
 
- git-internal = "0.2.1"
+ git-internal = "0.2.2"
 
 #====
 anyhow = "1.0.100"

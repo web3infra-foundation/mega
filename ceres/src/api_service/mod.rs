@@ -1,17 +1,20 @@
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use async_trait::async_trait;
-use neptune::model::diff_model::DiffItem;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use common::model::Pagination;
+use common::model::{DiffItem, Pagination};
 use git_internal::{
     errors::GitError,
-    internal::object::{commit::Commit, tree::Tree},
+    internal::object::{
+        commit::Commit,
+        tree::{Tree, TreeItem},
+    },
 };
 use jupiter::storage::Storage;
 
@@ -64,6 +67,12 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<Vec<TreeCommitItem>, GitError> {
         tree_ops::get_tree_commit_info(self, path, refs).await
     }
+
+    async fn item_to_commit_map(
+        &self,
+        path: PathBuf,
+        reference: Option<&str>,
+    ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError>;
 
     /// return the dir's hash only
     async fn get_tree_dir_hash(

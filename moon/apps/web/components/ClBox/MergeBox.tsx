@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import { useGetMergeBox } from '@/components/ClBox/hooks/useGetMergeBox'
+import { useScope } from '@/contexts/scope'
 import { useGetClReviewers } from '@/hooks/CL/useGetClReviewers'
 import { usePostClMerge } from '@/hooks/CL/usePostClMerge'
 import { usePostClReviewerApprove } from '@/hooks/CL/usePostClReviewerApprove'
@@ -18,15 +19,16 @@ import { MergeSection } from './MergeSection'
 import { ReviewerSection } from './ReviewerSection'
 
 export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
+  const { scope } = useScope()
   const { checks, refresh } = useMergeChecks(prId)
   const [hasCheckFailures, setHasCheckFailures] = useState(true)
-  const { mutate: approveCl, isPending: clMergeIsPending } = usePostClMerge(prId)
-  const { mutate: reviewApprove } = usePostClReviewerApprove()
-  const queryClient = useQueryClient()
-
   const route = useRouter()
   const { link } = route.query
   const id = typeof link === 'string' ? link : ''
+
+  const { mutate: approveCl, isPending: clMergeIsPending } = usePostClMerge(id)
+  const { mutate: reviewApprove } = usePostClReviewerApprove()
+  const queryClient = useQueryClient()
   const { reviewers, isLoading: isReviewerLoading } = useGetClReviewers(id)
 
   const required: number = useMemo(() => reviewers.length, [reviewers])
@@ -43,23 +45,21 @@ export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
 
   const { mergeBoxData, isLoading: isAdditionLoading } = useGetMergeBox(prId)
 
-  // 定义最终的合并处理函数
+  // Define the final merge handler function
   const handleMerge = useCallback(async () => {
-    // console.log('Final validation before merge...');
-    // TODO: 再次发送校验请求
-    refresh()
-
-    // 模拟校验结果
-    const stillHasFailures = false
-
-    if (stillHasFailures) {
-      alert('阻止合并：仍有检查项未通过，请刷新页面查看详情。')
-    } else {
-      // console.log('All checks passed. Sending change_list to backend...');
-
-      approveCl(undefined)
-
-      alert('合并请求已发送！')
+    try {
+      // Call merge API directly, only requires reviewers approval
+      approveCl(undefined, {
+        onSuccess: () => {
+          // Refresh related data
+          refresh()
+        },
+        onError: () => {
+          // Handle merge failure silently
+        }
+      })
+    } catch (error) {
+      // Handle merge error silently
     }
   }, [approveCl, refresh])
 
@@ -82,6 +82,7 @@ export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
   }, [reviewApprove, id, queryClient])
 
   const additionalChecks = mergeBoxData?.merge_requirements?.conditions ?? []
+  const clLink = `${scope}/cl/${id}`
 
   return (
     <div className='flex'>
@@ -101,6 +102,7 @@ export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
             onMerge={handleMerge}
             onApprove={handleApprove}
             isMerging={clMergeIsPending}
+            clLink={clLink}
           />
         </div>
       )}

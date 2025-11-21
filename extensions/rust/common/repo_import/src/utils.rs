@@ -39,7 +39,7 @@ pub fn get_program_by_name(key: &str) -> Option<(Program, UProgram)> {
     let map = PROGRAM_HASHMAP.lock().unwrap();
     map.get(key).cloned()
 }
-
+#[allow(dead_code)]
 pub(crate) fn write_into_csv<T: Serialize + Default + Debug>(
     csv_path: PathBuf,
     programs: Vec<T>,

@@ -9,19 +9,21 @@ MEGA_DIR=/home/rust/lhw/mega
 # deployment
 NAMESPACE=crates-pro
 DEPLOYMENT=import-tugraph
-KAFKA_HOST=172.17.0.1:30092
-KAFKA_CONSUMER_GROUP=test_lhw38
+KAFKA_HOST=10.42.0.1:30092
+KAFKA_CONSUMER_GROUP=test_lhw74
 # build
 BUILD_DIR=$(mktemp -d)
 TIMESTAMP=$(date +%Y%m%d-%H%M)
 IMAGE_NAME=localhost:30500/crates-pro-import-tugraph:local-$TIMESTAMP
 
 ### Preparation: Sync source directories
-rsync --delete --archive $CRATESPRO_DIR/ $INFRA_DIR/project/crates-pro --exclude="/.git" --exclude="/buck-out" --exclude="/build" --exclude="/target"
-rsync --delete --archive $CODE_DIR/ $INFRA_DIR/project/crates-pro/import_tugraph
-rsync --delete --archive $MEGA_DIR/extensions/rust/common/repo_import/ $INFRA_DIR/project/crates-pro/repo_import/
-rsync --delete --archive $MEGA_DIR/extensions/rust/common/database/ $INFRA_DIR/project/crates-pro/database/
-rsync --delete --archive $MEGA_DIR/extensions/rust/common/model/ $INFRA_DIR/project/crates-pro/model/
+rsync --delete --archive $CRATESPRO_DIR/ $INFRA_DIR/project/crates-pro/ --exclude="/.git" --exclude="/buck-out" --exclude="/build" --exclude="/target"
+rsync --delete --archive $CODE_DIR/ $INFRA_DIR/project/crates-pro/import_tugraph/
+rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/repo_import/ $INFRA_DIR/project/crates-pro/repo_import/
+rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/database/ $INFRA_DIR/project/crates-pro/database/
+rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/model/ $INFRA_DIR/project/crates-pro/model/
+rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/data_transporter/ $INFRA_DIR/project/crates-pro/data_transporter/
+rsync --delete --archive $MEGA_DIR/extensions/cratespro/common/tudriver/ $INFRA_DIR/project/crates-pro/tudriver/
 ### Step 1: Compile, then copy artifacts to $BUILD_DIR
 cd $INFRA_DIR
 buck2 build //project/crates-pro/import_tugraph:import_tugraph --out $BUILD_DIR/import_tugraph

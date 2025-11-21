@@ -34,7 +34,6 @@ use git_internal::{
         pack::entry::Entry,
     },
 };
-use uuid::Uuid;
 
 pub mod import_repo;
 pub mod monorepo;
@@ -48,16 +47,17 @@ pub trait RepoHandler: Send + Sync + 'static {
     async fn receiver_handler(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
-        mut rx_pack_id: UnboundedReceiver<SHA1>,
+        _rx_pack_id: UnboundedReceiver<SHA1>,
     ) -> Result<(), GitError> {
         let mut entry_list = vec![];
         let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
         let mut join_tasks = vec![];
 
-        let temp_pack_id = Uuid::new_v4().to_string();
+        //let temp_pack_id = Uuid::new_v4().to_string();
+        let temp_pack_id = String::new();
 
         while let Some(mut entry) = rx.recv().await {
-            self.collect_commits(&entry.inner).await?;
+            self.check_entry(&entry.inner).await?;
             entry.meta.set_pack_id(temp_pack_id.clone());
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
@@ -92,24 +92,25 @@ pub trait RepoHandler: Send + Sync + 'static {
             }
         }
 
-        // receive pack_id and update it
-        if let Some(real_pack_id) = rx_pack_id.recv().await {
-            let real_pack_id_str = real_pack_id.to_string();
-            tracing::debug!(
-                "Received real pack_id: {}, updating database from temp_pack_id: {}",
-                real_pack_id_str,
-                temp_pack_id
-            );
-
-            // 通过数据库操作更新 pack_id
-            if let Err(e) = self.update_pack_id(&temp_pack_id, &real_pack_id_str).await {
-                tracing::error!("Failed to update pack_id in database: {:?}", e);
-                return Err(GitError::CustomError(format!(
-                    "Failed to update pack_id: {:?}",
-                    e
-                )));
-            }
-        }
+        // The feature of updating pack id has performance issues. Temporarily disabled
+        // // receive pack_id and update it
+        // if let Some(real_pack_id) = rx_pack_id.recv().await {
+        //     let real_pack_id_str = real_pack_id.to_string();
+        //     tracing::debug!(
+        //         "Received real pack_id: {}, updating database from temp_pack_id: {}",
+        //         real_pack_id_str,
+        //         temp_pack_id
+        //     );
+        //
+        //     通过数据库操作更新 pack_id
+        //     if let Err(e) = self.update_pack_id(&temp_pack_id, &real_pack_id_str).await {
+        //         tracing::error!("Failed to update pack_id in database: {:?}", e);
+        //         return Err(GitError::CustomError(format!(
+        //             "Failed to update pack_id: {:?}",
+        //             e
+        //         )));
+        //     }
+        // }
 
         Ok(())
     }
@@ -123,7 +124,7 @@ pub trait RepoHandler: Send + Sync + 'static {
 
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError>;
 
-    async fn collect_commits(&self, entry: &Entry) -> Result<(), GitError>;
+    async fn check_entry(&self, entry: &Entry) -> Result<(), GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into

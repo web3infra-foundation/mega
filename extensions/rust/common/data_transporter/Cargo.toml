@@ -10,6 +10,7 @@ search = { workspace = true }
 tudriver = { workspace = true }
 
 # third-party (第三方依赖, 不写具体版本号, 具体版本只在根目录 Cargo.toml 中出现)
+actix-cors = "0.7"
 actix-multipart = "0.7"
 actix-web = "4.10"
 async-trait = "0.1"

@@ -15,7 +15,7 @@ use ceres::{
         EditFileResult, FileTreeItem, LatestCommitInfo, TreeCommitItem, TreeHashItem, TreeResponse,
     },
 };
-use common::model::CommonResult;
+use common::model::{CommonResult, DiffItem};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{MonoApiServiceState, error::ApiError};
@@ -355,14 +355,14 @@ async fn get_file_blame(
     path = "/edit/diff-preview",
     request_body = DiffPreviewPayload,
     responses(
-        (status = 200, body = CommonResult<neptune::model::diff_model::DiffItem>, content_type = "application/json")
+        (status = 200, body = CommonResult<DiffItem>, content_type = "application/json")
     ),
     tag = CODE_PREVIEW
 )]
 async fn preview_diff(
     state: State<MonoApiServiceState>,
     Json(payload): Json<DiffPreviewPayload>,
-) -> Result<Json<CommonResult<neptune::model::diff_model::DiffItem>>, ApiError> {
+) -> Result<Json<CommonResult<DiffItem>>, ApiError> {
     let handler = state.api_handler(payload.path.as_ref()).await?;
     let item = handler.preview_file_diff(payload).await?;
     Ok(Json(CommonResult::success(item)))

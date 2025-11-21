@@ -3038,6 +3038,21 @@ export type AddSSHKey = {
   title: string
 }
 
+/** Add CL to queue request */
+export type AddToQueueRequest = {
+  cl_link: string
+}
+
+/** Add CL to queue response */
+export type AddToQueueResponse = {
+  /** @min 0 */
+  display_position?: number | null
+  message: string
+  /** @format int64 */
+  position: number
+  success: boolean
+}
+
 export type AssigneeUpdatePayload = {
   assignees: string[]
   /** @format int64 */
@@ -3193,6 +3208,20 @@ export type CommonPageDiffItem = {
    * @min 0
    */
   total: number
+}
+
+export type CommonResultAddToQueueResponse = {
+  /** Add CL to queue response */
+  data?: {
+    /** @min 0 */
+    display_position?: number | null
+    message: string
+    /** @format int64 */
+    position: number
+    success: boolean
+  }
+  err_message: string
+  req_result: boolean
 }
 
 export type CommonResultBlameResult = {
@@ -3394,6 +3423,37 @@ export type CommonResultMergeBoxRes = {
   req_result: boolean
 }
 
+export type CommonResultQueueListResponse = {
+  /** Queue list response */
+  data?: {
+    items: QueueItem[]
+    /** @min 0 */
+    total_count: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultQueueStatsResponse = {
+  /** Queue statistics response */
+  data?: {
+    /** Queue statistics for API */
+    stats: QueueStats
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultQueueStatusResponse = {
+  /** Queue status check response */
+  data?: {
+    in_queue: boolean
+    item?: null | QueueItem
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultReviewersResponse = {
   data?: {
     result: ReviewerInfo[]
@@ -3435,6 +3495,12 @@ export type CommonResultTreeResponse = {
     file_tree: Record<string, FileTreeItem>
     tree_items: TreeBriefItem[]
   }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultValue = {
+  data?: any
   err_message: string
   req_result: boolean
 }
@@ -3673,6 +3739,16 @@ export type EditFileResult = {
   path: string
 }
 
+/** Failure type for API */
+export enum FailureType {
+  TestFailure = 'TestFailure',
+  BuildFailure = 'BuildFailure',
+  Conflict = 'Conflict',
+  MergeFailure = 'MergeFailure',
+  SystemError = 'SystemError',
+  Timeout = 'Timeout'
+}
+
 export type FileTreeItem = {
   /** @min 0 */
   total_count: number
@@ -3852,6 +3928,74 @@ export type Pagination = {
   per_page: number
 }
 
+/** Error details for API */
+export type QueueError = {
+  /** Failure type for API */
+  failure_type: FailureType
+  message: string
+  occurred_at: string
+}
+
+/** Queue item for API */
+export type QueueItem = {
+  cl_link: string
+  created_at: string
+  /** @min 0 */
+  display_position?: number | null
+  error?: null | QueueError
+  /** @format int64 */
+  position: number
+  /** @format int32 */
+  retry_count: number
+  /** CL queue status for API */
+  status: QueueStatus
+  updated_at: string
+}
+
+/** Queue list response */
+export type QueueListResponse = {
+  items: QueueItem[]
+  /** @min 0 */
+  total_count: number
+}
+
+/** Queue statistics for API */
+export type QueueStats = {
+  /** @min 0 */
+  failed_count: number
+  /** @min 0 */
+  merged_count: number
+  /** @min 0 */
+  merging_count: number
+  /** @min 0 */
+  testing_count: number
+  /** @min 0 */
+  total_items: number
+  /** @min 0 */
+  waiting_count: number
+}
+
+/** Queue statistics response */
+export type QueueStatsResponse = {
+  /** Queue statistics for API */
+  stats: QueueStats
+}
+
+/** CL queue status for API */
+export enum QueueStatus {
+  Waiting = 'Waiting',
+  Testing = 'Testing',
+  Merging = 'Merging',
+  Merged = 'Merged',
+  Failed = 'Failed'
+}
+
+/** Queue status check response */
+export type QueueStatusResponse = {
+  in_queue: boolean
+  item?: null | QueueItem
+}
+
 export type ReactionItem = {
   custom_content: string
   emoji: string
@@ -3954,6 +4098,7 @@ export type UpdateRequest = {
 /** Data transfer object for build information in API responses */
 export type BuildDTO = {
   args?: any
+  cause_by?: string | null
   created_at: string
   end_at?: string | null
   /** @format int32 */
@@ -5291,6 +5436,20 @@ export type GetApiLatestCommitParams = {
 }
 
 export type GetApiLatestCommitData = LatestCommitInfo
+
+export type PostApiMergeQueueAddData = CommonResultAddToQueueResponse
+
+export type PostApiMergeQueueCancelAllData = CommonResultValue
+
+export type GetApiMergeQueueListData = CommonResultQueueListResponse
+
+export type DeleteApiMergeQueueRemoveByClLinkData = CommonResultValue
+
+export type PostApiMergeQueueRetryByClLinkData = CommonResultValue
+
+export type GetApiMergeQueueStatsData = CommonResultQueueStatsResponse
+
+export type GetApiMergeQueueStatusByClLinkData = CommonResultQueueStatusResponse
 
 export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
@@ -14798,6 +14957,169 @@ It's for local testing purposes.
             path: `/api/v1/latest-commit`,
             method: 'GET',
             query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name PostApiMergeQueueAdd
+     * @summary Adds a CL to the merge queue
+     * @request POST:/api/v1/merge-queue/add
+     */
+    postApiMergeQueueAdd: () => {
+      const base = 'POST:/api/v1/merge-queue/add' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMergeQueueAddData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMergeQueueAddData>([base]),
+        request: (data: AddToQueueRequest, params: RequestParams = {}) =>
+          this.request<PostApiMergeQueueAddData>({
+            path: `/api/v1/merge-queue/add`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name PostApiMergeQueueCancelAll
+     * @summary Cancels all pending queue items
+     * @request POST:/api/v1/merge-queue/cancel-all
+     */
+    postApiMergeQueueCancelAll: () => {
+      const base = 'POST:/api/v1/merge-queue/cancel-all' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMergeQueueCancelAllData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiMergeQueueCancelAllData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<PostApiMergeQueueCancelAllData>({
+            path: `/api/v1/merge-queue/cancel-all`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name GetApiMergeQueueList
+     * @summary Gets the current merge queue list
+     * @request GET:/api/v1/merge-queue/list
+     */
+    getApiMergeQueueList: () => {
+      const base = 'GET:/api/v1/merge-queue/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMergeQueueListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiMergeQueueListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiMergeQueueListData>({
+            path: `/api/v1/merge-queue/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name DeleteApiMergeQueueRemoveByClLink
+     * @summary Removes a CL from the merge queue
+     * @request DELETE:/api/v1/merge-queue/remove/{cl_link}
+     */
+    deleteApiMergeQueueRemoveByClLink: () => {
+      const base = 'DELETE:/api/v1/merge-queue/remove/{cl_link}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiMergeQueueRemoveByClLinkData>([base]),
+        requestKey: (clLink: string) => dataTaggedQueryKey<DeleteApiMergeQueueRemoveByClLinkData>([base, clLink]),
+        request: (clLink: string, params: RequestParams = {}) =>
+          this.request<DeleteApiMergeQueueRemoveByClLinkData>({
+            path: `/api/v1/merge-queue/remove/${clLink}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name PostApiMergeQueueRetryByClLink
+     * @summary Retries a failed queue item
+     * @request POST:/api/v1/merge-queue/retry/{cl_link}
+     */
+    postApiMergeQueueRetryByClLink: () => {
+      const base = 'POST:/api/v1/merge-queue/retry/{cl_link}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiMergeQueueRetryByClLinkData>([base]),
+        requestKey: (clLink: string) => dataTaggedQueryKey<PostApiMergeQueueRetryByClLinkData>([base, clLink]),
+        request: (clLink: string, params: RequestParams = {}) =>
+          this.request<PostApiMergeQueueRetryByClLinkData>({
+            path: `/api/v1/merge-queue/retry/${clLink}`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name GetApiMergeQueueStats
+     * @summary Gets queue statistics
+     * @request GET:/api/v1/merge-queue/stats
+     */
+    getApiMergeQueueStats: () => {
+      const base = 'GET:/api/v1/merge-queue/stats' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMergeQueueStatsData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiMergeQueueStatsData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiMergeQueueStatsData>({
+            path: `/api/v1/merge-queue/stats`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Merge Queue Management
+     * @name GetApiMergeQueueStatusByClLink
+     * @summary Gets the status of a specific CL in the queue
+     * @request GET:/api/v1/merge-queue/status/{cl_link}
+     */
+    getApiMergeQueueStatusByClLink: () => {
+      const base = 'GET:/api/v1/merge-queue/status/{cl_link}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiMergeQueueStatusByClLinkData>([base]),
+        requestKey: (clLink: string) => dataTaggedQueryKey<GetApiMergeQueueStatusByClLinkData>([base, clLink]),
+        request: (clLink: string, params: RequestParams = {}) =>
+          this.request<GetApiMergeQueueStatusByClLinkData>({
+            path: `/api/v1/merge-queue/status/${clLink}`,
+            method: 'GET',
             ...params
           })
       }
