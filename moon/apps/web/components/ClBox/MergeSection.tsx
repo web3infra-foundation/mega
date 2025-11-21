@@ -1,7 +1,7 @@
 import React from 'react'
 import { useRouter } from 'next/router'
 
-import { AlertIcon, CheckCircleIcon, LoadingSpinner, WarningTriangleIcon } from '@gitmono/ui'
+import { CheckCircleIcon, LoadingSpinner, WarningTriangleIcon } from '@gitmono/ui'
 
 import { useScope } from '@/contexts/scope'
 import { useGetMergeQueueStatus } from '@/hooks/MergeQueue/useGetMergeQueueStatus'
@@ -18,7 +18,15 @@ interface MergeSectionProps {
 }
 
 export const MergeSection = React.memo<MergeSectionProps>(
-  ({ isAllReviewerApproved, hasCheckFailures, isNowUserApprove, onMerge, onApprove, isMerging, clLink }) => {
+  ({
+    isAllReviewerApproved,
+    hasCheckFailures: _hasCheckFailures,
+    isNowUserApprove,
+    onMerge,
+    onApprove,
+    isMerging,
+    clLink
+  }) => {
     const router = useRouter()
     const { scope } = useScope()
     const { data: queueStatusData } = useGetMergeQueueStatus(clLink)
@@ -28,27 +36,21 @@ export const MergeSection = React.memo<MergeSectionProps>(
     const queueItem = queueStatusData?.data?.item
 
     let statusNode: React.ReactNode
-    const isMergeable = isAllReviewerApproved && !hasCheckFailures
+
+    const isMergeable = isAllReviewerApproved
 
     if (!isAllReviewerApproved) {
       statusNode = (
         <div className='flex items-center text-yellow-700'>
           <WarningTriangleIcon className='mr-3 h-5 w-5' />
-          <span className='font-semibold'>Merging is blocked</span>
-        </div>
-      )
-    } else if (hasCheckFailures) {
-      statusNode = (
-        <div className='flex items-center text-red-700'>
-          <AlertIcon className='mr-3 h-5 w-5' />
-          <span className='font-semibold'>Merging is blocked</span>
+          <span className='font-semibold'>Merging is blocked - Waiting for reviewers approval</span>
         </div>
       )
     } else {
       statusNode = (
         <div className='flex items-center text-green-700'>
           <CheckCircleIcon className='mr-3 h-5 w-5' />
-          <span className='font-semibold'>Allow merging</span>
+          <span className='font-semibold'>Ready to merge - All reviewers approved</span>
         </div>
       )
     }
