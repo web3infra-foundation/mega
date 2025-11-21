@@ -19,9 +19,9 @@ use crate::model::blame_dto::{
 };
 use crate::storage::{Storage, mono_storage::MonoStorage, raw_db_storage::RawDbStorage};
 use common::config::Config;
+use git_internal::diff::{DiffOperation, compute_diff};
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
-use neptune::{DiffOperation, compute_diff};
 
 use crate::utils::converter::FromMegaModel;
 #[cfg(test)]
