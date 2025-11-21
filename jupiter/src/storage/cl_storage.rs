@@ -62,11 +62,14 @@ impl ClStorage {
             vec![MergeStatusEnum::Open]
         } else if params.status == "closed" {
             vec![MergeStatusEnum::Closed, MergeStatusEnum::Merged]
+        } else if params.status == "draft" {
+            vec![MergeStatusEnum::Draft]
         } else {
             vec![
                 MergeStatusEnum::Open,
                 MergeStatusEnum::Closed,
                 MergeStatusEnum::Merged,
+                MergeStatusEnum::Draft,
             ]
         };
 
@@ -247,6 +250,18 @@ impl ClStorage {
         a_model.status = Set(MergeStatusEnum::Open);
         a_model.updated_at = Set(chrono::Utc::now().naive_utc());
         a_model.update(self.get_connection()).await.unwrap();
+        Ok(())
+    }
+
+    pub async fn update_cl_status(
+        &self,
+        model: mega_cl::Model,
+        status: MergeStatusEnum,
+    ) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.status = Set(status);
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await?;
         Ok(())
     }
 

@@ -62,6 +62,8 @@ pub enum MergeStatusEnum {
     Merged,
     #[sea_orm(string_value = "closed")]
     Closed,
+    #[sea_orm(string_value = "draft")]
+    Draft,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(

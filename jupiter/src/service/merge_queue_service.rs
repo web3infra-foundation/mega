@@ -174,6 +174,12 @@ impl MergeQueueService {
                         "CL has been closed, cannot merge".to_string(),
                     ));
                 }
+                if cl_model.status == MergeStatusEnum::Draft {
+                    return Err((
+                        QueueFailureTypeEnum::SystemError,
+                        "CL is in draft status, cannot merge".to_string(),
+                    ));
+                }
                 cl_model
             }
             None => {
@@ -230,6 +236,7 @@ impl MergeQueueService {
                 MergeStatusEnum::Open => Ok(()),
                 MergeStatusEnum::Closed => Err(MegaError::with_message("Cannot queue a closed CL")),
                 MergeStatusEnum::Merged => Err(MegaError::with_message("Cannot queue a merged CL")),
+                MergeStatusEnum::Draft => Err(MegaError::with_message("Cannot queue a draft CL")),
             },
             None => Err(MegaError::with_message("CL not found")),
         }

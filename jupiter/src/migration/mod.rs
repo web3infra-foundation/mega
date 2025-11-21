@@ -68,6 +68,7 @@ mod m20251027_062734_add_metadata_to_object;
 mod m20251107_025431_add_cl_commits;
 mod m20251109_073000_add_merge_queue;
 mod m20251117_101804_add_commit_id_in_mega_tree;
+mod m20251119_145041_add_draft_status;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -124,6 +125,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251107_025431_add_cl_commits::Migration),
             Box::new(m20251109_073000_add_merge_queue::Migration),
             Box::new(m20251117_101804_add_commit_id_in_mega_tree::Migration),
+            Box::new(m20251119_145041_add_draft_status::Migration),
         ]
     }
 }
