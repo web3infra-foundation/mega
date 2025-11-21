@@ -4,7 +4,7 @@ import os
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://mega:mega@172.17.0.1:31432/crates_test"
+    "postgresql://mega:mega@10.42.0.1:31432/crates_test"
 )
 
 engine = create_engine(DATABASE_URL, echo=True)
