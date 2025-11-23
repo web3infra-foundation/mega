@@ -40,11 +40,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::api_service::{ApiHandler, tree_ops};
+use crate::api_service::{ApiHandler, history};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
-use crate::model::git::LatestCommitInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
 use crate::model::tag::TagInfo;
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
@@ -473,65 +472,12 @@ impl ApiHandler for MonoApiService {
         path: PathBuf,
         reference: Option<&str>,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
-        match tree_ops::search_tree_by_path(self, &path, reference).await? {
-            Some(tree) => {
-                let mut item_to_commit = HashMap::new();
-
-                let storage = self.storage.mono_storage();
-                let tree_hashes = tree
-                    .tree_items
-                    .iter()
-                    .filter(|x| x.mode == TreeItemMode::Tree)
-                    .map(|x| x.id.to_string())
-                    .collect();
-                let trees = storage.get_trees_by_hashes(tree_hashes).await.unwrap();
-                for tree in trees {
-                    // Skip invalid/empty commit ids to avoid noise and incorrect mapping
-                    if !tree.commit_id.is_empty() {
-                        item_to_commit.insert(tree.tree_id, tree.commit_id);
-                    }
-                }
-
-                let blob_hashes = tree
-                    .tree_items
-                    .iter()
-                    .filter(|x| x.mode == TreeItemMode::Blob)
-                    .map(|x| x.id.to_string())
-                    .collect();
-                let blobs = storage.get_mega_blobs_by_hashes(blob_hashes).await.unwrap();
-                for blob in blobs {
-                    if !blob.commit_id.is_empty() {
-                        item_to_commit.insert(blob.blob_id, blob.commit_id);
-                    }
-                }
-
-                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
-                let commits = self
-                    .get_commits_by_hashes(commit_ids.into_iter().collect())
-                    .await
-                    .unwrap();
-                let commit_map: HashMap<String, Commit> =
-                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
-
-                let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
-                for item in tree.tree_items {
-                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
-                        let commit = commit_map.get(commit_id).cloned();
-                        if commit.is_none() {
-                            tracing::warn!(
-                                item_name = %item.name,
-                                item_mode = ?item.mode,
-                                commit_id = %commit_id,
-                                "failed fetch from commit map"
-                            );
-                        }
-                        result.insert(item, commit);
-                    }
-                }
-                Ok(result)
-            }
-            None => Ok(HashMap::new()),
-        }
+        // Delegate to the history module's implementation, which correctly
+        // traverses commit history using BFS with TREESAME pruning to find
+        // the last commit that modified each item (matching GitHub's behavior).
+        // This replaces the old DB-based logic that incorrectly returned the
+        // first/indexed commit instead of the true last modification.
+        history::item_to_commit_map(self, path, reference).await
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
@@ -842,45 +788,6 @@ impl ApiHandler for MonoApiService {
                 Err(e)
             }
         }
-    }
-
-    async fn get_latest_commit_with_refs(
-        &self,
-        path: PathBuf,
-        refs: Option<&str>,
-    ) -> Result<LatestCommitInfo, GitError> {
-        tracing::debug!(
-            "get_latest_commit_with_refs called with path: {:?}, refs: {:?}",
-            path,
-            refs
-        );
-        // If browsing by Tag, use the commit pointed to by the Tag
-        if let Some(ref_name) = refs
-            && (ref_name.starts_with("refs/tags/") || !ref_name.contains('/'))
-        {
-            tracing::debug!("Tag browsing detected: {}", ref_name);
-            match self.resolve_tag_commit(ref_name).await {
-                Ok(tag_commit_id) => {
-                    tracing::debug!("Using tag commit: {} for path: {:?}", tag_commit_id, path);
-
-                    let commit = self.get_commit_by_hash(&tag_commit_id).await;
-
-                    let commit_info: LatestCommitInfo = commit.into();
-
-                    return Ok(commit_info);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to resolve tag '{}': {}, falling back to default behavior",
-                        ref_name,
-                        e
-                    );
-                    // Fall back to default behavior
-                }
-            }
-        }
-        // Default behavior: use the existing get_latest_commit logic
-        self.get_latest_commit(path).await
     }
 }
 
@@ -1618,31 +1525,6 @@ impl MonoApiService {
             }
         }
         Ok(result)
-    }
-
-    async fn resolve_tag_commit(&self, tag_name: &str) -> Result<String, GitError> {
-        let storage = self.storage.mono_storage();
-
-        // First check if it is an annotated tag
-        if let Ok(Some(tag)) = storage.get_tag_by_name(tag_name).await {
-            return Ok(tag.object_id);
-        }
-
-        // Check if it is a lightweight tag (ref)
-        let full_ref = if tag_name.starts_with("refs/tags/") {
-            tag_name.to_string()
-        } else {
-            format!("refs/tags/{}", tag_name)
-        };
-
-        if let Ok(Some(ref_record)) = storage.get_ref_by_name(&full_ref).await {
-            return Ok(ref_record.ref_commit_hash);
-        }
-
-        Err(GitError::CustomError(format!(
-            "Tag '{}' not found",
-            tag_name
-        )))
     }
 }
 

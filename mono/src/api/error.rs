@@ -40,20 +40,49 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        tracing::error!("Application error: {:#}", self.inner);
+        let mut err_msg = self.inner.to_string();
 
-        let body = Json(CommonResult::<()>::common_failed());
+        // Remove [code:xxx] prefix from error message for cleaner display
+        if let Some(code_end) = err_msg.find(']').filter(|_| err_msg.starts_with("[code:")) {
+            err_msg = err_msg[code_end + 1..].trim().to_string();
+        }
+
+        tracing::error!("Application error: {}", err_msg);
+
+        let body = Json(CommonResult::<()> {
+            req_result: false,
+            data: None,
+            err_message: err_msg,
+        });
         (self.status, body).into_response()
     }
 }
 
 // Backwards-compatible From: map generic errors to ApiError::internal
+// Parse [code:xxx] format to set proper HTTP status code
 impl<E> From<E> for ApiError
 where
     E: Into<anyhow::Error>,
 {
     fn from(err: E) -> Self {
-        ApiError::internal(err)
+        let anyhow_err = err.into();
+        let err_str = anyhow_err.to_string();
+
+        // Parse [code:xxx] format and map to appropriate HTTP status code
+        if let Some(code_end) = err_str.find(']').filter(|_| err_str.starts_with("[code:")) {
+            let code = &err_str[6..code_end];
+            return match code {
+                "400" => ApiError::bad_request(anyhow_err),
+                "401" => ApiError::with_status(StatusCode::UNAUTHORIZED, anyhow_err),
+                "403" => ApiError::with_status(StatusCode::FORBIDDEN, anyhow_err),
+                "404" => ApiError::not_found(anyhow_err),
+                "409" => ApiError::with_status(StatusCode::CONFLICT, anyhow_err),
+                "500" => ApiError::internal(anyhow_err),
+                _ => ApiError::internal(anyhow_err),
+            };
+        }
+
+        ApiError::internal(anyhow_err)
     }
 }
 
