@@ -1,0 +1,14 @@
+{
+    "/api/v1/cl": {
+        "reopen": "EditMergeRequest",
+        "close": "EditMergeRequest",
+        "merge": "ApproveMergeRequest",
+        "comment": "EditMergeRequest",
+        "title": "EditMergeRequest",
+        "labels": "EditMergeRequest",
+        "assignees": "EditMergeRequest",
+        "reviewers": "EditMergeRequest",
+        "approve": "ApproveMergeRequest",
+        "resolve": "EditMergeRequest"
+    }
+}
