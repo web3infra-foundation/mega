@@ -241,6 +241,8 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
 /// from `start_commit` and returns the first commit where the item's hash at
 /// `path` differs from its direct parent's hash (or where the item did not
 /// exist in the parent). This matches the "last modification" semantics used
+/// by tools like `git log -1 <path>` or `git blame`, which identify the most
+/// recent commit where a file or directory was changed.
 ///
 /// # Arguments
 /// - `path`: The directory path under which the target item is expected.
@@ -261,8 +263,11 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
     // Resolve the item's hash in the starting commit at the given path
     let start_tree = get_tree_from_cache(handler, start_commit.tree_id, &cache).await?;
     let Some(target_tree) = navigate_to_tree(handler, start_tree, path, &cache).await? else {
-        // Path does not exist at start_commit; return start_commit as a safe default
-        return Ok((*start_commit).clone());
+        // Path does not exist at start_commit; return an error
+        return Err(GitError::CustomError(format!(
+            "[code:404] Path not found: {:?} at commit {}",
+            path, start_commit.id
+        )));
     };
 
     let Some(current_hash) = target_tree
@@ -271,8 +276,13 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
         .find(|x| x.name == search_item.name && x.mode == search_item.mode)
         .map(|x| x.id)
     else {
-        // Item does not exist at start_commit; nothing to trace backwards
-        return Ok((*start_commit).clone());
+        // Item does not exist at start_commit; return an error
+        return Err(GitError::CustomError(format!(
+            "[code:404] Item '{}' does not exist at path '{}' in commit {}",
+            search_item.name,
+            path.display(),
+            start_commit.id
+        )));
     };
 
     // Walk commit history using a queue (BFS over the commit graph) while
@@ -340,5 +350,9 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
         }
     }
 
+    // Fallback: Queue exhausted without finding a modification.
+    // This can occur if all commits back to the root have matching hashes,
+    // meaning the file has never been modified since its introduction.
+    // In this case, start_commit is the "last" (and only) modification point.
     Ok((*start_commit).clone())
 }

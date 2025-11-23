@@ -202,7 +202,7 @@ pub trait ApiHandler: Send + Sync {
 ///   - `None` or empty string: returns root commit (HEAD)
 ///   - Tag name with `refs/tags/` prefix (e.g., `refs/tags/v1.0.0`)
 ///   - Tag name without prefix (e.g., `v1.0.0`)
-///   - 40-character hexadecimal commit SHA
+///   - Commit SHA (7-40 character hexadecimal, supporting short SHAs)
 ///
 /// # Returns
 /// - `Ok(Arc<Commit>)`: The resolved commit wrapped in an Arc for efficient sharing
@@ -229,15 +229,15 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
         ));
     }
 
-    // Try to resolve as commit SHA (must be 40-character hex)
-    if ref_str.len() == 40 && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
+    // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
+    if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
         let commit = handler.get_commit_by_hash(ref_str).await;
         return Ok(Arc::new(commit));
     }
 
     // Failed to resolve: return descriptive error
     Err(GitError::CustomError(format!(
-        "Invalid reference '{}': not a valid tag name or commit SHA",
+        "Invalid reference '{}': not a valid tag name or commit SHA (must be a tag name or a 7-40 digit hex commit hash)",
         ref_str
     )))
 }

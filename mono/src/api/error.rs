@@ -43,7 +43,10 @@ impl IntoResponse for ApiError {
         let mut err_msg = self.inner.to_string();
 
         // Remove [code:xxx] prefix from error message for cleaner display
-        if let Some(code_end) = err_msg.find(']').filter(|_| err_msg.starts_with("[code:")) {
+        if let Some(code_end) = err_msg
+            .find(']')
+            .filter(|&idx| err_msg.starts_with("[code:") && idx >= 6)
+        {
             err_msg = err_msg[code_end + 1..].trim().to_string();
         }
 
@@ -69,7 +72,10 @@ where
         let err_str = anyhow_err.to_string();
 
         // Parse [code:xxx] format and map to appropriate HTTP status code
-        if let Some(code_end) = err_str.find(']').filter(|_| err_str.starts_with("[code:")) {
+        if let Some(code_end) = err_str
+            .find(']')
+            .filter(|&idx| err_str.starts_with("[code:") && idx >= 6)
+        {
             let code = &err_str[6..code_end];
             return match code {
                 "400" => ApiError::bad_request(anyhow_err),

@@ -31,16 +31,26 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 
     // 1) Try as directory path first
     if let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? {
-        // Treat directory as a TreeItem and find its last modification
-        let dir_name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| GitError::CustomError("Invalid directory path".to_string()))?
-            .to_string();
-
-        let parent = path
-            .parent()
-            .ok_or_else(|| GitError::CustomError("Directory has no parent".to_string()))?;
+        // Special handling for root directory
+        let (dir_name, parent): (String, &std::path::Path) = if path.as_os_str().is_empty()
+            || path == std::path::Path::new(".")
+            || path == std::path::Path::new("/")
+        {
+            // For root directory, treat it as the tree itself with empty parent
+            // This commit represents the root tree's last modification
+            (String::from(""), std::path::Path::new(""))
+        } else {
+            // For non-root directories, extract name and parent normally
+            let dir_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| GitError::CustomError("Invalid directory path".to_string()))?
+                .to_string();
+            let parent = path
+                .parent()
+                .ok_or_else(|| GitError::CustomError("Directory has no parent".to_string()))?;
+            (dir_name, parent)
+        };
 
         let dir_item = TreeItem::new(TreeItemMode::Tree, tree.id, dir_name);
 
@@ -92,9 +102,20 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
             }
             Ok(commit_info)
         }
-        Err(_) => Err(GitError::CustomError(
-            "[code:404] File not found".to_string(),
-        )),
+        Err(e) => {
+            // Preserve the original error message for better debugging
+            tracing::debug!("File not found or error during traversal: {:?}", e);
+            // If it's already a CustomError with [code:404], preserve it
+            if let GitError::CustomError(msg) = &e
+                && msg.starts_with("[code:404]")
+            {
+                return Err(e);
+            }
+            // Otherwise wrap with 404 code
+            Err(GitError::CustomError(
+                "[code:404] File not found".to_string(),
+            ))
+        }
     }
 }
 
