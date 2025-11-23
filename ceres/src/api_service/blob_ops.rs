@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use neptune::{Diff, model::diff_model::DiffItem};
-
+use common::model::DiffItem;
 use git_internal::{
+    diff::Diff as GitDiff,
     errors::GitError,
     hash::SHA1,
     internal::object::{blob::Blob, tree::TreeItemMode},
@@ -59,7 +59,10 @@ pub async fn preview_file_diff<T: ApiHandler + ?Sized>(
     cache.insert(new_blob.id, payload.content.into_bytes());
 
     let read = |_: &PathBuf, oid: &SHA1| -> Vec<u8> { cache.get(oid).cloned().unwrap_or_default() };
-    let mut items = Diff::diff(old_entry, new_entry, "histogram".into(), Vec::new(), read).await;
+    let mut items: Vec<DiffItem> = GitDiff::diff(old_entry, new_entry, Vec::new(), read)
+        .into_iter()
+        .map(DiffItem::from)
+        .collect();
     Ok(items.pop())
 }
 

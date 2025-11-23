@@ -5,11 +5,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-use neptune::model::diff_model::DiffItem;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use common::model::Pagination;
+use common::model::{DiffItem, Pagination};
 use git_internal::{
     errors::GitError,
     internal::object::{

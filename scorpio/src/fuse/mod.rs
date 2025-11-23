@@ -116,7 +116,7 @@ impl MegaFuse {
         let upperdir = upper;
 
         let config = config::Config {
-            mountpoint: String::new().into(),
+            mountpoint: String::new(),
             do_import: true,
             ..Default::default()
         };

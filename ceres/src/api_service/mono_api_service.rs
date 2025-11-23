@@ -57,8 +57,9 @@ use regex::Regex;
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
 use common::errors::MegaError;
-use common::model::Pagination;
+use common::model::{DiffItem, Pagination};
 use common::utils::MEGA_BRANCH_NAME;
+use git_internal::diff::Diff as GitDiff;
 use git_internal::errors::GitError;
 use git_internal::hash::SHA1;
 use git_internal::internal::metadata::EntryMeta;
@@ -71,8 +72,6 @@ use jupiter::storage::base_storage::StorageConnector;
 use jupiter::storage::mono_storage::RefUpdateData;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
-use neptune::model::diff_model::DiffItem;
-use neptune::neptune_engine::Diff;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -1421,16 +1420,9 @@ impl MonoApiService {
         };
 
         // Use the unified diff function with configurable algorithm
-        let diff_output = Diff::diff(
-            old_blobs,
-            new_blobs,
-            "histogram".to_string(),
-            Vec::new(),
-            read_content,
-        )
-        .await;
+        let diff_output = GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content);
 
-        Ok(diff_output)
+        Ok(diff_output.into_iter().map(DiffItem::from).collect())
     }
 
     fn collect_page_blobs(
@@ -2069,14 +2061,11 @@ mod test {
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 
-        let diff_output = Diff::diff(
-            old_blobs,
-            new_blobs,
-            "histogram".to_string(),
-            Vec::new(),
-            read_content,
-        )
-        .await;
+        let diff_output: Vec<DiffItem> =
+            GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content)
+                .into_iter()
+                .map(DiffItem::from)
+                .collect();
 
         // Verify diff output contains expected content
         assert!(!diff_output.is_empty(), "Diff output should not be empty");
@@ -2120,14 +2109,11 @@ mod test {
         };
 
         // Test the diff engine with empty content
-        let diff_output = Diff::diff(
-            old_blobs,
-            new_blobs,
-            "histogram".to_string(),
-            Vec::new(),
-            read_content,
-        )
-        .await;
+        let diff_output: Vec<DiffItem> =
+            GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content)
+                .into_iter()
+                .map(DiffItem::from)
+                .collect();
 
         assert!(
             !diff_output.is_empty(),
