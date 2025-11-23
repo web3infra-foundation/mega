@@ -6,6 +6,7 @@ pub mod access_token;
 pub mod builds;
 pub mod check_result;
 pub mod commit_auths;
+pub mod entity_ext;
 pub mod git_blob;
 pub mod git_commit;
 pub mod git_issue;

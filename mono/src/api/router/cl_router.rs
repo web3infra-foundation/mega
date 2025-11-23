@@ -8,7 +8,6 @@ use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::model::change_list::{
     CLDetailRes, ChangeReviewStatePayload, ChangeReviewerStatePayload, ClFilesRes, Condition,
     FilesChangedPage, MergeBoxRes, MuiTreeNode, ReviewerInfo, ReviewerPayload, ReviewersResponse,
-    SetSystemReviewersPayload,
 };
 use common::{
     errors::MegaError,
@@ -54,8 +53,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_reviewers))
             .routes(routes!(list_reviewers))
             .routes(routes!(reviewer_approve))
-            .routes(routes!(review_resolve))
-            .routes(routes!(set_system_required_reviewers)),
+            .routes(routes!(review_resolve)),
     )
 }
 
@@ -655,39 +653,6 @@ async fn review_resolve(
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
 
-    Ok(Json(CommonResult::success(None)))
-}
-
-#[utoipa::path(
-    post,
-    params (
-        ("link", description = "the cl link")
-    ),
-    path = "/{link}/reviewer/system-required/set",
-    request_body (
-        content = SetSystemReviewersPayload,
-    ),
-    responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
-    ),
-    tag = CL_TAG
-)]
-async fn set_system_required_reviewers(
-    _user: LoginUser,
-    state: State<MonoApiServiceState>,
-    Path(link): Path<String>,
-    Json(payload): Json<SetSystemReviewersPayload>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
-    // TODO: Add permission check with cedar policy
-    state
-        .storage
-        .reviewer_storage()
-        .update_system_required_reviewers(
-            &link,
-            &payload.target_reviewer_usernames,
-            payload.is_system_required,
-        )
-        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
