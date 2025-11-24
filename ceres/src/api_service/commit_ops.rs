@@ -29,32 +29,35 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
     // Resolve the starting commit from refs
     let start_commit = crate::api_service::resolve_start_commit(handler, refs).await?;
 
+    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
+
     // 1) Try as directory path first
     if let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? {
         // Special handling for root directory
-        let (dir_name, parent): (String, &std::path::Path) = if path.as_os_str().is_empty()
+        if path.as_os_str().is_empty()
             || path == std::path::Path::new(".")
             || path == std::path::Path::new("/")
         {
-            // For root directory, treat it as the tree itself with empty parent
-            // This commit represents the root tree's last modification
-            (String::from(""), std::path::Path::new(""))
-        } else {
-            // For non-root directories, extract name and parent normally
-            let dir_name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| GitError::CustomError("Invalid directory path".to_string()))?
-                .to_string();
-            let parent = path
-                .parent()
-                .ok_or_else(|| GitError::CustomError("Directory has no parent".to_string()))?;
-            (dir_name, parent)
-        };
+            // For root directory, the start_commit itself is the last modification
+            let mut commit_info: LatestCommitInfo = (*start_commit).clone().into();
+
+            // Apply username binding if available
+            apply_username_binding(handler, &start_commit.id.to_string(), &mut commit_info).await;
+
+            return Ok(commit_info);
+        }
+
+        // For non-root directories, extract name and parent normally
+        let dir_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| GitError::CustomError("Invalid directory path".to_string()))?
+            .to_string();
+        let parent = path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Directory has no parent".to_string()))?;
 
         let dir_item = TreeItem::new(TreeItemMode::Tree, tree.id, dir_name);
-
-        let cache = Arc::new(Mutex::new(GitObjectCache::default()));
 
         let commit = history::traverse_commit_history_for_last_modification(
             handler,
@@ -67,55 +70,52 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 
         let mut commit_info: LatestCommitInfo = commit.clone().into();
 
-        // If commit has a username binding, prefer showing that username
-        if let Ok(Some(binding)) = handler
-            .build_commit_binding_info(&commit.id.to_string())
-            .await
-            && !binding.is_anonymous
-            && binding.matched_username.is_some()
-        {
-            let username = binding.matched_username.unwrap();
-            commit_info.author = username.clone();
-            commit_info.committer = username;
-        }
+        // Apply username binding if available
+        apply_username_binding(handler, &commit.id.to_string(), &mut commit_info).await;
 
         return Ok(commit_info);
     }
 
     // 2) If not a directory, try as file path
     // Use unified last-modification logic
-    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
-
     match history::resolve_last_modification_by_path(handler, &path, start_commit, cache).await {
         Ok(commit) => {
             let mut commit_info: LatestCommitInfo = commit.clone().into();
-            // If commit has a username binding, prefer showing that username
-            if let Ok(Some(binding)) = handler
-                .build_commit_binding_info(&commit.id.to_string())
-                .await
-                && !binding.is_anonymous
-                && binding.matched_username.is_some()
-            {
-                let username = binding.matched_username.unwrap();
-                commit_info.author = username.clone();
-                commit_info.committer = username;
-            }
+
+            // Apply username binding if available
+            apply_username_binding(handler, &commit.id.to_string(), &mut commit_info).await;
+
             Ok(commit_info)
         }
         Err(e) => {
             // Preserve the original error message for better debugging
             tracing::debug!("File not found or error during traversal: {:?}", e);
-            // If it's already a CustomError with [code:404], preserve it
-            if let GitError::CustomError(msg) = &e
-                && msg.starts_with("[code:404]")
-            {
-                return Err(e);
+            match e {
+                GitError::CustomError(ref msg) if msg.starts_with("[code:404]") => Err(e),
+                _ => Err(GitError::CustomError(
+                    "[code:404] File not found".to_string(),
+                )),
             }
-            // Otherwise wrap with 404 code
-            Err(GitError::CustomError(
-                "[code:404] File not found".to_string(),
-            ))
         }
+    }
+}
+
+/// Apply username binding to commit info if available.
+/// This replaces the Git commit author/committer with the bound username if:
+/// - A binding exists for this commit
+/// - The binding is not anonymous
+/// - A matched username is available
+async fn apply_username_binding<T: ApiHandler + ?Sized>(
+    handler: &T,
+    commit_id: &str,
+    commit_info: &mut LatestCommitInfo,
+) {
+    if let Ok(Some(binding)) = handler.build_commit_binding_info(commit_id).await
+        && !binding.is_anonymous
+        && let Some(username) = binding.matched_username
+    {
+        commit_info.author = username.clone();
+        commit_info.committer = username;
     }
 }
 

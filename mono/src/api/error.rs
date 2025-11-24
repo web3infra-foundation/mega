@@ -2,6 +2,24 @@ use axum::response::{IntoResponse, Json, Response};
 use common::model::CommonResult;
 use http::StatusCode;
 
+/// Parse [code:xxx] format from error message.
+/// Returns (status_code, clean_message) if found, None otherwise.
+///
+/// # Safety
+/// Uses safe string slicing with bounds checking to prevent panics.
+fn parse_error_code(err_str: &str) -> Option<(&str, &str)> {
+    if err_str.starts_with("[code:")
+        && let Some(code_end) = err_str.find(']').filter(|&idx| idx >= 6)
+    {
+        let code = &err_str[6..code_end];
+        // Use safe .get() to avoid potential panic on unicode boundaries
+        let msg = err_str.get(code_end + 1..)?.trim();
+        Some((code, msg))
+    } else {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub struct ApiError {
     inner: anyhow::Error,
@@ -40,22 +58,29 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let mut err_msg = self.inner.to_string();
+        let err_str = self.inner.to_string();
 
         // Remove [code:xxx] prefix from error message for cleaner display
-        if let Some(code_end) = err_msg
-            .find(']')
-            .filter(|&idx| err_msg.starts_with("[code:") && idx >= 6)
-        {
-            err_msg = err_msg[code_end + 1..].trim().to_string();
-        }
+        let err_msg = if let Some((_, msg)) = parse_error_code(&err_str) {
+            msg.to_string()
+        } else {
+            err_str
+        };
 
         tracing::error!("Application error: {}", err_msg);
+
+        // Only expose detailed error messages for 4xx (client) errors
+        // For 5xx (server) errors, use generic message to avoid leaking internal details
+        let response_msg = if self.status.is_client_error() {
+            err_msg
+        } else {
+            "Internal server error".to_string()
+        };
 
         let body = Json(CommonResult::<()> {
             req_result: false,
             data: None,
-            err_message: err_msg,
+            err_message: response_msg,
         });
         (self.status, body).into_response()
     }
@@ -72,11 +97,7 @@ where
         let err_str = anyhow_err.to_string();
 
         // Parse [code:xxx] format and map to appropriate HTTP status code
-        if let Some(code_end) = err_str
-            .find(']')
-            .filter(|&idx| err_str.starts_with("[code:") && idx >= 6)
-        {
-            let code = &err_str[6..code_end];
+        if let Some((code, _)) = parse_error_code(&err_str) {
             return match code {
                 "400" => ApiError::bad_request(anyhow_err),
                 "401" => ApiError::with_status(StatusCode::UNAUTHORIZED, anyhow_err),
@@ -95,16 +116,16 @@ where
 // Map ceres-style coded errors like "[code:404] message" into ApiError with proper status.
 pub(crate) fn map_ceres_error<D: std::fmt::Display>(err: D, ctx: &str) -> ApiError {
     let s = err.to_string();
-    if s.starts_with("[code:")
-        && let Some(pos) = s.find(']')
-    {
-        let code_owned = s[6..pos].to_string();
-        let msg_owned = s[pos + 1..].trim().to_string();
-        match code_owned.as_str() {
-            "400" => return ApiError::bad_request(anyhow::anyhow!(msg_owned)),
-            "404" => return ApiError::not_found(anyhow::anyhow!(msg_owned)),
-            _ => return ApiError::internal(anyhow::anyhow!(msg_owned)),
-        }
+
+    // Reuse the shared parse_error_code helper
+    if let Some((code, msg)) = parse_error_code(&s) {
+        let error_msg = anyhow::anyhow!(msg.to_string());
+        return match code {
+            "400" => ApiError::bad_request(error_msg),
+            "404" => ApiError::not_found(error_msg),
+            _ => ApiError::internal(error_msg),
+        };
     }
+
     ApiError::internal(anyhow::anyhow!(format!("{}: {}", ctx, s)))
 }

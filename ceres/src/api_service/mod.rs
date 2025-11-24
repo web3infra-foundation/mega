@@ -230,6 +230,9 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
     }
 
     // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
+    // Note: get_commit_by_hash returns Commit (not Result), so if the SHA
+    // doesn't exist, it may panic or return a default value depending on implementation.
+    // This is a limitation of the current trait design.
     if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
         let commit = handler.get_commit_by_hash(ref_str).await;
         return Ok(Arc::new(commit));
@@ -237,7 +240,7 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
 
     // Failed to resolve: return descriptive error
     Err(GitError::CustomError(format!(
-        "Invalid reference '{}': not a valid tag name or commit SHA (must be a tag name or a 7-40 digit hex commit hash)",
+        "Invalid reference '{}': not a valid tag name or commit SHA",
         ref_str
     )))
 }

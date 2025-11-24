@@ -295,7 +295,20 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
     visited.insert(start_commit.id);
     commit_queue.push_back((start_commit.clone(), current_hash));
 
+    // Safety limit to prevent unbounded memory usage in complex histories
+    const MAX_ITERATIONS: usize = 10_000;
+    let mut iterations = 0;
+
     while let Some((commit, commit_hash)) = commit_queue.pop_front() {
+        iterations += 1;
+        if iterations > MAX_ITERATIONS {
+            tracing::warn!(
+                "Exceeded maximum iterations ({}) in traverse_commit_history_for_last_modification for path: {:?}",
+                MAX_ITERATIONS,
+                path
+            );
+            return Ok((*start_commit).clone());
+        }
         // No parents: this commit introduced the item or is the earliest
         // reference we can see. Treat it as the last modification.
         if commit.parent_commit_ids.is_empty() {
