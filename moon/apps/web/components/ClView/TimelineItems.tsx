@@ -9,6 +9,7 @@ import {
   FeedPullRequestClosedIcon,
   FeedPullRequestOpenIcon,
   FeedTagIcon,
+  GitPullRequestDraftIcon,
   PersonIcon,
   RepoPushIcon
 } from '@primer/octicons-react'
@@ -24,6 +25,7 @@ import { CommonDetailData } from '@/utils/types'
 import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
 import AssigneeItem from './AssigneeItem'
 import CloseItem from './CloseItem'
+import EditItem from './EditItem'
 import ForcePushItem from './item/ForcePushItem'
 import MergedItem from './MergedItem'
 import ReopenItem from './ReopenItem'
@@ -116,6 +118,10 @@ const TimelineItems = React.memo<{
             icon = <FeedPullRequestClosedIcon size={24} className='text-red-600' />
             children = <CloseItem conv={conv} />
             isOver = true
+            break
+          case 'Edit':
+            icon = <GitPullRequestDraftIcon size={24} className='text-[#6e7781]' />
+            children = <EditItem conv={conv} />
             break
           case 'Reopen':
             icon = <FeedPullRequestOpenIcon size={24} className='text-green-500' />
