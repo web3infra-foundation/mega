@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::api_service::{ApiHandler, history};
+use crate::api_service::{ApiHandler, tree_ops};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
@@ -472,12 +472,65 @@ impl ApiHandler for MonoApiService {
         path: PathBuf,
         reference: Option<&str>,
     ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
-        // Delegate to the history module's implementation, which correctly
-        // traverses commit history using BFS with TREESAME pruning to find
-        // the last commit that modified each item (matching GitHub's behavior).
-        // This replaces the old DB-based logic that incorrectly returned the
-        // first/indexed commit instead of the true last modification.
-        history::item_to_commit_map(self, path, reference).await
+        match tree_ops::search_tree_by_path(self, &path, reference).await? {
+            Some(tree) => {
+                let mut item_to_commit = HashMap::new();
+
+                let storage = self.storage.mono_storage();
+                let tree_hashes = tree
+                    .tree_items
+                    .iter()
+                    .filter(|x| x.mode == TreeItemMode::Tree)
+                    .map(|x| x.id.to_string())
+                    .collect();
+                let trees = storage.get_trees_by_hashes(tree_hashes).await.unwrap();
+                for tree in trees {
+                    // Skip invalid/empty commit ids to avoid noise and incorrect mapping
+                    if !tree.commit_id.is_empty() {
+                        item_to_commit.insert(tree.tree_id, tree.commit_id);
+                    }
+                }
+
+                let blob_hashes = tree
+                    .tree_items
+                    .iter()
+                    .filter(|x| x.mode == TreeItemMode::Blob)
+                    .map(|x| x.id.to_string())
+                    .collect();
+                let blobs = storage.get_mega_blobs_by_hashes(blob_hashes).await.unwrap();
+                for blob in blobs {
+                    if !blob.commit_id.is_empty() {
+                        item_to_commit.insert(blob.blob_id, blob.commit_id);
+                    }
+                }
+
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+                let commits = self
+                    .get_commits_by_hashes(commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, Commit> =
+                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
+
+                let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
+                for item in tree.tree_items {
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
+                        let commit = commit_map.get(commit_id).cloned();
+                        if commit.is_none() {
+                            tracing::warn!(
+                                item_name = %item.name,
+                                item_mode = ?item.mode,
+                                commit_id = %commit_id,
+                                "failed fetch from commit map"
+                            );
+                        }
+                        result.insert(item, commit);
+                    }
+                }
+                Ok(result)
+            }
+            None => Ok(HashMap::new()),
+        }
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {

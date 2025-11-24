@@ -230,11 +230,18 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
     }
 
     // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
-    // Note: get_commit_by_hash returns Commit (not Result), so if the SHA
-    // doesn't exist, it may panic or return a default value depending on implementation.
-    // This is a limitation of the current trait design.
     if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
         let commit = handler.get_commit_by_hash(ref_str).await;
+
+        // Defensive: ensure the resolved commit actually matches the requested SHA
+        // Support short SHAs by requiring the full id to start with the provided prefix.
+        if !commit.id.to_string().starts_with(ref_str) {
+            return Err(GitError::CustomError(format!(
+                "Commit SHA '{}' not found",
+                ref_str
+            )));
+        }
+
         return Ok(Arc::new(commit));
     }
 

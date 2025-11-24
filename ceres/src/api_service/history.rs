@@ -16,7 +16,6 @@ use tokio::sync::Mutex;
 use crate::api_service::{
     ApiHandler,
     cache::{GitObjectCache, get_commit_from_cache, get_tree_from_cache},
-    tree_ops,
 };
 
 /// Builds a mapping from each `TreeItem` under a given path to the commit
@@ -71,19 +70,31 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     // Resolve the starting commit using unified refs resolution logic
     let start_commit_arc = crate::api_service::resolve_start_commit(handler, reference).await?;
 
-    // Get the tree at the specified path
-    let Some(tree) = tree_ops::search_tree_by_path(handler, &path, reference).await? else {
+    // Get the tree at the specified path from the resolved start commit
+    // Use the start commit's tree to ensure consistency
+    let start_tree = handler
+        .get_tree_by_hash(&start_commit_arc.tree_id.to_string())
+        .await;
+    let relative_path = handler
+        .strip_relative(&path)
+        .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+    // Navigate to the target path within the start commit's tree
+    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
+    let Some(tree) =
+        navigate_to_tree(handler, Arc::new(start_tree), &relative_path, &cache).await?
+    else {
         return Ok(HashMap::new());
     };
 
     // For each item in the tree, traverse commit history to find its last modification
-    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
-    let mut result = HashMap::with_capacity(tree.tree_items.len());
+    let tree_items = tree.tree_items.clone();
+    let mut result = HashMap::with_capacity(tree_items.len());
 
-    for item in tree.tree_items {
+    for item in tree_items {
         let commit = traverse_commit_history_for_last_modification(
             handler,
-            &path,
+            &relative_path,
             start_commit_arc.clone(),
             &item,
             cache.clone(),
@@ -236,13 +247,12 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
 /// Traverses commit history from a starting commit to find the last commit
 /// where a specific `TreeItem`'s hash changed between that commit and its parent.
 ///
-/// This is different from [`traverse_commit_history`] which finds the earliest
-/// commit where an item exists. This function walks the parent chain starting
-/// from `start_commit` and returns the first commit where the item's hash at
-/// `path` differs from its direct parent's hash (or where the item did not
-/// exist in the parent). This matches the "last modification" semantics used
-/// by tools like `git log -1 <path>` or `git blame`, which identify the most
-/// recent commit where a file or directory was changed.
+/// This function walks the parent chain starting from `start_commit` and returns
+/// the first commit where the item's hash at `path` differs from its direct
+/// parent's hash (or where the item did not exist in the parent). This matches
+/// the "last modification" semantics used by tools like `git log -1 <path>`
+/// or `git blame`, which identify the most recent commit where a file or
+/// directory was changed.
 ///
 /// # Arguments
 /// - `path`: The directory path under which the target item is expected.
@@ -252,7 +262,7 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
 ///
 /// # Returns
 /// - `Ok(Commit)` — The commit where the item was last modified, or `start_commit` if unchanged.
-/// - `Err(GitError)` — If traversal fails.
+/// - `Err(GitError)` — If the path or item does not exist in `start_commit`, or if traversal fails.
 pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Sized>(
     handler: &T,
     path: &Path,

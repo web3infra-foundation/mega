@@ -4,9 +4,6 @@ use http::StatusCode;
 
 /// Parse [code:xxx] format from error message.
 /// Returns (status_code, clean_message) if found, None otherwise.
-///
-/// # Safety
-/// Uses safe string slicing with bounds checking to prevent panics.
 fn parse_error_code(err_str: &str) -> Option<(&str, &str)> {
     if err_str.starts_with("[code:")
         && let Some(code_end) = err_str.find(']').filter(|&idx| idx >= 6)
