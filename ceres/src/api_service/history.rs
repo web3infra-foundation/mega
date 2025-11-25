@@ -75,15 +75,10 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     let start_tree = handler
         .get_tree_by_hash(&start_commit_arc.tree_id.to_string())
         .await;
-    let relative_path = handler
-        .strip_relative(&path)
-        .map_err(|e| GitError::CustomError(e.to_string()))?;
 
     // Navigate to the target path within the start commit's tree
     let cache = Arc::new(Mutex::new(GitObjectCache::default()));
-    let Some(tree) =
-        navigate_to_tree(handler, Arc::new(start_tree), &relative_path, &cache).await?
-    else {
+    let Some(tree) = navigate_to_tree(handler, Arc::new(start_tree), &path, &cache).await? else {
         return Ok(HashMap::new());
     };
 
@@ -94,7 +89,7 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     for item in tree_items {
         let commit = traverse_commit_history_for_last_modification(
             handler,
-            &relative_path,
+            &path,
             start_commit_arc.clone(),
             &item,
             cache.clone(),
@@ -144,6 +139,11 @@ async fn navigate_to_tree<T: ApiHandler + ?Sized>(
                 .find(|x| x.name == target_name);
 
             if let Some(search_res) = search_res {
+                // Only descend into tree entries; hitting a blob here means the path
+                // is pointing to a file where a directory/tree is expected.
+                if !search_res.is_tree() {
+                    return Ok(None);
+                }
                 search_tree = get_tree_from_cache(handler, search_res.id, cache).await?;
             } else {
                 return Ok(None);
