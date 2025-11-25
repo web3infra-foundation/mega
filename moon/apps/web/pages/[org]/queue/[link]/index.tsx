@@ -2,29 +2,40 @@
 
 import React from 'react'
 
-import type { QueueItem, QueueStats } from '@gitmono/types/generated'
+import { QueueStats } from '@gitmono/types'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { QueueView } from '@/components/QueueView'
-import { list, stats } from '@/components/QueueView/mock'
-// import { useDeleteMergeQueueRemove } from '@/hooks/MergeQueue/useDeleteMergeQueueRemove'
-// import { usePostMergeQueueCancelAll } from '@/hooks/MergeQueue/usePostMergeQueueCancelAll'
-// import { usePostMergeQueueRetry } from '@/hooks/MergeQueue/usePostMergeQueueRetry'
-
-// import { useGetMergeQueueList } from '@/hooks/MergeQueue/useGetMergeQueueList'
-// import { useGetMergeQueueStats } from '@/hooks/MergeQueue/useGetMergeQueueStats'
-
+import { useGetMergeQueueList } from '@/hooks/MergeQueue/useGetMergeQueueList'
+import { useGetMergeQueueStats } from '@/hooks/MergeQueue/useGetMergeQueueStats'
 import { PageWithLayout } from '@/utils/types'
 
-//  mock
-const mockQueueItems: QueueItem[] = list.data.items as QueueItem[]
-const mockStats: QueueStats = stats.data.stats as QueueStats
+// import { stats,list } from '@/components/QueueView/mock'
 
-const isLoading = false
+const defaultStats: QueueStats = {
+  total_items: 0,
+  failed_count: 0,
+  merged_count: 0,
+  merging_count: 0,
+  testing_count: 0,
+  waiting_count: 0
+}
 
 const QueuePage: PageWithLayout<any> = () => {
-  return <QueueView items={mockQueueItems} stats={mockStats} isLoading={isLoading} />
+  const { data: queueList, isLoading: listLoading } = useGetMergeQueueList()
+  const { data: queueStats, isLoading: statsLoading } = useGetMergeQueueStats()
+
+  return (
+    <QueueView
+      // items={list?.data?.items || []}
+      // stats={stats.data.stats || defaultStats}
+      items={queueList?.data?.items || []}
+      stats={queueStats?.data?.stats || defaultStats}
+      ListLoading={listLoading}
+      StatsisLoading={statsLoading}
+    />
+  )
 }
 
 QueuePage.getProviders = (page, pageProps) => {
