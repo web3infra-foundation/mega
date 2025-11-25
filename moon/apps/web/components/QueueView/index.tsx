@@ -13,10 +13,11 @@ import { QueueStatsCard } from './stats'
 interface QueueViewProps {
   items: QueueItem[]
   stats: QueueStats
-  isLoading?: boolean
+  ListLoading?: boolean
+  StatsisLoading?: boolean
 }
 
-export const QueueView: React.FC<QueueViewProps> = ({ items, stats, isLoading = false }) => {
+export const QueueView: React.FC<QueueViewProps> = ({ items, stats, ListLoading = false, StatsisLoading = false }) => {
   return (
     <IndexPageContainer>
       <BreadcrumbTitlebar>
@@ -29,11 +30,11 @@ export const QueueView: React.FC<QueueViewProps> = ({ items, stats, isLoading = 
       >
         <div className='grid grid-cols-1 gap-6 md:grid-cols-4'>
           <div className='md:col-span-3'>
-            <QueueItemsList items={items} stats={stats} isLoading={isLoading} />
+            <QueueItemsList items={items} stats={stats} isLoading={ListLoading} />
           </div>
 
           <div className='md:col-span-1'>
-            <QueueStatsCard stats={stats} isLoading={isLoading} />
+            <QueueStatsCard stats={stats} isLoading={StatsisLoading} />
           </div>
         </div>
       </IndexPageContent>
