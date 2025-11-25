@@ -90,10 +90,10 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
   const header = (
     <BreadcrumbTitlebarContainer className='justify-between bg-gray-100 pl-3 pr-3'>
       <div className='flex items-center gap-3'>
-        <span className='p-2 font-medium'>{sortedItems.length} items</span>
-        <span className='text-sm text-gray-500'>
-          Waiting {stats.waiting_count} · Testing {stats.testing_count} · Merging {stats.merging_count}
-        </span>
+        <GitPullRequestClosedIcon />
+        <span className='p-2 font-medium'>{sortedItems.length} Queued</span>
+
+        {sortedItems.length > 0 && <span className='text-sm text-gray-500'>{stats.failed_count} Failing</span>}
       </div>
 
       <div className='flex items-center gap-2'>
