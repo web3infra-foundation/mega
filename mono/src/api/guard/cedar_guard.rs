@@ -36,8 +36,7 @@ pub static CL_ROUTER_ACTIONS: Lazy<HashMap<&'static str, ActionEnum>> = Lazy::ne
         ("reviewers", ActionEnum::EditMergeRequest),
         ("approve", ActionEnum::ApproveMergeRequest),
         ("resolve", ActionEnum::EditMergeRequest),
-        // Changing status (e.g., marking as ready for review) is a distinct permission.
-        ("status", ActionEnum::RequestReview),
+        ("status", ActionEnum::EditMergeRequest),
     ])
 });
 
