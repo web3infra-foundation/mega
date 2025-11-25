@@ -28,14 +28,6 @@ export function usePostMergeQueueAdd() {
       if (response.req_result && response.data?.success) {
         toast.success(response.data.message || 'Added to merge queue successfully')
 
-        queryClient.invalidateQueries({
-          queryKey: legacyApiClient.v1.getApiMergeQueueList().requestKey()
-        })
-
-        queryClient.invalidateQueries({
-          queryKey: legacyApiClient.v1.getApiMergeQueueStats().requestKey()
-        })
-
         if (variables.cl_link) {
           queryClient.invalidateQueries({
             queryKey: legacyApiClient.v1.getApiMergeQueueStatusByClLink().requestKey(variables.cl_link)
