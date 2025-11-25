@@ -14,11 +14,12 @@ import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { legacyApiClient } from '@/utils/queryClient'
 
 import { ChecksSection } from './ChecksSection'
+import { DraftStatusBanner } from './components/DraftStatusBanner'
 import { useMergeChecks } from './hooks/useMergeChecks'
 import { MergeSection } from './MergeSection'
 import { ReviewerSection } from './ReviewerSection'
 
-export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
+export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, status }) => {
   const { scope } = useScope()
   const { checks, refresh } = useMergeChecks(prId)
   const [hasCheckFailures, setHasCheckFailures] = useState(true)
@@ -95,6 +96,8 @@ export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
         <div className='ml-3 w-full divide-y rounded-lg border bg-white'>
           <ReviewerSection required={required} actual={actual} />
           <ChecksSection checks={checks} onStatusChange={setHasCheckFailures} additionalChecks={additionalChecks} />
+          {status === 'Draft' && <DraftStatusBanner link={id} />}
+
           <MergeSection
             isNowUserApprove={isNowUserApprove}
             isAllReviewerApproved={isAllReviewerApproved}
@@ -103,6 +106,7 @@ export const MergeBox = React.memo<{ prId: string }>(({ prId }) => {
             onApprove={handleApprove}
             isMerging={clMergeIsPending}
             clLink={clLink}
+            clStatus={status}
           />
         </div>
       )}

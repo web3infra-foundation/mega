@@ -1,7 +1,13 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestIcon, XIcon } from '@primer/octicons-react'
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  XIcon
+} from '@primer/octicons-react'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
@@ -42,6 +48,7 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
 import { Pagination } from '../Issues/Pagenation'
 import { clIdAtom } from '../Issues/utils/store'
+import { useDraftClList } from './hook/useDraftClList'
 
 type ItemsType = NonNullable<PostApiClListData['data']>['items']
 
@@ -59,6 +66,7 @@ export default function CLView() {
   const [_clid, setClid] = useAtom(clIdAtom)
 
   const { mutate: fetchClList } = usePostClList()
+  const { mutate: fetchDraftClList } = useDraftClList()
   const { members } = useSyncedMembers()
 
   const filterState = useFilterState({ scope: scope as string, type: 'cl' })
@@ -96,32 +104,57 @@ export default function CLView() {
 
     const params = filterStateRef.current.toApiParams()
     const currentOrder = orderRef.current
-    const additional: any = {
-      status,
-      asc: currentOrder.time === 'Oldest',
+    const baseAdditional: any = {
       sort_by: handleSort(currentOrder.sort),
       ...params
     }
 
-    fetchClList(
-      {
-        data: {
-          pagination: { page, per_page: pageSize },
-          additional
-        }
-      },
-      {
-        onSuccess: (response) => {
-          const data = response.data
-
-          setClList(data?.items ?? [])
-          setNumTotal(data?.total ?? 0)
+    if (status === 'draft') {
+      fetchDraftClList(
+        {
+          data: {
+            pagination: { page, per_page: pageSize },
+            additional: baseAdditional
+          }
         },
-        onError: apiErrorToast,
-        onSettled: () => setIsLoading(false)
+        {
+          onSuccess: (response) => {
+            const data = response.data
+
+            setClList((data?.items ?? []) as ItemsType)
+            setNumTotal(data?.total ?? 0)
+          },
+          onError: apiErrorToast,
+          onSettled: () => setIsLoading(false)
+        }
+      )
+    } else {
+      const additional: any = {
+        ...baseAdditional,
+        status,
+        asc: currentOrder.time === 'Oldest'
       }
-    )
-  }, [page, pageSize, status, fetchClList])
+
+      fetchClList(
+        {
+          data: {
+            pagination: { page, per_page: pageSize },
+            additional
+          }
+        },
+        {
+          onSuccess: (response) => {
+            const data = response.data
+
+            setClList((data?.items ?? []) as ItemsType)
+            setNumTotal(data?.total ?? 0)
+          },
+          onError: apiErrorToast,
+          onSettled: () => setIsLoading(false)
+        }
+      )
+    }
+  }, [page, pageSize, status, fetchClList, fetchDraftClList])
 
   useEffect(() => {
     fetchClListData()
@@ -178,6 +211,8 @@ export default function CLView() {
     switch (normalizedStatus) {
       case 'open':
         return <GitPullRequestIcon className='text-[#378f50]' />
+      case 'draft':
+        return <GitPullRequestDraftIcon className='text-[#6e7781]' />
       case 'closed':
         return <GitPullRequestClosedIcon className='text-[#d1242f]' />
       case 'merged':

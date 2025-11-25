@@ -3874,7 +3874,8 @@ export type MergeRequirements = {
 export enum MergeStatus {
   Open = 'Open',
   Merged = 'Merged',
-  Closed = 'Closed'
+  Closed = 'Closed',
+  Draft = 'Draft'
 }
 
 export type MuiTreeNode = {
@@ -4081,6 +4082,10 @@ export type TreeHashItem = {
 export type TreeResponse = {
   file_tree: Record<string, FileTreeItem>
   tree_items: TreeBriefItem[]
+}
+
+export type UpdateClStatusPayload = {
+  status: string
 }
 
 export type UpdateCommitBindingRequest = {
@@ -5375,6 +5380,8 @@ export type GetApiClReviewersData = CommonResultReviewersResponse
 export type PostApiClReviewersData = CommonResultString
 
 export type DeleteApiClReviewersData = CommonResultString
+
+export type PostApiClStatusData = CommonResultString
 
 export type PostApiClTitleData = CommonResultString
 
@@ -14323,6 +14330,31 @@ It's for local testing purposes.
           this.request<DeleteApiClReviewersData>({
             path: `/api/v1/cl/${link}/reviewers`,
             method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Change List
+     * @name PostApiClStatus
+     * @summary Update CL status (Draft ↔ Open)
+     * @request POST:/api/v1/cl/{link}/status
+     */
+    postApiClStatus: () => {
+      const base = 'POST:/api/v1/cl/{link}/status' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiClStatusData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiClStatusData>([base, link]),
+        request: (link: string, data: UpdateClStatusPayload, params: RequestParams = {}) =>
+          this.request<PostApiClStatusData>({
+            path: `/api/v1/cl/${link}/status`,
+            method: 'POST',
             body: data,
             type: ContentType.Json,
             ...params

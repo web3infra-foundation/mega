@@ -1,7 +1,7 @@
 import React from 'react'
 import { useRouter } from 'next/router'
 
-import { CheckCircleIcon, LoadingSpinner, WarningTriangleIcon } from '@gitmono/ui'
+import { CheckCircleIcon, LoadingSpinner, Tooltip, WarningTriangleIcon } from '@gitmono/ui'
 
 import { useScope } from '@/contexts/scope'
 import { useGetMergeQueueStatus } from '@/hooks/MergeQueue/useGetMergeQueueStatus'
@@ -15,6 +15,7 @@ interface MergeSectionProps {
   onApprove: () => void
   isMerging: boolean
   clLink: string
+  clStatus?: string
 }
 
 export const MergeSection = React.memo<MergeSectionProps>(
@@ -25,7 +26,8 @@ export const MergeSection = React.memo<MergeSectionProps>(
     onMerge,
     onApprove,
     isMerging,
-    clLink
+    clLink,
+    clStatus
   }) => {
     const router = useRouter()
     const { scope } = useScope()
@@ -38,8 +40,16 @@ export const MergeSection = React.memo<MergeSectionProps>(
     let statusNode: React.ReactNode
 
     const isMergeable = isAllReviewerApproved
+    const isDraft = clStatus?.toLowerCase() === 'draft'
 
-    if (!isAllReviewerApproved) {
+    if (isDraft) {
+      statusNode = (
+        <div className='flex items-center text-yellow-700'>
+          <WarningTriangleIcon className='mr-3 h-5 w-5' />
+          <span className='font-semibold'>CL has not yet prepared for the review</span>
+        </div>
+      )
+    } else if (!isAllReviewerApproved) {
       statusNode = (
         <div className='flex items-center text-yellow-700'>
           <WarningTriangleIcon className='mr-3 h-5 w-5' />
@@ -82,22 +92,43 @@ export const MergeSection = React.memo<MergeSectionProps>(
         )}
 
         <div className='ClBox-MergeSection flex items-center justify-center gap-4' style={{ marginTop: '12px' }}>
-          <button
-            onClick={onApprove}
-            disabled={isNowUserApprove === undefined || isNowUserApprove}
-            className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
-          >
-            Approve
-          </button>
+          {!isDraft && (
+            <button
+              onClick={onApprove}
+              disabled={isNowUserApprove === undefined || isNowUserApprove}
+              className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
+            >
+              Approve
+            </button>
+          )}
 
           {!inQueue ? (
-            <button
-              onClick={handleAddToQueue}
-              disabled={isAddingToQueue || !isMergeable}
-              className='w-full rounded-md bg-purple-600 px-4 py-2 font-bold text-white duration-500 hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-gray-400'
-            >
-              {isAddingToQueue ? <LoadingSpinner /> : 'Add to Queue'}
-            </button>
+            isDraft ? (
+              <Tooltip
+                label={
+                  <div className='rounded-md bg-[#25292e] px-3 py-1 text-xs text-white'>
+                    Merging is blocked due to failing merge requirements
+                  </div>
+                }
+                side='top'
+              >
+                <button
+                  onClick={handleAddToQueue}
+                  disabled
+                  className='w-full rounded-md bg-purple-600 px-4 py-2 font-bold text-white duration-500 hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-gray-400'
+                >
+                  Add to Queue
+                </button>
+              </Tooltip>
+            ) : (
+              <button
+                onClick={handleAddToQueue}
+                disabled={isAddingToQueue || !isMergeable}
+                className='w-full rounded-md bg-purple-600 px-4 py-2 font-bold text-white duration-500 hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-gray-400'
+              >
+                {isAddingToQueue ? <LoadingSpinner /> : 'Add to Queue'}
+              </button>
+            )
           ) : (
             <button
               onClick={onMerge}
