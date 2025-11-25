@@ -8,7 +8,6 @@ use axum::{
 use anyhow::Result;
 
 use ceres::{
-    api_service::ApiHandler,
     model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
@@ -110,35 +109,24 @@ async fn get_latest_commit(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
     let query_path: std::path::PathBuf = query.path.into();
-    let import_dir = state.storage.config().monorepo.import_dir.clone();
 
-    if let Ok(rest) = query_path.strip_prefix(import_dir)
-        && rest.components().count() == 1
-    {
-        let res = state
-            .monorepo()
-            .get_latest_commit(query_path.clone())
-            .await?;
-        return Ok(Json(res));
-    }
+    // Pass refs as None if empty, ensuring consistent behavior for both tag and commit SHA
+    let refs_opt = if query.refs.is_empty() {
+        None
+    } else {
+        Some(query.refs.as_str())
+    };
 
+    tracing::debug!(
+        "get_latest_commit with path: {:?}, refs: {:?}",
+        query_path,
+        refs_opt
+    );
+
+    // api_handler automatically determines whether to use monorepo or import handler
     let api_handler = state.api_handler(&query_path).await?;
 
-    // Choose method based on whether refs is empty
-    let res = if query.refs.is_empty() {
-        // No refs specified, use original method
-        tracing::debug!("No refs specified, using default get_latest_commit");
-        api_handler.get_latest_commit(query_path).await?
-    } else {
-        // Refs specified, use new method
-        tracing::debug!(
-            "Refs specified: {}, using get_latest_commit_with_refs",
-            query.refs
-        );
-        api_handler
-            .get_latest_commit_with_refs(query_path, Some(query.refs.as_str()))
-            .await?
-    };
+    let res = api_handler.get_latest_commit(query_path, refs_opt).await?;
 
     Ok(Json(res))
 }
