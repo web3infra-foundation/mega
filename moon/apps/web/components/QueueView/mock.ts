@@ -13,16 +13,6 @@ const list = {
         error: null
       },
       {
-        cl_link: 'cl-Merged',
-        status: 'Merged',
-        position: 3,
-        display_position: 3,
-        created_at: '2025-11-14 12:30:00',
-        updated_at: '2025-11-14 12:35:00',
-        retry_count: 0,
-        error: null
-      },
-      {
         cl_link: 'cl-200-waiting',
         status: 'Waiting',
         position: 2,
@@ -66,11 +56,11 @@ const stats = {
   data: {
     stats: {
       total_items: 5,
-      waiting_count: 1,
+      waiting_count: 0,
       testing_count: 1,
-      merging_count: 1,
+      merging_count: 2,
       failed_count: 1,
-      merged_count: 1
+      merged_count: 8
     }
   }
 }

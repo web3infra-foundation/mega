@@ -6,7 +6,6 @@ import { useRouter } from 'next/router'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import { useGetMergeBox } from '@/components/ClBox/hooks/useGetMergeBox'
-import { useScope } from '@/contexts/scope'
 import { useGetClReviewers } from '@/hooks/CL/useGetClReviewers'
 import { usePostClMerge } from '@/hooks/CL/usePostClMerge'
 import { usePostClReviewerApprove } from '@/hooks/CL/usePostClReviewerApprove'
@@ -20,7 +19,6 @@ import { MergeSection } from './MergeSection'
 import { ReviewerSection } from './ReviewerSection'
 
 export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, status }) => {
-  const { scope } = useScope()
   const { checks, refresh } = useMergeChecks(prId)
   const [hasCheckFailures, setHasCheckFailures] = useState(true)
   const route = useRouter()
@@ -83,7 +81,6 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
   }, [reviewApprove, id, queryClient])
 
   const additionalChecks = mergeBoxData?.merge_requirements?.conditions ?? []
-  const clLink = `${scope}/cl/${id}`
 
   return (
     <div className='flex'>
@@ -105,8 +102,8 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
             onMerge={handleMerge}
             onApprove={handleApprove}
             isMerging={clMergeIsPending}
-            clLink={clLink}
             clStatus={status}
+            clLink={id}
           />
         </div>
       )}
