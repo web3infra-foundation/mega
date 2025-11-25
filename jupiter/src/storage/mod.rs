@@ -1,5 +1,5 @@
 pub mod base_storage;
-pub(crate) mod cl_reviewer_storage;
+pub mod cl_reviewer_storage;
 pub mod cl_storage;
 pub mod commit_binding_storage;
 pub mod conversation_storage;
