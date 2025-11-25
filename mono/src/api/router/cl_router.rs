@@ -716,7 +716,7 @@ async fn update_cl_status(
                     &link,
                     &user.username,
                     Some(format!("{} marked this as ready for review", user.username)),
-                    ConvTypeEnum::Edit,
+                    ConvTypeEnum::Review,
                 )
                 .await?;
         }
@@ -728,7 +728,7 @@ async fn update_cl_status(
                     &link,
                     &user.username,
                     Some(format!("{} marked this as draft", user.username)),
-                    ConvTypeEnum::Edit,
+                    ConvTypeEnum::Draft,
                 )
                 .await?;
         }

@@ -36,6 +36,7 @@ pub static CL_ROUTER_ACTIONS: Lazy<HashMap<&'static str, ActionEnum>> = Lazy::ne
         ("reviewers", ActionEnum::EditMergeRequest),
         ("approve", ActionEnum::ApproveMergeRequest),
         ("resolve", ActionEnum::EditMergeRequest),
+        ("status", ActionEnum::EditMergeRequest),
     ])
 });
 
