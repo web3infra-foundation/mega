@@ -273,7 +273,8 @@ export const BadgeItem = ({
   handleGroup,
   open,
   onOpenChange,
-  selected
+  selected,
+  emptyExtra
 }: {
   title: string
   selectPannelProps?: Omit<React.ComponentProps<typeof SelectPanel>, SelectPanelExcludedProps> & {
@@ -285,6 +286,7 @@ export const BadgeItem = ({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   selected?: ItemInput[]
+  emptyExtra?: React.ReactNode
 }) => {
   // const { open, onOpenChange } = selectPannelProps ?? {}
   // open有传，则是受控组件，没传就是非受控组件(内部管理)
@@ -334,7 +336,11 @@ export const BadgeItem = ({
                       <HelpIcon />
                     </div>
                   </ActionList.Item>
-                  {container ? children?.(container) : <SideBarItem emptyState={`No ${title.toLowerCase()}`} />}
+                  {container ? (
+                    children?.(container)
+                  ) : (
+                    <SideBarItem emptyState={`No ${title.toLowerCase()}`} extra={emptyExtra} />
+                  )}
                 </div>
               )
             }}
@@ -355,11 +361,12 @@ export const BadgeItem = ({
   )
 }
 
-export const SideBarItem = ({ emptyState }: { emptyState: string }) => {
+export const SideBarItem = ({ emptyState, extra }: { emptyState: string; extra?: React.ReactNode }) => {
   return (
     <>
       <div className='mx-4 text-sm text-gray-500'>
         <div className='mb-4 mt-4'>{emptyState}</div>
+        {extra}
         <div className='h-[1px] w-full bg-gray-200'></div>
       </div>
     </>

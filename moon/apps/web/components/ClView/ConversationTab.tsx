@@ -6,6 +6,7 @@ import { cn } from '@gitmono/ui/utils'
 
 import { EMPTY_HTML } from '@/atoms/markdown'
 import { MergeBox } from '@/components/ClBox/MergeBox'
+import { ConvertToDraftDialog } from '@/components/ClView/components/ConvertToDraftDialog'
 import TimelineItems from '@/components/ClView/TimelineItems'
 import { BadgeItem } from '@/components/Issues/IssueNewPage'
 import { splitFun } from '@/components/Issues/utils/sideEffect'
@@ -115,7 +116,11 @@ export const ConversationTab = React.memo<ConversationTabProps>(
           )
         )}
         <div style={{ marginTop: '12px' }} className='prose'>
-          <div className='w-full'>{clDetail && clDetail.status === 'Open' && <MergeBox prId={id} />}</div>
+          <div className='w-full'>
+            {clDetail && (clDetail.status === 'Open' || clDetail.status === 'Draft') && (
+              <MergeBox prId={id} status={clDetail.status} />
+            )}
+          </div>
           <h2 style={{ marginTop: '15px', marginBottom: '15px' }}>Add a comment</h2>
           <input {...dropzone.getInputProps()} />
           <div className='rounded-lg border p-6' style={{ marginTop: '15px', marginBottom: '15px' }}>
@@ -184,6 +189,20 @@ export const ConversationTab = React.memo<ConversationTabProps>(
           onOpenChange={(open) => review_handleOpenChange(open)}
           handleGroup={(selected) => handleReviewers(selected)}
           selected={review_fetchSelected}
+          emptyExtra={
+            clDetail &&
+            clDetail.status === 'Open' && (
+              <div className='mt-2 text-xs text-gray-900'>
+                <span>Still in progress? </span>
+                <ConvertToDraftDialog
+                  trigger={
+                    <span className='cursor-pointer text-gray-500 underline hover:text-gray-700'>Convert to draft</span>
+                  }
+                  link={clDetail.link}
+                />
+              </div>
+            )
+          }
         >
           {(el) => {
             const names = Array.from(new Set(splitFun(el)))
@@ -217,6 +236,19 @@ export const ConversationTab = React.memo<ConversationTabProps>(
                     </div>
                   )
                 })}
+                {clDetail && clDetail.status === 'Open' && (
+                  <div className='pointer-events-auto mt-2 px-4 text-xs text-gray-900'>
+                    <span>Still in progress? </span>
+                    <ConvertToDraftDialog
+                      trigger={
+                        <span className='cursor-pointer text-gray-500 underline hover:text-gray-700'>
+                          Convert to draft
+                        </span>
+                      }
+                      link={clDetail.link}
+                    />
+                  </div>
+                )}
               </div>
             )
           }}
