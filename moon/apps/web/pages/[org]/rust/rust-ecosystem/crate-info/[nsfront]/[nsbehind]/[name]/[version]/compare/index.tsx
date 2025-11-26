@@ -546,7 +546,7 @@ const ComparePage = () => {
       <Head>
         <title>Compare - {crateName}</title>
       </Head>
-      <CrateInfoLayout>
+      <CrateInfoLayout versions={versions}>
         <div className='flex justify-center'>
           <div className='w-[1370px] px-8 py-4' style={{ paddingLeft: '32px', paddingRight: '32px' }}>
             {/* 左右两个卡片 */}
