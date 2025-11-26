@@ -28,7 +28,7 @@ One execution of a full sync:
 ```bash
 docker run --rm -d \
   --name mega-update \
-  --add-host=git.gitmega.nju:172.17.0.1 \
+  --add-host=git.gitmega.nju:10.42.0.1 \
   --env-file ./extensions/update/.env \
   -v /mnt/data:/opt/data \
   mega-update:latest
