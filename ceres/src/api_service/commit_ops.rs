@@ -33,8 +33,10 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 
     // 1) Try as directory path first
     if let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? {
+        let is_repo_root = tree.id == start_commit.tree_id;
         // Special handling for root directory
-        if path.as_os_str().is_empty()
+        if is_repo_root
+            || path.as_os_str().is_empty()
             || path == std::path::Path::new(".")
             || path == std::path::Path::new("/")
         {
