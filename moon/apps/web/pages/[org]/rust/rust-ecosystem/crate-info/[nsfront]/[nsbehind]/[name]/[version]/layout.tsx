@@ -185,7 +185,7 @@ const CrateInfoLayoutComponent = ({ children, versions: providedVersions }: Crat
 
       setSelectedVersion(newVersion)
       const targetPath = buildVersionPath(newVersion, activeTab)
-      
+
       router.push(targetPath, undefined, { shallow: true })
     },
     [activeTab, buildVersionPath, router, selectedVersion]

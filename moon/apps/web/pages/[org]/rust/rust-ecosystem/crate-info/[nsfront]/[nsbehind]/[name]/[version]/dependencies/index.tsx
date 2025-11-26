@@ -99,9 +99,7 @@ const DependenciesPage = () => {
 
       try {
         const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
-        const response = await fetch(
-          `${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/versions`
-        )
+        const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/versions`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch versions')
@@ -110,7 +108,7 @@ const DependenciesPage = () => {
         const data = (await response.json()) as Array<{ version?: string }>
 
         const versionList = data.map((item) => item.version).filter((item): item is string => Boolean(item))
-        
+
         setVersions(versionList)
       } catch (err) {
         setVersions([])
