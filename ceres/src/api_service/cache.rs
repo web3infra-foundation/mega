@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use redis::{AsyncCommands, Client};
+use jupiter::redis::client::RedisPoolClient;
+use redis::AsyncCommands;
 
 use common::errors::MegaError;
 use git_internal::{
@@ -10,7 +11,7 @@ use git_internal::{
 
 #[derive(Clone)]
 pub struct GitObjectCache {
-    pub redis: Arc<Client>,
+    pub redis: Arc<RedisPoolClient>,
     pub prefix: String,
 }
 
@@ -18,15 +19,14 @@ const DEFAULT_EXPIRY_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
 impl GitObjectCache {
     pub fn mock() -> Self {
-        let redis_client = Arc::new(Client::open("redis://127.0.0.1:6379".to_string()).unwrap());
         GitObjectCache {
-            redis: redis_client,
-            prefix: "".to_string(),
+            redis: Arc::new(RedisPoolClient::mock()),
+            prefix: "mock:key".to_string(),
         }
     }
 
     pub async fn ping(&self) -> Result<(), MegaError> {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = self.redis.get_connection().await?;
         let _: () = redis::cmd("PING").query_async(&mut conn).await?;
         Ok(())
     }
@@ -36,7 +36,7 @@ impl GitObjectCache {
         F: Fn(SHA1) -> Fut,
         Fut: Future<Output = Result<Tree, MegaError>>,
     {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = self.redis.get_connection().await?;
         let key = format!("{}:tree:{}", self.prefix, oid);
 
         if let Ok(json) = conn.get::<_, String>(&key).await
@@ -64,7 +64,7 @@ impl GitObjectCache {
         F: Fn(SHA1) -> Fut,
         Fut: Future<Output = Result<Commit, MegaError>>,
     {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = self.redis.get_connection().await?;
         let key = format!("{}:commit:{}", self.prefix, oid);
 
         if let Ok(json) = conn.get::<_, String>(&key).await
