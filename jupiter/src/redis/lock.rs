@@ -1,4 +1,5 @@
-use redis::{Client, RedisResult, Script};
+use common::errors::MegaError;
+use redis::Script;
 use std::sync::Arc;
 use tokio::{
     sync::Notify,
@@ -6,9 +7,11 @@ use tokio::{
 };
 use uuid::Uuid;
 
+use crate::redis::client::RedisPoolClient;
+
 #[derive(Clone)]
 pub struct RedLock {
-    client: Arc<Client>,
+    client: Arc<RedisPoolClient>,
     key: String,
     value: String,
     ttl_ms: u64,
@@ -16,7 +19,7 @@ pub struct RedLock {
 }
 
 impl RedLock {
-    pub fn new(client: Arc<Client>, key: impl Into<String>, ttl_ms: u64) -> Self {
+    pub fn new(client: Arc<RedisPoolClient>, key: impl Into<String>, ttl_ms: u64) -> Self {
         Self {
             client,
             key: key.into(),
@@ -27,9 +30,8 @@ impl RedLock {
     }
 
     /// Try lock: SET key value NX PX TTL
-    pub async fn try_lock(&self) -> redis::RedisResult<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
-
+    pub async fn try_lock(&self) -> Result<bool, MegaError> {
+        let mut conn = self.client.get_connection().await?;
         // SET returns "OK" or Nil
         let result: Option<String> = redis::cmd("SET")
             .arg(&self.key)
@@ -44,7 +46,7 @@ impl RedLock {
     }
 
     /// Lock with retry
-    pub async fn lock(self: Arc<Self>) -> redis::RedisResult<RedLockGuard> {
+    pub async fn lock(self: Arc<Self>) -> Result<RedLockGuard, MegaError> {
         while !self.try_lock().await? {
             sleep(Duration::from_millis(200)).await;
         }
@@ -55,7 +57,7 @@ impl RedLock {
     }
 
     /// Unlock via Lua atomic script
-    pub async fn unlock(&self) -> redis::RedisResult<bool> {
+    pub async fn unlock(&self) -> Result<bool, MegaError> {
         // stop renewer task
         self.stop_notify.notify_waiters();
 
@@ -69,7 +71,7 @@ impl RedLock {
             "#,
         );
 
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.client.get_connection().await?;
         let deleted: i32 = script
             .key(&self.key)
             .arg(&self.value)
@@ -92,7 +94,7 @@ impl RedLock {
                     _ = mutex.stop_notify.notified() => break,
                 }
 
-                let mut conn = match mutex.client.get_multiplexed_async_connection().await {
+                let mut conn = match mutex.client.get_connection().await {
                     Ok(c) => c,
                     Err(_) => continue,
                 };
@@ -114,7 +116,7 @@ pub struct RedLockGuard {
 }
 
 impl RedLockGuard {
-    pub async fn unlock(self) -> RedisResult<()> {
+    pub async fn unlock(self) -> Result<(), MegaError> {
         let mutex = self.mutex.clone();
         mutex.unlock().await?;
         Ok(())
