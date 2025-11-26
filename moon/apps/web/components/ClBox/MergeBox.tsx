@@ -7,7 +7,7 @@ import { LoadingSpinner } from '@gitmono/ui'
 
 import { useGetMergeBox } from '@/components/ClBox/hooks/useGetMergeBox'
 import { useGetClReviewers } from '@/hooks/CL/useGetClReviewers'
-import { usePostClMerge } from '@/hooks/CL/usePostClMerge'
+// import { usePostClMerge } from '@/hooks/CL/usePostClMerge'
 import { usePostClReviewerApprove } from '@/hooks/CL/usePostClReviewerApprove'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { legacyApiClient } from '@/utils/queryClient'
@@ -19,13 +19,12 @@ import { MergeSection } from './MergeSection'
 import { ReviewerSection } from './ReviewerSection'
 
 export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, status }) => {
-  const { checks, refresh } = useMergeChecks(prId)
+  const { checks } = useMergeChecks(prId)
   const [hasCheckFailures, setHasCheckFailures] = useState(true)
   const route = useRouter()
   const { link } = route.query
   const id = typeof link === 'string' ? link : ''
 
-  const { mutate: approveCl, isPending: clMergeIsPending } = usePostClMerge(id)
   const { mutate: reviewApprove } = usePostClReviewerApprove()
   const queryClient = useQueryClient()
   const { reviewers, isLoading: isReviewerLoading } = useGetClReviewers(id)
@@ -43,24 +42,6 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
   }
 
   const { mergeBoxData, isLoading: isAdditionLoading } = useGetMergeBox(prId)
-
-  // Define the final merge handler function
-  const handleMerge = useCallback(async () => {
-    try {
-      // Call merge API directly, only requires reviewers approval
-      approveCl(undefined, {
-        onSuccess: () => {
-          // Refresh related data
-          refresh()
-        },
-        onError: () => {
-          // Handle merge failure silently
-        }
-      })
-    } catch (error) {
-      // Handle merge error silently
-    }
-  }, [approveCl, refresh])
 
   const handleApprove = useCallback(async () => {
     reviewApprove(
@@ -99,9 +80,7 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
             isNowUserApprove={isNowUserApprove}
             isAllReviewerApproved={isAllReviewerApproved}
             hasCheckFailures={hasCheckFailures}
-            onMerge={handleMerge}
             onApprove={handleApprove}
-            isMerging={clMergeIsPending}
             clStatus={status}
             clLink={id}
           />

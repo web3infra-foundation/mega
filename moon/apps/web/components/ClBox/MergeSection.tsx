@@ -1,41 +1,71 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 
+import { QueueStatus } from '@gitmono/types/generated'
 import { CheckCircleIcon, LoadingSpinner, Tooltip, WarningTriangleIcon } from '@gitmono/ui'
 
 import { useScope } from '@/contexts/scope'
 import { useGetMergeQueueStatus } from '@/hooks/MergeQueue/useGetMergeQueueStatus'
 import { usePostMergeQueueAdd } from '@/hooks/MergeQueue/usePostMergeQueueAdd'
+import { legacyApiClient } from '@/utils/queryClient'
 
 interface MergeSectionProps {
   isNowUserApprove?: boolean
   isAllReviewerApproved: boolean
   hasCheckFailures: boolean
-  onMerge: () => Promise<void>
   onApprove: () => void
-  isMerging: boolean
   clLink: string
   clStatus?: string
 }
 
+const STATUS_POLL_INTERVAL_MS = 3000
+
 export const MergeSection = React.memo<MergeSectionProps>(
-  ({
-    isAllReviewerApproved,
-    hasCheckFailures: _hasCheckFailures,
-    isNowUserApprove,
-    onMerge,
-    onApprove,
-    isMerging,
-    clLink,
-    clStatus
-  }) => {
+  ({ isAllReviewerApproved, hasCheckFailures: _hasCheckFailures, isNowUserApprove, onApprove, clLink, clStatus }) => {
     const router = useRouter()
     const { scope } = useScope()
-    const { data: queueStatusData } = useGetMergeQueueStatus(clLink)
+    const queryClient = useQueryClient()
+
+    const [trackQueueStatus, setTrackQueueStatus] = useState(false)
+    const [hasFetchedInitialStatus, setHasFetchedInitialStatus] = useState(false)
+
+    useEffect(() => {
+      setTrackQueueStatus(false)
+      setHasFetchedInitialStatus(false)
+    }, [clLink])
+
+    const shouldFetchStatus = !hasFetchedInitialStatus || trackQueueStatus
+    const { data: queueStatusData } = useGetMergeQueueStatus(clLink, undefined, {
+      enabled: shouldFetchStatus,
+      refetchInterval: trackQueueStatus ? STATUS_POLL_INTERVAL_MS : false
+    })
     const { mutate: addToQueue, isPending: isAddingToQueue } = usePostMergeQueueAdd()
 
-    const inQueue = queueStatusData?.data?.in_queue ?? false
     const queueItem = queueStatusData?.data?.item
+    const queueStatus = queueItem?.status
+    const isTerminalStatus = queueStatus === QueueStatus.Merged || queueStatus === QueueStatus.Failed
+
+    useEffect(() => {
+      if (!hasFetchedInitialStatus && queueStatusData) {
+        setHasFetchedInitialStatus(true)
+
+        if (queueStatusData.data?.in_queue && !isTerminalStatus) {
+          setTrackQueueStatus(true)
+        }
+      }
+    }, [hasFetchedInitialStatus, queueStatusData, isTerminalStatus])
+
+    useEffect(() => {
+      if (trackQueueStatus && isTerminalStatus) {
+        setTrackQueueStatus(false)
+        queryClient.invalidateQueries({
+          queryKey: legacyApiClient.v1.getApiClDetail().requestKey(clLink)
+        })
+      }
+    }, [trackQueueStatus, isTerminalStatus, clLink, queryClient])
+
+    const inQueue = queueStatusData?.data?.in_queue ?? false
 
     let statusNode: React.ReactNode
 
@@ -66,7 +96,14 @@ export const MergeSection = React.memo<MergeSectionProps>(
     }
 
     const handleAddToQueue = () => {
-      addToQueue({ cl_link: clLink })
+      addToQueue(
+        { cl_link: clLink },
+        {
+          onSuccess: () => {
+            setTrackQueueStatus(true)
+          }
+        }
+      )
     }
 
     const handleViewQueue = () => {
@@ -91,19 +128,19 @@ export const MergeSection = React.memo<MergeSectionProps>(
           </div>
         )}
 
-        <div className='ClBox-MergeSection flex items-center justify-center gap-4' style={{ marginTop: '12px' }}>
-          {!isDraft && (
-            <button
-              onClick={onApprove}
-              disabled={isNowUserApprove === undefined || isNowUserApprove}
-              className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
-            >
-              Approve
-            </button>
-          )}
+        {!inQueue && (
+          <div className='ClBox-MergeSection flex items-center justify-center gap-4' style={{ marginTop: '12px' }}>
+            {!isDraft && (
+              <button
+                onClick={onApprove}
+                disabled={isNowUserApprove === undefined || isNowUserApprove}
+                className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
+              >
+                Approve
+              </button>
+            )}
 
-          {!inQueue ? (
-            isDraft ? (
+            {isDraft ? (
               <Tooltip
                 label={
                   <div className='rounded-md bg-[#25292e] px-3 py-1 text-xs text-white'>
@@ -128,17 +165,9 @@ export const MergeSection = React.memo<MergeSectionProps>(
               >
                 {isAddingToQueue ? <LoadingSpinner /> : 'Add to Queue'}
               </button>
-            )
-          ) : (
-            <button
-              onClick={onMerge}
-              disabled={!isMergeable}
-              className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
-            >
-              {isMerging ? <LoadingSpinner /> : 'Merge Now'}
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }

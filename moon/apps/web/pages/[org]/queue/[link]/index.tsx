@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import { QueueStats } from '@gitmono/types'
+import { QueueStatus } from '@gitmono/types/generated'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
@@ -22,15 +23,38 @@ const defaultStats: QueueStats = {
   waiting_count: 0
 }
 
+const POLLING_INTERVAL_MS = 6000
+
 const QueuePage: PageWithLayout<any> = () => {
-  const { data: queueList, isLoading: listLoading } = useGetMergeQueueList()
-  const { data: queueStats, isLoading: statsLoading } = useGetMergeQueueStats()
+  const [listPollingEnabled, setListPollingEnabled] = useState(false)
+
+  const { data: queueList, isLoading: listLoading } = useGetMergeQueueList(undefined, {
+    refetchInterval: listPollingEnabled ? POLLING_INTERVAL_MS : false
+  })
+
+  const queueItems = useMemo(() => {
+    return queueList?.data?.items || []
+  }, [queueList])
+
+  const hasActiveItems = useMemo(() => {
+    return queueItems.some((item) => item.status !== QueueStatus.Merged && item.status !== QueueStatus.Failed)
+  }, [queueItems])
+
+  useEffect(() => {
+    if (hasActiveItems !== listPollingEnabled) {
+      setListPollingEnabled(hasActiveItems)
+    }
+  }, [hasActiveItems, listPollingEnabled])
+
+  const { data: queueStats, isLoading: statsLoading } = useGetMergeQueueStats(undefined, {
+    refetchInterval: listPollingEnabled ? POLLING_INTERVAL_MS : false
+  })
 
   return (
     <QueueView
       // items={list?.data?.items || []}
       // stats={stats.data.stats || defaultStats}
-      items={queueList?.data?.items || []}
+      items={queueItems}
       stats={queueStats?.data?.stats || defaultStats}
       ListLoading={listLoading}
       StatsisLoading={statsLoading}
