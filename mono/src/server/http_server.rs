@@ -10,12 +10,12 @@ use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, middleware};
+use ceres::api_service::cache::GitObjectCache;
 use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
 use saturn::entitystore::EntityStore;
 use time::Duration;
-use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::decompression::RequestDecompressionLayer;
@@ -42,14 +42,14 @@ use context::AppContext;
 #[derive(Clone)]
 pub struct ProtocolApiState {
     pub storage: Storage,
-    pub shared: Arc<Mutex<u32>>,
+    pub git_object_cache: Arc<GitObjectCache>,
 }
 
 impl ProtocolApiState {
-    fn new(storage: Storage) -> Self {
+    fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
         Self {
             storage,
-            shared: Arc::new(Mutex::new(0)),
+            git_object_cache,
         }
     }
 }
@@ -61,7 +61,7 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
 pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
-    let app = app(ctx.storage, host.clone(), port).await;
+    let app = app(ctx, host.clone(), port).await;
 
     let server_url = format!("{host}:{port}");
 
@@ -103,11 +103,19 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
 ///   - GET        end of `Regex::new(r"/info/refs$")`
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
-pub async fn app(storage: Storage, host: String, port: u16) -> Router {
-    let state = ProtocolApiState::new(storage.clone());
+pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
+    let storage = ctx.storage;
     let config = storage.config();
 
     let oauth_config = config.oauth.clone().unwrap_or_default();
+    let git_object_cache = Arc::new(GitObjectCache {
+        redis: ctx.redis_client.clone(),
+        prefix: "git-object-db".to_string(),
+    });
+    let state = ProtocolApiState::new(storage.clone(), git_object_cache.clone());
+
+    git_object_cache.ping().await.unwrap_or_else(|_| panic!("Failed to connect to Redis at {}, please check your redis server is running and the url is correct",config.redis.url));
+
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
@@ -117,6 +125,7 @@ pub async fn app(storage: Storage, host: String, port: u16) -> Router {
         )),
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
+        git_object_cache,
     };
 
     let origins: Vec<HeaderValue> = oauth_config
@@ -186,8 +195,8 @@ pub async fn get_method_router(
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
             state.storage.clone(),
-            state.shared.clone(),
             TransportProtocol::Http,
+            state.git_object_cache.clone(),
         );
         crate::git_protocol::http::git_info_refs(params, pack_protocol).await
     } else {
@@ -206,8 +215,8 @@ pub async fn post_method_router(
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
             state.storage.clone(),
-            state.shared.clone(),
             TransportProtocol::Http,
+            state.git_object_cache.clone(),
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
         crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
@@ -215,8 +224,8 @@ pub async fn post_method_router(
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
             state.storage.clone(),
-            state.shared.clone(),
             TransportProtocol::Http,
+            state.git_object_cache.clone(),
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
         crate::git_protocol::http::git_receive_pack(req, pack_protocol).await

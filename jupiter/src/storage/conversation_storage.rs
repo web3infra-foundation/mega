@@ -123,7 +123,7 @@ impl ConversationStorage {
                 tracing::error!("Error finding conversation: {e}");
                 e
             })?
-            .ok_or_else(|| MegaError::with_message("No conversation found"))?
+            .ok_or_else(|| MegaError::Other("No conversation found".to_string()))?
             .into_active_model();
 
         conversation.resolved = Set(Some(state));
@@ -132,7 +132,7 @@ impl ConversationStorage {
         conversation
             .update(self.get_connection())
             .await
-            .map_err(|e| MegaError::with_message(format!("Error updating conversation: {e}")))?;
+            .map_err(|e| MegaError::Other(format!("Error updating conversation: {e}")))?;
 
         Ok(())
     }

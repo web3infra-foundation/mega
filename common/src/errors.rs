@@ -15,73 +15,42 @@ use crate::model::CommonResult;
 pub type MegaResult = Result<(), MegaError>;
 
 #[derive(Error, Debug)]
-pub struct MegaError {
-    pub error: Option<anyhow::Error>,
-    pub code: i32,
-}
+pub enum MegaError {
+    // --- Redis ---
+    #[error("Redis error: {0}")]
+    Redis(#[from] redis::RedisError),
 
-impl MegaError {
-    pub fn new(error: anyhow::Error, code: i32) -> MegaError {
-        MegaError {
-            error: Some(error),
-            code,
-        }
-    }
+    // --- Serialization / parsing ---
+    #[error("JSON serialization error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
 
-    pub fn print(&self) {
-        panic!("{}", self.error.as_ref().unwrap());
-    }
+    // --- IO ---
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 
-    pub fn unknown_subcommand(cmd: impl AsRef<str>) -> MegaError {
-        MegaError {
-            error: anyhow::anyhow!("Unknown subcommand: {}", cmd.as_ref()).into(),
-            code: 1,
-        }
-    }
+    // --- Database ---
+    #[error("Database error: {0}")]
+    Db(#[from] sea_orm::DbErr),
 
-    pub fn with_message(msg: impl AsRef<str>) -> MegaError {
-        MegaError {
-            error: anyhow::anyhow!("Error Message: {}", msg.as_ref()).into(),
-            code: 0,
-        }
-    }
-}
+    // --- PGP ---
+    #[error("PGP error: {0}")]
+    Pgp(#[from] Box<pgp::errors::Error>),
 
-impl std::fmt::Display for MegaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.error.as_ref().unwrap())
-    }
-}
+    // --- Clap ---
+    #[error("Clap error: {0}")]
+    Clap(#[from] clap::Error),
 
-impl From<anyhow::Error> for MegaError {
-    fn from(err: anyhow::Error) -> MegaError {
-        MegaError::new(err, 101)
-    }
-}
+    // --- Anyhow ---
+    #[error("Generic error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 
-impl From<clap::Error> for MegaError {
-    fn from(err: clap::Error) -> MegaError {
-        let code = i32::from(err.use_stderr());
-        MegaError::new(err.into(), code)
-    }
-}
+    // --- GitError ---
+    #[error("Git error: {0}")]
+    Git(#[from] GitError),
 
-impl From<std::io::Error> for MegaError {
-    fn from(err: std::io::Error) -> MegaError {
-        MegaError::new(err.into(), 1)
-    }
-}
-
-impl From<sea_orm::DbErr> for MegaError {
-    fn from(err: sea_orm::DbErr) -> MegaError {
-        MegaError::new(err.into(), 1)
-    }
-}
-
-impl From<pgp::errors::Error> for MegaError {
-    fn from(err: pgp::errors::Error) -> MegaError {
-        MegaError::new(err.into(), 1)
-    }
+    // --- Other ---
+    #[error("Other error: {0}")]
+    Other(String),
 }
 
 impl From<Infallible> for MegaError {
@@ -92,19 +61,13 @@ impl From<Infallible> for MegaError {
 
 impl From<ParseErrors> for MegaError {
     fn from(err: ParseErrors) -> MegaError {
-        MegaError::new(err.into(), 1)
+        MegaError::Other(err.to_string())
     }
 }
 
 impl From<MegaError> for GitError {
     fn from(val: MegaError) -> Self {
         GitError::CustomError(val.to_string())
-    }
-}
-
-impl From<GitError> for MegaError {
-    fn from(val: GitError) -> Self {
-        MegaError::with_message(val.to_string())
     }
 }
 
@@ -132,7 +95,7 @@ pub enum ProtocolError {
 
 impl From<MegaError> for ProtocolError {
     fn from(err: MegaError) -> ProtocolError {
-        ProtocolError::InvalidInput(err.error.unwrap().to_string())
+        ProtocolError::InvalidInput(err.to_string())
     }
 }
 

@@ -34,7 +34,7 @@ use jupiter::storage::Storage;
 use jupiter::utils::converter::FromMegaModel;
 
 use crate::{
-    api_service::{mono_api_service::MonoApiService, tree_ops},
+    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
     merge_checker::CheckerRegistry,
     model::change_list::BuckFile,
     pack::RepoHandler,
@@ -43,6 +43,7 @@ use crate::{
 
 pub struct MonoRepo {
     pub storage: Storage,
+    pub git_object_cache: Arc<GitObjectCache>,
     pub path: PathBuf,
     pub from_hash: String,
     pub to_hash: String,
@@ -401,14 +402,14 @@ impl RepoHandler for MonoRepo {
             .get_trees_by_hashes(tree_hashes)
             .await
             .map_err(|e| {
-                MegaError::with_message(format!(
+                MegaError::Other(format!(
                     "Failed to retrieve root tree for commit {}: {}",
                     commit_opt.id, e
                 ))
             })?;
 
         if trees.is_empty() {
-            return Err(MegaError::with_message(format!(
+            return Err(MegaError::Other(format!(
                 "Root tree {} not found for commit {}",
                 commit_opt.tree_id, commit_opt.id
             )));
@@ -425,7 +426,7 @@ impl RepoHandler for MonoRepo {
         self.traverses_and_update_filepath(root_tree, PathBuf::new())
             .await
             .map_err(|e| {
-                MegaError::with_message(format!(
+                MegaError::Other(format!(
                     "Failed to update file paths for commit {}: {}",
                     commit_opt.id, e
                 ))
@@ -458,7 +459,7 @@ impl MonoRepo {
                     .get_trees_by_hashes(vec![tree_hash.clone()])
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(format!(
+                        MegaError::Other(format!(
                             "Failed to retrieve tree {} at path '{}': {}",
                             tree_hash,
                             item_path.display(),
@@ -467,7 +468,7 @@ impl MonoRepo {
                     })?;
 
                 if trees.is_empty() {
-                    return Err(MegaError::with_message(format!(
+                    return Err(MegaError::Other(format!(
                         "Tree {} not found at path '{}'",
                         tree_hash,
                         item_path.display()
@@ -479,7 +480,7 @@ impl MonoRepo {
                 self.traverses_and_update_filepath(child_tree, item_path.clone())
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(format!(
+                        MegaError::Other(format!(
                             "Failed to process subtree {} at path '{}': {}",
                             tree_hash,
                             item_path.display(),
@@ -489,7 +490,7 @@ impl MonoRepo {
             } else {
                 let blob_id = item.id.to_string();
                 let file_path_str = item_path.to_str().ok_or_else(|| {
-                    MegaError::with_message(format!(
+                    MegaError::Other(format!(
                         "Invalid UTF-8 path for blob {}: '{}'",
                         blob_id,
                         item_path.display()
@@ -501,7 +502,7 @@ impl MonoRepo {
                     .update_blob_filepath(&blob_id, file_path_str)
                     .await
                     .map_err(|e| {
-                        MegaError::with_message(format!(
+                        MegaError::Other(format!(
                             "Failed to update file path for blob {} at '{}': {}",
                             blob_id, file_path_str, e
                         ))
@@ -528,8 +529,8 @@ impl MonoRepo {
             Some(cl) => cl.link.clone(),
             None => {
                 if self.from_hash == "0".repeat(40) {
-                    return Err(MegaError::with_message(
-                        "Can not init directory under monorepo directory!",
+                    return Err(MegaError::Other(
+                        "Can not init directory under monorepo directory!".to_string(),
                     ));
                 }
                 generate_link()
@@ -581,9 +582,7 @@ impl MonoRepo {
     async fn search_buck_under_cl(&self, cl_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
         let mut res = vec![];
         let mono_stg = self.storage.mono_storage();
-        let mono_api_service = MonoApiService {
-            storage: self.storage.clone(),
-        };
+        let mono_api_service: MonoApiService = self.into();
 
         let mut search_trees: Vec<(PathBuf, Tree)> = vec![];
 
@@ -706,7 +705,7 @@ impl MonoRepo {
             .cl_storage()
             .get_cl(link)
             .await?
-            .ok_or_else(|| MegaError::with_message(format!("CL not found for link: {}", link)))?;
+            .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
 
         if self.bellatrix.enable_build() {
             let buck_files = self.search_buck_under_cl(&self.path).await?;
@@ -774,6 +773,7 @@ fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, SHA1)> {
 
 #[cfg(test)]
 mod test {
+    use crate::api_service::cache::GitObjectCache;
     use crate::pack::RepoHandler;
     use crate::pack::monorepo::MonoRepo;
     use git_internal::hash::SHA1;
@@ -813,6 +813,7 @@ mod test {
 
         MonoRepo {
             storage,
+            git_object_cache: Arc::new(GitObjectCache::mock()),
             path: PathBuf::from("/test/repo"),
             from_hash: "from_hash".to_string(),
             to_hash: "to_hash".to_string(),

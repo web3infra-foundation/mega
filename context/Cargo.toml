@@ -14,5 +14,7 @@ default = []
 common = { workspace = true }
 jupiter = { workspace = true }
 vault = { workspace = true }
+redis = { workspace = true, features = ["aio", "tokio-comp"] }
+
 
 tokio = { workspace = true }

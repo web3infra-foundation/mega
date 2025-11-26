@@ -51,7 +51,7 @@ impl IssueService {
             .issue_storage
             .get_issue_labels(link)
             .await?
-            .ok_or_else(|| MegaError::with_message("Issue not found"))?;
+            .ok_or_else(|| MegaError::Other("Issue not found".to_string()))?;
 
         let conversations = self
             .conversation_storage

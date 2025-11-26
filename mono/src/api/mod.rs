@@ -7,13 +7,14 @@ use oauth2::{
     },
 };
 use saturn::entitystore::EntityStore;
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 use tower_sessions::MemoryStore;
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
 use ceres::{
     api_service::{
-        ApiHandler, import_api_service::ImportApiService, mono_api_service::MonoApiService,
+        ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
+        mono_api_service::MonoApiService,
     },
     protocol::repo::Repo,
 };
@@ -53,6 +54,7 @@ pub type GithubClient<
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     pub storage: Storage,
+    pub git_object_cache: Arc<GitObjectCache>,
     pub oauth_client: Option<GithubClient>,
     pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
@@ -89,11 +91,18 @@ impl FromRef<MonoApiServiceState> for EntityStore {
     }
 }
 
+impl From<&MonoApiServiceState> for MonoApiService {
+    fn from(state: &MonoApiServiceState) -> Self {
+        MonoApiService {
+            storage: state.storage.clone(),
+            git_object_cache: state.git_object_cache.clone(),
+        }
+    }
+}
+
 impl MonoApiServiceState {
     fn monorepo(&self) -> MonoApiService {
-        MonoApiService {
-            storage: self.storage.clone(),
-        }
+        self.into()
     }
 
     fn issue_stg(&self) -> IssueStorage {
@@ -135,11 +144,10 @@ impl MonoApiServiceState {
             return Ok(Box::new(ImportApiService {
                 storage: self.storage.clone(),
                 repo,
+                git_object_cache: self.git_object_cache.clone(),
             }));
         }
-        let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
-            storage: self.storage.clone(),
-        });
+        let ret: Box<dyn ApiHandler> = Box::<MonoApiService>::new(self.into());
 
         // Rust-analyzer cannot infer the type of `ret` correctly and always reports an error.
         // Use `.into()` to workaround this issue.

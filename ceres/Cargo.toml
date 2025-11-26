@@ -23,7 +23,7 @@ pgp = { version = "0.16.0" }
 tokio = { workspace = true, features = ["net", "process"] }
 tokio-stream = { workspace = true }
 axum = { workspace = true }
-reqwest = { workspace = true, features = ["json", "stream"]}
+reqwest = { workspace = true, features = ["json", "stream"] }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -40,8 +40,10 @@ utoipa = { workspace = true }
 base64 = { workspace = true }
 http = { workspace = true }
 regex = { workspace = true }
-tokio-util = {workspace = true}
+tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
+redis = { workspace = true, features = ["aio", "tokio-comp"] }
+
 
 [dev-dependencies]
 tempfile = { workspace = true }

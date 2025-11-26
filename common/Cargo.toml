@@ -10,7 +10,7 @@ name = "common"
 path = "src/lib.rs"
 
 [dependencies]
-git-internal = { workspace = true}
+git-internal = { workspace = true }
 callisto = { workspace = true }
 axum = { workspace = true }
 anyhow = { workspace = true }
@@ -27,3 +27,4 @@ utoipa = { workspace = true }
 directories = { workspace = true }
 pgp = { workspace = true }
 cedar-policy = { workspace = true }
+redis = { workspace = true }

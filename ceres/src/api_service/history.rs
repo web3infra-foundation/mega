@@ -11,12 +11,8 @@ use git_internal::{
         tree::{Tree, TreeItem},
     },
 };
-use tokio::sync::Mutex;
 
-use crate::api_service::{
-    ApiHandler,
-    cache::{GitObjectCache, get_commit_from_cache, get_tree_from_cache},
-};
+use crate::api_service::ApiHandler;
 
 /// Builds a mapping from each `TreeItem` under a given path to the commit
 /// where that item was last modified.
@@ -74,11 +70,10 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     // Use the start commit's tree to ensure consistency
     let start_tree = handler
         .get_tree_by_hash(&start_commit_arc.tree_id.to_string())
-        .await;
+        .await?;
 
     // Navigate to the target path within the start commit's tree
-    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
-    let Some(tree) = navigate_to_tree(handler, Arc::new(start_tree), &path, &cache).await? else {
+    let Some(tree) = navigate_to_tree(handler, Arc::new(start_tree), &path).await? else {
         return Ok(HashMap::new());
     };
 
@@ -92,7 +87,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
             &path,
             start_commit_arc.clone(),
             &item,
-            cache.clone(),
         )
         .await?;
         result.insert(item, Some(commit));
@@ -118,7 +112,6 @@ async fn navigate_to_tree<T: ApiHandler + ?Sized>(
     handler: &T,
     root_tree: Arc<Tree>,
     path: &Path,
-    cache: &Arc<Mutex<GitObjectCache>>,
 ) -> Result<Option<Arc<Tree>>, GitError> {
     let relative_path = handler
         .strip_relative(path)
@@ -144,7 +137,13 @@ async fn navigate_to_tree<T: ApiHandler + ?Sized>(
                 if !search_res.is_tree() {
                     return Ok(None);
                 }
-                search_tree = get_tree_from_cache(handler, search_res.id, cache).await?;
+                let tree_id = search_res.id;
+                search_tree = handler
+                    .object_cache()
+                    .get_tree(tree_id, |tree_id| async move {
+                        handler.get_tree_by_hash(&tree_id.to_string()).await
+                    })
+                    .await?;
             } else {
                 return Ok(None);
             }
@@ -170,7 +169,6 @@ async fn navigate_to_tree<T: ApiHandler + ?Sized>(
 ///
 /// # Examples
 /// ```ignore
-/// let cache = Arc::new(Mutex::new(GitObjectCache::default()));
 /// let start = Arc::new(handler.get_root_commit().await);
 ///
 /// // Find last modification of a file
@@ -192,7 +190,6 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
     handler: &T,
     full_path: &Path,
     start_commit: Arc<Commit>,
-    cache: Arc<Mutex<GitObjectCache>>,
 ) -> Result<Commit, GitError> {
     // 1. Extract the item name from the path
     let item_name = full_path
@@ -215,9 +212,14 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
     })?;
 
     // 3. Navigate to the parent directory in the start commit
-    let start_tree = get_tree_from_cache(handler, start_commit.tree_id, &cache).await?;
-    let Some(parent_tree) = navigate_to_tree(handler, start_tree, parent_path, &cache).await?
-    else {
+    let tree_id = start_commit.tree_id;
+    let start_tree = handler
+        .object_cache()
+        .get_tree(tree_id, |tree_id| async move {
+            handler.get_tree_by_hash(&tree_id.to_string()).await
+        })
+        .await?;
+    let Some(parent_tree) = navigate_to_tree(handler, start_tree, parent_path).await? else {
         return Err(GitError::CustomError(format!(
             "Parent directory '{}' not found in commit {}",
             parent_path.display(),
@@ -240,8 +242,7 @@ pub async fn resolve_last_modification_by_path<T: ApiHandler + ?Sized>(
     };
 
     // 5. Call the core last-modification traversal logic
-    traverse_commit_history_for_last_modification(handler, parent_path, start_commit, &item, cache)
-        .await
+    traverse_commit_history_for_last_modification(handler, parent_path, start_commit, &item).await
 }
 
 /// Traverses commit history from a starting commit to find the last commit
@@ -268,11 +269,17 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
     path: &Path,
     start_commit: Arc<Commit>,
     search_item: &TreeItem,
-    cache: Arc<Mutex<GitObjectCache>>,
 ) -> Result<Commit, GitError> {
     // Resolve the item's hash in the starting commit at the given path
-    let start_tree = get_tree_from_cache(handler, start_commit.tree_id, &cache).await?;
-    let Some(target_tree) = navigate_to_tree(handler, start_tree, path, &cache).await? else {
+    let tree_id = start_commit.tree_id;
+    let start_tree = handler
+        .object_cache()
+        .get_tree(tree_id, |tree_id| async move {
+            handler.get_tree_by_hash(&tree_id.to_string()).await
+        })
+        .await?;
+
+    let Some(target_tree) = navigate_to_tree(handler, start_tree, path).await? else {
         // Path does not exist at start_commit; return an error
         return Err(GitError::CustomError(format!(
             "[code:404] Path not found: {:?} at commit {}",
@@ -329,12 +336,22 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
         let mut parents_with_matching_hash = Vec::new();
 
         for &parent_id in &commit.parent_commit_ids {
-            let parent_commit = get_commit_from_cache(handler, parent_id, &cache).await?;
-            let parent_tree = get_tree_from_cache(handler, parent_commit.tree_id, &cache).await?;
+            let parent_commit = handler
+                .object_cache()
+                .get_commit(parent_id, |parent_id| async move {
+                    handler.get_commit_by_hash(&parent_id.to_string()).await
+                })
+                .await?;
+            let tree_id = parent_commit.tree_id;
+            let parent_tree = handler
+                .object_cache()
+                .get_tree(tree_id, |tree_id| async move {
+                    handler.get_tree_by_hash(&tree_id.to_string()).await
+                })
+                .await?;
 
             // Navigate to the target directory in the parent commit
-            let parent_target_tree_opt =
-                navigate_to_tree(handler, parent_tree, path, &cache).await?;
+            let parent_target_tree_opt = navigate_to_tree(handler, parent_tree, path).await?;
 
             // Check if parent has the same item with the same hash
             let parent_item_hash = if let Some(parent_target_tree) = parent_target_tree_opt {

@@ -1,6 +1,3 @@
-use async_recursion::async_recursion;
-use async_trait::async_trait;
-use futures::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -10,10 +7,11 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::sync::{
-    Mutex,
-    mpsc::{self},
-};
+
+use async_recursion::async_recursion;
+use async_trait::async_trait;
+use futures::StreamExt;
+use tokio::sync::mpsc::{self};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
@@ -27,11 +25,14 @@ use git_internal::{
     },
 };
 use git_internal::{hash::SHA1, internal::pack::encode::PackEncoder};
-use jupiter::storage::{Storage, base_storage::StorageConnector};
 use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
+use jupiter::{
+    redis::lock::RedLock,
+    storage::{Storage, base_storage::StorageConnector},
+};
 
 use crate::{
-    api_service::{mono_api_service::MonoApiService, tree_ops},
+    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
     pack::RepoHandler,
     protocol::{
         import_refs::{CommandType, RefCommand, Refs},
@@ -43,7 +44,8 @@ pub struct ImportRepo {
     pub storage: Storage,
     pub repo: Repo,
     pub command_list: Vec<RefCommand>,
-    pub shared: Arc<Mutex<u32>>,
+    pub unpack_redlock: Arc<RedLock>,
+    pub git_object_cache: Arc<GitObjectCache>,
 }
 
 #[async_trait]
@@ -65,9 +67,11 @@ impl RepoHandler for ImportRepo {
     }
 
     async fn post_receive_pack(&self) -> Result<(), MegaError> {
-        let _guard = self.shared.lock().await;
+        let guard = self.unpack_redlock.clone().lock().await?;
         self.traverses_tree_and_update_filepath().await?;
-        self.attach_to_monorepo_parent().await
+        self.attach_to_monorepo_parent().await?;
+        guard.unlock().await?;
+        Ok(())
     }
 
     async fn save_entry(
@@ -469,9 +473,8 @@ impl ImportRepo {
 
         // 2. search and create tree
         let path = PathBuf::from(self.repo.repo_path.clone());
-        let mono_api_service = MonoApiService {
-            storage: self.storage.clone(),
-        };
+
+        let mono_api_service: MonoApiService = self.into();
         let storage = self.storage.mono_storage();
         let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
@@ -479,7 +482,7 @@ impl ImportRepo {
         let mut root_ref = storage
             .get_main_ref("/")
             .await?
-            .ok_or_else(|| MegaError::with_message("root ref not found"))?;
+            .ok_or_else(|| MegaError::Other("root ref not found".to_string()))?;
 
         // 4. get latest commit
         let latest_commit: Commit = Commit::from_git_model(
@@ -487,9 +490,7 @@ impl ImportRepo {
                 .git_db_storage()
                 .get_commit_by_hash(self.repo.repo_id, &commit_id)
                 .await?
-                .ok_or_else(|| {
-                    MegaError::with_message(format!("commit {} not found", commit_id))
-                })?,
+                .ok_or_else(|| MegaError::Other(format!("commit {} not found", commit_id)))?,
         );
 
         // 5. generate commit
@@ -497,7 +498,7 @@ impl ImportRepo {
         let new_commit = Commit::from_tree_id(
             save_trees
                 .back()
-                .ok_or_else(|| MegaError::with_message("no tree generated"))?
+                .ok_or_else(|| MegaError::Other("no tree generated".to_string()))?
                 .id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
             &format!("\n{commit_msg}"),

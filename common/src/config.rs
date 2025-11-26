@@ -96,6 +96,7 @@ pub struct Config {
     #[serde(default)]
     pub oauth: Option<OauthConfig>,
     pub build: BuildConfig,
+    pub redis: RedisConfig,
 }
 
 impl Config {
@@ -125,6 +126,7 @@ impl Config {
             blame: BlameConfig::default(),
             oauth: None,
             build: BuildConfig::default(),
+            redis: RedisConfig::default(),
         }
     }
 
@@ -378,6 +380,19 @@ impl Default for PackConfig {
             pack_decode_cache_path: mega_cache().join("pack_decode_cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RedisConfig {
+    pub url: String,
+}
+
+impl Default for RedisConfig {
+    fn default() -> Self {
+        Self {
+            url: String::from("redis://127.0.0.1:6379"),
         }
     }
 }

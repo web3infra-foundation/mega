@@ -1,6 +1,5 @@
 use crate::storage::base_storage::BaseStorage;
 use crate::storage::base_storage::StorageConnector;
-use anyhow::anyhow;
 use callisto::entity_ext::generate_id;
 use callisto::gpg_key;
 use chrono::Utc;
@@ -36,7 +35,7 @@ impl GpgStorage {
     ) -> Result<gpg_key::Model, MegaError> {
         let (pk, _headers) = SignedPublicKey::from_string(&gpg_content).map_err(|e| {
             tracing::error!("{:?}", e);
-            MegaError::new(anyhow!("Failed to parse GPG key, please check format"), 1)
+            MegaError::Other("Failed to parse GPG key, please check format".to_string())
         })?;
 
         let key_id = format!("{:016X}", pk.key_id());
@@ -63,7 +62,7 @@ impl GpgStorage {
         let a_model = key.into_active_model();
         a_model.insert(self.get_connection()).await.map_err(|e| {
             tracing::error!("{:?}", e);
-            MegaError::new(anyhow!("Failed to save GPG key"), 1)
+            MegaError::Other("Failed to save GPG key".to_string())
         })?;
         Ok(())
     }
@@ -76,7 +75,7 @@ impl GpgStorage {
             .await
             .map_err(|e| {
                 tracing::error!("{:?}", e);
-                MegaError::new(anyhow!("Failed to delete GPG key"), 1)
+                MegaError::Other("Failed to delete GPG key".to_string())
             })?;
         Ok(())
     }
@@ -95,7 +94,7 @@ impl GpgStorage {
             .await
             .map_err(|e| {
                 tracing::error!("{:?}", e);
-                MegaError::new(anyhow!("Failed to get GPG keys"), 1)
+                MegaError::Other("Failed to get GPG keys".to_string())
             })?;
         Ok(res)
     }

@@ -555,7 +555,7 @@ impl MonoStorage {
             .await?;
         match model {
             Some(m) => Ok(m),
-            None => Err(MegaError::with_message("Failed to load inserted tag")),
+            None => Err(MegaError::Other("Failed to load inserted tag".to_string())),
         }
     }
 

@@ -1,6 +1,7 @@
 pub mod lfs_storage;
 pub mod migration;
 pub mod model;
+pub mod redis;
 pub mod service;
 pub mod storage;
 pub mod utils;
