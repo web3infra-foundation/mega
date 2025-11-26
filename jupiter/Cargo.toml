@@ -46,3 +46,4 @@ indexmap = { workspace = true }
 url = { workspace = true }
 pgp = { workspace = true }
 redis = { workspace = true, features = ["aio", "tokio-comp"] }
+deadpool-redis = { workspace = true }

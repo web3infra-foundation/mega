@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use jupiter::tests::test_storage;
+use jupiter::{redis::client::RedisPoolClient, tests::test_storage};
 
 /// This is the main application context for the Mono application.
 /// It holds shared state and configuration for the application.
@@ -16,7 +16,7 @@ pub struct AppContext {
     /// The configuration settings for the application.
     pub config: Arc<common::config::Config>,
 
-    pub redis_client: Arc<redis::Client>,
+    pub redis_client: Arc<RedisPoolClient>,
 }
 
 impl AppContext {
@@ -25,7 +25,7 @@ impl AppContext {
         let config = Arc::new(config);
 
         let storage = jupiter::storage::Storage::new(config.clone()).await;
-        let redis_client = Arc::new(jupiter::redis::new_client(&config.redis.url));
+        let redis_client = Arc::new(RedisPoolClient::new(&config.redis));
 
         let storage_for_vault = storage.clone();
         let vault = vault::integration::vault_core::VaultCore::new(storage_for_vault);
@@ -61,7 +61,7 @@ impl AppContext {
         .await
         .expect("VaultCore::config panicked");
 
-        let redis_client = Arc::new(jupiter::redis::mock());
+        let redis_client = Arc::new(RedisPoolClient::mock());
         Self {
             storage,
             vault,
