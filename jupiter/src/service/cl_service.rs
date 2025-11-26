@@ -44,7 +44,7 @@ impl CLService {
             .cl_storage
             .get_cl_labels(link)
             .await?
-            .ok_or_else(|| MegaError::with_message("CL not found"))?;
+            .ok_or_else(|| MegaError::Other("CL not found".to_string()))?;
 
         let conversations = self
             .conversation_storage

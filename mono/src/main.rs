@@ -24,6 +24,6 @@ fn main() {
 
     // If there was an error, print it
     if let Err(e) = result {
-        e.print();
+        panic!("{}", e);
     }
 }

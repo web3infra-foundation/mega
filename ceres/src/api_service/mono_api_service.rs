@@ -40,6 +40,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::api_service::cache::GitObjectCache;
 use crate::api_service::{ApiHandler, tree_ops};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
@@ -47,6 +48,8 @@ use crate::model::git::CreateEntryInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
 use crate::model::tag::TagInfo;
 use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
+use crate::pack::import_repo::ImportRepo;
+use crate::pack::monorepo::MonoRepo;
 use crate::protocol::{SmartProtocol, TransportProtocol};
 
 use async_trait::async_trait;
@@ -75,6 +78,25 @@ use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 #[derive(Clone)]
 pub struct MonoApiService {
     pub storage: Storage,
+    pub git_object_cache: Arc<GitObjectCache>,
+}
+
+impl From<&MonoRepo> for MonoApiService {
+    fn from(mono_repo: &MonoRepo) -> Self {
+        MonoApiService {
+            storage: mono_repo.storage.clone(),
+            git_object_cache: mono_repo.git_object_cache.clone(),
+        }
+    }
+}
+
+impl From<&ImportRepo> for MonoApiService {
+    fn from(import_repo: &ImportRepo) -> Self {
+        MonoApiService {
+            storage: import_repo.storage.clone(),
+            git_object_cache: import_repo.git_object_cache.clone(),
+        }
+    }
 }
 
 pub struct TreeUpdateResult {
@@ -93,7 +115,11 @@ impl ApiHandler for MonoApiService {
         self.storage.clone()
     }
 
-    async fn get_root_commit(&self) -> Commit {
+    fn object_cache(&self) -> &GitObjectCache {
+        &self.git_object_cache
+    }
+
+    async fn get_root_commit(&self) -> Result<Commit, MegaError> {
         let storage = self.storage.mono_storage();
         let refs = storage.get_main_ref("/").await.unwrap().unwrap();
         self.get_commit_by_hash(&refs.ref_commit_hash).await
@@ -423,48 +449,46 @@ impl ApiHandler for MonoApiService {
         if refs.is_empty() {
             let storage = self.storage.mono_storage();
             let refs = storage.get_main_ref("/").await.unwrap().unwrap();
-            return Ok(self.get_tree_by_hash(&refs.ref_tree_hash).await);
+            return self.get_tree_by_hash(&refs.ref_tree_hash).await;
         }
 
         // condition 2: commit hash
         if refs.len() == 40 && refs.chars().all(|c| c.is_ascii_hexdigit()) {
-            let commit = self.get_commit_by_hash(refs).await;
-            return Ok(self.get_tree_by_hash(&commit.tree_id.to_string()).await);
+            let commit = self.get_commit_by_hash(refs).await?;
+            return self.get_tree_by_hash(&commit.tree_id.to_string()).await;
         }
 
         // condition 3: tag name
         if let Ok(Some(tag)) = self.get_tag(None, refs.to_string()).await {
-            let commit = self.get_commit_by_hash(&tag.object_id).await;
-            return Ok(self.get_tree_by_hash(&commit.tree_id.to_string()).await);
+            let commit = self.get_commit_by_hash(&tag.object_id).await?;
+            return self.get_tree_by_hash(&commit.tree_id.to_string()).await;
         }
 
         // condition 4: invalid refs
-        Err(MegaError::with_message(format!(
+        Err(MegaError::Other(format!(
             "Invalid refs: '{}' is not a valid commit hash or tag",
             refs
         )))
     }
 
-    async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        Tree::from_mega_model(
+    async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, MegaError> {
+        Ok(Tree::from_mega_model(
             self.storage
                 .mono_storage()
                 .get_tree_by_hash(hash)
-                .await
-                .unwrap()
+                .await?
                 .unwrap(),
-        )
+        ))
     }
 
-    async fn get_commit_by_hash(&self, hash: &str) -> Commit {
-        Commit::from_mega_model(
+    async fn get_commit_by_hash(&self, hash: &str) -> Result<Commit, MegaError> {
+        Ok(Commit::from_mega_model(
             self.storage
                 .mono_storage()
                 .get_commit_by_hash(hash)
-                .await
-                .unwrap()
+                .await?
                 .unwrap(),
-        )
+        ))
     }
 
     async fn item_to_commit_map(
@@ -1311,7 +1335,7 @@ impl MonoApiService {
         // create filtered files
         let mut page_old_blobs = Vec::new();
         let mut page_new_blobs = Vec::new();
-        self.collect_page_blobs(page_slice, &mut page_old_blobs, &mut page_new_blobs);
+        collect_page_blobs(page_slice, &mut page_old_blobs, &mut page_new_blobs);
 
         // get diff output
         let diff_output = self
@@ -1385,31 +1409,6 @@ impl MonoApiService {
         Ok(diff_output.into_iter().map(DiffItem::from).collect())
     }
 
-    fn collect_page_blobs(
-        &self,
-        items: &[ClDiffFile],
-        old_out: &mut Vec<(PathBuf, SHA1)>,
-        new_out: &mut Vec<(PathBuf, SHA1)>,
-    ) {
-        old_out.reserve(items.len());
-        new_out.reserve(items.len());
-
-        for item in items {
-            match item {
-                ClDiffFile::New(p, h_new) => {
-                    new_out.push((p.clone(), *h_new));
-                }
-                ClDiffFile::Deleted(p, h_old) => {
-                    old_out.push((p.clone(), *h_old));
-                }
-                ClDiffFile::Modified(p, h_old, h_new) => {
-                    old_out.push((p.clone(), *h_old));
-                    new_out.push((p.clone(), *h_new));
-                }
-            }
-        }
-    }
-
     pub async fn get_sorted_changed_file_list(
         &self,
         cl_link: &str,
@@ -1421,7 +1420,7 @@ impl MonoApiService {
             .get_cl(cl_link)
             .await
             .unwrap()
-            .ok_or_else(|| MegaError::with_message("Error getting "))?;
+            .ok_or_else(|| MegaError::Other("Error getting ".to_string()))?;
 
         let old_files = self.get_commit_blobs(&cl.from_hash.clone()).await?;
         let new_files = self.get_commit_blobs(&cl.to_hash.clone()).await?;
@@ -1515,22 +1514,21 @@ impl MonoApiService {
         let pack_data = remote_client
             .process_pack_stream(res)
             .await
-            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+            .map_err(|e| MegaError::Other(format!("{e}")))?;
 
         self.save_import_ref(&mega_path, &ref_name, &ref_hash)
             .await?;
 
-        let shared = Arc::new(tokio::sync::Mutex::new(0));
         let mut protocol = SmartProtocol::new(
             mega_path,
             self.storage.clone(),
-            shared,
             TransportProtocol::Http,
+            self.git_object_cache.clone(),
         );
         let bytes = protocol
             .git_receive_pack_stream(Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))))
             .await
-            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+            .map_err(|e| MegaError::Other(format!("{e}")))?;
 
         Ok(bytes)
     }
@@ -1543,12 +1541,14 @@ impl MonoApiService {
     ) -> Result<(), MegaError> {
         let path = mega_path
             .to_str()
-            .ok_or_else(|| MegaError::with_message("Invalid UTF-8 in mega_path"))?;
+            .ok_or_else(|| MegaError::Other("Invalid UTF-8 in mega_path".to_string()))?;
 
         let name = mega_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| MegaError::with_message("Failed to extract file name from mega_path"))?;
+            .ok_or_else(|| {
+                MegaError::Other("Failed to extract file name from mega_path".to_string())
+            })?;
 
         self.storage
             .git_db_storage()
@@ -1581,6 +1581,29 @@ impl MonoApiService {
     }
 }
 
+fn collect_page_blobs(
+    items: &[ClDiffFile],
+    old_out: &mut Vec<(PathBuf, SHA1)>,
+    new_out: &mut Vec<(PathBuf, SHA1)>,
+) {
+    old_out.reserve(items.len());
+    new_out.reserve(items.len());
+
+    for item in items {
+        match item {
+            ClDiffFile::New(p, h_new) => {
+                new_out.push((p.clone(), *h_new));
+            }
+            ClDiffFile::Deleted(p, h_old) => {
+                old_out.push((p.clone(), *h_old));
+            }
+            ClDiffFile::Modified(p, h_old, h_new) => {
+                old_out.push((p.clone(), *h_old));
+                new_out.push((p.clone(), *h_new));
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1825,10 +1848,6 @@ mod test {
 
     #[test]
     fn test_collect_page_blobs_new_files() {
-        let service = MonoApiService {
-            storage: Storage::mock(),
-        };
-
         let files = vec![ClDiffFile::New(
             PathBuf::from("new_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
@@ -1837,7 +1856,7 @@ mod test {
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
 
-        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+        collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
 
         assert_eq!(old_blobs.len(), 0);
         assert_eq!(new_blobs.len(), 1);
@@ -1846,10 +1865,6 @@ mod test {
 
     #[test]
     fn test_collect_page_blobs_deleted_files() {
-        let service = MonoApiService {
-            storage: Storage::mock(),
-        };
-
         let files = vec![ClDiffFile::Deleted(
             PathBuf::from("deleted_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
@@ -1858,7 +1873,7 @@ mod test {
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
 
-        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+        collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
 
         assert_eq!(old_blobs.len(), 1);
         assert_eq!(new_blobs.len(), 0);
@@ -1914,10 +1929,6 @@ mod test {
 
     #[test]
     fn test_collect_page_blobs_modified_files() {
-        let service = MonoApiService {
-            storage: Storage::mock(),
-        };
-
         let files = vec![ClDiffFile::Modified(
             PathBuf::from("modified_file.txt"),
             SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
@@ -1927,7 +1938,7 @@ mod test {
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
 
-        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+        collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
 
         assert_eq!(old_blobs.len(), 1);
         assert_eq!(new_blobs.len(), 1);
@@ -1937,10 +1948,6 @@ mod test {
 
     #[test]
     fn test_collect_page_blobs_mixed_files() {
-        let service = MonoApiService {
-            storage: Storage::mock(),
-        };
-
         let files = vec![
             ClDiffFile::New(
                 PathBuf::from("new.txt"),
@@ -1960,7 +1967,7 @@ mod test {
         let mut old_blobs = Vec::new();
         let mut new_blobs = Vec::new();
 
-        service.collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
+        collect_page_blobs(&files, &mut old_blobs, &mut new_blobs);
 
         assert_eq!(old_blobs.len(), 2); // deleted + modified
         assert_eq!(new_blobs.len(), 2); // new + modified

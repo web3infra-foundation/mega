@@ -1,16 +1,17 @@
-use common::config::DbConfig;
-use common::errors::MegaError;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{
     net::{TcpStream, ToSocketAddrs},
     path::Path,
     time::Duration,
 };
+
+use common::config::DbConfig;
+use common::errors::MegaError;
+
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 use url::Url;
 
 use crate::migration::apply_migrations;
-
 use crate::utils::id_generator;
 
 /// Create a database connection with failover logic.

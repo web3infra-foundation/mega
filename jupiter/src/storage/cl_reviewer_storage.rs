@@ -43,7 +43,7 @@ impl ClReviewerStorage {
             let a_model: mega_cl_reviewer::ActiveModel = new_reviewer.into_active_model();
             a_model.insert(self.get_connection()).await.map_err(|e| {
                 tracing::error!("{}", e);
-                MegaError::with_message(format!("reviewer {}", reviewer.clone()))
+                MegaError::Other(format!("reviewer {}", reviewer.clone()))
             })?;
         }
         Ok(())
@@ -63,16 +63,16 @@ impl ClReviewerStorage {
                 .await
                 .map_err(|e| {
                     tracing::error!("{}", e);
-                    MegaError::with_message(format!("fail to find reviewer {}", reviewer))
+                    MegaError::Other(format!("fail to find reviewer {}", reviewer))
                 })?
-                .ok_or_else(|| MegaError::with_message(format!("reviewer {} not found", reviewer)))?
+                .ok_or_else(|| MegaError::Other(format!("reviewer {} not found", reviewer)))?
                 .into_active_model();
 
             rev.system_required = Set(system_required);
             rev.updated_at = Set(chrono::Utc::now().naive_utc());
             rev.update(self.get_connection()).await.map_err(|e| {
                 tracing::error!("{}", e);
-                MegaError::with_message(format!(
+                MegaError::Other(format!(
                     "fail to update system required for reviewer {}",
                     reviewer
                 ))
@@ -95,7 +95,7 @@ impl ClReviewerStorage {
                 .await
                 .map_err(|e| {
                     tracing::error!("{}", e);
-                    MegaError::with_message(format!("fail to remove reviewer {}", reviewer.clone()))
+                    MegaError::Other(format!("fail to remove reviewer {}", reviewer.clone()))
                 })?;
         }
         Ok(())
@@ -126,7 +126,7 @@ impl ClReviewerStorage {
             .await
             .map_err(|e| {
                 tracing::error!("{}", e);
-                MegaError::with_message(format!("fail to list reviewers for {cl_link}"))
+                MegaError::Other(format!("fail to list reviewers for {cl_link}"))
             })?;
         Ok(reviewers)
     }
@@ -144,18 +144,16 @@ impl ClReviewerStorage {
             .await
             .map_err(|e| {
                 tracing::error!("{}", e);
-                MegaError::with_message(format!("fail to find reviewer {}", reviewer_username))
+                MegaError::Other(format!("fail to find reviewer {}", reviewer_username))
             })?
-            .ok_or_else(|| {
-                MegaError::with_message(format!("reviewer {} not found", reviewer_username))
-            })?
+            .ok_or_else(|| MegaError::Other(format!("reviewer {} not found", reviewer_username)))?
             .into_active_model();
 
         rev.approved = Set(approved);
         rev.updated_at = Set(chrono::Utc::now().naive_utc());
         rev.update(self.get_connection()).await.map_err(|e| {
             tracing::error!("{}", e);
-            MegaError::with_message(format!("fail to update reviewer {}", reviewer_username))
+            MegaError::Other(format!("fail to update reviewer {}", reviewer_username))
         })?;
 
         Ok(())

@@ -1,12 +1,11 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use git_internal::{
     errors::GitError,
     internal::object::tree::{TreeItem, TreeItemMode},
 };
-use tokio::sync::Mutex;
 
-use crate::api_service::{ApiHandler, cache::GitObjectCache, history, tree_ops};
+use crate::api_service::{ApiHandler, history, tree_ops};
 use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
 
 /// Get the latest commit that modified a file or directory.
@@ -28,8 +27,6 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 ) -> Result<LatestCommitInfo, GitError> {
     // Resolve the starting commit from refs
     let start_commit = crate::api_service::resolve_start_commit(handler, refs).await?;
-
-    let cache = Arc::new(Mutex::new(GitObjectCache::default()));
 
     // 1) Try as directory path first
     if let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? {
@@ -66,7 +63,6 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
             parent,
             start_commit.clone(),
             &dir_item,
-            cache,
         )
         .await?;
 
@@ -80,7 +76,7 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 
     // 2) If not a directory, try as file path
     // Use unified last-modification logic
-    match history::resolve_last_modification_by_path(handler, &path, start_commit, cache).await {
+    match history::resolve_last_modification_by_path(handler, &path, start_commit).await {
         Ok(commit) => {
             let mut commit_info: LatestCommitInfo = commit.clone().into();
 

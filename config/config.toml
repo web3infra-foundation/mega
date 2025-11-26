@@ -9,7 +9,7 @@ base_dir = "/tmp/.mono"
 # The path which log file is saved
 log_path = "${base_dir}/logs"
 
-# log level
+# log level, can be "trace", "debug", "info", "warn", "error"
 level = "debug"
 
 # print std log in console, disable it on production for performance
@@ -44,7 +44,7 @@ acquire_timeout = 3
 # If exceeded, the connection attempt will fail.
 connect_timeout = 3
 
-# Whether to disabling SQLx Log
+# Whether to enable SQLx Log
 sqlx_logging = false
 
 [authentication]
@@ -162,3 +162,6 @@ max_commits_in_memory = 50
 
 # Enable caching of intermediate blame results for better performance
 enable_caching = true
+
+[redis]
+url = "redis://127.0.0.1:6379"

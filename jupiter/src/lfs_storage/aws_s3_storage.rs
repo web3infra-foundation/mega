@@ -47,10 +47,10 @@ impl AwsS3Storage {
 }
 
 fn convert_s3_error<E: ProvideErrorMetadata>(err: &E) -> MegaError {
-    MegaError {
-        error: anyhow::anyhow!("Error Message: {:?}", err.message().map(String::from)).into(),
-        code: err.code().unwrap_or("0").parse::<i32>().unwrap_or(0),
-    }
+    MegaError::Other(format!(
+        "Error Message: {:?}",
+        err.message().map(String::from)
+    ))
 }
 
 #[async_trait]

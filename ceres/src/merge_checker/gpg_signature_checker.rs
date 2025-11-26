@@ -66,7 +66,7 @@ impl GpgSignatureChecker {
             .mono_storage()
             .get_commit_by_hash(cl_to)
             .await?
-            .ok_or_else(|| MegaError::with_message("Commit not found"))?;
+            .ok_or_else(|| MegaError::Other("Commit not found".to_string()))?;
 
         let content = commit.content.clone().unwrap_or_default();
         self.verify_commit_gpg_signature(&content, assignee).await?;
@@ -81,7 +81,7 @@ impl GpgSignatureChecker {
     ) -> Result<(), MegaError> {
         let (commit_msg, signature) = extract_from_commit_content(commit_content);
         if signature.is_none() {
-            return Err(MegaError::with_message(format!(
+            return Err(MegaError::Other(format!(
                 "No GPG signature found for user {assignee}"
             )));
         }
@@ -100,8 +100,8 @@ impl GpgSignatureChecker {
             }
         }
 
-        Err(MegaError::with_message(
-            "No valid GPG key found to verify the signature",
+        Err(MegaError::Other(
+            "No valid GPG key found to verify the signature".to_string(),
         ))
     }
 
@@ -112,15 +112,15 @@ impl GpgSignatureChecker {
         message: &str,
     ) -> Result<(), MegaError> {
         let pub_key = SignedPublicKey::from_string(public_key)
-            .map_err(|e| MegaError::with_message(format!("Failed to parse public key: {e}")))?
+            .map_err(|e| MegaError::Other(format!("Failed to parse public key: {e}")))?
             .0;
         let sig = StandaloneSignature::from_string(signature)
-            .map_err(|e| MegaError::with_message(format!("Failed to parse signature: {e}")))?
+            .map_err(|e| MegaError::Other(format!("Failed to parse signature: {e}")))?
             .0;
         let bytes = message.as_bytes();
         sig.signature
             .verify(&pub_key, bytes)
-            .map_err(|e| MegaError::with_message(format!("Signature verification failed: {e}")))?;
+            .map_err(|e| MegaError::Other(format!("Signature verification failed: {e}")))?;
 
         Ok(())
     }

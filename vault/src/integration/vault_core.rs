@@ -117,7 +117,7 @@ impl VaultCoreInterface for VaultCore {
     fn read_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
         self.rvault
             .read(self.token().into(), path.as_ref())
-            .map_err(|_| MegaError::with_message("Failed to read from vault API"))
+            .map_err(|_| MegaError::Other("Failed to read from vault API".to_string()))
     }
 
     fn write_api(
@@ -127,32 +127,32 @@ impl VaultCoreInterface for VaultCore {
     ) -> Result<Option<Response>, MegaError> {
         self.rvault
             .write(self.token().into(), path.as_ref(), data)
-            .map_err(|e| MegaError::with_message(format!("Failed to write to vault API: {e}")))
+            .map_err(|e| MegaError::Other(format!("Failed to write to vault API: {e}")))
     }
 
     fn delete_api(&self, path: impl AsRef<str>) -> Result<Option<Response>, MegaError> {
         self.rvault
             .delete(self.token().into(), path.as_ref(), None)
-            .map_err(|_| MegaError::with_message("Failed to delete from vault API"))
+            .map_err(|_| MegaError::Other("Failed to delete from vault API".to_string()))
     }
 
     fn write_secret(&self, name: &str, data: Option<Map<String, Value>>) -> Result<(), MegaError> {
         self.write_api(format!("secret/{name}"), data)
-            .map_err(|e| MegaError::with_message(format!("Failed to write secret: {name}, {e}")))?;
+            .map_err(|e| MegaError::Other(format!("Failed to write secret: {name}, {e}")))?;
         Ok(())
     }
 
     fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError> {
         let resp = self
             .read_api(format!("secret/{name}"))
-            .map_err(|_| MegaError::with_message(format!("Failed to read secret: {name}")))?;
+            .map_err(|_| MegaError::Other(format!("Failed to read secret: {name}")))?;
 
         Ok(resp.and_then(|r| r.data))
     }
 
     fn delete_secret(&self, name: &str) -> Result<(), MegaError> {
         self.delete_api(format!("secret/{name}"))
-            .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {name}")))?;
+            .map_err(|_| MegaError::Other(format!("Failed to delete secret: {name}")))?;
         Ok(())
     }
 }
