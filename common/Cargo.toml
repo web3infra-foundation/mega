@@ -28,3 +28,4 @@ directories = { workspace = true }
 pgp = { workspace = true }
 cedar-policy = { workspace = true }
 redis = { workspace = true }
+deadpool-redis = { workspace = true }
