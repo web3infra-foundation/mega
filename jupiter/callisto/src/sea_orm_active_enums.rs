@@ -52,6 +52,8 @@ pub enum ConvTypeEnum {
     Assignee,
     #[sea_orm(string_value = "mention")]
     Mention,
+    #[sea_orm(string_value = "draft")]
+    Draft,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
