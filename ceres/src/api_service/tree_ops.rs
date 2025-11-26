@@ -72,7 +72,7 @@ pub async fn search_tree_by_path<T: ApiHandler + ?Sized>(
 ) -> Result<Option<Tree>, MegaError> {
     let relative_path = handler
         .strip_relative(path)
-        .map_err(|e| MegaError::with_message(e.to_string()))?;
+        .map_err(|e| MegaError::Other(e.to_string()))?;
     let root_tree = handler.get_root_tree(refs).await?;
     let mut search_tree = root_tree.clone();
     for component in relative_path.components() {
@@ -87,7 +87,7 @@ pub async fn search_tree_by_path<T: ApiHandler + ?Sized>(
                 if !search_res.is_tree() {
                     return Ok(None);
                 }
-                let res = handler.get_tree_by_hash(&search_res.id.to_string()).await;
+                let res = handler.get_tree_by_hash(&search_res.id.to_string()).await?;
                 search_tree = res.clone();
             } else {
                 return Ok(None);
@@ -134,7 +134,7 @@ pub async fn search_and_create_tree<T: ApiHandler + ?Sized>(
             .iter()
             .find(|x| x.name == target_name)
         {
-            search_tree = handler.get_tree_by_hash(&search_res.id.to_string()).await;
+            search_tree = handler.get_tree_by_hash(&search_res.id.to_string()).await?;
             update_item_tree.push_back((search_tree.clone(), component));
         } else {
             stack.push_back(component);
@@ -281,7 +281,7 @@ pub async fn search_tree_for_update<T: ApiHandler + ?Sized>(
                     ))
                 })?;
             // fetch next tree
-            current_tree = Arc::new(handler.get_tree_by_hash(&search_res.id.to_string()).await);
+            current_tree = Arc::new(handler.get_tree_by_hash(&search_res.id.to_string()).await?);
             update_chain.push(current_tree.clone());
         }
     }

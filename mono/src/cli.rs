@@ -116,7 +116,7 @@ fn exec_subcommand(config: Config, cmd: &str, args: &ArgMatches) -> MegaResult {
     if let Some(f) = builtin_exec(cmd) {
         f(config, args)
     } else {
-        Err(MegaError::unknown_subcommand(cmd))
+        Err(MegaError::Other(format!("Unknown subcommand: {}", cmd)))
     }
 }
 

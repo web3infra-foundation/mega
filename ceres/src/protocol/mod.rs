@@ -4,7 +4,7 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 use base64::engine::general_purpose;
 use base64::prelude::*;
 use http::{HeaderMap, HeaderValue};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
@@ -13,10 +13,13 @@ use common::{
     utils::ZERO_ID,
 };
 use import_refs::RefCommand;
-use jupiter::storage::Storage;
+use jupiter::{redis::lock::RedLock, storage::Storage};
 use repo::Repo;
 
-use crate::pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo};
+use crate::{
+    api_service::cache::GitObjectCache,
+    pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo},
+};
 
 pub mod import_refs;
 pub mod repo;
@@ -35,7 +38,7 @@ pub struct SmartProtocol {
     pub command_list: Vec<RefCommand>,
     pub service_type: Option<ServiceType>,
     pub storage: Storage,
-    pub shared: Arc<Mutex<u32>>,
+    pub git_object_cache: Arc<GitObjectCache>,
     pub username: Option<String>,
     pub authenticated_user: Option<PushUserInfo>,
 }
@@ -72,10 +75,7 @@ impl FromStr for ServiceType {
         match s {
             "git-upload-pack" => Ok(ServiceType::UploadPack),
             "git-receive-pack" => Ok(ServiceType::ReceivePack),
-            _ => Err(MegaError {
-                error: anyhow::anyhow!("Invalid service name: {}", s).into(),
-                code: 400,
-            }),
+            _ => Err(MegaError::Other(format!("Invalid service name: {}", s))),
         }
     }
 }
@@ -141,8 +141,8 @@ impl SmartProtocol {
     pub fn new(
         path: PathBuf,
         storage: Storage,
-        shared: Arc<Mutex<u32>>,
         transport_protocol: TransportProtocol,
+        git_object_cache: Arc<GitObjectCache>,
     ) -> Self {
         SmartProtocol {
             transport_protocol,
@@ -151,9 +151,9 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
-            shared,
             username: None,
             authenticated_user: None,
+            git_object_cache,
         }
     }
 
@@ -166,14 +166,15 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: None,
             storage,
-            shared: Arc::new(Mutex::new(0)),
             username: None,
             authenticated_user: None,
+            git_object_cache: Arc::new(GitObjectCache::mock()),
         }
     }
 
     pub async fn repo_handler(&self) -> Result<Arc<dyn RepoHandler>, ProtocolError> {
         let import_dir = self.storage.config().monorepo.import_dir.clone();
+
         if self.path.starts_with(import_dir.clone()) {
             let storage = self.storage.git_db_storage();
             let path_str = self.path.to_str().unwrap();
@@ -192,14 +193,22 @@ impl SmartProtocol {
                     }
                 }
             };
+
+            let unpack_redlock = Arc::new(RedLock::new(
+                self.git_object_cache.redis.clone(),
+                "git:receive-pack:lock",
+                30_000, // 30s TTL
+            ));
             Ok(Arc::new(ImportRepo {
+                git_object_cache: self.git_object_cache.clone(),
                 storage: self.storage.clone(),
                 repo,
                 command_list: self.command_list.clone(),
-                shared: self.shared.clone(),
+                unpack_redlock,
             }))
         } else {
             let mut res = MonoRepo {
+                git_object_cache: self.git_object_cache.clone(),
                 storage: self.storage.clone(),
                 path: self.path.clone(),
                 from_hash: String::new(),

@@ -18,13 +18,16 @@ use git_internal::{
 };
 use jupiter::storage::Storage;
 
-use crate::model::git::{
-    CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload, EditFileResult,
-    LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
-};
 use crate::model::{
     blame::{BlameQuery, BlameResult},
     tag::TagInfo,
+};
+use crate::{
+    api_service::cache::GitObjectCache,
+    model::git::{
+        CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload, EditFileResult,
+        LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
+    },
 };
 
 pub mod blob_ops;
@@ -39,11 +42,13 @@ pub mod tree_ops;
 pub trait ApiHandler: Send + Sync {
     fn get_context(&self) -> Storage;
 
+    fn object_cache(&self) -> &GitObjectCache;
+
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError>;
 
     async fn get_root_tree(&self, refs: Option<&str>) -> Result<Tree, MegaError>;
 
-    async fn get_tree_by_hash(&self, hash: &str) -> Tree;
+    async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, MegaError>;
 
     async fn get_tree_info(
         &self,
@@ -84,7 +89,7 @@ pub trait ApiHandler: Send + Sync {
         tree_ops::get_tree_dir_hash(self, path, dir_name, refs).await
     }
 
-    async fn get_commit_by_hash(&self, hash: &str) -> Commit;
+    async fn get_commit_by_hash(&self, hash: &str) -> Result<Commit, MegaError>;
 
     /// Get the latest commit that modified a file or directory.
     /// Unified method that handles both tag-based and commit-based browsing.
@@ -130,7 +135,7 @@ pub trait ApiHandler: Send + Sync {
         commit_ops::build_commit_binding_info(self, commit_sha).await
     }
 
-    async fn get_root_commit(&self) -> Commit;
+    async fn get_root_commit(&self) -> Result<Commit, MegaError>;
 
     // Tag related operations shared across mono/import implementations.
     /// Create a tag in the repository context represented by `repo_path`.
@@ -213,25 +218,27 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
 ) -> Result<Arc<Commit>, GitError> {
     // Handle None or empty refs: return HEAD (root commit)
     let Some(ref_str) = refs else {
-        return Ok(Arc::new(handler.get_root_commit().await));
+        return Ok(Arc::new(handler.get_root_commit().await?));
     };
 
     let ref_str = ref_str.trim();
     if ref_str.is_empty() {
-        return Ok(Arc::new(handler.get_root_commit().await));
+        return Ok(Arc::new(handler.get_root_commit().await?));
     }
 
     // Try to resolve as tag (with or without refs/tags/ prefix)
     let tag_name = ref_str.strip_prefix("refs/tags/").unwrap_or(ref_str);
     if let Ok(Some(tag)) = handler.get_tag(None, tag_name.to_string()).await {
         return Ok(Arc::new(
-            handler.get_commit_by_hash(&tag.object_id.to_string()).await,
+            handler
+                .get_commit_by_hash(&tag.object_id.to_string())
+                .await?,
         ));
     }
 
     // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
     if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
-        let commit = handler.get_commit_by_hash(ref_str).await;
+        let commit = handler.get_commit_by_hash(ref_str).await?;
 
         // Defensive: ensure the resolved commit actually matches the requested SHA
         // Support short SHAs by requiring the full id to start with the provided prefix.

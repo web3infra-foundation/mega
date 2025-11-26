@@ -29,7 +29,7 @@ impl VaultStorage {
             .all(self.get_connection())
             .await
             .map_err(|e| {
-                MegaError::with_message(format!(
+                MegaError::Other(format!(
                     "Failed to list vault with prefix: {}, {}",
                     prefix.as_ref(),
                     e
@@ -62,7 +62,7 @@ impl VaultStorage {
             .await
         {
             Ok(_) => Ok(()),
-            Err(e) => Err(MegaError::with_message(format!(
+            Err(e) => Err(MegaError::Other(format!(
                 "Failed to save vault entry '{}': {}",
                 key.as_ref(),
                 e
@@ -75,13 +75,11 @@ impl VaultStorage {
             .filter(Column::Key.eq(key.as_ref()))
             .one(self.get_connection())
             .await?
-            .ok_or_else(|| {
-                MegaError::with_message(format!("Vault key '{}' not found", key.as_ref()).as_str())
-            })?;
+            .ok_or_else(|| MegaError::Other(format!("Vault key '{}' not found", key.as_ref())))?;
 
         match model.delete(self.get_connection()).await {
             Ok(_) => Ok(()),
-            Err(e) => Err(MegaError::with_message(format!(
+            Err(e) => Err(MegaError::Other(format!(
                 "Failed to delete vault entry '{}': {}",
                 key.as_ref(),
                 e

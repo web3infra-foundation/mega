@@ -54,7 +54,7 @@ impl LfsDbStorage {
     ) -> Result<Vec<lfs_split_relations::Model>, MegaError> {
         let obj = self.get_lfs_object(oid).await?;
         if obj.is_none() {
-            return Err(MegaError::with_message("Object not found"));
+            return Err(MegaError::Other("Object not found".to_string()));
         }
         let result = lfs_split_relations::Entity::find()
             .filter(lfs_split_relations::Column::OriOid.eq(oid))

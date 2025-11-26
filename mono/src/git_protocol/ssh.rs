@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
+use ceres::api_service::cache::GitObjectCache;
 use chrono::{DateTime, Duration, Utc};
 use futures::{StreamExt, stream};
 use russh::keys::{HashAlg, PublicKey};
@@ -27,6 +28,7 @@ pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
     pub storage: Storage,
+    pub git_object_cache: Arc<GitObjectCache>,
     pub smart_protocol: Option<SmartProtocol>,
     pub data_combined: BytesMut,
 }
@@ -85,8 +87,8 @@ impl server::Handler for SshServer {
         let mut smart_protocol = SmartProtocol::new(
             PathBuf::from(&path),
             self.storage.clone(),
-            Arc::new(Mutex::new(0)),
             TransportProtocol::Ssh,
+            self.git_object_cache.clone(),
         );
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {

@@ -82,7 +82,7 @@ impl SmartProtocol {
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
-        tracing::debug!("git_info_refs, return: --------> {:?}", pkt_line_stream);
+        tracing::info!("git_info_refs, return: --------> {:?}", pkt_line_stream);
         Ok(pkt_line_stream)
     }
 
@@ -461,8 +461,10 @@ pub mod test {
     use callisto::sea_orm_active_enums::RefTypeEnum;
     use futures::future;
     use std::process::Command;
+    use std::time::Duration;
     use tempfile::TempDir;
     use tokio::task;
+    use tokio::time::sleep;
 
     use crate::protocol::import_refs::{CommandType, RefCommand};
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
@@ -547,6 +549,32 @@ pub mod test {
         );
     }
 
+    async fn git_push_with_retry(repo_path: &std::path::Path) -> anyhow::Result<()> {
+        let max_retries = 5;
+
+        for attempt in 1..=max_retries {
+            let status = Command::new("git")
+                .args(["push", "origin", "main"])
+                .current_dir(repo_path)
+                .status()?;
+
+            if status.success() {
+                return Ok(());
+            }
+
+            eprintln!(
+                "git push failed (attempt {}/{}) — retrying...",
+                attempt, max_retries
+            );
+
+            // 1s, 2s, 4s, 8s...
+            let delay = Duration::from_secs(1 << (attempt - 1));
+            sleep(delay).await;
+        }
+
+        Err(anyhow::anyhow!("git push failed after retries"))
+    }
+
     async fn init_and_push(repo_name: &str) -> anyhow::Result<()> {
         let tmp = TempDir::new()?;
         let repo_path = tmp.path().join(repo_name);
@@ -556,7 +584,7 @@ pub mod test {
 
         // 1. git init
         Command::new("git")
-            .arg("init")
+            .args(["init", "--initial-branch=main"])
             .current_dir(&repo_path)
             .status()?;
 
@@ -566,6 +594,11 @@ pub mod test {
         // 3. git add .
         Command::new("git")
             .args(["add", "."])
+            .current_dir(&repo_path)
+            .status()?;
+
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
             .current_dir(&repo_path)
             .status()?;
 
@@ -582,10 +615,7 @@ pub mod test {
             .status()?;
 
         // 6. git push
-        Command::new("git")
-            .args(["push", "origin", "master"])
-            .current_dir(&repo_path)
-            .status()?;
+        git_push_with_retry(&repo_path).await?;
 
         Ok(())
     }

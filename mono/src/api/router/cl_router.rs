@@ -78,7 +78,7 @@ async fn reopen_cl(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Closed {
         // util::check_permissions(
@@ -124,7 +124,7 @@ async fn close_cl(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Open {
         // util::check_permissions(
@@ -168,11 +168,11 @@ async fn merge(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Draft {
-        return Err(ApiError::from(MegaError::with_message(
-            ERR_CL_NOT_READY_FOR_REVIEW,
+        return Err(ApiError::from(MegaError::Other(
+            ERR_CL_NOT_READY_FOR_REVIEW.to_owned(),
         )));
     }
 
@@ -209,10 +209,10 @@ async fn merge_no_auth(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("CL Not Found"))?;
+    let model = res.ok_or(MegaError::Other("CL Not Found".to_string()))?;
 
     if model.status != MergeStatusEnum::Open {
-        return Err(ApiError::from(MegaError::with_message(format!(
+        return Err(ApiError::from(MegaError::Other(format!(
             "CL is not in Open status, current status: {:?}",
             model.status
         ))));
@@ -348,7 +348,7 @@ async fn cl_files_list(
         .cl_stg()
         .get_cl(&link)
         .await?
-        .ok_or(MegaError::with_message("CL Not Found"))?;
+        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
 
     let stg = state.monorepo();
     let old_files = stg.get_commit_blobs(&cl.from_hash).await?;
@@ -387,7 +387,7 @@ async fn merge_box(
         .cl_stg()
         .get_cl(&link)
         .await?
-        .ok_or(MegaError::with_message("CL Not Found"))?;
+        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
 
     let res = match cl.status {
         MergeStatusEnum::Open => {
@@ -616,11 +616,11 @@ async fn reviewer_approve(
     Json(payload): Json<ChangeReviewerStatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("CL Not Found"))?;
+    let model = res.ok_or(MegaError::Other("CL Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Draft {
-        return Err(ApiError::from(MegaError::with_message(
-            ERR_CL_NOT_READY_FOR_REVIEW,
+        return Err(ApiError::from(MegaError::Other(
+            ERR_CL_NOT_READY_FOR_REVIEW.to_owned(),
         )));
     }
 
@@ -660,8 +660,8 @@ async fn review_resolve(
         .await?;
 
     if !res {
-        return Err(ApiError::from(MegaError::with_message(
-            "Only reviewer can resolve the review comments",
+        return Err(ApiError::from(MegaError::Other(
+            "Only reviewer can resolve the review comments".to_string(),
         )));
     }
 
@@ -694,14 +694,14 @@ async fn update_cl_status(
     Json(payload): Json<UpdateClStatusPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::with_message("Not Found"))?;
+    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     let new_status = match payload.status.to_lowercase().as_str() {
         "draft" => MergeStatusEnum::Draft,
         "open" => MergeStatusEnum::Open,
         _ => {
-            return Err(ApiError::from(MegaError::with_message(
-                "Invalid status. Only 'draft' and 'open' are supported",
+            return Err(ApiError::from(MegaError::Other(
+                "Invalid status. Only 'draft' and 'open' are supported".to_string(),
             )));
         }
     };
@@ -733,8 +733,8 @@ async fn update_cl_status(
                 .await?;
         }
         _ => {
-            return Err(ApiError::from(MegaError::with_message(
-                "Invalid status transition. Only Draft ↔ Open is allowed",
+            return Err(ApiError::from(MegaError::Other(
+                "Invalid status transition. Only Draft ↔ Open is allowed".to_string(),
             )));
         }
     }

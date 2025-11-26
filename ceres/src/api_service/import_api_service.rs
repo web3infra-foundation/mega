@@ -16,6 +16,7 @@ use git_internal::internal::pack::entry::Entry;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::FromGitModel;
 
+use crate::api_service::cache::GitObjectCache;
 use crate::api_service::{ApiHandler, history};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
@@ -26,12 +27,17 @@ use crate::protocol::repo::Repo;
 pub struct ImportApiService {
     pub storage: Storage,
     pub repo: Repo,
+    pub git_object_cache: Arc<GitObjectCache>,
 }
 
 #[async_trait]
 impl ApiHandler for ImportApiService {
     fn get_context(&self) -> Storage {
         self.storage.clone()
+    }
+
+    fn object_cache(&self) -> &GitObjectCache {
+        &self.git_object_cache
     }
 
     async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<String, GitError> {
@@ -44,19 +50,15 @@ impl ApiHandler for ImportApiService {
         if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
             Ok(relative_path.to_path_buf())
         } else {
-            Err(MegaError::with_message(
-                "The full path does not start with the base path.",
+            Err(MegaError::Other(
+                "The full path does not start with the base path.".to_string(),
             ))
         }
     }
 
-    async fn get_root_commit(&self) -> Commit {
+    async fn get_root_commit(&self) -> Result<Commit, MegaError> {
         let storage = self.storage.git_db_storage();
-        let refs = storage
-            .get_default_ref(self.repo.repo_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let refs = storage.get_default_ref(self.repo.repo_id).await?.unwrap();
         self.get_commit_by_hash(&refs.ref_git_id).await
     }
 
@@ -84,25 +86,23 @@ impl ApiHandler for ImportApiService {
         ))
     }
 
-    async fn get_tree_by_hash(&self, hash: &str) -> Tree {
-        Tree::from_git_model(
-            self.storage
-                .git_db_storage()
-                .get_tree_by_hash(self.repo.repo_id, hash)
-                .await
-                .unwrap()
-                .unwrap(),
-        )
+    async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, MegaError> {
+        let model = self
+            .storage
+            .git_db_storage()
+            .get_tree_by_hash(self.repo.repo_id, hash)
+            .await?
+            .unwrap();
+        Ok(Tree::from_git_model(model))
     }
 
-    async fn get_commit_by_hash(&self, hash: &str) -> Commit {
+    async fn get_commit_by_hash(&self, hash: &str) -> Result<Commit, MegaError> {
         let storage = self.storage.git_db_storage();
         let commit = storage
             .get_commit_by_hash(self.repo.repo_id, hash)
-            .await
-            .unwrap()
+            .await?
             .unwrap();
-        Commit::from_git_model(commit)
+        Ok(Commit::from_git_model(commit))
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {

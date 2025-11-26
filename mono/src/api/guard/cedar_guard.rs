@@ -68,7 +68,7 @@ pub async fn cedar_guard(
             a
         }
         None => {
-            tracing::warn!("Unknown method '{}', skipping Cedar guard.", method);
+            tracing::debug!("Unknown method '{}', skipping Cedar guard.", method);
             return Ok(next.run(req).await);
         }
     };
@@ -106,7 +106,7 @@ pub async fn cedar_guard(
             );
             ApiError::with_status(
                 StatusCode::UNAUTHORIZED,
-                MegaError::with_message(format!("Guard Authorization failed: {}", e)),
+                MegaError::Other(format!("Guard Authorization failed: {}", e)),
             )
         })?;
     let response = next.run(req).await;
@@ -149,7 +149,7 @@ async fn authorize(
 
     cedar_context
         .is_authorized(&principal, &action, &resource, context)
-        .map_err(|e| MegaError::with_message(format!("Authorization failed: {}", e)))?;
+        .map_err(|e| MegaError::Other(format!("Authorization failed: {}", e)))?;
 
     Ok(())
 }
@@ -167,7 +167,7 @@ async fn get_blob_string(state: &MonoApiServiceState, path: &Path) -> Result<Str
     match data {
         Some(content) => Ok(content),
         None => {
-            Err(MegaError::with_message(format!(
+            Err(MegaError::Other(format!(
                 "Blob not found at path: {}",
                 path.display()
             )))

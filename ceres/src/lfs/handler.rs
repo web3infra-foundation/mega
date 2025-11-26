@@ -81,7 +81,7 @@ pub async fn lfs_verify_lock(
                 }
             }
         }
-        Err(_) => return Err(MegaError::with_message("Lookup operation failed!")),
+        Err(_) => return Err(MegaError::Other("Lookup operation failed!".to_string())),
     };
     Ok(lock_list)
 }

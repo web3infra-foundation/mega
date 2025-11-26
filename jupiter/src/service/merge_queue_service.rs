@@ -46,7 +46,7 @@ impl MergeQueueService {
             .merge_queue_storage
             .add_to_queue(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))?;
+            .map_err(MegaError::Other)?;
 
         // Start processor if not already running
         self.ensure_processor_running();
@@ -58,14 +58,14 @@ impl MergeQueueService {
         self.merge_queue_storage
             .remove_from_queue(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn get_queue_list(&self) -> Result<Vec<callisto::merge_queue::Model>, MegaError> {
         self.merge_queue_storage
             .get_queue_list()
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn get_cl_queue_status(
@@ -75,14 +75,14 @@ impl MergeQueueService {
         self.merge_queue_storage
             .get_cl_queue_status(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn get_display_position(&self, cl_link: &str) -> Result<Option<usize>, MegaError> {
         self.merge_queue_storage
             .get_display_position(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn get_display_position_by_position(
@@ -92,14 +92,14 @@ impl MergeQueueService {
         self.merge_queue_storage
             .get_display_position_by_position(position)
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn get_queue_stats(&self) -> Result<QueueStats, MegaError> {
         self.merge_queue_storage
             .get_queue_stats()
             .await
-            .map_err(|e| MegaError::with_message(&e))
+            .map_err(MegaError::Other)
     }
 
     pub async fn process_next_item(&self) -> Result<bool, MegaError> {
@@ -107,13 +107,13 @@ impl MergeQueueService {
             .merge_queue_storage
             .get_next_waiting_item()
             .await
-            .map_err(|e| MegaError::with_message(&e))?;
+            .map_err(MegaError::Other)?;
 
         if let Some(item) = next_item {
             self.merge_queue_storage
                 .update_item_status(&item.cl_link, QueueStatusEnum::Testing)
                 .await
-                .map_err(|e| MegaError::with_message(&e))?;
+                .map_err(MegaError::Other)?;
 
             let cl_link = item.cl_link.clone();
 
@@ -234,11 +234,17 @@ impl MergeQueueService {
         match cl {
             Some(cl_model) => match cl_model.status {
                 MergeStatusEnum::Open => Ok(()),
-                MergeStatusEnum::Closed => Err(MegaError::with_message("Cannot queue a closed CL")),
-                MergeStatusEnum::Merged => Err(MegaError::with_message("Cannot queue a merged CL")),
-                MergeStatusEnum::Draft => Err(MegaError::with_message("Cannot queue a draft CL")),
+                MergeStatusEnum::Closed => {
+                    Err(MegaError::Other("Cannot queue a closed CL".to_string()))
+                }
+                MergeStatusEnum::Merged => {
+                    Err(MegaError::Other("Cannot queue a merged CL".to_string()))
+                }
+                MergeStatusEnum::Draft => {
+                    Err(MegaError::Other("Cannot queue a draft CL".to_string()))
+                }
             },
-            None => Err(MegaError::with_message("CL not found")),
+            None => Err(MegaError::Other("CL not found".to_string())),
         }
     }
 
@@ -311,7 +317,7 @@ impl MergeQueueService {
             .merge_queue_storage
             .cancel_all_pending()
             .await
-            .map_err(|e| MegaError::with_message(&e))?;
+            .map_err(MegaError::Other)?;
         Ok(count)
     }
 
@@ -369,7 +375,7 @@ impl MergeQueueService {
             .merge_queue_storage
             .retry_failed_item(cl_link)
             .await
-            .map_err(|e| MegaError::with_message(&e))?;
+            .map_err(MegaError::Other)?;
 
         if result {
             self.ensure_processor_running();

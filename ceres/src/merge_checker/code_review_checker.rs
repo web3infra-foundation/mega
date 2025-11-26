@@ -72,7 +72,7 @@ impl CodeReviewChecker {
         }
 
         if !err_message.is_empty() {
-            return Err(MegaError::with_message(err_message));
+            return Err(MegaError::Other(err_message));
         }
         Ok(())
     }

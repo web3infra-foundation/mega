@@ -194,7 +194,7 @@ impl ClStorage {
             .all(self.get_connection())
             .await?;
         if assignee.is_empty() {
-            return Err(MegaError::with_message("Not an assignee"));
+            return Err(MegaError::Other("Not an assignee".to_string()));
         }
 
         Ok(())

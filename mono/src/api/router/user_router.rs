@@ -56,12 +56,12 @@ async fn add_key(
     let key = parse_public_key_base64(
         ssh_parts
             .get(1)
-            .ok_or_else(|| MegaError::with_message("Invalid key format"))?,
+            .ok_or_else(|| MegaError::Other("Invalid key format".to_string()))?,
     )?;
     let title = if json.title.is_empty() {
         ssh_parts
             .get(2)
-            .ok_or_else(|| MegaError::with_message("Invalid key format"))?
+            .ok_or_else(|| MegaError::Other("Invalid key format".to_string()))?
             .to_string()
     } else {
         json.title

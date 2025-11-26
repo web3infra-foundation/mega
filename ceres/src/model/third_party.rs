@@ -45,10 +45,10 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             .get(request_url)
             .send()
             .await
-            .map_err(|e| MegaError::with_message(format!("{e}")))?;
+            .map_err(|e| MegaError::Other(format!("{e}")))?;
 
         if !resp.status().is_success() {
-            return Err(MegaError::with_message(format!(
+            return Err(MegaError::Other(format!(
                 "Unable to fetch refs, status: {}",
                 resp.status()
             )));
@@ -57,7 +57,7 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
         let bytes = resp
             .bytes()
             .await
-            .map_err(|e| MegaError::with_message(format!("Unable to parse bytes: {}", e)))?;
+            .map_err(|e| MegaError::Other(format!("Unable to parse bytes: {}", e)))?;
 
         let mut cursor = Cursor::new(bytes);
         let mut cmt: Option<String> = None;
@@ -68,10 +68,9 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
                 break;
             }
 
-            let len_hex =
-                from_utf8(&len_buf).map_err(|e| MegaError::with_message(format!("{e}")))?;
-            let len = u32::from_str_radix(len_hex, 16)
-                .map_err(|e| MegaError::with_message(format!("{e}")))?;
+            let len_hex = from_utf8(&len_buf).map_err(|e| MegaError::Other(format!("{e}")))?;
+            let len =
+                u32::from_str_radix(len_hex, 16).map_err(|e| MegaError::Other(format!("{e}")))?;
 
             if len == 0 {
                 continue;
@@ -93,7 +92,7 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
 
         match (r, cmt) {
             (Some(r), Some(cmt)) => Ok((r, cmt)),
-            _ => Err(MegaError::with_message("refs/heads/main not found")),
+            _ => Err(MegaError::Other("refs/heads/main not found".to_string())),
         }
     }
 
@@ -112,7 +111,7 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             .body(body)
             .send()
             .await
-            .map_err(|e| MegaError::with_message(format!("Failed to send request: {}", e)))?;
+            .map_err(|e| MegaError::Other(format!("Failed to send request: {}", e)))?;
 
         Ok(res.bytes_stream().boxed())
     }
