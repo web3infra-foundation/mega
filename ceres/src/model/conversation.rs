@@ -99,6 +99,7 @@ pub enum ConvType {
     Label,
     Assignee,
     Mention,
+    Draft,
 }
 
 impl From<ConvTypeEnum> for ConvType {
@@ -118,6 +119,7 @@ impl From<ConvTypeEnum> for ConvType {
             ConvTypeEnum::Label => ConvType::Label,
             ConvTypeEnum::Assignee => ConvType::Assignee,
             ConvTypeEnum::Mention => ConvType::Mention,
+            ConvTypeEnum::Draft => ConvType::Draft,
         }
     }
 }
