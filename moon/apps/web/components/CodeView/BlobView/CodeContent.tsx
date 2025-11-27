@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 import { useRouter as useNextRouter } from 'next/dist/client/router'
 import toast from 'react-hot-toast'
 
-import { UsersIcon } from '@gitmono/ui'
+import { cn, UsersIcon } from '@gitmono/ui'
 
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
@@ -383,17 +383,16 @@ const CodeContent = ({
     }
 
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className='flex flex-1 flex-col overflow-hidden'>
         <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
           {({ style, tokens, getLineProps, getTokenProps }) => (
             <Virtuoso
-              style={{
-                flex: 1,
-                backgroundColor: '#fff'
-              }}
+              className='flex'
               totalCount={tokens.length}
               itemContent={(index) => {
                 const line = tokens[index]
+                const isLastLine = index === tokens.length - 1
+                const isFirstLine = index === 0
 
                 return (
                   <div
@@ -402,6 +401,11 @@ const CodeContent = ({
                     ref={(el) => {
                       if (el) lineRef.current[index] = el
                     }}
+                    className={cn(
+                      'border-x border-gray-200',
+                      isFirstLine && 'border-t',
+                      isLastLine && 'rounded-b-lg border-b'
+                    )}
                     style={{
                       ...style,
                       backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
@@ -476,9 +480,16 @@ const CodeContent = ({
           totalCount={processedBlameBlocks.length}
           itemContent={(blockIndex) => {
             const block = processedBlameBlocks[blockIndex]
+            const isFirstBlock = blockIndex === 0
+            const isLastBlock = blockIndex === processedBlameBlocks.length - 1
 
             return (
-              <div key={`block-${blockIndex}`} className='border-b border-gray-200 transition-colors duration-150'>
+              <div
+                key={`block-${blockIndex}`}
+                className={`border-x border-gray-200 transition-colors duration-150 ${
+                  isFirstBlock ? 'border-t' : ''
+                } ${isLastBlock ? 'rounded-b-lg border-b' : ''}`}
+              >
                 <div className='flex min-w-0'>
                   <div className='flex w-1 flex-shrink-0 items-center'>
                     <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
@@ -585,14 +596,7 @@ const CodeContent = ({
     }
 
     return (
-      <div
-        className='markdown-body p-8'
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          backgroundColor: '#fff'
-        }}
-      >
+      <div className='markdown-body overflow-auto rounded-b-lg border border-gray-200 p-8'>
         <Markdown>{fileContent}</Markdown>
       </div>
     )
@@ -611,8 +615,8 @@ const CodeContent = ({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <div className={styles.toolbar} style={{ flexShrink: 0 }}>
+    <div className='flex flex-1 flex-col overflow-hidden'>
+      <div className={`${styles.toolbar} rounded-t-lg border-t border-gray-200`} style={{ flexShrink: 0 }}>
         <div className='m-2 h-8 rounded-lg bg-gray-200'>
           {isMarkdownFile && (
             <button
