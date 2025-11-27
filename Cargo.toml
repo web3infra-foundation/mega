@@ -130,6 +130,7 @@ directories = "6.0.0"
 dotenv = "0.15"
 redis = "0.32"
 deadpool-redis = "0.22.0"
+bincode = "2.0.1"
 
 [profile.release]
 debug = true

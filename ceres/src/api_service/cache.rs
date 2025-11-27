@@ -39,9 +39,9 @@ impl GitObjectCache {
         let mut conn = self.redis.get_connection().await?;
         let key = format!("{}:tree:{}", self.prefix, oid);
 
-        if let Ok(json) = conn.get::<_, String>(&key).await
+        if let Ok(json) = conn.get::<_, Vec<u8>>(&key).await
             && !json.is_empty()
-            && let Ok(tree) = serde_json::from_str::<Tree>(&json)
+            && let Ok((tree, _)) = bincode::decode_from_slice(&json, bincode::config::standard())
         {
             return Ok(Arc::new(tree));
         }
@@ -49,7 +49,7 @@ impl GitObjectCache {
         let tree_raw = fetch_tree(oid).await?;
         let tree = Arc::new(tree_raw);
 
-        let serialized = serde_json::to_string(&*tree)?;
+        let serialized = bincode::encode_to_vec(&tree, bincode::config::standard())?;
         let _: () = conn.set_ex(key, serialized, DEFAULT_EXPIRY_SECONDS).await?;
 
         Ok(tree)
@@ -67,9 +67,9 @@ impl GitObjectCache {
         let mut conn = self.redis.get_connection().await?;
         let key = format!("{}:commit:{}", self.prefix, oid);
 
-        if let Ok(json) = conn.get::<_, String>(&key).await
+        if let Ok(json) = conn.get::<_, Vec<u8>>(&key).await
             && !json.is_empty()
-            && let Ok(commit) = serde_json::from_str::<Commit>(&json)
+            && let Ok((commit, _)) = bincode::decode_from_slice(&json, bincode::config::standard())
         {
             return Ok(Arc::new(commit));
         }
@@ -77,7 +77,7 @@ impl GitObjectCache {
         let commit_raw = fetch_commit(oid).await?;
         let commit = Arc::new(commit_raw);
 
-        let serialized = serde_json::to_string(&*commit)?;
+        let serialized = bincode::encode_to_vec(&commit, bincode::config::standard())?;
         let _: () = conn.set_ex(key, serialized, DEFAULT_EXPIRY_SECONDS).await?;
 
         Ok(commit)
