@@ -42,7 +42,7 @@ function BlobPage() {
 
   return (
     <Theme>
-      <div className='relative m-4 flex flex-col' style={{ height: 'calc(100vh - 32px)' }}>
+      <div className='relative m-4 flex h-[calc(100vh-32px)] flex-col'>
         <BreadCrumb path={path} />
         {/* tree */}
         <div className='flex flex-1 gap-4 overflow-hidden'>
@@ -51,10 +51,10 @@ function BlobPage() {
           </div>
 
           <div style={codeStyle}>
-            <div style={{ flexShrink: 0 }}>
+            <div className='flex-shrink-0'>
               <CommitHistory flag={'details'} path={new_path} refs={refs} />
             </div>
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className='flex flex-1 flex-col overflow-hidden pt-2'>
               <CodeContent fileContent={fileContent} path={path} isCodeLoading={isCodeLoading} />
             </div>
           </div>
