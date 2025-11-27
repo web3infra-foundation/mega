@@ -41,6 +41,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::api_service::cache::GitObjectCache;
+use crate::api_service::state::ProtocolApiState;
 use crate::api_service::{ApiHandler, tree_ops};
 use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::change_list::ClDiffFile;
@@ -1519,14 +1520,16 @@ impl MonoApiService {
         self.save_import_ref(&mega_path, &ref_name, &ref_hash)
             .await?;
 
-        let mut protocol = SmartProtocol::new(
-            mega_path,
-            self.storage.clone(),
-            TransportProtocol::Http,
-            self.git_object_cache.clone(),
-        );
+        let mut protocol = SmartProtocol::new(mega_path, TransportProtocol::Http);
+        let state = ProtocolApiState {
+            storage: self.storage.clone(),
+            git_object_cache: self.git_object_cache.clone(),
+        };
         let bytes = protocol
-            .git_receive_pack_stream(Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))))
+            .git_receive_pack_stream(
+                &state,
+                Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))),
+            )
             .await
             .map_err(|e| MegaError::Other(format!("{e}")))?;
 

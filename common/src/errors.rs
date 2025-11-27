@@ -20,9 +20,6 @@ pub enum MegaError {
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
 
-    #[error("Redis pool error: {0}")]
-    Pool(#[from] deadpool_redis::PoolError),
-
     #[error("Bincode encode error: {0}")]
     EncodeError(#[from] bincode::error::EncodeError),
 
