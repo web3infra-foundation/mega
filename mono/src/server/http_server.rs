@@ -110,7 +110,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
     let oauth_config = config.oauth.clone().unwrap_or_default();
     let git_object_cache = Arc::new(GitObjectCache {
         redis: ctx.redis_client.clone(),
-        prefix: "git-object-db".to_string(),
+        prefix: "git-object-bincode".to_string(),
     });
     let state = ProtocolApiState::new(storage.clone(), git_object_cache.clone());
 

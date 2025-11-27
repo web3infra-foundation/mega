@@ -23,6 +23,9 @@ pub enum MegaError {
     #[error("Redis pool error: {0}")]
     Pool(#[from] deadpool_redis::PoolError),
 
+    #[error("Bincode encode error: {0}")]
+    EncodeError(#[from] bincode::error::EncodeError),
+
     // --- Serialization / parsing ---
     #[error("JSON serialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),

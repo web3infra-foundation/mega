@@ -61,7 +61,7 @@ pub async fn start_server(ctx: AppContext, command: &SshOptions) {
         clients: Arc::new(Mutex::new(HashMap::new())),
         git_object_cache: Arc::new(GitObjectCache {
             redis: ctx.redis_client,
-            prefix: "git-object-db".to_string(),
+            prefix: "git-object-bincode".to_string(),
         }),
         id: 0,
         storage: ctx.storage.clone(),
