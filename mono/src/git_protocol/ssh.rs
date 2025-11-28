@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
-use ceres::api_service::cache::GitObjectCache;
+use ceres::api_service::state::ProtocolApiState;
 use chrono::{DateTime, Duration, Utc};
 use futures::{StreamExt, stream};
 use russh::keys::{HashAlg, PublicKey};
@@ -16,7 +16,6 @@ use ceres::lfs::lfs_structs::Link;
 use ceres::protocol::ServiceType;
 use ceres::protocol::smart::{self};
 use ceres::protocol::{SmartProtocol, TransportProtocol};
-use jupiter::storage::Storage;
 use tokio::sync::Mutex;
 
 use crate::git_protocol::http::search_subsequence;
@@ -27,9 +26,8 @@ type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
-    pub storage: Storage,
-    pub git_object_cache: Arc<GitObjectCache>,
     pub smart_protocol: Option<SmartProtocol>,
+    pub state: ProtocolApiState,
     pub data_combined: BytesMut,
 }
 
@@ -84,17 +82,12 @@ impl server::Handler for SshServer {
         let command: Vec<_> = data.split(' ').collect();
         let path = command[1];
         let path = path.replace(".git", "").replace('\'', "");
-        let mut smart_protocol = SmartProtocol::new(
-            PathBuf::from(&path),
-            self.storage.clone(),
-            TransportProtocol::Ssh,
-            self.git_object_cache.clone(),
-        );
+        let mut smart_protocol = SmartProtocol::new(PathBuf::from(&path), TransportProtocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
                 smart_protocol.service_type = Some(ServiceType::from_str(command[0]).unwrap());
                 // TODO handler ProtocolError
-                let res = smart_protocol.git_info_refs().await.unwrap();
+                let res = smart_protocol.git_info_refs(&self.state).await.unwrap();
                 self.smart_protocol = Some(smart_protocol);
                 session.data(channel, res.to_vec().into())?;
                 session.channel_success(channel)?;
@@ -109,7 +102,7 @@ impl server::Handler for SshServer {
             // back to the hybrid protocol using `git-lfs-authenticate`.
             "git-lfs-authenticate" => {
                 let mut header = HashMap::new();
-                let config = smart_protocol.storage.config();
+                let config = self.state.storage.config();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {
                     href: config.lfs.ssh.http_url.clone(),
@@ -136,6 +129,7 @@ impl server::Handler for SshServer {
 
         tracing::info!("auth_publickey: {} / {}", user, fingerprint);
         let res = self
+            .state
             .storage
             .user_storage()
             .search_ssh_key_finger(&fingerprint)
@@ -204,7 +198,7 @@ impl SshServer {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
         let (mut send_pack_data, buf) = smart_protocol
-            .git_upload_pack(&mut Bytes::copy_from_slice(data))
+            .git_upload_pack(&self.state, &mut Bytes::copy_from_slice(data))
             .await
             .unwrap();
 
@@ -246,7 +240,7 @@ impl SshServer {
                 let remaining_stream =
                     stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
                 report_status = smart_protocol
-                    .git_receive_pack_stream(Box::pin(remaining_stream))
+                    .git_receive_pack_stream(&self.state, Box::pin(remaining_stream))
                     .await
                     .unwrap();
                 break;

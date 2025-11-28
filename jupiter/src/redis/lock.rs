@@ -1,5 +1,5 @@
 use common::errors::MegaError;
-use redis::Script;
+use redis::{Script, aio::ConnectionManager};
 use std::sync::Arc;
 use tokio::{
     sync::Notify,
@@ -7,11 +7,9 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::redis::client::RedisPoolClient;
-
 #[derive(Clone)]
 pub struct RedLock {
-    client: Arc<RedisPoolClient>,
+    connection: ConnectionManager,
     key: String,
     value: String,
     ttl_ms: u64,
@@ -19,9 +17,9 @@ pub struct RedLock {
 }
 
 impl RedLock {
-    pub fn new(client: Arc<RedisPoolClient>, key: impl Into<String>, ttl_ms: u64) -> Self {
+    pub fn new(connection: ConnectionManager, key: impl Into<String>, ttl_ms: u64) -> Self {
         Self {
-            client,
+            connection,
             key: key.into(),
             value: Uuid::new_v4().to_string(),
             ttl_ms,
@@ -31,7 +29,6 @@ impl RedLock {
 
     /// Try lock: SET key value NX PX TTL
     pub async fn try_lock(&self) -> Result<bool, MegaError> {
-        let mut conn = self.client.get_connection().await?;
         // SET returns "OK" or Nil
         let result: Option<String> = redis::cmd("SET")
             .arg(&self.key)
@@ -39,7 +36,7 @@ impl RedLock {
             .arg("NX")
             .arg("PX")
             .arg(self.ttl_ms)
-            .query_async(&mut conn)
+            .query_async(&mut self.connection.clone())
             .await?;
 
         Ok(result.is_some())
@@ -71,7 +68,7 @@ impl RedLock {
             "#,
         );
 
-        let mut conn = self.client.get_connection().await?;
+        let mut conn = self.connection.clone();
         let deleted: i32 = script
             .key(&self.key)
             .arg(&self.value)
@@ -85,6 +82,7 @@ impl RedLock {
     fn spawn_auto_renew(self: &Arc<Self>) {
         let mutex = Arc::clone(self);
 
+        let mut conn = self.connection.clone();
         tokio::spawn(async move {
             let half = mutex.ttl_ms / 2;
 
@@ -93,11 +91,6 @@ impl RedLock {
                     _ = sleep(Duration::from_millis(half)) => {},
                     _ = mutex.stop_notify.notified() => break,
                 }
-
-                let mut conn = match mutex.client.get_connection().await {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
 
                 // PEXPIRE returns integer reply
                 let _: () = redis::cmd("PEXPIRE")

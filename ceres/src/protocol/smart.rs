@@ -9,6 +9,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
+use crate::api_service::state::ProtocolApiState;
 use crate::protocol::ZERO_ID;
 use crate::protocol::import_refs::RefCommand;
 use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
@@ -58,8 +59,8 @@ impl SmartProtocol {
     /// Tracing information is logged regarding the response packet line stream.
     ///
     /// Finally, the constructed packet line stream is returned.
-    pub async fn git_info_refs(&self) -> Result<BytesMut, ProtocolError> {
-        let repo_handler = self.repo_handler().await?;
+    pub async fn git_info_refs(&self, state: &ProtocolApiState) -> Result<BytesMut, ProtocolError> {
+        let repo_handler = self.repo_handler(state).await?;
 
         let service_type = self.service_type.unwrap();
 
@@ -88,9 +89,10 @@ impl SmartProtocol {
 
     pub async fn git_upload_pack(
         &mut self,
+        state: &ProtocolApiState,
         upload_request: &mut Bytes,
     ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut), ProtocolError> {
-        let repo_handler = self.repo_handler().await?;
+        let repo_handler = self.repo_handler(state).await?;
 
         let mut want: HashSet<String> = HashSet::new();
         let mut have: HashSet<String> = HashSet::new();
@@ -210,14 +212,15 @@ impl SmartProtocol {
 
     pub async fn git_receive_pack_stream(
         &mut self,
+        state: &ProtocolApiState,
         data_stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
     ) -> Result<Bytes, ProtocolError> {
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let repo_handler = self.repo_handler().await?;
+        let repo_handler = self.repo_handler(state).await?;
         //1. unpack progress
         let receiver = repo_handler
-            .unpack_stream(&self.storage.config().pack, data_stream)
+            .unpack_stream(&state.storage.config().pack, data_stream)
             .await?;
 
         let unpack_result = repo_handler
@@ -265,7 +268,7 @@ impl SmartProtocol {
             repo_handler.post_receive_pack().await?;
 
             // 4. Process commit bindings for successful ref updates
-            self.process_commit_bindings().await;
+            self.process_commit_bindings(state).await;
         }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
@@ -341,13 +344,13 @@ impl SmartProtocol {
     }
 
     /// Process commit bindings for successfully pushed commits
-    async fn process_commit_bindings(&self) {
+    async fn process_commit_bindings(&self, state: &ProtocolApiState) {
         for command in &self.command_list {
             // Only process successful branch updates (not tags or failed commands)
             if command.ref_type == RefTypeEnum::Branch
                 && command.status == "ok"
                 && command.new_id != ZERO_ID
-                && let Err(e) = self.bind_commit_to_user(&command.new_id).await
+                && let Err(e) = self.bind_commit_to_user(state, &command.new_id).await
             {
                 tracing::warn!("Failed to bind commit {} to user: {}", command.new_id, e);
                 // Don't fail the push on binding errors
@@ -358,9 +361,10 @@ impl SmartProtocol {
     /// Bind a single commit to a user based on authenticated user only (username-only model)
     async fn bind_commit_to_user(
         &self,
+        state: &ProtocolApiState,
         commit_sha: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let commit_binding_storage = self.storage.commit_binding_storage();
+        let commit_binding_storage = state.storage.commit_binding_storage();
 
         // If there is an authenticated user, bind to their username; otherwise anonymous
         let (matched_username, is_anonymous) =

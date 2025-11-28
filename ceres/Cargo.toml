@@ -42,8 +42,9 @@ http = { workspace = true }
 regex = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
-redis = { workspace = true, features = ["aio", "tokio-comp"] }
+redis = { workspace = true }
 bincode = { workspace = true }
+
 
 [dev-dependencies]
 tempfile = { workspace = true }
