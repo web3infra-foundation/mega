@@ -84,10 +84,12 @@ impl MergeQueueStorage {
         Ok(position)
     }
 
+    /// Removes or cancels a CL from the queue.
+    /// - Waiting/Failed/Merged/Cancelled: directly deleted
+    /// - Testing/Merging: marked as Failed (cancelled), background task will stop
     pub async fn remove_from_queue(&self, cl_link: &str) -> Result<bool, String> {
         let db = self.get_connection();
 
-        // Check status before removing
         let existing = Entity::find()
             .filter(Column::ClLink.eq(cl_link))
             .one(db)
@@ -95,22 +97,32 @@ impl MergeQueueStorage {
             .map_err(|e| format!("Failed to check existing CL: {}", e))?;
 
         if let Some(item) = existing {
-            if matches!(
-                item.status,
-                QueueStatusEnum::Testing | QueueStatusEnum::Merging
-            ) {
-                return Err(format!(
-                    "Cannot remove CL with status {:?}, it is currently being processed",
-                    item.status
-                ));
+            match item.status {
+                // Mark Testing/Merging items as Failed instead of deleting
+                QueueStatusEnum::Testing | QueueStatusEnum::Merging => {
+                    let mut active_model: ActiveModel = item.into();
+                    active_model.status = Set(QueueStatusEnum::Failed);
+                    active_model.failure_type = Set(Some(QueueFailureTypeEnum::SystemError));
+                    active_model.error_message = Set(Some("Cancelled by user".to_string()));
+                    active_model.updated_at = Set(chrono::Utc::now().naive_utc());
+
+                    active_model
+                        .update(db)
+                        .await
+                        .map_err(|e| format!("Failed to cancel queue item: {}", e))?;
+
+                    Ok(true)
+                }
+                // Delete other statuses directly
+                _ => {
+                    let delete_result = Entity::delete_by_id(item.id)
+                        .exec(db)
+                        .await
+                        .map_err(|e| format!("Failed to remove queue item: {}", e))?;
+
+                    Ok(delete_result.rows_affected > 0)
+                }
             }
-
-            let delete_result = Entity::delete_by_id(item.id)
-                .exec(db)
-                .await
-                .map_err(|e| format!("Failed to remove queue item: {}", e))?;
-
-            Ok(delete_result.rows_affected > 0)
         } else {
             Ok(false)
         }
@@ -124,6 +136,7 @@ impl MergeQueueStorage {
                 QueueStatusEnum::Waiting,
                 QueueStatusEnum::Testing,
                 QueueStatusEnum::Merging,
+                QueueStatusEnum::Failed,
             ]))
             .order_by_asc(Column::Position)
             .all(db)
@@ -144,12 +157,14 @@ impl MergeQueueStorage {
     pub async fn get_next_waiting_item(&self) -> Result<Option<Model>, String> {
         Entity::find()
             .filter(Column::Status.eq(QueueStatusEnum::Waiting))
-            .order_by_asc(Column::Position) // 数据库排序
-            .one(self.get_connection()) // 只获取第一个
+            .order_by_asc(Column::Position)
+            .one(self.get_connection())
             .await
             .map_err(|e| format!("Failed to find waiting items: {}", e))
     }
 
+    /// Updates item status for normal workflow transitions.
+    /// Returns false if item is already Failed (cancelled) - use retry_failed_item to re-queue.
     pub async fn update_item_status(
         &self,
         cl_link: &str,
@@ -160,6 +175,11 @@ impl MergeQueueStorage {
         let item_model = self.find_item_by_cl_link(cl_link).await?;
 
         if let Some(item_model) = item_model {
+            // Skip if already cancelled/failed
+            if matches!(item_model.status, QueueStatusEnum::Failed) {
+                return Ok(false);
+            }
+
             let mut active_model: ActiveModel = item_model.into();
 
             active_model.status = Set(new_status);
@@ -186,6 +206,8 @@ impl MergeQueueStorage {
             .map_err(|e| format!("Failed to find item by cl link: {}", e))
     }
 
+    /// Updates item status to Failed with error details.
+    /// Will not overwrite if item is already in Failed state (preserves original error).
     pub async fn update_item_status_with_error(
         &self,
         cl_link: &str,
@@ -197,6 +219,15 @@ impl MergeQueueStorage {
         let item_model = self.find_item_by_cl_link(cl_link).await?;
 
         if let Some(item_model) = item_model {
+            // Preserve original failure reason if already failed
+            if matches!(item_model.status, QueueStatusEnum::Failed) {
+                tracing::debug!(
+                    "Item {} already in failed state, preserving original error",
+                    cl_link
+                );
+                return Ok(false);
+            }
+
             let mut active_model: ActiveModel = item_model.into();
 
             active_model.status = Set(QueueStatusEnum::Failed);
@@ -299,6 +330,7 @@ impl MergeQueueStorage {
 
         let now = chrono::Utc::now().naive_utc();
 
+        // Cancel all active items: Waiting, Testing, and Merging
         let update_result = Entity::update_many()
             .set(ActiveModel {
                 status: Set(QueueStatusEnum::Failed),
@@ -307,7 +339,11 @@ impl MergeQueueStorage {
                 updated_at: Set(now),
                 ..Default::default()
             })
-            .filter(Column::Status.is_in([QueueStatusEnum::Waiting, QueueStatusEnum::Testing]))
+            .filter(Column::Status.is_in([
+                QueueStatusEnum::Waiting,
+                QueueStatusEnum::Testing,
+                QueueStatusEnum::Merging,
+            ]))
             .exec(db)
             .await
             .map_err(|e| format!("Failed to batch cancel items: {}", e))?;
@@ -374,6 +410,15 @@ impl MergeQueueStorage {
             .map_err(|e| format!("Failed to find item: {}", e))?;
 
         if let Some(item) = item {
+            // Skip items already in Failed state
+            if matches!(item.status, QueueStatusEnum::Failed) {
+                tracing::info!(
+                    "Skipping move_item_to_tail for {} - item is already in failed state",
+                    cl_link
+                );
+                return Ok(false);
+            }
+
             let mut active_model: ActiveModel = item.into();
             active_model.status = Set(QueueStatusEnum::Waiting);
             active_model.position = Set(chrono::Utc::now().timestamp_millis());
