@@ -62,7 +62,7 @@ function generateParsedFiles(diffFiles: { path: string; lang: string; diff: stri
 }
 
 export default function FileDiff({ id }: { id: string }) {
-  const virtuosoRef = useRef(null)
+  const virtuosoRef = useRef<any>(null)
 
   const [page, setPage] = useState(1)
 
@@ -119,20 +119,17 @@ export default function FileDiff({ id }: { id: string }) {
 
   const scrollToFile = useCallback(
     (filePath: string) => {
-      // Find if the file exists in current rendered files
-      const fileExists = parsedFiles.some((file) => file.file.path === filePath)
+      // 在虚拟列表的数据里找到这个文件的 index
+      const index = parsedFiles.findIndex((file) => file.file.path === filePath)
 
-      if (fileExists) {
+      if (index !== -1) {
+        // 确保这个文件的 diff 是展开状态
         setExpandedMap((prev) => ({ ...prev, [filePath]: true }))
 
-        // Use setTimeout to ensure DOM is updated after expansion
-        setTimeout(() => {
-          const fileElement = fileRefs.current[filePath]
-
-          if (fileElement) {
-            fileElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        }, 100)
+        // 让 Virtuoso 滚到这个 index 对应的 item
+        if (virtuosoRef.current) {
+          virtuosoRef.current.scrollToIndex(index)
+        }
       }
     },
     [parsedFiles]
