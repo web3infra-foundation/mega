@@ -8,7 +8,6 @@ use axum::{
 use cedar_policy::{Context, EntityId, EntityTypeName, EntityUid};
 use common::errors::MegaError;
 use http::StatusCode;
-use once_cell::sync::Lazy;
 use saturn::{ActionEnum, util::SaturnEUid};
 use saturn::{context::CedarContext, entitystore::EntityStore};
 use std::collections::HashMap;
@@ -16,6 +15,7 @@ use std::collections::HashMap;
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
 
 // TODO: All users are temporary allowed during development stage
+const CL_PATH_PREFIX: &'static str = "/cl";
 const POLICY_CONTENT: &str = r#"
 permit (
     principal,  
@@ -23,57 +23,78 @@ permit (
     resource
 );"#;
 
-/// Maps mutating CL router handlers to the Saturn action they require.
-pub static CL_ROUTER_ACTIONS: Lazy<HashMap<&'static str, ActionEnum>> = Lazy::new(|| {
-    HashMap::from([
-        ("reopen", ActionEnum::EditMergeRequest),
-        ("close", ActionEnum::EditMergeRequest),
-        ("merge", ActionEnum::ApproveMergeRequest),
-        ("comment", ActionEnum::EditMergeRequest),
-        ("title", ActionEnum::EditMergeRequest),
-        ("labels", ActionEnum::EditMergeRequest),
-        ("assignees", ActionEnum::EditMergeRequest),
-        ("reviewers", ActionEnum::EditMergeRequest),
-        ("approve", ActionEnum::ApproveMergeRequest),
-        ("resolve", ActionEnum::EditMergeRequest),
-        ("status", ActionEnum::EditMergeRequest),
-    ])
-});
+pub async fn resolve_cl_action(req_path: &str) -> Result<(ActionEnum, String), MegaError> {
+    let endpoints_config_dict = include_str!("guarded_endpoints.json");
+
+    // Avoid parsing request of non-CL endpoints
+    if !req_path.starts_with(CL_PATH_PREFIX) {
+        return Ok((ActionEnum::UnprotectedRequest, String::new()));
+    }
+    let path = req_path.trim_start_matches(CL_PATH_PREFIX);
+
+    let api_config: HashMap<String, HashMap<String, String>> =
+        serde_json::from_str(endpoints_config_dict).map_err(|e| {
+            MegaError::with_message(format!("Failed to parse guarded_endpoints.json: {}", e))
+        })?;
+
+    let cl_config = api_config.get(CL_PATH_PREFIX).ok_or_else(|| {
+        MegaError::with_message("No CL config found in guarded_endpoints.json".to_string())
+    })?;
+
+    let Some((action, mr_link)) = match_operation(path, cl_config) else {
+        tracing::warn!("No matching CL action for path: {}", req_path);
+        return Ok((ActionEnum::UnprotectedRequest, String::new()));
+    };
+
+    Ok((action, mr_link))
+}
+
+//TODO: Only match cl api paths for now, extend when need in the future
+/// return (ActionEnum, mr_link)
+fn match_operation<'a>(
+    suffix: &str,
+    patterns: &'a HashMap<String, String>,
+) -> Option<(ActionEnum, String)> {
+    for (pattern, action) in patterns {
+        let op = pattern.trim_start_matches("/{link}/");
+        if suffix.ends_with(op) {
+            println!("op matched: {}", op);
+            println!("suffix is : {}", suffix);
+            let mr_link = suffix
+                .trim_end_matches(op)
+                .trim_end_matches('/')
+                .trim_start_matches('/')
+                .to_string();
+            return Some((ActionEnum::from(action.to_string()), mr_link));
+        }
+    }
+    None
+}
 
 pub async fn cedar_guard(
     State(state): State<MonoApiServiceState>,
     req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
-    let request_path = req.uri().path().trim_end_matches('/').to_owned();
-    let mut segments = request_path.rsplitn(3, '/');
-    tracing::debug!(?segments, "route segments");
+    let request_path = req.uri().path().to_owned();
+    tracing::debug!("Processing request: {}", request_path);
 
-    let method = segments.next().unwrap_or_default();
-    //TODO: use link to get repository path
-    // let _link = match segments.next() {
-    //     Some(segment) if !segment.is_empty() => segment.to_string(),
-    //     _ => {
-    //         return Err(MegaError::with_message(format!(
-    //             "Unable to extract change list link from path: {}",
-    //             request_path
-    //         ))
-    //         .into());
-    //     }
-    // };
+    let (action, link) = resolve_cl_action(&request_path).await.map_err(|e| {
+        tracing::error!("Failed to resolve CL action: {}", e);
+        ApiError::with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            MegaError::with_message("Failed to resolve CL action".to_string()),
+        )
+    })?;
+    tracing::debug!("Resolved action: {:?}, link: {}", action, link);
 
-    let action = match CL_ROUTER_ACTIONS.get(method) {
-        Some(a) => {
-            tracing::debug!("Cedar guard action: {:?}", method);
-            a
-        }
-        None => {
-            tracing::debug!("Unknown method '{}', skipping Cedar guard.", method);
-            return Ok(next.run(req).await);
-        }
-    };
+    // Skip authorization for unprotected requests
+    if action.eq(&ActionEnum::UnprotectedRequest) {
+        tracing::debug!("Unprotected request for path: {}", request_path);
+        return Ok(next.run(req).await);
+    }
 
-    // TODO: use link to get repository path
+    // TODO: Fetch repo path from CL model
     // let cl_model = state
     //     .cl_stg()
     //     .get_cl(&link)
@@ -172,5 +193,38 @@ async fn get_blob_string(state: &MonoApiServiceState, path: &Path) -> Result<Str
                 path.display()
             )))
         }?,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_match_operation() {
+        let patterns: HashMap<String, String> = HashMap::from([
+            (
+                "/{link}/approve".to_string(),
+                "approveMergeRequest".to_string(),
+            ),
+            ("/{link}/close".to_string(), "editMergeRequest".to_string()),
+        ]);
+
+        let suffix = "/my-cl-link/approve";
+        let result = match_operation(suffix, &patterns);
+        assert_eq!(
+            result,
+            Some((ActionEnum::ApproveMergeRequest, "my-cl-link".to_string()))
+        );
+
+        let suffix = "/another-cl-link/close";
+        let result = match_operation(suffix, &patterns);
+        assert_eq!(
+            result,
+            Some((ActionEnum::EditMergeRequest, "another-cl-link".to_string()))
+        );
+
+        let suffix = "/no-match-link/delete";
+        let result = match_operation(suffix, &patterns);
+        assert_eq!(result, None);
     }
 }
