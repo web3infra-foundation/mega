@@ -41,6 +41,7 @@ const DependenciesPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [versions, setVersions] = useState<string[]>([])
 
   // 从URL参数中获取crate信息
   const crateName = (params?.name as string) || 'tokio'
@@ -92,6 +93,31 @@ const DependenciesPage = () => {
     fetchDependencies()
   }, [crateName, version, nsfront, nsbehind])
 
+  useEffect(() => {
+    const fetchVersions = async () => {
+      if (!crateName || !version || !nsfront || !nsbehind) return
+
+      try {
+        const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+        const response = await fetch(`${apiBaseUrl}/api/crates/${nsfront}/${nsbehind}/${crateName}/${version}/versions`)
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch versions')
+        }
+
+        const data = (await response.json()) as Array<{ version?: string }>
+
+        const versionList = data.map((item) => item.version).filter((item): item is string => Boolean(item))
+
+        setVersions(versionList)
+      } catch (err) {
+        setVersions([])
+      }
+    }
+
+    fetchVersions()
+  }, [crateName, version, nsfront, nsbehind])
+
   const toggleExpanded = (id: string) => {
     setDependencies((prev) => prev.map((dep) => (dep.id === id ? { ...dep, expanded: !dep.expanded } : dep)))
   }
@@ -113,7 +139,7 @@ const DependenciesPage = () => {
       <Head>
         <title>Dependencies - {crateName}</title>
       </Head>
-      <CrateInfoLayout>
+      <CrateInfoLayout versions={versions}>
         {/* 主要内容区域 */}
         <div className='flex justify-center'>
           <div className='w-[1370px] px-8 py-4'>

@@ -42,6 +42,7 @@ export default function CvesPage() {
   const [cveList, setCveList] = useState<CVE[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [versions, setVersions] = useState<string[]>([])
 
   // 从URL参数中获取crate信息
   const crateName = (params?.name as string) || 'example-crate'
@@ -69,9 +70,11 @@ export default function CvesPage() {
         const allCves = [...(data.cves || []), ...(data.dep_cves || [])]
 
         setCveList(allCves)
+        setVersions(data.versions || [])
       } catch (err) {
         setError('Failed to load CVE information')
         setCveList([])
+        setVersions([])
       } finally {
         setLoading(false)
       }
@@ -87,7 +90,7 @@ export default function CvesPage() {
       <Head>
         <title>CVEs - {crateName}</title>
       </Head>
-      <CrateInfoLayout>
+      <CrateInfoLayout versions={versions}>
         <div className='w-full'>
           {/* All CVEs 标题 */}
           <div className='mt-4 w-full'>
