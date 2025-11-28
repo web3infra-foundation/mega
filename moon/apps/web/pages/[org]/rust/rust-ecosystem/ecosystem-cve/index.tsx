@@ -87,7 +87,7 @@ export default function EcosystemCVEPage() {
       <Head>
         <title>Ecosystem CVE</title>
       </Head>
-      <div className='h-auto min-h-screen w-full bg-white'>
+      <div className='h-auto min-h-full w-full bg-white'>
         {/* 搜索栏和标题区域 */}
         <div className='w-full'>
           <div
@@ -334,7 +334,7 @@ export default function EcosystemCVEPage() {
                 paddingRight: 'max(32px, 4vw)'
               }}
             >
-              <div className='flex items-center justify-center gap-6' style={{ marginLeft: '-100px' }}>
+              <div className='flex items-center justify-center gap-6' >
                 {/* Previous 按钮 */}
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
