@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
 
 // TODO: All users are temporary allowed during development stage
-const CL_PATH_PREFIX: &'static str = "/cl";
+const CL_PATH_PREFIX: &str = "/cl";
 const POLICY_CONTENT: &str = r#"
 permit (
     principal,  
@@ -51,9 +51,9 @@ pub async fn resolve_cl_action(req_path: &str) -> Result<(ActionEnum, String), M
 
 //TODO: Only match cl api paths for now, extend when need in the future
 /// return (ActionEnum, mr_link)
-fn match_operation<'a>(
+fn match_operation(
     suffix: &str,
-    patterns: &'a HashMap<String, String>,
+    patterns: &HashMap<String, String>,
 ) -> Option<(ActionEnum, String)> {
     for (pattern, action) in patterns {
         let op = pattern.trim_start_matches("/{link}/");
