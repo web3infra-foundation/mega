@@ -119,8 +119,8 @@ const TimelineItems = React.memo<{
             children = <CloseItem conv={conv} />
             isOver = true
             break
-          case 'Edit':
-            icon = <GitPullRequestDraftIcon size={24} className='text-[#6e7781]' />
+          case 'Draft':
+            icon = <GitPullRequestDraftIcon size={16} className='text-[#6e7781]' />
             children = <EditItem conv={conv} />
             break
           case 'Reopen':

@@ -3638,6 +3638,7 @@ export enum ConvType {
   Commit = 'Commit',
   ForcePush = 'ForcePush',
   Edit = 'Edit',
+  Draft = 'Draft',
   Review = 'Review',
   Approve = 'Approve',
   MergeQueue = 'MergeQueue',
