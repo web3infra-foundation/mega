@@ -4,21 +4,10 @@ use crate::storage::{
     cl_storage::ClStorage,
     merge_queue_storage::MergeQueueStorage,
 };
-use callisto::sea_orm_active_enums::MergeStatusEnum;
-use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
+use callisto::sea_orm_active_enums::{MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum};
 use common::errors::MegaError;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-
-/// Queue polling interval in seconds when no items are processed
-const QUEUE_POLL_INTERVAL_SECS: u64 = 5;
-
-/// Error backoff interval in seconds after processing failure
-const ERROR_BACKOFF_SECS: u64 = 30;
-
-/// Merge queue temporary status duration in seconds
-const MERGE_QUEUE_TEMP_SECS: u64 = 30;
 
 /// Merge queue service for CL processing
 #[derive(Clone)]
@@ -39,6 +28,10 @@ impl MergeQueueService {
         }
     }
 
+    /// Adds a CL to the merge queue.
+    ///
+    /// Note: This method only adds to queue. The background processor
+    /// should be started by the caller (MonoApiService) after this call.
     pub async fn add_to_queue(&self, cl_link: String) -> Result<i64, MegaError> {
         self.validate_cl_for_queue(&cl_link).await?;
 
@@ -47,9 +40,6 @@ impl MergeQueueService {
             .add_to_queue(cl_link)
             .await
             .map_err(MegaError::Other)?;
-
-        // Start processor if not already running
-        self.ensure_processor_running();
 
         Ok(position)
     }
@@ -102,130 +92,78 @@ impl MergeQueueService {
             .map_err(MegaError::Other)
     }
 
-    pub async fn process_next_item(&self) -> Result<bool, MegaError> {
-        let next_item = self
-            .merge_queue_storage
+    // ========== Methods for MonoApiService to use ==========
+
+    /// Gets the next waiting item from the queue.
+    ///
+    /// Called by MonoApiService's background processor.
+    pub async fn get_next_waiting_item(
+        &self,
+    ) -> Result<Option<callisto::merge_queue::Model>, MegaError> {
+        self.merge_queue_storage
             .get_next_waiting_item()
             .await
-            .map_err(MegaError::Other)?;
-
-        if let Some(item) = next_item {
-            self.merge_queue_storage
-                .update_item_status(&item.cl_link, QueueStatusEnum::Testing)
-                .await
-                .map_err(MegaError::Other)?;
-
-            let cl_link = item.cl_link.clone();
-
-            let processed = match self.process_merge_workflow(&cl_link).await {
-                Ok(()) => true,
-                Err((failure_type, message)) => {
-                    if matches!(failure_type, QueueFailureTypeEnum::Conflict) {
-                        if let Err(e) = self.merge_queue_storage.move_item_to_tail(&cl_link).await {
-                            tracing::warn!(
-                                "Failed to move conflicting item {} to tail: {}",
-                                cl_link,
-                                e
-                            );
-                        }
-                        false
-                    } else {
-                        if let Err(e) = self
-                            .merge_queue_storage
-                            .update_item_status_with_error(&cl_link, failure_type, message)
-                            .await
-                        {
-                            tracing::error!(
-                                "Failed to update item {} status to failed: {}",
-                                cl_link,
-                                e
-                            );
-                        }
-                        true
-                    }
-                }
-            };
-            Ok(processed)
-        } else {
-            Ok(false)
-        }
+            .map_err(MegaError::Other)
     }
 
-    /// Orchestrates the merge workflow: validation → testing → conflict check → merge
+    /// Updates the status of a queue item.
     ///
-    /// Updates queue and CL status on success or returns QueueError on failure
-    async fn process_merge_workflow(
+    /// Returns true if update was successful, false if item was cancelled/not found.
+    pub async fn update_item_status(
         &self,
         cl_link: &str,
-    ) -> Result<(), (QueueFailureTypeEnum, String)> {
-        // Validate CL still exists and is not closed before processing
-        let cl = self.cl_storage.get_cl(cl_link).await.map_err(|e| {
-            (
-                QueueFailureTypeEnum::SystemError,
-                format!("Failed to fetch CL: {}", e),
-            )
-        })?;
-
-        let cl_model = match cl {
-            Some(cl_model) => {
-                if cl_model.status == MergeStatusEnum::Closed {
-                    return Err((
-                        QueueFailureTypeEnum::SystemError,
-                        "CL has been closed, cannot merge".to_string(),
-                    ));
-                }
-                if cl_model.status == MergeStatusEnum::Draft {
-                    return Err((
-                        QueueFailureTypeEnum::SystemError,
-                        "CL is in draft status, cannot merge".to_string(),
-                    ));
-                }
-                cl_model
-            }
-            None => {
-                return Err((
-                    QueueFailureTypeEnum::SystemError,
-                    "CL no longer exists, cannot merge".to_string(),
-                ));
-            }
-        };
-
-        self.execute_testing(cl_link).await?;
-        self.check_conflicts(cl_link).await?;
-
+        status: QueueStatusEnum,
+    ) -> Result<bool, MegaError> {
         self.merge_queue_storage
-            .update_item_status(cl_link, QueueStatusEnum::Merging)
+            .update_item_status(cl_link, status)
             .await
-            .map_err(|e| {
-                (
-                    QueueFailureTypeEnum::SystemError,
-                    format!("Failed to update status to merging: {}", e),
-                )
-            })?;
-
-        self.execute_merge(cl_link).await?;
-
-        // Update merge queue status
-        self.merge_queue_storage
-            .update_item_status(cl_link, QueueStatusEnum::Merged)
-            .await
-            .map_err(|e| {
-                (
-                    QueueFailureTypeEnum::SystemError,
-                    format!("Failed to update status to merged: {}", e),
-                )
-            })?;
-
-        // Update CL status in mega_cl table
-        self.cl_storage.merge_cl(cl_model).await.map_err(|e| {
-            (
-                QueueFailureTypeEnum::SystemError,
-                format!("Failed to update CL status: {}", e),
-            )
-        })?;
-
-        Ok(())
+            .map_err(MegaError::Other)
     }
+
+    /// Updates item status to Failed with error details.
+    pub async fn update_item_status_with_error(
+        &self,
+        cl_link: &str,
+        failure_type: QueueFailureTypeEnum,
+        message: String,
+    ) -> Result<bool, MegaError> {
+        self.merge_queue_storage
+            .update_item_status_with_error(cl_link, failure_type, message)
+            .await
+            .map_err(MegaError::Other)
+    }
+
+    /// Moves a conflicting item to the tail of the queue for retry.
+    pub async fn move_item_to_tail(&self, cl_link: &str) -> Result<bool, MegaError> {
+        self.merge_queue_storage
+            .move_item_to_tail(cl_link)
+            .await
+            .map_err(MegaError::Other)
+    }
+
+    // ========== Processor control methods ==========
+
+    /// Tries to start the processor. Returns true if this call started it,
+    /// false if it was already running.
+    ///
+    /// The actual processor loop should be implemented in MonoApiService (ceres layer).
+    pub fn try_start_processor(&self) -> bool {
+        self.processor_running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    /// Stops the processor by setting the running flag to false.
+    pub fn stop_processor(&self) {
+        self.processor_running.store(false, Ordering::SeqCst);
+    }
+
+    /// Checks if the processor is currently running.
+    pub fn is_processor_running(&self) -> bool {
+        self.processor_running.load(Ordering::SeqCst)
+    }
+
+    // ========== Validation and helper methods ==========
 
     /// Validates CL exists and is not closed before adding to queue
     async fn validate_cl_for_queue(&self, cl_link: &str) -> Result<(), MegaError> {
@@ -248,70 +186,6 @@ impl MergeQueueService {
         }
     }
 
-    /// Checks for merge conflicts using Git internals
-    ///
-    /// TODO: Implement actual Git conflict detection
-    async fn check_conflicts(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
-        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
-
-        Ok(())
-    }
-
-    /// Executes Git merge operation for the CL
-    ///
-    /// TODO: Implement actual Git merge operation
-    async fn execute_merge(&self, _cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
-        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
-
-        Ok(())
-    }
-
-    /// Executes Buck2 tests for the CL and returns error if tests fail
-    async fn execute_testing(&self, cl_link: &str) -> Result<(), (QueueFailureTypeEnum, String)> {
-        let cl = self
-            .cl_storage
-            .get_cl(cl_link)
-            .await
-            .map_err(|e| (QueueFailureTypeEnum::SystemError, e.to_string()))?
-            .ok_or_else(|| {
-                (
-                    QueueFailureTypeEnum::SystemError,
-                    "CL not found".to_string(),
-                )
-            })?;
-
-        match self.run_buck2_tests(&cl).await {
-            Ok(success) => {
-                if success {
-                    Ok(())
-                } else {
-                    Err((
-                        QueueFailureTypeEnum::TestFailure,
-                        "Buck2 tests failed".to_string(),
-                    ))
-                }
-            }
-            Err((failure_type, message)) => Err((
-                failure_type,
-                format!("Buck2 test execution error: {}", message),
-            )),
-        }
-    }
-
-    /// Runs Buck2 tests for the CL
-    ///
-    /// Returns Ok(true) if tests pass, Ok(false) if tests fail
-    ///
-    /// TODO: Implement actual Buck2 test execution
-    async fn run_buck2_tests(
-        &self,
-        _cl: &callisto::mega_cl::Model,
-    ) -> Result<bool, (QueueFailureTypeEnum, String)> {
-        tokio::time::sleep(Duration::from_secs(MERGE_QUEUE_TEMP_SECS)).await;
-
-        Ok(true)
-    }
-
     pub async fn cancel_all_pending(&self) -> Result<u64, MegaError> {
         let count = self
             .merge_queue_storage
@@ -321,67 +195,14 @@ impl MergeQueueService {
         Ok(count)
     }
 
-    /// Ensures the background merge processor is running
+    /// Retries a failed queue item by resetting its status to Waiting.
     ///
-    /// Uses atomic flag to guarantee only one processor task runs at a time.
-    /// Processor automatically stops when no active items remain in queue.
-    fn ensure_processor_running(&self) {
-        if self
-            .processor_running
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
-        {
-            let service = self.clone();
-            tokio::spawn(async move {
-                tracing::info!("Merge queue processor started");
-
-                loop {
-                    match service.process_next_item().await {
-                        Ok(processed) => {
-                            if !processed {
-                                // Check if there are active items
-                                if let Ok(stats) =
-                                    service.merge_queue_storage.get_queue_stats().await
-                                {
-                                    let has_active = stats.waiting_count > 0
-                                        || stats.testing_count > 0
-                                        || stats.merging_count > 0;
-
-                                    if !has_active {
-                                        // No active items, stop processor
-                                        service.processor_running.store(false, Ordering::SeqCst);
-                                        tracing::info!(
-                                            "Merge queue processor stopped (no active items)"
-                                        );
-                                        break;
-                                    }
-                                }
-                                tokio::time::sleep(Duration::from_secs(QUEUE_POLL_INTERVAL_SECS))
-                                    .await;
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("Queue processor error: {}", e);
-                            tokio::time::sleep(Duration::from_secs(ERROR_BACKOFF_SECS)).await;
-                        }
-                    }
-                }
-            });
-        }
-    }
-
+    /// Note: The caller (MonoApiService) should start the processor after this.
     pub async fn retry_queue_item(&self, cl_link: &str) -> Result<bool, MegaError> {
-        let result = self
-            .merge_queue_storage
+        self.merge_queue_storage
             .retry_failed_item(cl_link)
             .await
-            .map_err(MegaError::Other)?;
-
-        if result {
-            self.ensure_processor_running();
-        }
-
-        Ok(result)
+            .map_err(MegaError::Other)
     }
 
     pub fn mock() -> Self {

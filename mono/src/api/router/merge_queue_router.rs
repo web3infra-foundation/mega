@@ -42,10 +42,10 @@ async fn add_to_queue(
     state: State<MonoApiServiceState>,
     Json(request): Json<AddToQueueRequest>,
 ) -> Result<Json<CommonResult<AddToQueueResponse>>, ApiError> {
+    // Use MonoApiService to add to queue AND start the background processor
     match state
-        .storage
-        .merge_queue_service
-        .add_to_queue(request.cl_link.clone())
+        .monorepo()
+        .add_to_merge_queue(request.cl_link.clone())
         .await
     {
         Ok(position) => {
@@ -92,16 +92,25 @@ async fn remove_from_queue(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    state
+    match state
         .storage
         .merge_queue_service
         .remove_from_queue(&cl_link)
-        .await?;
-    let response = json!({
-        "success": true,
-        "message": "Removed from queue"
-    });
-    Ok(Json(CommonResult::success(Some(response))))
+        .await
+    {
+        Ok(removed) => {
+            if removed {
+                let response = json!({
+                    "success": true,
+                    "message": "Removed from queue"
+                });
+                Ok(Json(CommonResult::success(Some(response))))
+            } else {
+                Ok(Json(CommonResult::failed("CL not found in queue")))
+            }
+        }
+        Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
+    }
 }
 
 /// Gets the current merge queue list
@@ -198,12 +207,8 @@ async fn retry_queue_item(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    match state
-        .storage
-        .merge_queue_service
-        .retry_queue_item(&cl_link)
-        .await
-    {
+    // Use MonoApiService to retry AND start the background processor
+    match state.monorepo().retry_merge_queue_item(&cl_link).await {
         Ok(success) => {
             let response = if success {
                 json!({
