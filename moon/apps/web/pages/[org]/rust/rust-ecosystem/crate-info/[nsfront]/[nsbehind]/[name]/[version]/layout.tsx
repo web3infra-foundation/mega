@@ -12,7 +12,9 @@ interface CrateInfoLayoutProps {
   versions?: string[]
 }
 
-const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutProps) => {
+type CrateTab = 'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions' | 'cves'
+
+const CrateInfoLayoutComponent = ({ children, versions: providedVersions }: CrateInfoLayoutProps) => {
   const router = useRouter()
   const params = useParams()
 
@@ -40,11 +42,63 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
   // 版本选择相关状态
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<string>(version)
+  const [versionOptions, setVersionOptions] = useState<string[]>(providedVersions ?? [])
+  const [versionLoading, setVersionLoading] = useState(false)
 
   // 当version参数变化时更新selectedVersion
   useEffect(() => {
     setSelectedVersion(version)
   }, [version])
+
+  useEffect(() => {
+    if (providedVersions && providedVersions.length > 0) {
+      setVersionOptions(providedVersions)
+    } else {
+      setVersionOptions([])
+    }
+  }, [providedVersions])
+
+  useEffect(() => {
+    if ((providedVersions && providedVersions.length > 0) || versionLoading) return
+    if (!crateInfo.crateName || !crateInfo.version || !crateInfo.nsfront || !crateInfo.nsbehind) return
+
+    let cancelled = false
+    const fetchVersions = async () => {
+      try {
+        setVersionLoading(true)
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_CRATES_PRO_URL
+        const response = await fetch(
+          `${apiBaseUrl}/api/crates/${crateInfo.nsfront}/${crateInfo.nsbehind}/${crateInfo.crateName}/${crateInfo.version}/versions`
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch versions')
+        }
+
+        const data = (await response.json()) as Array<{ version?: string }>
+        const extracted = data.map((item) => item.version).filter((item): item is string => Boolean(item))
+
+        if (!cancelled) {
+          setVersionOptions(extracted)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setVersionOptions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setVersionLoading(false)
+        }
+      }
+    }
+
+    fetchVersions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [providedVersions, versionLoading, crateInfo.crateName, crateInfo.version, crateInfo.nsfront, crateInfo.nsbehind])
 
   // 搜索相关状态
   const [searchQuery, setSearchQuery] = useState('')
@@ -64,9 +118,7 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
   )
 
   // 根据当前路径确定activeTab
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'dependencies' | 'dependents' | 'compare' | 'versions' | 'cves'
-  >('overview')
+  const [activeTab, setActiveTab] = useState<CrateTab>('overview')
 
   useEffect(() => {
     const path = router.asPath
@@ -94,19 +146,49 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
   )
 
   // 版本选择处理函数
+  const buildVersionPath = useCallback(
+    (targetVersion: string, tab: CrateTab) => {
+      const segments = [
+        crateInfo.org,
+        'rust',
+        'rust-ecosystem',
+        'crate-info',
+        crateInfo.nsfront,
+        crateInfo.nsbehind,
+        crateInfo.crateName,
+        targetVersion
+      ].filter(Boolean)
+
+      const basePath = `/${segments.join('/')}`
+
+      switch (tab) {
+        case 'dependencies':
+          return `${basePath}/dependencies`
+        case 'dependents':
+          return `${basePath}/dependents`
+        case 'compare':
+          return `${basePath}/compare`
+        case 'cves':
+          return `${basePath}/cves`
+        case 'versions':
+        case 'overview':
+        default:
+          return basePath
+      }
+    },
+    [crateInfo]
+  )
+
   const handleVersionSelect = useCallback(
     (newVersion: string) => {
       if (newVersion === selectedVersion) return // 如果版本相同，不执行任何操作
 
       setSelectedVersion(newVersion)
-      // 更新URL中的版本参数
-      const currentPath = router.asPath
+      const targetPath = buildVersionPath(newVersion, activeTab)
 
-      const newPath = currentPath.replace(/\/[^/]+\/?$/, `/${newVersion}`)
-
-      router.push(newPath, undefined, { shallow: true })
+      router.push(targetPath, undefined, { shallow: true })
     },
-    [router, selectedVersion]
+    [activeTab, buildVersionPath, router, selectedVersion]
   )
 
   const navigationTabs = useMemo(
@@ -267,7 +349,7 @@ const CrateInfoLayoutComponent = ({ children, versions = [] }: CrateInfoLayoutPr
                   onClose={() => setIsVersionDialogOpen(false)}
                   onVersionSelect={handleVersionSelect}
                   currentVersion={selectedVersion}
-                  versions={versions}
+                  versions={versionOptions}
                 />
               </div>
             </div>

@@ -27,7 +27,7 @@ interface VersionInfo extends Versionpage {
 const VersionsPage = () => {
   const params = useParams()
   const router = useRouter()
-  const [versions, setVersions] = useState<VersionInfo[]>([])
+  const [versionRecords, setVersionRecords] = useState<VersionInfo[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [loading, setLoading] = useState(true)
@@ -84,7 +84,7 @@ const VersionsPage = () => {
           return 0
         })
 
-        setVersions(sortedVersions)
+        setVersionRecords(sortedVersions)
       } catch (err) {
         setError('Failed to load versions')
       } finally {
@@ -105,10 +105,11 @@ const VersionsPage = () => {
   }
 
   // 分页逻辑
-  const totalPages = Math.ceil(versions.length / itemsPerPage)
+  const totalPages = Math.ceil(versionRecords.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentVersions = versions.slice(startIndex, endIndex)
+  const currentVersions = versionRecords.slice(startIndex, endIndex)
+  const versionNames = versionRecords.map((ver) => ver.version)
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
@@ -127,7 +128,7 @@ const VersionsPage = () => {
       <Head>
         <title>Versions - {crateName}</title>
       </Head>
-      <CrateInfoLayout>
+      <CrateInfoLayout versions={versionNames}>
         <div className='flex justify-center'>
           <div className='w-[1370px] px-8 py-4'>
             {/* 加载状态 */}
