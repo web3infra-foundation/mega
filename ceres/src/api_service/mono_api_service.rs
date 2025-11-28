@@ -39,6 +39,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::api_service::cache::GitObjectCache;
 use crate::api_service::{ApiHandler, tree_ops};
@@ -56,7 +57,9 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use regex::Regex;
 
-use callisto::sea_orm_active_enums::ConvTypeEnum;
+use callisto::sea_orm_active_enums::{
+    ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum,
+};
 use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
 use common::errors::MegaError;
 use common::model::{DiffItem, Pagination};
@@ -1086,48 +1089,61 @@ impl MonoApiService {
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
+    /// Merges a CL after checking for conflicts.
+    /// This is the public API that includes conflict checking.
     pub async fn merge_cl(&self, username: &str, cl: mega_cl::Model) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
-        let refs = storage.get_main_ref(&cl.path).await.unwrap().unwrap();
+        let refs = storage
+            .get_main_ref(&cl.path)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get main ref: {}", e)))?
+            .ok_or_else(|| GitError::CustomError("Main ref not found".to_string()))?;
 
-        if cl.from_hash == refs.ref_commit_hash {
-            let commit: Commit = Commit::from_mega_model(
-                storage
-                    .get_commit_by_hash(&cl.to_hash)
-                    .await
-                    .unwrap()
-                    .unwrap(),
-            );
-
-            if cl.path != "/" {
-                let path = PathBuf::from(cl.path.clone());
-                // because only parent tree is needed so we skip current directory
-                let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
-                let result = self.build_result_by_chain(path, update_chain, commit.tree_id)?;
-                self.apply_update_result(
-                    &result,
-                    "cl merge generated commit",
-                    Some(cl.link.as_str()),
-                )
-                .await?;
-                storage.remove_none_cl_refs(&cl.path).await.unwrap();
-                // TODO: self.clean_dangling_commits().await;
-            }
-            // add conversation
-            self.storage
-                .conversation_storage()
-                .add_conversation(&cl.link, username, None, ConvTypeEnum::Merged)
-                .await
-                .unwrap();
-            // update cl status last
-            self.storage
-                .cl_storage()
-                .merge_cl(cl.clone())
-                .await
-                .unwrap();
-        } else {
+        if cl.from_hash != refs.ref_commit_hash {
             return Err(GitError::CustomError("ref hash conflict".to_owned()));
         }
+
+        self.merge_cl_unchecked(username, cl).await
+    }
+
+    /// Merges a CL without checking for conflicts.
+    /// Caller is responsible for ensuring no conflicts exist before calling this method.
+    async fn merge_cl_unchecked(&self, username: &str, cl: mega_cl::Model) -> Result<(), GitError> {
+        let storage = self.storage.mono_storage();
+
+        let commit_model = storage
+            .get_commit_by_hash(&cl.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get commit: {}", e)))?
+            .ok_or_else(|| GitError::CustomError(format!("Commit not found: {}", cl.to_hash)))?;
+        let commit: Commit = Commit::from_mega_model(commit_model);
+
+        if cl.path != "/" {
+            let path = PathBuf::from(cl.path.clone());
+            // because only parent tree is needed so we skip current directory
+            let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
+            let result = self.build_result_by_chain(path, update_chain, commit.tree_id)?;
+            self.apply_update_result(&result, "cl merge generated commit", Some(cl.link.as_str()))
+                .await?;
+            storage
+                .remove_none_cl_refs(&cl.path)
+                .await
+                .map_err(|e| GitError::CustomError(format!("Failed to remove refs: {}", e)))?;
+            // TODO: self.clean_dangling_commits().await;
+        }
+        // add conversation
+        self.storage
+            .conversation_storage()
+            .add_conversation(&cl.link, username, None, ConvTypeEnum::Merged)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to add conversation: {}", e)))?;
+        // update cl status last
+        self.storage
+            .cl_storage()
+            .merge_cl(cl.clone())
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
+
         Ok(())
     }
 
@@ -1578,6 +1594,322 @@ impl MonoApiService {
             }
         }
         Ok(result)
+    }
+
+    // ========== Merge Queue Methods ==========
+
+    /// Queue polling interval in seconds when no items are processed
+    const QUEUE_POLL_INTERVAL_SECS: u64 = 5;
+
+    /// Error backoff interval in seconds after processing failure
+    const ERROR_BACKOFF_SECS: u64 = 30;
+
+    /// Adds a CL to the merge queue and ensures the background processor is running.
+    ///
+    /// This method validates the CL status before adding to queue and automatically
+    /// starts the background processor if not already running.
+    ///
+    /// # Arguments
+    /// * `cl_link` - The unique identifier of the CL to add to queue
+    ///
+    /// # Returns
+    /// * `Ok(i64)` - The position in queue on success
+    /// * `Err(MegaError)` - If validation fails or database error occurs
+    pub async fn add_to_merge_queue(&self, cl_link: String) -> Result<i64, MegaError> {
+        // Validate CL exists and is in Open status
+        let cl = self.storage.cl_storage().get_cl(&cl_link).await?;
+        let model = cl.ok_or(MegaError::Other("CL not found".to_string()))?;
+
+        if model.status != MergeStatusEnum::Open {
+            return Err(MegaError::Other(format!(
+                "CL is not in Open status, current status: {:?}",
+                model.status
+            )));
+        }
+
+        // Add to queue via jupiter layer service
+        let position = self
+            .storage
+            .merge_queue_service
+            .add_to_queue(cl_link)
+            .await?;
+
+        // Ensure the background processor is running
+        self.ensure_merge_processor_running();
+
+        Ok(position)
+    }
+
+    /// Retries a failed merge queue item and ensures the processor is running.
+    ///
+    /// # Arguments
+    /// * `cl_link` - The unique identifier of the CL to retry
+    ///
+    /// # Returns
+    /// * `Ok(true)` - If retry was successful
+    /// * `Ok(false)` - If item not found or cannot be retried
+    /// * `Err(MegaError)` - If database error occurs
+    pub async fn retry_merge_queue_item(&self, cl_link: &str) -> Result<bool, MegaError> {
+        let result = self
+            .storage
+            .merge_queue_service
+            .retry_queue_item(cl_link)
+            .await?;
+
+        if result {
+            // Ensure the background processor is running
+            self.ensure_merge_processor_running();
+        }
+
+        Ok(result)
+    }
+
+    /// Ensures the background merge processor is running.
+    ///
+    /// Uses atomic flag to guarantee only one processor task runs at a time.
+    /// The processor automatically stops when no active items remain in queue.
+    fn ensure_merge_processor_running(&self) {
+        // Get the processor running flag from merge queue service
+        if self.storage.merge_queue_service.try_start_processor() {
+            let service = self.clone();
+            tokio::spawn(async move {
+                tracing::info!("Merge queue processor started (from MonoApiService)");
+                service.run_merge_processor_loop().await;
+            });
+        }
+    }
+
+    /// Main loop for the background merge processor.
+    ///
+    /// Continuously processes queue items until no active items remain.
+    async fn run_merge_processor_loop(&self) {
+        loop {
+            match self.process_next_queue_item().await {
+                Ok(processed) => {
+                    if !processed {
+                        // Check if there are active items
+                        if let Ok(stats) = self.storage.merge_queue_service.get_queue_stats().await
+                        {
+                            let has_active = stats.waiting_count > 0
+                                || stats.testing_count > 0
+                                || stats.merging_count > 0;
+
+                            if !has_active {
+                                // No active items, stop processor
+                                self.storage.merge_queue_service.stop_processor();
+                                tracing::info!("Merge queue processor stopped (no active items)");
+                                break;
+                            }
+                        }
+                        tokio::time::sleep(Duration::from_secs(Self::QUEUE_POLL_INTERVAL_SECS))
+                            .await;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Merge queue processor error: {}", e);
+                    tokio::time::sleep(Duration::from_secs(Self::ERROR_BACKOFF_SECS)).await;
+                }
+            }
+        }
+    }
+
+    /// Processes the next item in the merge queue.
+    ///
+    /// # Returns
+    /// * `Ok(true)` - An item was processed (success or failure)
+    /// * `Ok(false)` - No items to process
+    /// * `Err(MegaError)` - System error occurred
+    async fn process_next_queue_item(&self) -> Result<bool, MegaError> {
+        let queue_service = &self.storage.merge_queue_service;
+
+        // Get next waiting item from queue
+        let next_item = queue_service.get_next_waiting_item().await?;
+
+        if let Some(item) = next_item {
+            let cl_link = item.cl_link.clone();
+
+            // Update status to Testing
+            let updated = queue_service
+                .update_item_status(&cl_link, QueueStatusEnum::Testing)
+                .await?;
+
+            // Item was cancelled before we could start processing
+            if !updated {
+                return Ok(false);
+            }
+
+            // Execute the merge workflow
+            match self.execute_merge_workflow(&cl_link).await {
+                Ok(()) => {
+                    // Success - status already updated to Merged in workflow
+                    Ok(true)
+                }
+                Err((failure_type, message)) => {
+                    if matches!(failure_type, QueueFailureTypeEnum::Conflict) {
+                        // Conflict - move to tail of queue for retry
+                        if let Err(e) = queue_service.move_item_to_tail(&cl_link).await {
+                            tracing::warn!(
+                                "Failed to move conflicting item {} to tail: {}",
+                                cl_link,
+                                e
+                            );
+                        }
+                        Ok(false)
+                    } else {
+                        // Other failure - mark as failed
+                        if let Err(e) = queue_service
+                            .update_item_status_with_error(&cl_link, failure_type, message)
+                            .await
+                        {
+                            tracing::error!(
+                                "Failed to update item {} status to failed: {}",
+                                cl_link,
+                                e
+                            );
+                        }
+                        Ok(true)
+                    }
+                }
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Executes the complete merge workflow for a CL.
+    ///
+    /// Workflow steps:
+    /// 1. Validate CL exists and is in valid status
+    /// 2. Run tests (TODO: Buck2 integration)
+    /// 3. Check for conflicts
+    /// 4. Execute merge
+    /// 5. Update statuses
+    async fn execute_merge_workflow(
+        &self,
+        cl_link: &str,
+    ) -> Result<(), (QueueFailureTypeEnum, String)> {
+        let queue_service = &self.storage.merge_queue_service;
+
+        // Step 1: Validate CL still exists and is not closed
+        let cl = self
+            .storage
+            .cl_storage()
+            .get_cl(cl_link)
+            .await
+            .map_err(|e| {
+                (
+                    QueueFailureTypeEnum::SystemError,
+                    format!("Failed to fetch CL: {}", e),
+                )
+            })?;
+
+        let cl_model = match cl {
+            Some(model) => {
+                if model.status == MergeStatusEnum::Closed {
+                    return Err((
+                        QueueFailureTypeEnum::SystemError,
+                        "CL has been closed, cannot merge".to_string(),
+                    ));
+                }
+                if model.status == MergeStatusEnum::Draft {
+                    return Err((
+                        QueueFailureTypeEnum::SystemError,
+                        "CL is in draft status, cannot merge".to_string(),
+                    ));
+                }
+                model
+            }
+            None => {
+                return Err((
+                    QueueFailureTypeEnum::SystemError,
+                    "CL no longer exists, cannot merge".to_string(),
+                ));
+            }
+        };
+
+        // Step 2: Run tests (TODO: Buck2 integration)
+        // self.run_tests(&cl_model).await?;
+
+        // Step 3: Check for conflicts
+        self.check_merge_conflicts(&cl_model).await?;
+
+        // Step 4: Update status to Merging
+        let updated = queue_service
+            .update_item_status(cl_link, QueueStatusEnum::Merging)
+            .await
+            .map_err(|e| {
+                (
+                    QueueFailureTypeEnum::SystemError,
+                    format!("Failed to update status to merging: {}", e),
+                )
+            })?;
+
+        if !updated {
+            return Err((
+                QueueFailureTypeEnum::SystemError,
+                "Item was cancelled".to_string(),
+            ));
+        }
+
+        // Step 5: Execute merge (conflict already checked in step 3)
+        self.merge_cl_unchecked("system", cl_model.clone())
+            .await
+            .map_err(|e| {
+                (
+                    QueueFailureTypeEnum::MergeFailure,
+                    format!("Merge failed: {}", e),
+                )
+            })?;
+
+        // Step 6: Update queue status to Merged
+        queue_service
+            .update_item_status(cl_link, QueueStatusEnum::Merged)
+            .await
+            .map_err(|e| {
+                (
+                    QueueFailureTypeEnum::SystemError,
+                    format!("Failed to update status to merged: {}", e),
+                )
+            })?;
+
+        Ok(())
+    }
+
+    /// Checks for merge conflicts by comparing CL base hash with current main ref.
+    ///
+    /// A conflict occurs when the CL's from_hash differs from the current
+    /// main branch ref, indicating the base has changed since CL creation.
+    async fn check_merge_conflicts(
+        &self,
+        cl: &mega_cl::Model,
+    ) -> Result<(), (QueueFailureTypeEnum, String)> {
+        let storage = self.storage.mono_storage();
+
+        let refs = storage
+            .get_main_ref(&cl.path)
+            .await
+            .map_err(|e| {
+                (
+                    QueueFailureTypeEnum::SystemError,
+                    format!("Failed to get main ref: {}", e),
+                )
+            })?
+            .ok_or((
+                QueueFailureTypeEnum::SystemError,
+                "Main ref not found".to_string(),
+            ))?;
+
+        if cl.from_hash != refs.ref_commit_hash {
+            return Err((
+                QueueFailureTypeEnum::Conflict,
+                format!(
+                    "Conflict detected: CL base hash {} differs from current main ref {}",
+                    cl.from_hash, refs.ref_commit_hash
+                ),
+            ));
+        }
+
+        Ok(())
     }
 }
 
