@@ -334,7 +334,7 @@ export default function EcosystemCVEPage() {
                 paddingRight: 'max(32px, 4vw)'
               }}
             >
-              <div className='flex items-center justify-center gap-6' >
+              <div className='flex items-center justify-center gap-6'>
                 {/* Previous 按钮 */}
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
