@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bytes::BytesMut;
-use ceres::api_service::cache::GitObjectCache;
+use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use clap::Args;
 use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
@@ -57,14 +57,17 @@ pub async fn start_server(ctx: AppContext, command: &SshOptions) {
         custom: SshCustom { ssh_port },
     } = command;
 
-    let mut ssh_server = SshServer {
-        clients: Arc::new(Mutex::new(HashMap::new())),
+    let state = ProtocolApiState {
+        storage: ctx.storage.clone(),
         git_object_cache: Arc::new(GitObjectCache {
-            redis: ctx.redis_client,
+            connection: ctx.connection.clone(),
             prefix: "git-object-bincode".to_string(),
         }),
+    };
+    let mut ssh_server = SshServer {
+        clients: Arc::new(Mutex::new(HashMap::new())),
+        state,
         id: 0,
-        storage: ctx.storage.clone(),
         smart_protocol: None,
         data_combined: BytesMut::new(),
     };

@@ -4,6 +4,7 @@ use anyhow::Result;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, Response};
 use bytes::{Bytes, BytesMut};
+use ceres::api_service::state::ProtocolApiState;
 use futures::{TryStreamExt, stream};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
@@ -19,13 +20,14 @@ use common::model::InfoRefsParams;
 // where $servicename MUST be the service name the client wishes to contact to complete the operation.
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
+    state: &ProtocolApiState,
     params: InfoRefsParams,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
     let service_name = params.service.unwrap();
     pack_protocol.service_type = Some(service_name.parse::<ServiceType>().unwrap());
 
-    let pkt_line_stream = pack_protocol.git_info_refs().await?;
+    let pkt_line_stream = pack_protocol.git_info_refs(state).await?;
 
     let content_type = format!("application/x-{service_name}-advertisement");
     let response = add_default_header(
@@ -70,6 +72,7 @@ fn auth_failed() -> Result<Response<Body>, ProtocolError> {
 ///
 /// Finally, the constructed response with the response body is returned.
 pub async fn git_upload_pack(
+    state: &ProtocolApiState,
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
@@ -84,7 +87,7 @@ pub async fn git_upload_pack(
         .unwrap();
     tracing::debug!("Receive bytes: <-------- {:?}", upload_request);
     let (mut send_pack_data, protocol_buf) = pack_protocol
-        .git_upload_pack(&mut upload_request.freeze())
+        .git_upload_pack(state, &mut upload_request.freeze())
         .await?;
 
     let body_stream = async_stream::stream! {
@@ -134,10 +137,12 @@ pub async fn git_upload_pack(
 /// - `Response<Body>`: The HTTP response with the result of the receive-pack operation.
 /// - `(StatusCode, String)`: A tuple with an HTTP status code and an error message in case of failure.
 pub async fn git_receive_pack(
+    state: &ProtocolApiState,
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.enable_http_auth() && !pack_protocol.http_auth(req.headers()).await {
+    if pack_protocol.enable_http_auth(state) && !pack_protocol.http_auth(state, req.headers()).await
+    {
         return auth_failed();
     }
     // Convert the request body into a data stream.
@@ -156,7 +161,7 @@ pub async fn git_receive_pack(
             let left_chunk_bytes = Bytes::copy_from_slice(&chunk[pos..]);
             let pack_stream = stream::once(async { Ok(left_chunk_bytes) }).chain(data_stream);
             report_status = pack_protocol
-                .git_receive_pack_stream(Box::pin(pack_stream))
+                .git_receive_pack_stream(state, Box::pin(pack_stream))
                 .await?;
             break;
         } else {

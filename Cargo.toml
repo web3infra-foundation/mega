@@ -31,7 +31,7 @@ orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 
- git-internal = "0.2.2"
+git-internal = "0.2.2"
 
 #====
 anyhow = "1.0.100"
@@ -128,9 +128,9 @@ envsubst = "0.2.1"
 diffs = "0.5.1"
 directories = "6.0.0"
 dotenv = "0.15"
-redis = "0.32"
-deadpool-redis = "0.22.0"
+redis = "1.0.0-rc.4"
 bincode = "2.0.1"
+rustls = "0.23"
 
 [profile.release]
 debug = true

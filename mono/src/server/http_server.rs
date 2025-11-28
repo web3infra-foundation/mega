@@ -11,6 +11,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, middleware};
 use ceres::api_service::cache::GitObjectCache;
+use ceres::api_service::state::ProtocolApiState;
 use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -26,7 +27,6 @@ use ceres::model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameRequest, Blame
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
-use jupiter::storage::Storage;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -38,21 +38,6 @@ use crate::api::oauth::campsite_store::CampsiteApiStore;
 use crate::api::oauth::oauth_client;
 use crate::api::router::lfs_router;
 use context::AppContext;
-
-#[derive(Clone)]
-pub struct ProtocolApiState {
-    pub storage: Storage,
-    pub git_object_cache: Arc<GitObjectCache>,
-}
-
-impl ProtocolApiState {
-    fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
-        Self {
-            storage,
-            git_object_cache,
-        }
-    }
-}
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
@@ -109,12 +94,13 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
 
     let oauth_config = config.oauth.clone().unwrap_or_default();
     let git_object_cache = Arc::new(GitObjectCache {
-        redis: ctx.redis_client.clone(),
+        connection: ctx.connection.clone(),
         prefix: "git-object-bincode".to_string(),
     });
-    let state = ProtocolApiState::new(storage.clone(), git_object_cache.clone());
-
-    git_object_cache.ping().await.unwrap_or_else(|_| panic!("Failed to connect to Redis at {}, please check your redis server is running and the url is correct",config.redis.url));
+    let state = ProtocolApiState {
+        storage: storage.clone(),
+        git_object_cache: git_object_cache.clone(),
+    };
 
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
@@ -194,11 +180,9 @@ pub async fn get_method_router(
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
-            state.storage.clone(),
             TransportProtocol::Http,
-            state.git_object_cache.clone(),
         );
-        crate::git_protocol::http::git_info_refs(params, pack_protocol).await
+        crate::git_protocol::http::git_info_refs(&state, params, pack_protocol).await
     } else {
         Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),
@@ -214,21 +198,17 @@ pub async fn post_method_router(
     if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
-            state.storage.clone(),
             TransportProtocol::Http,
-            state.git_object_cache.clone(),
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
-        crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
+        crate::git_protocol::http::git_upload_pack(&state, req, pack_protocol).await
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
-            state.storage.clone(),
             TransportProtocol::Http,
-            state.git_object_cache.clone(),
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
-        crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
+        crate::git_protocol::http::git_receive_pack(&state, req, pack_protocol).await
     } else {
         Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),

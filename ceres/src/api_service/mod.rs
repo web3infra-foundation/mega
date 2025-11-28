@@ -36,6 +36,7 @@ pub mod commit_ops;
 pub mod history;
 pub mod import_api_service;
 pub mod mono_api_service;
+pub mod state;
 pub mod tree_ops;
 
 #[async_trait]

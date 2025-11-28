@@ -13,11 +13,11 @@ use common::{
     utils::ZERO_ID,
 };
 use import_refs::RefCommand;
-use jupiter::{redis::lock::RedLock, storage::Storage};
+use jupiter::redis::lock::RedLock;
 use repo::Repo;
 
 use crate::{
-    api_service::cache::GitObjectCache,
+    api_service::state::ProtocolApiState,
     pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo},
 };
 
@@ -37,8 +37,6 @@ pub struct SmartProtocol {
     pub path: PathBuf,
     pub command_list: Vec<RefCommand>,
     pub service_type: Option<ServiceType>,
-    pub storage: Storage,
-    pub git_object_cache: Arc<GitObjectCache>,
     pub username: Option<String>,
     pub authenticated_user: Option<PushUserInfo>,
 }
@@ -138,45 +136,39 @@ pub struct RefUpdateRequest {
 }
 
 impl SmartProtocol {
-    pub fn new(
-        path: PathBuf,
-        storage: Storage,
-        transport_protocol: TransportProtocol,
-        git_object_cache: Arc<GitObjectCache>,
-    ) -> Self {
+    pub fn new(path: PathBuf, transport_protocol: TransportProtocol) -> Self {
         SmartProtocol {
             transport_protocol,
             capabilities: Vec::new(),
             path,
             command_list: Vec::new(),
             service_type: None,
-            storage,
             username: None,
             authenticated_user: None,
-            git_object_cache,
         }
     }
 
     pub fn mock() -> Self {
-        let storage = Storage::mock();
         SmartProtocol {
             transport_protocol: TransportProtocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
             command_list: Vec::new(),
             service_type: None,
-            storage,
             username: None,
             authenticated_user: None,
-            git_object_cache: Arc::new(GitObjectCache::mock()),
         }
     }
 
-    pub async fn repo_handler(&self) -> Result<Arc<dyn RepoHandler>, ProtocolError> {
-        let import_dir = self.storage.config().monorepo.import_dir.clone();
+    pub async fn repo_handler(
+        &self,
+        state: &ProtocolApiState,
+    ) -> Result<Arc<dyn RepoHandler>, ProtocolError> {
+        let config = state.storage.config();
+        let import_dir = config.monorepo.import_dir.clone();
 
         if self.path.starts_with(import_dir.clone()) {
-            let storage = self.storage.git_db_storage();
+            let storage = state.storage.git_db_storage();
             let path_str = self.path.to_str().unwrap();
             let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
             let repo = if let Some(repo) = model {
@@ -195,27 +187,27 @@ impl SmartProtocol {
             };
 
             let unpack_redlock = Arc::new(RedLock::new(
-                self.git_object_cache.redis.clone(),
+                state.git_object_cache.connection.clone(),
                 "git:receive-pack:lock",
                 30_000, // 30s TTL
             ));
             Ok(Arc::new(ImportRepo {
-                git_object_cache: self.git_object_cache.clone(),
-                storage: self.storage.clone(),
+                git_object_cache: state.git_object_cache.clone(),
+                storage: state.storage.clone(),
                 repo,
                 command_list: self.command_list.clone(),
                 unpack_redlock,
             }))
         } else {
             let mut res = MonoRepo {
-                git_object_cache: self.git_object_cache.clone(),
-                storage: self.storage.clone(),
+                git_object_cache: state.git_object_cache.clone(),
+                storage: state.storage.clone(),
                 path: self.path.clone(),
                 from_hash: String::new(),
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
                 cl_link: Arc::new(RwLock::new(None)),
-                bellatrix: Arc::new(Bellatrix::new(self.storage.config().build.clone())),
+                bellatrix: Arc::new(Bellatrix::new(config.build.clone())),
                 username: self.username.clone(),
             };
             if let Some(command) = self
@@ -230,11 +222,15 @@ impl SmartProtocol {
         }
     }
 
-    pub fn enable_http_auth(&self) -> bool {
-        self.storage.config().enable_http_auth()
+    pub fn enable_http_auth(&self, state: &ProtocolApiState) -> bool {
+        state.storage.config().enable_http_auth()
     }
 
-    pub async fn http_auth(&mut self, header: &HeaderMap<HeaderValue>) -> bool {
+    pub async fn http_auth(
+        &mut self,
+        state: &ProtocolApiState,
+        header: &HeaderMap<HeaderValue>,
+    ) -> bool {
         for (k, v) in header {
             if k == http::header::AUTHORIZATION {
                 let decoded = general_purpose::STANDARD
@@ -251,7 +247,7 @@ impl SmartProtocol {
                 let username = parts.next().unwrap_or("");
                 self.username = Some(username.to_owned());
                 let token = parts.next().unwrap_or("");
-                let auth_config = self.storage.config().authentication.clone();
+                let auth_config = state.storage.config().authentication.clone();
                 if auth_config.enable_test_user
                     && username == auth_config.test_user_name
                     && token == auth_config.test_user_token
@@ -261,7 +257,7 @@ impl SmartProtocol {
                     });
                     return true;
                 }
-                let token_valid = self
+                let token_valid = state
                     .storage
                     .user_storage()
                     .check_token(username, token)
