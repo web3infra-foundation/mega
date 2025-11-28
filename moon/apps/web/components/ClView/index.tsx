@@ -128,6 +128,66 @@ export default function CLView() {
           onSettled: () => setIsLoading(false)
         }
       )
+    } else if (status === 'open') {
+      const additional: any = {
+        ...baseAdditional,
+        status: 'open',
+        asc: currentOrder.time === 'Oldest'
+      }
+
+      let openData: PostApiClListData['data'] | undefined
+      let draftData: PostApiClListData['data'] | undefined
+      let openFinished = false
+      let draftFinished = false
+
+      const finalize = () => {
+        if (!openFinished || !draftFinished) return
+
+        const openItems = (openData?.items ?? []) as ItemsType
+        const draftItems = (draftData?.items ?? []) as ItemsType
+
+        setClList([...openItems, ...draftItems])
+        setNumTotal((openData?.total ?? 0) + (draftData?.total ?? 0))
+        setIsLoading(false)
+      }
+
+      fetchClList(
+        {
+          data: {
+            pagination: { page, per_page: pageSize },
+            additional
+          }
+        },
+        {
+          onSuccess: (response) => {
+            openData = response.data
+          },
+          onError: apiErrorToast,
+          onSettled: () => {
+            openFinished = true
+            finalize()
+          }
+        }
+      )
+
+      fetchDraftClList(
+        {
+          data: {
+            pagination: { page, per_page: pageSize },
+            additional: baseAdditional
+          }
+        },
+        {
+          onSuccess: (response) => {
+            draftData = response.data
+          },
+          onError: apiErrorToast,
+          onSettled: () => {
+            draftFinished = true
+            finalize()
+          }
+        }
+      )
     } else {
       const additional: any = {
         ...baseAdditional,

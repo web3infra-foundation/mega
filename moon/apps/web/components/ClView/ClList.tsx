@@ -74,9 +74,6 @@ export function IndexTabFilter({
       >
         Open
       </Button>
-      <Button size='sm' onClick={() => setPart('draft')} variant={part === 'draft' ? 'flat' : 'plain'}>
-        Draft
-      </Button>
       <Button
         size='sm'
         onClick={() => setPart('closed')}

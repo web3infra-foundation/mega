@@ -1,6 +1,12 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon
+} from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
 import dynamic from 'next/dynamic'
@@ -232,12 +238,59 @@ const CLDetailPage: PageWithLayout<any> = () => {
 
   const [tab] = useAtom(tabAtom)
 
+  const renderStatusPill = () => {
+    if (!clDetail?.status) return null
+
+    const normalizedStatus = clDetail.status.toLowerCase()
+
+    let bgClass = ''
+    let label: string = clDetail.status as string
+    let Icon: React.ElementType | null = null
+
+    switch (normalizedStatus) {
+      case 'open':
+        bgClass = 'bg-[#1f883d]'
+        label = 'Open'
+        Icon = GitPullRequestIcon
+        break
+      case 'draft':
+        bgClass = 'bg-[#6e7781]'
+        label = 'Draft'
+        Icon = GitPullRequestDraftIcon
+        break
+      case 'merged':
+        bgClass = 'bg-purple-500'
+        label = 'Merged'
+        Icon = GitMergeIcon
+        break
+      case 'closed':
+        bgClass = 'bg-red-600'
+        label = 'Closed'
+        Icon = GitPullRequestClosedIcon
+        break
+      default:
+        return null
+    }
+
+    return (
+      <div
+        className={`mt-3 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium leading-none text-white ${bgClass}`}
+      >
+        {Icon && <Icon size={16} className='mr-1 text-white' />}
+        <span>{label}</span>
+      </div>
+    )
+  }
+
   return (
     <ThemeProvider>
       <BaseStyles>
         <div className='h-screen overflow-auto p-6'>
           {clDetail && (
-            <TitleInput title={clDetail.title} whoami='cl' id={id} callback={() => refetch({ throwOnError: true })} />
+            <>
+              <TitleInput title={clDetail.title} whoami='cl' id={id} callback={() => refetch({ throwOnError: true })} />
+              {renderStatusPill()}
+            </>
           )}
           <div>
             <TabLayout>
