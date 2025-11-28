@@ -34,11 +34,11 @@ pub async fn resolve_cl_action(req_path: &str) -> Result<(ActionEnum, String), M
 
     let api_config: HashMap<String, HashMap<String, String>> =
         serde_json::from_str(endpoints_config_dict).map_err(|e| {
-            MegaError::with_message(format!("Failed to parse guarded_endpoints.json: {}", e))
+            MegaError::Other(format!("Failed to parse guarded_endpoints.json: {}", e))
         })?;
 
     let cl_config = api_config.get(CL_PATH_PREFIX).ok_or_else(|| {
-        MegaError::with_message("No CL config found in guarded_endpoints.json".to_string())
+        MegaError::Other("No CL config found in guarded_endpoints.json".to_string())
     })?;
 
     let Some((action, mr_link)) = match_operation(path, cl_config) else {
@@ -83,7 +83,7 @@ pub async fn cedar_guard(
         tracing::error!("Failed to resolve CL action: {}", e);
         ApiError::with_status(
             StatusCode::INTERNAL_SERVER_ERROR,
-            MegaError::with_message("Failed to resolve CL action".to_string()),
+            MegaError::Other("Failed to resolve CL action".to_string()),
         )
     })?;
     tracing::debug!("Resolved action: {:?}, link: {}", action, link);
