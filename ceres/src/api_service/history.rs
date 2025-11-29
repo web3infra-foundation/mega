@@ -64,7 +64,8 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     reference: Option<&str>,
 ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
     // Resolve the starting commit using unified refs resolution logic
-    let start_commit_arc = crate::api_service::resolve_start_commit(handler, reference).await?;
+    let start_commit_arc =
+        crate::api_service::commit_ops::resolve_start_commit(handler, reference).await?;
 
     // Get the tree at the specified path from the resolved start commit
     // Use the start commit's tree to ensure consistency
