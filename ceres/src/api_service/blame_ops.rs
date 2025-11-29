@@ -52,7 +52,10 @@ async fn get_file_lines<T: ApiHandler + ?Sized>(
             let lines = Arc::new(content.lines().map(|s| s.to_string()).collect());
             Ok(Some(lines))
         }
-        Err(_) => Ok(None),
+        Err(e) => {
+            tracing::debug!("File not found in commit {}: {}", commit.id, e);
+            Ok(None)
+        }
     }
 }
 
@@ -244,21 +247,20 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     // Create blame blocks from attributions
     let all_blocks = create_blame_blocks(handler, attributions, &current_lines).await?;
 
-    // Apply pagination if requested
-    let blocks = apply_pagination(all_blocks.clone(), &query);
-
     // Calculate statistics
+    let block_count = all_blocks.len();
     let (earliest_commit_time, latest_commit_time) = calculate_time_range(&all_blocks);
-
-    // Collect contributors directly from blame blocks
     let contributors = collect_contributors(&all_blocks);
+
+    // Apply pagination
+    let blocks = apply_pagination(all_blocks, &query);
 
     tracing::info!(
         "[BLAME] Completed blame for {} in {:?} (lines: {}, blocks: {}, contributors: {})",
         file_path,
         blame_start.elapsed(),
         total_lines,
-        all_blocks.len(),
+        block_count,
         contributors.len()
     );
 
