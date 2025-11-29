@@ -8,7 +8,7 @@
         "/{link}/labels": "editMergeRequest",
         "/{link}/assignees": "editMergeRequest",
         "/{link}/reviewers": "editMergeRequest",
-        "/{link}/prove": "approveMergeRequest",
+        "/{link}/approve": "approveMergeRequest",
         "/{link}/resolve": "editMergeRequest"
     }
 }

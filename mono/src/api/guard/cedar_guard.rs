@@ -8,6 +8,7 @@ use axum::{
 use cedar_policy::{Context, EntityId, EntityTypeName, EntityUid};
 use common::errors::MegaError;
 use http::StatusCode;
+use once_cell::sync::Lazy;
 use saturn::{ActionEnum, util::SaturnEUid};
 use saturn::{context::CedarContext, entitystore::EntityStore};
 use std::collections::HashMap;
@@ -15,7 +16,6 @@ use std::collections::HashMap;
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
 
 // TODO: All users are temporary allowed during development stage
-const CL_PATH_PREFIX: &str = "/cl";
 const POLICY_CONTENT: &str = r#"
 permit (
     principal,  
@@ -23,21 +23,24 @@ permit (
     resource
 );"#;
 
-pub async fn resolve_cl_action(req_path: &str) -> Result<(ActionEnum, String), MegaError> {
-    let endpoints_config_dict = include_str!("guarded_endpoints.json");
+type EndPointConfig = HashMap<String, HashMap<String, String>>;
+static GURADED_ENDPOINTS: Lazy<EndPointConfig> = Lazy::new(|| {
+    let endpoints_config_dict: &str = include_str!("guarded_endpoints.json");
+    serde_json::from_str(endpoints_config_dict).unwrap_or_else(|e| {
+        tracing::error!("Failed to read endpoints configuration for guard {:}", e);
+        EndPointConfig::new()
+    })
+});
 
+pub fn resolve_cl_action(req_path: &str) -> Result<(ActionEnum, String), MegaError> {
+    let cl_path_prefix = "/cl";
     // Avoid parsing request of non-CL endpoints
-    if !req_path.starts_with(CL_PATH_PREFIX) {
+    if !req_path.starts_with(cl_path_prefix) {
         return Ok((ActionEnum::UnprotectedRequest, String::new()));
     }
-    let path = req_path.trim_start_matches(CL_PATH_PREFIX);
+    let path = req_path.trim_start_matches(cl_path_prefix);
 
-    let api_config: HashMap<String, HashMap<String, String>> =
-        serde_json::from_str(endpoints_config_dict).map_err(|e| {
-            MegaError::Other(format!("Failed to parse guarded_endpoints.json: {}", e))
-        })?;
-
-    let cl_config = api_config.get(CL_PATH_PREFIX).ok_or_else(|| {
+    let cl_config = GURADED_ENDPOINTS.get(cl_path_prefix).ok_or_else(|| {
         MegaError::Other("No CL config found in guarded_endpoints.json".to_string())
     })?;
 
@@ -58,14 +61,14 @@ fn match_operation(
     for (pattern, action) in patterns {
         let op = pattern.trim_start_matches("/{link}/");
         if suffix.ends_with(op) {
-            println!("op matched: {}", op);
-            println!("suffix is : {}", suffix);
+            // Before: /{link}/approve
+            // After trimming: {link}
             let mr_link = suffix
                 .trim_end_matches(op)
                 .trim_end_matches('/')
                 .trim_start_matches('/')
                 .to_string();
-            return Some((ActionEnum::from(action.to_string()), mr_link));
+            return Some((ActionEnum::from(action.as_str()), mr_link));
         }
     }
     None
@@ -79,7 +82,7 @@ pub async fn cedar_guard(
     let request_path = req.uri().path().to_owned();
     tracing::debug!("Processing request: {}", request_path);
 
-    let (action, link) = resolve_cl_action(&request_path).await.map_err(|e| {
+    let (action, link) = resolve_cl_action(&request_path).map_err(|e| {
         tracing::error!("Failed to resolve CL action: {}", e);
         ApiError::with_status(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -207,6 +210,10 @@ mod tests {
                 "approveMergeRequest".to_string(),
             ),
             ("/{link}/close".to_string(), "editMergeRequest".to_string()),
+            (
+                "/{link}/review/delete".to_string(),
+                "editMergeRequest".to_string(),
+            ),
         ]);
 
         let suffix = "/my-cl-link/approve";
@@ -226,5 +233,12 @@ mod tests {
         let suffix = "/no-match-link/delete";
         let result = match_operation(suffix, &patterns);
         assert_eq!(result, None);
+
+        let suffix = "/path/subpath/review/delete";
+        let result = match_operation(suffix, &patterns);
+        assert_eq!(
+            result,
+            Some((ActionEnum::EditMergeRequest, "path/subpath".to_string()))
+        );
     }
 }
