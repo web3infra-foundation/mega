@@ -1,14 +1,14 @@
 {
-    "/api/v1/cl": {
-        "reopen": "EditMergeRequest",
-        "close": "EditMergeRequest",
-        "merge": "ApproveMergeRequest",
-        "comment": "EditMergeRequest",
-        "title": "EditMergeRequest",
-        "labels": "EditMergeRequest",
-        "assignees": "EditMergeRequest",
-        "reviewers": "EditMergeRequest",
-        "approve": "ApproveMergeRequest",
-        "resolve": "EditMergeRequest"
+    "/cl": {
+        "/{link}/reopen": "editMergeRequest",
+        "/{link}/close": "editMergeRequest",
+        "/{link}/merge": "approveMergeRequest",
+        "/{link}/comment": "editMergeRequest",
+        "/{link}/title": "editMergeRequest",
+        "/{link}/labels": "editMergeRequest",
+        "/{link}/assignees": "editMergeRequest",
+        "/{link}/reviewers": "editMergeRequest",
+        "/{link}/approve": "approveMergeRequest",
+        "/{link}/resolve": "editMergeRequest"
     }
 }

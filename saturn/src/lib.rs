@@ -5,6 +5,7 @@ pub mod entitystore;
 mod objects;
 pub mod util;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionEnum {
     // ** Anyone
     UnprotectedRequest,
@@ -43,6 +44,24 @@ impl Display for ActionEnum {
             ActionEnum::DeleteMergeRequest => "deleteMergeRequest",
         };
         write!(f, "{s}")
+    }
+}
+
+impl From<&str> for ActionEnum {
+    fn from(s: &str) -> Self {
+        match s {
+            "createMergeRequest" => ActionEnum::CreateMergeRequest,
+            "editIssue" => ActionEnum::EditIssue,
+            "editMergeRequest" => ActionEnum::EditMergeRequest,
+            "assignIssue" => ActionEnum::AssignIssue,
+            "approveMergeRequest" => ActionEnum::ApproveMergeRequest,
+            "addMaintainer" => ActionEnum::AddMaintainer,
+            "addAdmin" => ActionEnum::AddAdmin,
+            "deleteRepo" => ActionEnum::DeleteRepo,
+            "deleteIssue" => ActionEnum::DeleteIssue,
+            "deleteMergeRequest" => ActionEnum::DeleteMergeRequest,
+            _ => ActionEnum::UnprotectedRequest,
+        }
     }
 }
 
