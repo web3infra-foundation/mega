@@ -18,7 +18,6 @@ use jupiter::utils::converter::FromGitModel;
 
 use crate::api_service::cache::GitObjectCache;
 use crate::api_service::{ApiHandler, history};
-use crate::model::blame::{BlameQuery, BlameResult};
 use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
 use crate::model::tag::TagInfo;
 use crate::protocol::repo::Repo;
@@ -353,17 +352,6 @@ impl ApiHandler for ImportApiService {
             }
             Err(e) => Err(GitError::CustomError(format!("[code:500] DB error: {}", e))),
         }
-    }
-
-    async fn get_file_blame(
-        &self,
-        _file_path: &str,
-        _ref_name: Option<&str>,
-        _query: BlameQuery,
-    ) -> Result<BlameResult, GitError> {
-        Err(GitError::CustomError(
-            "Import directory does not support blame functionality".to_string(),
-        ))
     }
 
     /// Save file edit for import repo path
