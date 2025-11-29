@@ -4,7 +4,7 @@
 //! MonoApiService and ImportApiService through the ApiHandler trait.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use git_internal::diff::{DiffOperation, compute_diff};
@@ -176,16 +176,24 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         ));
     }
 
+    // Normalize path to ensure leading /
+    let file_path = if file_path.starts_with('/') {
+        file_path.to_string()
+    } else {
+        format!("/{}", file_path)
+    };
+
     // Create cache context for this blame operation
     let mut ctx = BlameContext::new();
 
     // Get blame configuration for large file detection
     let config = handler.get_blame_config();
 
-    let file_path_buf = PathBuf::from(file_path);
+    let file_path_buf = PathBuf::from(&file_path);
 
     // Resolve starting commit from refs
-    let start_commit = crate::api_service::resolve_start_commit(handler, ref_name).await?;
+    let start_commit =
+        crate::api_service::commit_ops::resolve_start_commit(handler, ref_name).await?;
 
     // Get file content and blob hash at start commit
     let (current_content, start_blob_hash) =
@@ -323,7 +331,12 @@ async fn navigate_to_blob<T: ApiHandler + ?Sized>(
     root_tree: Arc<git_internal::internal::object::tree::Tree>,
     path: &Path,
 ) -> Result<Option<SHA1>, GitError> {
-    let components: Vec<&str> = path.iter().filter_map(|s| s.to_str()).collect();
+    // Skip RootDir component for consistent path handling
+    let components: Vec<&str> = path
+        .components()
+        .filter(|c| !matches!(c, Component::RootDir))
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
 
     if components.is_empty() {
         return Ok(None);
