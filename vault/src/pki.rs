@@ -16,9 +16,9 @@ impl VaultCore {
     async fn init_ca(&self) {
         // err = not found
         if self.read_api("pki/ca/pem").await.is_err() {
-            self.config_ca();
-            self.generate_root(false);
-            self.config_role(json!({ // TODO You may want to customize this
+            self.config_ca().await;
+            self.generate_root(false).await;
+            self.config_role(json!({
                 "ttl": "60d",
                 "max_ttl": "365d",
                 "key_type": "rsa",
@@ -28,7 +28,8 @@ impl VaultCore {
                 "locality": "Beijing",
                 "organization": "OpenAtom-Mega",
                 "no_store": false,
-            }));
+            }))
+            .await;
         }
     }
 
