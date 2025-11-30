@@ -7,7 +7,10 @@ use oauth2::{
     },
 };
 use saturn::entitystore::EntityStore;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tower_sessions::MemoryStore;
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
@@ -130,6 +133,13 @@ impl MonoApiServiceState {
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
+        // Normalize path to ensure it has a root component
+        let path = if path.has_root() {
+            path.to_path_buf()
+        } else {
+            PathBuf::from("/").join(path)
+        };
+
         let import_dir = self.storage.config().monorepo.import_dir.clone();
         if path.starts_with(&import_dir)
             && path != import_dir
