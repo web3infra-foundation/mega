@@ -42,7 +42,7 @@ runs:
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-        PACKAGES="cmake git git-lfs build-essential pkg-config curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev libwebkit2gtk-4.1-dev fuse3 libfuse3-dev nettle-dev"
+        PACKAGES="cmake git git-lfs build-essential pkg-config curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev libwebkit2gtk-4.1-dev fuse3 libfuse3-dev nettle-dev protobuf-compiler"
         MISSING_PACKAGES=""
 
         for pkg in $PACKAGES; do
