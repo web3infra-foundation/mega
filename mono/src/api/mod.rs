@@ -133,11 +133,11 @@ impl MonoApiServiceState {
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
-        // Normalize path to ensure leading /
-        let path = if path.starts_with("/") {
+        // Normalize path to ensure it has a root component
+        let path = if path.has_root() {
             path.to_path_buf()
         } else {
-            PathBuf::from(format!("/{}", path.display()))
+            PathBuf::from("/").join(path)
         };
 
         let import_dir = self.storage.config().monorepo.import_dir.clone();

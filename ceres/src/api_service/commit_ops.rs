@@ -142,13 +142,14 @@ pub async fn build_commit_binding_info<T: ApiHandler + ?Sized>(
 /// Resolves a reference string to a starting commit for history traversal.
 ///
 /// This function provides unified logic for parsing different ref formats across all APIs.
-/// It supports branch names, tags (with or without `refs/tags/` prefix), and commit SHAs.
+/// It supports the `main` and `master` branch names (other branches not yet supported),
+/// tags (with or without `refs/tags/` prefix), and commit SHAs.
 ///
 /// # Arguments
 /// - `handler`: The API handler providing Git operations
 /// - `refs`: Optional reference string, which can be:
 ///   - `None` or empty string: returns root commit (HEAD)
-///   - Branch name (e.g., `main`, `master`, `refs/heads/main`)
+///   - Branch name (`main` or `master` only; other branches not yet supported)
 ///   - Tag name with `refs/tags/` prefix (e.g., `refs/tags/v1.0.0`)
 ///   - Tag name without prefix (e.g., `v1.0.0`)
 ///   - Commit SHA (7-40 character hexadecimal, supporting short SHAs)
@@ -194,7 +195,7 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
         // Support short SHAs by requiring the full id to start with the provided prefix.
         if !commit.id.to_string().starts_with(ref_str) {
             return Err(GitError::CustomError(format!(
-                "Commit SHA '{}' not found",
+                "[code:404] Commit SHA '{}' not found",
                 ref_str
             )));
         }
@@ -202,9 +203,9 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
         return Ok(Arc::new(commit));
     }
 
-    // Failed to resolve: return descriptive error
+    // Failed to resolve reference
     Err(GitError::CustomError(format!(
-        "Invalid reference '{}': not a valid branch, tag, or commit SHA",
+        "[code:400] Invalid reference '{}': only 'main'/'master' branches, tags, or commit SHAs are supported",
         ref_str
     )))
 }

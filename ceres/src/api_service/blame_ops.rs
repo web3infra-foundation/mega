@@ -100,13 +100,13 @@ async fn get_file_content_and_hash<T: ApiHandler + ?Sized>(
 
     let blob_hash = navigate_to_blob(handler, root_tree, &relative_path)
         .await?
-        .ok_or_else(|| GitError::CustomError("File not found".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
 
     let blob = handler
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
         .map_err(|e| GitError::CustomError(e.to_string()))?
-        .ok_or_else(|| GitError::CustomError("Blob missing".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] Blob data missing".to_string()))?;
 
     let content = String::from_utf8(blob.data.unwrap_or_default())
         .map_err(|e| GitError::ConversionError(e.to_string()))?;
@@ -177,19 +177,18 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     }
 
     // Normalize path to ensure leading /
-    let file_path = if file_path.starts_with('/') {
-        file_path.to_string()
+    let file_path_buf = if file_path.starts_with('/') {
+        PathBuf::from(file_path)
     } else {
-        format!("/{}", file_path)
+        PathBuf::from(format!("/{}", file_path))
     };
+    let file_path = file_path_buf.to_string_lossy();
 
     // Create cache context for this blame operation
     let mut ctx = BlameContext::new();
 
     // Get blame configuration for large file detection
     let config = handler.get_blame_config();
-
-    let file_path_buf = PathBuf::from(&file_path);
 
     // Resolve starting commit from refs
     let start_commit =
@@ -319,7 +318,7 @@ async fn get_file_content_at_commit<T: ApiHandler + ?Sized>(
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
         .map_err(|e| GitError::CustomError(format!("Failed to get blob: {}", e)))?
-        .ok_or_else(|| GitError::CustomError("Blob not found".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] Blob not found".to_string()))?;
 
     String::from_utf8(blob.data.unwrap_or_default())
         .map_err(|e| GitError::ConversionError(format!("Invalid UTF-8 in blob: {}", e)))
