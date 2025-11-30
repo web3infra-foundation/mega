@@ -642,7 +642,7 @@ pub struct BlameConfig {
 impl Default for BlameConfig {
     fn default() -> Self {
         Self {
-            max_lines_threshold: 1000,
+            max_lines_threshold: 5000,
             max_size_threshold: "1MB".to_string(),
             default_chunk_size: 100,
             max_commits_in_memory: 50,

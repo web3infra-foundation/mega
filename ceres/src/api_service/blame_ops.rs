@@ -162,13 +162,6 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     ref_name: Option<&str>,
     query: BlameQuery,
 ) -> Result<BlameResult, GitError> {
-    let blame_start = std::time::Instant::now();
-    tracing::info!(
-        "[BLAME] Starting blame for file: {} at ref: {:?}",
-        file_path,
-        ref_name
-    );
-
     // Validate input
     if file_path.is_empty() {
         return Err(GitError::CustomError(
@@ -187,7 +180,7 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     // Create cache context for this blame operation
     let mut ctx = BlameContext::new();
 
-    // Get blame configuration for large file detection
+    // Get blame configuration
     let config = handler.get_blame_config();
 
     // Resolve starting commit from refs
@@ -213,18 +206,37 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         });
     }
 
-    // 3. Large file detection
+    // Large file detection: lines > threshold or size > max_size
     let content_size = current_content.len();
-    let max_size = config.get_max_size_bytes().unwrap_or(usize::MAX);
-    let is_large = content_size > max_size || total_lines > config.max_lines_threshold;
+    let max_size = config.get_max_size_bytes().unwrap_or(1024 * 1024); // Default 1MB
+    let is_large_file = total_lines > config.max_lines_threshold || content_size > max_size;
 
-    if is_large {
-        tracing::info!(
-            "Large file detected: {} ({} lines, {} bytes) - using optimized processing",
-            file_path,
-            total_lines,
-            content_size
-        );
+    // For large files, enforce pagination
+    let mut query = query;
+    if is_large_file {
+        const MAX_LINES_PER_PAGE: usize = 500;
+
+        // If no pagination specified, require it
+        let has_pagination =
+            query.start_line.is_some() || query.end_line.is_some() || query.page_size.is_some();
+
+        if !has_pagination {
+            return Err(GitError::CustomError(format!(
+                "[code:400] File is too large ({} lines, {} bytes). Please use pagination with page_size <= {}",
+                total_lines, content_size, MAX_LINES_PER_PAGE
+            )));
+        }
+
+        // Limit page_size for large files
+        match query.page_size {
+            Some(size) if size > MAX_LINES_PER_PAGE => {
+                query.page_size = Some(MAX_LINES_PER_PAGE);
+            }
+            None => {
+                query.page_size = Some(MAX_LINES_PER_PAGE);
+            }
+            _ => {}
+        }
     }
 
     // Determine target range for pagination
@@ -232,7 +244,7 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         (Some(start), Some(end)) => Some((start, end.min(total_lines))),
         (Some(start), None) => Some((start, total_lines)),
         (None, Some(end)) => Some((1, end.min(total_lines))),
-        (None, None) => None, // Process all lines
+        (None, None) => None, // Process all lines (only for non-large files)
     };
 
     // Cache start commit's blob hash
@@ -255,21 +267,11 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     let all_blocks = create_blame_blocks(handler, attributions, &current_lines).await?;
 
     // Calculate statistics
-    let block_count = all_blocks.len();
     let (earliest_commit_time, latest_commit_time) = calculate_time_range(&all_blocks);
     let contributors = collect_contributors(&all_blocks);
 
     // Apply pagination
     let blocks = apply_pagination(all_blocks, &query);
-
-    tracing::info!(
-        "[BLAME] Completed blame for {} in {:?} (lines: {}, blocks: {}, contributors: {})",
-        file_path,
-        blame_start.elapsed(),
-        total_lines,
-        block_count,
-        contributors.len()
-    );
 
     Ok(BlameResult {
         file_path: file_path.to_string(),
@@ -848,12 +850,11 @@ fn extract_username_from_email(email: &str) -> String {
     local_part.to_string()
 }
 
-/// Clean commit message by removing GPG signature header if present.
+/// Remove GPG signature header from commit message if present.
 ///
 /// Git commit objects may contain a `gpgsig` header with PGP signature data.
 /// This function removes the signature block and returns only the actual
-/// commit message content. This is applied at the presentation layer to ensure
-/// clean output regardless of data source (database, cache, or packfile).
+/// commit message content.
 fn clean_commit_message(raw_message: &str) -> String {
     if !raw_message.starts_with("gpgsig ") {
         return raw_message.to_string();
