@@ -7,6 +7,7 @@ use std::{
 use async_trait::async_trait;
 
 use callisto::raw_blob;
+use common::config::BlameConfig;
 use common::errors::MegaError;
 use common::model::{DiffItem, Pagination};
 use git_internal::{
@@ -30,6 +31,7 @@ use crate::{
     },
 };
 
+pub mod blame_ops;
 pub mod blob_ops;
 pub mod cache;
 pub mod commit_ops;
@@ -169,13 +171,25 @@ pub trait ApiHandler: Send + Sync {
     /// Delete a tag by name under the repository context represented by `repo_path`.
     async fn delete_tag(&self, repo_path: Option<String>, name: String) -> Result<(), GitError>;
 
+    /// Get blame configuration from storage config.
+    /// Returns default config if storage config is not available.
+    fn get_blame_config(&self) -> BlameConfig {
+        self.get_context()
+            .config
+            .upgrade()
+            .map(|c| c.blame.clone())
+            .unwrap_or_default()
+    }
+
     /// Get blame information for a file
     async fn get_file_blame(
         &self,
         file_path: &str,
         ref_name: Option<&str>,
         query: BlameQuery,
-    ) -> Result<BlameResult, GitError>;
+    ) -> Result<BlameResult, GitError> {
+        blame_ops::get_file_blame(self, file_path, ref_name, query).await
+    }
 
     /// Save file edit with conflict detection and commit creation.
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError>;
