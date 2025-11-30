@@ -4,7 +4,7 @@
 //! MonoApiService and ImportApiService through the ApiHandler trait.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use git_internal::diff::{DiffOperation, compute_diff};
@@ -100,13 +100,13 @@ async fn get_file_content_and_hash<T: ApiHandler + ?Sized>(
 
     let blob_hash = navigate_to_blob(handler, root_tree, &relative_path)
         .await?
-        .ok_or_else(|| GitError::CustomError("File not found".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] File not found".to_string()))?;
 
     let blob = handler
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
         .map_err(|e| GitError::CustomError(e.to_string()))?
-        .ok_or_else(|| GitError::CustomError("Blob missing".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] Blob data missing".to_string()))?;
 
     let content = String::from_utf8(blob.data.unwrap_or_default())
         .map_err(|e| GitError::ConversionError(e.to_string()))?;
@@ -162,13 +162,6 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     ref_name: Option<&str>,
     query: BlameQuery,
 ) -> Result<BlameResult, GitError> {
-    let blame_start = std::time::Instant::now();
-    tracing::info!(
-        "[BLAME] Starting blame for file: {} at ref: {:?}",
-        file_path,
-        ref_name
-    );
-
     // Validate input
     if file_path.is_empty() {
         return Err(GitError::CustomError(
@@ -176,16 +169,23 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         ));
     }
 
+    // Normalize path to ensure leading /
+    let file_path_buf = if file_path.starts_with('/') {
+        PathBuf::from(file_path)
+    } else {
+        PathBuf::from(format!("/{}", file_path))
+    };
+    let file_path = file_path_buf.to_string_lossy();
+
     // Create cache context for this blame operation
     let mut ctx = BlameContext::new();
 
-    // Get blame configuration for large file detection
+    // Get blame configuration
     let config = handler.get_blame_config();
 
-    let file_path_buf = PathBuf::from(file_path);
-
     // Resolve starting commit from refs
-    let start_commit = crate::api_service::resolve_start_commit(handler, ref_name).await?;
+    let start_commit =
+        crate::api_service::commit_ops::resolve_start_commit(handler, ref_name).await?;
 
     // Get file content and blob hash at start commit
     let (current_content, start_blob_hash) =
@@ -206,18 +206,37 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         });
     }
 
-    // 3. Large file detection
+    // Large file detection: lines > threshold or size > max_size
     let content_size = current_content.len();
-    let max_size = config.get_max_size_bytes().unwrap_or(usize::MAX);
-    let is_large = content_size > max_size || total_lines > config.max_lines_threshold;
+    let max_size = config.get_max_size_bytes().unwrap_or(1024 * 1024); // Default 1MB
+    let is_large_file = total_lines > config.max_lines_threshold || content_size > max_size;
 
-    if is_large {
-        tracing::info!(
-            "Large file detected: {} ({} lines, {} bytes) - using optimized processing",
-            file_path,
-            total_lines,
-            content_size
-        );
+    // For large files, enforce pagination
+    let mut query = query;
+    if is_large_file {
+        const MAX_LINES_PER_PAGE: usize = 500;
+
+        // If no pagination specified, require it
+        let has_pagination =
+            query.start_line.is_some() || query.end_line.is_some() || query.page_size.is_some();
+
+        if !has_pagination {
+            return Err(GitError::CustomError(format!(
+                "[code:400] File is too large ({} lines, {} bytes). Please use pagination with page_size <= {}",
+                total_lines, content_size, MAX_LINES_PER_PAGE
+            )));
+        }
+
+        // Limit page_size for large files
+        match query.page_size {
+            Some(size) if size > MAX_LINES_PER_PAGE => {
+                query.page_size = Some(MAX_LINES_PER_PAGE);
+            }
+            None => {
+                query.page_size = Some(MAX_LINES_PER_PAGE);
+            }
+            _ => {}
+        }
     }
 
     // Determine target range for pagination
@@ -225,7 +244,7 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         (Some(start), Some(end)) => Some((start, end.min(total_lines))),
         (Some(start), None) => Some((start, total_lines)),
         (None, Some(end)) => Some((1, end.min(total_lines))),
-        (None, None) => None, // Process all lines
+        (None, None) => None, // Process all lines (only for non-large files)
     };
 
     // Cache start commit's blob hash
@@ -248,21 +267,11 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
     let all_blocks = create_blame_blocks(handler, attributions, &current_lines).await?;
 
     // Calculate statistics
-    let block_count = all_blocks.len();
     let (earliest_commit_time, latest_commit_time) = calculate_time_range(&all_blocks);
     let contributors = collect_contributors(&all_blocks);
 
     // Apply pagination
     let blocks = apply_pagination(all_blocks, &query);
-
-    tracing::info!(
-        "[BLAME] Completed blame for {} in {:?} (lines: {}, blocks: {}, contributors: {})",
-        file_path,
-        blame_start.elapsed(),
-        total_lines,
-        block_count,
-        contributors.len()
-    );
 
     Ok(BlameResult {
         file_path: file_path.to_string(),
@@ -311,7 +320,7 @@ async fn get_file_content_at_commit<T: ApiHandler + ?Sized>(
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
         .map_err(|e| GitError::CustomError(format!("Failed to get blob: {}", e)))?
-        .ok_or_else(|| GitError::CustomError("Blob not found".to_string()))?;
+        .ok_or_else(|| GitError::CustomError("[code:404] Blob not found".to_string()))?;
 
     String::from_utf8(blob.data.unwrap_or_default())
         .map_err(|e| GitError::ConversionError(format!("Invalid UTF-8 in blob: {}", e)))
@@ -323,7 +332,12 @@ async fn navigate_to_blob<T: ApiHandler + ?Sized>(
     root_tree: Arc<git_internal::internal::object::tree::Tree>,
     path: &Path,
 ) -> Result<Option<SHA1>, GitError> {
-    let components: Vec<&str> = path.iter().filter_map(|s| s.to_str()).collect();
+    // Skip RootDir component for consistent path handling
+    let components: Vec<&str> = path
+        .components()
+        .filter(|c| !matches!(c, Component::RootDir))
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
 
     if components.is_empty() {
         return Ok(None);
@@ -836,12 +850,11 @@ fn extract_username_from_email(email: &str) -> String {
     local_part.to_string()
 }
 
-/// Clean commit message by removing GPG signature header if present.
+/// Remove GPG signature header from commit message if present.
 ///
 /// Git commit objects may contain a `gpgsig` header with PGP signature data.
 /// This function removes the signature block and returns only the actual
-/// commit message content. This is applied at the presentation layer to ensure
-/// clean output regardless of data source (database, cache, or packfile).
+/// commit message content.
 fn clean_commit_message(raw_message: &str) -> String {
     if !raw_message.starts_with("gpgsig ") {
         return raw_message.to_string();

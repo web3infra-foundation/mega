@@ -1,8 +1,12 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use git_internal::{
     errors::GitError,
-    internal::object::tree::{TreeItem, TreeItemMode},
+    internal::object::{
+        commit::Commit,
+        tree::{TreeItem, TreeItemMode},
+    },
 };
 
 use crate::api_service::{ApiHandler, history, tree_ops};
@@ -26,7 +30,7 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
     refs: Option<&str>,
 ) -> Result<LatestCommitInfo, GitError> {
     // Resolve the starting commit from refs
-    let start_commit = crate::api_service::resolve_start_commit(handler, refs).await?;
+    let start_commit = resolve_start_commit(handler, refs).await?;
 
     // 1) Try as directory path first
     if let Some(tree) = tree_ops::search_tree_by_path(handler, &path, refs).await? {
@@ -133,4 +137,75 @@ pub async fn build_commit_binding_info<T: ApiHandler + ?Sized>(
     } else {
         Ok(None)
     }
+}
+
+/// Resolves a reference string to a starting commit for history traversal.
+///
+/// This function provides unified logic for parsing different ref formats across all APIs.
+/// It supports the `main` and `master` branch names (other branches not yet supported),
+/// tags (with or without `refs/tags/` prefix), and commit SHAs.
+///
+/// # Arguments
+/// - `handler`: The API handler providing Git operations
+/// - `refs`: Optional reference string, which can be:
+///   - `None` or empty string: returns root commit (HEAD)
+///   - Branch name (`main` or `master` only; other branches not yet supported)
+///   - Tag name with `refs/tags/` prefix (e.g., `refs/tags/v1.0.0`)
+///   - Tag name without prefix (e.g., `v1.0.0`)
+///   - Commit SHA (7-40 character hexadecimal, supporting short SHAs)
+///
+/// # Returns
+/// - `Ok(Arc<Commit>)`: The resolved commit wrapped in an Arc for efficient sharing
+/// - `Err(GitError)`: If the reference cannot be resolved to a valid commit
+pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
+    handler: &T,
+    refs: Option<&str>,
+) -> Result<Arc<Commit>, GitError> {
+    // Handle None or empty refs: return HEAD (root commit)
+    let Some(ref_str) = refs else {
+        return Ok(Arc::new(handler.get_root_commit().await?));
+    };
+
+    let ref_str = ref_str.trim();
+    if ref_str.is_empty() {
+        return Ok(Arc::new(handler.get_root_commit().await?));
+    }
+
+    // Resolve main/master branch to root commit
+    let branch_name = ref_str.strip_prefix("refs/heads/").unwrap_or(ref_str);
+    if branch_name == "main" || branch_name == "master" {
+        return Ok(Arc::new(handler.get_root_commit().await?));
+    }
+
+    // Try to resolve as tag (with or without refs/tags/ prefix)
+    let tag_name = ref_str.strip_prefix("refs/tags/").unwrap_or(ref_str);
+    if let Ok(Some(tag)) = handler.get_tag(None, tag_name.to_string()).await {
+        return Ok(Arc::new(
+            handler
+                .get_commit_by_hash(&tag.object_id.to_string())
+                .await?,
+        ));
+    }
+
+    // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
+    if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
+        let commit = handler.get_commit_by_hash(ref_str).await?;
+
+        // Defensive: ensure the resolved commit actually matches the requested SHA
+        // Support short SHAs by requiring the full id to start with the provided prefix.
+        if !commit.id.to_string().starts_with(ref_str) {
+            return Err(GitError::CustomError(format!(
+                "[code:404] Commit SHA '{}' not found",
+                ref_str
+            )));
+        }
+
+        return Ok(Arc::new(commit));
+    }
+
+    // Failed to resolve reference
+    Err(GitError::CustomError(format!(
+        "[code:400] Invalid reference '{}': only 'main'/'master' branches, tags, or commit SHAs are supported",
+        ref_str
+    )))
 }
