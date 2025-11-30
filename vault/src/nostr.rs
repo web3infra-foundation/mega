@@ -28,7 +28,6 @@ impl VaultCore {
     /// - return: `(Nostr ID, secret_key)`
     /// - You can get `Public Key` by just `base58::decode(nostr)`
     pub async fn load_nostr_pair(&self) -> (String, String) {
-        let cloned_self = self.clone();
         match self
             .read_secret(NOSTR_IDENTITY_KEY)
             .await
@@ -50,8 +49,7 @@ impl VaultCore {
                 .unwrap()
                 .clone();
 
-                cloned_self
-                    .write_secret(NOSTR_IDENTITY_KEY, Some(data.clone()))
+                self.write_secret(NOSTR_IDENTITY_KEY, Some(data.clone()))
                     .await
                     .expect("Failed to write Nostr ID to vault");
                 (nostr, secret_key.display_secret().to_string())
