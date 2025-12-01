@@ -13,12 +13,12 @@ const ROLE: &str = "test-role";
 #[allow(unused)]
 impl VaultCore {
     /// Initialize the Vault CA
-    fn init_ca(&self) {
+    async fn init_ca(&self) {
         // err = not found
-        if self.read_api("pki/ca/pem").is_err() {
-            self.config_ca();
-            self.generate_root(false);
-            self.config_role(json!({ // TODO You may want to customize this
+        if self.read_api("pki/ca/pem").await.is_err() {
+            self.config_ca().await;
+            self.generate_root(false).await;
+            self.config_role(json!({
                 "ttl": "60d",
                 "max_ttl": "365d",
                 "key_type": "rsa",
@@ -28,11 +28,12 @@ impl VaultCore {
                 "locality": "Beijing",
                 "organization": "OpenAtom-Mega",
                 "no_store": false,
-            }));
+            }))
+            .await;
         }
     }
 
-    fn config_ca(&self) {
+    async fn config_ca(&self) {
         // mount pki backend to path: pki/
         let mount_data = json!({
             "type": "pki",
@@ -42,12 +43,13 @@ impl VaultCore {
         .clone();
 
         self.write_api("sys/mounts/pki/", Some(mount_data))
+            .await
             .expect("Failed to mount pki backend");
     }
 
     /// generate root cert, so that you can read from `pki/ca/pem`
     /// - if `exported` is true, then the response will contain `private key`
-    fn generate_root(&self, exported: bool) {
+    async fn generate_root(&self, exported: bool) {
         let key_type = "rsa";
         let key_bits = 4096;
         let common_name = "mega-ca";
@@ -70,10 +72,11 @@ impl VaultCore {
             .as_str(),
             Some(req_data),
         )
+        .await
         .expect("Failed to generate root cert");
     }
 
-    /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
+    /// - `data`: see [RoleEntry](libvault_core::modules::pki::path_roles)
     ///  - This function configures a role for issuing certificates.
     ///  - The `ROLE` constant is used as the role name.
     ///
@@ -94,7 +97,7 @@ impl VaultCore {
     ///     "no_store": false
     ///   }
     ///   ```
-    pub fn config_role(&self, data: Value) {
+    pub async fn config_role(&self, data: Value) {
         let role_data = data
             .as_object()
             .expect("`data` must be a JSON object")
@@ -102,13 +105,14 @@ impl VaultCore {
 
         // config role
         self.write_api(format!("pki/roles/{ROLE}"), Some(role_data))
+            .await
             .expect("Failed to configure role");
     }
 
     /// issue certificate
-    /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
+    /// - `data`: see [issue_path](libvault_core::modules::pki::path_issue)
     /// - return: `(cert_pem, private_key)`
-    pub fn issue_cert(&self, data: Value) -> (String, String) {
+    pub async fn issue_cert(&self, data: Value) -> (String, String) {
         // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
         let issue_data = data
             .as_object()
@@ -117,7 +121,7 @@ impl VaultCore {
 
         // issue cert
         let resp = self.write_api(format!("pki/issue/{ROLE}"), Some(issue_data));
-        let resp_body = resp.unwrap();
+        let resp_body = resp.await.unwrap();
         let cert_data = resp_body.unwrap().data.unwrap();
 
         (
@@ -132,8 +136,8 @@ impl VaultCore {
     ///
     /// # Returns
     /// - `true` if the certificate is valid, `false` otherwise.
-    pub fn verify_cert(&self, cert_pem: &[u8]) -> bool {
-        let ca_cert = X509::from_pem(self.get_root_cert().as_ref()).unwrap();
+    pub async fn verify_cert(&self, cert_pem: &[u8]) -> bool {
+        let ca_cert = X509::from_pem(self.get_root_cert().await.as_ref()).unwrap();
 
         let cert = X509::from_pem(cert_pem).unwrap();
         // verify time
@@ -158,8 +162,8 @@ impl VaultCore {
     }
 
     /// Get root certificate of CA
-    pub fn get_root_cert(&self) -> String {
-        let resp_ca_pem = self.read_api("pki/ca/pem").unwrap().unwrap();
+    pub async fn get_root_cert(&self) -> String {
+        let resp_ca_pem = self.read_api("pki/ca/pem").await.unwrap().unwrap();
         let ca_data = resp_ca_pem.data.unwrap();
 
         ca_data["certificate"].as_str().unwrap().to_owned()
@@ -179,7 +183,7 @@ mod tests_raw {
     use jupiter::tests::test_storage;
     use openssl::{asn1::Asn1Time, ec::EcKey, nid::Nid, pkey::PKey, rsa::Rsa, x509::X509};
 
-    use rusty_vault::logical::Response;
+    use libvault_core::logical::Response;
 
     use serde_json::{Map, Value, json};
 
@@ -191,7 +195,7 @@ mod tests_raw {
         path: &str,
         is_ok: bool,
     ) -> Result<Option<Response>, MegaError> {
-        let resp = core.read_api(path);
+        let resp = core.read_api(path).await;
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
@@ -202,7 +206,7 @@ mod tests_raw {
         is_ok: bool,
         data: Option<Map<String, Value>>,
     ) -> Result<Option<Response>, MegaError> {
-        let resp = core.write_api(path, data);
+        let resp = core.write_api(path, data).await;
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
@@ -440,7 +444,7 @@ mod tests_raw {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         let key_path = temp_dir.path().join("key.json");
         let storage = test_storage(temp_dir.path()).await;
-        let vault_core = VaultCore::config(storage, key_path);
+        let vault_core = VaultCore::config(storage, key_path).await;
 
         {
             println!("Initializing Vault CA...");

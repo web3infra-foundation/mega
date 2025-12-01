@@ -27,15 +27,18 @@ impl VaultCore {
     /// Initialize the Nostr ID if it's not found.
     /// - return: `(Nostr ID, secret_key)`
     /// - You can get `Public Key` by just `base58::decode(nostr)`
-    pub fn load_nostr_pair(&self) -> (String, String) {
-        self.read_secret(NOSTR_IDENTITY_KEY)
+    pub async fn load_nostr_pair(&self) -> (String, String) {
+        match self
+            .read_secret(NOSTR_IDENTITY_KEY)
+            .await
             .expect("Failed to read Nostr ID from vault")
-            .map(|data| {
+        {
+            Some(data) => {
                 let nostr = data["nostr"].as_str().unwrap().to_string();
                 let secret_key = data["secret_key"].as_str().unwrap().to_string();
                 (nostr, secret_key)
-            })
-            .unwrap_or_else(|| {
+            }
+            None => {
                 log::debug!("Nostr ID not found in vault, generating new one...");
                 let (nostr, (secret_key, _)) = generate_nostr_id();
                 let data = serde_json::json!({
@@ -47,20 +50,22 @@ impl VaultCore {
                 .clone();
 
                 self.write_secret(NOSTR_IDENTITY_KEY, Some(data.clone()))
+                    .await
                     .expect("Failed to write Nostr ID to vault");
                 (nostr, secret_key.display_secret().to_string())
-            })
+            }
+        }
     }
 
     /// Initialize the Nostr ID and return it along with the secret key.
-    pub fn load_nostr_peerid(&self) -> String {
-        let (id, _sk) = self.load_nostr_pair();
+    pub async fn load_nostr_peerid(&self) -> String {
+        let (id, _sk) = self.load_nostr_pair().await;
         id
     }
 
     /// Initialize the Nostr ID and return it along with the secret key.
-    pub fn load_nostr_secp_pair(&self) -> secp256k1::Keypair {
-        let (_, sk) = self.load_nostr_pair();
+    pub async fn load_nostr_secp_pair(&self) -> secp256k1::Keypair {
+        let (_, sk) = self.load_nostr_pair().await;
         let secp = secp256k1::Secp256k1::new();
         secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
     }

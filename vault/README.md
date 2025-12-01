@@ -140,7 +140,7 @@ The vault module uses the following configuration:
 - Core Key File : core_key.json for vault unsealing
 - Seal Configuration : 10 secret shares, 5 threshold
 ## Dependencies
-- rusty_vault : HashiCorp Vault-compatible core
+- libvault-core : HashiCorp Vault-compatible core from rk8s
 - openssl : PKI and certificate operations
 - pgp : OpenPGP implementation
 - secp256k1 : Elliptic curve cryptography for Nostr

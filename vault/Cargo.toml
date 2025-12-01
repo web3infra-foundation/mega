@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 jupiter = { workspace = true }
-common = { workspace = true}
+common = { workspace = true }
 
 tracing = { workspace = true }
 serde_json = { workspace = true }
@@ -17,12 +17,9 @@ secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 tokio = { workspace = true, features = ["full"] }
 pgp = { workspace = true }
 smallvec = { workspace = true }
+libvault-core = { workspace = true }
+async-trait = { workspace = true }
 
-
-[dependencies.rusty_vault]
-git = "https://github.com/Tongsuo-Project/RustyVault"
-# tag = "v0.3.0"
-features = ["sync_handler"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
