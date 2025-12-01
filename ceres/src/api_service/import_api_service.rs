@@ -46,12 +46,20 @@ impl ApiHandler for ImportApiService {
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
-        if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
-            Ok(relative_path.to_path_buf())
+        // Trim leading '/' from both paths to handle with/without leading slash consistently
+        let path_str = path.to_string_lossy();
+        let path_trimmed = path_str.trim_start_matches('/');
+        let repo_trimmed = self.repo.repo_path.trim_start_matches('/');
+
+        if let Some(relative) = path_trimmed.strip_prefix(repo_trimmed) {
+            let relative = relative.trim_start_matches('/');
+            Ok(PathBuf::from(relative))
         } else {
-            Err(MegaError::Other(
-                "The full path does not start with the base path.".to_string(),
-            ))
+            Err(MegaError::Other(format!(
+                "Path '{}' is not under repo '{}'",
+                path.display(),
+                self.repo.repo_path
+            )))
         }
     }
 

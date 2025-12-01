@@ -169,13 +169,7 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
         ));
     }
 
-    // Normalize path to ensure leading /
-    let file_path_buf = if file_path.starts_with('/') {
-        PathBuf::from(file_path)
-    } else {
-        PathBuf::from(format!("/{}", file_path))
-    };
-    let file_path = file_path_buf.to_string_lossy();
+    let file_path_buf = PathBuf::from(file_path);
 
     // Create cache context for this blame operation
     let mut ctx = BlameContext::new();
