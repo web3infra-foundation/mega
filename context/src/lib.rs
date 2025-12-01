@@ -29,7 +29,7 @@ impl AppContext {
         let connection = init_connection(&config.redis).await;
 
         let storage_for_vault = storage.clone();
-        let vault = vault::integration::vault_core::VaultCore::new(storage_for_vault);
+        let vault = vault::integration::vault_core::VaultCore::new(storage_for_vault).await;
 
         storage.mono_storage().init_monorepo(&config.monorepo).await;
 

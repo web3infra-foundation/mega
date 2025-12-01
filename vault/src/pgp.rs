@@ -64,8 +64,8 @@ impl VaultCore {
     /// # Returns
     ///
     /// An `Option` containing the `SignedPublicKey` if the key is found in the vault, otherwise `None`.
-    pub fn load_pub_key(&self) -> Option<SignedPublicKey> {
-        let key = self.read_secret(VAULT_KEY).unwrap();
+    pub async fn load_pub_key(&self) -> Option<SignedPublicKey> {
+        let key = self.read_secret(VAULT_KEY).await.unwrap();
         if let Some(data) = key {
             let key = data["pub_key"].as_str().unwrap();
             let (key, _headers) = SignedPublicKey::from_string(key).expect("failed to parse key");
@@ -82,7 +82,7 @@ impl VaultCore {
     ///
     /// An `Option` containing the `SignedPublicKey` if the key is found in the vault, otherwise `None`.
     pub async fn load_sec_key(&self) -> Option<SignedSecretKey> {
-        let key = self.read_secret(VAULT_KEY).unwrap();
+        let key = self.read_secret(VAULT_KEY).await.unwrap();
         if let Some(data) = key {
             let key = data["sec_key"].as_str().unwrap();
             let (key, _headers) = SignedSecretKey::from_string(key).expect("failed to parse key");
@@ -103,7 +103,7 @@ impl VaultCore {
     /// # Panics
     ///
     /// When input is invalid.
-    pub fn save_keys(&self, pub_key: SignedPublicKey, sec_key: SignedSecretKey) {
+    pub async fn save_keys(&self, pub_key: SignedPublicKey, sec_key: SignedSecretKey) {
         let pub_key = pub_key.to_armored_string(None.into()).unwrap();
         let sec_key = sec_key.to_armored_string(None.into()).unwrap();
         let data = serde_json::json!({
@@ -114,14 +114,15 @@ impl VaultCore {
         .unwrap()
         .clone();
         self.write_secret(VAULT_KEY, Some(data))
+            .await
             .unwrap_or_else(|e| {
                 panic!("Failed to write PGP keys: {e:?}");
             });
     }
 
     /// Deletes the key pair from the vault.
-    pub fn delete_keys(&self) {
-        self.delete_secret(VAULT_KEY).unwrap_or_else(|e| {
+    pub async fn delete_keys(&self) {
+        self.delete_secret(VAULT_KEY).await.unwrap_or_else(|e| {
             panic!("Failed to delete PGP keys: {e:?}");
         });
     }

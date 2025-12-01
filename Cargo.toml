@@ -1,18 +1,18 @@
 [workspace]
 members = [
-    "mono",
-    "common",
-    "jupiter",
-    "ceres",
-    "vault",
-    "saturn",
-    "orion",
-    "orion-server",
-    "extensions/rag/chat",
-    "extensions/rag/index",
-    "extensions/observatory",
-    "context",
-    "scorpio",
+  "mono",
+  "common",
+  "jupiter",
+  "ceres",
+  "vault",
+  "saturn",
+  "orion",
+  "orion-server",
+  "extensions/rag/chat",
+  "extensions/rag/index",
+  "extensions/observatory",
+  "context",
+  "scorpio",
 ]
 default-members = ["mono", "orion", "orion-server"]
 resolver = "1"
@@ -32,6 +32,7 @@ bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 
 git-internal = "0.2.2"
+libvault-core = "0.1.0"
 
 #====
 anyhow = "1.0.100"
