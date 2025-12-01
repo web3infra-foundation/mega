@@ -1,6 +1,9 @@
 use common::errors::MegaError;
 use redis::{Script, aio::ConnectionManager};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use tokio::{
     sync::Notify,
     time::{Duration, sleep},
@@ -29,6 +32,7 @@ impl RedLock {
 
     /// Try lock: SET key value NX PX TTL
     pub async fn try_lock(&self) -> Result<bool, MegaError> {
+        let mut conn = self.connection.clone();
         // SET returns "OK" or Nil
         let result: Option<String> = redis::cmd("SET")
             .arg(&self.key)
@@ -36,7 +40,7 @@ impl RedLock {
             .arg("NX")
             .arg("PX")
             .arg(self.ttl_ms)
-            .query_async(&mut self.connection.clone())
+            .query_async(&mut conn)
             .await?;
 
         Ok(result.is_some())
@@ -50,7 +54,10 @@ impl RedLock {
 
         self.spawn_auto_renew();
 
-        Ok(RedLockGuard { mutex: self })
+        Ok(RedLockGuard {
+            mutex: self,
+            released: AtomicBool::new(false),
+        })
     }
 
     /// Unlock via Lua atomic script
@@ -106,12 +113,166 @@ impl RedLock {
 
 pub struct RedLockGuard {
     mutex: Arc<RedLock>,
+    /// Tracks whether the lock has been explicitly released to prevent double-unlock
+    released: AtomicBool,
 }
 
 impl RedLockGuard {
     pub async fn unlock(self) -> Result<(), MegaError> {
-        let mutex = self.mutex.clone();
-        mutex.unlock().await?;
+        // If already released, return immediately
+        if self.released.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+        self.mutex.unlock().await?;
         Ok(())
+    }
+}
+
+impl Drop for RedLockGuard {
+    fn drop(&mut self) {
+        // Cannot await in Drop, so spawn an async task
+        let mutex = self.mutex.clone();
+
+        // Only unlock if it hasn't been released already (atomically set the flag)
+        if !self.released.swap(true, Ordering::SeqCst) {
+            tokio::spawn(async move {
+                let _ = mutex.unlock().await;
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use std::sync::Arc;
+
+    use futures::future::join_all;
+    use redis::{AsyncCommands, aio::ConnectionManager};
+    use redis_test::server::RedisServer;
+    use tokio::time::{Duration, sleep, timeout};
+
+    use crate::redis::lock::RedLock;
+
+    async fn init_server() -> (RedisServer, ConnectionManager) {
+        let server = RedisServer::new();
+        let url = server.client_addr().to_owned();
+        println!("starting redis mock server at: {}", url);
+        let client = redis::Client::open(url).unwrap();
+        let conn = ConnectionManager::new(client).await.unwrap();
+        (server, conn)
+    }
+
+    #[tokio::test]
+    async fn test_basic() {
+        let (_server, mut conn) = init_server().await;
+        conn.set::<&str, _, String>("foo", "bar").await.unwrap();
+        let v: String = conn.get("foo").await.unwrap();
+        assert_eq!(v, "bar");
+    }
+
+    #[tokio::test]
+    async fn test_try_lock() {
+        let (_server, conn) = init_server().await;
+        let lock = Arc::new(RedLock::new(conn, "try_lock".to_string(), 3000));
+        assert!(lock.try_lock().await.unwrap());
+        assert!(!lock.try_lock().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unlock_script() {
+        let (_server, conn) = init_server().await;
+        let lock = Arc::new(RedLock::new(conn, "unlock_script".to_string(), 3000));
+        lock.try_lock().await.unwrap();
+        assert!(lock.unlock().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_auto_renew() {
+        let (_server, mut conn) = init_server().await;
+
+        let lock = Arc::new(RedLock::new(conn.clone(), "renew".to_string(), 1000));
+
+        let _guard = lock.clone().lock().await.unwrap();
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let ttl: i64 = redis::cmd("PTTL")
+            .arg("renew")
+            .query_async(&mut conn)
+            .await
+            .unwrap();
+
+        assert!(ttl > 0);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_locks() {
+        let (_server, conn) = init_server().await;
+
+        let mut tasks = vec![];
+
+        for _ in 0..64 {
+            let lock = Arc::new(RedLock::new(conn.clone(), "race".to_string(), 3000));
+            tasks.push(tokio::spawn(async move { lock.try_lock().await.unwrap() }));
+        }
+
+        let results = futures::future::join_all(tasks).await;
+
+        let success_count = results
+            .into_iter()
+            .filter(|r| r.as_ref().unwrap() == &true)
+            .count();
+
+        assert_eq!(success_count, 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn test_multi_pod_lock_sequential_acquisition() {
+        let (_server, conn) = init_server().await;
+
+        let mut tasks = vec![];
+
+        for pod_id in 0..3 {
+            let conn = conn.clone();
+            tasks.push(tokio::spawn(async move {
+                let lock = Arc::new(RedLock::new(conn, "test-lock".to_string(), 1000));
+                for i in 0..2 {
+                    let guard = lock.clone().lock().await.unwrap();
+
+                    println!("[pod-{pod_id}] acquired lock {i}");
+
+                    // Sleep for longer than the TTL (1000ms) to test auto-renewal, but keep test fast.
+                    sleep(Duration::from_millis(1200)).await;
+
+                    guard.unlock().await.unwrap();
+                }
+
+                pod_id
+            }));
+        }
+
+        let result = join_all(tasks).await;
+
+        for r in result {
+            assert!(r.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_single_pod_lock_starvation() {
+        let (_server, conn) = init_server().await;
+        let lock = Arc::new(RedLock::new(conn, "test_lock", 1000));
+        let guard = lock.clone().lock().await.unwrap();
+        drop(guard);
+
+        // Give the background unlock task time to complete to avoid race condition.
+        sleep(Duration::from_millis(500)).await;
+
+        let result = timeout(Duration::from_secs(2), lock.clone().lock()).await;
+        match result {
+            Ok(_) => println!("acquire lock successful"),
+            Err(_) => panic!("acquire lock timeout, drop guard didn't unlock"),
+        }
     }
 }

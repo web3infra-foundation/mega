@@ -130,6 +130,7 @@ diffs = "0.5.1"
 directories = "6.0.0"
 dotenv = "0.15"
 redis = "1.0.0-rc.4"
+redis-test = "0.13.0"
 bincode = "2.0.1"
 rustls = "0.23"
 
