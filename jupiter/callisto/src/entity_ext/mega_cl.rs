@@ -76,7 +76,7 @@ impl mega_cl::Model {
         }
     }
 
-    /// Create a new CL with Draft status (for BUCKAL upload)
+    /// Create a new CL with Draft status
     pub fn new_draft(
         path: String,
         title: String,
@@ -95,7 +95,7 @@ impl mega_cl::Model {
             merge_date: None,
             path,
             from_hash,
-            to_hash: String::new(), // Will be filled when complete
+            to_hash: String::new(),
             username,
         }
     }

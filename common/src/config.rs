@@ -677,9 +677,9 @@ pub struct BuckConfig {
     #[serde(default = "default_session_timeout")]
     pub session_timeout: u64,
 
-    /// Maximum file size in bytes (default: 100MB)
+    /// Maximum file size (default: "100MB")
     #[serde(default = "default_max_file_size")]
-    pub max_file_size: u64,
+    pub max_file_size: String,
 
     /// Maximum number of files per session (default: 1000)
     #[serde(default = "default_max_files")]
@@ -699,10 +699,10 @@ pub struct BuckConfig {
     #[serde(default = "default_large_file_concurrency_limit")]
     pub large_file_concurrency_limit: u32,
 
-    /// Large file threshold in bytes (default: 10MB)
+    /// Large file threshold (default: "1MB")
     /// Files larger than this are considered "large" and subject to additional concurrency limits
     #[serde(default = "default_large_file_threshold")]
-    pub large_file_threshold: u64,
+    pub large_file_threshold: String,
 
     /// Enable session cleanup task (default: true)
     #[serde(default = "default_enable_session_cleanup")]
@@ -721,8 +721,8 @@ pub struct BuckConfig {
 fn default_session_timeout() -> u64 {
     3600
 }
-fn default_max_file_size() -> u64 {
-    104857600 // 100MB
+fn default_max_file_size() -> String {
+    "100MB".to_string()
 }
 fn default_max_files() -> u32 {
     1000
@@ -736,8 +736,8 @@ fn default_upload_concurrency_limit() -> u32 {
 fn default_large_file_concurrency_limit() -> u32 {
     10
 }
-fn default_large_file_threshold() -> u64 {
-    1 * 1024 * 1024 // 1MB
+fn default_large_file_threshold() -> String {
+    "1MB".to_string()
 }
 fn default_enable_session_cleanup() -> bool {
     true
@@ -747,6 +747,20 @@ fn default_cleanup_interval() -> u64 {
 }
 fn default_completed_retention_days() -> u32 {
     7
+}
+
+impl BuckConfig {
+    /// Parse max_file_size string to bytes
+    /// Returns the size in bytes, or an error message if parsing fails
+    pub fn get_max_file_size_bytes(&self) -> Result<u64, String> {
+        PackConfig::get_size_from_str(&self.max_file_size, || Ok(0)).map(|v| v as u64)
+    }
+
+    /// Parse large_file_threshold string to bytes
+    /// Returns the size in bytes, or an error message if parsing fails
+    pub fn get_large_file_threshold_bytes(&self) -> Result<u64, String> {
+        PackConfig::get_size_from_str(&self.large_file_threshold, || Ok(0)).map(|v| v as u64)
+    }
 }
 
 impl Default for BuckConfig {

@@ -18,7 +18,6 @@ pub struct Model {
     pub status: String,
     #[sea_orm(column_type = "Text", nullable)]
     pub commit_message: Option<String>,
-    #[sea_orm(nullable)]
     pub from_hash: Option<String>,
     pub expires_at: DateTime,
     pub created_at: DateTime,
@@ -28,12 +27,12 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(has_many = "super::buck_session_file::Entity")]
-    Files,
+    BuckSessionFile,
 }
 
 impl Related<super::buck_session_file::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Files.def()
+        Relation::BuckSessionFile.def()
     }
 }
 
@@ -63,4 +62,3 @@ impl Model {
         }
     }
 }
-

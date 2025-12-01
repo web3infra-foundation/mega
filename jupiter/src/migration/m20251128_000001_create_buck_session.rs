@@ -6,7 +6,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Create buck_session table 
+        // Create buck_session table
         manager
             .create_table(
                 Table::create()
@@ -91,7 +91,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create buck_session_file table 
+        // Create buck_session_file table
         manager
             .create_table(
                 Table::create()
@@ -234,4 +234,3 @@ enum BuckSessionFile {
     UploadedAt,
     CreatedAt,
 }
-

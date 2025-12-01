@@ -15,13 +15,10 @@ pub struct Model {
     pub file_path: String,
     pub file_size: i64,
     pub file_hash: String,
-    pub file_mode: String,
+    pub file_mode: Option<String>,
     pub upload_status: String,
-    #[sea_orm(nullable)]
     pub upload_reason: Option<String>,
-    #[sea_orm(nullable)]
     pub blob_id: Option<String>,
-    #[sea_orm(nullable)]
     pub uploaded_at: Option<DateTime>,
     pub created_at: DateTime,
 }
@@ -31,14 +28,16 @@ pub enum Relation {
     #[sea_orm(
         belongs_to = "super::buck_session::Entity",
         from = "Column::SessionId",
-        to = "super::buck_session::Column::SessionId"
+        to = "super::buck_session::Column::SessionId",
+        on_update = "NoAction",
+        on_delete = "Cascade"
     )]
-    Session,
+    BuckSession,
 }
 
 impl Related<super::buck_session::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Session.def()
+        Relation::BuckSession.def()
     }
 }
 
@@ -46,12 +45,13 @@ impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
     /// Create a new file record model
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_id: String,
         file_path: String,
         file_size: i64,
         file_hash: String,
-        file_mode: String,
+        file_mode: Option<String>,
         upload_status: String,
         upload_reason: Option<String>,
         blob_id: Option<String>,
@@ -71,4 +71,3 @@ impl Model {
         }
     }
 }
-
