@@ -97,6 +97,8 @@ pub struct Config {
     pub oauth: Option<OauthConfig>,
     pub build: BuildConfig,
     pub redis: RedisConfig,
+    #[serde(default)]
+    pub buck: Option<BuckConfig>,
 }
 
 impl Config {
@@ -127,6 +129,7 @@ impl Config {
             oauth: None,
             build: BuildConfig::default(),
             redis: RedisConfig::default(),
+            buck: None,
         }
     }
 
@@ -665,6 +668,116 @@ impl BlameConfig {
 pub struct BuildConfig {
     pub enable_build: bool,
     pub orion_server: String,
+}
+
+/// Buck upload API configuration
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BuckConfig {
+    /// Session timeout in seconds (default: 3600 = 1 hour)
+    #[serde(default = "default_session_timeout")]
+    pub session_timeout: u64,
+
+    /// Maximum file size (default: "100MB")
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size: String,
+
+    /// Maximum number of files per session (default: 1000)
+    #[serde(default = "default_max_files")]
+    pub max_files: u32,
+
+    /// Maximum concurrent uploads (default: 5) - returned to client as suggestion
+    #[serde(default = "default_max_concurrent_uploads")]
+    pub max_concurrent_uploads: u8,
+
+    /// Global upload concurrency limit (default: 50)
+    /// Controls the total number of concurrent upload requests
+    #[serde(default = "default_upload_concurrency_limit")]
+    pub upload_concurrency_limit: u32,
+
+    /// Large file concurrency limit (default: 10)
+    /// Controls the number of concurrent large file uploads to prevent memory exhaustion
+    #[serde(default = "default_large_file_concurrency_limit")]
+    pub large_file_concurrency_limit: u32,
+
+    /// Large file threshold (default: "1MB")
+    /// Files larger than this are considered "large" and subject to additional concurrency limits
+    #[serde(default = "default_large_file_threshold")]
+    pub large_file_threshold: String,
+
+    /// Enable session cleanup task (default: true)
+    #[serde(default = "default_enable_session_cleanup")]
+    pub enable_session_cleanup: bool,
+
+    /// Cleanup task interval in seconds (default: 300 = 5 minutes)
+    #[serde(default = "default_cleanup_interval")]
+    pub cleanup_interval: u64,
+
+    /// Retention days for completed sessions (default: 7 days)
+    /// Completed sessions older than this will be deleted along with their file records
+    #[serde(default = "default_completed_retention_days")]
+    pub completed_retention_days: u32,
+}
+
+fn default_session_timeout() -> u64 {
+    3600
+}
+fn default_max_file_size() -> String {
+    "100MB".to_string()
+}
+fn default_max_files() -> u32 {
+    1000
+}
+fn default_max_concurrent_uploads() -> u8 {
+    5
+}
+fn default_upload_concurrency_limit() -> u32 {
+    50
+}
+fn default_large_file_concurrency_limit() -> u32 {
+    10
+}
+fn default_large_file_threshold() -> String {
+    "1MB".to_string()
+}
+fn default_enable_session_cleanup() -> bool {
+    true
+}
+fn default_cleanup_interval() -> u64 {
+    300
+}
+fn default_completed_retention_days() -> u32 {
+    7
+}
+
+impl BuckConfig {
+    /// Parse max_file_size string to bytes
+    /// Returns the size in bytes, or an error message if parsing fails
+    pub fn get_max_file_size_bytes(&self) -> Result<u64, String> {
+        PackConfig::get_size_from_str(&self.max_file_size, || Ok(0)).map(|v| v as u64)
+    }
+
+    /// Parse large_file_threshold string to bytes
+    /// Returns the size in bytes, or an error message if parsing fails
+    pub fn get_large_file_threshold_bytes(&self) -> Result<u64, String> {
+        PackConfig::get_size_from_str(&self.large_file_threshold, || Ok(0)).map(|v| v as u64)
+    }
+}
+
+impl Default for BuckConfig {
+    fn default() -> Self {
+        Self {
+            session_timeout: default_session_timeout(),
+            max_file_size: default_max_file_size(),
+            max_files: default_max_files(),
+            max_concurrent_uploads: default_max_concurrent_uploads(),
+            upload_concurrency_limit: default_upload_concurrency_limit(),
+            large_file_concurrency_limit: default_large_file_concurrency_limit(),
+            large_file_threshold: default_large_file_threshold(),
+            enable_session_cleanup: default_enable_session_cleanup(),
+            cleanup_interval: default_cleanup_interval(),
+            completed_retention_days: default_completed_retention_days(),
+        }
+    }
 }
 
 #[cfg(test)]
