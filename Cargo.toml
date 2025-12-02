@@ -55,7 +55,7 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 axum = { version = "0.8.7", features = ["macros", "json"] }
 axum-extra = "0.12.2"
-russh = "0.54.6"
+russh = "0.54.5"
 tower-http = "0.6.7"
 tower = "0.5.2"
 tower-sessions = { version = "0.14", features = ["memory-store"] }
@@ -130,6 +130,7 @@ diffs = "0.5.1"
 directories = "6.0.0"
 dotenv = "0.15"
 redis = "1.0.0-rc.4"
+redis-test = "0.13.0"
 bincode = "2.0.1"
 rustls = "0.23"
 

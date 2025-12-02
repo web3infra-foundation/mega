@@ -51,3 +51,6 @@ redis = { workspace = true, features = [
     "connection-manager",
 ] }
 rustls = { workspace = true }
+
+[dev-dependencies]
+redis-test = { workspace = true, features = ["aio"] }

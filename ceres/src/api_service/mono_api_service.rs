@@ -551,6 +551,8 @@ impl ApiHandler for MonoApiService {
                             );
                         }
                         result.insert(item, commit);
+                    } else {
+                        result.insert(item, None);
                     }
                 }
                 Ok(result)
@@ -1164,6 +1166,12 @@ impl MonoApiService {
             }
         }
 
+        if new_commit_id.is_empty() {
+            return Err(GitError::CustomError(
+                "no commit_id generated: no matching refs found for the update paths".into(),
+            ));
+        }
+
         storage
             .batch_update_by_path_concurrent(updates)
             .await
@@ -1179,7 +1187,8 @@ impl MonoApiService {
             .clone()
             .into_iter()
             .map(|save_t| {
-                let tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
+                tree_model.commit_id.clone_from(&new_commit_id);
                 tree_model.into()
             })
             .collect();
