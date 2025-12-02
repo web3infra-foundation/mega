@@ -165,3 +165,34 @@ enable_caching = true
 
 [redis]
 url = "redis://127.0.0.1:6379"
+
+# Buck upload API configuration (optional)
+# Uncomment the following section to customize upload settings
+[buck]
+# Session timeout in seconds (default: 3600 = 1 hour)
+session_timeout = 3600
+# Maximum file size (default: "100MB")
+max_file_size = "100MB"
+# Maximum number of files per session (default: 1000)
+max_files = 1000
+# Maximum concurrent uploads (default: 5) - returned to client as suggestion
+max_concurrent_uploads = 5
+
+# === Server-side rate limiting ===
+# Global upload concurrency limit (default: 50)
+# Controls total concurrent upload requests being processed
+upload_concurrency_limit = 50
+# Large file concurrency limit (default: 10)
+# Controls concurrent large file uploads to prevent memory exhaustion
+large_file_concurrency_limit = 10
+# Large file threshold (default: "1MB")
+# Files larger than this are subject to additional concurrency limits
+large_file_threshold = "1MB"
+
+# Enable session cleanup task (default: true)
+enable_session_cleanup = true
+# Cleanup task interval in seconds (default: 300 = 5 minutes)
+cleanup_interval = 300
+# Retention days for completed sessions (default: 7)
+# Completed sessions older than this will be deleted along with file records
+completed_retention_days = 7
