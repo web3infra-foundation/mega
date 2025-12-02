@@ -28,4 +28,3 @@ impl buck_session_file::Model {
         }
     }
 }
-
