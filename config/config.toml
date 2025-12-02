@@ -166,7 +166,7 @@ enable_caching = true
 [redis]
 url = "redis://127.0.0.1:6379"
 
-# BUCKAL upload API configuration (optional)
+# Buck upload API configuration (optional)
 # Uncomment the following section to customize upload settings
 [buck]
 # Session timeout in seconds (default: 3600 = 1 hour)

@@ -1,5 +1,7 @@
 use sea_orm_migration::prelude::*;
 
+use crate::migration::pk_bigint;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -12,12 +14,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(BuckSession::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(BuckSession::Id)
-                            .big_integer()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(pk_bigint(BuckSession::Id))
                     .col(
                         ColumnDef::new(BuckSession::SessionId)
                             .string_len(8)
@@ -97,12 +94,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(BuckSessionFile::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(BuckSessionFile::Id)
-                            .big_integer()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(pk_bigint(BuckSessionFile::Id))
                     .col(
                         ColumnDef::new(BuckSessionFile::SessionId)
                             .string_len(8)

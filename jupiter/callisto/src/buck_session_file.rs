@@ -1,4 +1,4 @@
-//! BUCKAL upload session file entity
+//! Buck upload session file entity
 //!
 //! This entity represents a file record within an upload session.
 

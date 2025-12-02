@@ -670,7 +670,7 @@ pub struct BuildConfig {
     pub orion_server: String,
 }
 
-/// BUCKAL upload API configuration
+/// Buck upload API configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BuckConfig {
     /// Session timeout in seconds (default: 3600 = 1 hour)

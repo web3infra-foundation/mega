@@ -1,4 +1,4 @@
-//! BUCKAL upload session entity
+//! Buck upload session entity
 //!
 //! This entity represents an upload session for batch file uploads.
 
