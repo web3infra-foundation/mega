@@ -539,7 +539,10 @@ async fn add_reviewers(
             .add_conversation(
                 &link,
                 &user.username,
-                Some(format!("{} assigned a new reviewer {}", user.username, reviewer)),
+                Some(format!(
+                    "{} assigned a new reviewer {}",
+                    user.username, reviewer
+                )),
                 ConvTypeEnum::Comment,
             )
             .await?;
@@ -659,10 +662,11 @@ async fn reviewer_approve(
     state
         .conv_stg()
         .add_conversation(
-            &link, 
-            &user.username, 
-            Some(format!("{} approved the CL", user.username)), 
-            ConvTypeEnum::Approve)
+            &link,
+            &user.username,
+            Some(format!("{} approved the CL", user.username)),
+            ConvTypeEnum::Approve,
+        )
         .await?;
 
     Ok(Json(CommonResult::success(None)))
@@ -709,10 +713,11 @@ async fn review_resolve(
     state
         .conv_stg()
         .add_conversation(
-            &link, 
-            &user.username, 
-            Some(format!("{} resolved a review", user.username)), 
-            ConvTypeEnum::Comment)
+            &link,
+            &user.username,
+            Some(format!("{} resolved a review", user.username)),
+            ConvTypeEnum::Comment,
+        )
         .await?;
 
     Ok(Json(CommonResult::success(None)))
