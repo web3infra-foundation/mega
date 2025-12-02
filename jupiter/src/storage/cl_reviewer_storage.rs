@@ -84,7 +84,7 @@ impl ClReviewerStorage {
     pub async fn remove_reviewers(
         &self,
         cl_link: &str,
-        reviewers: Vec<String>,
+        reviewers: &Vec<String>,
     ) -> Result<(), MegaError> {
         for reviewer in reviewers {
             mega_cl_reviewer::Entity::delete_many()
