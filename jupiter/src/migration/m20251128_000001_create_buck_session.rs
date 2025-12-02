@@ -34,7 +34,7 @@ impl MigrationTrait for Migration {
                             .default("created"),
                     )
                     .col(ColumnDef::new(BuckSession::CommitMessage).text())
-                    .col(ColumnDef::new(BuckSession::FromHash).string_len(40))
+                    .col(ColumnDef::new(BuckSession::FromHash).string())
                     .col(
                         ColumnDef::new(BuckSession::ExpiresAt)
                             .timestamp()
@@ -108,7 +108,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(BuckSessionFile::FileHash)
-                            .string_len(50)
+                            .string()
                             .not_null(),
                     )
                     .col(
@@ -123,7 +123,7 @@ impl MigrationTrait for Migration {
                             .default("pending"),
                     )
                     .col(ColumnDef::new(BuckSessionFile::UploadReason).string_len(20))
-                    .col(ColumnDef::new(BuckSessionFile::BlobId).string_len(40))
+                    .col(ColumnDef::new(BuckSessionFile::BlobId).string())
                     .col(ColumnDef::new(BuckSessionFile::UploadedAt).timestamp())
                     .col(
                         ColumnDef::new(BuckSessionFile::CreatedAt)
@@ -157,7 +157,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_session_file_status")
+                    .name("idx_session_file_session_status")
                     .table(BuckSessionFile::Table)
                     .col(BuckSessionFile::SessionId)
                     .col(BuckSessionFile::UploadStatus)
