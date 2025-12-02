@@ -42,15 +42,12 @@ struct ItemTraversalState {
 /// Builds a mapping from each `TreeItem` under a given path to the commit
 /// where that item was last modified.
 ///
-/// This function retrieves the tree corresponding to the given `path`, then for each entry
-/// (file or subdirectory) in that tree, it traverses the commit history backwards to find
-/// the most recent commit where the item's hash changed (i.e., was modified).
+/// This function retrieves the tree corresponding to the given `path`, then uses a
+/// batch traversal algorithm to find the most recent commit where each item's hash
+/// changed (i.e., was modified).
 ///
 /// If a `ref` (reference, such as a tag) is provided, traversal starts from the commit
 /// that the reference points to. Otherwise, it starts from the repository's root commit.
-///
-/// Internally, it leverages [`traverse_commit_history_for_last_modification`] to perform
-/// the traversal and uses a shared [`GitObjectCache`] to minimize redundant commit/tree lookups.
 ///
 /// # Arguments
 /// - `path`: The path to the target directory or subtree to analyze.
@@ -68,21 +65,26 @@ struct ItemTraversalState {
 /// # Algorithm
 /// 1. Resolve the starting commit (from `reference` if provided, otherwise root commit).
 /// 2. Resolve the tree at the given `path` at the starting commit.
-/// 3. For each entry (`TreeItem`) in the resolved tree:
-///    - Call [`traverse_commit_history_for_last_modification`] to find the most recent commit
-///      where that item's hash changed, starting from the resolved commit and traversing backwards.
-///    - Store the mapping in the result map.
-/// 4. Return the complete mapping.
+/// 3. Initialize traversal state for all items, grouping them by current commit.
+/// 4. For each commit group:
+///    - Load parent trees once (shared by all items in the group).
+///    - For each item, check if any parent has TREESAME content (same hash and mode).
+///    - If TREESAME: continue traversing to that parent.
+///    - If no TREESAME parent: this commit modified the item.
+/// 5. Return the complete mapping.
 ///
 /// # Performance Notes
-/// - Uses a shared `Arc<Mutex<GitObjectCache>>` for caching to avoid redundant
-///   lookups of commits and trees.
-/// - Each item is processed sequentially, so total runtime scales linearly
-///   with the number of items in the directory.
+/// - Uses batch processing to group items by their current commit, reducing redundant
+///   parent tree loads when multiple items are at the same commit.
+/// - Uses a commit cache to avoid reloading the same commits.
+/// - Uses TREESAME pruning similar to `git log --follow` for efficiency.
+///
+/// # Limitations
+/// - If `MAX_ITERATIONS` is exceeded, remaining undetermined items fall back to
+///   the start commit.
 ///
 /// # See Also
-/// - [`traverse_commit_history_for_last_modification`] — for the logic of commit traversal
-///   and last modification detection.
+/// - [`traverse_commit_history_for_last_modification`] — for single-item traversal.
 pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     handler: &T,
     path: PathBuf,
@@ -122,8 +124,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
         .collect();
 
     let mut pending_count = item_count;
-    let mut visited_commits: HashSet<SHA1> = HashSet::new();
-    visited_commits.insert(start_commit_arc.id);
 
     // Cache for commits we've loaded
     let mut commit_cache: HashMap<SHA1, Arc<Commit>> = HashMap::new();
@@ -257,8 +257,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
                         found_matching_parent = true;
                         any_progress = true;
 
-                        // Mark this commit as visited for this item's path
-                        visited_commits.insert(parent.commit.id);
                         break;
                     }
                 }
@@ -281,10 +279,10 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     // Build the result map
     let mut result = HashMap::with_capacity(item_count);
     for state in item_states {
-        let commit = state.result_commit.or_else(|| {
-            // Fallback: if not determined, use start commit
-            Some((*start_commit_arc).clone())
-        });
+        // Use result_commit, or fallback to start_commit if undetermined
+        let commit = state
+            .result_commit
+            .or_else(|| Some((*start_commit_arc).clone()));
         result.insert(state.item, commit);
     }
 
@@ -298,7 +296,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
 /// - `handler`: The API handler for Git operations.
 /// - `root_tree`: The root tree to start navigation from.
 /// - `path`: The path to navigate to.
-/// - `cache`: A shared cache for tree lookups.
 ///
 /// # Returns
 /// - `Ok(Some(Arc<Tree>))` if the path exists and the target tree is found.
