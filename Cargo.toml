@@ -31,7 +31,7 @@ orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
 context = { path = "context" }
 
-git-internal = "0.2.2"
+git-internal = "0.3.0"
 libvault-core = "0.1.0"
 
 #====
