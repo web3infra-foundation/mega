@@ -7,8 +7,8 @@ ARG BUILD_TYPE=release
 
 # check arg value
 RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
-        echo "Invalid BUILD_TYPE: $BUILD_TYPE, must be release or debug"; \
-        exit 1; \
+    echo "Invalid BUILD_TYPE: $BUILD_TYPE, must be release or debug"; \
+    exit 1; \
     fi
 
 # set mirror for apt
@@ -19,16 +19,19 @@ RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
 RUN apt-get update && apt-get install -y \
     libssl-dev \
     ca-certificates \
-    clang
+    clang \
+    protobuf-compiler \
+    libprotobuf-dev
+
 # copy the source code, the context must be the root of the project
 COPY . .
 
 # build
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
     cargo build --release -p mono; \
-else \
+    else \
     cargo build -p mono; \
-fi
+    fi
 
 # final image
 FROM debian:bookworm-slim
