@@ -7,8 +7,8 @@ use futures::{StreamExt, stream};
 
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseTransaction, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, EntityTrait,
+    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -172,6 +172,76 @@ impl MonoStorage {
         ref_data.update(self.get_connection()).await.unwrap();
         Ok(())
     }
+
+    /// Create or update a CL ref (refs/cl/{cl_link})
+    pub async fn save_or_update_cl_ref(
+        &self,
+        path: &str,
+        ref_name: &str,
+        commit_id: &str,
+        tree_hash: &str,
+    ) -> Result<(), MegaError> {
+        if let Some(mut existing_ref) = self.get_ref_by_name(ref_name).await? {
+            // Update existing CL ref
+            existing_ref.ref_commit_hash = commit_id.to_owned();
+            existing_ref.ref_tree_hash = tree_hash.to_owned();
+            self.update_ref(existing_ref).await?;
+        } else {
+            // Create new CL ref
+            let new_ref = mega_refs::Model::new(
+                path,
+                ref_name.to_owned(),
+                commit_id.to_owned(),
+                tree_hash.to_owned(),
+                true, // is_cl_ref
+            );
+            self.save_refs(new_ref).await?;
+        }
+        Ok(())
+    }
+
+    /// Create or update a CL ref within a database transaction
+    ///
+    /// Transaction-safe version of `save_or_update_cl_ref` for use in atomic operations.
+    pub async fn save_or_update_cl_ref_in_txn<C>(
+        &self,
+        conn: &C,
+        path: &str,
+        ref_name: &str,
+        commit_id: &str,
+        tree_hash: &str,
+    ) -> Result<(), MegaError>
+    where
+        C: ConnectionTrait,
+    {
+        let existing = mega_refs::Entity::find()
+            .filter(mega_refs::Column::RefName.eq(ref_name))
+            .one(conn)
+            .await?;
+
+        if let Some(existing_ref) = existing {
+            // Update existing CL ref
+            let mut active = existing_ref.into_active_model();
+            active.ref_commit_hash = Set(commit_id.to_owned());
+            active.ref_tree_hash = Set(tree_hash.to_owned());
+            active.updated_at = Set(chrono::Utc::now().naive_utc());
+            active.update(conn).await?;
+        } else {
+            // Create new CL ref
+            let new_ref = mega_refs::Model::new(
+                path,
+                ref_name.to_owned(),
+                commit_id.to_owned(),
+                tree_hash.to_owned(),
+                true, // is_cl_ref
+            );
+            mega_refs::Entity::insert(new_ref.into_active_model())
+                .exec(conn)
+                .await?;
+        }
+        Ok(())
+    }
+
     pub async fn batch_update_by_path_concurrent(
         &self,
         updates: Vec<RefUpdateData>,

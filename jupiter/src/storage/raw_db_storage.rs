@@ -1,12 +1,14 @@
 use std::ops::Deref;
 
 use futures::Stream;
-use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, IntoActiveModel, QueryFilter};
 
 use callisto::raw_blob;
 use common::errors::MegaError;
+use git_internal::internal::object::blob::Blob;
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::utils::converter::ToRawBlob;
 
 #[derive(Clone)]
 pub struct RawDbStorage {
@@ -52,5 +54,26 @@ impl RawDbStorage {
             .stream(self.get_connection())
             .await
             .unwrap())
+    }
+
+    /// Save a raw blob to database
+    pub async fn save_raw_blob_from_content(&self, data: Vec<u8>) -> Result<String, MegaError> {
+        let blob = Blob::from_content_bytes(data);
+        let blob_hash = blob.id.to_string();
+
+        // Use ToRawBlob trait for conversion
+        let model = blob.to_raw_blob();
+
+        raw_blob::Entity::insert(model.into_active_model())
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::column(raw_blob::Column::Sha1)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .do_nothing()
+            .exec(self.get_connection())
+            .await?;
+
+        Ok(blob_hash)
     }
 }
