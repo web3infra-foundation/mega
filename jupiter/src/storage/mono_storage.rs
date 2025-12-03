@@ -173,7 +173,19 @@ impl MonoStorage {
         Ok(())
     }
 
-    /// Create or update a CL ref (refs/cl/{cl_link})
+    /// Create or update a CL ref (refs/cl/{cl_link}).
+    ///
+    /// This method creates a new CL ref if it doesn't exist, or updates an existing
+    /// one with new commit and tree hashes. CL refs are marked with `is_cl_ref = true`.
+    ///
+    /// # Arguments
+    /// * `path` - The repository path for the ref
+    /// * `ref_name` - The full ref name (e.g., "refs/cl/ABC12345")
+    /// * `commit_id` - The commit hash to point to
+    /// * `tree_hash` - The tree hash associated with the commit
+    ///
+    /// # Returns
+    /// Returns `Ok(())` on success, or an error if the database operation fails.
     pub async fn save_or_update_cl_ref(
         &self,
         path: &str,
@@ -181,28 +193,32 @@ impl MonoStorage {
         commit_id: &str,
         tree_hash: &str,
     ) -> Result<(), MegaError> {
-        if let Some(mut existing_ref) = self.get_ref_by_name(ref_name).await? {
-            // Update existing CL ref
-            existing_ref.ref_commit_hash = commit_id.to_owned();
-            existing_ref.ref_tree_hash = tree_hash.to_owned();
-            self.update_ref(existing_ref).await?;
-        } else {
-            // Create new CL ref
-            let new_ref = mega_refs::Model::new(
-                path,
-                ref_name.to_owned(),
-                commit_id.to_owned(),
-                tree_hash.to_owned(),
-                true, // is_cl_ref
-            );
-            self.save_refs(new_ref).await?;
-        }
-        Ok(())
+        // Delegate to transaction version using default connection
+        self.save_or_update_cl_ref_in_txn(
+            self.get_connection(),
+            path,
+            ref_name,
+            commit_id,
+            tree_hash,
+        )
+        .await
     }
 
-    /// Create or update a CL ref within a database transaction
+    /// Create or update a CL ref within a database transaction.
     ///
-    /// Transaction-safe version of `save_or_update_cl_ref` for use in atomic operations.
+    /// This is the transaction-safe version of [`save_or_update_cl_ref`](Self::save_or_update_cl_ref)
+    /// for use in atomic operations. It performs the same logic but accepts a connection parameter
+    /// to participate in an existing transaction.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection or transaction to use
+    /// * `path` - The repository path for the ref
+    /// * `ref_name` - The full ref name (e.g., "refs/cl/ABC12345")
+    /// * `commit_id` - The commit hash to point to
+    /// * `tree_hash` - The tree hash associated with the commit
+    ///
+    /// # Returns
+    /// Returns `Ok(())` on success, or an error if the database operation fails.
     pub async fn save_or_update_cl_ref_in_txn<C>(
         &self,
         conn: &C,

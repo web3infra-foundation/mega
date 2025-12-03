@@ -56,7 +56,12 @@ impl RawDbStorage {
             .unwrap())
     }
 
-    /// Save a raw blob to database
+    /// Save a raw blob from content bytes.
+    ///
+    /// Creates a Git blob, calculates SHA-1 hash, and stores it in the raw_blob table.
+    /// If blob already exists, silently succeeds (idempotent).
+    ///
+    /// Returns the blob's SHA-1 hash.
     pub async fn save_raw_blob_from_content(&self, data: Vec<u8>) -> Result<String, MegaError> {
         let blob = Blob::from_content_bytes(data);
         let blob_hash = blob.id.to_string();
