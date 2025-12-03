@@ -4,18 +4,18 @@ on:
     branches:
       - main
     paths-ignore:
-      - '.devcontainer/**'
-      - '.github/**'
-      - 'config/**'
-      - 'docker/**'
-      - 'docs/**'
-      - 'extensions/**'
-      - 'moon/**'
-      - 'orion/**'
-      - 'orion-server/**'
-      - 'scorpio/**'
-      - 'scripts/**'
-      - 'tests/**'
+      - ".devcontainer/**"
+      - ".github/**"
+      - "config/**"
+      - "docker/**"
+      - "docs/**"
+      - "extensions/**"
+      - "moon/**"
+      - "orion/**"
+      - "orion-server/**"
+      - "scorpio/**"
+      - "scripts/**"
+      - "tests/**"
 
 env:
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}

@@ -522,6 +522,7 @@ async fn assignees(
     tag = CL_TAG
 )]
 async fn add_reviewers(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ReviewerPayload>,
@@ -529,8 +530,23 @@ async fn add_reviewers(
     state
         .storage
         .reviewer_storage()
-        .add_reviewers(&link, payload.reviewer_usernames)
+        .add_reviewers(&link, payload.reviewer_usernames.clone())
         .await?;
+
+    for reviewer in payload.reviewer_usernames {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &user.username,
+                Some(format!(
+                    "{} assigned a new reviewer {}",
+                    user.username, reviewer
+                )),
+                ConvTypeEnum::Comment,
+            )
+            .await?;
+    }
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -548,6 +564,7 @@ async fn add_reviewers(
     tag = CL_TAG
 )]
 async fn remove_reviewers(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ReviewerPayload>,
@@ -555,8 +572,20 @@ async fn remove_reviewers(
     state
         .storage
         .reviewer_storage()
-        .remove_reviewers(&link, payload.reviewer_usernames)
+        .remove_reviewers(&link, &payload.reviewer_usernames)
         .await?;
+
+    for reviewer in &payload.reviewer_usernames {
+        state
+            .conv_stg()
+            .add_conversation(
+                &link,
+                &user.username,
+                Some(format!("{} removed reviewer {}", user.username, reviewer)),
+                ConvTypeEnum::Comment,
+            )
+            .await?;
+    }
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -630,6 +659,16 @@ async fn reviewer_approve(
         .reviewer_change_state(&link, &user.username, payload.approved)
         .await?;
 
+    state
+        .conv_stg()
+        .add_conversation(
+            &link,
+            &user.username,
+            Some(format!("{} approved the CL", user.username)),
+            ConvTypeEnum::Approve,
+        )
+        .await?;
+
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -669,6 +708,16 @@ async fn review_resolve(
         .storage
         .conversation_storage()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
+        .await?;
+
+    state
+        .conv_stg()
+        .add_conversation(
+            &link,
+            &user.username,
+            Some(format!("{} resolved a review", user.username)),
+            ConvTypeEnum::Comment,
+        )
         .await?;
 
     Ok(Json(CommonResult::success(None)))

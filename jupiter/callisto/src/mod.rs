@@ -3,6 +3,8 @@
 pub mod prelude;
 
 pub mod access_token;
+pub mod buck_session;
+pub mod buck_session_file;
 pub mod builds;
 pub mod check_result;
 pub mod commit_auths;

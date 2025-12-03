@@ -75,4 +75,28 @@ impl mega_cl::Model {
             username,
         }
     }
+
+    /// Create a new CL with Draft status
+    pub fn new_draft(
+        path: String,
+        title: String,
+        link: String,
+        from_hash: String,
+        username: String,
+    ) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            id: generate_id(),
+            link,
+            title: title.to_owned(),
+            status: MergeStatusEnum::Draft,
+            created_at: now,
+            updated_at: now,
+            merge_date: None,
+            path,
+            from_hash,
+            to_hash: String::new(),
+            username,
+        }
+    }
 }
