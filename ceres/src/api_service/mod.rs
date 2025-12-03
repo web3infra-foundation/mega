@@ -140,6 +140,29 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_root_commit(&self) -> Result<Commit, MegaError>;
 
+    /// List commit history with optional refs, path filter, author filter, and pagination.
+    /// total is the total number of commits matching the criteria
+    async fn list_commit_history(
+        &self,
+        refs: Option<&str>,
+        path_filter: Option<&std::path::PathBuf>,
+        author: Option<&str>,
+        page: Pagination,
+    ) -> Result<(Vec<crate::model::commit::CommitSummary>, u64), GitError> {
+        commit_ops::list_commit_history(self, refs, path_filter, author, page).await
+    }
+
+    /// Build commit detail including summary and diffs for a given commit SHA.
+    /// The `path` acts as a required repository/subrepo selector for routing/cache,
+    /// and does not filter diff contents.
+    async fn build_commit_detail(
+        &self,
+        commit_sha: &str,
+        path: &std::path::Path,
+    ) -> Result<crate::model::commit::CommitDetail, GitError> {
+        commit_ops::build_commit_detail(self, commit_sha, path).await
+    }
+
     // Tag related operations shared across mono/import implementations.
     /// Create a tag in the repository context represented by `repo_path`.
     /// Returns TagInfo on success.

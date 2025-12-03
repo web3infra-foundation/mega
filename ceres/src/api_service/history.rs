@@ -109,7 +109,7 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
 /// - `Ok(Some(Arc<Tree>))` if the path exists and the target tree is found.
 /// - `Ok(None)` if any component in the path doesn't exist.
 /// - `Err(GitError)` if path resolution or tree lookup fails.
-async fn navigate_to_tree<T: ApiHandler + ?Sized>(
+pub async fn navigate_to_tree<T: ApiHandler + ?Sized>(
     handler: &T,
     root_tree: Arc<Tree>,
     path: &Path,
