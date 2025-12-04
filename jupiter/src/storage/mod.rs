@@ -1,4 +1,5 @@
 pub mod base_storage;
+pub mod buck_storage;
 pub mod cl_reviewer_storage;
 pub mod cl_storage;
 pub mod commit_binding_storage;
@@ -28,7 +29,7 @@ use crate::service::merge_queue_service::MergeQueueService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
-    cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
+    buck_storage::BuckStorage, cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
     git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
     lfs_db_storage::LfsDbStorage, merge_queue_storage::MergeQueueStorage,
     mono_storage::MonoStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
@@ -57,6 +58,7 @@ pub struct AppService {
     pub commit_binding_storage: CommitBindingStorage,
     pub reviewer_storage: ClReviewerStorage,
     pub merge_queue_storage: MergeQueueStorage,
+    pub buck_storage: BuckStorage,
 }
 
 impl AppService {
@@ -79,6 +81,7 @@ impl AppService {
             commit_binding_storage: CommitBindingStorage { base: mock.clone() },
             reviewer_storage: ClReviewerStorage { base: mock.clone() },
             merge_queue_storage: MergeQueueStorage::new(mock.clone()),
+            buck_storage: BuckStorage { base: mock.clone() },
         })
     }
 }
@@ -113,6 +116,7 @@ impl Storage {
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
+        let buck_storage = BuckStorage { base: base.clone() };
 
         let app_service = AppService {
             mono_storage: mono_storage.clone(),
@@ -131,6 +135,7 @@ impl Storage {
             commit_binding_storage,
             reviewer_storage,
             merge_queue_storage: merge_queue_storage.clone(),
+            buck_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
 
@@ -209,6 +214,10 @@ impl Storage {
 
     pub fn merge_queue_storage(&self) -> MergeQueueStorage {
         self.app_service.merge_queue_storage.clone()
+    }
+
+    pub fn buck_storage(&self) -> BuckStorage {
+        self.app_service.buck_storage.clone()
     }
 
     pub fn mock() -> Self {
