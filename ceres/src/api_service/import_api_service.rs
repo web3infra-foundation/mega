@@ -46,24 +46,30 @@ impl ApiHandler for ImportApiService {
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
+        // If the incoming path is already relative, accept it as-is
+        if !path.is_absolute() {
+            tracing::debug!("strip_relative -> path is already relative: {:?}", path);
+            return Ok(path.to_path_buf());
+        }
+
         // Normalize both paths by removing leading slashes for consistent comparison
         let path_str = path.to_string_lossy();
         let path_trimmed = path_str.trim_start_matches('/');
         let repo_trimmed = self.repo.repo_path.trim_start_matches('/');
 
-        // Use Path::strip_prefix for proper path component matching
-        // This correctly handles edge cases like "/repo" vs "/repo2"
         let path_normalized = Path::new(path_trimmed);
         let repo_normalized = Path::new(repo_trimmed);
 
-        if let Ok(relative) = path_normalized.strip_prefix(repo_normalized) {
-            Ok(relative.to_path_buf())
-        } else {
-            Err(MegaError::Other(format!(
+        match path_normalized.strip_prefix(repo_normalized) {
+            Ok(relative_path) => {
+                tracing::debug!("strip_relative -> relative={:?}", relative_path);
+                Ok(relative_path.to_path_buf())
+            }
+            Err(_) => Err(MegaError::Other(format!(
                 "Path '{}' is not under repo '{}'",
                 path.display(),
                 self.repo.repo_path
-            )))
+            ))),
         }
     }
 

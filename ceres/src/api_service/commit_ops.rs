@@ -10,7 +10,12 @@ use git_internal::{
 };
 
 use crate::api_service::{ApiHandler, history, tree_ops};
+use crate::model::commit::{CommitDetail, CommitSummary};
 use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
+use common::model::{DiffItem, Pagination};
+use git_internal::hash::SHA1;
+use redis::AsyncCommands;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Get the latest commit that modified a file or directory.
 ///
@@ -208,4 +213,425 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
         "[code:400] Invalid reference '{}': only 'main'/'master' branches, tags, or commit SHAs are supported",
         ref_str
     )))
+}
+
+/// Compute the object hash (tree for directory, blob for file) at a path for a given commit.
+/// Returns None if the path does not exist in that commit.
+async fn compute_path_hash<T: ApiHandler + ?Sized>(
+    handler: &T,
+    commit: &Commit,
+    path: &PathBuf,
+) -> Result<Option<SHA1>, GitError> {
+    let tree = handler
+        .get_tree_by_hash(&commit.tree_id.to_string())
+        .await?;
+    if path.as_os_str().is_empty() || path == &PathBuf::from("/") {
+        return Ok(Some(tree.id));
+    }
+    let name = path
+        .file_name()
+        .ok_or_else(|| {
+            GitError::CustomError(format!("Path has no filename component: {:?}", path))
+        })?
+        .to_str()
+        .ok_or_else(|| {
+            GitError::CustomError(format!("Path contains non-UTF-8 characters: {:?}", path))
+        })?;
+    let parent = path.parent().unwrap_or_else(|| std::path::Path::new("/"));
+    let parent_opt =
+        super::history::navigate_to_tree(handler, std::sync::Arc::new(tree), parent).await?;
+    if let Some(parent_tree) = parent_opt {
+        Ok(parent_tree
+            .tree_items
+            .iter()
+            .find(|x| x.name == name)
+            .map(|x| x.id))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Traverse commit history: collect all reachable commits from a start ref, apply optional
+/// path and author filters, then sort by committer timestamp descending (time priority).
+pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
+    handler: &T,
+    start_refs: Option<&str>,
+    path_filter: Option<&PathBuf>,
+    author: Option<&str>,
+    max_scan: usize,
+) -> Result<Vec<Commit>, GitError> {
+    // Resolve start commit from refs
+    let start = resolve_start_commit(handler, start_refs).await?;
+
+    // BFS to collect all reachable commits (avoid missing merge histories)
+    let mut visited: HashSet<SHA1> = HashSet::new();
+    let mut queue: VecDeque<Commit> = VecDeque::new();
+    let mut all: Vec<Commit> = Vec::new();
+    queue.push_back((*start).clone());
+
+    while let Some(commit) = queue.pop_front() {
+        if visited.contains(&commit.id) {
+            continue;
+        }
+        visited.insert(commit.id);
+        let parent_ids = commit.parent_commit_ids.clone();
+        all.push(commit);
+
+        for &pid in &parent_ids {
+            let parent = handler.get_commit_by_hash(&pid.to_string()).await?;
+            if !visited.contains(&parent.id) {
+                queue.push_back(parent);
+            }
+        }
+        if all.len() >= max_scan {
+            break;
+        }
+    }
+
+    // Optional path modification filter
+    let matched_by_path: Vec<Commit> = if let Some(p_abs) = path_filter {
+        let p_rel = handler
+            .strip_relative(p_abs.as_path())
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let mut out = Vec::new();
+        for c in &all {
+            let curr = compute_path_hash(handler, c, &p_rel).await?;
+            // For root commit (no parents): if the path exists, treat as changed
+            if c.parent_commit_ids.is_empty() {
+                if curr.is_some() {
+                    out.push(c.clone());
+                }
+                continue;
+            }
+            // Git-like history simplification (path-limited):
+            // A merge commit is considered a change for the path ONLY IF the
+            // path's object differs from ALL parents (i.e., no parent has the
+            // same tree/blob at that path). If any parent matches, the commit is
+            // TREESAME for this path and should be omitted (default `git log <path>` behavior).
+            let mut all_parents_differ = true;
+            for &pid in &c.parent_commit_ids {
+                let p = handler.get_commit_by_hash(&pid.to_string()).await?;
+                let ph = compute_path_hash(handler, &p, &p_rel).await?;
+                if curr == ph {
+                    all_parents_differ = false;
+                    break;
+                }
+            }
+            let changed = all_parents_differ;
+            if changed {
+                out.push(c.clone());
+            }
+        }
+        out
+    } else {
+        all
+    };
+
+    // Optional author filter (prefer bound username if present)
+    let matched_by_author: Vec<Commit> =
+        if let Some(a) = author.map(|s| s.trim()).filter(|t| !t.is_empty()) {
+            let a_norm = a.to_lowercase();
+            let mut out = Vec::new();
+            for c in matched_by_path {
+                let bound = build_commit_binding_info(handler, &c.id.to_string())
+                    .await
+                    .ok()
+                    .flatten();
+                let effective = bound
+                    .filter(|b| !b.is_anonymous)
+                    .and_then(|b| b.matched_username)
+                    .unwrap_or_else(|| c.author.name.clone());
+                if effective.to_lowercase() == a_norm {
+                    out.push(c);
+                }
+            }
+            out
+        } else {
+            matched_by_path
+        };
+
+    // Final sort: by committer timestamp descending
+    let mut result = matched_by_author;
+    result.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
+    Ok(result)
+}
+
+/// Collect all blobs (path -> SHA1) under a commit tree
+async fn collect_commit_blobs<T: ApiHandler + ?Sized>(
+    handler: &T,
+    commit: &Commit,
+) -> Result<Vec<(PathBuf, SHA1)>, GitError> {
+    // Load the root tree for this commit and traverse it
+    let root_tree = handler
+        .get_tree_by_hash(&commit.tree_id.to_string())
+        .await?;
+
+    // Generic DFS traversal using handler.get_tree_by_hash for child trees
+    let mut result: Vec<(PathBuf, SHA1)> = Vec::new();
+    let mut stack: Vec<(PathBuf, git_internal::internal::object::tree::Tree)> =
+        vec![(PathBuf::new(), root_tree)];
+    while let Some((base, tree)) = stack.pop() {
+        for item in tree.tree_items {
+            let p = base.join(&item.name);
+            if item.is_tree() {
+                let child = handler.get_tree_by_hash(&item.id.to_string()).await?;
+                stack.push((p, child));
+            } else {
+                result.push((p, item.id));
+            }
+        }
+    }
+    Ok(result)
+}
+
+/// List commit history using time-priority traversal (all reachable commits),
+/// with optional path and author filters and pagination.
+pub async fn list_commit_history<T: ApiHandler + ?Sized>(
+    handler: &T,
+    start_refs: Option<&str>,
+    path_filter: Option<&PathBuf>,
+    author: Option<&str>,
+    page: Pagination,
+) -> Result<(Vec<CommitSummary>, u64), GitError> {
+    // Normalize author: empty/whitespace treated as None
+    let author_norm = author.map(|s| s.trim()).filter(|t| !t.is_empty());
+    // Two-tier cache strategy:
+    // 1) Cache the FULL filtered commit index (list of SHAs) keyed by path/refs/author
+    // 2) Apply pagination in-memory for any page requests
+    let cache_key_index = format!(
+        "{}:history_index:v1:path={}:refs={}:author={}",
+        handler.object_cache().prefix,
+        path_filter
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string()),
+        start_refs.unwrap_or_default(),
+        author_norm.unwrap_or("__none__"),
+    );
+
+    let mut conn = handler.object_cache().connection.clone();
+    if let Ok(Some(json)) = conn.get::<_, Option<String>>(&cache_key_index).await
+        && let Ok(index) = serde_json::from_str::<Vec<String>>(&json)
+    {
+        // Renew TTL on cache hit to keep hot indexes alive
+        if let Err(e) = conn.expire::<_, ()>(&cache_key_index, 300).await {
+            tracing::warn!("failed to renew ttl for {}: {}", &cache_key_index, e);
+        }
+        let total = index.len() as u64;
+        let start = page.page.saturating_sub(1) * page.per_page;
+        let end = (start + page.per_page).min(total);
+
+        // Build summaries for the requested page from cached SHAs
+        let mut res = Vec::with_capacity((end - start) as usize);
+        for sha in &index[start as usize..end as usize] {
+            let c = handler.get_commit_by_hash(sha).await?;
+            let mut info: LatestCommitInfo = c.clone().into();
+            apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+            res.push(CommitSummary {
+                sha: c.id.to_string(),
+                short_message: info.short_message,
+                author: info.author,
+                committer: info.committer,
+                date: info.date,
+                parents: c.parent_commit_ids.iter().map(|p| p.to_string()).collect(),
+            });
+        }
+        return Ok((res, total));
+    }
+
+    // Use history traversal with time-priority order to collect commits
+    const MAX_SCAN: usize = 10_000;
+    let traversed =
+        traverse_history_commits(handler, start_refs, path_filter, author_norm, MAX_SCAN).await?;
+
+    // Build and cache the index of SHAs for this filtered history
+    let index: Vec<String> = traversed.iter().map(|c| c.id.to_string()).collect();
+    match serde_json::to_string(&index) {
+        Ok(json) => {
+            if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key_index, json, 300).await {
+                tracing::warn!("failed to set cache {}: {}", &cache_key_index, e);
+            }
+        }
+        Err(e) => tracing::warn!(
+            "failed to serialize history index for {}: {}",
+            &cache_key_index,
+            e
+        ),
+    }
+
+    // Paginate locally from traversed commits
+    let total = traversed.len() as u64;
+    let start = page.page.saturating_sub(1) * page.per_page;
+    let end = (start + page.per_page).min(traversed.len() as u64);
+    let slice = &traversed[start as usize..end as usize];
+
+    let mut res = Vec::with_capacity(slice.len());
+    for c in slice {
+        let mut info: LatestCommitInfo = c.clone().into();
+        apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+        res.push(CommitSummary {
+            sha: c.id.to_string(),
+            short_message: info.short_message,
+            author: info.author,
+            committer: info.committer,
+            date: info.date,
+            parents: c.parent_commit_ids.iter().map(|p| p.to_string()).collect(),
+        });
+    }
+
+    Ok((res, total))
+}
+
+/// Build commit detail with merged diffs against all parents.
+pub async fn build_commit_detail<T: ApiHandler + ?Sized>(
+    handler: &T,
+    commit_sha: &str,
+    selector_path: &std::path::Path,
+) -> Result<CommitDetail, GitError> {
+    // 'selector_path' is a repository/subrepo selector (required) and does not filter diffs.
+    // cache attempt
+    let cache_key = format!(
+        "{}:commit_detail:v1:sha={}:path={}",
+        handler.object_cache().prefix,
+        commit_sha,
+        selector_path.to_string_lossy()
+    );
+    let mut conn = handler.object_cache().connection.clone();
+    if let Ok(Some(json)) = conn.get::<_, Option<String>>(&cache_key).await
+        && let Ok(detail) = serde_json::from_str::<CommitDetail>(&json)
+    {
+        // Renew TTL on cache hit
+        if let Err(e) = conn.expire::<_, ()>(&cache_key, 600).await {
+            tracing::warn!("failed to renew ttl for {}: {}", &cache_key, e);
+        }
+        return Ok(detail);
+    }
+
+    let commit = handler.get_commit_by_hash(commit_sha).await?;
+
+    // Summary
+    let mut info: LatestCommitInfo = commit.clone().into();
+    apply_username_binding(handler, &commit.id.to_string(), &mut info).await;
+    let summary = CommitSummary {
+        sha: commit.id.to_string(),
+        short_message: info.short_message,
+        author: info.author,
+        committer: info.committer,
+        date: info.date,
+        parents: commit
+            .parent_commit_ids
+            .iter()
+            .map(|p| p.to_string())
+            .collect(),
+    };
+
+    // Collect diffs vs each parent and merge by path
+    let new_blobs = collect_commit_blobs(handler, &commit).await?;
+    let mut combined: HashMap<String, DiffItem> = HashMap::new();
+
+    // Empty filters: no path-level filtering here because commit detail show all diffs
+    // (we pass an empty vector to satisfy the diff API).
+    let filters: Vec<PathBuf> = Vec::new();
+
+    // Preload blobs content via raw blob API once for performance
+    // Build a content cache of hashes encountered
+    let mut all_hashes: HashSet<SHA1> = HashSet::new();
+    for (_, h) in &new_blobs {
+        all_hashes.insert(*h);
+    }
+
+    let mut parent_blobs_set: Vec<Vec<(PathBuf, SHA1)>> = Vec::new();
+    for &pid in &commit.parent_commit_ids {
+        let p = handler.get_commit_by_hash(&pid.to_string()).await?;
+        let p_blobs = collect_commit_blobs(handler, &p).await?;
+        for (_, h) in &p_blobs {
+            all_hashes.insert(*h);
+        }
+        parent_blobs_set.push(p_blobs);
+    }
+
+    // Build blob content cache
+    let ctx = handler.get_context();
+    let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+    for h in &all_hashes {
+        if let Ok(Some(b)) = ctx
+            .raw_db_storage()
+            .get_raw_blob_by_hash(&h.to_string())
+            .await
+        {
+            blob_cache.insert(*h, b.data.unwrap_or_default());
+        }
+    }
+    let read_content = |file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+        blob_cache.get(hash).cloned().unwrap_or_else(|| {
+            tracing::warn!("Missing blob for {:?} {}", file, hash);
+            Vec::new()
+        })
+    };
+
+    // If no parent (root commit), diff against empty
+    if commit.parent_commit_ids.is_empty() {
+        let empty: Vec<(PathBuf, SHA1)> = Vec::new();
+        let diffs = git_internal::diff::Diff::diff(empty, new_blobs, filters, read_content)
+            .into_iter()
+            .map(|d| DiffItem {
+                path: d.path,
+                data: d.data,
+            })
+            .collect::<Vec<_>>();
+        let detail = CommitDetail {
+            commit: summary,
+            diffs,
+        };
+        // Attempt to cache commit detail; on failure log a warning but don't fail the request
+        match serde_json::to_string(&detail) {
+            Ok(json) => {
+                if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, json, 600).await {
+                    tracing::warn!("failed to set cache {}: {}", &cache_key, e);
+                }
+            }
+            Err(e) => tracing::warn!(
+                "failed to serialize commit detail sha {}: {}",
+                commit_sha,
+                e
+            ),
+        }
+        return Ok(detail);
+    }
+
+    for p_blobs in parent_blobs_set {
+        let diff_items = git_internal::diff::Diff::diff(
+            p_blobs,
+            new_blobs.clone(),
+            filters.clone(),
+            read_content,
+        );
+        for d in diff_items {
+            combined.entry(d.path.clone()).or_insert(DiffItem {
+                path: d.path,
+                data: d.data,
+            });
+        }
+    }
+
+    let mut diffs: Vec<DiffItem> = combined.into_values().collect();
+    // Keep order stable by path for now
+    diffs.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let detail = CommitDetail {
+        commit: summary,
+        diffs,
+    };
+    match serde_json::to_string(&detail) {
+        Ok(json) => {
+            if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, json, 600).await {
+                tracing::warn!("failed to set cache {}: {}", &cache_key, e);
+            }
+        }
+        Err(e) => tracing::warn!(
+            "failed to serialize commit detail sha {}: {}",
+            commit_sha,
+            e
+        ),
+    }
+    Ok(detail)
 }

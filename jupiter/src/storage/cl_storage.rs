@@ -224,6 +224,29 @@ impl ClStorage {
         Ok(res.link)
     }
 
+    /// Create a new CL with Draft status (for Buck upload)
+    pub async fn new_cl_draft(
+        &self,
+        path: &str,
+        link: &str,
+        title: &str,
+        from_hash: &str,
+        username: &str,
+    ) -> Result<String, MegaError> {
+        let model = mega_cl::Model::new_draft(
+            path.to_owned(),
+            title.to_owned(),
+            link.to_owned(),
+            from_hash.to_owned(),
+            username.to_owned(),
+        );
+        let res = model
+            .into_active_model()
+            .insert(self.get_connection())
+            .await?;
+        Ok(res.link)
+    }
+
     pub async fn edit_title(&self, link: &str, title: &str) -> Result<(), MegaError> {
         mega_cl::Entity::update_many()
             .col_expr(mega_cl::Column::Title, Expr::value(title))
@@ -296,6 +319,18 @@ impl ClStorage {
         a_model.to_hash = Set(to_hash.to_owned());
         a_model.updated_at = Set(chrono::Utc::now().naive_utc());
         a_model.update(self.get_connection()).await.unwrap();
+        Ok(())
+    }
+
+    pub async fn update_cl_title(
+        &self,
+        model: mega_cl::Model,
+        title: &str,
+    ) -> Result<(), MegaError> {
+        let mut a_model = model.into_active_model();
+        a_model.title = Set(title.to_owned());
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
+        a_model.update(self.get_connection()).await?;
         Ok(())
     }
 

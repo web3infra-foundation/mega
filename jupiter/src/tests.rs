@@ -16,7 +16,7 @@ use crate::storage::merge_queue_storage::MergeQueueStorage;
 use crate::storage::note_storage::NoteStorage;
 use crate::storage::{AppService, Storage};
 use crate::storage::{
-    cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
+    buck_storage::BuckStorage, cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
     mono_storage::MonoStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
@@ -63,6 +63,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: ClReviewerStorage { base: base.clone() },
         merge_queue_storage: MergeQueueStorage::new(base.clone()),
+        buck_storage: BuckStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
