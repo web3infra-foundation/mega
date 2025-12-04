@@ -17,7 +17,7 @@ use crate::api::oauth::campsite_store::CampsiteApiStore;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
-        mono_api_service::MonoApiService,
+        mono_api_service::MonoApiService, state::ProtocolApiState,
     },
     protocol::repo::Repo,
 };
@@ -97,6 +97,15 @@ impl FromRef<MonoApiServiceState> for EntityStore {
 impl From<&MonoApiServiceState> for MonoApiService {
     fn from(state: &MonoApiServiceState) -> Self {
         MonoApiService {
+            storage: state.storage.clone(),
+            git_object_cache: state.git_object_cache.clone(),
+        }
+    }
+}
+
+impl FromRef<MonoApiServiceState> for ProtocolApiState {
+    fn from_ref(state: &MonoApiServiceState) -> ProtocolApiState {
+        ProtocolApiState {
             storage: state.storage.clone(),
             git_object_cache: state.git_object_cache.clone(),
         }

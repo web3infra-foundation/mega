@@ -5,18 +5,18 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use axum::body::Body;
-use axum::extract::{Query, State};
+use axum::extract::FromRef;
 use axum::http::{self, Request, Uri};
 use axum::response::Response;
-use axum::routing::get;
-use axum::{Router, middleware};
+use axum::routing::any;
+use axum::{Router, ServiceExt, middleware};
 use ceres::api_service::cache::GitObjectCache;
 use ceres::api_service::state::ProtocolApiState;
 use http::{HeaderValue, Method};
-use lazy_static::lazy_static;
-use regex::Regex;
+
 use saturn::entitystore::EntityStore;
 use time::Duration;
+use tower::Layer;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::decompression::RequestDecompressionLayer;
@@ -39,14 +39,16 @@ use crate::api::oauth::oauth_client;
 use crate::api::router::lfs_router;
 use context::AppContext;
 
-pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
-    PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
+pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {
+    PathBuf::from(full_path.replace(".git", "").replace(git_suffix, ""))
 }
 
 pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
+    let middleware = tower::util::MapRequestLayer::new(rewrite_lfs_request_uri::<Body>);
     let app = app(ctx, host.clone(), port).await;
+    let app_with_middleware = middleware.layer(app);
 
     let server_url = format!("{host}:{port}");
 
@@ -54,7 +56,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     tracing::info!("HTTP server started up!");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service())
+    axum::serve(listener, app_with_middleware.into_make_service())
         .await
         .unwrap();
 }
@@ -97,10 +99,6 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         connection: ctx.connection.clone(),
         prefix: "git-object-bincode".to_string(),
     });
-    let state = ProtocolApiState {
-        storage: storage.clone(),
-        git_object_cache: git_object_cache.clone(),
-    };
 
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
@@ -135,11 +133,22 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
             "/api/v1",
             api_router::routers()
                 .with_state(api_state.clone())
-                .route_layer(middleware::from_fn_with_state(api_state, cedar_guard)),
+                .route_layer(middleware::from_fn_with_state(
+                    api_state.clone(),
+                    cedar_guard,
+                )),
         )
         // .nest("/auth", oauth::routers().with_state(api_state.clone()))
         // Using Regular Expressions for Path Matching in Protocol
-        .route("/{*path}", get(get_method_router).post(post_method_router))
+        .route(
+            "/{*path}",
+            any({
+                let api_state = api_state.clone();
+                move |req: Request<Body>| {
+                    handle_smart_protocol(req, Arc::new(ProtocolApiState::from_ref(&api_state)))
+                }
+            }),
+        )
         .layer(
             ServiceBuilder::new().layer(session_layer).layer(
                 CorsLayer::new()
@@ -160,59 +169,76 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
-        .with_state(state)
+        .with_state(api_state)
         .split_for_parts();
     router.merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api))
 }
 
-lazy_static! {
-    /// The following regular expressions are used to match the Git server protocol.
-    static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
-    static ref REGEX_GIT_UPLOAD_PACK: Regex = Regex::new(r"/git-upload-pack$").unwrap();
-    static ref REGEX_GIT_RECEIVE_PACK: Regex = Regex::new(r"/git-receive-pack$").unwrap();
+fn rewrite_lfs_request_uri<B>(mut req: Request<B>) -> Request<B> {
+    let full_path = req.uri().path();
+
+    if let Some(pos) = full_path.rfind("/info/lfs/") {
+        let lfs_subpath = &full_path[pos..];
+
+        let new_path_and_query = if let Some(query) = req.uri().query() {
+            format!("{}?{}", lfs_subpath, query)
+        } else {
+            lfs_subpath.to_owned()
+        };
+
+        let new_uri = match Uri::builder().path_and_query(&new_path_and_query).build() {
+            Ok(uri) => uri,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to rewrite LFS URI: {}, error: {}",
+                    new_path_and_query,
+                    e
+                );
+                // Return the request unchanged, let downstream handlers deal with it
+                return req;
+            }
+        };
+
+        tracing::debug!("rewrite: old uri {:?}", req.uri());
+        *req.uri_mut() = new_uri;
+        tracing::debug!("rewrite: new uri {:?}", req.uri());
+    }
+    req
 }
 
-pub async fn get_method_router(
-    state: State<ProtocolApiState>,
-    Query(params): Query<InfoRefsParams>,
-    uri: Uri,
-) -> Result<Response<Body>, ProtocolError> {
-    if INFO_REFS_REGEX.is_match(uri.path()) {
+async fn handle_smart_protocol(
+    req: Request<Body>,
+    state: Arc<ProtocolApiState>,
+) -> Result<Response, ProtocolError> {
+    let full_path = req.uri().path();
+    if full_path.ends_with("/info/refs") && req.method().eq(&Method::GET) {
         let pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri, "/info/refs"),
+            remove_git_suffix(full_path, "/info/refs"),
             TransportProtocol::Http,
         );
+        let uri = req.uri();
+        let query_str = uri.query().unwrap_or("");
+        let params: InfoRefsParams = serde_urlencoded::from_str(query_str).unwrap();
         crate::git_protocol::http::git_info_refs(&state, params, pack_protocol).await
-    } else {
-        Err(ProtocolError::NotFound(
-            "Operation not supported".to_owned(),
-        ))
-    }
-}
-
-pub async fn post_method_router(
-    state: State<ProtocolApiState>,
-    uri: Uri,
-    req: Request<Body>,
-) -> Result<Response, ProtocolError> {
-    if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
+    } else if full_path.ends_with("/git-upload-pack") && req.method().eq(&Method::POST) {
         let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri.clone(), "/git-upload-pack"),
+            remove_git_suffix(full_path, "/git-upload-pack"),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
         crate::git_protocol::http::git_upload_pack(&state, req, pack_protocol).await
-    } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
+    } else if full_path.ends_with("/git-receive-pack") && req.method().eq(&Method::POST) {
         let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri.clone(), "/git-receive-pack"),
+            remove_git_suffix(full_path, "/git-receive-pack"),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
         crate::git_protocol::http::git_receive_pack(&state, req, pack_protocol).await
     } else {
-        Err(ProtocolError::NotFound(
-            "Operation not supported".to_owned(),
-        ))
+        Ok(Response::builder()
+            .status(404)
+            .body(Body::from("Operation not supported"))
+            .unwrap())
     }
 }
 
@@ -247,4 +273,79 @@ pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
 struct ApiDoc;
 
 #[cfg(test)]
-mod test {}
+mod tests {
+    use super::*;
+    use http::Request;
+
+    #[test]
+    fn test_rewrite_lfs_uri_basic() {
+        let req = Request::builder()
+            .uri("/repo/a/b/info/lfs/objects/123")
+            .body(())
+            .unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(new_req.uri().path(), "/info/lfs/objects/123");
+    }
+
+    #[test]
+    fn test_rewrite_keeps_query_string() {
+        let req = Request::builder()
+            .uri("/repo/a/info/lfs/locks?token=abc123")
+            .body(())
+            .unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(
+            new_req.uri().path_and_query().unwrap().to_string(),
+            "/info/lfs/locks?token=abc123"
+        );
+    }
+
+    #[test]
+    fn test_no_rewrite_when_no_lfs_prefix() {
+        let req = Request::builder().uri("/not-lfs-path").body(()).unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(new_req.uri().path(), "/not-lfs-path");
+    }
+
+    #[test]
+    fn test_rewrite_with_trailing_slash() {
+        let req = Request::builder()
+            .uri("/repo/info/lfs/locks/")
+            .body(())
+            .unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(new_req.uri().path(), "/info/lfs/locks/");
+    }
+
+    #[test]
+    fn test_rewrite_complex_path() {
+        let req = Request::builder()
+            .uri("/a/b/c/info/lfs/objects/abc/def/ghi")
+            .body(())
+            .unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(new_req.uri().path(), "/info/lfs/objects/abc/def/ghi");
+    }
+
+    #[test]
+    fn test_rewrite_when_repo_path_contains_info_lfs() {
+        let req = Request::builder()
+            .uri("/repos/info/lfs/info/lfs/objects/123")
+            .body(())
+            .unwrap();
+
+        let new_req = rewrite_lfs_request_uri(req);
+
+        assert_eq!(new_req.uri().path(), "/info/lfs/objects/123");
+    }
+}

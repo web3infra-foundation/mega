@@ -69,17 +69,24 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 
 /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// document describes the server LFS discovery protocol.
+/// Example:
+/// Git remote: https://git-server.com/foo/bar
+/// LFS server: https://git-server.com/foo/bar.git/info/lfs
+/// Locks API: https://git-server.com/foo/bar.git/info/lfs/locks
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
-    OpenApiRouter::new()
-        .route("/objects/{object_id}", get(lfs_download_object))
-        .route("/objects/{object_id}/{chunk_id}", get(lfs_download_chunk))
-        .route("/objects/{object_id}", put(lfs_upload_object))
-        .route("/locks", get(list_locks))
-        .route("/locks", post(create_lock))
-        .route("/locks/verify", post(list_locks_for_verification))
-        .route("/locks/{id}/unlock", post(delete_lock))
-        .route("/objects/batch", post(lfs_process_batch))
-        .route("/objects/{object_id}/chunks", get(lfs_fetch_chunk_ids))
+    OpenApiRouter::new().nest(
+        "/info/lfs",
+        OpenApiRouter::new()
+            .route("/objects/{object_id}", get(lfs_download_object))
+            .route("/objects/{object_id}/{chunk_id}", get(lfs_download_chunk))
+            .route("/objects/{object_id}", put(lfs_upload_object))
+            .route("/locks", get(list_locks))
+            .route("/locks", post(create_lock))
+            .route("/locks/verify", post(list_locks_for_verification))
+            .route("/locks/{id}/unlock", post(delete_lock))
+            .route("/objects/batch", post(lfs_process_batch))
+            .route("/objects/{object_id}/chunks", get(lfs_fetch_chunk_ids)),
+    )
 }
 
 pub async fn list_locks(

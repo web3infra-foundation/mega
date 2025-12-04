@@ -32,6 +32,7 @@ tracing-appender = { workspace = true }
 russh = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
