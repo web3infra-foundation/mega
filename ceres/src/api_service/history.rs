@@ -6,26 +6,48 @@ use std::{
 
 use git_internal::{
     errors::GitError,
+    hash::SHA1,
     internal::object::{
         commit::Commit,
-        tree::{Tree, TreeItem},
+        tree::{Tree, TreeItem, TreeItemMode},
     },
 };
 
 use crate::api_service::ApiHandler;
 
+const MAX_ITERATIONS: usize = 10_000;
+
+/// Parent commit info with pre-computed item hash map for batch lookup.
+struct ParentInfo {
+    commit: Arc<Commit>,
+    /// Map of item name -> (hash, mode) for quick TREESAME check
+    item_hashes: HashMap<String, (SHA1, TreeItemMode)>,
+}
+
+/// State for tracking a single item's traversal through commit history.
+/// Used by the batch traversal algorithm in `item_to_commit_map`.
+struct ItemTraversalState {
+    /// The tree item being tracked
+    item: TreeItem,
+    /// Current commit being examined for this item
+    current_commit_id: SHA1,
+    /// Hash of the item in the current commit
+    current_hash: SHA1,
+    /// Whether this item's last modification has been determined
+    determined: bool,
+    /// The commit where this item was last modified (set when determined)
+    result_commit: Option<Commit>,
+}
+
 /// Builds a mapping from each `TreeItem` under a given path to the commit
 /// where that item was last modified.
 ///
-/// This function retrieves the tree corresponding to the given `path`, then for each entry
-/// (file or subdirectory) in that tree, it traverses the commit history backwards to find
-/// the most recent commit where the item's hash changed (i.e., was modified).
+/// This function retrieves the tree corresponding to the given `path`, then uses a
+/// batch traversal algorithm to find the most recent commit where each item's hash
+/// changed (i.e., was modified).
 ///
 /// If a `ref` (reference, such as a tag) is provided, traversal starts from the commit
 /// that the reference points to. Otherwise, it starts from the repository's root commit.
-///
-/// Internally, it leverages [`traverse_commit_history_for_last_modification`] to perform
-/// the traversal and uses a shared [`GitObjectCache`] to minimize redundant commit/tree lookups.
 ///
 /// # Arguments
 /// - `path`: The path to the target directory or subtree to analyze.
@@ -43,21 +65,26 @@ use crate::api_service::ApiHandler;
 /// # Algorithm
 /// 1. Resolve the starting commit (from `reference` if provided, otherwise root commit).
 /// 2. Resolve the tree at the given `path` at the starting commit.
-/// 3. For each entry (`TreeItem`) in the resolved tree:
-///    - Call [`traverse_commit_history_for_last_modification`] to find the most recent commit
-///      where that item's hash changed, starting from the resolved commit and traversing backwards.
-///    - Store the mapping in the result map.
-/// 4. Return the complete mapping.
+/// 3. Initialize traversal state for all items, grouping them by current commit.
+/// 4. For each commit group:
+///    - Load parent trees once (shared by all items in the group).
+///    - For each item, check if any parent has TREESAME content (same hash and mode).
+///    - If TREESAME: continue traversing to that parent.
+///    - If no TREESAME parent: this commit modified the item.
+/// 5. Return the complete mapping.
 ///
 /// # Performance Notes
-/// - Uses a shared `Arc<Mutex<GitObjectCache>>` for caching to avoid redundant
-///   lookups of commits and trees.
-/// - Each item is processed sequentially, so total runtime scales linearly
-///   with the number of items in the directory.
+/// - Uses batch processing to group items by their current commit, reducing redundant
+///   parent tree loads when multiple items are at the same commit.
+/// - Uses a commit cache to avoid reloading the same commits.
+/// - Uses TREESAME pruning similar to `git log --follow` for efficiency.
+///
+/// # Limitations
+/// - If `MAX_ITERATIONS` is exceeded, remaining undetermined items fall back to
+///   the start commit.
 ///
 /// # See Also
-/// - [`traverse_commit_history_for_last_modification`] — for the logic of commit traversal
-///   and last modification detection.
+/// - [`traverse_commit_history_for_last_modification`] — for single-item traversal.
 pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     handler: &T,
     path: PathBuf,
@@ -68,7 +95,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
         crate::api_service::commit_ops::resolve_start_commit(handler, reference).await?;
 
     // Get the tree at the specified path from the resolved start commit
-    // Use the start commit's tree to ensure consistency
     let start_tree = handler
         .get_tree_by_hash(&start_commit_arc.tree_id.to_string())
         .await?;
@@ -78,19 +104,186 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
         return Ok(HashMap::new());
     };
 
-    // For each item in the tree, traverse commit history to find its last modification
     let tree_items = tree.tree_items.clone();
-    let mut result = HashMap::with_capacity(tree_items.len());
+    let item_count = tree_items.len();
 
-    for item in tree_items {
-        let commit = traverse_commit_history_for_last_modification(
-            handler,
-            &path,
-            start_commit_arc.clone(),
-            &item,
-        )
-        .await?;
-        result.insert(item, Some(commit));
+    if item_count == 0 {
+        return Ok(HashMap::new());
+    }
+
+    // Initialize traversal state for all items
+    let mut item_states: Vec<ItemTraversalState> = tree_items
+        .into_iter()
+        .map(|item| ItemTraversalState {
+            current_hash: item.id,
+            item,
+            current_commit_id: start_commit_arc.id,
+            determined: false,
+            result_commit: None,
+        })
+        .collect();
+
+    let mut pending_count = item_count;
+
+    // Cache for commits we've loaded
+    let mut commit_cache: HashMap<SHA1, Arc<Commit>> = HashMap::new();
+    commit_cache.insert(start_commit_arc.id, start_commit_arc.clone());
+
+    let mut iteration = 0;
+
+    while pending_count > 0 {
+        iteration += 1;
+        if iteration > MAX_ITERATIONS {
+            tracing::warn!(
+                "[HISTORY] Exceeded max iterations ({}) for path {:?}, {} items still pending",
+                MAX_ITERATIONS,
+                path,
+                pending_count
+            );
+            break;
+        }
+
+        // Group undetermined items by their current commit
+        let mut commit_groups: HashMap<SHA1, Vec<usize>> = HashMap::new();
+        for (idx, state) in item_states.iter().enumerate() {
+            if !state.determined {
+                commit_groups
+                    .entry(state.current_commit_id)
+                    .or_default()
+                    .push(idx);
+            }
+        }
+
+        if commit_groups.is_empty() {
+            break;
+        }
+
+        let mut any_progress = false;
+
+        // Process each commit group
+        for (commit_id, item_indices) in commit_groups {
+            // Get the commit (from cache or load)
+            let commit = if let Some(c) = commit_cache.get(&commit_id) {
+                c.clone()
+            } else {
+                let c = handler
+                    .object_cache()
+                    .get_commit(commit_id, |id| async move {
+                        handler.get_commit_by_hash(&id.to_string()).await
+                    })
+                    .await?;
+                commit_cache.insert(commit_id, c.clone());
+                c
+            };
+
+            // No parents: all items in this group were introduced in this commit
+            if commit.parent_commit_ids.is_empty() {
+                for &idx in &item_indices {
+                    if !item_states[idx].determined {
+                        item_states[idx].determined = true;
+                        item_states[idx].result_commit = Some((*commit).clone());
+                        pending_count -= 1;
+                        any_progress = true;
+                    }
+                }
+                continue;
+            }
+
+            // Load all parent trees once (shared by all items in this group)
+            let mut parent_data: Vec<ParentInfo> = Vec::new();
+
+            for &parent_id in &commit.parent_commit_ids {
+                let parent_commit = if let Some(c) = commit_cache.get(&parent_id) {
+                    c.clone()
+                } else {
+                    let c = handler
+                        .object_cache()
+                        .get_commit(parent_id, |id| async move {
+                            handler.get_commit_by_hash(&id.to_string()).await
+                        })
+                        .await?;
+                    commit_cache.insert(parent_id, c.clone());
+                    c
+                };
+
+                let parent_tree = handler
+                    .object_cache()
+                    .get_tree(parent_commit.tree_id, |id| async move {
+                        handler.get_tree_by_hash(&id.to_string()).await
+                    })
+                    .await?;
+
+                let parent_target_tree_opt = navigate_to_tree(handler, parent_tree, &path).await?;
+
+                // Build hash map for this parent's items
+                let parent_item_hashes: HashMap<String, (SHA1, TreeItemMode)> =
+                    if let Some(ref t) = parent_target_tree_opt {
+                        t.tree_items
+                            .iter()
+                            .map(|item| (item.name.clone(), (item.id, item.mode)))
+                            .collect()
+                    } else {
+                        HashMap::new()
+                    };
+
+                parent_data.push(ParentInfo {
+                    commit: parent_commit,
+                    item_hashes: parent_item_hashes,
+                });
+            }
+
+            // Process each item in this commit group
+            for &idx in &item_indices {
+                let state = &mut item_states[idx];
+                if state.determined {
+                    continue;
+                }
+
+                let item_name = &state.item.name;
+                let item_mode = state.item.mode;
+                let current_hash = state.current_hash;
+
+                // Find a parent that has the same hash (TREESAME)
+                let mut found_matching_parent = false;
+
+                for parent in &parent_data {
+                    if let Some(&(parent_hash, parent_mode)) = parent.item_hashes.get(item_name)
+                        && parent_hash == current_hash
+                        && parent_mode == item_mode
+                    {
+                        // TREESAME: continue traversing to this parent
+                        state.current_commit_id = parent.commit.id;
+                        state.current_hash = parent_hash;
+                        found_matching_parent = true;
+                        any_progress = true;
+
+                        break;
+                    }
+                }
+
+                if !found_matching_parent {
+                    // No parent has the same hash: this commit modified the item
+                    state.determined = true;
+                    state.result_commit = Some((*commit).clone());
+                    pending_count -= 1;
+                    any_progress = true;
+                }
+            }
+        }
+
+        if !any_progress {
+            break;
+        }
+    }
+
+    // Build the result map
+    let mut result = HashMap::with_capacity(item_count);
+    for state in item_states {
+        // Use result_commit, or fallback to start_commit if undetermined
+        let commit = state
+            .result_commit
+            .or_else(|| Some((*start_commit_arc).clone()));
+        result.insert(state.item, commit);
     }
 
     Ok(result)
@@ -103,7 +296,6 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
 /// - `handler`: The API handler for Git operations.
 /// - `root_tree`: The root tree to start navigation from.
 /// - `path`: The path to navigate to.
-/// - `cache`: A shared cache for tree lookups.
 ///
 /// # Returns
 /// - `Ok(Some(Arc<Tree>))` if the path exists and the target tree is found.
@@ -313,8 +505,6 @@ pub async fn traverse_commit_history_for_last_modification<T: ApiHandler + ?Size
     visited.insert(start_commit.id);
     commit_queue.push_back((start_commit.clone(), current_hash));
 
-    // Safety limit to prevent unbounded memory usage in complex histories
-    const MAX_ITERATIONS: usize = 10_000;
     let mut iterations = 0;
 
     while let Some((commit, commit_hash)) = commit_queue.pop_front() {

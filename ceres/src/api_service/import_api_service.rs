@@ -46,23 +46,29 @@ impl ApiHandler for ImportApiService {
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
-        // If the incoming path is already relative (does not start with repo base and is not absolute),
-        // accept it as-is. This allows callers to pass either full repo path or already-stripped
-        // relative paths without causing errors.
+        // If the incoming path is already relative, accept it as-is
         if !path.is_absolute() {
             tracing::debug!("strip_relative -> path is already relative: {:?}", path);
             return Ok(path.to_path_buf());
         }
 
-        // Otherwise, expect an absolute path under the repo base and strip the prefix.
-        match path.strip_prefix(self.repo.repo_path.clone()) {
+        // Normalize both paths by removing leading slashes for consistent comparison
+        let path_str = path.to_string_lossy();
+        let path_trimmed = path_str.trim_start_matches('/');
+        let repo_trimmed = self.repo.repo_path.trim_start_matches('/');
+
+        let path_normalized = Path::new(path_trimmed);
+        let repo_normalized = Path::new(repo_trimmed);
+
+        match path_normalized.strip_prefix(repo_normalized) {
             Ok(relative_path) => {
                 tracing::debug!("strip_relative -> relative={:?}", relative_path);
                 Ok(relative_path.to_path_buf())
             }
             Err(_) => Err(MegaError::Other(format!(
-                "The full path {:?} does not start with the base path {:?}.",
-                path, self.repo.repo_path,
+                "Path '{}' is not under repo '{}'",
+                path.display(),
+                self.repo.repo_path
             ))),
         }
     }
