@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use aws_s3_storage::AwsS3Storage;
@@ -23,11 +20,7 @@ pub trait LfsFileStorage: Sync + Send {
     async fn get_object(&self, object_id: &str) -> Result<Bytes, MegaError>;
 
     fn action_href(&self, object_id: &str, hostname: &str) -> String {
-        let path = PathBuf::new()
-            .join(hostname)
-            .join("objects")
-            .join(object_id);
-        path.into_os_string().into_string().unwrap()
+        format!("{}/info/lfs/objects/{}", hostname, object_id)
     }
 
     async fn download_url(&self, object_id: &str, hostname: &str) -> Result<String, MegaError>;

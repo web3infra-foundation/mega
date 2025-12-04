@@ -479,7 +479,7 @@ impl ApiHandler for MonoApiService {
                 .mono_storage()
                 .get_tree_by_hash(hash)
                 .await?
-                .unwrap(),
+                .unwrap_or_else(|| panic!("can't fetch tree by hash {}", hash)),
         ))
     }
 
@@ -489,7 +489,7 @@ impl ApiHandler for MonoApiService {
                 .mono_storage()
                 .get_commit_by_hash(hash)
                 .await?
-                .unwrap(),
+                .unwrap_or_else(|| panic!("can't fetch commit by hash {}", hash)),
         ))
     }
 
