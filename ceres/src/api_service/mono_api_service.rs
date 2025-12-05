@@ -111,6 +111,172 @@ pub struct RefUpdate {
     tree_id: SHA1,
 }
 
+/// `MonoServiceLogic` is a helper struct for `MonoApiService` containing stateless logic.
+///
+/// It encapsulates the pure logic methods of `MonoApiService` that do not depend on
+/// databases, caches, or other external state, making them easy to unit test and reuse.
+///
+/// Usage:
+/// - Methods in `MonoApiService` can delegate their core logic to these static methods.
+/// - In tests, you can call `MonoServiceLogic` methods directly without initializing
+///   `MonoApiService` or a database.
+pub struct MonoServiceLogic;
+
+impl MonoServiceLogic {
+    pub fn clean_path_str(path: &str) -> String {
+        let s = path.trim_end_matches('/');
+        if s.is_empty() {
+            "/".to_string()
+        } else {
+            s.to_string()
+        }
+    }
+
+    pub fn update_tree_hash(
+        tree: Arc<Tree>,
+        name: &str,
+        target_hash: SHA1,
+    ) -> Result<Tree, GitError> {
+        let index = tree
+            .tree_items
+            .iter()
+            .position(|item| item.name == name)
+            .ok_or_else(|| GitError::CustomError(format!("Tree item '{}' not found", name)))?;
+        let mut items = tree.tree_items.clone();
+        items[index].id = target_hash;
+        Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
+    }
+
+    /// Update parent trees along the given update chain with the new child tree hash.
+    /// This function prepares all updated trees and their associated ref updates.  
+    /// Trees that do not depend on each other (e.g., sibling directories) can be updated in parallel.
+    /// No new commits are created; only tree objects and ref updates are produced.
+    pub fn build_result_by_chain(
+        mut path: PathBuf,
+        mut update_chain: Vec<Arc<Tree>>,
+        mut updated_tree_hash: SHA1,
+    ) -> Result<TreeUpdateResult, GitError> {
+        let mut updated_trees = Vec::new();
+        let mut ref_updates = Vec::new();
+        let mut path_str = path.to_string_lossy().to_string();
+
+        loop {
+            let clean_path = MonoServiceLogic::clean_path_str(&path_str);
+
+            ref_updates.push(RefUpdate {
+                path: clean_path,
+                tree_id: updated_tree_hash,
+            });
+
+            if update_chain.is_empty() {
+                break;
+            }
+
+            let cloned_path = path.clone();
+            let name = cloned_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?;
+            path.pop();
+            path_str = path.to_string_lossy().to_string();
+
+            let tree = update_chain
+                .pop()
+                .ok_or_else(|| GitError::CustomError("Empty update chain".into()))?;
+
+            let new_tree = MonoServiceLogic::update_tree_hash(tree, name, updated_tree_hash)?;
+            updated_tree_hash = new_tree.id;
+            updated_trees.push(new_tree);
+        }
+
+        Ok(TreeUpdateResult {
+            updated_trees,
+            ref_updates,
+        })
+    }
+
+    /// Processes all ref updates by creating new commits and updating refs accordingly.
+    ///
+    /// This method abstracts the entire loop logic for processing ref updates,
+    /// creating commits for each update and managing the refs that need to be updated.
+    pub fn process_ref_updates(
+        result: &TreeUpdateResult,
+        refs: &[mega_refs::Model],
+        commit_msg: &str,
+        commits: &mut Vec<Commit>,
+        updates: &mut Vec<RefUpdateData>,
+        new_commit_id: &mut String,
+    ) -> Result<(), GitError> {
+        for update in &result.ref_updates {
+            if let Some(p_ref) = refs.iter().find(|r| r.path == update.path) {
+                let commit = Commit::from_tree_id(
+                    update.tree_id,
+                    vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
+                    commit_msg,
+                );
+                let commit_id = commit.id.to_string();
+                *new_commit_id = commit_id.clone();
+
+                commits.push(commit);
+
+                let mut push_update = |ref_name: &str| {
+                    updates.push(RefUpdateData {
+                        path: p_ref.path.clone(),
+                        ref_name: ref_name.to_string(),
+                        commit_id: commit_id.to_string(),
+                        tree_hash: update.tree_id.to_string(),
+                    });
+                };
+
+                push_update(&p_ref.ref_name);
+                if p_ref.ref_name.starts_with("refs/cl/") {
+                    push_update(MEGA_BRANCH_NAME);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Maps each TreeItem in a Tree to its corresponding Commit, if available.
+    ///
+    /// # Arguments
+    ///
+    /// * `tree` - The tree containing the TreeItems to map.
+    /// * `item_to_commit_id` - Mapping from TreeItem id (as string) to commit id.
+    /// * `commit_map` - Mapping from commit id to Commit object.
+    ///
+    /// # Returns
+    ///
+    /// A HashMap where each TreeItem maps to an Option<Commit>. If a commit cannot
+    /// be found, the value is None.
+    pub fn map_tree_items_to_commits(
+        tree: Tree,
+        item_to_commit_id: &HashMap<String, String>,
+        commit_map: &HashMap<String, Commit>,
+    ) -> HashMap<TreeItem, Option<Commit>> {
+        let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
+
+        for item in tree.tree_items {
+            if let Some(commit_id) = item_to_commit_id.get(&item.id.to_string()) {
+                let commit = commit_map.get(commit_id).cloned();
+                if commit.is_none() {
+                    tracing::warn!(
+                        item_name = %item.name,
+                        item_mode = ?item.mode,
+                        commit_id = %commit_id,
+                        "failed fetch from commit map"
+                    );
+                }
+                result.insert(item, commit);
+            } else {
+                result.insert(item, None);
+            }
+        }
+        result
+    }
+}
+
 #[async_trait]
 impl ApiHandler for MonoApiService {
     fn get_context(&self) -> Storage {
@@ -154,9 +320,9 @@ impl ApiHandler for MonoApiService {
 
         // Create new blob and build update result up to root
         let new_blob = Blob::from_content(&payload.content);
-        let result = self
-            .build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
-            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let result =
+            MonoServiceLogic::build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         // Apply and save
         let new_commit_id = self
@@ -300,7 +466,7 @@ impl ApiHandler for MonoApiService {
             // build_result_by_chain walks the update_chain (parent trees)
             // and prepares the list of updated trees and ref updates
             // that must be applied to persist the change.
-            let update_result = self.build_result_by_chain(
+            let update_result = MonoServiceLogic::build_result_by_chain(
                 if prefix.is_empty() {
                     path.clone()
                 } else {
@@ -411,8 +577,11 @@ impl ApiHandler for MonoApiService {
             // After constructing the nested trees, build update instructions
             // and apply them to update the parent trees and refs so the
             // new nested directory/file is persisted in the repository.
-            let update_result =
-                self.build_result_by_chain(PathBuf::from(prefix), update_chain, target_tree.id)?;
+            let update_result = MonoServiceLogic::build_result_by_chain(
+                PathBuf::from(prefix),
+                update_chain,
+                target_tree.id,
+            )?;
             let new_commit_id = self
                 .apply_update_result(&update_result, &entry_info.commit_msg(), None)
                 .await?;
@@ -535,27 +704,15 @@ impl ApiHandler for MonoApiService {
                     .get_commits_by_hashes(commit_ids.into_iter().collect())
                     .await
                     .unwrap();
+
                 let commit_map: HashMap<String, Commit> =
                     commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
 
-                let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
-                for item in tree.tree_items {
-                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
-                        let commit = commit_map.get(commit_id).cloned();
-                        if commit.is_none() {
-                            tracing::warn!(
-                                item_name = %item.name,
-                                item_mode = ?item.mode,
-                                commit_id = %commit_id,
-                                "failed fetch from commit map"
-                            );
-                        }
-                        result.insert(item, commit);
-                    } else {
-                        result.insert(item, None);
-                    }
-                }
-                Ok(result)
+                Ok(MonoServiceLogic::map_tree_items_to_commits(
+                    tree,
+                    &item_to_commit,
+                    &commit_map,
+                ))
             }
             None => Ok(HashMap::new()),
         }
@@ -1032,7 +1189,8 @@ impl MonoApiService {
             let path = PathBuf::from(cl.path.clone());
             // because only parent tree is needed so we skip current directory
             let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
-            let result = self.build_result_by_chain(path, update_chain, commit.tree_id)?;
+            let result =
+                MonoServiceLogic::build_result_by_chain(path, update_chain, commit.tree_id)?;
             self.apply_update_result(&result, "cl merge generated commit", Some(cl.link.as_str()))
                 .await?;
             storage
@@ -1055,64 +1213,6 @@ impl MonoApiService {
             .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
 
         Ok(())
-    }
-
-    /// Update parent trees along the given update chain with the new child tree hash.
-    /// This function prepares all updated trees and their associated ref updates.  
-    /// Trees that do not depend on each other (e.g., sibling directories) can be updated in parallel.  
-    /// No new commits are created; only tree objects and ref updates are produced.
-    pub fn build_result_by_chain(
-        &self,
-        mut path: PathBuf,
-        mut update_chain: Vec<Arc<Tree>>,
-        mut updated_tree_hash: SHA1,
-    ) -> Result<TreeUpdateResult, GitError> {
-        fn clean_path_str(path: &str) -> String {
-            let s = path.trim_end_matches('/');
-            if s.is_empty() {
-                "/".to_string()
-            } else {
-                s.to_string()
-            }
-        }
-
-        let mut updated_trees = Vec::new();
-        let mut ref_updates = Vec::new();
-        let mut path_str = path.to_string_lossy().to_string();
-
-        loop {
-            let clean_path = clean_path_str(&path_str);
-
-            ref_updates.push(RefUpdate {
-                path: clean_path,
-                tree_id: updated_tree_hash,
-            });
-
-            if update_chain.is_empty() {
-                break;
-            }
-
-            let cloned_path = path.clone();
-            let name = cloned_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?;
-            path.pop();
-            path_str = path.to_string_lossy().to_string();
-
-            let tree = update_chain
-                .pop()
-                .ok_or_else(|| GitError::CustomError("Empty update chain".into()))?;
-
-            let new_tree = self.update_tree_hash(tree, name, updated_tree_hash)?;
-            updated_tree_hash = new_tree.id;
-            updated_trees.push(new_tree);
-        }
-
-        Ok(TreeUpdateResult {
-            updated_trees,
-            ref_updates,
-        })
     }
 
     pub async fn apply_update_result(
@@ -1138,33 +1238,14 @@ impl MonoApiService {
 
         let mut updates: Vec<RefUpdateData> = Vec::new();
 
-        for update in &result.ref_updates {
-            if let Some(p_ref) = refs.iter().find(|r| r.path == update.path) {
-                let commit = Commit::from_tree_id(
-                    update.tree_id,
-                    vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
-                    commit_msg,
-                );
-                let commit_id = commit.id.to_string();
-                new_commit_id = commit_id.clone();
-
-                commits.push(commit);
-
-                let mut push_update = |ref_name: &str| {
-                    updates.push(RefUpdateData {
-                        path: p_ref.path.clone(),
-                        ref_name: ref_name.to_string(),
-                        commit_id: commit_id.to_string(),
-                        tree_hash: update.tree_id.to_string(),
-                    });
-                };
-
-                push_update(&p_ref.ref_name);
-                if p_ref.ref_name.starts_with("refs/cl/") {
-                    push_update(MEGA_BRANCH_NAME);
-                }
-            }
-        }
+        MonoServiceLogic::process_ref_updates(
+            result,
+            &refs,
+            commit_msg,
+            &mut commits,
+            &mut updates,
+            &mut new_commit_id,
+        )?;
 
         if new_commit_id.is_empty() {
             return Err(GitError::CustomError(
@@ -1199,22 +1280,6 @@ impl MonoApiService {
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         Ok(new_commit_id)
-    }
-
-    fn update_tree_hash(
-        &self,
-        tree: Arc<Tree>,
-        name: &str,
-        target_hash: SHA1,
-    ) -> Result<Tree, GitError> {
-        let index = tree
-            .tree_items
-            .iter()
-            .position(|item| item.name == name)
-            .ok_or_else(|| GitError::CustomError(format!("Tree item '{}' not found", name)))?;
-        let mut items = tree.tree_items.clone();
-        items[index].id = target_hash;
-        Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
     }
 
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
@@ -1859,12 +1924,177 @@ fn collect_page_blobs(
 mod test {
     use super::*;
     use crate::model::change_list::ClDiffFile;
-    use git_internal::hash::SHA1;
+    use git_internal::hash::{ObjectHash, SHA1};
+    use git_internal::internal::object::signature::{Signature, SignatureType};
+    use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
     use std::path::PathBuf;
     use std::str::FromStr;
+    use std::sync::Arc;
 
     #[test]
-    pub fn test_path() {
+    fn test_clean_path_str_edges() {
+        assert_eq!(MonoServiceLogic::clean_path_str(""), "/");
+        assert_eq!(MonoServiceLogic::clean_path_str("/"), "/");
+        assert_eq!(MonoServiceLogic::clean_path_str("abc/"), "abc");
+        assert_eq!(MonoServiceLogic::clean_path_str("abc///"), "abc");
+    }
+
+    #[test]
+    fn test_update_tree_hash() {
+        let item = TreeItem::new(
+            TreeItemMode::Blob,
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            "path".to_string(),
+        );
+
+        let tree = Tree::from_tree_items(vec![item]).expect("tree should build");
+        let tree = Arc::new(tree);
+
+        let new_hash = SHA1::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+
+        let new_tree = MonoServiceLogic::update_tree_hash(tree, "path", new_hash)
+            .expect("update_tree_hash should succeed");
+
+        assert_eq!(new_tree.tree_items.len(), 1);
+        assert_eq!(new_tree.tree_items[0].id, new_hash);
+    }
+
+    #[test]
+    fn test_build_result_by_chain_logic() {
+        let item = TreeItem::new(
+            TreeItemMode::Blob,
+            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            "path".to_string(),
+        );
+
+        let tree = Tree::from_tree_items(vec![item]).expect("tree should build");
+        let tree_id = tree.id;
+
+        let update_chain = vec![Arc::new(tree)];
+        let path = PathBuf::from("/test/path");
+
+        let result = MonoServiceLogic::build_result_by_chain(path, update_chain, tree_id)
+            .expect("build_result_by_chain should succeed");
+
+        assert_eq!(result.updated_trees.len(), 1);
+        assert_eq!(result.ref_updates.len(), 2);
+
+        let paths: Vec<&str> = result.ref_updates.iter().map(|r| r.path.as_str()).collect();
+        assert!(paths.contains(&"/test/path"));
+        assert!(paths.contains(&"/test"));
+    }
+
+    #[tokio::test]
+    async fn test_process_ref_updates_logic() {
+        let ref_update = RefUpdate {
+            path: "/test".to_string(),
+            tree_id: SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+        };
+
+        let tree_update_result = TreeUpdateResult {
+            updated_trees: vec![],
+            ref_updates: vec![RefUpdate {
+                path: ref_update.path.clone(),
+                tree_id: ref_update.tree_id,
+            }],
+        };
+
+        let refs = vec![mega_refs::Model {
+            id: 1,
+            path: "/test".to_string(),
+            ref_name: "refs/heads/main".to_string(),
+            ref_commit_hash: "0987654321098765432109876543210987654321".to_string(),
+            ref_tree_hash: "1111111111111111111111111111111111111111".to_string(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+            is_cl: false,
+        }];
+
+        let mut commits: Vec<Commit> = Vec::new();
+        let mut updates: Vec<RefUpdateData> = Vec::new();
+        let mut new_commit_id = String::new();
+
+        let result = MonoServiceLogic::process_ref_updates(
+            &tree_update_result,
+            &refs,
+            "test commit message",
+            &mut commits,
+            &mut updates,
+            &mut new_commit_id,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(commits.len(), 1);
+        assert_eq!(updates.len(), 1);
+        assert!(!new_commit_id.is_empty());
+
+        let created_commit = &commits[0];
+
+        assert_eq!(
+            created_commit.tree_id,
+            tree_update_result.ref_updates[0].tree_id
+        );
+        let expected_parent = ObjectHash::from_str(&refs[0].ref_commit_hash).unwrap();
+        assert_eq!(created_commit.parent_commit_ids, vec![expected_parent]);
+
+        assert_eq!(updates[0].ref_name, refs[0].ref_name);
+        assert_eq!(updates[0].commit_id, new_commit_id);
+    }
+
+    #[test]
+    fn test_map_tree_items_to_commits() {
+        let id1 = ObjectHash::Sha1([1u8; 20]);
+        let id2 = ObjectHash::Sha1([2u8; 20]);
+        let commit_hash = ObjectHash::Sha1([3u8; 20]);
+
+        let item1 = TreeItem {
+            id: id1.clone(),
+            name: "file1.txt".into(),
+            mode: TreeItemMode::Blob,
+        };
+        let item2 = TreeItem {
+            id: id2.clone(),
+            name: "file2.txt".into(),
+            mode: TreeItemMode::Blob,
+        };
+
+        let tree = Tree {
+            id: ObjectHash::Sha1([9u8; 20]),
+            tree_items: vec![item1.clone(), item2.clone()],
+        };
+
+        let mut item_to_commit_id = HashMap::new();
+        item_to_commit_id.insert(id1.to_string(), commit_hash.to_string());
+
+        let fake_sig = Signature {
+            signature_type: SignatureType::Committer,
+            name: "tester".into(),
+            email: "tester@example.com".into(),
+            timestamp: 0,
+            timezone: "+0000".into(),
+        };
+
+        let commit_a = Commit {
+            id: commit_hash.clone(),
+            tree_id: ObjectHash::Sha1([8u8; 20]),
+            parent_commit_ids: vec![],
+            author: fake_sig.clone(),
+            committer: fake_sig.clone(),
+            message: "test commit".into(),
+        };
+
+        let mut commit_map = HashMap::new();
+        commit_map.insert(commit_hash.to_string(), commit_a.clone());
+
+        let result =
+            MonoServiceLogic::map_tree_items_to_commits(tree, &item_to_commit_id, &commit_map);
+
+        assert_eq!(result.get(&item1), Some(&Some(commit_a)));
+        assert_eq!(result.get(&item2), Some(&None));
+    }
+
+    #[test]
+    fn test_path_traversal_with_pop() {
         let mut full_path = PathBuf::from("/project/rust/mega");
         for _ in 0..3 {
             let cloned_path = full_path.clone(); // Clone full_path
