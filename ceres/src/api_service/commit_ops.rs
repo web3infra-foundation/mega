@@ -10,12 +10,90 @@ use git_internal::{
 };
 
 use crate::api_service::{ApiHandler, history, tree_ops};
-use crate::model::commit::{CommitDetail, CommitSummary};
+use crate::model::commit::{CommitDetail, CommitSummary, GpgStatus};
 use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
 use common::model::{DiffItem, Pagination};
 use git_internal::hash::SHA1;
 use redis::AsyncCommands;
 use std::collections::{HashMap, HashSet, VecDeque};
+
+/// Compute GPG signature verification status for a commit.
+///
+/// This function checks whether a commit has a valid GPG signature by:
+/// 1. Checking Redis cache for previously computed status
+/// 2. Extracting the GPG signature from commit content
+/// 3. Verifying the signature against stored GPG keys for the committer
+///
+/// # Arguments
+/// * `handler` - API handler providing storage and cache access
+/// * `commit` - The commit to verify
+/// * `committer` - Username of the committer for key lookup
+///
+/// # Returns
+/// * `GpgStatus::Verified` - Commit has a valid signature
+/// * `GpgStatus::Unverified` - Commit has a signature but verification failed
+/// * `GpgStatus::NoSignature` - Commit is not signed
+///
+/// # Cache
+/// Results are cached in Redis with a 600-second TTL to avoid redundant verification.
+async fn compute_gpg_status_for_commit<T: ApiHandler + ?Sized>(
+    handler: &T,
+    commit: &Commit,
+    committer: &str,
+) -> GpgStatus {
+    // Cache key per commit
+    let cache_key = format!(
+        "{}:gpg_status:v1:sha={}",
+        handler.object_cache().prefix,
+        commit.id
+    );
+
+    // Try cache first
+    let mut conn = handler.object_cache().connection.clone();
+    if let Ok(Some(json)) = conn.get::<_, Option<String>>(&cache_key).await
+        && let Ok(status) = serde_json::from_str::<GpgStatus>(&json)
+    {
+        let _ = conn.expire::<_, ()>(&cache_key, 600).await;
+        return status;
+    }
+
+    let content = &commit.message;
+    let status = {
+        let (_commit_msg, sig_opt) =
+            crate::merge_checker::gpg_signature_checker::extract_from_commit_content(content);
+        if sig_opt.is_none() {
+            GpgStatus::NoSignature
+        } else {
+            let storage = handler.get_context();
+            let checker = crate::merge_checker::gpg_signature_checker::GpgSignatureChecker {
+                storage: Arc::new(storage),
+            };
+            match checker
+                .verify_commit_gpg_signature(content, committer.to_string())
+                .await
+            {
+                Ok(()) => GpgStatus::Verified,
+                Err(e) => {
+                    tracing::debug!("GPG verification failed for commit {}: {}", commit.id, e);
+                    GpgStatus::Unverified
+                }
+            }
+        }
+    };
+
+    // Save to cache
+    match serde_json::to_string(&status) {
+        Ok(json) => {
+            if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, json, 600).await {
+                tracing::warn!("Failed to cache GPG status for {}: {}", cache_key, e);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to serialize GPG status for {}: {}", cache_key, e);
+        }
+    }
+    status
+}
 
 /// Get the latest commit that modified a file or directory.
 ///
@@ -426,6 +504,7 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
             let c = handler.get_commit_by_hash(sha).await?;
             let mut info: LatestCommitInfo = c.clone().into();
             apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+            let gpg_status = compute_gpg_status_for_commit(handler, &c, &info.committer).await;
             res.push(CommitSummary {
                 sha: c.id.to_string(),
                 short_message: info.short_message,
@@ -433,6 +512,7 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
                 committer: info.committer,
                 date: info.date,
                 parents: c.parent_commit_ids.iter().map(|p| p.to_string()).collect(),
+                gpg_status,
             });
         }
         return Ok((res, total));
@@ -468,6 +548,7 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
     for c in slice {
         let mut info: LatestCommitInfo = c.clone().into();
         apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+        let gpg_status = compute_gpg_status_for_commit(handler, c, &info.committer).await;
         res.push(CommitSummary {
             sha: c.id.to_string(),
             short_message: info.short_message,
@@ -475,6 +556,7 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
             committer: info.committer,
             date: info.date,
             parents: c.parent_commit_ids.iter().map(|p| p.to_string()).collect(),
+            gpg_status,
         });
     }
 
@@ -511,6 +593,7 @@ pub async fn build_commit_detail<T: ApiHandler + ?Sized>(
     // Summary
     let mut info: LatestCommitInfo = commit.clone().into();
     apply_username_binding(handler, &commit.id.to_string(), &mut info).await;
+    let gpg_status = compute_gpg_status_for_commit(handler, &commit, &info.committer).await;
     let summary = CommitSummary {
         sha: commit.id.to_string(),
         short_message: info.short_message,
@@ -522,6 +605,7 @@ pub async fn build_commit_detail<T: ApiHandler + ?Sized>(
             .iter()
             .map(|p| p.to_string())
             .collect(),
+        gpg_status,
     };
 
     // Collect diffs vs each parent and merge by path
