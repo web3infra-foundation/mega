@@ -46,14 +46,19 @@ impl ApiHandler for ImportApiService {
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
-        // If the incoming path is already relative, accept it as-is
-        if !path.is_absolute() {
-            tracing::debug!("strip_relative -> path is already relative: {:?}", path);
-            return Ok(path.to_path_buf());
+        let path_str = path.to_string_lossy();
+
+        // If path is truly relative (no leading slash and not absolute), return as-is
+        if !path_str.starts_with('/') && !path.is_absolute() {
+            // Check if it doesn't start with repo_path either
+            let repo_trimmed = self.repo.repo_path.trim_start_matches('/');
+            if !path_str.starts_with(repo_trimmed) {
+                tracing::debug!("strip_relative -> path is already relative: {:?}", path);
+                return Ok(path.to_path_buf());
+            }
         }
 
         // Normalize both paths by removing leading slashes for consistent comparison
-        let path_str = path.to_string_lossy();
         let path_trimmed = path_str.trim_start_matches('/');
         let repo_trimmed = self.repo.repo_path.trim_start_matches('/');
 
@@ -355,7 +360,6 @@ impl ApiHandler for ImportApiService {
             Ok(None) => {
                 // remove lightweight ref if exists
                 let full_ref = format!("refs/tags/{}", name.clone());
-                // try remove
                 git_storage
                     .remove_ref(self.repo.repo_id, &full_ref)
                     .await
