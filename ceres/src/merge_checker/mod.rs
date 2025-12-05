@@ -14,7 +14,7 @@ use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 pub mod cl_sync_checker;
 mod code_review_checker;
 mod commit_message_checker;
-mod gpg_signature_checker;
+pub(crate) mod gpg_signature_checker;
 
 #[async_trait]
 pub trait Checker: Send + Sync {

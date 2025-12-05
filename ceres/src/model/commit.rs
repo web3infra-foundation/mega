@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone, Default)]
+#[serde(rename_all = "PascalCase")]
+pub enum GpgStatus {
+    Verified,
+    Unverified,
+    #[default]
+    NoSignature,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct CommitSummary {
     pub sha: String,
@@ -9,6 +18,9 @@ pub struct CommitSummary {
     pub committer: String,
     pub date: String,
     pub parents: Vec<String>,
+    /// GPG verification status for this commit.
+    #[serde(default)]
+    pub gpg_status: GpgStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone, Default)]
