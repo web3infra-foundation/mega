@@ -14,7 +14,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc::{self};
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
+use callisto::{raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::{
@@ -25,11 +25,8 @@ use git_internal::{
     },
 };
 use git_internal::{hash::SHA1, internal::pack::encode::PackEncoder};
-use jupiter::utils::converter::{FromGitModel, IntoMegaModel};
-use jupiter::{
-    redis::lock::RedLock,
-    storage::{Storage, base_storage::StorageConnector},
-};
+use jupiter::utils::converter::FromGitModel;
+use jupiter::{redis::lock::RedLock, storage::Storage};
 
 use crate::{
     api_service::{cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
@@ -479,7 +476,7 @@ impl ImportRepo {
         let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
         // 3. get root ref
-        let mut root_ref = storage
+        let root_ref = storage
             .get_main_ref("/")
             .await?
             .ok_or_else(|| MegaError::Other("root ref not found".to_string()))?;
@@ -504,23 +501,9 @@ impl ImportRepo {
             &format!("\n{commit_msg}"),
         );
 
-        // 6. batch save tree
-        let save_trees: Vec<mega_tree::ActiveModel> = save_trees
-            .into_iter()
-            .map(|tree| {
-                let mut model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
-                model.commit_id = new_commit.id.to_string();
-                model.into()
-            })
-            .collect();
-        storage.batch_save_model(save_trees).await?;
-
-        // 7. update ref & save commit
-        root_ref.ref_commit_hash = new_commit.id.to_string();
-        root_ref.ref_tree_hash = new_commit.tree_id.to_string();
-        storage.update_ref(root_ref).await?;
-        storage.save_mega_commits(vec![new_commit]).await?;
-
+        storage
+            .attach_to_monorepo_parent_with_txn(root_ref, new_commit, save_trees.into())
+            .await?;
         Ok(())
     }
 }

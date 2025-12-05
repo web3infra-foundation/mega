@@ -133,8 +133,10 @@ impl RepoHandler for MonoRepo {
                     false,
                 );
 
-                storage.save_refs(new_mega_ref.clone()).await.unwrap();
-                storage.save_mega_commits(vec![c.clone()]).await.unwrap();
+                storage
+                    .mega_head_hash_with_txn(new_mega_ref.clone(), c)
+                    .await
+                    .unwrap();
 
                 refs.push(new_mega_ref.into());
             }
@@ -354,7 +356,7 @@ impl RepoHandler for MonoRepo {
             if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
                 cl_ref.ref_commit_hash = refs.new_id.clone();
                 cl_ref.ref_tree_hash = c.tree_id.to_string();
-                storage.update_ref(cl_ref).await.unwrap();
+                storage.update_ref(cl_ref, None).await.unwrap();
             } else {
                 let refs = mega_refs::Model::new(
                     &self.path,
@@ -363,7 +365,7 @@ impl RepoHandler for MonoRepo {
                     c.tree_id.to_string(),
                     true,
                 );
-                storage.save_refs(refs).await.unwrap();
+                storage.save_refs(refs, None).await.unwrap();
             }
         }
         Ok(())

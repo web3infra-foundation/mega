@@ -323,7 +323,7 @@ impl ApiHandler for MonoApiService {
                     tree_model.into()
                 })
                 .collect();
-            storage.batch_save_model(save_trees).await?;
+            storage.batch_save_model(save_trees, None).await?;
             last_commit_id = new_commit_id;
         } else {
             // If missing_parts is not empty, we must create intermediate
@@ -431,7 +431,7 @@ impl ApiHandler for MonoApiService {
                 })
                 .collect();
             storage
-                .batch_save_model(save_trees)
+                .batch_save_model(save_trees, None)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
             last_commit_id = new_commit_id;
@@ -830,7 +830,7 @@ impl MonoApiService {
                 let refs =
                     mega_refs::Model::new(&path_str, full_ref.clone(), object_id, tree_hash, false);
 
-                if let Err(e) = mono_storage.save_refs(refs).await {
+                if let Err(e) = mono_storage.save_refs(refs, None).await {
                     // attempt to remove DB record
                     if let Err(del_e) = mono_storage.delete_tag_by_name(&name).await {
                         tracing::error!(
@@ -881,7 +881,7 @@ impl MonoApiService {
             tree_hash,
             false,
         );
-        mono_storage.save_refs(refs).await.map_err(|e| {
+        mono_storage.save_refs(refs, None).await.map_err(|e| {
             tracing::error!("Failed to write lightweight tag ref: {}", e);
             GitError::CustomError("[code:500] Failed to write lightweight tag ref".to_string())
         })?;
@@ -1178,7 +1178,7 @@ impl MonoApiService {
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         storage
-            .save_mega_commits(commits)
+            .save_mega_commits(commits, None)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
@@ -1194,7 +1194,7 @@ impl MonoApiService {
             .collect();
 
         storage
-            .batch_save_model(save_trees)
+            .batch_save_model(save_trees, None)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 

@@ -396,7 +396,7 @@ impl ClStorage {
             };
             save_models.push(model);
         }
-        self.batch_save_model(save_models).await?;
+        self.batch_save_model(save_models, None).await?;
         Ok(())
     }
 }
