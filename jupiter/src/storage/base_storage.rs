@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::errors::MegaError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, sea_query::OnConflict};
+use sea_orm::{
+    ActiveModelTrait, DatabaseConnection, DatabaseTransaction, DbErr, EntityTrait,
+    sea_query::OnConflict,
+};
+use sea_orm_migration::SchemaManagerConnection;
 
 #[async_trait]
 pub trait StorageConnector {
@@ -13,6 +17,17 @@ pub trait StorageConnector {
     fn mock() -> Self;
 
     fn new(connection: Arc<DatabaseConnection>) -> Self;
+
+    fn build_connection_with_txn<'a>(
+        &'a self,
+        txn: Option<&'a DatabaseTransaction>,
+    ) -> SchemaManagerConnection<'a> {
+        if let Some(txn) = txn {
+            SchemaManagerConnection::Transaction(txn)
+        } else {
+            SchemaManagerConnection::Connection(self.get_connection())
+        }
+    }
 
     /// Performs batch saving of models in the database.
     ///
@@ -35,13 +50,17 @@ pub trait StorageConnector {
     /// # Errors
     ///
     /// Returns a `MegaError` if an error occurs during the batch save operation.
-    async fn batch_save_model<E, A>(&self, save_models: Vec<A>) -> Result<(), MegaError>
+    async fn batch_save_model<E, A>(
+        &self,
+        save_models: Vec<A>,
+        txn: Option<&DatabaseTransaction>,
+    ) -> Result<(), MegaError>
     where
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
     {
         let onconflict = OnConflict::new().do_nothing().to_owned();
-        Self::batch_save_model_with_conflict(self, save_models, onconflict).await
+        Self::batch_save_model_with_conflict(self, save_models, onconflict, txn).await
     }
 
     /// Performs batch saving of models in the database with conflict resolution.
@@ -68,6 +87,7 @@ pub trait StorageConnector {
         &self,
         save_models: Vec<A>,
         onconflict: OnConflict,
+        txn: Option<&DatabaseTransaction>,
     ) -> Result<(), MegaError>
     where
         E: EntityTrait,
@@ -75,9 +95,10 @@ pub trait StorageConnector {
     {
         let futures = save_models.chunks(Self::BATCH_CHUNK_SIZE).map(|chunk| {
             let insert = E::insert_many(chunk.iter().cloned()).on_conflict(onconflict.clone());
-            let conn = Self::get_connection(self);
+
             async move {
-                match insert.exec(conn).await {
+                let conn = self.build_connection_with_txn(txn);
+                match insert.exec(&conn).await {
                     Ok(_) => Ok(()),
                     Err(DbErr::RecordNotInserted) => {
                         // ignore not inserted err
