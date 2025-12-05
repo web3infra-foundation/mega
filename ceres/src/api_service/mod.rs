@@ -33,6 +33,7 @@ use crate::{
 
 pub mod blame_ops;
 pub mod blob_ops;
+pub mod buck_tree_builder;
 pub mod cache;
 pub mod commit_ops;
 pub mod history;

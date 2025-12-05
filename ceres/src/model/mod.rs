@@ -1,4 +1,5 @@
 pub mod blame;
+pub mod buck;
 pub mod change_list;
 pub mod commit;
 pub mod conversation;
