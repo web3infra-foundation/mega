@@ -4,6 +4,7 @@ pub mod cl_reviewer_storage;
 pub mod cl_storage;
 pub mod commit_binding_storage;
 pub mod conversation_storage;
+pub mod dynamic_sidebar_storage;
 pub mod git_db_storage;
 pub mod gpg_storage;
 pub mod init;
@@ -27,6 +28,7 @@ use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
 use crate::storage::conversation_storage::ConversationStorage;
+use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
 use crate::storage::init::database_connection;
 use crate::storage::{
     buck_storage::BuckStorage, cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
@@ -59,6 +61,7 @@ pub struct AppService {
     pub reviewer_storage: ClReviewerStorage,
     pub merge_queue_storage: MergeQueueStorage,
     pub buck_storage: BuckStorage,
+    pub dynamic_sidebar_storage: DynamicSidebarStorage,
 }
 
 impl AppService {
@@ -82,6 +85,7 @@ impl AppService {
             reviewer_storage: ClReviewerStorage { base: mock.clone() },
             merge_queue_storage: MergeQueueStorage::new(mock.clone()),
             buck_storage: BuckStorage { base: mock.clone() },
+            dynamic_sidebar_storage: DynamicSidebarStorage { base: mock.clone() },
         })
     }
 }
@@ -117,6 +121,7 @@ impl Storage {
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
         let buck_storage = BuckStorage { base: base.clone() };
+        let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
 
         let app_service = AppService {
             mono_storage: mono_storage.clone(),
@@ -136,6 +141,7 @@ impl Storage {
             reviewer_storage,
             merge_queue_storage: merge_queue_storage.clone(),
             buck_storage,
+            dynamic_sidebar_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
 
@@ -218,6 +224,10 @@ impl Storage {
 
     pub fn buck_storage(&self) -> BuckStorage {
         self.app_service.buck_storage.clone()
+    }
+
+    pub fn dynamic_sidebar_storage(&self) -> DynamicSidebarStorage {
+        self.app_service.dynamic_sidebar_storage.clone()
     }
 
     pub fn mock() -> Self {
