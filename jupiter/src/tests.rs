@@ -11,6 +11,7 @@ use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
 use crate::storage::gpg_storage::GpgStorage;
 use crate::storage::merge_queue_storage::MergeQueueStorage;
 use crate::storage::note_storage::NoteStorage;
@@ -64,6 +65,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         reviewer_storage: ClReviewerStorage { base: base.clone() },
         merge_queue_storage: MergeQueueStorage::new(base.clone()),
         buck_storage: BuckStorage { base: base.clone() },
+        dynamic_sidebar_storage: DynamicSidebarStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();

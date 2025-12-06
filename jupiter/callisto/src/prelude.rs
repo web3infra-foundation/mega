@@ -6,6 +6,7 @@ pub use super::buck_session_file::Entity as BuckSessionFile;
 pub use super::builds::Entity as Builds;
 pub use super::check_result::Entity as CheckResult;
 pub use super::commit_auths::Entity as CommitAuths;
+pub use super::dynamic_sidebar::Entity as DynamicSidebar;
 pub use super::git_blob::Entity as GitBlob;
 pub use super::git_commit::Entity as GitCommit;
 pub use super::git_issue::Entity as GitIssue;

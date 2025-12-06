@@ -24,7 +24,8 @@ use ceres::{
 use common::errors::ProtocolError;
 use jupiter::storage::{
     Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-    issue_storage::IssueStorage, user_storage::UserStorage,
+    dynamic_sidebar_storage::DynamicSidebarStorage, issue_storage::IssueStorage,
+    user_storage::UserStorage,
 };
 use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 pub mod api_common;
@@ -139,6 +140,10 @@ impl MonoApiServiceState {
 
     fn note_stg(&self) -> NoteStorage {
         self.storage.note_storage()
+    }
+
+    fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
+        self.storage.dynamic_sidebar_storage()
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {

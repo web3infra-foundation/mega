@@ -72,6 +72,7 @@ mod m20251117_181240_add_system_required_field_for_reviewer;
 mod m20251119_145041_add_draft_status;
 mod m20251125_135032_add_draft_conv_type;
 mod m20251128_000001_create_buck_session;
+mod m20251203_013745_add_dynamic_sidebar;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -132,6 +133,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251119_145041_add_draft_status::Migration),
             Box::new(m20251125_135032_add_draft_conv_type::Migration),
             Box::new(m20251128_000001_create_buck_session::Migration),
+            Box::new(m20251203_013745_add_dynamic_sidebar::Migration),
         ]
     }
 }
