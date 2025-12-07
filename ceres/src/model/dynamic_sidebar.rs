@@ -5,7 +5,7 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct SidebarRes {
     pub id: i32,
-    pub name: String,
+    pub public_id: String,
     pub label: String,
     pub href: String,
     pub visible: bool,
@@ -16,7 +16,7 @@ impl From<dynamic_sidebar::Model> for SidebarRes {
     fn from(value: dynamic_sidebar::Model) -> Self {
         Self {
             id: value.id,
-            name: value.public_id,
+            public_id: value.public_id,
             label: value.label,
             href: value.href,
             visible: value.visible,

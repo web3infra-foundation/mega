@@ -78,6 +78,9 @@ async fn new_sidebar(
 /// Update sidebar menu
 #[utoipa::path(
     post,
+    params(
+        ("id", description = "Sidebar ID to update"),
+    ),
     path = "/update/{id}",
     request_body = UpdateSidebarPayload,
     responses(
@@ -107,8 +110,11 @@ async fn update_sidebar_by_id(
 
 /// Delete sidebar menu
 #[utoipa::path(
-    delete,                                 
-    path = "/delete/{id}",
+    delete,
+    params(
+        ("id", description = "Sidebar ID to delete"),
+    ),                         
+    path = "/{id}",
     responses(
         (status = 200, body = CommonResult<SidebarRes>, content_type = "application/json")
     ),

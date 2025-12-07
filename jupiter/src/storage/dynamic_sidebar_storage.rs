@@ -6,7 +6,7 @@ use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::{NotSet, Set},
-    EntityTrait,
+    EntityTrait, QueryOrder,
 };
 
 #[derive(Clone)]
@@ -32,8 +32,10 @@ impl DynamicSidebarStorage {
 
         Ok(model)
     }
+
     pub async fn get_sidebars(&self) -> Result<Vec<dynamic_sidebar::Model>, MegaError> {
         let res = dynamic_sidebar::Entity::find()
+            .order_by_asc(dynamic_sidebar::Column::OrderIndex)
             .all(self.get_connection())
             .await?;
         Ok(res)
@@ -72,7 +74,7 @@ impl DynamicSidebarStorage {
         let model = dynamic_sidebar::Entity::find_by_id(id)
             .one(self.get_connection())
             .await?
-            .ok_or_else(|| MegaError::Other(format!("Sidebar with Id `{id}` not found")))?;
+            .ok_or_else(|| MegaError::Other(format!("Sidebar with id `{id}` not found")))?;
 
         let mut active_model: dynamic_sidebar::ActiveModel = model.into();
 

@@ -39,7 +39,6 @@ impl MigrationTrait for Migration {
                     .name("idx_dynamic_sidebar_public_id_unique")
                     .table(DynamicSidebar::Table)
                     .col(DynamicSidebar::PublicId)
-                    .unique()
                     .to_owned(),
             )
             .await?;
