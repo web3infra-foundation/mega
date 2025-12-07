@@ -59,12 +59,15 @@ impl BuckCommitBuilder {
     ///
     /// # Arguments
     /// * `base_commit_hash` - Base commit to build upon
-    /// * `repo_path` - Repository path for normalization
     /// * `files` - List of file changes to apply
+    ///
+    /// # Behavior
+    /// - If `files` is empty, returns the base commit's tree unchanged
+    /// - Processes directories from deepest to shallowest
+    /// - Creates new trees only when changes are detected
     pub async fn build_tree_with_changes(
         &self,
         base_commit_hash: &str,
-        repo_path: &str,
         files: &[FileChange],
     ) -> Result<TreeBuildResult, MegaError> {
         // Load base commit and root tree
@@ -84,12 +87,26 @@ impl BuckCommitBuilder {
 
         let root_tree = Tree::from_mega_model(root_tree_model);
 
+        if files.is_empty() {
+            return Ok(TreeBuildResult {
+                tree_hash: root_tree.id,
+                root_tree,
+                new_trees: Vec::new(),
+            });
+        }
+
         // Group files by directory for efficient batch processing
-        let files_by_dir = self.group_files_by_directory(files, repo_path)?;
+        let files_by_dir = self.group_files_by_directory(files)?;
 
         // Build directory tree updates (key: directory path, value: updated tree)
         let mut dir_trees: HashMap<PathBuf, Tree> = HashMap::new();
         let mut new_trees: Vec<Tree> = Vec::new();
+
+        // Initialize Base Tree Cache to optimize lookups
+        let mut base_tree_cache: HashMap<PathBuf, Tree> = HashMap::new();
+
+        // Pre-compute parent -> children mapping for child lookup
+        let mut children_by_parent: HashMap<PathBuf, Vec<(PathBuf, Tree)>> = HashMap::new();
 
         // Process directories from deepest to shallowest to ensure parent directories
         // can reference their updated children
@@ -100,27 +117,37 @@ impl BuckCommitBuilder {
             let dir_files = &files_by_dir[&dir_path];
 
             // Load or get the existing tree for this directory
-            let existing_tree = if dir_path.as_os_str().is_empty() {
-                // Root directory - always exists
+            let existing_tree = if self.is_root_path(&dir_path) {
                 root_tree.clone()
             } else {
-                // Try to find existing directory, or use empty tree for new directories
-                self.find_tree_at_path(&root_tree, &dir_path)
+                self.find_tree_at_path(&root_tree, &dir_path, &mut base_tree_cache)
                     .await?
                     .unwrap_or_else(Self::empty_tree)
             };
 
             // Update tree items with new blob hashes and child directory updates
-            let updated_tree =
-                self.update_tree_with_files(&dir_path, &existing_tree, dir_files, &dir_trees)?;
+            let updated_tree = self.update_tree_with_files(
+                &dir_path,
+                &existing_tree,
+                dir_files,
+                &children_by_parent,
+            )?;
 
             if updated_tree.id != existing_tree.id {
                 new_trees.push(updated_tree.clone());
             }
-            dir_trees.insert(dir_path, updated_tree);
+            dir_trees.insert(dir_path.clone(), updated_tree.clone());
+
+            // Update children_by_parent for parent directory
+            if let Some(parent) = dir_path.parent() {
+                children_by_parent
+                    .entry(parent.to_path_buf())
+                    .or_default()
+                    .push((dir_path.clone(), updated_tree));
+            }
         }
 
-        // Get final root tree (already processed in the loop above)
+        // Get final root tree
         let final_root = dir_trees.get(&PathBuf::new()).cloned().unwrap_or(root_tree);
 
         Ok(TreeBuildResult {
@@ -137,19 +164,17 @@ impl BuckCommitBuilder {
     ///
     /// # Arguments
     /// * `base_commit_hash` - Parent commit hash
-    /// * `repo_path` - Repository path for normalization
     /// * `files` - List of file changes to include in commit
     /// * `message` - Commit message
     pub async fn build_commit(
         &self,
         base_commit_hash: &str,
-        repo_path: &str,
         files: &[FileChange],
         message: &str,
     ) -> Result<CommitBuildResult, MegaError> {
         // Build tree structure from file changes
         let tree_result = self
-            .build_tree_with_changes(base_commit_hash, repo_path, files)
+            .build_tree_with_changes(base_commit_hash, files)
             .await?;
 
         // Create commit with the new tree
@@ -178,118 +203,162 @@ impl BuckCommitBuilder {
         })
     }
 
+    /// Normalize a path into a canonical component list.
+    ///
+    /// Removes '.', '..', and empty components, validates security rules,
+    /// and ensures Root is always represented as an empty list (not ".").
+    fn normalize_path_to_components(raw_path: &str) -> Result<Vec<String>, MegaError> {
+        // Reject Windows absolute paths (e.g., "C:/Windows/..." or "C:\\Windows\\...")
+        // This check works on all platforms, not just Windows
+        if raw_path.len() >= 2 {
+            let first_two = &raw_path[..2];
+            if first_two
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_alphabetic())
+                .unwrap_or(false)
+                && first_two.chars().nth(1) == Some(':')
+            {
+                return Err(MegaError::Other(format!(
+                    "Absolute path not allowed (Windows drive letter detected): {}",
+                    raw_path
+                )));
+            }
+        }
+
+        // Ensure input is a relative path (remove leading slashes)
+        let path = Path::new(raw_path.trim_start_matches('/'));
+
+        let mut components = Vec::new();
+
+        for component in path.components() {
+            match component {
+                std::path::Component::Normal(os_str) => {
+                    let s = os_str.to_str().ok_or_else(|| {
+                        MegaError::Other(format!("Invalid UTF-8 path: {}", raw_path))
+                    })?;
+
+                    // Security: Reject .git
+                    if s == ".git" {
+                        return Err(MegaError::Other(format!(
+                            "Security: .git access denied: {}",
+                            raw_path
+                        )));
+                    }
+                    components.push(s.to_string());
+                }
+                std::path::Component::ParentDir => {
+                    return Err(MegaError::Other(format!(
+                        "Path traversal (..) detected: {}",
+                        raw_path
+                    )));
+                }
+                std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                    return Err(MegaError::Other(format!(
+                        "Absolute path not allowed: {}",
+                        raw_path
+                    )));
+                }
+                std::path::Component::CurDir => {
+                    // Ignore '.' components to fix the "." vs "" ambiguity
+                }
+            }
+        }
+
+        // Validate path nesting depth (max 100 levels)
+        if components.len() > 100 {
+            return Err(MegaError::Other(format!(
+                "Path nesting too deep (max 100 levels): {}",
+                raw_path
+            )));
+        }
+
+        // Validate canonical path length (max 4096 characters)
+        let total_len = components.iter().map(|c| c.len()).sum::<usize>()
+            + if components.is_empty() {
+                0
+            } else {
+                components.len() - 1
+            };
+
+        if total_len > 4096 {
+            return Err(MegaError::Other(format!(
+                "Path too long (max 4096 characters): {}",
+                raw_path
+            )));
+        }
+
+        Ok(components)
+    }
+
     /// Group files by their parent directory
     ///
     /// Always includes root directory and all intermediate directories to ensure proper tree chain.
     fn group_files_by_directory(
         &self,
         files: &[FileChange],
-        repo_path: &str,
     ) -> Result<HashMap<PathBuf, Vec<FileChange>>, MegaError> {
         let mut groups: HashMap<PathBuf, Vec<FileChange>> = HashMap::new();
-        let mut seen_paths: HashSet<String> = HashSet::new();
+        let mut seen_paths: HashSet<PathBuf> = HashSet::new();
 
-        // Ensure root directory exists (even if empty)
+        // Explicitly insert root directory (empty path)
         groups.insert(PathBuf::new(), Vec::new());
 
-        // Normalize repo_path: remove leading/trailing slashes
-        let repo_prefix = repo_path.trim_start_matches('/').trim_end_matches('/');
-
         for file in files {
-            // Normalize file path: remove leading slash, strip repo prefix if present
-            let relative_path = file.path.trim_start_matches('/');
-            let relative_path = if !repo_prefix.is_empty() && relative_path.starts_with(repo_prefix)
-            {
-                relative_path
-                    .strip_prefix(repo_prefix)
-                    .unwrap_or(relative_path)
-                    .trim_start_matches('/')
+            // Normalize path using unified normalization logic
+            let components = Self::normalize_path_to_components(&file.path)?;
+
+            if components.is_empty() {
+                return Err(MegaError::Other(format!(
+                    "Invalid empty path: {}",
+                    file.path
+                )));
+            }
+
+            // Reconstruct PathBuf from clean components
+            let mut clean_path = PathBuf::new();
+            for c in &components {
+                clean_path.push(c);
+            }
+
+            // Check for duplicate paths using normalized PathBuf
+            if seen_paths.contains(&clean_path) {
+                return Err(MegaError::Other(format!(
+                    "Duplicate file path: {:?}",
+                    clean_path
+                )));
+            }
+            seen_paths.insert(clean_path.clone());
+
+            // Calculate parent directory
+            let dir = if components.len() > 1 {
+                let mut p = PathBuf::new();
+                for c in &components[..components.len() - 1] {
+                    p.push(c);
+                }
+                p
             } else {
-                relative_path
+                PathBuf::new() // Root
             };
 
-            // Validate path is not empty and contains no dangerous characters
-            if relative_path.is_empty() || relative_path.contains('\0') {
-                return Err(MegaError::Other(format!("Invalid path: {}", file.path)));
-            }
-
-            // Path length limit to prevent resource exhaustion
-            if relative_path.len() > 4096 {
-                return Err(MegaError::Other(format!(
-                    "Path too long (max 4096 characters): {}",
-                    file.path
-                )));
-            }
-
-            let path = PathBuf::from(relative_path);
-            let mut depth = 0;
-
-            // Validate path components for security
-            for component in path.components() {
-                match component {
-                    // Reject path traversal (../)
-                    std::path::Component::ParentDir => {
-                        return Err(MegaError::Other(format!(
-                            "Path traversal detected (ParentDir): {}",
-                            file.path
-                        )));
-                    }
-                    // Reject absolute paths
-                    std::path::Component::RootDir | std::path::Component::Prefix(_) => {
-                        return Err(MegaError::Other(format!(
-                            "Absolute path not allowed: {}",
-                            file.path
-                        )));
-                    }
-                    std::path::Component::Normal(os_str) => {
-                        // Prevent access to .git directory/file at any level
-                        if os_str == ".git" {
-                            return Err(MegaError::Other(format!(
-                                "Security: .git directory/file access not allowed: {}",
-                                file.path
-                            )));
-                        }
-                        depth += 1;
-                    }
-                    _ => {}
-                }
-            }
-
-            // Nesting depth limit to prevent stack overflow
-            if depth > 100 {
-                return Err(MegaError::Other(format!(
-                    "Path nesting too deep (max 100 levels): {}",
-                    file.path
-                )));
-            }
-
-            // Check for duplicate paths
-            if seen_paths.contains(relative_path) {
-                return Err(MegaError::Other(format!(
-                    "Duplicate file path in upload: {}",
-                    file.path
-                )));
-            }
-            seen_paths.insert(relative_path.to_string());
-
-            let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
-
             // Add all intermediate directories to ensure proper tree chain
-            // For "a/b/c.txt", we need entries for both "a/b" AND "a"
             let mut current = dir.clone();
             while !current.as_os_str().is_empty() {
                 groups.entry(current.clone()).or_default();
                 current = current.parent().unwrap_or(Path::new("")).to_path_buf();
             }
 
-            // Create a new FileChange with the normalized relative path
             let mut file_change = file.clone();
-            file_change.path = relative_path.to_string();
-
+            file_change.path = clean_path.to_string_lossy().to_string();
             groups.entry(dir).or_default().push(file_change);
         }
 
         Ok(groups)
+    }
+
+    /// Check if the path represents the repository root
+    fn is_root_path(&self, path: &Path) -> bool {
+        path.as_os_str().is_empty()
     }
 
     /// Find tree at a given path by traversing from root
@@ -298,14 +367,39 @@ impl BuckCommitBuilder {
     /// - `Ok(Some(tree))` if the directory exists
     /// - `Ok(None)` if the directory does not exist (new directory)
     /// - `Err(...)` for actual errors (database issues, etc.)
-    async fn find_tree_at_path(&self, root: &Tree, path: &Path) -> Result<Option<Tree>, MegaError> {
+    async fn find_tree_at_path(
+        &self,
+        root: &Tree,
+        path: &Path,
+        base_tree_cache: &mut HashMap<PathBuf, Tree>,
+    ) -> Result<Option<Tree>, MegaError> {
+        // Fast path: Check cache first
+        if let Some(cached_tree) = base_tree_cache.get(path) {
+            return Ok(Some(cached_tree.clone()));
+        }
+
+        // Handle root path
+        if self.is_root_path(path) {
+            return Ok(Some(root.clone()));
+        }
+
         let mut current_tree = root.clone();
+        let mut current_path = PathBuf::new();
 
         for component in path.components() {
             if let std::path::Component::Normal(name) = component {
                 let name_str = name.to_str().ok_or_else(|| {
                     MegaError::Other(format!("Invalid path component: {:?}", name))
                 })?;
+
+                // Update current path level
+                current_path.push(name);
+
+                // Check cache for intermediate levels
+                if let Some(cached) = base_tree_cache.get(&current_path) {
+                    current_tree = cached.clone();
+                    continue;
+                }
 
                 // Find the directory in current tree
                 let item = current_tree
@@ -327,6 +421,9 @@ impl BuckCommitBuilder {
                                 ))
                             })?;
                         current_tree = Tree::from_mega_model(tree_model);
+
+                        // Update cache
+                        base_tree_cache.insert(current_path.clone(), current_tree.clone());
                     }
                     None => {
                         // Directory does not exist - this is a new directory
@@ -339,36 +436,69 @@ impl BuckCommitBuilder {
         Ok(Some(current_tree))
     }
 
-    /// Create an empty Tree structure for new directories
+    /// Create an empty Tree structure for new directories.
     ///
-    /// Note: This is only used in memory during tree building
-    /// The actual Git tree object will be created when items are added
+    /// This is only used in memory during tree building.
+    /// The actual Git tree object will be created when items are added.
     fn empty_tree() -> Tree {
-        Tree {
-            id: SHA1::default(), // Temporary, will be recalculated
+        // Create a valid empty tree to get the correct SHA1 hash
+        Tree::from_tree_items(vec![]).unwrap_or(Tree {
+            id: SHA1::default(),
             tree_items: vec![],
-        }
+        })
+    }
+
+    /// Sort tree items according to Git's specific rules.
+    ///
+    /// Git's tree sorting rules:
+    /// - Compare items byte-by-byte
+    /// - Directories are treated as if they have a trailing '/'
+    /// - This ensures directories sort after files with the same prefix
+    fn sort_tree_items_git_style(items: &mut [TreeItem]) {
+        items.sort_by(|a, b| {
+            let a_name = a.name.as_bytes();
+            let b_name = b.name.as_bytes();
+            let a_is_tree = a.mode == TreeItemMode::Tree;
+            let b_is_tree = b.mode == TreeItemMode::Tree;
+
+            let a_len = a_name.len() + if a_is_tree { 1 } else { 0 };
+            let b_len = b_name.len() + if b_is_tree { 1 } else { 0 };
+            let min_len = std::cmp::min(a_len, b_len);
+
+            for i in 0..min_len {
+                let c1 = if i < a_name.len() { a_name[i] } else { b'/' };
+                let c2 = if i < b_name.len() { b_name[i] } else { b'/' };
+                let cmp = c1.cmp(&c2);
+                if cmp != std::cmp::Ordering::Equal {
+                    return cmp;
+                }
+            }
+            a_len.cmp(&b_len)
+        });
     }
 
     /// Update a tree with new file blob hashes and child directory updates
     ///
     /// Clones the existing tree items, updates or adds items for each file in this directory,
-    /// updates child directory hashes by finding all direct children, and creates a new tree
-    /// with the updated items sorted by name (Git requirement).
+    /// updates child directory hashes using pre-computed parent->children mapping, and creates
+    /// a new tree with the updated items sorted by name (Git requirement).
     ///
     /// # Arguments
     /// * `current_dir_path` - Path of the directory being updated (e.g., "src" or PathBuf::new() for root)
     /// * `existing_tree` - Current tree for this directory
     /// * `files` - Files belonging directly to this directory (not in subdirectories)
-    /// * `all_updated_dir_trees` - Map of all updated directory trees (key: full path from root)
+    /// * `children_by_parent` - Pre-computed map of parent path -> direct children (path, tree)
     fn update_tree_with_files(
         &self,
         current_dir_path: &Path,
         existing_tree: &Tree,
         files: &[FileChange],
-        all_updated_dir_trees: &HashMap<PathBuf, Tree>,
+        children_by_parent: &HashMap<PathBuf, Vec<(PathBuf, Tree)>>,
     ) -> Result<Tree, MegaError> {
         let mut items = existing_tree.tree_items.clone();
+
+        // Helper: Find item index by name
+        let find_idx = |name: &str, items: &[TreeItem]| items.iter().position(|x| x.name == name);
 
         // Update blob items for files directly in this directory
         for file in files {
@@ -382,10 +512,18 @@ impl BuckCommitBuilder {
 
             let mode = file.tree_item_mode();
 
-            // Find and update existing item, or add new one
-            if let Some(pos) = items.iter().position(|x| x.name == file_name) {
-                items[pos].id = blob_hash;
-                items[pos].mode = mode;
+            // Check for conflict: Directory vs File
+            if let Some(idx) = find_idx(&file_name, &items) {
+                let existing = &items[idx];
+                if existing.mode == TreeItemMode::Tree {
+                    return Err(MegaError::Other(format!(
+                        "Type conflict: '{}' is a directory, cannot overwrite with file.",
+                        file_name
+                    )));
+                }
+                // Update existing blob
+                items[idx].id = blob_hash;
+                items[idx].mode = mode;
             } else {
                 items.push(TreeItem {
                     mode,
@@ -395,54 +533,46 @@ impl BuckCommitBuilder {
             }
         }
 
-        // Update child directory hashes by finding all direct children
-        // (a child is "direct" if its parent path equals current_dir_path)
-        for (child_dir_path, child_tree) in all_updated_dir_trees {
-            // Check if this child_dir_path is a direct child of current_dir_path
-            if let Some(parent) = child_dir_path.parent() {
-                // Compare paths: parent should equal current_dir_path
-                if parent == current_dir_path {
-                    // This is a direct child directory!
-                    let child_name = child_dir_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .ok_or_else(|| {
-                            MegaError::Other(format!(
-                                "Invalid child directory path: {:?}",
-                                child_dir_path
-                            ))
-                        })?;
+        // Update child directory hashes using pre-computed mapping
+        let current_path_buf = current_dir_path.to_path_buf();
+        if let Some(children) = children_by_parent.get(&current_path_buf) {
+            for (child_dir_path, child_tree) in children {
+                let child_name = child_dir_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .ok_or_else(|| {
+                        MegaError::Other(format!(
+                            "Invalid child directory path (no name): {:?}",
+                            child_dir_path
+                        ))
+                    })?;
 
-                    // Update or add the child directory item
-                    if let Some(pos) = items
-                        .iter()
-                        .position(|x| x.name == child_name && x.mode == TreeItemMode::Tree)
-                    {
-                        items[pos].id = child_tree.id;
-                    } else {
-                        // New child directory
-                        items.push(TreeItem {
-                            mode: TreeItemMode::Tree,
-                            id: child_tree.id,
-                            name: child_name.to_string(),
-                        });
+                // Update or add the child directory item
+                if let Some(idx) = find_idx(child_name, &items) {
+                    let existing = &items[idx];
+                    if existing.mode != TreeItemMode::Tree {
+                        return Err(MegaError::Other(format!(
+                            "Type conflict: '{}' is a file, cannot overwrite with directory",
+                            child_name
+                        )));
                     }
-                }
-            } else {
-                // child_dir_path has no parent, so it's root
-                // Only process this if current_dir_path is also root
-                if current_dir_path.as_os_str().is_empty() {
-                    // This shouldn't happen (root shouldn't be in all_updated_dir_trees during processing)
-                    // But handle it gracefully
-                    continue;
+                    items[idx].id = child_tree.id;
+                } else {
+                    // New child directory
+                    items.push(TreeItem {
+                        mode: TreeItemMode::Tree,
+                        id: child_tree.id,
+                        name: child_name.to_string(),
+                    });
                 }
             }
         }
 
-        // Sort items by name (Git requirement)
-        items.sort_by(|a, b| a.name.cmp(&b.name));
+        // Sort items according to Git specification
+        Self::sort_tree_items_git_style(&mut items);
 
-        Tree::from_tree_items(items).map_err(|_| MegaError::Other("Failed to create tree".into()))
+        Tree::from_tree_items(items)
+            .map_err(|e| MegaError::Other(format!("Failed to create tree: {}", e)))
     }
 }
 
@@ -483,7 +613,7 @@ mod tests {
             ),
         ];
 
-        let groups = builder.group_files_by_directory(&files, "").unwrap();
+        let groups = builder.group_files_by_directory(&files).unwrap();
 
         // Verify root directory exists and contains root.txt
         assert!(groups.contains_key(&PathBuf::new()), "Root should exist");
@@ -598,7 +728,6 @@ mod tests {
                 });
             }
 
-            // Note: items is not empty here (c.txt)
             let b_tree = Tree::from_tree_items(items).unwrap();
 
             // Verify: c.txt blob is in 'b' Tree
@@ -635,7 +764,6 @@ mod tests {
                 }
             }
 
-            // Note: items is not empty here (b directory)
             let a_tree = Tree::from_tree_items(items).unwrap();
 
             // Verify: 'b' Tree hash is in 'a' Tree
@@ -677,7 +805,6 @@ mod tests {
                 }
             }
 
-            // Note: items is not empty here (a directory)
             let root_tree = Tree::from_tree_items(items).unwrap();
 
             // Verify: 'a' Tree hash is in Root Tree
@@ -755,7 +882,6 @@ mod tests {
             }
         }
 
-        // Note: items is not empty (src directory exists)
         let updated_root = Tree::from_tree_items(items).unwrap();
 
         // Verify "src" is in the root tree
@@ -999,6 +1125,80 @@ mod tests {
         }
     }
 
+    /// Test that group_files_by_directory rejects .git paths (integration test)
+    ///
+    /// This test verifies the complete call chain: group_files_by_directory -> normalize_path_to_components
+    /// ensures that .git paths are properly rejected at the integration level.
+    #[tokio::test]
+    async fn test_group_files_rejects_git_paths_integration() {
+        use jupiter::tests::test_storage;
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let storage = test_storage(temp_dir.path()).await;
+        let builder = BuckCommitBuilder::new(storage.mono_storage());
+
+        let git_paths = vec![
+            ".git/config",
+            ".git/HEAD",
+            "src/.git/hooks/pre-commit",
+            ".git/objects/abc123",
+        ];
+
+        for git_path in git_paths {
+            let files = vec![FileChange::new(
+                git_path.to_string(),
+                "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709".to_string(),
+                "100644".to_string(),
+            )];
+
+            let result = builder.group_files_by_directory(&files);
+
+            assert!(result.is_err(), "Should reject .git path: {}", git_path);
+
+            let err_msg = result.unwrap_err().to_string();
+            assert!(
+                err_msg.contains(".git") || err_msg.contains("Security"),
+                "Error message should mention .git or security: {}",
+                err_msg
+            );
+        }
+    }
+
+    /// Test that group_files_by_directory allows legitimate paths with "git" in name
+    #[tokio::test]
+    async fn test_group_files_allows_git_in_filename() {
+        use jupiter::tests::test_storage;
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let storage = test_storage(temp_dir.path()).await;
+        let builder = BuckCommitBuilder::new(storage.mono_storage());
+
+        let legitimate_paths = vec![
+            ".gitignore",
+            ".github/workflows/ci.yml",
+            "src/gitutil.rs",
+            "docs/git-tutorial.md",
+        ];
+
+        for path in legitimate_paths {
+            let files = vec![FileChange::new(
+                path.to_string(),
+                "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709".to_string(),
+                "100644".to_string(),
+            )];
+
+            let result = builder.group_files_by_directory(&files);
+
+            assert!(
+                result.is_ok(),
+                "Should allow legitimate path with 'git' in name: {}",
+                path
+            );
+        }
+    }
+
     /// Test absolute path rejection
     #[test]
     fn test_absolute_path_rejection() {
@@ -1013,6 +1213,33 @@ mod tests {
                 has_root,
                 "Path '{}' should be detected as absolute",
                 path_str
+            );
+        }
+    }
+
+    /// Test Windows absolute path rejection
+    #[test]
+    fn test_windows_absolute_path_rejection() {
+        let windows_paths = vec![
+            "C:/Windows/System32/config/sam",
+            "C:\\Windows\\System32\\config\\sam",
+            "D:/Users/test.txt",
+            "Z:/path/to/file",
+            "A:/root",
+        ];
+
+        for path_str in windows_paths {
+            let result = BuckCommitBuilder::normalize_path_to_components(path_str);
+            assert!(
+                result.is_err(),
+                "Should reject Windows absolute path: {}",
+                path_str
+            );
+            let err_msg = result.unwrap_err().to_string();
+            assert!(
+                err_msg.contains("Absolute path") || err_msg.contains("Windows drive"),
+                "Error message should mention absolute path or Windows drive: {}",
+                err_msg
             );
         }
     }
@@ -1115,8 +1342,9 @@ mod tests {
         }
     }
 
-    /// Test that valid SHA1 hashes with correct format are accepted
-    /// Note: All hashes are normalized to lowercase per Git convention
+    /// Test that valid SHA1 hashes with correct format are accepted.
+    ///
+    /// All hashes are normalized to lowercase per Git convention.
     #[test]
     fn test_valid_sha1_hashes() {
         let valid_hashes = vec![
@@ -1151,7 +1379,7 @@ mod tests {
         }
     }
 
-    /// Test repo_path prefix stripping
+    /// Test group_files_by_directory with relative paths (prefix stripping removed)
     #[tokio::test]
     async fn test_group_files_with_repo_prefix() {
         use jupiter::tests::test_storage;
@@ -1161,24 +1389,24 @@ mod tests {
         let storage = test_storage(temp_dir.path()).await;
         let builder = BuckCommitBuilder::new(storage.mono_storage());
 
+        // Since prefix stripping is removed, paths with leading slashes
+        // are normalized by removing the leading slash, but the full path is preserved
         let files = vec![
             FileChange::new(
-                "/project/mega/src/main.rs".to_string(),
+                "src/main.rs".to_string(),
                 "sha1:abc123abc123abc123abc123abc123abc123abc1".to_string(),
                 "100644".to_string(),
             ),
             FileChange::new(
-                "/project/mega/docs/readme.md".to_string(),
+                "docs/readme.md".to_string(),
                 "sha1:def456def456def456def456def456def456def4".to_string(),
                 "100644".to_string(),
             ),
         ];
 
-        let groups = builder
-            .group_files_by_directory(&files, "/project/mega")
-            .unwrap();
+        let groups = builder.group_files_by_directory(&files).unwrap();
 
-        // Verify paths are correctly stripped of prefix
+        // Verify paths are correctly grouped (no prefix stripping)
         assert!(groups.contains_key(&PathBuf::from("src")));
         assert_eq!(groups[&PathBuf::from("src")][0].path, "src/main.rs");
 
@@ -1196,11 +1424,36 @@ mod tests {
         let storage = test_storage(temp_dir.path()).await;
         let builder = BuckCommitBuilder::new(storage.mono_storage());
 
-        // Create a path longer than 4096 characters
-        let long_path = "a/".repeat(2500) + "file.txt";
+        // Create a path longer than 4096 characters but with depth <= 100
+        // Use a long filename component to exceed length limit without exceeding depth limit
+        let long_component = "a".repeat(4100); // Single component of 4100 chars
+        let long_path = format!("{}/file.txt", long_component);
+
+        // Verify the path exceeds length limit
+        let path = PathBuf::from(&long_path);
+        let components: Vec<String> = path
+            .components()
+            .filter_map(|c| {
+                if let std::path::Component::Normal(os_str) = c {
+                    os_str.to_str().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let total_len = components.iter().map(|c| c.len()).sum::<usize>()
+            + if components.is_empty() {
+                0
+            } else {
+                components.len() - 1
+            };
         assert!(
-            long_path.len() > 4096,
-            "Test path should exceed 4096 characters"
+            total_len > 4096,
+            "Test path should exceed 4096 characters in canonical form"
+        );
+        assert!(
+            components.len() <= 100,
+            "Test path should not exceed 100 levels of nesting"
         );
 
         let file = FileChange::new(
@@ -1209,16 +1462,18 @@ mod tests {
             "100644".to_string(),
         );
 
-        let result = builder.group_files_by_directory(&[file], "");
+        let result = builder.group_files_by_directory(&[file]);
         assert!(
             result.is_err(),
             "Should reject path longer than 4096 characters"
         );
 
         let err_msg = result.unwrap_err().to_string();
+        // The error message should mention path length limit
         assert!(
-            err_msg.contains("too long") || err_msg.contains("4096"),
-            "Error message should mention path length limit"
+            err_msg.contains("Path too long") || err_msg.contains("4096"),
+            "Error message should mention path length limit: {}",
+            err_msg
         );
     }
 
@@ -1244,16 +1499,18 @@ mod tests {
             "100644".to_string(),
         );
 
-        let result = builder.group_files_by_directory(&[file], "");
+        let result = builder.group_files_by_directory(&[file]);
         assert!(
             result.is_err(),
             "Should reject path with nesting deeper than 100 levels"
         );
 
         let err_msg = result.unwrap_err().to_string();
+        // The error message changed in normalize_path_to_components
         assert!(
-            err_msg.contains("nesting too deep") || err_msg.contains("100 levels"),
-            "Error message should mention nesting depth limit"
+            err_msg.contains("Path nesting too deep") || err_msg.contains("100 levels"),
+            "Error message should mention nesting depth limit: {}",
+            err_msg
         );
     }
 
@@ -1273,7 +1530,7 @@ mod tests {
             "100644".to_string(),
         )];
 
-        let groups = builder.group_files_by_directory(&files, "").unwrap();
+        let groups = builder.group_files_by_directory(&files).unwrap();
 
         // Verify all intermediate directories are created
         assert!(groups.contains_key(&PathBuf::new()), "Root should exist");
@@ -1334,7 +1591,7 @@ mod tests {
             ),
         ];
 
-        let result = builder.group_files_by_directory(&files, "");
+        let result = builder.group_files_by_directory(&files);
         assert!(result.is_err(), "Should reject duplicate file paths");
 
         let err_msg = result.unwrap_err().to_string();
@@ -1369,7 +1626,7 @@ mod tests {
             ),
         ];
 
-        let result = builder.group_files_by_directory(&files, "");
+        let result = builder.group_files_by_directory(&files);
         // On case-sensitive filesystems, these are different files
         assert!(
             result.is_ok(),
@@ -1400,7 +1657,7 @@ mod tests {
             ),
         ];
 
-        let result = builder.group_files_by_directory(&files, "");
+        let result = builder.group_files_by_directory(&files);
         assert!(
             result.is_err(),
             "Should reject duplicate paths after normalization"
@@ -1430,10 +1687,135 @@ mod tests {
             ),
         ];
 
-        let result = builder.group_files_by_directory(&files, "/project/mega");
+        let result = builder.group_files_by_directory(&files);
         assert!(
             result.is_err(),
             "Should reject duplicate paths even with repo prefix"
         );
+    }
+
+    /// Test path normalization logic (removing dots, handling slashes)
+    #[test]
+    fn test_normalize_and_strip_prefix_normalization() {
+        let cases = vec![
+            ("a//b/c.txt", vec!["a", "b", "c.txt"]),
+            ("a/./b/c.txt", vec!["a", "b", "c.txt"]),
+            ("src/main.rs", vec!["src", "main.rs"]),
+            ("./src/main.rs", vec!["src", "main.rs"]),
+        ];
+
+        for (input, expected) in cases {
+            let res = BuckCommitBuilder::normalize_path_to_components(input);
+            assert_eq!(
+                res.unwrap(),
+                expected
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>(),
+                "Input: {}",
+                input
+            );
+        }
+    }
+
+    /// Test Security: Path Traversal Rejection
+    #[test]
+    fn test_normalize_rejection_of_traversal() {
+        let cases = vec![
+            "../outside.txt",
+            "src/../../etc/passwd",
+            "a/b/../c.txt", // Even if it stays inside, we reject '..' entirely for simplicity/safety
+        ];
+
+        for input in cases {
+            let res = BuckCommitBuilder::normalize_path_to_components(input);
+            assert!(res.is_err(), "Should reject traversal: {}", input);
+            assert!(
+                res.unwrap_err().to_string().contains("Path traversal"),
+                "Error should mention traversal"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_tree_with_files_type_conflict_async() {
+        use jupiter::tests::test_storage;
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let storage = test_storage(temp_dir.path()).await;
+        let builder = BuckCommitBuilder::new(storage.mono_storage());
+
+        // Create a tree with a subdirectory "config"
+        let config_tree_hash = SHA1::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
+        let existing_tree = Tree::from_tree_items(vec![TreeItem {
+            mode: TreeItemMode::Tree,
+            id: config_tree_hash,
+            name: "config".to_string(),
+        }])
+        .unwrap();
+
+        // Try to add a file named "config" (Conflict!)
+        let files = vec![FileChange::new(
+            "config".to_string(),
+            "sha1:abc123abc123abc123abc123abc123abc123abc1".to_string(),
+            "100644".to_string(),
+        )];
+
+        let children_map = HashMap::new();
+
+        // Perform update
+        let result =
+            builder.update_tree_with_files(Path::new(""), &existing_tree, &files, &children_map);
+
+        // Verify failure
+        assert!(result.is_err(), "Should fail due to type conflict");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Type conflict"),
+            "Error should mention type conflict: {}",
+            err
+        );
+        assert!(
+            err.contains("is a directory"),
+            "Error should specify directory conflict"
+        );
+    }
+
+    /// Test Git Sorting Rules
+    #[test]
+    fn test_git_sort_order() {
+        use git_internal::hash::SHA1;
+        use std::str::FromStr;
+
+        // Setup items
+        let blob_hash = SHA1::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
+
+        // According to Git rules:
+        // "foo" (directory) -> implicitly "foo/"
+        // "foo-bar" (file)
+        // Compare "foo/" vs "foo-bar"
+        // 'foo' match
+        // '/' (47) vs '-' (45) -> '/' > '-'
+        // So "foo" (dir) > "foo-bar" (file)
+
+        let mut items = vec![
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: blob_hash,
+                name: "foo".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: blob_hash,
+                name: "foo-bar".to_string(),
+            },
+        ];
+
+        BuckCommitBuilder::sort_tree_items_git_style(&mut items);
+
+        // Verify order: foo-bar (file) comes BEFORE foo (directory)
+        assert_eq!(items[0].name, "foo-bar");
+        assert_eq!(items[1].name, "foo");
     }
 }

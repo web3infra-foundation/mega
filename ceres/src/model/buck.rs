@@ -87,7 +87,7 @@ pub fn parse_sha1_hash(
         "sha1" => SHA1::from_str(&hash_hex).map_err(|e| {
             MegaError::Other(format!(
                 "Invalid SHA1 hash in {}: '{}', error: {}",
-                field_name, parts[1], e
+                field_name, hash_hex, e
             ))
         }),
         other => Err(MegaError::Other(format!(
@@ -107,8 +107,10 @@ impl ManifestFile {
     }
 }
 
+const DEFAULT_MODE: &str = "100644";
+
 fn default_mode() -> String {
-    "100644".to_string()
+    DEFAULT_MODE.to_string()
 }
 
 /// Response for manifest upload
