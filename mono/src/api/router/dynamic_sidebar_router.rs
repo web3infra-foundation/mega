@@ -2,10 +2,8 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::{
-    model::dynamic_sidebar::{
-        CreateSidebarPayload, SidebarMenuListRes, SidebarRes, UpdateSidebarPayload,
-    },
+use ceres::model::dynamic_sidebar::{
+    CreateSidebarPayload, SidebarMenuListRes, SidebarRes, UpdateSidebarPayload,
 };
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -17,12 +15,12 @@ use crate::{
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
-        "/sidebar", 
+        "/sidebar",
         OpenApiRouter::new()
             .routes(routes!(sidebar_menu_list))
             .routes(routes!(new_sidebar))
             .routes(routes!(update_sidebar_by_id))
-            .routes(routes!(delete_sidebar_by_id))
+            .routes(routes!(delete_sidebar_by_id)),
     )
 }
 
@@ -112,18 +110,18 @@ async fn update_sidebar_by_id(
 #[utoipa::path(
     delete,
     params(
-        ("id", description = "Sidebar ID to delete"),
-    ),                         
+        ("id", description = "Sidebar ID to delete")
+    ),
     path = "/{id}",
     responses(
         (status = 200, body = CommonResult<SidebarRes>, content_type = "application/json")
     ),
-    tag = SIDEBAR_TAG                          
+    tag = SIDEBAR_TAG
 )]
 async fn delete_sidebar_by_id(
     state: State<MonoApiServiceState>,
-    Path(id): Path<i32>
-) -> Result<Json<CommonResult<SidebarRes>>, ApiError>{
+    Path(id): Path<i32>,
+) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
     let res = state.dynamic_sidebar_stg().delete_sidebar(id).await?;
     Ok(Json(CommonResult::success(Some(res.into()))))
 }
