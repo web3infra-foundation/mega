@@ -3,6 +3,7 @@ pub mod buck;
 pub mod change_list;
 pub mod commit;
 pub mod conversation;
+pub mod dynamic_sidebar;
 pub mod git;
 pub mod gpg;
 pub mod issue;
