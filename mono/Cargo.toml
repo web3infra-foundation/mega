@@ -23,7 +23,9 @@ ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
+git-internal = { workspace = true }
 anyhow = { workspace = true }
+percent-encoding = "2.3"
 axum = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
@@ -61,6 +63,7 @@ utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 once_cell = { workspace = true }
+sea-orm = { workspace = true }
 
 
 [target.'cfg(not(windows))'.dependencies]
@@ -72,3 +75,4 @@ mimalloc = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 http-body-util = "0.1"
+serial_test = "3.2.0"

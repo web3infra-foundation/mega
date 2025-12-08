@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tokio::sync::Semaphore;
 use tower_sessions::MemoryStore;
 
 use crate::api::oauth::campsite_store::CampsiteApiStore;
@@ -23,9 +24,9 @@ use ceres::{
 };
 use common::errors::ProtocolError;
 use jupiter::storage::{
-    Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-    dynamic_sidebar_storage::DynamicSidebarStorage, issue_storage::IssueStorage,
-    user_storage::UserStorage,
+    Storage, buck_storage::BuckStorage, cl_storage::ClStorage,
+    conversation_storage::ConversationStorage, dynamic_sidebar_storage::DynamicSidebarStorage,
+    issue_storage::IssueStorage, user_storage::UserStorage,
 };
 use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
 pub mod api_common;
@@ -63,6 +64,12 @@ pub struct MonoApiServiceState {
     pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
     pub entity_store: EntityStore,
+    /// Buck upload concurrency limiter
+    pub buck_upload_semaphore: Arc<Semaphore>,
+    /// Buck upload large file concurrency limiter
+    pub buck_large_file_semaphore: Arc<Semaphore>,
+    /// Large file threshold in bytes
+    pub buck_large_file_threshold: u64,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -144,6 +151,10 @@ impl MonoApiServiceState {
 
     fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
         self.storage.dynamic_sidebar_storage()
+    }
+
+    fn buck_stg(&self) -> BuckStorage {
+        self.storage.buck_storage()
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {

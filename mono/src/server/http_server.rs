@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use tokio::sync::Semaphore;
+
 use anyhow::Result;
 use axum::body::Body;
 use axum::extract::FromRef;
@@ -47,6 +49,68 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
     let middleware = tower::util::MapRequestLayer::new(rewrite_lfs_request_uri::<Body>);
+
+    // Start Buck upload session cleanup background task
+    let config = ctx.storage.config();
+    let enable_cleanup = config
+        .buck
+        .as_ref()
+        .map(|b| b.enable_session_cleanup)
+        .unwrap_or(true);
+
+    if enable_cleanup {
+        let cleanup_storage = ctx.storage.clone();
+        let cleanup_interval = config
+            .buck
+            .as_ref()
+            .map(|b| b.cleanup_interval)
+            .unwrap_or(300);
+        let retention_days = config
+            .buck
+            .as_ref()
+            .map(|b| b.completed_retention_days)
+            .unwrap_or(7);
+
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(cleanup_interval));
+            // Set missed tick behavior to skip missed ticks if task is blocked too long
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            tracing::info!(
+                "Buck upload session cleanup task started (interval: {}s, retention: {}d)",
+                cleanup_interval,
+                retention_days
+            );
+
+            loop {
+                interval.tick().await;
+
+                // Execute cleanup directly. If it fails, log the error and wait for next interval
+                match cleanup_storage
+                    .buck_storage()
+                    .delete_expired_sessions(retention_days)
+                    .await
+                {
+                    Ok(count) => {
+                        if count > 0 {
+                            tracing::info!(
+                                "Buck upload cleanup: deleted {} expired sessions",
+                                count
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Buck upload cleanup failed: {}. Will retry in next interval.",
+                            e
+                        );
+                    }
+                }
+            }
+        });
+    }
+
     let app = app(ctx, host.clone(), port).await;
     let app_with_middleware = middleware.layer(app);
 
@@ -100,6 +164,18 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         prefix: "git-object-bincode".to_string(),
     });
 
+    // Initialize Buck upload rate limiting from config
+    let buck_config = config.buck.as_ref();
+    let upload_limit = buck_config
+        .map(|c| c.upload_concurrency_limit)
+        .unwrap_or(50);
+    let large_file_limit = buck_config
+        .map(|c| c.large_file_concurrency_limit)
+        .unwrap_or(10);
+    let large_file_threshold = buck_config
+        .and_then(|c| c.get_large_file_threshold_bytes().ok())
+        .unwrap_or(1024 * 1024); // 1MB default
+
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
         oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
@@ -110,6 +186,9 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
         git_object_cache,
+        buck_upload_semaphore: Arc::new(Semaphore::new(upload_limit as usize)),
+        buck_large_file_semaphore: Arc::new(Semaphore::new(large_file_limit as usize)),
+        buck_large_file_threshold: large_file_threshold,
     };
 
     let origins: Vec<HeaderValue> = oauth_config
@@ -256,6 +335,7 @@ pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
 pub const USER_TAG: &str = "User Management";
 pub const REPO_TAG: &str = "Repo creation and synchronisation";
 pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
+pub const BUCK_TAG: &str = "Buck Upload API";
 #[derive(OpenApi)]
 #[openapi(
     tags(
