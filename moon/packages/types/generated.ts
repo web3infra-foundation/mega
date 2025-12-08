@@ -3060,7 +3060,7 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
-/** Represents a continuous block of lines attributed to the same commit. */
+/** A continuous block of lines attributed to the same commit. */
 export type BlameBlock = {
   /** Blame information for a specific commit */
   blame_info: BlameInfo
@@ -3117,18 +3117,11 @@ export type BlameRequest = {
 /** Complete blame result for a file */
 export type BlameResult = {
   blocks: BlameBlock[]
-  /** List of contributors to this file */
   contributors: Contributor[]
-  /**
-   * Earliest commit time across all lines in the file (Unix timestamp)
-   * @format int64
-   */
+  /** @format int64 */
   earliest_commit_time: number
   file_path: string
-  /**
-   * Latest commit time across all lines in the file (Unix timestamp)
-   * @format int64
-   */
+  /** @format int64 */
   latest_commit_time: number
   /** @min 0 */
   page?: number | null
@@ -3189,6 +3182,32 @@ export type CommitBindingResponse = {
   username?: string | null
 }
 
+export type CommitDetail = {
+  commit: CommitSummary
+  /** Unified diff list compared with the previous commit (or merged parent in case of multiple parents) */
+  diffs: DiffItem[]
+}
+
+export type CommitHistoryParams = {
+  /** author: author name filter */
+  author?: string | null
+  /** path: dir or file path filter */
+  path?: string
+  /** refs: branch/tag */
+  refs?: string
+}
+
+export type CommitSummary = {
+  author: string
+  committer: string
+  date: string
+  /** GPG verification status for this commit. */
+  gpg_status?: GpgStatus
+  parents: string[]
+  sha: string
+  short_message: string
+}
+
 export type CommonPage = {
   items: TagResponse[]
   /**
@@ -3228,18 +3247,11 @@ export type CommonResultBlameResult = {
   /** Complete blame result for a file */
   data?: {
     blocks: BlameBlock[]
-    /** List of contributors to this file */
     contributors: Contributor[]
-    /**
-     * Earliest commit time across all lines in the file (Unix timestamp)
-     * @format int64
-     */
+    /** @format int64 */
     earliest_commit_time: number
     file_path: string
-    /**
-     * Latest commit time across all lines in the file (Unix timestamp)
-     * @format int64
-     */
+    /** @format int64 */
     latest_commit_time: number
     /** @min 0 */
     page?: number | null
@@ -3279,9 +3291,41 @@ export type CommonResultCommitBindingResponse = {
   req_result: boolean
 }
 
+export type CommonResultCommitDetail = {
+  data?: {
+    commit: CommitSummary
+    /** Unified diff list compared with the previous commit (or merged parent in case of multiple parents) */
+    diffs: DiffItem[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultCommonPage = {
   data?: {
     items: TagResponse[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCommonPageCommitSummary = {
+  data?: {
+    items: {
+      author: string
+      committer: string
+      date: string
+      /** GPG verification status for this commit. */
+      gpg_status?: GpgStatus
+      parents: string[]
+      sha: string
+      short_message: string
+    }[]
     /**
      * @format int64
      * @min 0
@@ -3462,6 +3506,21 @@ export type CommonResultReviewersResponse = {
   req_result: boolean
 }
 
+export type CommonResultSidebarRes = {
+  data?: {
+    href: string
+    /** @format int32 */
+    id: number
+    label: string
+    /** @format int32 */
+    order_index: number
+    public_id: string
+    visible: boolean
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultString = {
   data?: string
   err_message: string
@@ -3501,6 +3560,21 @@ export type CommonResultTreeResponse = {
 
 export type CommonResultValue = {
   data?: any
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVec = {
+  data?: {
+    href: string
+    /** @format int32 */
+    id: number
+    label: string
+    /** @format int32 */
+    order_index: number
+    public_id: string
+    visible: boolean
+  }[]
   err_message: string
   req_result: boolean
 }
@@ -3622,7 +3696,7 @@ export type ContentPayload = {
   content: string
 }
 
-/** Contributor information including campsite username */
+/** Contributor information */
 export type Contributor = {
   email: string
   /** @format int64 */
@@ -3638,7 +3712,6 @@ export enum ConvType {
   Commit = 'Commit',
   ForcePush = 'ForcePush',
   Edit = 'Edit',
-  Draft = 'Draft',
   Review = 'Review',
   Approve = 'Approve',
   MergeQueue = 'MergeQueue',
@@ -3647,7 +3720,8 @@ export enum ConvType {
   Reopen = 'Reopen',
   Label = 'Label',
   Assignee = 'Assignee',
-  Mention = 'Mention'
+  Mention = 'Mention',
+  Draft = 'Draft'
 }
 
 export type ConversationItem = {
@@ -3675,6 +3749,15 @@ export type CreateEntryInfo = {
   name: string
   /** leave empty if it's under root */
   path: string
+}
+
+export type CreateSidebarPayload = {
+  href: string
+  label: string
+  /** @format int32 */
+  order_index: number
+  public_id: string
+  visible: boolean
 }
 
 /** Request to create a tag */
@@ -3768,6 +3851,12 @@ export type GpgKey = {
   fingerprint: string
   key_id: string
   user_id: string
+}
+
+export enum GpgStatus {
+  Verified = 'Verified',
+  Unverified = 'Unverified',
+  NoSignature = 'NoSignature'
 }
 
 export type IssueDetailRes = {
@@ -3900,6 +3989,18 @@ export type NewLabel = {
   name: string
 }
 
+export type PageParamsCommitHistoryParams = {
+  additional: {
+    /** author: author name filter */
+    author?: string | null
+    /** path: dir or file path filter */
+    path?: string
+    /** refs: branch/tag */
+    refs?: string
+  }
+  pagination: Pagination
+}
+
 export type PageParamsListPayload = {
   additional: {
     asc: boolean
@@ -4023,6 +4124,7 @@ export enum RequirementsState {
 
 export type ReviewerInfo = {
   approved: boolean
+  system_required: boolean
   username: string
 }
 
@@ -4040,6 +4142,17 @@ export type ShowResponse = {
   description_schema_version: number
   description_state?: string | null
   id: string
+}
+
+export type SidebarRes = {
+  href: string
+  /** @format int32 */
+  id: number
+  label: string
+  /** @format int32 */
+  order_index: number
+  public_id: string
+  visible: boolean
 }
 
 /** Tag information response */
@@ -4100,6 +4213,26 @@ export type UpdateRequest = {
   description_schema_version: number
   description_state: string
 }
+
+export type UpdateSidebarPayload = {
+  href?: string | null
+  label?: string | null
+  /** @format int32 */
+  order_index?: number | null
+  public_id?: string | null
+  visible?: boolean | null
+}
+
+export type Vec = {
+  href: string
+  /** @format int32 */
+  id: number
+  label: string
+  /** @format int32 */
+  order_index: number
+  public_id: string
+  visible: boolean
+}[]
 
 /** Data transfer object for build information in API responses */
 export type BuildDTO = {
@@ -5386,7 +5519,18 @@ export type PostApiClStatusData = CommonResultString
 
 export type PostApiClTitleData = CommonResultString
 
+export type PostApiCommitsHistoryData = CommonResultCommonPageCommitSummary
+
 export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
+
+export type GetApiCommitsDetailParams = {
+  /** Repository/Subrepo selector (required) */
+  path: string
+  /** Commit SHA */
+  sha: string
+}
+
+export type GetApiCommitsDetailData = CommonResultCommitDetail
 
 export type DeleteApiConversationReactionsByIdData = CommonResultString
 
@@ -5464,6 +5608,14 @@ export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 export type PatchApiOrganizationsNotesSyncStateData = any
 
 export type PostApiRepoCloneData = CommonResultString
+
+export type GetApiSidebarListData = CommonResultVec
+
+export type PostApiSidebarNewData = CommonResultSidebarRes
+
+export type PostApiSidebarUpdateByIdData = CommonResultSidebarRes
+
+export type DeleteApiSidebarByIdData = CommonResultSidebarRes
 
 export type GetApiStatusData = string
 
@@ -14392,6 +14544,31 @@ It's for local testing purposes.
      * No description
      *
      * @tags Code Preview
+     * @name PostApiCommitsHistory
+     * @summary List commit history with optional refs, path filter, author filter, and pagination.
+     * @request POST:/api/v1/commits/history
+     */
+    postApiCommitsHistory: () => {
+      const base = 'POST:/api/v1/commits/history' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCommitsHistoryData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiCommitsHistoryData>([base]),
+        request: (data: PageParamsCommitHistoryParams, params: RequestParams = {}) =>
+          this.request<PostApiCommitsHistoryData>({
+            path: `/api/v1/commits/history`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Preview
      * @name PutApiCommitsBinding
      * @summary Update commit binding information
      * @request PUT:/api/v1/commits/{sha}/binding
@@ -14408,6 +14585,30 @@ It's for local testing purposes.
             method: 'PUT',
             body: data,
             type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Preview
+     * @name GetApiCommitsDetail
+     * @summary Get commit detail (summary + diff merged with parents)
+     * @request GET:/api/v1/commits/{sha}/detail
+     */
+    getApiCommitsDetail: () => {
+      const base = 'GET:/api/v1/commits/{sha}/detail' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiCommitsDetailData>([base]),
+        requestKey: (params: GetApiCommitsDetailParams) => dataTaggedQueryKey<GetApiCommitsDetailData>([base, params]),
+        request: ({ sha, ...query }: GetApiCommitsDetailParams, params: RequestParams = {}) =>
+          this.request<GetApiCommitsDetailData>({
+            path: `/api/v1/commits/${sha}/detail`,
+            method: 'GET',
+            query: query,
             ...params
           })
       }
@@ -15225,6 +15426,102 @@ It's for local testing purposes.
             method: 'POST',
             body: data,
             type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Sidebar Management
+     * @name GetApiSidebarList
+     * @summary Get all sidebar menu
+     * @request GET:/api/v1/sidebar/list
+     */
+    getApiSidebarList: () => {
+      const base = 'GET:/api/v1/sidebar/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiSidebarListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiSidebarListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiSidebarListData>({
+            path: `/api/v1/sidebar/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Sidebar Management
+     * @name PostApiSidebarNew
+     * @summary New sidebar menu
+     * @request POST:/api/v1/sidebar/new
+     */
+    postApiSidebarNew: () => {
+      const base = 'POST:/api/v1/sidebar/new' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiSidebarNewData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiSidebarNewData>([base]),
+        request: (data: CreateSidebarPayload, params: RequestParams = {}) =>
+          this.request<PostApiSidebarNewData>({
+            path: `/api/v1/sidebar/new`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Sidebar Management
+     * @name PostApiSidebarUpdateById
+     * @summary Update sidebar menu
+     * @request POST:/api/v1/sidebar/update/{id}
+     */
+    postApiSidebarUpdateById: () => {
+      const base = 'POST:/api/v1/sidebar/update/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiSidebarUpdateByIdData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<PostApiSidebarUpdateByIdData>([base, id]),
+        request: (id: number, data: UpdateSidebarPayload, params: RequestParams = {}) =>
+          this.request<PostApiSidebarUpdateByIdData>({
+            path: `/api/v1/sidebar/update/${id}`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Sidebar Management
+     * @name DeleteApiSidebarById
+     * @summary Delete sidebar menu
+     * @request DELETE:/api/v1/sidebar/{id}
+     */
+    deleteApiSidebarById: () => {
+      const base = 'DELETE:/api/v1/sidebar/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiSidebarByIdData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<DeleteApiSidebarByIdData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<DeleteApiSidebarByIdData>({
+            path: `/api/v1/sidebar/${id}`,
+            method: 'DELETE',
             ...params
           })
       }

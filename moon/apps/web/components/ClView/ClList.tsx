@@ -210,7 +210,7 @@ export const ItemRightIcons = ({ item }: { item: ItemsType[number] }) => {
       </div>
 
       <div className='min-w-15'>
-        <MemberHoverAvatarList users={item} />
+        <MemberHoverAvatarList authors={item.assignees} />
       </div>
     </div>
   )
