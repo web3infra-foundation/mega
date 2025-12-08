@@ -91,21 +91,23 @@ pub struct FilesChangedPage {
 pub struct MuiTreeNode {
     id: String,
     pub label: String,
+    pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(no_recursion)]
     pub children: Option<Vec<MuiTreeNode>>,
 }
 
 impl MuiTreeNode {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, path: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
+            path: path.to_string(),
             children: None,
         }
     }
 
-    pub fn insert_path(&mut self, parts: &[&str]) {
+    pub fn insert_path(&mut self, parts: &[&str], buf: &mut String) {
         if parts.is_empty() {
             return;
         }
@@ -117,10 +119,13 @@ impl MuiTreeNode {
         let children = self.children.as_mut().unwrap();
 
         if let Some(existing) = children.iter_mut().find(|c| c.label == parts[0]) {
-            existing.insert_path(&parts[1..]);
+            let mut buf = existing.path.clone();
+            existing.insert_path(&parts[1..], &mut buf);
         } else {
-            let mut new_node = MuiTreeNode::new(parts[0]);
-            new_node.insert_path(&parts[1..]);
+            buf.push('/');
+            buf.push_str(parts[0]);
+            let mut new_node = MuiTreeNode::new(parts[0], buf);
+            new_node.insert_path(&parts[1..], buf);
             children.push(new_node);
         }
     }
