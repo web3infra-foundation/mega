@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 import { Virtuoso } from 'react-virtuoso'
 
+import { CommonPageDiffItem, CommonResultVecMuiTreeNode } from '@gitmono/types'
 import { LoadingSpinner } from '@gitmono/ui'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { parsedDiffs } from '@/components/DiffView/parsedDiffs'
 import FileTree from '@/components/DiffView/TreeView/FileTree'
-import { useGetClFileChanged } from '@/hooks/CL/useGetClFileChanged'
 
 import { DiffItem } from './parsedDiffs'
 
@@ -61,7 +61,14 @@ function generateParsedFiles(diffFiles: { path: string; lang: string; diff: stri
   })
 }
 
-export default function FileDiff({ id }: { id: string }) {
+interface FileDiffProps {
+  fileChangeData: CommonPageDiffItem
+  fileChangeIsLoading: boolean
+  treeData: CommonResultVecMuiTreeNode
+  treeIsLoading: boolean
+}
+
+export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData, treeIsLoading }: FileDiffProps) {
   const virtuosoRef = useRef<any>(null)
 
   const [page, setPage] = useState(1)
@@ -69,25 +76,20 @@ export default function FileDiff({ id }: { id: string }) {
   const [pageDataMap, setPageDataMap] = useState<Map<number, DiffItem[]>>(new Map())
   const [totalCount, setTotalCount] = useState(0)
 
-  const { fileChanged: ClFilesChangedData, isLoading: isFileChangeLoading } = useGetClFileChanged(id, {
-    page,
-    per_page: 100
-  })
-
   useEffect(() => {
-    if (ClFilesChangedData?.items && !isFileChangeLoading) {
+    if (fileChangeData?.items && !fileChangeIsLoading) {
       setPageDataMap((prev) => {
         const newMap = new Map(prev)
 
         if (!newMap.has(page)) {
-          newMap.set(page, ClFilesChangedData.items)
+          newMap.set(page, fileChangeData.items)
         }
         return newMap
       })
 
-      setTotalCount(ClFilesChangedData.total)
+      setTotalCount(fileChangeData.total)
     }
-  }, [ClFilesChangedData, isFileChangeLoading, page])
+  }, [fileChangeData, fileChangeIsLoading, page])
 
   const fileDiff = useMemo(() => {
     const allItems: DiffItem[] = []
@@ -140,9 +142,9 @@ export default function FileDiff({ id }: { id: string }) {
   }, [fileDiff.length, totalCount])
 
   const loadMoreDiffs = useCallback(() => {
-    if (isFileChangeLoading || !hasMoreData) return
+    if (fileChangeIsLoading || !hasMoreData) return
     setPage((prev) => prev + 1)
-  }, [isFileChangeLoading, hasMoreData])
+  }, [fileChangeIsLoading, hasMoreData])
 
   useEffect(() => {
     setExpandedMap(Object.fromEntries(diffFiles.map((f) => [f.path, false])))
@@ -214,11 +216,11 @@ export default function FileDiff({ id }: { id: string }) {
   return (
     <div className='mt-3 flex font-sans'>
       <div className='sticky top-5 h-[80vh] w-[300px] overflow-y-auto rounded-lg p-2'>
-        <FileTree link={id} onFileClick={scrollToFile} />
+        <FileTree treeData={treeData} treeDataLoading={treeIsLoading} onFileClick={scrollToFile} />
       </div>
 
       <div className='h-full w-full flex-1 px-4'>
-        {totalCount === 0 && !isFileChangeLoading ? (
+        {totalCount === 0 && !fileChangeIsLoading ? (
           <div className='flex h-[85vh] items-center justify-center'>No File Changed</div>
         ) : (
           <Virtuoso
@@ -227,7 +229,7 @@ export default function FileDiff({ id }: { id: string }) {
             totalCount={parsedFiles.length}
             itemContent={DiffItem}
             endReached={loadMoreDiffs}
-            components={{ Footer: () => isFileChangeLoading && <LoadingSpinner /> }}
+            components={{ Footer: () => fileChangeIsLoading && <LoadingSpinner /> }}
             increaseViewportBy={350}
           />
         )}

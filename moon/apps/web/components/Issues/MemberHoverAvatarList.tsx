@@ -7,17 +7,20 @@ import { OrganizationMember } from '@gitmono/types/generated'
 import { useScope } from '@/contexts/scope'
 import { apiClient } from '@/utils/queryClient'
 
-import { ItemsType } from './IssuesContent'
 import { MemberHovercard } from './MemberHoverCardNE'
 
-export const MemberHoverAvatarList = ({ users }: { users: ItemsType[number] }) => {
-  const shouldFetch = users.assignees.length > 0
+interface MemberHoverAvatarListProps {
+  isLeft?: boolean
+  authors: string[]
+}
+export const MemberHoverAvatarList = ({ authors, isLeft }: MemberHoverAvatarListProps) => {
+  const shouldFetch = authors.length > 0
   const query = apiClient.organizations.getMembersByUsername()
 
   const { scope } = useScope()
 
   const queries = useQueries({
-    queries: users.assignees.map((u) => ({
+    queries: authors.map((u) => ({
       queryKey: query.requestKey(`${scope}`, `${u}`),
       queryFn: () => query.request(`${scope}`, `${u}`),
       enabled: shouldFetch
@@ -32,9 +35,9 @@ export const MemberHoverAvatarList = ({ users }: { users: ItemsType[number] }) =
 
   return (
     <>
-      <AvatarStack alignRight>
+      <AvatarStack alignRight={!isLeft}>
         {queries.pending
-          ? Array.from({ length: users.assignees.length }).map((_, i) => (
+          ? Array.from({ length: authors.length }).map((_, i) => (
               // eslint-disable-next-line react/no-array-index-key
               <div className='h-[48px] w-[48px] rounded-full bg-[#f3f4f5]' key={i} />
             ))
