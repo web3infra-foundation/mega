@@ -21,6 +21,7 @@ use jupiter::storage::Storage;
 
 use crate::model::{
     blame::{BlameQuery, BlameResult},
+    change_list::MuiTreeNode,
     tag::TagInfo,
 };
 use crate::{
@@ -151,6 +152,25 @@ pub trait ApiHandler: Send + Sync {
         page: Pagination,
     ) -> Result<(Vec<crate::model::commit::CommitSummary>, u64), GitError> {
         commit_ops::list_commit_history(self, refs, path_filter, author, page).await
+    }
+
+    /// Build a MUI-compatible tree representing changed files for a commit.
+    async fn get_commit_mui_tree(
+        &self,
+        commit_sha: &str,
+        selector_path: &std::path::Path,
+    ) -> Result<Vec<MuiTreeNode>, GitError> {
+        commit_ops::get_commit_mui_tree(self, commit_sha, selector_path).await
+    }
+
+    /// Build paginated diff details for selected paths within a commit.
+    async fn get_commit_files_changed(
+        &self,
+        commit_sha: &str,
+        selector_path: &std::path::Path,
+        pagination: Pagination,
+    ) -> Result<crate::model::commit::CommitFilesChangedPage, GitError> {
+        commit_ops::get_commit_files_changed(self, commit_sha, selector_path, pagination).await
     }
 
     /// Build commit detail including summary and diffs for a given commit SHA.

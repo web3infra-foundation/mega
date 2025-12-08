@@ -87,7 +87,7 @@ pub struct FilesChangedPage {
     pub page: CommonPage<DiffItem>,
 }
 
-#[derive(Serialize, Debug, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
 pub struct MuiTreeNode {
     id: String,
     pub label: String,
