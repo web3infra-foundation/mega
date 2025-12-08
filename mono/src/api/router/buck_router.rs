@@ -22,7 +22,7 @@ use sea_orm::entity::IntoActiveModel;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
@@ -199,7 +199,16 @@ async fn upload_manifest(
     if payload.files.is_empty() {
         return Err(ApiError::bad_request(anyhow::anyhow!("Empty file list")));
     }
+
+    // Check for duplicate paths
+    let mut seen_paths = HashSet::new();
     for file in &payload.files {
+        if !seen_paths.insert(&file.path) {
+            return Err(ApiError::bad_request(anyhow::anyhow!(
+                "Duplicate file path in manifest: {}",
+                file.path
+            )));
+        }
         validate_manifest_file(file)?;
     }
 
@@ -296,8 +305,10 @@ async fn upload_manifest(
                     e
                 );
                 // Return error with context about partial success
+                // Note: This operation is idempotent (ON CONFLICT DO NOTHING),
+                // so clients can safely retry the entire request
                 return Err(ApiError::internal(anyhow::anyhow!(
-                    "Failed to insert file records (inserted {} of {} files)",
+                    "Failed to insert file records (inserted {} of {}). Please resubmit the manifest.",
                     inserted_count,
                     file_records.len()
                 )));
@@ -354,7 +365,7 @@ async fn validate_session(
 
     if session.expires_at < chrono::Utc::now().naive_utc() {
         return Err(ApiError::with_status(
-            StatusCode::CONFLICT,
+            StatusCode::UNAUTHORIZED,
             anyhow::anyhow!("Session expired"),
         ));
     }
@@ -470,7 +481,15 @@ fn validate_manifest_file(file: &ManifestFile) -> Result<(), ApiError> {
     // Normalize path and verify it matches original (prevents bypassing checks)
     // This catches paths like "a/./b", "a//b", etc.
     let normalized = path.components().collect::<std::path::PathBuf>();
-    let normalized_str = normalized.to_string_lossy().replace('\\', "/");
+    let normalized_str = normalized
+        .to_str()
+        .ok_or_else(|| {
+            ApiError::bad_request(anyhow::anyhow!(
+                "Path contains invalid UTF-8 characters: {}",
+                file.path
+            ))
+        })?
+        .replace('\\', "/");
     if normalized_str != file.path {
         return Err(ApiError::bad_request(anyhow::anyhow!(
             "Path contains invalid components (normalized: {}): {}",
@@ -479,9 +498,14 @@ fn validate_manifest_file(file: &ManifestFile) -> Result<(), ApiError> {
         )));
     }
 
-    // Check for empty segments or invalid components (e.g., "//", "/./")
-    // This prevents paths like "a//b" or "a/./b" from bypassing validation
-    if file.path.contains("//") || file.path.contains("/./") {
+    // Check for empty segments or invalid components (e.g., "//", "/./", "./", etc.)
+    // This prevents paths like "a//b", "a/./b", "a/.", "./", etc. from bypassing validation
+    if file.path.contains("//")
+        || file.path.contains("/./")
+        || file.path.ends_with("/.")
+        || file.path.starts_with("./")
+        || file.path == "."
+    {
         return Err(ApiError::bad_request(anyhow::anyhow!(
             "Path contains invalid segments: {}",
             file.path
@@ -1092,7 +1116,7 @@ async fn complete_upload(
     let cleanup_session_id = session_id.clone();
     tokio::spawn(async move {
         const MAX_RETRIES: u32 = 3;
-        const RETRY_DELAY_SECS: u64 = 5;
+        const INITIAL_RETRY_DELAY_SECS: u64 = 1;
 
         for attempt in 1..=MAX_RETRIES {
             match cleanup_storage
@@ -1111,15 +1135,17 @@ async fn complete_upload(
                 }
                 Err(e) => {
                     if attempt < MAX_RETRIES {
+                        // Exponential backoff: 1s, 2s, 4s
+                        let delay_secs = INITIAL_RETRY_DELAY_SECS * (1 << (attempt - 1));
                         tracing::warn!(
                             "Buck upload cleanup failed for session {} (attempt {}/{}): {}. Retrying in {}s",
                             cleanup_session_id,
                             attempt,
                             MAX_RETRIES,
                             e,
-                            RETRY_DELAY_SECS
+                            delay_secs
                         );
-                        tokio::time::sleep(std::time::Duration::from_secs(RETRY_DELAY_SECS)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
                     } else {
                         // Final attempt failed - log error but don't panic
                         // Background cleanup task will handle it later

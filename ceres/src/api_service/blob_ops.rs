@@ -63,10 +63,8 @@ async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
     paths: &[PathBuf],
     refs: Option<&str>,
 ) -> Result<HashMap<PathBuf, SHA1>, GitError> {
-    use std::collections::HashMap as StdHashMap;
-
     // Group paths by parent directory
-    let mut paths_by_parent: StdHashMap<PathBuf, Vec<(PathBuf, String)>> = StdHashMap::new();
+    let mut paths_by_parent: HashMap<PathBuf, Vec<(PathBuf, String)>> = HashMap::new();
     for path in paths {
         let parent = path.parent().unwrap_or(Path::new("/"));
         let file_name = path
@@ -80,8 +78,15 @@ async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
             .push((path.clone(), file_name));
     }
 
-    // Batch fetch all parent trees in parallel
-    const MAX_CONCURRENT_TREE_QUERIES: usize = 20;
+    // Calculate max concurrent queries based on database connection pool size
+    let max_concurrent_tree_queries = {
+        let storage = handler.get_context();
+        let max_connection = storage.config().database.max_connection as usize;
+
+        // Use 50% of max_connection, with bounds: min 4, max = max_connection
+        let calculated = (max_connection * 50) / 100;
+        calculated.max(4).min(max_connection)
+    };
 
     let tree_queries: Vec<_> = paths_by_parent
         .keys()
@@ -96,7 +101,7 @@ async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
 
     // Execute tree queries in parallel (limit concurrency to avoid overwhelming DB)
     let tree_results: Vec<_> = stream::iter(tree_queries)
-        .buffer_unordered(MAX_CONCURRENT_TREE_QUERIES)
+        .buffer_unordered(max_concurrent_tree_queries)
         .collect()
         .await;
 
@@ -179,7 +184,7 @@ pub async fn get_blob_as_string<T: ApiHandler + ?Sized>(
                 return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()));
             }
             _ => return Ok(None),
-        };
+        }
     }
     Ok(None)
 }
