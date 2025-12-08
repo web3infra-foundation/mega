@@ -5,28 +5,32 @@ import { useTreeViewApiRef } from '@mui/x-tree-view'
 import { RichTreeView } from '@mui/x-tree-view/RichTreeView'
 import { useAtom } from 'jotai'
 
-import { useGetClFileTree } from '@/hooks/CL/useGetClFileTree'
+import { CommonResultVecMuiTreeNode } from '@gitmono/types'
 
 import { expandedNodesAtom, treeAllDataAtom } from './codeTreeAtom'
 import { CustomTreeItem } from './CustomTreeItem'
 import { convertToTreeData, getDescendantIds } from './TreeUtils'
 
-const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath: string) => void }) => {
+interface FileTreeProps {
+  treeData: CommonResultVecMuiTreeNode
+  treeDataLoading: boolean
+  onFileClick?: (filePath: string) => void
+}
+
+const FileTree = ({ treeData, treeDataLoading, onFileClick }: FileTreeProps) => {
   const apiRef = useTreeViewApiRef()
 
   const [treeAllData, setTreeAllData] = useAtom(treeAllDataAtom)
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
 
-  const { data: treeResponse, isLoading } = useGetClFileTree(link)
-
   // Process the tree data when API returns
   useEffect(() => {
-    if (treeResponse?.data) {
-      const convertedData = convertToTreeData(treeResponse.data)
+    if (treeData?.data) {
+      const convertedData = convertToTreeData(treeData.data)
 
       setTreeAllData(convertedData)
     }
-  }, [treeResponse, setTreeAllData])
+  }, [treeData, setTreeAllData])
 
   const handleNodeToggle = useCallback(
     (_event: React.SyntheticEvent | null, nodeIds: string[]) => {
@@ -79,7 +83,7 @@ const FileTree = ({ link, onFileClick }: { link: string; onFileClick?: (filePath
 
   return (
     <>
-      {isLoading || treeAllData?.length === 0 ? (
+      {treeDataLoading || treeAllData?.length === 0 ? (
         <Box sx={{ display: 'flex', paddingLeft: '16px' }}>
           <Skeleton width='200px' height='30px' />
         </Box>
