@@ -799,13 +799,16 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
         if parts.is_empty() {
             continue;
         }
-
         let root_label = parts[0];
         if let Some(existing_root) = roots.iter_mut().find(|r| r.label == root_label) {
-            existing_root.insert_path(&parts[1..]);
+            let mut buf = existing_root.path.clone();
+            existing_root.insert_path(&parts[1..], &mut buf);
         } else {
-            let mut new_root = MuiTreeNode::new(root_label);
-            new_root.insert_path(&parts[1..]);
+            let mut buf = String::new();
+            buf.push('/');
+            buf.push_str(parts[0]);
+            let mut new_root = MuiTreeNode::new(root_label, &buf);
+            new_root.insert_path(&parts[1..], &mut buf);
             roots.push(new_root);
         }
     }
