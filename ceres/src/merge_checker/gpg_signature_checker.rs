@@ -74,7 +74,7 @@ impl GpgSignatureChecker {
         Ok(())
     }
 
-    async fn verify_commit_gpg_signature(
+    pub(crate) async fn verify_commit_gpg_signature(
         &self,
         commit_content: &str,
         assignee: String,
@@ -138,7 +138,7 @@ fn normalize_signature_block(sig_block: &str) -> String {
     lines.join("\n") + "\n"
 }
 
-fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
+pub(crate) fn extract_from_commit_content(msg_gpg: &str) -> (String, Option<String>) {
     const SIG_PATTERN: &str = r"gpgsig (-----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
     let sig_regex = Regex::new(SIG_PATTERN).unwrap();
 
