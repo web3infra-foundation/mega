@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Flex } from '@radix-ui/themes'
 import { formatDistanceToNow } from 'date-fns'
+import router from 'next/router'
 
 import { Avatar, Button, ClockIcon, EyeIcon } from '@gitmono/ui'
 
@@ -43,7 +44,7 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
   return (
     <>
       <div style={CommitHyStyle}>
-        <Flex align='center' className='p-1'>
+        <Flex align='center' className='min-h-[50px] p-1'>
           <MemberHovercard username={commit.author} role='member'>
             <Flex align='center'>
               <Avatar src={memberData?.user?.avatar_url || ''} />
@@ -68,12 +69,24 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
           <span className='ml-auto mr-3 text-xs text-gray-400'>
             {shortHash} · {formattedDate}
           </span>
-          <Button size='large' variant='plain' className='flex items-center'>
-            <Flex align='center'>
-              <ClockIcon size={24} />
-              <span className='ml-2'>History</span>
-            </Flex>
-          </Button>
+
+          {!(path === '/third-party') && (
+            <Button
+              size='large'
+              variant='plain'
+              className='flex items-center'
+              onClick={() => {
+                const { org } = router.query
+
+                router.push(`/${org}/code/commits/${refs || 'main'}${path ? `/${path}` : ''}`)
+              }}
+            >
+              <Flex align='center'>
+                <ClockIcon size={24} />
+                <span className='ml-2'>History</span>
+              </Flex>
+            </Button>
+          )}
         </Flex>
       </div>
 
