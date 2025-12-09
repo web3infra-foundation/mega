@@ -10,7 +10,7 @@ reqwest =  { version = "0.12.7", features = ["json","blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
 axum = { version =  "0.8.4",features=["macros"]}
-rfuse3 = { version = "0.0.4" ,features = ["tokio-runtime","unprivileged"]}
+rfuse3 = { version = "0.0.5" ,features = ["tokio-runtime","unprivileged"]}
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 clap = { version = "4.0", features = ["derive"] }
 
@@ -33,7 +33,7 @@ quote = "1.0.38"
 proc-macro2 = "1.0.93"
 uuid = "1.14.0"
 # Pinned to 0.1.5 due to API changes in 0.1.6+ that break Scorpio's FUSE integration. Upgrade when compatibility is restored.
-libfuse-fs = "=0.1.5"
+libfuse-fs = "0.1.8"
 regex = "1.11.1"
 whoami = "1.6.0"
 wax = "0.6.0"
@@ -49,6 +49,8 @@ chrono = "0.4.24"
 ring = "0.17.8"
 hex = "0.4.3"
 git-internal = "0.1.0"
+async-trait.workspace = true
+tracing-subscriber.workspace = true
 
 
 [features] 

@@ -11,15 +11,24 @@ use std::{
 };
 
 use git_internal::internal::object::tree::TreeItemMode;
+use libfuse_fs::unionfs::layer::Layer;
+use libfuse_fs::unionfs::Inode;
 use reqwest::Client;
 use rfuse3::raw::reply::ReplyEntry;
 use store::DictionaryStore;
 use tree_store::StorageItem;
-
 pub struct Dicfuse {
     readable: bool,
     pub store: Arc<DictionaryStore>,
 }
+unsafe impl Sync for Dicfuse {}
+unsafe impl Send for Dicfuse {}
+impl Layer for Dicfuse {
+    fn root_inode(&self) -> Inode {
+        1
+    }
+}
+
 #[allow(unused)]
 impl Dicfuse {
     pub async fn new() -> Self {

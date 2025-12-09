@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+pub mod antares;
 pub mod daemon;
 pub mod dicfuse;
 pub mod fuse;

@@ -401,7 +401,7 @@ impl DictionaryStore {
     pub async fn new() -> Self {
         let tree_store = TreeStorage::new().expect("Failed to create TreeStorage");
         DictionaryStore {
-            next_inode: AtomicU64::new(2),
+            next_inode: AtomicU64::new(1),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
@@ -642,6 +642,19 @@ impl DictionaryStore {
         //let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
         // deque for bus.
         let mut queue = VecDeque::<u64>::new();
+        self.update_inode(
+            0,
+            ItemExt {
+                item: Item {
+                    name: String::new(),
+                    path: String::new(),
+                    content_type: INODE_DICTIONARY.to_string(),
+                },
+                hash: String::new().to_string(),
+            },
+        )
+        .await
+        .unwrap();
         for it in items {
             let is_dir = it.item.content_type == INODE_DICTIONARY;
             let it_inode = self.update_inode(1, it).await.unwrap();

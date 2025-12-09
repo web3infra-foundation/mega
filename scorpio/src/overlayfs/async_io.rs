@@ -850,7 +850,7 @@ mod tests{
     use rfuse3::{raw::Session, MountOptions};
     use tokio::signal;
 
-    use crate::{overlayfs::{config::Config, OverlayFs}, passthrough::{logfs::LoggingFileSystem, new_passthroughfs_layer}};
+    use crate::{overlayfs::{config::Config, OverlayFs}, passthrough::{logfs::LoggingFileSystem, new_passthroughfs_layer, PassthroughArgs}};
 
     #[tokio::test]
     async fn test_a_ovlfs(){
@@ -866,11 +866,11 @@ mod tests{
         // Create lower layers
         let mut lower_layers = Vec::new();
         for lower in &lowerdir {
-            let layer = new_passthroughfs_layer(lower).await.unwrap();
+            let layer = new_passthroughfs_layer(PassthroughArgs { root_dir: lower, mapping: None::<String> }).await.unwrap();
             lower_layers.push(Arc::new(layer));
         }
         // Create upper layer
-        let upper_layer = Arc::new(new_passthroughfs_layer(&upperdir).await.unwrap());
+        let upper_layer = Arc::new(new_passthroughfs_layer(PassthroughArgs { root_dir: &upperdir, mapping: None::<String> }).await.unwrap());
         // Create overlayfs
         let  config = Config { 
             work: workdir.clone(), 
