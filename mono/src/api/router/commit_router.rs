@@ -209,7 +209,7 @@ async fn commit_mui_tree(
     Ok(Json(CommonResult::success(Some(tree))))
 }
 
-/// Get commit diff details scoped by selected paths
+/// Get paginated list of files changed in a commit, scoped by repository/subrepo selector
 #[utoipa::path(
     post,
     path = "/commits/{sha}/files-changed",

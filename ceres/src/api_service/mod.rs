@@ -163,7 +163,8 @@ pub trait ApiHandler: Send + Sync {
         commit_ops::get_commit_mui_tree(self, commit_sha, selector_path).await
     }
 
-    /// Build paginated diff details for selected paths within a commit.
+    /// Build paginated diff details for all changed files within a commit.
+    /// No path filtering is performed; returns all changed files with pagination.
     async fn get_commit_files_changed(
         &self,
         commit_sha: &str,

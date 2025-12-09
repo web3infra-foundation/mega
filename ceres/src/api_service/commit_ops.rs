@@ -591,10 +591,14 @@ fn build_mui_tree_from_paths(paths: &[String]) -> Vec<MuiTreeNode> {
 
         let root_label = parts[0];
         if let Some(existing_root) = roots.iter_mut().find(|node| node.label == root_label) {
-            existing_root.insert_path(&parts[1..]);
+            let mut buf = existing_root.path.clone();
+            existing_root.insert_path(&parts[1..], &mut buf);
         } else {
-            let mut new_root = MuiTreeNode::new(root_label);
-            new_root.insert_path(&parts[1..]);
+            let mut buf = String::new();
+            buf.push('/');
+            buf.push_str(root_label);
+            let mut new_root = MuiTreeNode::new(root_label, &buf);
+            new_root.insert_path(&parts[1..], &mut buf);
             roots.push(new_root);
         }
     }
@@ -649,50 +653,6 @@ async fn compute_changed_paths<T: ApiHandler + ?Sized>(
     }
 
     Ok(changed)
-}
-
-async fn load_or_compute_changed_paths<T: ApiHandler + ?Sized>(
-    handler: &T,
-    commit_opt: Option<&Commit>,
-    commit_sha: &str,
-    cache_key: &str,
-) -> Result<Vec<String>, GitError> {
-    let mut conn = handler.object_cache().connection.clone();
-    if let Ok(Some(json)) = conn.get::<_, Option<String>>(cache_key).await {
-        match serde_json::from_str::<Vec<String>>(&json) {
-            Ok(paths) => {
-                if let Err(e) = conn.expire::<_, ()>(cache_key, 600).await {
-                    tracing::warn!("failed to renew ttl for {}: {}", cache_key, e);
-                }
-                return Ok(paths);
-            }
-            Err(e) => tracing::warn!(
-                "failed to deserialize changed paths cache {}: {}",
-                cache_key,
-                e
-            ),
-        }
-    }
-
-    let mut paths = if let Some(commit) = commit_opt {
-        compute_changed_paths(handler, commit).await?
-    } else {
-        let commit = handler.get_commit_by_hash(commit_sha).await?;
-        compute_changed_paths(handler, &commit).await?
-    };
-
-    paths.sort();
-
-    match serde_json::to_string(&paths) {
-        Ok(json) => {
-            if let Err(e) = conn.set_ex::<_, _, ()>(cache_key, json, 600).await {
-                tracing::warn!("failed to cache changed paths {}: {}", cache_key, e);
-            }
-        }
-        Err(e) => tracing::warn!("failed to serialize changed paths {}: {}", cache_key, e),
-    }
-
-    Ok(paths)
 }
 
 async fn assemble_commit_summary<T: ApiHandler + ?Sized>(
@@ -860,11 +820,6 @@ pub async fn get_commit_mui_tree<T: ApiHandler + ?Sized>(
         commit_sha,
         selector_str
     );
-    let changed_paths_cache_key = format!(
-        "{}:commit_changed_paths:v1:sha={}",
-        handler.object_cache().prefix,
-        commit_sha
-    );
 
     let mut conn = handler.object_cache().connection.clone();
     if let Ok(Some(json)) = conn.get::<_, Option<String>>(&tree_cache_key).await
@@ -876,11 +831,11 @@ pub async fn get_commit_mui_tree<T: ApiHandler + ?Sized>(
         return Ok(nodes);
     }
 
-    let all_paths =
-        load_or_compute_changed_paths(handler, None, commit_sha, &changed_paths_cache_key).await?;
+    // Cache miss: directly compute changed paths and build MUI tree
+    let commit = handler.get_commit_by_hash(commit_sha).await?;
+    let all_paths = compute_changed_paths(handler, &commit).await?;
     let nodes = build_mui_tree_from_paths(&all_paths);
 
-    let mut conn = handler.object_cache().connection.clone();
     match serde_json::to_string(&nodes) {
         Ok(json) => {
             if let Err(e) = conn.set_ex::<_, _, ()>(&tree_cache_key, json, 600).await {
@@ -897,7 +852,7 @@ pub async fn get_commit_mui_tree<T: ApiHandler + ?Sized>(
     Ok(nodes)
 }
 
-/// Build paginated diff details scoped to selected paths for a commit.
+/// Build paginated diff details for all changed files in a commit, with pagination applied.
 pub async fn get_commit_files_changed<T: ApiHandler + ?Sized>(
     handler: &T,
     commit_sha: &str,
@@ -911,17 +866,9 @@ pub async fn get_commit_files_changed<T: ApiHandler + ?Sized>(
         commit_sha,
         selector_str
     );
-    let changed_paths_cache_key = format!(
-        "{}:commit_changed_paths:v1:sha={}",
-        handler.object_cache().prefix,
-        commit_sha
-    );
 
     let commit = handler.get_commit_by_hash(commit_sha).await?;
     let summary = assemble_commit_summary(handler, &commit).await;
-    let _ =
-        load_or_compute_changed_paths(handler, Some(&commit), commit_sha, &changed_paths_cache_key)
-            .await?;
 
     let diffs =
         load_or_compute_diff_items(handler, Some(&commit), commit_sha, &diff_cache_key, None)
