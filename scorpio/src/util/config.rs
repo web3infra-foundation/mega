@@ -120,7 +120,6 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
             ensure_config_with_default("antares_mount_root", format!("{antares_root}/mnt"));
         let antares_state =
             ensure_config_with_default("antares_state_file", format!("{antares_root}/state.toml"));
-
         // Create required directories
         for path in [
             workspace_path.as_str(),
