@@ -153,12 +153,12 @@ impl DynamicSidebarStorage {
             } else {
                 // Insert new menu item
                 let active_model = dynamic_sidebar::ActiveModel {
+                    id: NotSet,
                     public_id: Set(item.public_id),
                     label: Set(item.label),
                     href: Set(item.href),
                     visible: Set(item.visible),
                     order_index: Set(item.order_index),
-                    ..Default::default()
                 };
                 let inserted = active_model.insert(&txn).await?;
                 res_models.push(inserted);
