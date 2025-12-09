@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
 };
 use ceres::model::dynamic_sidebar::{
-    CreateSidebarPayload, SidebarMenuListRes, SidebarRes, UpdateSidebarPayload,
+    CreateSidebarPayload, SidebarMenuListRes, SidebarRes, SidebarSyncPayload, UpdateSidebarPayload,
 };
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -20,7 +20,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(sidebar_menu_list))
             .routes(routes!(new_sidebar))
             .routes(routes!(update_sidebar_by_id))
-            .routes(routes!(delete_sidebar_by_id)),
+            .routes(routes!(delete_sidebar_by_id))
+            .routes(routes!(sync_sidebar)),
     )
 }
 
@@ -104,6 +105,30 @@ async fn update_sidebar_by_id(
         .await?;
 
     Ok(Json(CommonResult::success(Some(res.into()))))
+}
+
+/// Sync sidebar menus
+#[utoipa::path(
+    post,
+    path = "/sync",
+    request_body = Vec<SidebarSyncPayload>,
+    responses(
+        (status = 200, body = CommonResult<Vec<SidebarRes>>, content_type = "application/json")
+    ),
+    tag = SIDEBAR_TAG
+)]
+async fn sync_sidebar(
+    state: State<MonoApiServiceState>,
+    Json(payloads): Json<Vec<SidebarSyncPayload>>,
+) -> Result<Json<CommonResult<Vec<SidebarRes>>>, ApiError> {
+    let res = state
+        .dynamic_sidebar_stg()
+        .sync_sidebar(payloads.into_iter().map(|item| item.into()).collect())
+        .await?;
+
+    Ok(Json(CommonResult::success(Some(
+        res.into_iter().map(|item| item.into()).collect(),
+    ))))
 }
 
 /// Delete sidebar menu
