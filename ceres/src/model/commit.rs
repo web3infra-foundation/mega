@@ -1,3 +1,4 @@
+use common::model::{CommonPage, DiffItem};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -40,7 +41,13 @@ pub struct CommitHistoryParams {
 pub struct CommitDetail {
     pub commit: CommitSummary,
     /// Unified diff list compared with the previous commit (or merged parent in case of multiple parents)
-    pub diffs: Vec<common::model::DiffItem>,
+    pub diffs: Vec<DiffItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct CommitFilesChangedPage {
+    pub commit: CommitSummary,
+    pub page: CommonPage<DiffItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
