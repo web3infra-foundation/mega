@@ -44,3 +44,26 @@ pub struct UpdateSidebarPayload {
     pub visible: Option<bool>,
     pub order_index: Option<i32>,
 }
+
+#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
+pub struct SidebarSyncPayload {
+    pub id: Option<i32>,
+    pub public_id: String,
+    pub label: String,
+    pub href: String,
+    pub visible: bool,
+    pub order_index: i32,
+}
+
+impl From<SidebarSyncPayload> for jupiter::model::sidebar_dto::SidebarSyncDto {
+    fn from(value: SidebarSyncPayload) -> Self {
+        Self {
+            id: value.id,
+            public_id: value.public_id,
+            label: value.label,
+            href: value.href,
+            visible: value.visible,
+            order_index: value.order_index,
+        }
+    }
+}

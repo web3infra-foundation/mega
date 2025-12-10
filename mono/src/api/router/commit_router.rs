@@ -4,10 +4,13 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use ceres::model::change_list::MuiTreeNode;
 use ceres::model::commit::CommitBindingResponse;
-use ceres::model::commit::{CommitDetail, CommitHistoryParams, CommitSummary};
+use ceres::model::commit::{
+    CommitDetail, CommitFilesChangedPage, CommitHistoryParams, CommitSummary,
+};
 use common::model::CommonResult;
-use common::model::{CommonPage, PageParams};
+use common::model::{CommonPage, PageParams, Pagination};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -22,6 +25,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
         .routes(routes!(update_commit_binding))
         .routes(routes!(list_commit_history))
+        .routes(routes!(commit_mui_tree))
+        .routes(routes!(commit_files_changed))
         .routes(routes!(commit_detail))
 }
 /// Update commit binding information
@@ -171,18 +176,79 @@ async fn commit_detail(
     Path(sha): Path<String>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<CommonResult<CommitDetail>>, ApiError> {
-    // 'path' is a required selector indicating repository/subrepo context.
-    let selector = {
-        let p = q.get("path").cloned().ok_or_else(|| {
-            ApiError::from(anyhow::anyhow!("Missing required query parameter 'path'"))
-        })?;
-        if p.is_empty() {
-            PathBuf::from("/")
-        } else {
-            PathBuf::from(p)
-        }
-    };
+    let selector = resolve_selector_path(&q)?;
     let handler = state.api_handler(&selector).await?;
     let detail = handler.build_commit_detail(&sha, &selector).await?;
     Ok(Json(CommonResult::success(Some(detail))))
+}
+
+/// Get commit changed files tree (MUI format)
+#[utoipa::path(
+    get,
+    path = "/commits/{sha}/mui-tree",
+    params(
+        ("sha" = String, Path, description = "Commit SHA"),
+        ("path" = String, Query, description = "Repository/Subrepo selector (required)")
+    ),
+    responses(
+        (status = 200, description = "Commit changed files tree",
+            body = CommonResult<Vec<MuiTreeNode>>, content_type = "application/json"),
+        (status = 404, description = "Commit not found"),
+    ),
+    tag = CODE_PREVIEW
+)]
+#[axum::debug_handler]
+async fn commit_mui_tree(
+    State(state): State<MonoApiServiceState>,
+    Path(sha): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
+    let selector = resolve_selector_path(&q)?;
+    let handler = state.api_handler(&selector).await?;
+    let tree = handler.get_commit_mui_tree(&sha, &selector).await?;
+    Ok(Json(CommonResult::success(Some(tree))))
+}
+
+/// Get paginated list of files changed in a commit, scoped by repository/subrepo selector
+#[utoipa::path(
+    post,
+    path = "/commits/{sha}/files-changed",
+    params(
+        ("sha" = String, Path, description = "Commit SHA"),
+        ("path" = String, Query, description = "Repository/Subrepo selector (required)")
+    ),
+    request_body = Pagination,
+    responses(
+        (status = 200, description = "Commit files changed page",
+            body = CommonResult<CommitFilesChangedPage>, content_type = "application/json"),
+        (status = 404, description = "Commit not found"),
+    ),
+    tag = CODE_PREVIEW
+)]
+#[axum::debug_handler]
+async fn commit_files_changed(
+    State(state): State<MonoApiServiceState>,
+    Path(sha): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+    Json(pagination): Json<Pagination>,
+) -> Result<Json<CommonResult<CommitFilesChangedPage>>, ApiError> {
+    let selector = resolve_selector_path(&q)?;
+    let handler = state.api_handler(&selector).await?;
+    let result = handler
+        .get_commit_files_changed(&sha, &selector, pagination)
+        .await?;
+    Ok(Json(CommonResult::success(Some(result))))
+}
+
+fn resolve_selector_path(
+    query: &std::collections::HashMap<String, String>,
+) -> Result<PathBuf, ApiError> {
+    let raw = query.get("path").cloned().ok_or_else(|| {
+        ApiError::from(anyhow::anyhow!("Missing required query parameter 'path'"))
+    })?;
+    if raw.is_empty() {
+        Ok(PathBuf::from("/"))
+    } else {
+        Ok(PathBuf::from(raw))
+    }
 }

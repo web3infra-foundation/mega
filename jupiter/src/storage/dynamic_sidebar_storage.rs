@@ -1,12 +1,15 @@
 use std::ops::Deref;
 
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::{
+    model::sidebar_dto::SidebarSyncDto,
+    storage::base_storage::{BaseStorage, StorageConnector},
+};
 use callisto::dynamic_sidebar;
 use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::{NotSet, Set},
-    EntityTrait, QueryOrder,
+    EntityTrait, QueryOrder, TransactionTrait,
 };
 
 #[derive(Clone)]
@@ -117,5 +120,58 @@ impl DynamicSidebarStorage {
         }
 
         Ok(model)
+    }
+
+    pub async fn sync_sidebar(
+        &self,
+        items: Vec<SidebarSyncDto>,
+    ) -> Result<Vec<dynamic_sidebar::Model>, MegaError> {
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Begin a transaction
+        let txn = self.get_connection().begin().await?;
+
+        let mut res_models = Vec::with_capacity(items.len());
+
+        for item in items {
+            if let Some(id) = item.id {
+                // Update existing menu item
+                if let Some(model) = dynamic_sidebar::Entity::find_by_id(id).one(&txn).await? {
+                    let mut active_model: dynamic_sidebar::ActiveModel = model.into();
+
+                    active_model.public_id = Set(item.public_id);
+                    active_model.label = Set(item.label);
+                    active_model.href = Set(item.href);
+                    active_model.visible = Set(item.visible);
+                    active_model.order_index = Set(item.order_index);
+
+                    let updated = active_model.update(&txn).await?;
+                    res_models.push(updated);
+                } else {
+                    return Err(MegaError::Other(format!(
+                        "Sidebar with id `{id}` not found"
+                    )));
+                }
+            } else {
+                // Insert new menu item
+                let active_model = dynamic_sidebar::ActiveModel {
+                    id: NotSet,
+                    public_id: Set(item.public_id),
+                    label: Set(item.label),
+                    href: Set(item.href),
+                    visible: Set(item.visible),
+                    order_index: Set(item.order_index),
+                };
+                let inserted = active_model.insert(&txn).await?;
+                res_models.push(inserted);
+            }
+        }
+
+        // Commit the transaction
+        txn.commit().await?;
+
+        Ok(res_models)
     }
 }
