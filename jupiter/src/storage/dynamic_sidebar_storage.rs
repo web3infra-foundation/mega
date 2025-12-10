@@ -126,6 +126,10 @@ impl DynamicSidebarStorage {
         &self,
         items: Vec<SidebarSyncDto>,
     ) -> Result<Vec<dynamic_sidebar::Model>, MegaError> {
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+
         // Begin a transaction
         let txn = self.get_connection().begin().await?;
 

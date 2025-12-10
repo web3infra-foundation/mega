@@ -115,7 +115,15 @@ async fn update_sidebar_by_id(
     responses(
         (status = 200, body = CommonResult<Vec<SidebarRes>>, content_type = "application/json")
     ),
-    tag = SIDEBAR_TAG
+    tag = SIDEBAR_TAG,
+    description = "Sync sidebar menus. \
+Each `public_id` and `order_index` must be unique across all sidebar items. \
+The operation will fail if: \
+- A new item has a `public_id` that already exists \
+- An update tries to set a `public_id` to one that's already in use by another item \
+- Multiple items in the payload have the same `order_index` \
+- An update tries to set an `order_index` that's already in use \
+The transaction will be rolled back if any of these constraints are violated."
 )]
 async fn sync_sidebar(
     state: State<MonoApiServiceState>,
