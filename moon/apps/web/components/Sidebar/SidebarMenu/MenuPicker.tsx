@@ -78,7 +78,6 @@ export const MenuPicker = () => {
   }
 
   const handleApply = async () => {
-    // 校验必填
     const errors: Record<number, { public_id?: boolean; label?: boolean; href?: boolean }> = {}
 
     items.forEach((item) => {
@@ -153,7 +152,7 @@ export const MenuPicker = () => {
     }))
   }
 
-  if (!data?.data || data.data.length === 0) {
+  if (!data?.data) {
     return null
   }
 
