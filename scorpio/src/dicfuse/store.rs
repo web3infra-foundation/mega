@@ -1009,10 +1009,37 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         return false;
     }
 
-    let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
+    // Resolve inode and ensure the path is a valid directory.
+    let parent_inode = match store.get_inode_from_path(&parent_path).await {
+        Ok(inode) => inode,
+        Err(e) => {
+            println!("load_dir: invalid path (not found): {parent_path}, err: {e}");
+            return false;
+        }
+    };
 
     let tree_db = store.persistent_path_store.clone();
     let dirs = store.dirs.clone();
+
+    // Check underlying storage item type.
+    let parent_item = match tree_db.get_item(parent_inode) {
+        Ok(item) => item,
+        Err(e) => {
+            println!("load_dir: failed to get item for {parent_path}: {e}");
+            return false;
+        }
+    };
+    if !parent_item.is_dir() {
+        println!("load_dir: path is not a directory: {parent_path}");
+        return false;
+    }
+
+    // Also ensure we are tracking this directory in the in-memory dirs map.
+    if !dirs.contains_key(&parent_path) {
+        println!("load_dir: directory not tracked in dirs map: {parent_path}");
+        return false;
+    }
+
     let self_hash = get_dir_hash(&parent_path).await;
 
     //the dir may be deleted.
