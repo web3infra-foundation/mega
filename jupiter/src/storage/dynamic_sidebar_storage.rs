@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{collections::HashSet, ops::Deref};
 
 use crate::{
     model::sidebar_dto::SidebarSyncDto,
@@ -130,6 +130,9 @@ impl DynamicSidebarStorage {
             return Ok(Vec::new());
         }
 
+        // Validate that order_index values in items are unique
+        validate_order_index_unique(&items).map_err(|e| MegaError::Other(e))?;
+
         // Begin a transaction
         let txn = self.get_connection().begin().await?;
 
@@ -174,4 +177,17 @@ impl DynamicSidebarStorage {
 
         Ok(res_models)
     }
+}
+
+fn validate_order_index_unique(items: &[SidebarSyncDto]) -> Result<(), String> {
+    let mut seen = HashSet::new();
+
+    for item in items {
+        if !seen.insert(item.order_index) {
+            // If insert returns false, it means a duplicate order_index exists
+            return Err(format!("Duplicate order_index found: {}", item.order_index));
+        }
+    }
+
+    Ok(())
 }
