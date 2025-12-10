@@ -131,7 +131,7 @@ impl DynamicSidebarStorage {
         }
 
         // Validate that order_index values in items are unique
-        validate_order_index_unique(&items).map_err(|e| MegaError::Other(e))?;
+        validate_order_index_unique(&items).map_err(MegaError::Other)?;
 
         // Begin a transaction
         let txn = self.get_connection().begin().await?;
