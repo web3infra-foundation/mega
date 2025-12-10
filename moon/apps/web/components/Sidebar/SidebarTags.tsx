@@ -1,23 +1,11 @@
-import router from 'next/router'
-
 import { TagIcon } from '@gitmono/ui/Icons'
 
-import { useScope } from '@/contexts/scope'
+import { SidebarLink, SidebarProps } from './SidebarLink'
 
-import { SidebarLink } from './SidebarLink'
-
-export function SidebarTags() {
-  const { scope } = useScope()
-
+export function SidebarTags({ label = 'Tags', href, active }: SidebarProps) {
   return (
     <>
-      <SidebarLink
-        id='tags'
-        label='Tags'
-        href={`/${scope}/code/tags`}
-        active={router.pathname === '/[org]/code/tags'}
-        leadingAccessory={<TagIcon />}
-      />
+      <SidebarLink id='tags' label={label} href={href} active={active} leadingAccessory={<TagIcon />} />
     </>
   )
 }

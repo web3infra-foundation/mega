@@ -1,23 +1,11 @@
-import router from 'next/router'
-
 import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 
-import { useScope } from '@/contexts/scope'
+import { SidebarLink, SidebarProps } from './SidebarLink'
 
-import { SidebarLink } from './SidebarLink'
-
-export function SidebarIssue() {
-  const { scope } = useScope()
-
+export function SidebarIssue({ label = 'Issue', href, active }: SidebarProps) {
   return (
     <>
-      <SidebarLink
-        id='Issue'
-        label='Issue'
-        href={`/${scope}/issue`}
-        active={router.pathname === '/[org]/issue'}
-        leadingAccessory={<ChatBubblePlusIcon />}
-      />
+      <SidebarLink id='Issue' label={label} href={href} active={active} leadingAccessory={<ChatBubblePlusIcon />} />
     </>
   )
 }
