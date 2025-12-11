@@ -15,16 +15,13 @@ import { BrowserNotificationsUpsell } from '@/components/Sidebar/BrowserNotifica
 import { NewPostButton } from '@/components/Sidebar/NewPostButton'
 import { SidebarActivity } from '@/components/Sidebar/SidebarActivity'
 import { SidebarChatSectionGroup } from '@/components/Sidebar/SidebarChatSectionGroup'
-import { SidebarDrafts } from '@/components/Sidebar/SidebarDrafts'
 import { SidebarFavoritesGroup } from '@/components/Sidebar/SidebarFavoritesGroup'
-import { SidebarIssue } from '@/components/Sidebar/SidebarIssue'
-import { SidebarMergeQueue } from '@/components/Sidebar/SidebarMergeQueue'
+import { SidebarMenu } from '@/components/Sidebar/SidebarMenu'
 import {
   SIDEBAR_SCROLL_CONTAINER_ID,
   SidebarMoreUnreadsBottom,
   SidebarMoreUnreadsTop
 } from '@/components/Sidebar/SidebarMoreUnreads'
-import { SidebarHome, SidebarMyWorkItems } from '@/components/Sidebar/SidebarMyWorkGroup'
 import { SidebarProfile } from '@/components/Sidebar/SidebarProfile'
 import { SidebarProjectsGroup } from '@/components/Sidebar/SidebarProjectsGroup'
 import { SidebarSearchButton } from '@/components/SidebarSearchButton'
@@ -38,12 +35,7 @@ import { useProjectSubscriptions } from '@/hooks/useProjectSubscriptions'
 import { useShowOrgSwitcherSidebar } from '@/hooks/useShowOrgSwitcherSidebar'
 
 import { RecentlyViewedPopover } from './RecentlyViewed/RecentlyViewedPopover'
-import { SidebarCode } from './SidebarCode'
-import { SidebarCratespro } from './SidebarCratespro'
 import { SidebarGroup } from './SidebarGroup'
-import { SidebarInbox } from './SidebarInbox'
-import { SidebarTags } from './SidebarTags'
-import { SiderbarChangeList } from './SiderbarChangeList'
 
 export function SidebarContainer() {
   const { scope } = useScope()
@@ -164,18 +156,7 @@ function SidebarContent() {
       <div id={SIDEBAR_SCROLL_CONTAINER_ID} className='scrollbar-hide flex-1 overflow-y-auto overscroll-contain'>
         <div ref={topRef} />
 
-        <SidebarGroup className='pt-0'>
-          <SidebarHome />
-          <SidebarInbox />
-          <SidebarMyWorkItems />
-          <SidebarDrafts />
-          <SidebarCode />
-          <SidebarTags />
-          <SiderbarChangeList />
-          <SidebarMergeQueue />
-          <SidebarIssue />
-          <SidebarCratespro />
-        </SidebarGroup>
+        <SidebarMenu />
 
         <SidebarFavoritesGroup />
         <SidebarProjectsGroup />

@@ -9,6 +9,7 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import GPGKeys from '@/components/Setting/GPGKeys'
 import PersonalToken from '@/components/Setting/PersonalToken'
 import SSHKeys from '@/components/Setting/SSHKeys'
+import { MenuPicker } from '@/components/Sidebar/SidebarMenu/MenuPicker'
 import { ThemePicker } from '@/components/ThemePicker'
 import { Behaviors } from '@/components/UserSettings/Behaviors'
 import { NotificationSettings } from '@/components/UserSettings/Notifications/NotificationSettings'
@@ -49,6 +50,7 @@ const UserSettingsPage: PageWithProviders<any> = () => {
         <PersonalToken />
         <PersonalCallLinks />
         <ThemePicker />
+        <MenuPicker />
         <Behaviors />
         <PushNotificationSettings />
         <NotificationSettings />
