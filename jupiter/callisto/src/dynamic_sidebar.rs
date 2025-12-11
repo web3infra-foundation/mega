@@ -13,7 +13,6 @@ pub struct Model {
     pub label: String,
     pub href: String,
     pub visible: bool,
-    #[sea_orm(unique)]
     pub order_index: i32,
 }
 
