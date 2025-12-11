@@ -1,23 +1,7 @@
-import router from 'next/router'
-
 import { GitMergeQueueIcon } from '@gitmono/ui/Icons'
 
-import { useScope } from '@/contexts/scope'
+import { SidebarLink, SidebarProps } from './SidebarLink'
 
-import { SidebarLink } from './SidebarLink'
-
-export function SidebarMergeQueue() {
-  const { scope } = useScope()
-
-  return (
-    <>
-      <SidebarLink
-        id='mq'
-        label='Merge Queue'
-        href={`/${scope}/queue/main`}
-        active={router.pathname === '/[org]/queue'}
-        leadingAccessory={<GitMergeQueueIcon />}
-      />
-    </>
-  )
+export function SidebarMergeQueue({ label = 'Merge Queue', href, active }: SidebarProps) {
+  return <SidebarLink id='mq' label={label} href={href} active={active} leadingAccessory={<GitMergeQueueIcon />} />
 }

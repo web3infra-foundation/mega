@@ -1,23 +1,7 @@
-import router from 'next/router'
-
 import { GitCommitIcon } from '@gitmono/ui/Icons'
 
-import { useScope } from '@/contexts/scope'
+import { SidebarLink, SidebarProps } from './SidebarLink'
 
-import { SidebarLink } from './SidebarLink'
-
-export function SiderbarChangeList() {
-  const { scope } = useScope()
-
-  return (
-    <>
-      <SidebarLink
-        id='cl'
-        label='Change List'
-        href={`/${scope}/cl`}
-        active={router.pathname === '/[org]/cl'}
-        leadingAccessory={<GitCommitIcon />}
-      />
-    </>
-  )
+export function SidebarChangeList({ label = 'Change List', href, active }: SidebarProps) {
+  return <SidebarLink id='cl' label={label} href={href} active={active} leadingAccessory={<GitCommitIcon />} />
 }

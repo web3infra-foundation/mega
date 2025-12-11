@@ -33,6 +33,12 @@ export interface SidebarLinkProps extends React.ComponentPropsWithoutRef<'div'> 
   disabled?: boolean
 }
 
+export interface SidebarProps {
+  label: string
+  href: string
+  active: boolean
+}
+
 export const SidebarLink = React.forwardRef<SidebarElement, SidebarLinkProps>(
   (
     {
