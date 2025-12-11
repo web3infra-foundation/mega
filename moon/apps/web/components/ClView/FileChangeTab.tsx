@@ -23,7 +23,7 @@ export const FileChangeTab = React.memo<FileChangeTabProps>(({ id }) => {
     <FileDiff
       fileChangeData={ClFilesChangedData}
       fileChangeIsLoading={isFileChangeLoading}
-      treeData={treeResponse as CommonResultVecMuiTreeNode}
+      treeData={treeResponse?.data as CommonResultVecMuiTreeNode["data"]}
       treeIsLoading={treeIsLoading}
     />
   )

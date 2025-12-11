@@ -12,7 +12,7 @@ import { CustomTreeItem } from './CustomTreeItem'
 import { convertToTreeData, getDescendantIds } from './TreeUtils'
 
 interface FileTreeProps {
-  treeData: CommonResultVecMuiTreeNode
+  treeData: CommonResultVecMuiTreeNode["data"]
   treeDataLoading: boolean
   onFileClick?: (filePath: string) => void
 }
@@ -25,8 +25,8 @@ const FileTree = ({ treeData, treeDataLoading, onFileClick }: FileTreeProps) => 
 
   // Process the tree data when API returns
   useEffect(() => {
-    if (treeData?.data) {
-      const convertedData = convertToTreeData(treeData.data)
+    if (treeData) {
+      const convertedData = convertToTreeData(treeData)
 
       setTreeAllData(convertedData)
     }

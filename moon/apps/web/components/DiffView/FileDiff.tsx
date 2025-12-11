@@ -64,7 +64,7 @@ function generateParsedFiles(diffFiles: { path: string; lang: string; diff: stri
 interface FileDiffProps {
   fileChangeData: CommonPageDiffItem
   fileChangeIsLoading: boolean
-  treeData: CommonResultVecMuiTreeNode
+  treeData: CommonResultVecMuiTreeNode["data"]
   treeIsLoading: boolean
 }
 
