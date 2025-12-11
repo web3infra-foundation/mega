@@ -11,7 +11,7 @@ export const CommitsItem = memo(
   ({
     title,
     children,
-    gitId,
+    sha,
     labels,
     rightIcon,
     onClick,
@@ -19,7 +19,7 @@ export const CommitsItem = memo(
   }: {
     title: string
     children?: ReactNode
-    gitId?: ReactNode
+    sha?: ReactNode
     labels?: ReactNode
     rightIcon?: ReactNode
     copyIcon?: ReactNode
@@ -48,31 +48,22 @@ export const CommitsItem = memo(
           </div>
 
           <div className='right ml-4 flex items-center gap-2 text-xs text-gray-600'>
-            {/* Labels (Verified 状态) */}
-            {labels && (
-              <div className='flex items-center'>
-                {/* 移除了内层冗余的 div/padding，直接使用 labels 的样式 */}
-                {labels}
-              </div>
-            )}
+            {labels && <div className='flex items-center'>{labels}</div>}
 
-            {/* Git ID (短 SHA) */}
-            {gitId && (
+            {sha && (
               <div className='flex items-center'>
                 <div className='rounded-md px-1.5 py-1 font-mono transition duration-150 ease-in-out hover:bg-gray-100'>
-                  {gitId}
+                  {sha}
                 </div>
               </div>
             )}
 
-            {/* Copy Icon (复制 SHA) */}
             {copyIcon && (
               <div className='flex items-center'>
                 <div className='rounded-md p-1 transition duration-150 ease-in-out hover:bg-gray-100'>{copyIcon}</div>
               </div>
             )}
 
-            {/* Right Icon (箭头/详情图标) */}
             {rightIcon && (
               <div className='flex items-center'>
                 <div className='rounded-md p-1 transition duration-150 ease-in-out hover:bg-gray-100'>{rightIcon}</div>
