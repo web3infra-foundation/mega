@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{collections::HashSet, ops::Deref};
 
 use crate::{
     model::sidebar_dto::SidebarSyncDto,
@@ -122,6 +122,21 @@ impl DynamicSidebarStorage {
         Ok(model)
     }
 
+    /// Synchronize sidebar items by applying updates and inserts.
+    ///
+    /// This function does **not** perform full replacement.  
+    /// It assumes:
+    /// - The frontend sends the **complete list of sidebar items**.
+    /// - Existing items include a valid `id` and will be updated.
+    /// - New items have `id = None` and will be inserted.
+    /// - Deletions are handled separately by another API.
+    ///
+    /// Validation rules:
+    /// - `order_index` values in the incoming list must be unique.
+    ///
+    /// Transaction behavior:
+    /// - All updates and inserts happen inside a single transaction.  
+    /// - Any failure will roll back the entire operation.
     pub async fn sync_sidebar(
         &self,
         items: Vec<SidebarSyncDto>,
@@ -129,6 +144,9 @@ impl DynamicSidebarStorage {
         if items.is_empty() {
             return Ok(Vec::new());
         }
+
+        // Validate that order_index values in items are unique
+        validate_order_index_unique(&items).map_err(MegaError::Other)?;
 
         // Begin a transaction
         let txn = self.get_connection().begin().await?;
@@ -173,5 +191,82 @@ impl DynamicSidebarStorage {
         txn.commit().await?;
 
         Ok(res_models)
+    }
+}
+
+fn validate_order_index_unique(items: &[SidebarSyncDto]) -> Result<(), String> {
+    let mut seen = HashSet::new();
+
+    for item in items {
+        if !seen.insert(item.order_index) {
+            // If insert returns false, it means a duplicate order_index exists
+            return Err(format!("Duplicate order_index found: {}", item.order_index));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dto(id: Option<i32>, order: i32) -> SidebarSyncDto {
+        SidebarSyncDto {
+            id,
+            public_id: format!("id_{}", order),
+            label: "label".into(),
+            href: "/".into(),
+            visible: true,
+            order_index: order,
+        }
+    }
+
+    #[test]
+    fn test_validate_unique_order_index_ok() {
+        // All unique order indices
+        let items = vec![dto(Some(1), 0), dto(Some(2), 1), dto(Some(3), 2)];
+
+        let result = validate_order_index_unique(&items);
+
+        assert!(result.is_ok(), "Expected unique order indices to pass.");
+    }
+
+    #[test]
+    fn test_validate_unique_order_index_duplicate() {
+        // Contains duplicate order indices
+        let items = vec![dto(Some(1), 0), dto(Some(2), 1), dto(Some(3), 1)];
+
+        let result = validate_order_index_unique(&items);
+
+        assert!(
+            result.is_err(),
+            "Expected duplicate order indices to produce error."
+        );
+
+        assert!(
+            result.unwrap_err().contains("1"),
+            "Error message should contain the duplicate order index."
+        );
+    }
+
+    #[test]
+    fn test_validate_unique_order_index_empty() {
+        // Empty list should be valid
+        let items: Vec<SidebarSyncDto> = vec![];
+
+        let result = validate_order_index_unique(&items);
+
+        assert!(result.is_ok(), "Empty list should be considered valid.");
+    }
+
+    #[test]
+    fn test_validate_unique_order_index_single_item() {
+        // A single item is always valid
+        let items = vec![dto(Some(1), 10)];
+
+        let result = validate_order_index_unique(&items);
+
+        assert!(result.is_ok(), "Single item should always be valid.");
     }
 }
