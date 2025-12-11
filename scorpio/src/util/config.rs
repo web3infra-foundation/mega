@@ -165,12 +165,21 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
 
         // Ensure parent of state file exists
         if let Some(parent) = Path::new(&antares_state).parent() {
-            let _ = fs::create_dir_all(parent);
+            if let Err(e) = fs::create_dir_all(parent) {
+                if e.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!(
+                        "Failed to create parent directory {}: {}",
+                        parent.display(),
+                        e
+                    ));
+                }
+            }
         }
 
         // Save updated configuration
-        let toml = toml::to_string(&config).expect("Failed to serialize config");
-        fs::write(path, toml).unwrap_or_else(|e| panic!("Failed to save config: {e}"));
+        let toml =
+            toml::to_string(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
+        fs::write(path, &toml).map_err(|e| format!("Failed to save config {}: {e}", path))?;
 
         // Create the config.toml
         let config_file = config

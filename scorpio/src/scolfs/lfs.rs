@@ -275,11 +275,13 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires running LFS server (uses lfs_url from config)"]
     async fn test_lfs_push() {
         {
             let temp_dir = Path::new("/tmp/mega");
-            let url = url::Url::parse("http://47.79.35.136:8000/third-party/mega.git").unwrap();
+            // Use lfs_url from config (e.g., http://git.gitmega.com)
+            let lfs_base = crate::util::config::lfs_url();
+            let url = url::Url::parse(&format!("{}/third-party/mega.git", lfs_base)).unwrap();
             let client = LFSClient::from_url(&url);
             let bin_blob = Blob::from_lfs_file(temp_dir.join("test.bin"));
             print!("{bin_blob}");

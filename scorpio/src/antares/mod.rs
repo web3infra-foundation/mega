@@ -1,4 +1,4 @@
-mod fuse;
+pub mod fuse;
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -132,10 +132,57 @@ impl AntaresManager {
         Ok(instance)
     }
 
-    /// Remove bookkeeping for a job. FS teardown will be added later.
+    /// Unmount the FUSE filesystem and remove bookkeeping for a job.
+    ///
+    /// Attempts to unmount the filesystem using `fusermount -u`. If the filesystem
+    /// is not mounted (e.g., it was never mounted or already unmounted), the unmount
+    /// attempt will fail but the function will still remove the bookkeeping entry.
     pub async fn umount_job(&self, job_id: &str) -> std::io::Result<Option<AntaresConfig>> {
-        let removed = self.instances.lock().await.remove(job_id);
+        use tracing::{info, warn};
+
+        // Lock and get the config, but do not remove yet
+        let mut instances = self.instances.lock().await;
+        let config = match instances.get(job_id) {
+            Some(cfg) => cfg.clone(),
+            None => return Ok(None),
+        };
+
+        // Attempt to unmount the FUSE mount
+        let mount_path = &config.mountpoint;
+        info!("Attempting to unmount FUSE mount at {:?}", mount_path);
+
+        let output = tokio::process::Command::new("fusermount")
+            .arg("-u")
+            .arg(mount_path)
+            .output()
+            .await?;
+
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            // Check if the error is because the filesystem is not mounted
+            // In this case, we still proceed to remove bookkeeping
+            if error_msg.contains("not mounted") || error_msg.contains("Invalid argument") {
+                warn!(
+                    "Filesystem at {:?} is not mounted, removing bookkeeping only: {}",
+                    mount_path, error_msg
+                );
+            } else {
+                warn!(
+                    "fusermount -u failed with status {} for {:?}: {}",
+                    output.status, mount_path, error_msg
+                );
+                // For other errors, we still remove bookkeeping to avoid stale entries
+                // but log the warning
+            }
+        } else {
+            info!("Successfully unmounted {:?}", mount_path);
+        }
+
+        // Remove from bookkeeping and persist (even if unmount failed)
+        let removed = instances.remove(job_id);
+        drop(instances);
         self.persist_state().await?;
+
         Ok(removed)
     }
 
@@ -167,9 +214,8 @@ impl AntaresManager {
     async fn persist_state(&self) -> std::io::Result<()> {
         let mounts: Vec<AntaresConfig> = self.instances.lock().await.values().cloned().collect();
         let state = AntaresState { mounts };
-        let data = toml::to_string_pretty(&state).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, format!("encode state: {e}"))
-        })?;
+        let data = toml::to_string_pretty(&state)
+            .map_err(|e| std::io::Error::other(format!("encode state: {e}")))?;
         if let Some(parent) = self.paths.state_file.parent() {
             fs::create_dir_all(parent)?;
         }

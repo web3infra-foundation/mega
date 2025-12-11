@@ -1,5 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
+use tracing::{info, warn};
 use libfuse_fs::{
     passthrough::{new_passthroughfs_layer, PassthroughArgs},
     unionfs::{config::Config, layer::Layer, OverlayFs},
@@ -81,6 +82,10 @@ impl AntaresFuse {
     /// Mount the composed unionfs into the provided mountpoint, spawning a background task to run the FUSE session.
     pub async fn mount(&mut self) -> std::io::Result<()> {
         if self.fuse_task.is_some() {
+            info!(
+                "mount request ignored because {} is already mounted",
+                self.mountpoint.display()
+            );
             return Ok(());
         }
 
@@ -96,8 +101,24 @@ impl AntaresFuse {
 
         self.fuse_task = Some(fuse_task);
 
-        // Give the FUSE mount a moment to initialize
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Poll the mountpoint until it becomes accessible (up to ~1s) to avoid race on slow machines.
+        const RETRIES: usize = 10;
+        for attempt in 0..RETRIES {
+            if tokio::fs::read_dir(&self.mountpoint).await.is_ok() {
+                return Ok(());
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            if attempt == RETRIES - 1 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!(
+                        "mountpoint {} not ready after {} attempts",
+                        self.mountpoint.display(),
+                        RETRIES
+                    ),
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -114,17 +135,20 @@ impl AntaresFuse {
                 .await?;
 
             if !output.status.success() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!(
-                        "fusermount failed: {}",
-                        String::from_utf8_lossy(&output.stderr)
-                    ),
-                ));
+                return Err(std::io::Error::other(format!(
+                    "fusermount failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                )));
             }
 
-            // Wait for the FUSE task to complete
-            let _ = task.await;
+            // Wait for the FUSE task to complete and surface panic if any.
+            if let Err(e) = task.await {
+                tracing::warn!(
+                    "fuse task panicked during unmount of {}: {:?}",
+                    mount_path,
+                    e
+                );
+            }
         }
         Ok(())
     }
@@ -136,6 +160,7 @@ mod tests {
     use crate::{dicfuse::Dicfuse, util::config};
     use std::path::PathBuf;
     use tokio::time::{sleep, Duration};
+    use uuid::Uuid;
 
     #[tokio::test]
     #[ignore] // Run with: sudo -E $(which cargo) test --lib antares::fuse::tests::test_simple_passthrough_mount -- --exact --ignored --nocapture
@@ -263,9 +288,11 @@ mod tests {
                     .add_directive("libfuse_fs::passthrough::newlogfs=debug".parse().unwrap()),
             )
             .try_init();
+        // Ignore "already initialized" error when running multiple tests
         if let Err(e) = config::init_config("./scorpio.toml") {
-            eprintln!("Failed to load config: {e}");
-            std::process::exit(1);
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
         }
         // Check if we have necessary privileges
         let uid = unsafe { libc::geteuid() };
@@ -276,13 +303,16 @@ mod tests {
             return;
         }
 
-        let base = PathBuf::from("/tmp/antares_test_mount");
+        let test_id = Uuid::new_v4();
+        let base = PathBuf::from(format!("/tmp/antares_test_mount_{test_id}"));
         let _ = std::fs::remove_dir_all(&base);
         let mount = base.join("mnt");
         let upper = base.join("upper");
         let cl = base.join("cl");
+        let store_path = base.join("store");
+        std::fs::create_dir_all(&store_path).unwrap();
 
-        let dic = Dicfuse::new().await;
+        let dic = Dicfuse::new_with_store_path(store_path.to_str().unwrap()).await;
         let mut fuse = AntaresFuse::new(
             mount.clone(),
             std::sync::Arc::new(dic),
@@ -296,26 +326,55 @@ mod tests {
         println!("Mounting Antares overlay at: {}", mount.display());
         fuse.mount().await.unwrap();
 
-        // Let it run for a bit
-        sleep(Duration::from_secs(5)).await;
-        println!("Press Ctrl+C to exit...");
+        // Verify mount succeeded
+        assert!(mount.exists(), "mount directory should exist");
+        assert!(upper.exists(), "upper directory should exist");
+        assert!(
+            std::fs::read_dir(&mount).is_ok(),
+            "mountpoint should be accessible"
+        );
 
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
+        // Let it run for a bit to ensure stability
+        sleep(Duration::from_secs(1)).await;
 
         // Unmount
+        println!("Unmounting...");
+        fuse.unmount().await.unwrap();
+        println!("Unmount successful!");
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[tokio::test]
+    #[ignore = "manual test with infinite loop, requires privileged FUSE mount"]
     async fn creates_dirs_and_placeholder_overlay() {
-        let base = PathBuf::from("/tmp/antares_test_job1");
+        // Ignore "already initialized" error when running multiple tests
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
+        // Check if we have necessary privileges
+        let uid = unsafe { libc::geteuid() };
+        if uid != 0 {
+            println!("Warning: This test requires root privileges");
+            println!("Run with: sudo -E cargo test --lib antares::fuse::tests::creates_dirs_and_placeholder_overlay -- --exact --ignored --nocapture");
+            println!("Skipping test...");
+            return;
+        }
+
+        let test_id = Uuid::new_v4();
+        let base = PathBuf::from(format!("/tmp/antares_test_job1_{test_id}"));
         let _ = std::fs::remove_dir_all(&base);
         let mount = base.join("mnt");
         let upper = base.join("upper");
         let cl = base.join("cl");
+        let store_path = base.join("store");
+        std::fs::create_dir_all(&store_path).unwrap();
 
-        let dic = Dicfuse::new().await;
+        let dic = Dicfuse::new_with_store_path(store_path.to_str().unwrap()).await;
         let mut fuse = AntaresFuse::new(
             mount.clone(),
             std::sync::Arc::new(dic),
@@ -325,14 +384,22 @@ mod tests {
         .await
         .unwrap();
 
-        // Build overlay without mounting to the kernel to keep the test unprivileged.
-        let handle = fuse.mount().await.unwrap();
+        // Mount the overlay filesystem
+        fuse.mount().await.unwrap();
 
-        println!("Mountpoint: {}", mount.display());
-        println!("Press Ctrl+C to exit...");
+        // Verify directories were created and mount is accessible
+        assert!(mount.exists(), "mount directory should exist");
+        assert!(upper.exists(), "upper directory should exist");
+        assert!(cl.exists(), "cl directory should exist");
+        assert!(
+            std::fs::read_dir(&mount).is_ok(),
+            "mountpoint should be accessible"
+        );
 
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
+        // Unmount
+        fuse.unmount().await.unwrap();
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

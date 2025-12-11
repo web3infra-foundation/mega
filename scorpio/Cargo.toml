@@ -31,7 +31,7 @@ bytes = "1.7.2"
 futures = "0.3.31"
 quote = "1.0.38"
 proc-macro2 = "1.0.93"
-uuid = "1.14.0"
+uuid = { version = "1.14.0", features = ["v4"] }
 # Pinned to 0.1.5 due to API changes in 0.1.6+ that break Scorpio's FUSE integration. Upgrade when compatibility is restored.
 libfuse-fs = "0.1.8"
 regex = "1.11.1"
@@ -65,6 +65,7 @@ scopeguard = { workspace = true }
 testcontainers = { workspace = true, features = ["http_wait","reusable-containers"] }
 reqwest = { version = "0.12.12", features = ["blocking"] }
 http = { workspace = true }
+tower = "0.5"
 
 [package.metadata.docs.rs]
 all-features = true

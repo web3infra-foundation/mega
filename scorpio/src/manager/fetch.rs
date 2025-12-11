@@ -877,13 +877,16 @@ mod tests {
     use std::error::Error;
     use std::fs::File;
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires running Mega server (uses base_url from config)"]
     async fn test_fetch_octet_stream() -> Result<(), Box<dyn Error>> {
         // Create an HTTP client
         let client = Client::new();
 
-        // Use the URL from environment variables or local test URL
-        let url = "http://localhost:8000/api/v1/file/tree?path=/third-party/mega";
+        // Use base_url from config (e.g., http://git.gitmega.com)
+        let url = format!(
+            "{}/api/v1/file/tree?path=/third-party/mega",
+            crate::util::config::base_url()
+        );
 
         // Send GET request
         let response = client.get(url).send().await?;
@@ -914,13 +917,16 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires running Mega server (uses base_url from config)"]
     async fn test_fetch_octet_file() {
         // Create an HTTP client
         let client = Client::new();
 
-        // Use the URL from environment variables or local test URL
-        let url = "http://localhost:8000/api/v1/file/blob/841b6fe34540e866e1f458d77b1bd03d3cb0e782";
+        // Use base_url from config (e.g., http://git.gitmega.com)
+        let url = format!(
+            "{}/api/v1/file/blob/841b6fe34540e866e1f458d77b1bd03d3cb0e782",
+            crate::util::config::base_url()
+        );
         // Send a GET request
         let response = client.get(url).send().await.unwrap();
 

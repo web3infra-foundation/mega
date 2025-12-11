@@ -258,6 +258,7 @@ pub async fn mono_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 }
 
 #[tokio::test]
+#[ignore = "requires mono binary in target/debug/ and Docker environment"]
 ///Use container to run mono server and test the scorpio service
 async fn test_scorpio_service_with_containers() {
     let (_container, mono_server_url) = mono_bootstrap_servers(12001).await;

@@ -1,7 +1,10 @@
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use scorpio::antares::{AntaresManager, AntaresPaths};
+use scorpio::daemon::antares::{AntaresDaemon, AntaresServiceImpl};
 use scorpio::util::config;
 
 /// Antares build overlay manager (skeleton).
@@ -45,6 +48,12 @@ enum Commands {
     },
     /// List tracked instances.
     List,
+    /// Start HTTP daemon server.
+    Serve {
+        /// Address to bind to (e.g., "0.0.0.0:2726")
+        #[arg(long, default_value = "0.0.0.0:2726")]
+        bind: String,
+    },
 }
 
 #[tokio::main]
@@ -116,6 +125,31 @@ async fn main() {
                         cl
                     );
                 }
+            }
+        }
+        Commands::Serve { bind } => {
+            // Initialize tracing for daemon mode
+            tracing_subscriber::fmt()
+                .with_env_filter(
+                    tracing_subscriber::EnvFilter::from_default_env()
+                        .add_directive("scorpio=info".parse().unwrap()),
+                )
+                .init();
+
+            let addr: SocketAddr = bind.parse().unwrap_or_else(|e| {
+                eprintln!("Invalid bind address '{}': {}", bind, e);
+                std::process::exit(1);
+            });
+
+            // Create service with new Dicfuse instance
+            let service = Arc::new(AntaresServiceImpl::new(None).await);
+            let daemon = AntaresDaemon::new(addr, service);
+
+            tracing::info!("Starting Antares daemon on {}", addr);
+
+            if let Err(e) = daemon.serve().await {
+                tracing::error!("Daemon error: {}", e);
+                std::process::exit(1);
             }
         }
     }

@@ -134,17 +134,43 @@ impl DicItem {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+struct FileTreeEntry {
+    tree_items: Vec<Item>,
+    #[serde(default)]
+    total_count: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+struct ApiData {
+    #[serde(default)]
+    file_tree: std::collections::HashMap<String, FileTreeEntry>,
+    #[serde(default)]
+    tree_items: Vec<Item>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 struct ApiResponse {
     req_result: bool,
-    data: Vec<Item>,
+    data: ApiData,
     err_message: String,
 }
+
+impl ApiResponse {
+    /// Get all items from tree_items in data
+    #[allow(dead_code)]
+    fn get_items(&self) -> Vec<Item> {
+        self.data.tree_items.clone()
+    }
+}
+
 impl Iterator for ApiResponse {
     type Item = Item;
     fn next(&mut self) -> Option<Self::Item> {
-        self.data.pop()
+        self.data.tree_items.pop()
     }
 }
+
+#[allow(dead_code)]
 struct ApiResponseExt {
     _req_result: bool,
     data: Vec<ItemExt>,
@@ -410,6 +436,24 @@ impl DictionaryStore {
             init_notify: Arc::new(Notify::new()),
             persistent_content_store: Arc::new(
                 ContentStorage::new().expect("Failed to create ContentStorage"),
+            ),
+            open_buff: Arc::new(DashMap::new()),
+        }
+    }
+
+    pub async fn new_with_store_path(store_path: &str) -> Self {
+        let tree_store =
+            TreeStorage::new_with_path(store_path).expect("Failed to create TreeStorage");
+        DictionaryStore {
+            next_inode: AtomicU64::new(1),
+            inodes: Arc::new(Mutex::new(HashMap::new())),
+            radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
+            persistent_path_store: Arc::new(tree_store),
+            dirs: Arc::new(DashMap::new()),
+            max_depth: Arc::new(config::load_dir_depth()),
+            init_notify: Arc::new(Notify::new()),
+            persistent_content_store: Arc::new(
+                ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
             ),
             open_buff: Arc::new(DashMap::new()),
         }

@@ -22,10 +22,10 @@ impl Filesystem for Dicfuse {
 
     async fn getattr(
         &self,
-        req: Request,
+        _req: Request,
         inode: Inode,
-        fh: Option<u64>,
-        flags: u32,
+        _fh: Option<u64>,
+        _flags: u32,
     ) -> Result<ReplyAttr> {
         let item = self.store.get_inode(inode).await?;
         let re = self.get_stat(item).await;
@@ -112,9 +112,9 @@ impl Filesystem for Dicfuse {
     async fn getxattr(
         &self,
         _req: Request,
-        inode: Inode,
-        name: &OsStr,
-        size: u32,
+        _inode: Inode,
+        _name: &OsStr,
+        _size: u32,
     ) -> Result<ReplyXAttr> {
         // Dicfuse is a read-only filesystem and does not support extended attributes
         // Return ENODATA to indicate the requested attribute does not exist
@@ -481,9 +481,7 @@ impl Filesystem for Dicfuse {
         Err(libc::ENOSYS.into())
     }
 
-    async fn forget(&self, req: Request, inode: Inode, nlookup: u64) {
-        return;
-    }
+    async fn forget(&self, _req: Request, _inode: Inode, _nlookup: u64) {}
 
     async fn batch_forget(&self, _req: Request, _inodes: &[(Inode, u64)]) {
         for (_inode, _nlookup) in _inodes.iter() {

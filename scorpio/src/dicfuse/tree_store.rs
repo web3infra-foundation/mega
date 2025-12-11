@@ -65,6 +65,10 @@ impl TreeStorage {
     }
     pub fn new() -> io::Result<Self> {
         let store_path = config::store_path();
+        Self::new_with_path(store_path)
+    }
+
+    pub fn new_with_path(store_path: &str) -> io::Result<Self> {
         let path = format!("{store_path}/path.db");
         let db = sled::open(path)?;
         Ok(TreeStorage { db })
