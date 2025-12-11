@@ -11,7 +11,7 @@ export const CommitsItem = memo(
   ({
     title,
     children,
-     sha,
+    sha,
     labels,
     rightIcon,
     onClick,
@@ -48,14 +48,7 @@ export const CommitsItem = memo(
           </div>
 
           <div className='right ml-4 flex items-center gap-2 text-xs text-gray-600'>
-
-            {labels && (
-              <div className='flex items-center'>
-
-                {labels}
-              </div>
-            )}
-
+            {labels && <div className='flex items-center'>{labels}</div>}
 
             {sha && (
               <div className='flex items-center'>
@@ -65,13 +58,11 @@ export const CommitsItem = memo(
               </div>
             )}
 
-
             {copyIcon && (
               <div className='flex items-center'>
                 <div className='rounded-md p-1 transition duration-150 ease-in-out hover:bg-gray-100'>{copyIcon}</div>
               </div>
             )}
-
 
             {rightIcon && (
               <div className='flex items-center'>

@@ -7,7 +7,7 @@ import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
 import { CommitSummary, CommonPageDiffItem, CommonResultVecMuiTreeNode, DiffItem } from '@gitmono/types'
-import {  LoadingSpinner } from '@gitmono/ui'
+import { LoadingSpinner } from '@gitmono/ui'
 
 import { formatAssignees } from '@/components/CodeView/CommitsView'
 import { commitPath } from '@/components/CodeView/CommitsView/items'
@@ -39,16 +39,12 @@ export const CommitsDetailView: React.FC = () => {
     }
   }, [commitPathValue, commitSha])
 
-  const { data: filesChangedRes, isLoading: isLoadingFilesChanged } = usePostCommitsFilesChanged(
-    commitParams ?? { path: '', sha: '' },
-    { page: 1, per_page: 100 },
-    undefined
-  )
+  const { data: filesChangedRes, isLoading: isLoadingFilesChanged } = usePostCommitsFilesChanged(commitParams, {
+    page: 1,
+    per_page: 100
+  })
 
-  const { data: treeResponse, isLoading: treeIsLoading } = useGetCommitsMuiTree(
-    commitParams ?? { path: '', sha: '' },
-    undefined
-  )
+  const { data: treeResponse, isLoading: treeIsLoading } = useGetCommitsMuiTree(commitParams)
 
   const commitsDetail: CommitDetailData | undefined = useMemo(() => {
     if (!filesChangedRes?.data) return undefined
@@ -152,10 +148,10 @@ export const CommitsDetailView: React.FC = () => {
             <span
               className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                 commitsDetail.commit.gpg_status === 'Verified'
-                  ? 'border-green-600  text-green-600'
+                  ? 'border-green-600 text-green-600'
                   : commitsDetail.commit.gpg_status === 'Unverified'
                     ? 'border-yellow-600 text-yellow-600'
-                    : 'border-gray-600  text-gray-600'
+                    : 'border-gray-600 text-gray-600'
               }`}
             >
               {commitsDetail.commit.gpg_status}
@@ -184,7 +180,6 @@ export const CommitsDetailView: React.FC = () => {
                   <span className='text-gray-600'>deletions</span>
                 </div>
               </div>
-
 
               <div className='flex items-center gap-2 text-sm text-gray-600'>
                 {commitsDetail.commit.parents && commitsDetail.commit.parents.length > 0 ? (

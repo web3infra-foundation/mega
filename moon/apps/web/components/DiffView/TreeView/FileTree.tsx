@@ -12,7 +12,7 @@ import { CustomTreeItem } from './CustomTreeItem'
 import { convertToTreeData, getDescendantIds } from './TreeUtils'
 
 interface FileTreeProps {
-  treeData: CommonResultVecMuiTreeNode["data"]
+  treeData: CommonResultVecMuiTreeNode['data']
   treeDataLoading: boolean
   onFileClick?: (filePath: string) => void
 }

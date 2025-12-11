@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { GetApiCommitsMuiTreeData, GetApiCommitsMuiTreeParams, RequestParams } from '@gitmono/types/generated'
+import { GetApiCommitsMuiTreeData, GetApiCommitsMuiTreeParams } from '@gitmono/types/generated'
 
 import { legacyApiClient } from '@/utils/queryClient'
 
-export function useGetCommitsMuiTree(params: GetApiCommitsMuiTreeParams, requestParams?: RequestParams) {
+export function useGetCommitsMuiTree(params: GetApiCommitsMuiTreeParams | null) {
   return useQuery<GetApiCommitsMuiTreeData>({
-    queryKey: [params, requestParams],
-    queryFn: () => legacyApiClient.v1.getApiCommitsMuiTree().request(params, requestParams),
-    enabled: Boolean(params.sha && params.path)
+    queryKey: ['commits-mui-tree', params],
+    queryFn: () => legacyApiClient.v1.getApiCommitsMuiTree().request(params!),
+    enabled: Boolean(params?.sha && params?.path)
   })
 }
