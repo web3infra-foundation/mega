@@ -10,6 +10,9 @@ reqwest =  { version = "0.12.7", features = ["json","blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
 axum = { version =  "0.8.4",features=["macros"]}
+# rfuse3 upgraded from 0.0.4 to 0.0.5 to address [briefly describe relevant changes, e.g. bugfixes, new features, API updates].
+# This upgrade is required for Antares to support [describe specific feature or compatibility, e.g. improved async FUSE handling, bugfix for mount/unmount race].
+# See: https://github.com/cberner/rfuse3/releases/tag/v0.0.5
 rfuse3 = { version = "0.0.5" ,features = ["tokio-runtime","unprivileged"]}
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 clap = { version = "4.0", features = ["derive"] }
