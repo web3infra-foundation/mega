@@ -73,6 +73,7 @@ mod m20251119_145041_add_draft_status;
 mod m20251125_135032_add_draft_conv_type;
 mod m20251128_000001_create_buck_session;
 mod m20251203_013745_add_dynamic_sidebar;
+mod m20251210_113942_remove_unique_constraint_from_order_index;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -134,6 +135,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251125_135032_add_draft_conv_type::Migration),
             Box::new(m20251128_000001_create_buck_session::Migration),
             Box::new(m20251203_013745_add_dynamic_sidebar::Migration),
+            Box::new(m20251210_113942_remove_unique_constraint_from_order_index::Migration),
         ]
     }
 }
