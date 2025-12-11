@@ -1,30 +1,15 @@
-// import { ChatBubblePlusIcon } from '@gitmono/ui/Icons'
 import Image from 'next/image'
-import { useRouter } from 'next/router'
 
-import { useScope } from '@/contexts/scope'
+import { SidebarLink, SidebarProps } from './SidebarLink'
 
-import { SidebarLink } from './SidebarLink'
-
-export function SidebarCratespro() {
-  const { scope } = useScope()
-  const router = useRouter()
-
+export function SidebarCratespro({ label = 'Rust', href, active }: SidebarProps) {
   return (
     <SidebarLink
       id='rust'
-      label='Rust'
-      href={`/${scope}/rust`}
-      active={router.pathname === '/[org]/rust'}
-      leadingAccessory={
-        <Image
-          src='/rust/Rust-Tour-Doc.png'
-          alt='Rust Logo'
-          width={21}
-          height={21}
-          // 如果还需要自定义样式可以加 className 或 style
-        />
-      }
+      label={label}
+      href={href}
+      active={active}
+      leadingAccessory={<Image src='/rust/Rust-Tour-Doc.png' alt='Rust Logo' width={21} height={21} />}
     />
   )
 }
