@@ -81,7 +81,7 @@ where
         tracing::info!("Antares daemon listening on {}", self.bind_addr);
 
         axum::serve(listener, router)
-            .with_graceful_shutdown(async {
+            .with_graceful_shutdown(async move {
                 let _ = tokio::signal::ctrl_c().await;
                 tracing::info!("Received shutdown signal");
                 match timeout(shutdown_timeout, service.shutdown_cleanup()).await {
@@ -352,6 +352,8 @@ pub struct AntaresServiceImpl {
     dicfuse: Arc<Dicfuse>,
     /// Active mounts indexed by UUID.
     mounts: Arc<RwLock<HashMap<Uuid, MountEntry>>>,
+    /// Fast lookup for (path, cl) -> mount_id to avoid linear scans.
+    path_index: Arc<RwLock<HashMap<(String, Option<String>), Uuid>>>,
     /// Service start time for uptime calculation.
     start_time: Instant,
 }
@@ -372,6 +374,7 @@ impl AntaresServiceImpl {
         Self {
             dicfuse: dic,
             mounts: Arc::new(RwLock::new(HashMap::new())),
+            path_index: Arc::new(RwLock::new(HashMap::new())),
             start_time: Instant::now(),
         }
     }
@@ -386,14 +389,12 @@ impl AntaresServiceImpl {
 
     /// Check if a path+cl combination is already mounted.
     async fn is_path_already_mounted(&self, path: &str, cl: Option<&str>) -> bool {
-        let mounts = self.mounts.read().await;
-        mounts
-            .values()
-            .any(|e| e.path == path && e.cl.as_deref() == cl)
+        let index = self.path_index.read().await;
+        index.contains_key(&(path.to_string(), cl.map(|s| s.to_string())))
     }
 
     /// Get service health information.
-    pub async fn health_info(&self) -> HealthResponse {
+    pub async fn health_info_impl(&self) -> HealthResponse {
         let mounts = self.mounts.read().await;
         HealthResponse {
             status: "healthy".to_string(),
@@ -403,18 +404,17 @@ impl AntaresServiceImpl {
     }
 
     /// Cleanup all mounts during shutdown.
-    pub async fn shutdown_cleanup(&self) -> Result<(), ServiceError> {
+    pub async fn shutdown_cleanup_impl(&self) -> Result<(), ServiceError> {
         let mut mounts = self.mounts.write().await;
-        let mount_ids: Vec<Uuid> = mounts.keys().cloned().collect();
+        let mut index = self.path_index.write().await;
 
-        for mount_id in mount_ids {
-            if let Some(mut entry) = mounts.remove(&mount_id) {
-                tracing::info!("Unmounting {} during shutdown", mount_id);
-                if let Err(e) = entry.fuse.unmount().await {
-                    tracing::warn!("Failed to unmount {} during shutdown: {}", mount_id, e);
-                    // Continue with other mounts even if one fails
-                }
+        for (mount_id, mut entry) in mounts.drain() {
+            tracing::info!("Unmounting {} during shutdown", mount_id);
+            if let Err(e) = entry.fuse.unmount().await {
+                tracing::warn!("Failed to unmount {} during shutdown: {}", mount_id, e);
+                // Continue with other mounts even if one fails
             }
+            index.retain(|_, v| v != &mount_id);
         }
         Ok(())
     }
@@ -489,13 +489,28 @@ impl AntaresService for AntaresServiceImpl {
 
         // 7. Insert into mounts map
         let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+
+        // Double-check for races after acquiring write locks
+        if index.contains_key(&(request.path.clone(), request.cl.clone())) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "path {} with cl {:?} is already mounted",
+                request.path, request.cl
+            )));
+        }
+
+        // Preserve path/cl for logging before moving into index
+        let path_for_log = request.path.clone();
+        let cl_for_log = request.cl.clone();
+
         mounts.insert(mount_id, entry);
+        index.insert((request.path, request.cl), mount_id);
 
         tracing::info!(
             "Created mount {} for path '{}' (cl: {:?}) at {}",
             mount_id,
-            request.path,
-            request.cl,
+            path_for_log,
+            cl_for_log,
             mountpoint_str
         );
 
@@ -522,6 +537,7 @@ impl AntaresService for AntaresServiceImpl {
     async fn delete_mount(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
         // Get write lock and remove entry
         let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
         let mut entry = mounts
             .remove(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
@@ -543,16 +559,19 @@ impl AntaresService for AntaresServiceImpl {
             entry.state = MountLifecycle::Unmounted;
         }
 
+        // Remove from path index after unmount
+        index.remove(&(entry.path.clone(), entry.cl.clone()));
+
         tracing::info!("Deleted mount {}", mount_id);
         Ok(entry.to_status())
     }
 
     async fn health_info(&self) -> HealthResponse {
-        self.health_info().await
+        self.health_info_impl().await
     }
 
     async fn shutdown_cleanup(&self) -> Result<(), ServiceError> {
-        self.shutdown_cleanup().await
+        self.shutdown_cleanup_impl().await
     }
 }
 

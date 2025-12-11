@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
+use tracing::{info, warn};
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::content_store::ContentStorage;
@@ -1043,22 +1044,26 @@ async fn get_dir_hash(path: &str) -> String {
 /// # Arguments
 /// * `parent_path` - The path to the directory to preload (must be a valid, existing path).
 /// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
-pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) -> bool {
+pub async fn load_dir(
+    store: Arc<DictionaryStore>,
+    parent_path: String,
+    max_depth: usize,
+) -> Result<bool, io::Error> {
     if parent_path.matches('/').count() >= max_depth {
-        println!("max depth reached for path: {parent_path}");
-        return false;
+        info!("max depth reached for path: {parent_path}");
+        return Ok(false);
     }
     if max_depth < store.max_depth() + 2 {
-        println!("max depth is less than config, skipping: {parent_path}");
-        return false;
+        info!("max depth is less than config, skipping: {parent_path}");
+        return Ok(false);
     }
 
     // Resolve inode and ensure the path is a valid directory.
     let parent_inode = match store.get_inode_from_path(&parent_path).await {
         Ok(inode) => inode,
         Err(e) => {
-            println!("load_dir: invalid path (not found): {parent_path}, err: {e}");
-            return false;
+            warn!("load_dir: invalid path (not found): {parent_path}, err: {e}");
+            return Err(io::Error::new(io::ErrorKind::NotFound, e));
         }
     };
 
@@ -1069,29 +1074,35 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
     let parent_item = match tree_db.get_item(parent_inode) {
         Ok(item) => item,
         Err(e) => {
-            println!("load_dir: failed to get item for {parent_path}: {e}");
-            return false;
+            warn!("load_dir: failed to get item for {parent_path}: {e}");
+            return Err(io::Error::new(io::ErrorKind::Other, e));
         }
     };
     if !parent_item.is_dir() {
-        println!("load_dir: path is not a directory: {parent_path}");
-        return false;
+        warn!("load_dir: path is not a directory: {parent_path}");
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is not a directory",
+        ));
     }
 
     // Also ensure we are tracking this directory in the in-memory dirs map.
     if !dirs.contains_key(&parent_path) {
-        println!("load_dir: directory not tracked in dirs map: {parent_path}");
-        return false;
+        warn!("load_dir: directory not tracked in dirs map: {parent_path}");
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "directory not tracked",
+        ));
     }
 
     let self_hash = get_dir_hash(&parent_path).await;
 
     //the dir may be deleted.
     if self_hash.is_empty() {
-        println!("Directory {parent_path} is empty, no items to load.");
-        return true;
+        info!("Directory {parent_path} is empty, no items to load.");
+        return Ok(true);
     }
-    println!("load_dir parent_path {parent_path:?}");
+    info!("load_dir parent_path {parent_path:?}");
 
     //empty dir,load the dir to the max_depth.
     if dirs.get(&parent_path).unwrap().file_list.is_empty() {
@@ -1101,9 +1112,9 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
             dirs.get_mut(&parent_path).unwrap().hash = self_hash.to_owned();
             let inode = store.get_inode_from_path(&parent_path).await.unwrap();
             tree_db.update_item_hash(inode, self_hash).unwrap();
-            return true;
+            return Ok(true);
         }
-        return false;
+        return Ok(false);
     }
     // if the dir's hash is same as the parent dir's hash,
     //then check the subdir from the db,no need to get from the server..
@@ -1113,19 +1124,26 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         for child in children {
             let child_item = store.persistent_path_store.get_item(child).unwrap();
             if child_item.is_dir() {
-                println!(
+                info!(
                     "handle dir /{:?}",
                     tree_db.get_all_path(child).unwrap().to_string()
                 );
-                load_dir(
+                if let Err(e) = load_dir(
                     store.clone(),
                     "/".to_string() + &tree_db.get_all_path(child).unwrap().to_string(),
                     max_depth,
                 )
-                .await;
+                .await
+                {
+                    warn!(
+                        "load_dir failed for child {:?}: {}",
+                        tree_db.get_all_path(child),
+                        e
+                    );
+                }
             }
         }
-        return false;
+        return Ok(false);
     }
     //last, if the dir's hash is different from the parent dir's hash,
     //then fetch the dir from the server.
@@ -1149,8 +1167,10 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
                 .file_list
                 .insert(path.to_owned(), true);
             if is_dir {
-                println!("hash changes dir {path:?}");
-                load_dir(store.clone(), path.to_owned(), max_depth).await;
+                info!("hash changes dir {path:?}");
+                if let Err(e) = load_dir(store.clone(), path.to_owned(), max_depth).await {
+                    warn!("load_dir failed for updated dir {path:?}: {e}");
+                }
             } else {
                 let inode = store.get_inode_from_path(&path).await.unwrap();
                 let item = store.persistent_path_store.get_item(inode).unwrap();
@@ -1165,11 +1185,11 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
-            println!("load dir add new file {path:?}");
+            info!("load dir add new file {path:?}");
             let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
             //fetch a new dir.
             if is_dir {
-                println!("add dir {path:?}");
+                info!("add dir {path:?}");
                 dirs.insert(
                     path.to_owned(),
                     DirItem {
@@ -1198,11 +1218,11 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         });
     for item in remove_items {
         let inode = store.get_inode_from_path(&item).await.unwrap();
-        println!("delete {inode:?} {item} ");
+        info!("delete {inode:?} {item} ");
         tree_db.remove_item(inode).unwrap();
         let _ = store.remove_file_by_node(inode);
     }
-    return true;
+    Ok(true)
 }
 
 #[async_recursion]

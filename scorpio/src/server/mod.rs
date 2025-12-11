@@ -61,7 +61,11 @@ pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static
     fs: F,
     mountpoint: &OsStr,
 ) -> MountHandle {
-    let _ = env_logger::try_init();
+    if let Err(e) = env_logger::try_init() {
+        if !e.to_string().contains("initialized") {
+            eprintln!("Failed to initialize logger: {}", e);
+        }
+    }
     //let logfs = LoggingFileSystem::new(fs);
 
     let mount_path: OsString = OsString::from(mountpoint);

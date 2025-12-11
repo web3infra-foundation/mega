@@ -179,7 +179,8 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
         // Save updated configuration
         let toml =
             toml::to_string(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
-        fs::write(path, &toml).map_err(|e| format!("Failed to save config {}: {e}", path))?;
+        fs::write(path, &toml)
+            .map_err(|e| format!("Failed to save config {}: {e}", Path::new(path).display()))?;
 
         // Create the config.toml
         let config_file = config

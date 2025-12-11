@@ -150,6 +150,9 @@ impl AntaresFuse {
                 );
             }
         }
+
+        // NOTE: directories (mountpoint/upper/cl) are not removed here to avoid
+        // deleting caller-managed paths; cleanup should be handled by the caller.
         Ok(())
     }
 }
