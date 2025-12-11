@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { CopyIcon, FileCodeIcon } from '@primer/octicons-react'
 import copy from 'copy-to-clipboard'
 import { format, formatDistance, fromUnixTime } from 'date-fns'
@@ -6,7 +6,7 @@ import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
-import { CommitSummary, CommonPageDiffItem, DiffItem } from '@gitmono/types'
+import { CommitSummary, CommonPageDiffItem, CommonResultVecMuiTreeNode, DiffItem } from '@gitmono/types'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import { formatAssignees } from '@/components/CodeView/CommitsView'
@@ -14,7 +14,8 @@ import { commitPath } from '@/components/CodeView/CommitsView/items'
 import FileDiff from '@/components/DiffView/FileDiff'
 import { MemberHoverAvatarList } from '@/components/Issues/MemberHoverAvatarList'
 import { useScope } from '@/contexts/scope'
-import { useGetCommitsDetail } from '@/hooks/commits/useGetCommitsDetail'
+import { useGetCommitsMuiTree } from '@/hooks/commits/useGetCommitsMuiTree'
+import { usePostCommitsFilesChanged } from '@/hooks/commits/usePostCommitsFilesChanged'
 
 interface CommitDetailData {
   commit: CommitSummary
@@ -26,44 +27,42 @@ export const CommitsDetailView: React.FC = () => {
   const { sha } = router.query
   const { scope } = useScope()
 
-  const { mutate: commitDetail, isPending: isLoadingCommitDetail } = useGetCommitsDetail()
-
   const [commitPathValue, _setCommitPath] = useAtom(commitPath)
-  const [commitsDetail, setCommitsDetail] = useState<CommitDetailData>()
 
-  useEffect(() => {
-    if (!sha || !commitPathValue) return
+  const commitSha = Array.isArray(sha) ? sha[0] : (sha ?? '')
 
-    commitDetail(
-      {
-        data: {
-          path: commitPathValue,
-          sha: Array.isArray(sha) ? sha[0] : (sha ?? '')
-        }
-      },
-      {
-        onSuccess: (response) => {
-          const data = response.data
+  const commitParams = useMemo(() => {
+    if (!commitSha || !commitPathValue) return null
+    return {
+      path: commitPathValue,
+      sha: commitSha
+    }
+  }, [commitPathValue, commitSha])
 
-          if (data) {
-            setCommitsDetail(data)
-          }
-        }
-      }
-    )
-  }, [sha, commitDetail, commitPathValue])
+  const { data: filesChangedRes, isLoading: isLoadingFilesChanged } = usePostCommitsFilesChanged(commitParams, {
+    page: 1,
+    per_page: 100
+  })
 
-  // Convert diffs to CommonPageDiffItem format
+  const { data: treeResponse, isLoading: treeIsLoading } = useGetCommitsMuiTree(commitParams)
+
+  const commitsDetail: CommitDetailData | undefined = useMemo(() => {
+    if (!filesChangedRes?.data) return undefined
+    return {
+      commit: filesChangedRes.data.commit,
+      diffs: filesChangedRes.data.page.items as DiffItem[]
+    }
+  }, [filesChangedRes])
+
   const fileChangeData: CommonPageDiffItem | undefined = useMemo(() => {
     if (!commitsDetail?.diffs) return undefined
 
     return {
       items: commitsDetail.diffs,
-      total: commitsDetail.diffs.length
+      total: filesChangedRes?.data?.page.total ?? commitsDetail.diffs.length
     }
-  }, [commitsDetail])
+  }, [commitsDetail, filesChangedRes])
 
-  // Calculate total stats
   const stats = useMemo(() => {
     if (!commitsDetail?.diffs) return { additions: 0, deletions: 0, files: 0 }
 
@@ -89,10 +88,9 @@ export const CommitsDetailView: React.FC = () => {
     }
   }, [commitsDetail])
 
-  const commitSha = Array.isArray(sha) ? sha[0] : (sha ?? '')
   const commitDate = commitsDetail?.commit.date ? fromUnixTime(parseInt(commitsDetail.commit.date, 10)) : null
 
-  if (isLoadingCommitDetail && !commitsDetail) {
+  if (isLoadingFilesChanged && !commitsDetail) {
     return (
       <div className='flex h-[400px] items-center justify-center'>
         <LoadingSpinner />
@@ -147,21 +145,27 @@ export const CommitsDetailView: React.FC = () => {
           </div>
 
           {commitDate && (
-            <span className='inline-flex items-center rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700'>
-              GPG Verified{/*{item.Verified}*/}
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                commitsDetail.commit.gpg_status === 'Verified'
+                  ? 'border-green-600 text-green-600'
+                  : commitsDetail.commit.gpg_status === 'Unverified'
+                    ? 'border-yellow-600 text-yellow-600'
+                    : 'border-gray-600 text-gray-600'
+              }`}
+            >
+              {commitsDetail.commit.gpg_status}
             </span>
           )}
         </div>
       </div>
 
-      {/* File Stats */}
       {fileChangeData && (
         <div className='flex flex-col px-5'>
           <div className='justify-center rounded-lg border border-gray-200'>
             <div className='border-b px-4 py-2 text-gray-900'> {commitsDetail.commit.short_message}</div>
 
             <div className='flex items-center justify-between px-4 py-2 text-sm'>
-              {/* Left side: File stats */}
               <div className='flex items-center gap-4'>
                 <div className='flex items-center gap-2'>
                   <span className='font-medium text-gray-700'>{stats.files}</span>
@@ -177,7 +181,6 @@ export const CommitsDetailView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Right side: Parent commits and current commit */}
               <div className='flex items-center gap-2 text-sm text-gray-600'>
                 {commitsDetail.commit.parents && commitsDetail.commit.parents.length > 0 ? (
                   <>
@@ -240,13 +243,9 @@ export const CommitsDetailView: React.FC = () => {
       {fileChangeData ? (
         <FileDiff
           fileChangeData={fileChangeData}
-          fileChangeIsLoading={isLoadingCommitDetail}
-          treeData={{
-            data: [],
-            err_message: '',
-            req_result: true
-          }}
-          treeIsLoading={false}
+          fileChangeIsLoading={isLoadingFilesChanged}
+          treeData={treeResponse?.data as CommonResultVecMuiTreeNode['data']}
+          treeIsLoading={treeIsLoading}
         />
       ) : (
         <div className='flex h-[200px] items-center justify-center text-gray-500'>No file changes</div>
