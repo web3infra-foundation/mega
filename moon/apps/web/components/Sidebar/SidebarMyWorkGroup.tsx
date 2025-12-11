@@ -12,7 +12,7 @@ import {
   useRefetchPostsIndex
 } from '@/components/NavigationBar/useNavigationTabAction'
 import { NotesHoverList } from '@/components/NotesIndex/NotesHoverCard'
-import { SidebarLink } from '@/components/Sidebar/SidebarLink'
+import { SidebarLink, SidebarProps } from '@/components/Sidebar/SidebarLink'
 import { SidebarUnreadBadge } from '@/components/Sidebar/SidebarUnreadBadge'
 import { useScope } from '@/contexts/scope'
 import { useCurrentUserOrOrganizationHasFeature } from '@/hooks/useCurrentUserOrOrganizationHasFeature'
@@ -20,77 +20,88 @@ import { useGetUnreadNotificationsCount } from '@/hooks/useGetUnreadNotification
 import { useIsCommunity } from '@/hooks/useIsCommunity'
 import { useMarkIndexPageRead } from '@/hooks/useMarkIndexPageUnread'
 
-export function SidebarMyWorkItems() {
-  const router = useRouter()
+export function SidebarMessages({ label, href, active }: SidebarProps) {
   const { scope } = useScope()
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom)
-  const refetchNotes = useRefetchNotesIndex()
-  const refetchCalls = useRefetchCallsIndex()
-  const isCommunity = useIsCommunity()
-  const isViewingNotes = router.pathname === '/[org]/notes'
-  const isViewingCalls = router.pathname === '/[org]/calls'
   const hasSidebarDms = useCurrentUserOrOrganizationHasFeature('sidebar_dms')
   const getUnreadNotificationsCount = useGetUnreadNotificationsCount()
   const unreadDMCount = getUnreadNotificationsCount.data?.messages[`${scope}`] || 0
   const hasUnreadDMs = unreadDMCount > 0
 
+  if (!hasSidebarDms) {
+    return null
+  }
+
+  return (
+    <ChatHoverList alignOffset={-44} sideOffset={4} disabled={sidebarCollapsed}>
+      <SidebarLink
+        id='chat'
+        label={label}
+        href={href}
+        active={active}
+        unread={hasUnreadDMs}
+        trailingAccessory={hasUnreadDMs && <SidebarUnreadBadge important={false}>{unreadDMCount}</SidebarUnreadBadge>}
+        leadingAccessory={<ChatBubbleIcon />}
+      />
+    </ChatHoverList>
+  )
+}
+
+export function SidebarDocs({ label, href, active }: SidebarProps) {
+  const router = useRouter()
+  const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom)
+  const refetchNotes = useRefetchNotesIndex()
+  const isViewingNotes = router.pathname === '/[org]/notes'
+
   function onNotesClick() {
     refetchNotes()
   }
+
+  return (
+    <NotesHoverList alignOffset={-44} sideOffset={4} disabled={sidebarCollapsed || isViewingNotes}>
+      <SidebarLink
+        id='notes'
+        label={label}
+        href={href}
+        active={active}
+        leadingAccessory={<NoteIcon />}
+        onClick={onNotesClick}
+      />
+    </NotesHoverList>
+  )
+}
+
+export function SidebarCalls({ label, href, active }: SidebarProps) {
+  const router = useRouter()
+  const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom)
+  const refetchCalls = useRefetchCallsIndex()
+  const isCommunity = useIsCommunity()
+  const isViewingCalls = router.pathname === '/[org]/calls'
 
   function onCallsClick() {
     refetchCalls()
   }
 
+  if (isCommunity) {
+    return null
+  }
+
   return (
-    <>
-      {hasSidebarDms && (
-        <ChatHoverList alignOffset={-44} sideOffset={4} disabled={sidebarCollapsed}>
-          <SidebarLink
-            id='dms'
-            label='Messages'
-            unread={hasUnreadDMs}
-            trailingAccessory={
-              hasUnreadDMs && <SidebarUnreadBadge important={false}>{unreadDMCount}</SidebarUnreadBadge>
-            }
-            active={router.pathname.startsWith('/[org]/chat') && router.query.focus !== 'true'}
-            leadingAccessory={<ChatBubbleIcon />}
-            href={`/${scope}/chat`}
-          />
-        </ChatHoverList>
-      )}
-
-      <NotesHoverList alignOffset={-44} sideOffset={4} disabled={sidebarCollapsed || isViewingNotes}>
-        <SidebarLink
-          id='notes'
-          label='Docs'
-          active={router.pathname === '/[org]/notes'}
-          leadingAccessory={<NoteIcon />}
-          href={`/${scope}/notes`}
-          onClick={onNotesClick}
-        />
-      </NotesHoverList>
-
-      {!isCommunity && (
-        <CallsHoverCard sideOffset={4} alignOffset={-44} disabled={sidebarCollapsed || isViewingCalls}>
-          <SidebarLink
-            id='calls'
-            label='Calls'
-            active={router.pathname === '/[org]/calls'}
-            leadingAccessory={<VideoCameraIcon />}
-            href={`/${scope}/calls`}
-            onClick={onCallsClick}
-          />
-        </CallsHoverCard>
-      )}
-    </>
+    <CallsHoverCard sideOffset={4} alignOffset={-44} disabled={sidebarCollapsed || isViewingCalls}>
+      <SidebarLink
+        id='calls'
+        label={label}
+        href={href}
+        active={active}
+        leadingAccessory={<VideoCameraIcon />}
+        onClick={onCallsClick}
+      />
+    </CallsHoverCard>
   )
 }
-export function SidebarHome() {
-  const router = useRouter()
-  const { scope } = useScope()
+
+export function SidebarHome({ label, href, active }: SidebarProps) {
   const refetchPosts = useRefetchPostsIndex()
-  const isPosts = router.pathname === '/[org]/posts' || router.pathname === '/[org]/posts/subscribed'
 
   const { mutate: markIndexPageRead } = useMarkIndexPageRead()
 
@@ -101,11 +112,11 @@ export function SidebarHome() {
 
   return (
     <SidebarLink
-      active={isPosts}
       id='posts'
-      label='Home'
+      label={label}
+      href={href}
+      active={active}
       leadingAccessory={<HomeIcon />}
-      href={`/${scope}/posts`}
       onClick={onPostsClick}
     />
   )
