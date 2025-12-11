@@ -6,9 +6,7 @@ use axum::{
 };
 use ceres::model::change_list::MuiTreeNode;
 use ceres::model::commit::CommitBindingResponse;
-use ceres::model::commit::{
-    CommitDetail, CommitFilesChangedPage, CommitHistoryParams, CommitSummary,
-};
+use ceres::model::commit::{CommitFilesChangedPage, CommitHistoryParams, CommitSummary};
 use common::model::CommonResult;
 use common::model::{CommonPage, PageParams, Pagination};
 use serde::{Deserialize, Serialize};
@@ -27,7 +25,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(list_commit_history))
         .routes(routes!(commit_mui_tree))
         .routes(routes!(commit_files_changed))
-        .routes(routes!(commit_detail))
 }
 /// Update commit binding information
 #[utoipa::path(
@@ -156,30 +153,6 @@ async fn list_commit_history(
         items,
         total,
     }))))
-}
-
-/// Get commit detail (summary + diff merged with parents)
-#[utoipa::path(
-    get,
-    path = "/commits/{sha}/detail",
-    params(("sha" = String, Path, description = "Commit SHA"), ("path" = String, Query, description = "Repository/Subrepo selector (required)")),
-    responses(
-        (status = 200, description = "Commit detail",
-            body = CommonResult<CommitDetail>, content_type = "application/json"),
-        (status = 404, description = "Commit not found"),
-    ),
-    tag = CODE_PREVIEW
-)]
-#[axum::debug_handler]
-async fn commit_detail(
-    State(state): State<MonoApiServiceState>,
-    Path(sha): Path<String>,
-    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<CommonResult<CommitDetail>>, ApiError> {
-    let selector = resolve_selector_path(&q)?;
-    let handler = state.api_handler(&selector).await?;
-    let detail = handler.build_commit_detail(&sha, &selector).await?;
-    Ok(Json(CommonResult::success(Some(detail))))
 }
 
 /// Get commit changed files tree (MUI format)
