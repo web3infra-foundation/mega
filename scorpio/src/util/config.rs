@@ -98,50 +98,28 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
 
         // Antares defaults under base_path/antares
         let antares_root = format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}");
-        let antares_upper = {
-            let entry = config.entry("antares_upper_root".into());
-            entry
+
+        // Helper closure to ensure config entry has a non-empty value
+        let mut ensure_config_with_default = |key: &str, default: String| {
+            config
+                .entry(key.to_string())
                 .and_modify(|v| {
                     if v.is_empty() {
-                        *v = format!("{antares_root}/upper");
+                        *v = default.clone();
                     }
                 })
-                .or_insert_with(|| format!("{antares_root}/upper"))
-                .to_owned()
+                .or_insert_with(|| default)
+                .clone()
         };
-        let antares_cl = {
-            let entry = config.entry("antares_cl_root".into());
-            entry
-                .and_modify(|v| {
-                    if v.is_empty() {
-                        *v = format!("{antares_root}/cl");
-                    }
-                })
-                .or_insert_with(|| format!("{antares_root}/cl"))
-                .to_owned()
-        };
-        let antares_mount = {
-            let entry = config.entry("antares_mount_root".into());
-            entry
-                .and_modify(|v| {
-                    if v.is_empty() {
-                        *v = format!("{antares_root}/mnt");
-                    }
-                })
-                .or_insert_with(|| format!("{antares_root}/mnt"))
-                .to_owned()
-        };
-        let antares_state = {
-            let entry = config.entry("antares_state_file".into());
-            entry
-                .and_modify(|v| {
-                    if v.is_empty() {
-                        *v = format!("{antares_root}/state.toml");
-                    }
-                })
-                .or_insert_with(|| format!("{antares_root}/state.toml"))
-                .to_owned()
-        };
+
+        let antares_upper =
+            ensure_config_with_default("antares_upper_root", format!("{antares_root}/upper"));
+        let antares_cl =
+            ensure_config_with_default("antares_cl_root", format!("{antares_root}/cl"));
+        let antares_mount =
+            ensure_config_with_default("antares_mount_root", format!("{antares_root}/mnt"));
+        let antares_state =
+            ensure_config_with_default("antares_state_file", format!("{antares_root}/state.toml"));
 
         // Create required directories
         for path in [

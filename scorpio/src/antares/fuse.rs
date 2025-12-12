@@ -1,11 +1,11 @@
 use std::{path::PathBuf, sync::Arc};
 
-use tracing::{info, warn};
 use libfuse_fs::{
-    passthrough::{new_passthroughfs_layer, PassthroughArgs},
+    passthrough::{new_passthroughfs_layer, newlogfs::LoggingFileSystem, PassthroughArgs},
     unionfs::{config::Config, layer::Layer, OverlayFs},
 };
 use tokio::task::JoinHandle;
+use tracing::info;
 
 use crate::server::mount_filesystem;
 
@@ -18,7 +18,6 @@ pub struct AntaresFuse {
     /// Background task running the FUSE session.
     fuse_task: Option<JoinHandle<()>>,
 }
-use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
 impl AntaresFuse {
     /// Build directories for upper / optional CL layers.
     pub async fn new(

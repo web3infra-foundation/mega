@@ -43,7 +43,7 @@ uuid = { version = "1.14.0", features = ["v4"] }
 # - Changed trait bounds for async operations, required for Scorpio's async FUSE integration.
 # - Updated method signatures for file/directory operations to match rfuse3 and kernel expectations.
 # - 0.1.6 had issues with incomplete async support and incorrect error handling, causing panics in Scorpio.
-# See: https://github.com/megous/libfuse-fs-rs/releases for release notes.
+# NOTE: Verify release notes at the libfuse-fs repository before upgrading versions.
 libfuse-fs = "0.1.8"
 regex = "1.11.1"
 whoami = "1.6.0"

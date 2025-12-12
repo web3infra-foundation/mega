@@ -591,9 +591,21 @@ impl AntaresService for AntaresServiceImpl {
         let mut mounts = self.mounts.write().await;
         let mut index = self.path_index.write().await;
 
-        let entry = mounts
-            .get_mut(&mount_id)
-            .expect("Mount entry must exist during unmount");
+        let entry = match mounts.get_mut(&mount_id) {
+            Some(entry) => entry,
+            None => {
+                tracing::error!(
+                    "Mount entry {} missing during unmount; possible race or state bug",
+                    mount_id
+                );
+                drop(mounts);
+                drop(index);
+                return Err(ServiceError::Internal(format!(
+                    "Mount entry {} not found during unmount; this should not happen",
+                    mount_id
+                )));
+            }
+        };
 
         if let Err(e) = unmount_result {
             tracing::error!("Failed to unmount {}: {}", mount_id, e);
