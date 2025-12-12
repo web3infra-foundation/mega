@@ -241,16 +241,21 @@ impl Filesystem for Dicfuse {
             let max_depth = self.store.max_depth() + load_parent.matches('/').count();
             match load_dir(self.store.clone(), load_parent, max_depth).await {
                 Ok(true) => {
+        match self.store.find_path(inode).await {
+            Some(path) => {
+                let load_parent = "/".to_string() + &path.to_string();
+                let max_depth = self.store.max_depth() + load_parent.matches('/').count();
+                let hash_change = load_dir(self.store.clone(), load_parent, max_depth).await;
+                if hash_change {
                     self.store.update_ancestors_hash(inode).await;
                 }
-                Ok(false) => {}
-                Err(e) => {
-                    tracing::warn!("load_dir failed for inode {}: {}", inode, e);
-                }
+                Ok(())
+            }
+            None => {
+                // Inode exists but no path: this is an error, likely corruption
+                Err(std::io::Error::from_raw_os_error(libc::ENOENT).into())
             }
         }
-        // Return success as long as inode exists, even if find_path returns None
-        Ok(())
     }
 
     async fn write(
