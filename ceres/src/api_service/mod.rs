@@ -174,17 +174,6 @@ pub trait ApiHandler: Send + Sync {
         commit_ops::get_commit_files_changed(self, commit_sha, selector_path, pagination).await
     }
 
-    /// Build commit detail including summary and diffs for a given commit SHA.
-    /// The `path` acts as a required repository/subrepo selector for routing/cache,
-    /// and does not filter diff contents.
-    async fn build_commit_detail(
-        &self,
-        commit_sha: &str,
-        path: &std::path::Path,
-    ) -> Result<crate::model::commit::CommitDetail, GitError> {
-        commit_ops::build_commit_detail(self, commit_sha, path).await
-    }
-
     // Tag related operations shared across mono/import implementations.
     /// Create a tag in the repository context represented by `repo_path`.
     /// Returns TagInfo on success.

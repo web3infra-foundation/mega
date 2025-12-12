@@ -52,9 +52,16 @@ jobs:
           REGISTRY_ALIAS: m8q5m4u3
           REPOSITORY: mega
           IMAGE_TAG: mono-0.1.0-pre-release
-        run: |
-          docker buildx build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f ./docker/mono-engine-dockerfile .
-          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+        run: |          
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
+
+          docker buildx build \
+          -t $IMAGE_BASE:$IMAGE_TAG \
+          -t $IMAGE_BASE:$IMAGE_TAG-$TIMESTAMP \
+          -f ./docker/mono-engine-dockerfile \
+          --push .
 
       - name: Force ECS redeploy
         run: |

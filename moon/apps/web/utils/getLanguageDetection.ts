@@ -8,6 +8,7 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.ts': 'typescript',
   '.tsx': 'tsx',
   '.d.ts': 'typescript',
+  '.vue': 'typescript',
 
   '.html': 'html',
   '.htm': 'html',
@@ -16,6 +17,7 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.sass': 'sass',
   '.less': 'less',
   '.xml': 'xml',
+  '.iml': 'xml',
   '.svg': 'xml',
 
   '.py': 'python',
@@ -57,6 +59,7 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.sql': 'sql',
 
   '.md': 'markdown',
+  '.txt': 'text',
   '.mdx': 'markdown',
   '.rst': 'rst',
   '.tex': 'latex',
@@ -184,4 +187,30 @@ export function getLangFromFileName(fileName: string): string {
   }
 
   return 'text'
+}
+
+export function getLangFromFileNameToDiff(fileName: string): string {
+  if (!fileName) return 'binary'
+  const lowerFileName = fileName.toLowerCase()
+  const baseName = lowerFileName.split('/').pop() || ''
+
+  if (SPECIAL_FILE_MAP[baseName]) {
+    return SPECIAL_FILE_MAP[baseName]
+  }
+
+  for (const [extension, language] of Object.entries(COMPOUND_EXTENSIONS)) {
+    if (lowerFileName.endsWith(extension)) {
+      return language
+    }
+  }
+
+  const lastPart = lowerFileName.match(/\.[^./\\]+$/)
+
+  if (lastPart) {
+    const extension = lastPart[0]
+
+    return LANGUAGE_MAP[extension] ?? 'binary'
+  }
+
+  return 'binary'
 }
