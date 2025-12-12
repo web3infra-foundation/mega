@@ -7,6 +7,7 @@ import { useSetAtom } from 'jotai'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
+import { GpgStatus } from '@gitmono/types'
 import { GitCommitIcon } from '@gitmono/ui'
 
 import { ListBanner } from '@/components/ClView/ClList'
@@ -55,6 +56,7 @@ type Commits = {
   author: string
   committer: string
   date: string
+  gpg_status?: GpgStatus
   parents: string[]
   sha: string
   short_message: string
@@ -176,11 +178,19 @@ export const CommitsView: React.FC = () => {
                             key={item.sha}
                             title={item.short_message}
                             labels={
-                              <span className='inline-flex items-center rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700'>
-                                GPG Verified{/*{item.Verified}*/}
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                                  item.gpg_status === 'Verified'
+                                    ? 'border-green-600 text-green-600'
+                                    : item.gpg_status === 'Unverified'
+                                      ? 'border-yellow-600 text-yellow-600'
+                                      : 'border-gray-600 text-gray-600'
+                                }`}
+                              >
+                                {item.gpg_status}
                               </span>
                             }
-                            gitId={
+                            sha={
                               <span className='items-center font-mono text-xs text-gray-500'>
                                 {item.sha.substring(0, 7)}
                               </span>

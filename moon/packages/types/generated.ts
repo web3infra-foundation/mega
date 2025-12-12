@@ -3188,6 +3188,11 @@ export type CommitDetail = {
   diffs: DiffItem[]
 }
 
+export type CommitFilesChangedPage = {
+  commit: CommitSummary
+  page: CommonPageDiffItem
+}
+
 export type CommitHistoryParams = {
   /** author: author name filter */
   author?: string | null
@@ -3296,6 +3301,15 @@ export type CommonResultCommitDetail = {
     commit: CommitSummary
     /** Unified diff list compared with the previous commit (or merged parent in case of multiple parents) */
     diffs: DiffItem[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCommitFilesChangedPage = {
+  data?: {
+    commit: CommitSummary
+    page: CommonPageDiffItem
   }
   err_message: string
   req_result: boolean
@@ -3646,6 +3660,22 @@ export type CommonResultVecMuiTreeNode = {
     children?: any[] | null
     id: string
     label: string
+    path: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecSidebarRes = {
+  data?: {
+    href: string
+    /** @format int32 */
+    id: number
+    label: string
+    /** @format int32 */
+    order_index: number
+    public_id: string
+    visible: boolean
   }[]
   err_message: string
   req_result: boolean
@@ -3972,6 +4002,7 @@ export type MuiTreeNode = {
   children?: any[] | null
   id: string
   label: string
+  path: string
 }
 
 export type NewGpgRequest = {
@@ -4148,6 +4179,17 @@ export type SidebarRes = {
   href: string
   /** @format int32 */
   id: number
+  label: string
+  /** @format int32 */
+  order_index: number
+  public_id: string
+  visible: boolean
+}
+
+export type SidebarSyncPayload = {
+  href: string
+  /** @format int32 */
+  id?: number | null
   label: string
   /** @format int32 */
   order_index: number
@@ -5532,6 +5574,24 @@ export type GetApiCommitsDetailParams = {
 
 export type GetApiCommitsDetailData = CommonResultCommitDetail
 
+export type PostApiCommitsFilesChangedParams = {
+  /** Repository/Subrepo selector (required) */
+  path: string
+  /** Commit SHA */
+  sha: string
+}
+
+export type PostApiCommitsFilesChangedData = CommonResultCommitFilesChangedPage
+
+export type GetApiCommitsMuiTreeParams = {
+  /** Repository/Subrepo selector (required) */
+  path: string
+  /** Commit SHA */
+  sha: string
+}
+
+export type GetApiCommitsMuiTreeData = CommonResultVecMuiTreeNode
+
 export type DeleteApiConversationReactionsByIdData = CommonResultString
 
 export type PostApiConversationByCommentIdData = CommonResultString
@@ -5612,6 +5672,10 @@ export type PostApiRepoCloneData = CommonResultString
 export type GetApiSidebarListData = CommonResultVec
 
 export type PostApiSidebarNewData = CommonResultSidebarRes
+
+export type PostApiSidebarSyncPayload = SidebarSyncPayload[]
+
+export type PostApiSidebarSyncData = CommonResultVecSidebarRes
 
 export type PostApiSidebarUpdateByIdData = CommonResultSidebarRes
 
@@ -14617,6 +14681,58 @@ It's for local testing purposes.
     /**
      * No description
      *
+     * @tags Code Preview
+     * @name PostApiCommitsFilesChanged
+     * @summary Get paginated list of files changed in a commit, scoped by repository/subrepo selector
+     * @request POST:/api/v1/commits/{sha}/files-changed
+     */
+    postApiCommitsFilesChanged: () => {
+      const base = 'POST:/api/v1/commits/{sha}/files-changed' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCommitsFilesChangedData>([base]),
+        requestKey: (params: PostApiCommitsFilesChangedParams) =>
+          dataTaggedQueryKey<PostApiCommitsFilesChangedData>([base, params]),
+        request: ({ sha, ...query }: PostApiCommitsFilesChangedParams, data: Pagination, params: RequestParams = {}) =>
+          this.request<PostApiCommitsFilesChangedData>({
+            path: `/api/v1/commits/${sha}/files-changed`,
+            method: 'POST',
+            query: query,
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Preview
+     * @name GetApiCommitsMuiTree
+     * @summary Get commit changed files tree (MUI format)
+     * @request GET:/api/v1/commits/{sha}/mui-tree
+     */
+    getApiCommitsMuiTree: () => {
+      const base = 'GET:/api/v1/commits/{sha}/mui-tree' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiCommitsMuiTreeData>([base]),
+        requestKey: (params: GetApiCommitsMuiTreeParams) =>
+          dataTaggedQueryKey<GetApiCommitsMuiTreeData>([base, params]),
+        request: ({ sha, ...query }: GetApiCommitsMuiTreeParams, params: RequestParams = {}) =>
+          this.request<GetApiCommitsMuiTreeData>({
+            path: `/api/v1/commits/${sha}/mui-tree`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags Conversation and Comment
      * @name DeleteApiConversationReactionsById
      * @summary Delete conversation reactions
@@ -15471,6 +15587,31 @@ It's for local testing purposes.
         request: (data: CreateSidebarPayload, params: RequestParams = {}) =>
           this.request<PostApiSidebarNewData>({
             path: `/api/v1/sidebar/new`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Sync sidebar menus. Each `public_id` and `order_index` must be unique across all sidebar items. The operation will fail if: - A new item has a `public_id` that already exists - An update tries to set a `public_id` to one that's already in use by another item - Multiple items in the payload have the same `order_index` - An update tries to set an `order_index` that's already in use The transaction will be rolled back if any of these constraints are violated.
+     *
+     * @tags Sidebar Management
+     * @name PostApiSidebarSync
+     * @summary Sync sidebar menus
+     * @request POST:/api/v1/sidebar/sync
+     */
+    postApiSidebarSync: () => {
+      const base = 'POST:/api/v1/sidebar/sync' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiSidebarSyncData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiSidebarSyncData>([base]),
+        request: (data: PostApiSidebarSyncPayload, params: RequestParams = {}) =>
+          this.request<PostApiSidebarSyncData>({
+            path: `/api/v1/sidebar/sync`,
             method: 'POST',
             body: data,
             type: ContentType.Json,
