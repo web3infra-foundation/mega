@@ -151,6 +151,14 @@ pub trait AntaresService: Send + Sync {
 /// Request payload for provisioning a new mount.
 /// Simplified API: only requires the monorepo path and optional CL identifier.
 /// All internal paths (mountpoint, upper_dir, cl_dir) are auto-generated.
+///
+/// # Path Generation
+/// Paths are auto-generated using UUID-based naming under configured root directories:
+/// - `mountpoint`: `{antares_mount_root}/{uuid}` (e.g., `/var/lib/antares/mounts/550e8400-e29b-41d4-a716-446655440000`)
+/// - `upper_dir`: `{antares_upper_root}/{uuid}` (e.g., `/var/lib/antares/upper/550e8400-e29b-41d4-a716-446655440000`)
+/// - `cl_dir`: `{antares_cl_root}/{uuid}` (only if `cl` is provided)
+///
+/// The UUID is generated per mount request, ensuring unique paths for each mount instance.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CreateMountRequest {
     /// Monorepo path to mount (e.g., "/third-party/mega")
@@ -346,6 +354,9 @@ fn current_epoch_ms() -> u64 {
         .as_millis() as u64
 }
 
+/// Type alias for path index: maps (monorepo_path, optional_cl) to mount_id.
+type PathIndex = Arc<RwLock<HashMap<(String, Option<String>), Uuid>>>;
+
 /// Concrete implementation of AntaresService.
 pub struct AntaresServiceImpl {
     /// Shared Dicfuse instance (read-only base layer).
@@ -353,7 +364,7 @@ pub struct AntaresServiceImpl {
     /// Active mounts indexed by UUID.
     mounts: Arc<RwLock<HashMap<Uuid, MountEntry>>>,
     /// Fast lookup for (path, cl) -> mount_id to avoid linear scans.
-    path_index: Arc<RwLock<HashMap<(String, Option<String>), Uuid>>>,
+    path_index: PathIndex,
     /// Service start time for uptime calculation.
     start_time: Instant,
 }
@@ -535,35 +546,80 @@ impl AntaresService for AntaresServiceImpl {
     }
 
     async fn delete_mount(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
-        // Get write lock and remove entry
+        // Acquire write locks to update state
         let mut mounts = self.mounts.write().await;
-        let mut index = self.path_index.write().await;
-        let mut entry = mounts
-            .remove(&mount_id)
+        let index = self.path_index.write().await;
+
+        // Get mutable reference to entry (don't remove yet)
+        let entry = mounts
+            .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
 
-        // Update state
+        // Set state to Unmounting while still in the map
         entry.state = MountLifecycle::Unmounting;
         entry.update_last_seen();
 
-        // Release lock before potentially slow unmount operation
+        // Store path/cl for index removal, then take ownership of fuse for unmount
+        let path = entry.path.clone();
+        let cl = entry.cl.clone();
+        let mountpoint = PathBuf::from(&entry.mountpoint);
+        let upper_dir = PathBuf::from(&entry.upper_dir);
+        let cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
+        let mut fuse = std::mem::replace(&mut entry.fuse, {
+            // Create a placeholder AntaresFuse to replace (will be removed anyway if unmount succeeds)
+            // This is safe because we're about to remove the entry on success, or restore fuse on failure
+            AntaresFuse::new(
+                mountpoint.clone(),
+                self.dicfuse.clone(),
+                upper_dir.clone(),
+                cl_dir.clone(),
+            )
+            .await
+            .map_err(|e| {
+                ServiceError::Internal(format!("failed to create placeholder fuse: {}", e))
+            })?
+        });
+
+        // Release locks before potentially slow unmount operation
         drop(mounts);
+        drop(index);
 
         // Unmount the filesystem
-        if let Err(e) = entry.fuse.unmount().await {
+        let unmount_result = fuse.unmount().await;
+
+        // Reacquire locks to update state and remove if needed
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+
+        let entry = mounts
+            .get_mut(&mount_id)
+            .expect("Mount entry must exist during unmount");
+
+        if let Err(e) = unmount_result {
             tracing::error!("Failed to unmount {}: {}", mount_id, e);
+            // Put fuse back since unmount failed
+            entry.fuse = fuse;
             entry.state = MountLifecycle::Failed {
                 reason: format!("unmount failed: {}", e),
             };
+            entry.update_last_seen();
+            // Do not remove from mounts or index; keep for tracking failed unmounts
+            let status = entry.to_status();
+            drop(mounts);
+            drop(index);
+            return Ok(status);
         } else {
             entry.state = MountLifecycle::Unmounted;
+            entry.update_last_seen();
+            // Remove from mounts and index only after successful unmount
+            let status = entry.to_status();
+            mounts.remove(&mount_id);
+            index.remove(&(path, cl));
+            drop(mounts);
+            drop(index);
+            tracing::info!("Deleted mount {}", mount_id);
+            Ok(status)
         }
-
-        // Remove from path index after unmount
-        index.remove(&(entry.path.clone(), entry.cl.clone()));
-
-        tracing::info!("Deleted mount {}", mount_id);
-        Ok(entry.to_status())
     }
 
     async fn health_info(&self) -> HealthResponse {

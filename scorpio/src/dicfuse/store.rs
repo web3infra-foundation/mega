@@ -1075,7 +1075,7 @@ pub async fn load_dir(
         Ok(item) => item,
         Err(e) => {
             warn!("load_dir: failed to get item for {parent_path}: {e}");
-            return Err(io::Error::new(io::ErrorKind::Other, e));
+            return Err(io::Error::other(e));
         }
     };
     if !parent_item.is_dir() {
