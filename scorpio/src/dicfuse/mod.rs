@@ -11,21 +11,39 @@ use std::{
 };
 
 use git_internal::internal::object::tree::TreeItemMode;
+use libfuse_fs::unionfs::layer::Layer;
+use libfuse_fs::unionfs::Inode;
 use reqwest::Client;
 use rfuse3::raw::reply::ReplyEntry;
 use store::DictionaryStore;
 use tree_store::StorageItem;
-
 pub struct Dicfuse {
     readable: bool,
     pub store: Arc<DictionaryStore>,
 }
+unsafe impl Sync for Dicfuse {}
+unsafe impl Send for Dicfuse {}
+impl Layer for Dicfuse {
+    fn root_inode(&self) -> Inode {
+        1
+    }
+}
+
 #[allow(unused)]
 impl Dicfuse {
     pub async fn new() -> Self {
         Self {
             readable: config::dicfuse_readable(),
             store: DictionaryStore::new().await.into(), // Assuming DictionaryStore has a new() method
+        }
+    }
+
+    pub async fn new_with_store_path(store_path: &str) -> Self {
+        Self {
+            readable: config::dicfuse_readable(),
+            store: DictionaryStore::new_with_store_path(store_path)
+                .await
+                .into(),
         }
     }
     pub async fn get_stat(&self, item: StorageItem) -> ReplyEntry {
@@ -141,10 +159,17 @@ mod tests {
     use crate::dicfuse::Dicfuse;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "manual test requiring root privileges for FUSE mount"]
     async fn test_mount_dic() {
+        // Use environment variable or default to temp directory
+        let mount_path =
+            std::env::var("DIC_MOUNT_PATH").unwrap_or_else(|_| "/tmp/test_dic_mount".to_string());
+
+        // Create mount directory if it doesn't exist
+        std::fs::create_dir_all(&mount_path).expect("Failed to create mount directory");
+
         let fs = Dicfuse::new().await;
-        let mountpoint = OsStr::new("/home/luxian/dic");
+        let mountpoint = OsStr::new(&mount_path);
         let mut mount_handle = crate::server::mount_filesystem(fs, mountpoint).await;
         let handle = &mut mount_handle;
         tokio::select! {

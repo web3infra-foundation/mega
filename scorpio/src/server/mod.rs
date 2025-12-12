@@ -61,7 +61,11 @@ pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static
     fs: F,
     mountpoint: &OsStr,
 ) -> MountHandle {
-    env_logger::init();
+    if let Err(e) = env_logger::try_init() {
+        if !e.to_string().contains("initialized") {
+            eprintln!("Failed to initialize logger: {}", e);
+        }
+    }
     //let logfs = LoggingFileSystem::new(fs);
 
     let mount_path: OsString = OsString::from(mountpoint);
@@ -73,8 +77,12 @@ pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static
     // .allow_other(true)
     mount_options.force_readdir_plus(true).uid(uid).gid(gid);
 
+    // NOTE: This function uses `mount()` which requires elevated privileges (root or CAP_SYS_ADMIN).
+    // Previously, `mount_with_unprivileged()` was used for unprivileged mounting, but this has
+    // been changed to `mount()` for better compatibility and reliability.
+    // Migration: Ensure the process runs with appropriate privileges or use user namespaces.
     Session::<F>::new(mount_options)
-        .mount_with_unprivileged(fs, mount_path)
+        .mount(fs, mount_path)
         .await
         .unwrap()
 }

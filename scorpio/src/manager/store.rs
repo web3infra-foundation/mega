@@ -619,11 +619,12 @@ mod test {
     }
 
     #[test]
+    #[ignore = "manual test requiring specific database file"]
     fn get_tree_test() {
-        let db = sled::open(
-            "/home/luxian/megadir/store/1b70e8bf4d39d6f5e9dd1637aaa2c221e2d00a27/tree.db",
-        )
-        .unwrap();
+        // Use environment variable or default path for flexibility
+        let db_path =
+            std::env::var("TREE_DB_PATH").unwrap_or_else(|_| "/tmp/test_tree.db".to_string());
+        let db = sled::open(&db_path).unwrap();
         let iter = db.iter();
         for result in iter {
             match result {

@@ -1,7 +1,7 @@
 use inode_alloc::InodeAlloc;
 use libfuse_fs::{
     overlayfs::{config, OverlayFs},
-    passthrough::new_passthroughfs_layer,
+    passthrough::{new_passthroughfs_layer, PassthroughArgs},
 };
 use rfuse3::raw::{Filesystem, Request};
 use tokio::sync::Mutex;
@@ -116,7 +116,7 @@ impl MegaFuse {
         let upperdir = upper;
 
         let config = config::Config {
-            mountpoint: String::new(),
+            mountpoint: PathBuf::new(),
             do_import: true,
             ..Default::default()
         };
@@ -126,12 +126,20 @@ impl MegaFuse {
         for lower in &lowerdir {
             let lower_path = Path::new(lower);
             if lower_path.exists() {
-                let layer = new_passthroughfs_layer(lower.to_str().unwrap()).await?;
+                let layer = new_passthroughfs_layer(PassthroughArgs {
+                    root_dir: lower.clone(),
+                    mapping: None::<String>,
+                })
+                .await?;
                 lower_layers.push(Arc::new(layer));
                 // Rest of the code...
             } else {
                 std::fs::create_dir_all(lower_path)?;
-                let layer = new_passthroughfs_layer(lower.to_str().unwrap()).await?;
+                let layer = new_passthroughfs_layer(PassthroughArgs {
+                    root_dir: lower.clone(),
+                    mapping: None::<String>,
+                })
+                .await?;
                 lower_layers.push(Arc::new(layer));
             }
         }
@@ -155,7 +163,13 @@ impl MegaFuse {
         }
 
         // Create upper layer
-        let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).await?);
+        let upper_layer = Arc::new(
+            new_passthroughfs_layer(PassthroughArgs {
+                root_dir: upperdir.clone(),
+                mapping: None::<String>,
+            })
+            .await?,
+        );
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode)?;
         self.overlayfs
             .lock()

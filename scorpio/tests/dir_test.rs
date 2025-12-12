@@ -258,6 +258,7 @@ pub async fn mono_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 }
 
 #[tokio::test]
+#[ignore = "requires mono binary in target/debug/ and Docker environment"]
 ///Use container to run mono server and test the scorpio service
 async fn test_scorpio_service_with_containers() {
     let (_container, mono_server_url) = mono_bootstrap_servers(12001).await;
@@ -541,7 +542,7 @@ async fn test_scorpio_dir(
                     }
                     SCORCommand::LoadDir(path) => {
                         let max_depth = path.matches('/').count() + config::load_dir_depth();
-                        store::load_dir(store.clone(), path.to_owned(), max_depth).await;
+                        let _ = store::load_dir(store.clone(), path.to_owned(), max_depth).await;
                         let dir_items = store.get_dir_by_path(&path).await;
                         if dir_items.is_empty() {
                             let _ = result_tx
