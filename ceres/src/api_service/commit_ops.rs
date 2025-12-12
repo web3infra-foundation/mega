@@ -11,7 +11,7 @@ use git_internal::{
 
 use crate::api_service::{ApiHandler, history, tree_ops};
 use crate::model::change_list::MuiTreeNode;
-use crate::model::commit::{CommitDetail, CommitFilesChangedPage, CommitSummary, GpgStatus};
+use crate::model::commit::{CommitFilesChangedPage, CommitSummary, GpgStatus};
 use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
 use common::model::{CommonPage, DiffItem, Pagination};
 use git_internal::hash::SHA1;
@@ -891,51 +891,4 @@ pub async fn get_commit_files_changed<T: ApiHandler + ?Sized>(
         commit: summary,
         page: CommonPage { total, items },
     })
-}
-
-/// Build commit detail with merged diffs against all parents.
-pub async fn build_commit_detail<T: ApiHandler + ?Sized>(
-    handler: &T,
-    commit_sha: &str,
-    selector_path: &std::path::Path,
-) -> Result<CommitDetail, GitError> {
-    let cache_key = format!(
-        "{}:commit_detail:v1:sha={}:path={}",
-        handler.object_cache().prefix,
-        commit_sha,
-        selector_path.to_string_lossy()
-    );
-    let mut conn = handler.object_cache().connection.clone();
-    if let Ok(Some(json)) = conn.get::<_, Option<String>>(&cache_key).await
-        && let Ok(detail) = serde_json::from_str::<CommitDetail>(&json)
-    {
-        if let Err(e) = conn.expire::<_, ()>(&cache_key, 600).await {
-            tracing::warn!("failed to renew ttl for {}: {}", &cache_key, e);
-        }
-        return Ok(detail);
-    }
-
-    let commit = handler.get_commit_by_hash(commit_sha).await?;
-    let summary = assemble_commit_summary(handler, &commit).await;
-    let diffs = compute_commit_diff_items(handler, &commit, None).await?;
-
-    let detail = CommitDetail {
-        commit: summary,
-        diffs,
-    };
-
-    match serde_json::to_string(&detail) {
-        Ok(json) => {
-            if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, json, 600).await {
-                tracing::warn!("failed to set cache {}: {}", &cache_key, e);
-            }
-        }
-        Err(e) => tracing::warn!(
-            "failed to serialize commit detail sha {}: {}",
-            commit_sha,
-            e
-        ),
-    }
-
-    Ok(detail)
 }
