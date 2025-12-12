@@ -1,58 +1,8 @@
+import { getLangFromFileNameToDiff } from '@/utils/getLanguageDetection'
+
 export interface DiffItem {
   data: string
   path: string
-}
-
-const extensionToLangMap: Record<string, string> = {
-  // Note that the key here is lowercase
-  '.ts': 'typescript',
-  '.tsx': 'tsx',
-  '.js': 'javascript',
-  '.jsx': 'jsx',
-  '.json': 'json',
-  '.md': 'markdown',
-  '.py': 'python',
-  '.rs': 'rust',
-  '.cpp': 'cpp',
-  '.c': 'c',
-  '.h': 'cpp',
-  '.java': 'java',
-  '.go': 'go',
-  '.sh': 'bash',
-  '.yml': 'yaml',
-  '.yaml': 'yaml',
-  '.css': 'css',
-  '.scss': 'scss',
-  '.html': 'html',
-  '.vue': 'vue',
-  '.toml': 'toml',
-  dockerfile: 'dockerfile',
-  '.dockerfile': 'dockerfile',
-  'license-mit': 'plaintext',
-  buck: 'plaintext',
-  '.gitignore': 'plaintext',
-  '.env': 'plaintext',
-  'license-third-party': 'plaintext',
-  'license-apache': 'plaintext',
-  workspace: 'plaintext',
-  '.buckroot': 'plaintext',
-  '.buckconfig': 'plaintext'
-}
-
-function getLangFromPath(path: string): string {
-  const extMatch = path.match(/\.[^./\\]+$/)
-
-  if (extMatch) {
-    return extensionToLangMap[extMatch[0].toLowerCase()] ?? 'binary'
-  } else {
-    const lastPart = path.split('/').pop()?.toLowerCase()
-
-    if (lastPart) {
-      return extensionToLangMap[lastPart] ?? 'binary'
-    }
-  }
-
-  return 'binary'
 }
 
 export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string; diff: string }[] {
@@ -74,10 +24,10 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
       }
     }
 
-    if (getLangFromPath(path) === 'binary') {
+    if (getLangFromFileNameToDiff(path) === 'binary') {
       return {
         path,
-        lang: getLangFromPath(path),
+        lang: getLangFromFileNameToDiff(path),
         diff: block.data
       }
     }
@@ -98,7 +48,7 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
 
     return {
       path: block.path,
-      lang: getLangFromPath(path),
+      lang: getLangFromFileNameToDiff(path),
       diff: diffWithHeader
     }
   })
