@@ -1,6 +1,5 @@
 use std::{path::PathBuf, sync::Arc};
 
-use tracing::{info, warn};
 use libfuse_fs::{
     passthrough::{new_passthroughfs_layer, newlogfs::LoggingFileSystem, PassthroughArgs},
     unionfs::{config::Config, layer::Layer, OverlayFs},
