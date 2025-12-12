@@ -236,17 +236,14 @@ impl Filesystem for Dicfuse {
         self.store.get_inode(inode).await?;
 
         // Try to get path and load directory contents
-        if let Some(path) = self.store.find_path(inode).await {
-            let load_parent = "/".to_string() + &path.to_string();
-            let max_depth = self.store.max_depth() + load_parent.matches('/').count();
-            match load_dir(self.store.clone(), load_parent, max_depth).await {
-                Ok(true) => {
         match self.store.find_path(inode).await {
             Some(path) => {
                 let load_parent = "/".to_string() + &path.to_string();
                 let max_depth = self.store.max_depth() + load_parent.matches('/').count();
-                let hash_change = load_dir(self.store.clone(), load_parent, max_depth).await;
-                if hash_change {
+
+                let hash_changed = load_dir(self.store.clone(), load_parent, max_depth).await?;
+                if hash_changed {
+                    // Refresh ancestor hashes when directory contents changed
                     self.store.update_ancestors_hash(inode).await;
                 }
                 Ok(())
