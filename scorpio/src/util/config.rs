@@ -18,6 +18,7 @@ pub struct ScorpioConfig {
 
 const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
 const DEFAULT_FETCH_FILE_THREAD: usize = 10;
+const DEFAULT_ANTARES_SUBDIR: &str = "antares";
 
 // Global configuration management
 static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
@@ -95,8 +96,39 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
                 .to_owned()
         };
 
+        // Antares defaults under base_path/antares
+        let antares_root = format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}");
+
+        // Helper closure to ensure config entry has a non-empty value
+        let mut ensure_config_with_default = |key: &str, default: String| {
+            config
+                .entry(key.to_string())
+                .and_modify(|v| {
+                    if v.is_empty() {
+                        *v = default.clone();
+                    }
+                })
+                .or_insert_with(|| default)
+                .clone()
+        };
+
+        let antares_upper =
+            ensure_config_with_default("antares_upper_root", format!("{antares_root}/upper"));
+        let antares_cl =
+            ensure_config_with_default("antares_cl_root", format!("{antares_root}/cl"));
+        let antares_mount =
+            ensure_config_with_default("antares_mount_root", format!("{antares_root}/mnt"));
+        let antares_state =
+            ensure_config_with_default("antares_state_file", format!("{antares_root}/state.toml"));
+
         // Create required directories
-        for path in [workspace_path.as_str(), store_path.as_str()] {
+        for path in [
+            workspace_path.as_str(),
+            store_path.as_str(),
+            antares_upper.as_str(),
+            antares_cl.as_str(),
+            antares_mount.as_str(),
+        ] {
             let path = Path::new(path);
             if let Err(e) = fs::create_dir_all(path) {
                 if e.kind() != std::io::ErrorKind::AlreadyExists {
@@ -109,9 +141,24 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
             }
         }
 
+        // Ensure parent of state file exists
+        if let Some(parent) = Path::new(&antares_state).parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                if e.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!(
+                        "Failed to create parent directory {}: {}",
+                        parent.display(),
+                        e
+                    ));
+                }
+            }
+        }
+
         // Save updated configuration
-        let toml = toml::to_string(&config).expect("Failed to serialize config");
-        fs::write(path, toml).unwrap_or_else(|e| panic!("Failed to save config: {e}"));
+        let toml =
+            toml::to_string(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
+        fs::write(path, &toml)
+            .map_err(|e| format!("Failed to save config {}: {e}", Path::new(path).display()))?;
 
         // Create the config.toml
         let config_file = config
@@ -163,6 +210,23 @@ fn get_config() -> &'static ScorpioConfig {
             "fetch_file_thread".to_string(),
             DEFAULT_FETCH_FILE_THREAD.to_string(),
         );
+        // Antares defaults under base_path/antares
+        config.insert(
+            "antares_upper_root".to_string(),
+            format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}/upper"),
+        );
+        config.insert(
+            "antares_cl_root".to_string(),
+            format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}/cl"),
+        );
+        config.insert(
+            "antares_mount_root".to_string(),
+            format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}/mnt"),
+        );
+        config.insert(
+            "antares_state_file".to_string(),
+            format!("{base_path}/{DEFAULT_ANTARES_SUBDIR}/state.toml"),
+        );
 
         // Create required directories
         for path in [config["workspace"].as_str(), config["store_path"].as_str()] {
@@ -204,6 +268,10 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "dicfuse_readable",
         "load_dir_depth",
         "fetch_file_thread",
+        "antares_upper_root",
+        "antares_cl_root",
+        "antares_mount_root",
+        "antares_state_file",
     ];
 
     for key in required_keys {
@@ -254,6 +322,22 @@ pub fn dicfuse_readable() -> bool {
     get_config().config["dicfuse_readable"] == "true"
 }
 
+pub fn antares_upper_root() -> &'static str {
+    &get_config().config["antares_upper_root"]
+}
+
+pub fn antares_cl_root() -> &'static str {
+    &get_config().config["antares_cl_root"]
+}
+
+pub fn antares_mount_root() -> &'static str {
+    &get_config().config["antares_mount_root"]
+}
+
+pub fn antares_state_file() -> &'static str {
+    &get_config().config["antares_state_file"]
+}
+
 ///Get the depth of directory loading
 pub fn load_dir_depth() -> usize {
     get_config()
@@ -287,6 +371,10 @@ mod tests {
         dicfuse_readable = "true"
         load_dir_depth = "3"
         fetch_file_thread = "10"
+        antares_upper_root = ""
+        antares_cl_root = ""
+        antares_mount_root = ""
+        antares_state_file = ""
         "#;
         let config_path = "/tmp/scorpio.toml";
         std::fs::write(config_path, config_content).expect("Failed to write test config file");
@@ -309,5 +397,9 @@ mod tests {
         assert_eq!(load_dir_depth(), 3);
         assert_eq!(fetch_file_thread(), 10);
         assert_eq!(config_file(), "config.toml");
+        assert!(antares_upper_root().ends_with("/megadir/antares/upper"));
+        assert!(antares_cl_root().ends_with("/megadir/antares/cl"));
+        assert!(antares_mount_root().ends_with("/megadir/antares/mnt"));
+        assert!(antares_state_file().ends_with("/megadir/antares/state.toml"));
     }
 }
