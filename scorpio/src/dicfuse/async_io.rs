@@ -14,12 +14,9 @@ impl Filesystem for Dicfuse {
     /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         let s = self.store.clone();
-        // Spawn import_arc as a background task to avoid blocking FUSE mount
-        // This allows the filesystem to be mounted immediately while directory
-        // loading happens in the background.
-        tokio::spawn(async move {
-            super::store::import_arc(s).await;
-        });
+        // import_arc now initializes root directory quickly and spawns
+        // directory loading as background task, so it won't block FUSE mount
+        super::store::import_arc(s).await;
         Ok(ReplyInit {
             max_write: NonZeroU32::new(128 * 1024).unwrap(),
         })
