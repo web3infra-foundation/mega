@@ -252,9 +252,9 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
-            .timeout(Duration::from_secs(10))  // 10 second timeout for network requests
+            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
             .build()
-            .unwrap_or_else(|_| Client::new())  // Fallback to default client if builder fails
+            .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
     let client = CLIENT.clone();
 
@@ -1023,7 +1023,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         load_dir_depth(store_clone.clone(), "/".to_string(), max_depth).await;
         store_clone.init_notify.notify_waiters();
     });
-    
+
     // Spawn background task for periodic directory watching
     tokio::spawn(async move {
         loop {
