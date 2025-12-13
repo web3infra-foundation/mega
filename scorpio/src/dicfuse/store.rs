@@ -1019,9 +1019,10 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     // Spawn directory loading as background task to avoid blocking FUSE mount
     let store_clone = store.clone();
     let max_depth = store.max_depth() + 2;
+    let store_for_notify = store_clone.clone();
     tokio::spawn(async move {
-        load_dir_depth(store_clone.clone(), "/".to_string(), max_depth).await;
-        store_clone.init_notify.notify_waiters();
+        load_dir_depth(store_clone, "/".to_string(), max_depth).await;
+        store_for_notify.init_notify.notify_waiters();
     });
 
     // Spawn background task for periodic directory watching

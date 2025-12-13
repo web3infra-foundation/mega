@@ -15,10 +15,10 @@ impl Filesystem for Dicfuse {
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         let s = self.store.clone();
 
-        // Initialize root directory synchronously if needed, then spawn background tasks.
-        // import_arc will quickly initialize the root directory if the DB is empty,
+        // Synchronously initialize the root directory if needed; this call blocks until
+        // the root is ready. import_arc will quickly set up the root directory if the DB is empty,
         // ensuring the filesystem is immediately usable for basic operations like readdir.
-        // The directory loading from remote server happens in the background.
+        // Only the heavy directory loading from the remote server is performed in the background.
         super::store::import_arc(s).await;
 
         Ok(ReplyInit {

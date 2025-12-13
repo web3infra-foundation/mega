@@ -129,7 +129,7 @@ impl AntaresFuse {
             // This allows unmounting even if there are pending operations
             let mount_path = self.mountpoint.to_string_lossy().to_string();
             let output = tokio::process::Command::new("fusermount")
-                .arg("-uz") // -u: unmount, -z: lazy unmount (don't wait for operations to complete)
+                .arg("-uz") // -u: unmount, -z: lazy unmount (detach even if busy; actual unmount occurs after all references are released)
                 .arg(&mount_path)
                 .output()
                 .await?;
@@ -366,13 +366,8 @@ mod tests {
                 let path = entry.path();
                 let file_name = path.file_name().unwrap().to_string_lossy();
 
-                // Skip . and .. entries, and test files we created
-                if file_name == "."
-                    || file_name == ".."
-                    || file_name == "test_file.txt"
-                    || file_name == "created_file.txt"
-                    || file_name == "test_dir"
-                {
+                // Skip . and .. entries
+                if file_name == "." || file_name == ".." {
                     continue;
                 }
 
