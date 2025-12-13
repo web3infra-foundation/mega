@@ -8,24 +8,131 @@ use crate::util::config;
 use std::{
     ffi::{OsStr, OsString},
     sync::Arc,
+    time::Duration,
 };
 
+use async_trait::async_trait;
 use git_internal::internal::object::tree::TreeItemMode;
-use libfuse_fs::unionfs::layer::Layer;
 use libfuse_fs::unionfs::Inode;
+use libfuse_fs::{context::OperationContext, unionfs::layer::Layer};
 use reqwest::Client;
-use rfuse3::raw::reply::ReplyEntry;
+use rfuse3::raw::reply::{FileAttr, ReplyCreated, ReplyEntry};
+use rfuse3::FileType as FuseFileType;
+use rfuse3::Result;
 use store::DictionaryStore;
 use tree_store::StorageItem;
+
 pub struct Dicfuse {
     readable: bool,
     pub store: Arc<DictionaryStore>,
 }
 unsafe impl Sync for Dicfuse {}
 unsafe impl Send for Dicfuse {}
+
+/// Convert FileAttr to libc::stat64 for OverlayFs copy-up operations.
+fn fileattr_to_stat64(attr: &FileAttr) -> libc::stat64 {
+    unsafe {
+        let mut st: libc::stat64 = std::mem::zeroed();
+        st.st_ino = attr.ino as libc::ino64_t;
+        st.st_size = attr.size as libc::off_t;
+        st.st_blocks = attr.blocks as libc::blkcnt64_t;
+        st.st_uid = attr.uid as libc::uid_t;
+        st.st_gid = attr.gid as libc::gid_t;
+        // File type bits (S_IF*)
+        let type_bits: libc::mode_t = match attr.kind {
+            FuseFileType::NamedPipe => libc::S_IFIFO,
+            FuseFileType::CharDevice => libc::S_IFCHR,
+            FuseFileType::BlockDevice => libc::S_IFBLK,
+            FuseFileType::Directory => libc::S_IFDIR,
+            FuseFileType::RegularFile => libc::S_IFREG,
+            FuseFileType::Symlink => libc::S_IFLNK,
+            FuseFileType::Socket => libc::S_IFSOCK,
+        };
+
+        // Permission bits
+        let perm_bits = attr.perm as libc::mode_t;
+        st.st_mode = type_bits | perm_bits;
+        st.st_rdev = attr.rdev as libc::dev_t;
+        st.st_blksize = attr.blksize as libc::blksize_t;
+        st.st_nlink = attr.nlink as libc::nlink_t;
+        st
+    }
+}
+
+#[async_trait]
 impl Layer for Dicfuse {
     fn root_inode(&self) -> Inode {
         1
+    }
+
+    /// Create a file in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn create_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _mode: u32,
+        _flags: u32,
+    ) -> Result<ReplyCreated> {
+        // Dicfuse is a read-only layer, does not support file creation
+        tracing::warn!(
+            "[{}:{}] create_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
+    }
+
+    /// Create a directory in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn mkdir_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+    ) -> Result<ReplyEntry> {
+        // Dicfuse is a read-only layer, does not support directory creation
+        tracing::warn!(
+            "[{}:{}] mkdir_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
+    }
+
+    /// Create a symlink in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn symlink_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _link: &OsStr,
+    ) -> Result<ReplyEntry> {
+        // Dicfuse is a read-only layer, does not support symlink creation
+        tracing::warn!(
+            "[{}:{}] symlink_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
+    }
+
+    /// Retrieve host-side metadata bypassing ID mapping.
+    /// This is used internally by OverlayFs copy-up operations to get raw stat information.
+    async fn do_getattr_helper(
+        &self,
+        inode: Inode,
+        _handle: Option<u64>,
+    ) -> std::io::Result<(libc::stat64, Duration)> {
+        // Reuse Dicfuse's existing stat logic
+        let item = self.store.get_inode(inode).await?;
+        let entry = self.get_stat(item).await;
+        let st = fileattr_to_stat64(&entry.attr);
+        Ok((st, entry.ttl))
     }
 }
 
