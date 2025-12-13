@@ -1,9 +1,22 @@
+use crate::repo::diff;
+use crate::repo::sapling::status::Status;
 use crate::ws::WSMessage;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
+use td_util_buck::types::{ProjectRelativePath, TargetLabel};
 // Import complete Error trait for better error handling
+use crate::repo::changes::Changes;
+use anyhow::anyhow;
 use std::error::Error;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
+use td_util::{command::spawn, file_io::file_writer};
+use td_util_buck::{
+    cells::CellInfo,
+    run::{Buck2, targets_arguments},
+    targets::Targets,
+};
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
@@ -26,7 +39,7 @@ const MOUNT_TIMEOUT_SECS: u64 = 7200;
 /// # Returns
 /// * `Ok(true)` - Mount operation completed successfully
 /// * `Err(_)` - Mount request failed or timed out
-pub async fn mount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+pub async fn mount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
     // Mount operations may trigger remote repo fetching, dependency downloads,
     // or other network-heavy steps. To avoid premature timeouts when the network
     // is slow, we use a generous 2-hour timeout here. This can be tuned later.
@@ -34,7 +47,11 @@ pub async fn mount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send
         .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
         .build()?;
 
-    let mount_payload = json!({ "path": repo, "cl": cl });
+    let mount_payload = if cl.is_some() {
+        json!({ "path": repo, "cl": cl })
+    } else {
+        json!({ "path": repo })
+    };
     let mount_res = client
         .post("http://localhost:2725/api/fs/mount")
         .header("Content-Type", "application/json")
@@ -121,11 +138,17 @@ pub async fn mount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send
     }
 }
 
-async fn unmount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let client = reqwest::Client::new();
-    let unmount_payload = serde_json::json!({
-        "path": format!("{}_{}", repo.trim_start_matches('/'), cl)
-    });
+    let unmount_payload = if cl.is_some() {
+        serde_json::json!({
+            "path": format!("{}_{}", repo.trim_start_matches('/'), cl.unwrap())
+        })
+    } else {
+        serde_json::json!({
+            "path": format!("{}", repo.trim_start_matches('/'))
+        })
+    };
 
     let unmount_res = client
         .post("http://localhost:2725/api/fs/unmount")
@@ -147,6 +170,75 @@ async fn unmount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send +
     Ok(true)
 }
 
+/// Get target of a specific repo under tmp directory.
+fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
+    tracing::debug!("Get targets for repo {repo_path:?}");
+    let mut command = std::process::Command::new("buck2");
+    command.args(targets_arguments());
+    command.current_dir(repo_path);
+    let (mut child, stdout) = spawn(command)?;
+    let mut writer = file_writer(Path::new(file_name))?;
+    std::io::copy(&mut BufReader::new(stdout), &mut writer)
+        .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
+    writer
+        .flush()
+        .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
+    child.wait()?;
+    Targets::from_file(Path::new(file_name))
+}
+
+/// Run buck2-change-detector to get targets to build.
+///
+/// # Note
+/// `{repo}` and `{repo}_{cl}` directories must be mount before invoking.
+async fn get_build_targets(repo: &str, cl: &str, mega_changes: Vec<Status<ProjectRelativePath>>,) -> anyhow::Result<Vec<TargetLabel>> {
+    tracing::debug!("Get cells");
+    let repo_path = PathBuf::from(&format!("{}{}", *PROJECT_ROOT, repo));
+    let repo_cl_path = PathBuf::from(&format!("{}{}_{}", *PROJECT_ROOT, repo, cl));
+    let mut buck2 = Buck2::with_root("buck2".to_string(), repo_path.clone());
+    let mut cells = CellInfo::parse(
+        &buck2
+            .cells()
+            .map_err(|err| anyhow!("Fail to get cells: {}", err))?,
+    )?;
+
+    tracing::debug!("Get config");
+    cells.parse_config_data(
+        &buck2
+            .audit_config()
+            .map_err(|err| anyhow!("Fail to get config: {}", err))?,
+    )?;
+
+    let base = get_repo_targets("base.jsonl", &repo_path)?;
+    let changes = Changes::new(&cells, mega_changes)?;
+    let diff = get_repo_targets("diff.jsonl", &repo_cl_path)?;
+
+    tracing::debug!(
+        "Base targets number: {}",
+        base.len_targets_upperbound()
+    );
+
+    let immediate = diff::immediate_target_changes(
+        &base,
+        &diff,
+        &changes,
+        false,
+    );
+    let recursive = diff::recursive_target_changes(
+        &diff,
+        &changes,
+        &immediate,
+        None,
+        |_| true,
+    );
+
+    Ok(recursive
+        .into_iter()
+        .flatten()
+        .map(|(target, _)| target.label())
+        .collect())
+}
+
 /// Executes buck build with filesystem mounting and output streaming.
 ///
 /// Process flow:
@@ -162,31 +254,34 @@ async fn unmount_fs(repo: &str, cl: &str) -> Result<bool, Box<dyn Error + Send +
 /// * `args` - Additional command-line arguments for buck
 /// * `cl` - Change List context identifier
 /// * `sender` - WebSocket channel for streaming build output
+/// * `changes` - Commit's file change information
 ///
 /// # Returns
 /// Process exit status indicating build success or failure
 pub async fn build(
     id: String,
     repo: String,
-    target: String,
     _args: Vec<String>,
     cl: String,
     sender: UnboundedSender<WSMessage>,
+    changes: Vec<Status<ProjectRelativePath>>
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!(
-        "[Task {}] Building target '{}' in repo '{}'",
+        "[Task {}] Building in repo '{}'",
         id,
-        target,
         repo
     );
 
-    mount_fs(&repo, &cl).await?;
+    mount_fs(&repo, Some(&cl)).await?;
+    mount_fs(&repo, None).await?;
+    let targets = get_build_targets(&repo, &cl, changes).await?;
+
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 
     let mut cmd = Command::new("buck2");
     let cmd = cmd
         .arg("build")
-        .arg(&target)
+        .args(&targets)
         .current_dir(format!("{}{}_{}", *PROJECT_ROOT, repo, cl))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -242,7 +337,11 @@ pub async fn build(
     let status = child.wait().await?;
 
     // Clean up the mount dir
-    match unmount_fs(&repo, &cl).await {
+    match unmount_fs(&repo, Some(&cl)).await {
+        Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", id),
+        Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", id, e),
+    }
+    match unmount_fs(&repo, None).await {
         Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", id),
         Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", id, e),
     }

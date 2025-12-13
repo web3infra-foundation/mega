@@ -447,7 +447,7 @@ pub async fn fetch<P: AsRef<Path>>(
 
     // Get the commit information of the previous version and
     // write it into the commit file.
-    set_parent_commit(&work_path, orion_path).await?;
+    // set_parent_commit(&work_path, orion_path).await?;
 
     Ok(workdir)
 }
@@ -729,7 +729,7 @@ async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Resul
 
 /// Get the previous version of the Commit information from the remote API,
 /// convert it into a Commit structure, and write it into the commit file.
-async fn set_parent_commit(work_path: &Path, repo_path: &str) -> std::io::Result<()> {
+async fn _set_parent_commit(work_path: &Path, repo_path: &str) -> std::io::Result<()> {
     let parent_commit = match fetch_parent_commit(repo_path).await {
         Ok(info) => info,
         Err(e) => {

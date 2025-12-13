@@ -1,10 +1,46 @@
-use serde::Serialize;
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub enum Status<Path: Clone> {
+    Modified(Path),
+    Added(Path),
+    Removed(Path),
+}
+
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ProjectRelativePath(String);
+
+impl ProjectRelativePath {
+    pub fn new(path: &str) -> Self {
+        Self(path.to_owned())
+    }
+
+    pub fn start_with(&self, prefix: &PathBuf) -> bool {
+        PathBuf::from(&self.0).starts_with(prefix)
+    }
+}
+
+impl<Path: Clone> Status<Path> {
+    pub fn path(&self) -> Path {
+        match self {
+            Self::Added(p) => p.clone(),
+            Self::Modified(p) => p.clone(),
+            Self::Removed(p) => p.clone(),
+        }
+    }
+}
+
+
 
 #[derive(Serialize, Debug)]
 pub struct BuildInfo {
     pub buck_hash: String,
     pub buckconfig_hash: String,
     pub args: Option<Vec<String>>,
+    pub changes: Vec<Status<ProjectRelativePath>>,
 }
 
 #[derive(Serialize, Debug)]

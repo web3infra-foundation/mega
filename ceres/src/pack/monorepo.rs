@@ -1,19 +1,15 @@
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Component, Path, PathBuf},
-    str::FromStr,
-    sync::{
+    collections::{HashMap, HashSet}, path::{Component, Path, PathBuf}, pin::Pin, str::FromStr, sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
-    },
-    vec,
+    }, vec
 };
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
-use bellatrix::{Bellatrix, orion_client::BuildInfo, orion_client::OrionBuildRequest};
+use bellatrix::{Bellatrix, orion_client::{ProjectRelativePath, Status, BuildInfo}, orion_client::OrionBuildRequest};
 use callisto::{
     entity_ext::generate_link, mega_cl, mega_refs, raw_blob, sea_orm_active_enums::ConvTypeEnum,
 };
@@ -36,7 +32,7 @@ use jupiter::utils::converter::FromMegaModel;
 use crate::{
     api_service::{cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
     merge_checker::CheckerRegistry,
-    model::change_list::BuckFile,
+    model::{change_list::BuckFile},
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -699,6 +695,108 @@ impl MonoRepo {
         Ok(())
     }
 
+    pub async fn diff_recursive_trees_from_cl(
+        &self,
+    ) -> Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError> {
+        let mono_stg = self.storage.mono_storage();
+        let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
+        let from_tree: Tree =
+            Tree::from_mega_model(mono_stg.get_tree_by_hash(&from_c.tree).await?.unwrap());
+        let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
+        let to_tree: Tree =
+            Tree::from_mega_model(mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap());
+        Self::diff_recursive_trees_impl(self, PathBuf::new(), &from_tree, &to_tree).await
+    }
+
+    fn diff_recursive_trees_impl<'a>(
+        this: &'a Self,
+        path: PathBuf,
+        from_tree: &'a Tree,
+        to_tree: &'a Tree,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError>> + Send + 'a>> {
+        Box::pin(async move {
+            let mono_stg = this.storage.mono_storage();
+            let mut from_tree_blobs = HashMap::new();
+            let mut from_tree_dirs = HashMap::new();
+            let mut to_tree_blobs = HashMap::new();
+            let mut to_tree_dirs = HashMap::new();
+            let mut res = Vec::new();
+
+            for item in &from_tree.tree_items {
+                if item.is_blob() {
+                    from_tree_blobs.insert(&item.name, item.id);
+                } else if item.is_tree() {
+                    from_tree_dirs.insert(&item.name, item.id);
+                }
+            }
+
+            for item in &to_tree.tree_items {
+                if item.is_blob() {
+                    let old = from_tree_blobs.get(&item.name).cloned();
+                    if old != Some(item.id.clone()) {
+                        res.push((path.join(&item.name), Some(item.id.clone()), old));
+                    }
+                    to_tree_blobs.insert(&item.name, item.id);
+                } else if item.is_tree() {
+                    let old = from_tree_dirs.get(&item.name).cloned(); 
+                    if old != Some(item.id.clone()) {
+                        res.push((path.join(&item.name), Some(item.id.clone()), old));
+                    }
+                    to_tree_dirs.insert(&item.name, item.id);
+                    if let Some(old_sha) = old {
+                        let old_tree_model = mono_stg.get_tree_by_hash(&old_sha.to_string()).await?.unwrap();
+                        let old_tree = Tree::from_mega_model(old_tree_model);
+                        let new_tree_model = mono_stg.get_tree_by_hash(&item.id.to_string()).await?.unwrap();
+                        let new_tree = Tree::from_mega_model(new_tree_model);
+
+                        let mut rescu = Self::diff_recursive_trees_impl(
+                            this,
+                            path.join(&item.name),
+                            &old_tree,
+                            &new_tree,
+                        ).await?;
+                        res.append(&mut rescu);
+                    }
+                }
+            }
+
+            for item in &from_tree.tree_items {
+                if item.is_blob() {
+                    if !to_tree_blobs.contains_key(&item.name) {
+                        res.push((path.join(&item.name), None, Some(item.id.clone())));
+                    }
+                } else if item.is_tree() {
+                    if !to_tree_dirs.contains_key(&item.name) {
+                        res.push((path.join(&item.name), None, Some(item.id.clone())));
+                    }
+                }
+            }
+
+            Ok(res)
+        })
+    }
+
+    async fn repo_changes(&self) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
+        let diff_trees = self.diff_recursive_trees_from_cl().await?;
+        let mut res = Vec::new();
+        for (path, new, old) in diff_trees {
+            println!("{path:?}, {new:?}, {old:?}");
+            match (new, old) {
+                (None, _) => {
+                    res.push(Status::Removed(ProjectRelativePath::new(path.to_str().unwrap())));
+                }
+                (Some(_), Some(_)) => {
+                    res.push(Status::Modified(ProjectRelativePath::new(path.to_str().unwrap())));
+                }
+                (Some(_), None) => {
+                    res.push(Status::Added(ProjectRelativePath::new(path.to_str().unwrap())));
+                }
+            }
+        }
+        Ok(res)
+    }
+
+
     pub async fn post_cl_operation(&self) -> Result<(), MegaError> {
         let link_guard = self.cl_link.read().await;
         let link = link_guard.as_ref().unwrap();
@@ -717,7 +815,11 @@ impl MonoRepo {
                     self.path
                 );
             } else {
+                let changes: Vec<Status<ProjectRelativePath>> = self.repo_changes().await?;
                 for buck_file in buck_files {
+                    let counter_changes: Vec<_> = changes.iter().filter(|&s| {
+                        s.path().start_with(&buck_file.path)
+                    }).map(|s|   s.clone()).collect();
                     let req = OrionBuildRequest {
                         repo: buck_file.path.to_str().unwrap().to_string(),
                         cl_link: link.to_string(),
@@ -728,6 +830,7 @@ impl MonoRepo {
                             buck_hash: buck_file.buck.to_string(),
                             buckconfig_hash: buck_file.buck_config.to_string(),
                             args: Some(vec![]),
+                            changes: counter_changes,
                         }],
                     };
                     let bellatrix = self.bellatrix.clone();

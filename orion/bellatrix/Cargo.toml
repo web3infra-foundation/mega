@@ -1,0 +1,15 @@
+[package]
+name = "simple-bellatrix"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "simple_bellatrix"
+path = "src/lib.rs"
+
+[dependencies]
+common = { workspace = true }
+reqwest = { workspace = true, features = ["json"]}
+anyhow = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
