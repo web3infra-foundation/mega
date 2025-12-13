@@ -298,6 +298,10 @@ mod tests {
     async fn test_antares_mount() {
         // Set overall test timeout to 60 seconds
         let test_future = async {
+            // Helper function to check if a file should be skipped in directory iteration
+            let should_skip_test_file = |name: &str| -> bool {
+                name == "test_file.txt" || name == "created_file.txt" || name == "test_dir"
+            };
             // Only  LoggingFileSystem DEBUG
             use tracing_subscriber::EnvFilter;
             let _ = tracing_subscriber::fmt()
@@ -455,13 +459,8 @@ mod tests {
                 let path = entry.path();
                 let file_name = path.file_name().unwrap().to_string_lossy();
 
-                // Skip . and .. entries, and files we created
-                if file_name == "."
-                    || file_name == ".."
-                    || file_name == "test_file.txt"
-                    || file_name == "created_file.txt"
-                    || file_name == "test_dir"
-                {
+                // Skip . and .. entries, and files we created during this test
+                if file_name == "." || file_name == ".." || should_skip_test_file(&file_name) {
                     continue;
                 }
 
