@@ -273,7 +273,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         .with_expiry(Expiry::OnInactivity(Duration::seconds(3600))); // 1 hour of inactivity
 
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(lfs_router::routers().with_state(api_state.clone()))
+        .merge(lfs_router::router().with_state(api_state.clone()))
         .nest(
             "/api/v1",
             api_router::routers()
@@ -407,7 +407,19 @@ pub const BUCK_TAG: &str = "Buck Upload API";
     tags(
         (name = CODE_PREVIEW, description = "Git API endpoints"),
         (name = CL_TAG, description = "Change List API endpoints"),
-        (name = MERGE_QUEUE_TAG, description = "Merge Queue Management API endpoints")
+        (name = MERGE_QUEUE_TAG, description = "Merge Queue Management API endpoints"),
+        (name = "Git LFS", description = "Git LFS API endpoints")
+    ),
+    paths(
+        crate::api::router::lfs_router::list_locks,
+        crate::api::router::lfs_router::list_locks_for_verification,
+        crate::api::router::lfs_router::create_lock,
+        crate::api::router::lfs_router::delete_lock,
+        crate::api::router::lfs_router::lfs_process_batch,
+        crate::api::router::lfs_router::lfs_fetch_chunk_ids,
+        crate::api::router::lfs_router::lfs_download_object,
+        crate::api::router::lfs_router::lfs_download_chunk,
+        crate::api::router::lfs_router::lfs_upload_object,
     ),
     components(schemas(
         BlameBlock,
@@ -415,6 +427,28 @@ pub const BUCK_TAG: &str = "Buck Upload API";
         BlameQuery,
         BlameRequest,
         BlameResult,
+        ceres::lfs::lfs_structs::BatchRequest,
+        ceres::lfs::lfs_structs::BatchResponse,
+        ceres::lfs::lfs_structs::LockRequest,
+        ceres::lfs::lfs_structs::LockResponse,
+        ceres::lfs::lfs_structs::LockList,
+        ceres::lfs::lfs_structs::LockListQuery,
+        ceres::lfs::lfs_structs::VerifiableLockRequest,
+        ceres::lfs::lfs_structs::VerifiableLockList,
+        ceres::lfs::lfs_structs::UnlockRequest,
+        ceres::lfs::lfs_structs::UnlockResponse,
+        ceres::lfs::lfs_structs::FetchchunkResponse,
+        ceres::lfs::lfs_structs::RequestObject,
+        ceres::lfs::lfs_structs::ResponseObject,
+        ceres::lfs::lfs_structs::Lock,
+        ceres::lfs::lfs_structs::User,
+        ceres::lfs::lfs_structs::Ref,
+        ceres::lfs::lfs_structs::ObjectError,
+        ceres::lfs::lfs_structs::Link,
+        ceres::lfs::lfs_structs::ChunkDownloadObject,
+        ceres::lfs::lfs_structs::Operation,
+        ceres::lfs::lfs_structs::Action,
+        ceres::lfs::lfs_structs::TransferMode,
     ))
 )]
 struct ApiDoc;

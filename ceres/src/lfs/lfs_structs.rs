@@ -4,8 +4,9 @@ use chrono::{DateTime, Duration, Utc};
 use common::config::LFSConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
 pub enum TransferMode {
     #[default]
     #[serde(rename = "basic")]
@@ -16,7 +17,7 @@ pub enum TransferMode {
     STREAMING,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone, ToSchema)]
 pub enum Operation {
     #[serde(rename = "download")]
     Download,
@@ -28,7 +29,7 @@ pub enum Operation {
 /// Upload operations can specify an upload and a verify action.
 /// The upload action describes how to upload the object. If the object has a verify action, the LFS client will hit this URL after a successful upload. Servers can use this for extra verification, if needed.
 /// If a client requests to upload an object that the server already has, the server should omit the actions property completely. The client will then assume the server already has it.
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, ToSchema)]
 pub enum Action {
     #[serde(rename = "download")]
     Download,
@@ -84,7 +85,8 @@ impl MetaObject {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
+/// Request object for LFS operations
 pub struct RequestObject {
     pub oid: String,
     pub size: i64,
@@ -98,7 +100,8 @@ pub struct RequestObject {
     pub authorization: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+/// LFS lock information
 pub struct Lock {
     pub id: String,
     pub path: String,
@@ -106,12 +109,14 @@ pub struct Lock {
     pub owner: Option<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ToSchema)]
+/// User information for lock ownership
 pub struct User {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
+/// Batch request for LFS operations
 pub struct BatchRequest {
     // Should be download or upload.
     pub operation: Operation,
@@ -122,21 +127,24 @@ pub struct BatchRequest {
     pub hash_algo: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// Batch response for LFS operations
 pub struct BatchResponse {
     pub transfer: TransferMode,
     pub objects: Vec<ResponseObject>,
     pub hash_algo: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// Response for fetching chunk IDs
 pub struct FetchchunkResponse {
     pub oid: String,
     pub size: i64,
     pub chunks: Vec<ChunkDownloadObject>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+/// Link information for LFS object transfer
 pub struct Link {
     pub href: String,
     #[serde(default)] // Optional field
@@ -160,13 +168,15 @@ impl Link {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, ToSchema)]
+/// Error information for LFS object operations
 pub struct ObjectError {
     pub code: i64,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// Response object for LFS batch operations
 pub struct ResponseObject {
     pub oid: String,
     pub size: i64,
@@ -261,7 +271,8 @@ impl ResponseObject {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// Chunk download object information
 pub struct ChunkDownloadObject {
     pub sub_oid: String,
     pub offset: i64,
@@ -269,44 +280,51 @@ pub struct ChunkDownloadObject {
     pub link: Link,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
+/// Git reference information
 pub struct Ref {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
+/// Request to create a lock
 pub struct LockRequest {
     pub path: String,
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
     pub refs: Ref,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// Response after creating a lock
 pub struct LockResponse {
     pub lock: Lock,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, ToSchema)]
+/// Request to unlock a file
 pub struct UnlockRequest {
     pub force: Option<bool>,
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
     pub refs: Ref,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
+/// Response after unlocking a file
 pub struct UnlockResponse {
     pub lock: Lock,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
+/// List of locks
 pub struct LockList {
     pub locks: Vec<Lock>,
     pub next_cursor: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
+/// Request to verify locks
 pub struct VerifiableLockRequest {
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
     pub refs: Ref,
@@ -314,14 +332,16 @@ pub struct VerifiableLockRequest {
     pub limit: Option<i64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
+/// List of verifiable locks
 pub struct VerifiableLockList {
     pub ours: Vec<Lock>,
     pub theirs: Vec<Lock>,
     pub next_cursor: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
+/// Query parameters for listing locks
 pub struct LockListQuery {
     #[serde(default)]
     pub path: String,
