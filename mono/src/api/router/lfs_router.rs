@@ -43,6 +43,7 @@
 //! when using these handlers in a web application to prevent unauthorized access.
 use std::collections::HashMap;
 
+use axum::routing::{get, post};
 use axum::{
     Json,
     body::Body,
@@ -50,7 +51,6 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
-use axum::routing::{get, post};
 use futures::TryStreamExt;
 use utoipa_axum::router::OpenApiRouter;
 
