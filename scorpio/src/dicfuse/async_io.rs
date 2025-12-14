@@ -14,7 +14,13 @@ impl Filesystem for Dicfuse {
     /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         let s = self.store.clone();
-        super::store::import_arc(s).await; // This task can be spawned
+
+        // Synchronously initialize the root directory if needed; this call blocks until
+        // the root is ready. import_arc will quickly set up the root directory if the DB is empty,
+        // ensuring the filesystem is immediately usable for basic operations like readdir.
+        // Only the heavy directory loading from the remote server is performed in the background.
+        super::store::import_arc(s).await;
+
         Ok(ReplyInit {
             max_write: NonZeroU32::new(128 * 1024).unwrap(),
         })
