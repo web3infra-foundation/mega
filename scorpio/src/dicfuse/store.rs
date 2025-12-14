@@ -16,6 +16,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tracing::{info, warn};
@@ -249,7 +250,12 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
 }
 
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
-    static CLIENT: Lazy<Client> = Lazy::new(Client::new);
+    static CLIENT: Lazy<Client> = Lazy::new(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .build()
+            .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
+    });
     let client = CLIENT.clone();
 
     let clean_path = path.trim_start_matches('/');
@@ -1010,10 +1016,16 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         store.dirs.insert("/".to_string(), root_dir_item);
     }
 
+    // Spawn directory loading as background task to avoid blocking FUSE mount
+    let store_clone = store.clone();
     let max_depth = store.max_depth() + 2;
-    load_dir_depth(store.clone(), "/".to_string(), max_depth).await;
-    store.init_notify.notify_waiters();
-    // use the unlock queue instead of mpsc  Mutex
+    let store_for_notify = store_clone.clone();
+    tokio::spawn(async move {
+        load_dir_depth(store_clone, "/".to_string(), max_depth).await;
+        store_for_notify.init_notify.notify_waiters();
+    });
+
+    // Spawn background task for periodic directory watching
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;

@@ -10,22 +10,83 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use git_internal::internal::object::tree::TreeItemMode;
-use libfuse_fs::unionfs::layer::Layer;
 use libfuse_fs::unionfs::Inode;
+use libfuse_fs::{context::OperationContext, unionfs::layer::Layer};
 use reqwest::Client;
-use rfuse3::raw::reply::ReplyEntry;
+use rfuse3::raw::reply::{ReplyCreated, ReplyEntry};
+use rfuse3::Result;
 use store::DictionaryStore;
 use tree_store::StorageItem;
+
 pub struct Dicfuse {
     readable: bool,
     pub store: Arc<DictionaryStore>,
 }
 unsafe impl Sync for Dicfuse {}
 unsafe impl Send for Dicfuse {}
+
+#[async_trait]
 impl Layer for Dicfuse {
     fn root_inode(&self) -> Inode {
         1
+    }
+
+    /// Create a file in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn create_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _mode: u32,
+        _flags: u32,
+    ) -> Result<ReplyCreated> {
+        // Dicfuse is a read-only layer, does not support file creation
+        tracing::warn!(
+            "[{}:{}] create_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
+    }
+
+    /// Create a directory in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn mkdir_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+    ) -> Result<ReplyEntry> {
+        // Dicfuse is a read-only layer, does not support directory creation
+        tracing::warn!(
+            "[{}:{}] mkdir_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
+    }
+
+    /// Create a symlink in the layer (not supported for read-only Dicfuse).
+    /// This is called by OverlayFs during copy-up operations.
+    async fn symlink_with_context(
+        &self,
+        _ctx: OperationContext,
+        _parent: Inode,
+        _name: &OsStr,
+        _link: &OsStr,
+    ) -> Result<ReplyEntry> {
+        // Dicfuse is a read-only layer, does not support symlink creation
+        tracing::warn!(
+            "[{}:{}] symlink_with_context not supported on Dicfuse (read-only)",
+            file!(),
+            line!()
+        );
+        Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
     }
 }
 
