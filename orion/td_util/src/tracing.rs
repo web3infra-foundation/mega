@@ -11,15 +11,15 @@
 //! Utilities for working with the `tracing` crate.
 //! Ensure all supertd projects have a consistent way of logging.
 
-use std::io::IsTerminal;
 use std::io::stderr;
 use std::io::stdout;
+use std::io::IsTerminal;
 
-use tracing_subscriber::Layer;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Layer;
 
 /// Set up tracing so it prints to stderr, and can be used for output.
 /// Most things should use `info` and `debug` level for showing messages.

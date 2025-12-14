@@ -13,11 +13,11 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use serde::Deserialize;
-use serde::Serialize;
 use serde::de::Error;
 use serde::de::MapAccess;
 use serde::de::Visitor;
+use serde::Deserialize;
+use serde::Serialize;
 use td_util::string::InternString;
 
 /// A set of labels

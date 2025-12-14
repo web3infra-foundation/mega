@@ -8,10 +8,10 @@
  * above-listed licenses.
  */
 
+use crate::ExitStatusExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use crate::ExitStatusExt;
 
 use anyhow::Context as _;
 use audit::audit_cell_arguments;
@@ -47,7 +47,7 @@ impl Buck2 {
 
     pub fn with_root(program: String, root: PathBuf) -> Self {
         Self {
-            program, 
+            program,
             root: Some(root),
             isolation_dir: None,
         }
@@ -128,7 +128,9 @@ impl Buck2 {
             .arg(at_file)
             .args(extra_args);
 
-        with_command(command, |mut command| Ok(command.status()?.exit_result()?))
+        with_command(command, |mut command| {
+            Ok(command.status()?.exit_result()?)
+        })
     }
 
     pub fn owners(

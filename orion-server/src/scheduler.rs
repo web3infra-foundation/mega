@@ -658,7 +658,7 @@ mod tests {
                 buck_hash: "hash1".to_string(),
                 buckconfig_hash: "config1".to_string(),
                 args: None,
-                changes: vec![]
+                changes: vec![],
             },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
@@ -673,7 +673,7 @@ mod tests {
                 buck_hash: "hash2".to_string(),
                 buckconfig_hash: "config2".to_string(),
                 args: None,
-                changes: vec![]
+                changes: vec![],
             },
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
@@ -711,7 +711,7 @@ mod tests {
                 buck_hash: "hash".to_string(),
                 buckconfig_hash: "config".to_string(),
                 args: None,
-                changes: vec![]
+                changes: vec![],
             },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),

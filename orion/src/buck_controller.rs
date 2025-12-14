@@ -191,11 +191,15 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 ///
 /// # Note
 /// `{repo}` and `{repo}_{cl}` directories must be mount before invoking.
-async fn get_build_targets(repo: &str, cl: &str, mega_changes: Vec<Status<ProjectRelativePath>>,) -> anyhow::Result<Vec<TargetLabel>> {
-    tracing::debug!("Get cells");
+async fn get_build_targets(
+    repo: &str,
+    cl: &str,
+    mega_changes: Vec<Status<ProjectRelativePath>>,
+) -> anyhow::Result<Vec<TargetLabel>> {
     let repo_path = PathBuf::from(&format!("{}{}", *PROJECT_ROOT, repo));
     let repo_cl_path = PathBuf::from(&format!("{}{}_{}", *PROJECT_ROOT, repo, cl));
-    let mut buck2 = Buck2::with_root("buck2".to_string(), repo_path.clone());
+    tracing::info!("Get cells at {:?}", repo_path);
+    let mut buck2 = Buck2::with_root("buck2".to_string(), repo_cl_path.clone());
     let mut cells = CellInfo::parse(
         &buck2
             .cells()
@@ -213,24 +217,10 @@ async fn get_build_targets(repo: &str, cl: &str, mega_changes: Vec<Status<Projec
     let changes = Changes::new(&cells, mega_changes)?;
     let diff = get_repo_targets("diff.jsonl", &repo_cl_path)?;
 
-    tracing::debug!(
-        "Base targets number: {}",
-        base.len_targets_upperbound()
-    );
+    tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
 
-    let immediate = diff::immediate_target_changes(
-        &base,
-        &diff,
-        &changes,
-        false,
-    );
-    let recursive = diff::recursive_target_changes(
-        &diff,
-        &changes,
-        &immediate,
-        None,
-        |_| true,
-    );
+    let immediate = diff::immediate_target_changes(&base, &diff, &changes, false);
+    let recursive = diff::recursive_target_changes(&diff, &changes, &immediate, None, |_| true);
 
     Ok(recursive
         .into_iter()
@@ -264,13 +254,9 @@ pub async fn build(
     _args: Vec<String>,
     cl: String,
     sender: UnboundedSender<WSMessage>,
-    changes: Vec<Status<ProjectRelativePath>>
+    changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
-    tracing::info!(
-        "[Task {}] Building in repo '{}'",
-        id,
-        repo
-    );
+    tracing::info!("[Task {}] Building in repo '{}'", id, repo);
 
     mount_fs(&repo, Some(&cl)).await?;
     mount_fs(&repo, None).await?;

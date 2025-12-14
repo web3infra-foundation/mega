@@ -25,18 +25,7 @@ use crate::labels::Labels;
 use utoipa::ToSchema;
 
 /// Example: `fbcode//buck2:buck2`
-#[derive(
-    Debug,
-    Clone,
-    Hash,
-    PartialEq,
-    Eq,
-    Display,
-    Deserialize,
-    Serialize,
-    PartialOrd,
-    Ord
-)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Display, Deserialize, Serialize, PartialOrd, Ord)]
 pub struct TargetLabel(InternString);
 
 impl TargetLabel {
@@ -300,17 +289,7 @@ impl FromStr for TargetPattern {
 }
 
 /// Example: `buck2` bit in `fbcode//build:buck2`
-#[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Deserialize,
-    Serialize,
-    Clone
-)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize, Clone)]
 pub struct TargetName(InternString);
 
 impl TargetName {
@@ -512,18 +491,7 @@ impl CellPath {
 }
 
 /// Example: `fbcode//buck2`
-#[derive(
-    Clone,
-    Debug,
-    Display,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Deserialize,
-    Serialize
-)]
+#[derive(Clone, Debug, Display, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct Package(InternString);
 
 impl Package {
@@ -592,7 +560,7 @@ impl RuleType {
     /// );
     /// ```
     pub fn short(&self) -> &str {
-        let contents = self.0.0.as_str();
+        let contents = self.0 .0.as_str();
         match contents.rsplit_once(':') {
             None => contents,
             Some((_, x)) => x,
@@ -608,7 +576,7 @@ impl RuleType {
     /// );
     /// ```
     pub fn file(&self) -> CellPath {
-        let contents = self.0.0.as_str();
+        let contents = self.0 .0.as_str();
         match contents.rsplit_once(':') {
             None => CellPath::new(contents),
             Some((x, _)) => CellPath::new(x),

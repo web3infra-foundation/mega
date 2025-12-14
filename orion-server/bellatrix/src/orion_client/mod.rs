@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -9,7 +7,6 @@ pub enum Status<Path: Clone> {
     Removed(Path),
 }
 
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ProjectRelativePath(String);
 
@@ -18,8 +15,14 @@ impl ProjectRelativePath {
         Self(path.to_owned())
     }
 
-    pub fn start_with(&self, prefix: &PathBuf) -> bool {
-        PathBuf::from(&self.0).starts_with(prefix)
+    pub fn from_abs(abs_path: &str, base: &str) -> Option<Self> {
+        let opt = abs_path
+            .strip_prefix(base)
+            .map(|s| s.trim_start_matches("/"));
+        match opt {
+            Some(s) => Some(Self(s.to_owned())),
+            None => None,
+        }
     }
 }
 
@@ -32,8 +35,6 @@ impl<Path: Clone> Status<Path> {
         }
     }
 }
-
-
 
 #[derive(Serialize, Debug)]
 pub struct BuildInfo {

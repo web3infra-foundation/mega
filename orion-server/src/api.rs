@@ -422,7 +422,7 @@ pub async fn task_handler(
 }
 
 /// Handle immediate task dispatch logic (original task_handler logic)
-/// 
+///
 /// # Note
 /// The `target` field is deprecated, only remain for compatibility reasons.
 async fn handle_immediate_task_dispatch(

@@ -11,8 +11,8 @@
 // #![feature(exit_status_error)]
 #![forbid(unsafe_code)]
 
-use std::process::ExitStatus;
 use std::io;
+use std::process::ExitStatus;
 
 // 1. 定义一个扩展 Trait
 pub trait ExitStatusExt {
@@ -29,8 +29,8 @@ impl ExitStatusExt for ExitStatus {
             // 这里我们需要返回一个 std::io::Error 来替代。
             // 这里的错误信息可以根据你的需要自定义。
             Err(io::Error::new(
-                io::ErrorKind::Other, 
-                format!("process exited unsuccessfully: {}", self)
+                io::ErrorKind::Other,
+                format!("process exited unsuccessfully: {}", self),
             ))
         }
     }

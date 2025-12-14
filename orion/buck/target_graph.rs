@@ -76,16 +76,7 @@ macro_rules! impl_collection_storage {
 macro_rules! define_id_type {
     ($name:ident) => {
         #[derive(
-            Debug,
-            Clone,
-            Copy,
-            PartialEq,
-            Eq,
-            Hash,
-            PartialOrd,
-            Ord,
-            Serialize,
-            Deserialize
+            Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
         )]
         pub struct $name(u64);
 

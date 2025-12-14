@@ -8,16 +8,15 @@
  * above-listed licenses.
  */
 
-
 use std::fmt;
 use std::ops::Deref;
 
 use internment::Intern;
 use parse_display::Display;
+use serde::de::Visitor;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
-use serde::de::Visitor;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Display)]
 #[display("{0}")]
@@ -164,11 +163,11 @@ mod tests {
     #[test]
     fn test_traits() {
         let s = InternString::new("hello");
-        let s2 = s; 
+        let s2 = s;
         assert_eq!(s, s2);
-        
-        assert_eq!(s.len(), 5); 
-        
+
+        assert_eq!(s.len(), 5);
+
         assert_eq!(s, "hello");
         assert_eq!("hello", s);
     }

@@ -146,8 +146,7 @@ impl<'a> GraphImpact<'a> {
 
 /// Contains metadata about why a target was impacted and information on the
 /// targets place in the dependency graph.
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub struct ImpactTraceData {
     /// The target name of the direct dependency which
     /// caused this target to be impacted.
@@ -199,8 +198,18 @@ impl ImpactTraceData {
 /// report a target as impacted. These reasons are propagated down through
 /// rdeps, so they indicate that a target *or one of its dependencies* changed
 /// in the indicated way.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-#[derive(serde::Serialize, serde::Deserialize, parse_display::Display)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    serde::Serialize,
+    serde::Deserialize,
+    parse_display::Display,
+)]
 #[serde(rename_all = "snake_case")]
 #[display(style = "snake_case")]
 /// When adding a new impact kind, ensure you also update
@@ -285,7 +294,10 @@ pub fn immediate_target_changes<'a>(
                 continue;
             }
         };
-        println!("old {:?} new{:?} name {:?}", old_target.hash, target.hash, target.name);
+        println!(
+            "old {:?} new{:?} name {:?}",
+            old_target.hash, target.hash, target.name
+        );
 
         // "hidden feature" that allows using btd to find rdeps of a "package" (directory)
         // by including directory paths in the changes input
