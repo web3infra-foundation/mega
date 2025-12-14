@@ -280,7 +280,7 @@ pub struct ChunkDownloadObject {
     pub link: Link,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, ToSchema)]
 /// Git reference information
 pub struct Ref {
     pub name: String,

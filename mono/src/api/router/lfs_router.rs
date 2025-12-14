@@ -50,15 +50,16 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
-use futures::TryStreamExt;
 use axum::routing::{get, post, put};
-use utoipa_axum::{router::OpenApiRouter, routes};
+use futures::TryStreamExt;
+use utoipa_axum::router::OpenApiRouter;
 
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchRequest, BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest, LockResponse,
-        RequestObject, UnlockRequest, UnlockResponse, VerifiableLockRequest, VerifiableLockList,
+        BatchRequest, BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest,
+        LockResponse, RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList,
+        VerifiableLockRequest,
     },
 };
 use common::errors::GitLFSError;
@@ -110,7 +111,7 @@ fn map_lfs_error<E: ToString>(err: E) -> (StatusCode, String) {
 }
 
 /// List LFS locks
-/// 
+///
 #[utoipa::path(
     get,
     path = "/api/v1/lfs/locks",
@@ -148,7 +149,7 @@ pub async fn list_locks(
 }
 
 /// Verify LFS locks
-/// 
+///
 /// Verifies locks for a given ref, returning locks that belong to the current user (ours) and others (theirs).
 #[utoipa::path(
     post,
@@ -184,7 +185,7 @@ pub async fn list_locks_for_verification(
 }
 
 /// Create an LFS lock
-/// 
+///
 /// Creates a lock for a file path in the repository. The lock prevents other users from modifying the file.
 #[utoipa::path(
     post,
@@ -225,7 +226,7 @@ pub async fn create_lock(
 }
 
 /// Delete an LFS lock
-/// 
+///
 /// Deletes a lock by its ID. Requires the lock to belong to the current user unless force is set to true.
 #[utoipa::path(
     post,
@@ -269,7 +270,7 @@ pub async fn delete_lock(
 }
 
 /// Process LFS batch request
-/// 
+///
 /// Processes a batch of LFS objects for upload or download operations. Returns URLs and actions for each object.
 #[utoipa::path(
     post,
@@ -307,7 +308,7 @@ pub async fn lfs_process_batch(
 }
 
 /// Fetch chunk IDs for a split object
-/// 
+///
 /// Returns the list of chunk IDs for a large object that has been split into multiple chunks.
 #[utoipa::path(
     get,
@@ -352,7 +353,7 @@ pub async fn lfs_fetch_chunk_ids(
 }
 
 /// Download an LFS object
-/// 
+///
 /// Downloads an LFS object by its OID. Returns the object data as a stream.
 #[utoipa::path(
     get,
@@ -387,7 +388,7 @@ pub async fn lfs_download_object(
 }
 
 /// Download a chunk of an LFS object
-/// 
+///
 /// Downloads a specific chunk of a split LFS object. Requires offset and size query parameters.
 #[utoipa::path(
     get,
@@ -446,7 +447,7 @@ pub async fn lfs_download_chunk(
 }
 
 /// Upload an LFS object
-/// 
+///
 /// Uploads an LFS object to the server. The object data should be sent in the request body.
 #[utoipa::path(
     put,
@@ -610,19 +611,19 @@ mod tests {
     fn test_lfs_download_chunk_parameter_validation() {
         // Test parameter validation logic for lfs_download_chunk
         // This tests the query parameter parsing logic
-        
+
         // Valid parameters
         let mut valid_params = HashMap::new();
         valid_params.insert("offset".to_string(), "0".to_string());
         valid_params.insert("size".to_string(), "1024".to_string());
-        
+
         let offset = valid_params
             .get("offset")
             .and_then(|offset| offset.parse::<u64>().ok());
         let size = valid_params
             .get("size")
             .and_then(|size| size.parse::<u64>().ok());
-        
+
         assert!(offset.is_some());
         assert!(size.is_some());
         assert_eq!(offset.unwrap(), 0);
@@ -667,7 +668,7 @@ mod tests {
     fn test_lfs_download_chunk_parameter_edge_cases() {
         // Test edge cases for parameter parsing
         let mut params = HashMap::new();
-        
+
         // Test with zero values
         params.insert("offset".to_string(), "0".to_string());
         params.insert("size".to_string(), "0".to_string());
@@ -703,7 +704,7 @@ mod tests {
     #[test]
     fn test_lfs_router_paths() {
         // Test that router creates both standard and versioned paths
-        let router = router();
+        let _router = router();
         // If we get here, router was created successfully with both paths
         // This ensures /info/lfs and /api/v1/lfs are both registered
     }
@@ -717,7 +718,7 @@ mod tests {
             ("Generic error", StatusCode::INTERNAL_SERVER_ERROR),
         ];
 
-        for (msg, expected_code) in test_cases {
+        for (msg, _expected_code) in test_cases {
             let (code, _) = map_lfs_error(msg);
             // Verify the error mapping works correctly
             if msg.contains("Not found") || msg.contains("not found") {
@@ -735,10 +736,10 @@ mod tests {
         // Verify content type constants match LFS specification
         // JSON responses should use application/vnd.git-lfs+json
         assert_eq!(LFS_CONTENT_TYPE, "application/vnd.git-lfs+json");
-        
+
         // Binary streams should use application/octet-stream
         assert_eq!(LFS_STREAM_CONTENT_TYPE, "application/octet-stream");
-        
+
         // Verify they are different
         assert_ne!(LFS_CONTENT_TYPE, LFS_STREAM_CONTENT_TYPE);
     }
@@ -749,7 +750,7 @@ mod tests {
         let error = "Not found: Invalid request format";
         let (code, _) = map_lfs_error(error);
         assert_eq!(code, StatusCode::NOT_FOUND);
-        
+
         // Test that order matters (first match wins)
         let error = "Invalid: Not found";
         let (code, _) = map_lfs_error(error);
@@ -763,7 +764,7 @@ mod tests {
         let error = "对象未找到"; // "Object not found" in Chinese
         let (code, _) = map_lfs_error(error);
         assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR); // No match, default
-        
+
         let error = "Object not found: 对象";
         let (code, _) = map_lfs_error(error);
         assert_eq!(code, StatusCode::NOT_FOUND); // Should still match
