@@ -45,8 +45,9 @@ tower-http = { workspace = true, features = [
     "decompression-full",
 ] }
 axum-extra = { workspace = true, features = ["typed-header"] }
-tokio = { workspace = true, features = ["net", "macros"] }
+tokio = { workspace = true, features = ["net", "macros", "signal"] }
 tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
 async-stream = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 regex = { workspace = true }

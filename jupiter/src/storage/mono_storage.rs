@@ -5,13 +5,14 @@ use std::sync::{Arc, Mutex};
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
 use sea_orm::ActiveValue::Set;
-use sea_orm::sea_query::Expr;
+use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, EntityTrait,
-    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbErr,
+    EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    TransactionTrait,
 };
 
-use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
+use callisto::{mega_blob, mega_cl, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::model::Pagination;
@@ -578,6 +579,141 @@ impl MonoStorage {
         self.save_mega_commits(vec![commit], Some(&txn)).await?;
         txn.commit().await?;
         Ok(())
+    }
+
+    /// Save trees batch in a transaction with idempotency support.
+    ///
+    /// Uses `ON CONFLICT DO NOTHING` on `TreeId` to ensure idempotency.
+    /// This allows safe retries: already-inserted trees are silently skipped.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection or transaction (supports `ConnectionTrait`)
+    /// * `tree_models` - Vector of tree active models to insert
+    ///
+    /// # Returns
+    /// Returns `Ok(())` on success. If tree_models is empty, returns immediately without database operation.
+    pub async fn save_trees_batch<C>(
+        &self,
+        conn: &C,
+        tree_models: Vec<mega_tree::ActiveModel>,
+    ) -> Result<(), MegaError>
+    where
+        C: ConnectionTrait,
+    {
+        if tree_models.is_empty() {
+            return Ok(());
+        }
+
+        match mega_tree::Entity::insert_many(tree_models)
+            .on_conflict(
+                OnConflict::column(mega_tree::Column::TreeId)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(conn)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(DbErr::RecordNotInserted) => {
+                // All trees already exist (idempotent operation)
+                // This is expected when retrying complete_upload
+                tracing::debug!("All trees already exist, skipping insert (idempotent operation)");
+                Ok(())
+            }
+            Err(e) => {
+                // Real database errors (constraint violations, connection issues, etc.)
+                // should be propagated, not ignored
+                tracing::error!("Database error during tree batch insert: {:?}", e);
+                Err(MegaError::Db(e))
+            }
+        }
+    }
+
+    /// Save a commit in a transaction with idempotency support.
+    ///
+    /// Uses `ON CONFLICT DO NOTHING` on `CommitId` to ensure idempotency.
+    /// This allows safe retries: already-inserted commits are silently skipped.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection or transaction (supports `ConnectionTrait`)
+    /// * `commit_model` - Commit active model to insert
+    ///
+    /// # Returns
+    /// Returns `Ok(())` on success
+    pub async fn save_commit_in_txn<C>(
+        &self,
+        conn: &C,
+        commit_model: mega_commit::ActiveModel,
+    ) -> Result<(), MegaError>
+    where
+        C: ConnectionTrait,
+    {
+        match mega_commit::Entity::insert(commit_model)
+            .on_conflict(
+                OnConflict::column(mega_commit::Column::CommitId)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(conn)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(DbErr::RecordNotInserted) => {
+                // Commit already exists (idempotent operation)
+                // This is expected when retrying complete_upload
+                tracing::debug!("Commit already exists, skipping insert (idempotent operation)");
+                Ok(())
+            }
+            Err(e) => {
+                // Real database errors (constraint violations, connection issues, etc.)
+                // should be propagated, not ignored
+                tracing::error!("Database error during commit insert: {:?}", e);
+                Err(MegaError::Db(e))
+            }
+        }
+    }
+
+    /// Get and update a CL within a transaction.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection or transaction (supports `ConnectionTrait`)
+    /// * `cl_link` - CL link (session_id for buck uploads)
+    /// * `from_hash` - Base commit hash
+    /// * `to_hash` - Target commit hash
+    /// * `commit_message` - Commit message (used as CL title)
+    ///
+    /// # Returns
+    /// Returns the updated CL model on success
+    pub async fn get_and_update_cl_in_txn<C>(
+        &self,
+        conn: &C,
+        cl_link: &str,
+        from_hash: &str,
+        to_hash: &str,
+        commit_message: &str,
+    ) -> Result<mega_cl::Model, MegaError>
+    where
+        C: ConnectionTrait,
+    {
+        use callisto::sea_orm_active_enums::MergeStatusEnum;
+        use sea_orm::ActiveValue::Set;
+
+        let cl = mega_cl::Entity::find()
+            .filter(mega_cl::Column::Link.eq(cl_link))
+            .one(conn)
+            .await?
+            .ok_or_else(|| MegaError::Other(format!("CL not found: {}", cl_link)))?;
+
+        let mut cl_active = cl.clone().into_active_model();
+        cl_active.from_hash = Set(from_hash.to_owned());
+        cl_active.to_hash = Set(to_hash.to_owned());
+        cl_active.status = Set(MergeStatusEnum::Open);
+        cl_active.title = Set(commit_message.to_owned());
+        cl_active.updated_at = Set(chrono::Utc::now().naive_utc());
+
+        cl_active.update(conn).await?;
+
+        Ok(cl)
     }
 
     pub async fn save_mega_commits(

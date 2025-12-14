@@ -24,7 +24,7 @@ pub struct SessionResponse {
     /// Maximum number of files per session
     pub max_files: u32,
     /// Recommended concurrent upload count
-    pub max_concurrent_uploads: u8,
+    pub max_concurrent_uploads: u32,
 }
 
 /// Request payload for uploading file manifest
@@ -140,8 +140,8 @@ pub struct FileToUpload {
 /// Response for file upload
 #[derive(Debug, Serialize, ToSchema)]
 pub struct FileUploadResponse {
-    /// File identifier (same as file path)
-    pub file_id: String,
+    /// File path in repository (relative to repository root, not local filesystem path)
+    pub file_path: String,
     /// Uploaded file size in bytes
     pub uploaded_size: u64,
     /// Whether hash verification passed (if hash was provided)
@@ -154,9 +154,6 @@ pub struct FileUploadResponse {
 pub struct CompletePayload {
     /// Optional commit message (overrides manifest message)
     pub commit_message: Option<String>,
-    /// Skip pre-submit checks (default: false)
-    #[serde(default)]
-    pub skip_checks: bool,
 }
 
 /// Response for upload completion

@@ -12,8 +12,8 @@ use common::errors::MegaError;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait,
-    QueryFilter,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -40,6 +40,8 @@ pub mod upload_status {
     pub const PENDING: &str = "pending";
     /// File successfully uploaded
     pub const UPLOADED: &str = "uploaded";
+    /// File skipped (unchanged, already exists in base commit)
+    pub const SKIPPED: &str = "skipped";
 }
 
 /// File upload reason constants.
@@ -148,18 +150,23 @@ impl BuckStorage {
     /// Update a Buck upload session status and optionally commit message.
     ///
     /// # Arguments
+    /// * `conn` - Database connection or transaction (supports `ConnectionTrait`)
     /// * `session_id` - The session to update
     /// * `status` - New status (use [`session_status`] constants)
     /// * `commit_message` - Optional commit message to save
     ///
     /// # Returns
     /// Returns `Ok(())` on success
-    pub async fn update_session_status(
+    pub async fn update_session_status<C>(
         &self,
+        conn: &C,
         session_id: &str,
         status: &str,
         commit_message: Option<&str>,
-    ) -> Result<(), MegaError> {
+    ) -> Result<(), MegaError>
+    where
+        C: ConnectionTrait,
+    {
         let mut update = buck_session::Entity::update_many()
             .col_expr(buck_session::Column::Status, Expr::value(status))
             .col_expr(
@@ -172,8 +179,81 @@ impl BuckStorage {
             update = update.col_expr(buck_session::Column::CommitMessage, Expr::value(msg));
         }
 
-        update.exec(self.get_connection()).await?;
+        update.exec(conn).await?;
         Ok(())
+    }
+
+    /// Update a Buck upload session status using the default connection.
+    pub async fn update_session_status_with_pool(
+        &self,
+        session_id: &str,
+        status: &str,
+        commit_message: Option<&str>,
+    ) -> Result<(), MegaError> {
+        self.update_session_status(self.get_connection(), session_id, status, commit_message)
+            .await
+    }
+
+    /// Atomically update session status only if current status matches expected value.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection or transaction (supports `ConnectionTrait`)
+    /// * `session_id` - The session to update
+    /// * `current_status` - Expected current status (update only if status matches)
+    /// * `new_status` - New status to set
+    /// * `commit_message` - Optional commit message to save
+    ///
+    /// # Returns
+    /// Returns `Ok(true)` if update succeeded (status matched and was updated),
+    /// `Ok(false)` if status didn't match (another request already updated it),
+    /// or `Err(_)` on database error.
+    pub async fn update_session_status_if_current<C>(
+        &self,
+        conn: &C,
+        session_id: &str,
+        current_status: &str,
+        new_status: &str,
+        commit_message: Option<&str>,
+    ) -> Result<bool, MegaError>
+    where
+        C: ConnectionTrait,
+    {
+        let mut update = buck_session::Entity::update_many()
+            .col_expr(buck_session::Column::Status, Expr::value(new_status))
+            .col_expr(
+                buck_session::Column::UpdatedAt,
+                Expr::value(Utc::now().naive_utc()),
+            )
+            .filter(buck_session::Column::SessionId.eq(session_id))
+            .filter(buck_session::Column::Status.eq(current_status));
+
+        if let Some(msg) = commit_message {
+            update = update.col_expr(buck_session::Column::CommitMessage, Expr::value(msg));
+        }
+
+        let result = update.exec(conn).await?;
+        Ok(result.rows_affected > 0)
+    }
+
+    /// Atomically update session status using the default connection.
+    ///
+    /// This is a convenience method for backward compatibility.
+    /// For transaction support, use [`update_session_status_if_current`] instead.
+    pub async fn update_session_status_if_current_with_pool(
+        &self,
+        session_id: &str,
+        current_status: &str,
+        new_status: &str,
+        commit_message: Option<&str>,
+    ) -> Result<bool, MegaError> {
+        self.update_session_status_if_current(
+            self.get_connection(),
+            session_id,
+            current_status,
+            new_status,
+            commit_message,
+        )
+        .await
     }
 
     /// Batch insert file records for a Buck upload session.

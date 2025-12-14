@@ -687,7 +687,7 @@ pub struct BuckConfig {
 
     /// Maximum concurrent uploads (default: 5) - returned to client as suggestion
     #[serde(default = "default_max_concurrent_uploads")]
-    pub max_concurrent_uploads: u8,
+    pub max_concurrent_uploads: u32,
 
     /// Global upload concurrency limit (default: 50)
     /// Controls the total number of concurrent upload requests
@@ -727,7 +727,7 @@ fn default_max_file_size() -> String {
 fn default_max_files() -> u32 {
     1000
 }
-fn default_max_concurrent_uploads() -> u8 {
+fn default_max_concurrent_uploads() -> u32 {
     5
 }
 fn default_upload_concurrency_limit() -> u32 {

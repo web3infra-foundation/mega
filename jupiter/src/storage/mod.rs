@@ -20,10 +20,12 @@ pub mod user_storage;
 pub mod vault_storage;
 
 use std::sync::{Arc, LazyLock, Weak};
+use tokio::sync::Semaphore;
 
 use common::config::Config;
 
 use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
+use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
@@ -96,6 +98,7 @@ pub struct Storage {
     pub issue_service: IssueService,
     pub cl_service: CLService,
     pub merge_queue_service: MergeQueueService,
+    pub buck_service: BuckService,
     pub config: Weak<Config>,
 }
 
@@ -123,6 +126,27 @@ impl Storage {
         let buck_storage = BuckStorage { base: base.clone() };
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
 
+        let buck_config = config.buck.clone().unwrap_or_default();
+
+        // Validate and correct semaphore limits to ensure service availability
+        // If configured as 0, use minimum value 1 and log a warning
+        let upload_limit = buck_config.upload_concurrency_limit.max(1);
+        if buck_config.upload_concurrency_limit == 0 {
+            tracing::warn!(
+                "upload_concurrency_limit is 0, using minimum value 1. Please set a value >= 1 in configuration."
+            );
+        }
+
+        let large_file_limit = buck_config.large_file_concurrency_limit.max(1);
+        if buck_config.large_file_concurrency_limit == 0 {
+            tracing::warn!(
+                "large_file_concurrency_limit is 0, using minimum value 1. Please set a value >= 1 in configuration."
+            );
+        }
+
+        let upload_semaphore = Arc::new(Semaphore::new(upload_limit as usize));
+        let large_file_semaphore = Arc::new(Semaphore::new(large_file_limit as usize));
+
         let app_service = AppService {
             mono_storage: mono_storage.clone(),
             git_db_storage,
@@ -144,6 +168,14 @@ impl Storage {
             dynamic_sidebar_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
+        let buck_service = BuckService::new(
+            base.clone(),
+            CLService::new(base.clone()),
+            upload_semaphore,
+            large_file_semaphore,
+            buck_config,
+        )
+        .expect("failed to create BuckService");
 
         Storage {
             app_service: app_service.into(),
@@ -151,11 +183,25 @@ impl Storage {
             issue_service: IssueService::new(base.clone()),
             cl_service: CLService::new(base.clone()),
             merge_queue_service,
+            buck_service,
         }
     }
 
     pub fn config(&self) -> Arc<Config> {
         self.config.upgrade().expect("Config has been dropped")
+    }
+
+    /// Get recommended concurrency limit for batch database operations.
+    ///
+    /// Calculates 50% of max_connection, bounded between 4 and max_connection.
+    pub fn get_recommended_batch_concurrency(&self) -> usize {
+        let max_conn = self.config().database.max_connection as usize;
+
+        // Handle edge case where config might be 0 or invalid
+        let safe_conn = if max_conn == 0 { 16 } else { max_conn };
+
+        // Internal calculation using pure function
+        calculate_db_concurrency_limit(safe_conn, 50, 4)
     }
 
     pub fn mono_storage(&self) -> MonoStorage {
@@ -240,7 +286,54 @@ impl Storage {
             issue_service: IssueService::mock(),
             cl_service: CLService::mock(),
             merge_queue_service: MergeQueueService::mock(),
+            buck_service: BuckService::mock(),
             config: Arc::downgrade(&*CONFIG),
         }
+    }
+}
+
+// Private helper function for concurrency calculation
+// This is a pure function for easy testing and potential reuse
+fn calculate_db_concurrency_limit(
+    max_connections: usize,
+    percentage: usize,
+    min_limit: usize,
+) -> usize {
+    let calculated = (max_connections * percentage) / 100;
+    calculated.max(min_limit).min(max_connections)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_db_concurrency_limit() {
+        // Normal case: 50% of 16 = 8
+        assert_eq!(calculate_db_concurrency_limit(16, 50, 4), 8);
+
+        // Min bound: 50% of 5 = 2.5 -> clamped to min 4
+        assert_eq!(calculate_db_concurrency_limit(5, 50, 4), 4);
+
+        // Max bound: 50% of 100 = 50 (within bounds)
+        assert_eq!(calculate_db_concurrency_limit(100, 50, 4), 50);
+
+        // Edge case: small connection pool
+        assert_eq!(calculate_db_concurrency_limit(4, 50, 4), 4);
+
+        // Edge case: very small connection pool (cannot exceed max_connections)
+        assert_eq!(calculate_db_concurrency_limit(2, 50, 4), 2);
+    }
+
+    #[test]
+    fn test_get_recommended_batch_concurrency() {
+        // Create a mock Storage for testing
+        let storage = Storage::mock();
+
+        // The mock config should have default max_connection = 16
+        let concurrency = storage.get_recommended_batch_concurrency();
+
+        // Should be 50% of 16 = 8
+        assert_eq!(concurrency, 8);
     }
 }

@@ -79,14 +79,8 @@ async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
     }
 
     // Calculate max concurrent queries based on database connection pool size
-    let max_concurrent_tree_queries = {
-        let storage = handler.get_context();
-        let max_connection = storage.config().database.max_connection as usize;
-
-        // Use 50% of max_connection, with bounds: min 4, max = max_connection
-        let calculated = (max_connection * 50) / 100;
-        calculated.max(4).min(max_connection)
-    };
+    // Use Storage-provided recommended concurrency limit
+    let max_concurrent_tree_queries = handler.get_context().get_recommended_batch_concurrency();
 
     let tree_queries: Vec<_> = paths_by_parent
         .keys()
