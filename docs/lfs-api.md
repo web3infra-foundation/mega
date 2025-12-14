@@ -15,7 +15,7 @@ Content-Type:
 - `GET  /info/lfs/objects/{oid}`: Download object
 - `PUT  /info/lfs/objects/{oid}`: Upload object (request body is binary file data)
 - `GET  /info/lfs/objects/{oid}/chunks`: Get chunk information (when split mode is enabled)
-- `GET  /info/lfs/objects/{oid}/{chunk_id}?offset=&size=`: Download a single chunk
+- `GET  /info/lfs/objects/{oid}/chunks/{chunk_id}?offset=&size=`: Download a single chunk
 - `GET  /info/lfs/locks`: List locks (supports path/cursor/limit/refspec filtering)
 - `POST /info/lfs/locks`: Create lock
 - `POST /info/lfs/locks/verify`: Verify lock ownership (ours/theirs)

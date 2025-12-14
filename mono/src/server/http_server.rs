@@ -273,7 +273,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         .with_expiry(Expiry::OnInactivity(Duration::seconds(3600))); // 1 hour of inactivity
 
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(lfs_router::router().with_state(api_state.clone()))
+        .merge(lfs_router::routers().with_state(api_state.clone()))
         .nest(
             "/api/v1",
             api_router::routers()

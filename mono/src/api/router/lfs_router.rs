@@ -50,7 +50,7 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
-use axum::routing::{get, post, put};
+use axum::routing::{get, post};
 use futures::TryStreamExt;
 use utoipa_axum::router::OpenApiRouter;
 
@@ -93,7 +93,7 @@ fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
 /// Git remote: https://git-server.com/foo/bar
 /// LFS server: https://git-server.com/foo/bar.git/info/lfs
 /// Locks API: https://git-server.com/foo/bar.git/info/lfs/locks
-pub fn router() -> OpenApiRouter<MonoApiServiceState> {
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
         .nest("/info/lfs", lfs_routes())
         .nest("/api/v1/lfs", lfs_routes())
@@ -362,7 +362,7 @@ pub async fn lfs_fetch_chunk_ids(
         ("object_id" = String, Path, description = "Object ID (OID) to download"),
     ),
     responses(
-        (status = 200, description = "Object data stream", content_type = "application/vnd.git-lfs"),
+        (status = 200, description = "Object data stream", content_type = "application/octet-stream"),
         (status = 500, description = "Internal server error or object not found")
     ),
     tag = LFS_TAG
@@ -400,7 +400,7 @@ pub async fn lfs_download_object(
         ("size" = u64, Query, description = "Size of the chunk in bytes"),
     ),
     responses(
-        (status = 200, description = "Chunk data", content_type = "application/vnd.git-lfs"),
+        (status = 200, description = "Chunk data", content_type = "application/octet-stream"),
         (status = 400, description = "Bad request - missing or invalid offset/size parameters"),
         (status = 500, description = "Internal server error or chunk not found")
     ),
@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn test_lfs_router_paths() {
         // Test that router creates both standard and versioned paths
-        let _router = router();
+        let _router = routers();
         // If we get here, router was created successfully with both paths
         // This ensures /info/lfs and /api/v1/lfs are both registered
     }
@@ -718,16 +718,10 @@ mod tests {
             ("Generic error", StatusCode::INTERNAL_SERVER_ERROR),
         ];
 
-        for (msg, _expected_code) in test_cases {
+        for (msg, expected_code) in test_cases {
             let (code, _) = map_lfs_error(msg);
             // Verify the error mapping works correctly
-            if msg.contains("Not found") || msg.contains("not found") {
-                assert_eq!(code, StatusCode::NOT_FOUND);
-            } else if msg.contains("Invalid") {
-                assert_eq!(code, StatusCode::BAD_REQUEST);
-            } else {
-                assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
-            }
+            assert_eq!(code, expected_code, "Error mapping for message: {}", msg);
         }
     }
 
@@ -751,11 +745,11 @@ mod tests {
         let (code, _) = map_lfs_error(error);
         assert_eq!(code, StatusCode::NOT_FOUND);
 
-        // Test that order matters (first match wins)
+        // Test that "Not found" takes priority even if it appears after "Invalid"
         let error = "Invalid: Not found";
         let (code, _) = map_lfs_error(error);
-        // Should match "Invalid" first if it appears first
-        assert_eq!(code, StatusCode::BAD_REQUEST);
+        // Should match "Not found" first due to function's matching order
+        assert_eq!(code, StatusCode::NOT_FOUND);
     }
 
     #[test]
