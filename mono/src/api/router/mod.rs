@@ -9,5 +9,6 @@ pub mod lfs_router;
 pub mod merge_queue_router;
 pub mod preview_router;
 pub mod repo_router;
+pub mod reviewer_router;
 pub mod tag_router;
 pub mod user_router;
