@@ -128,24 +128,22 @@ impl Storage {
 
         let buck_config = config.buck.clone().unwrap_or_default();
 
-        // Validate and correct semaphore limits to ensure service availability
-        // If configured as 0, use minimum value 1 and log a warning
-        let upload_limit = buck_config.upload_concurrency_limit.max(1);
-        if buck_config.upload_concurrency_limit == 0 {
-            tracing::warn!(
-                "upload_concurrency_limit is 0, using minimum value 1. Please set a value >= 1 in configuration."
+        // Validate configuration
+        if let Err(e) = buck_config.validate() {
+            let error_msg = format!(
+                "Invalid Buck configuration: {}. Service cannot start with invalid configuration.",
+                e
             );
+            tracing::error!("{}", error_msg);
+            panic!("{}", error_msg);
         }
 
-        let large_file_limit = buck_config.large_file_concurrency_limit.max(1);
-        if buck_config.large_file_concurrency_limit == 0 {
-            tracing::warn!(
-                "large_file_concurrency_limit is 0, using minimum value 1. Please set a value >= 1 in configuration."
-            );
-        }
-
-        let upload_semaphore = Arc::new(Semaphore::new(upload_limit as usize));
-        let large_file_semaphore = Arc::new(Semaphore::new(large_file_limit as usize));
+        let upload_semaphore = Arc::new(Semaphore::new(
+            buck_config.upload_concurrency_limit as usize,
+        ));
+        let large_file_semaphore = Arc::new(Semaphore::new(
+            buck_config.large_file_concurrency_limit as usize,
+        ));
 
         let app_service = AppService {
             mono_storage: mono_storage.clone(),

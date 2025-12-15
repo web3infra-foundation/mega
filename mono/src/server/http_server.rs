@@ -171,7 +171,9 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
                         tracing::error!(
                             "Cleanup task did not stop within 30s timeout. \
                             This may indicate a deadlock or extremely slow I/O. \
-                            The task will be detached and may continue running."
+                            The task will be detached and may continue running. \
+                            Operators: check DB/Redis connectivity and long-running I/O; \
+                            consider increasing cleanup_interval if workloads are heavy."
                         );
                         Err(())
                     }

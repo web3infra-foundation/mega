@@ -140,7 +140,7 @@ pub struct FileToUpload {
 /// Response for file upload
 #[derive(Debug, Serialize, ToSchema)]
 pub struct FileUploadResponse {
-    /// File path in repository (relative to repository root, not local filesystem path)
+    /// File path in repository (relative to repo root; not a local filesystem path)
     pub file_path: String,
     /// Uploaded file size in bytes
     pub uploaded_size: u64,
@@ -158,7 +158,12 @@ pub struct CompletePayload {
 
 /// Response for upload completion
 ///
-/// Note: Does not include build status. Build is triggered asynchronously.
+/// Note:
+/// - Does not include build status (build is triggered asynchronously).
+/// - When there are no file changes, no new commit is created. In that case
+///   `commit_id` may be empty or equal to the session's base commit hash
+///   (`from_hash`, if provided). Clients must tolerate an empty `commit_id`
+///   for the "no-change" completion path.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CompleteResponse {
     /// Change List ID

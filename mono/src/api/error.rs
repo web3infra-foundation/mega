@@ -122,7 +122,16 @@ where
             match mega_err {
                 MegaError::Db(_) | MegaError::Redis(_) | MegaError::Io(_) => {
                     // Hide internal details in production, return generic 500
-                    tracing::error!("Internal error: {:?}", mega_err);
+                    tracing::error!(
+                        error_type = %match mega_err {
+                            MegaError::Db(_) => "Db",
+                            MegaError::Redis(_) => "Redis",
+                            MegaError::Io(_) => "Io",
+                            _ => "Other",
+                        },
+                        "Internal error occurred"
+                    );
+                    tracing::debug!("Internal error: {:?}", mega_err);
                     return ApiError::internal(anyhow::anyhow!("Internal server error"));
                 }
                 // For other MegaError variants, fall through to parse [code:xxx] format

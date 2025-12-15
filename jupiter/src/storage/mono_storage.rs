@@ -615,8 +615,8 @@ impl MonoStorage {
         {
             Ok(_) => Ok(()),
             Err(DbErr::RecordNotInserted) => {
-                // All trees already exist (idempotent operation)
-                // This is expected when retrying complete_upload
+                // All trees already exist (idempotent operation).
+                // Expected behavior when complete_upload is retried (idempotent).
                 tracing::debug!("All trees already exist, skipping insert (idempotent operation)");
                 Ok(())
             }
@@ -659,8 +659,8 @@ impl MonoStorage {
         {
             Ok(_) => Ok(()),
             Err(DbErr::RecordNotInserted) => {
-                // Commit already exists (idempotent operation)
-                // This is expected when retrying complete_upload
+                // Commit already exists (idempotent operation).
+                // Expected behavior when complete_upload is retried (idempotent).
                 tracing::debug!("Commit already exists, skipping insert (idempotent operation)");
                 Ok(())
             }

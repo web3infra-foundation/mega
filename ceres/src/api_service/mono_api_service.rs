@@ -1777,7 +1777,7 @@ impl MonoApiService {
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `session_id` - Session ID
-    /// * `payload` - Complete payload containing commit message and skip checks flag
+    /// * `payload` - Complete payload containing an optional commit message
     ///
     /// # Returns
     /// Returns `CompleteResponse` on success
@@ -1844,11 +1844,8 @@ impl MonoApiService {
             .filter(|f| f.upload_status == upload_status::UPLOADED)
             .map(|f| {
                 let blob_id = f.blob_id.as_ref().unwrap();
-                let normalized_blob_id = if blob_id.starts_with("sha1:") {
-                    blob_id.clone()
-                } else {
-                    format!("sha1:{}", blob_id)
-                };
+                let normalized_blob_id =
+                    format!("sha1:{}", blob_id.strip_prefix("sha1:").unwrap_or(blob_id));
                 FileChange::new(
                     f.file_path.clone(),
                     normalized_blob_id,
@@ -1909,6 +1906,15 @@ impl MonoApiService {
 
         // Calculate uploaded files count
         let uploaded_files_count = file_changes.len() as u32;
+
+        // TODO: Buck Upload completion flow - remaining steps (not implemented):
+        // 1. Output CL creation and diff logs (need to calculate file diffs, see get_diff_by_blobs)
+        // 2. Notify change-detector with CL change content (need to implement change-detector client)
+        // 3. Analyze affected targets (based on BUCK dependency graph, need to parse BUCK files)
+        // 4. Return build target list (affected_targets)
+        // 5. Start Buck2 build tasks (only build affected_targets, see bellatrix integration in post_cl_operation)
+        // 6. Return build results (success/failure/log path)
+        // 7. Push build progress and result logs (need real-time push mechanism)
 
         Ok(CompleteResponse {
             cl_id: session.id,

@@ -18,8 +18,8 @@ use crate::api::{
     notes::note_router,
     router::{
         buck_router, cl_router, commit_router, conv_router, dynamic_sidebar_router, gpg_router,
-        issue_router, label_router, merge_queue_router, preview_router, repo_router, reviewer_router,
-        tag_router, user_router,
+        issue_router, label_router, merge_queue_router, preview_router, repo_router,
+        reviewer_router, tag_router, user_router,
     },
 };
 use crate::server::http_server::SYSTEM_COMMON;

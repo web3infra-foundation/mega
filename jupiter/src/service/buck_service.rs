@@ -506,6 +506,16 @@ impl BuckService {
     /// Returns the hash without the prefix
     pub fn parse_hash(&self, hash: &str) -> Result<String, MegaError> {
         let hash_str = hash.strip_prefix("sha1:").unwrap_or(hash);
+
+        // Validate SHA1 format
+        if hash_str.len() != 40 {
+            return Err(BuckError::ValidationError(format!(
+                "Invalid SHA1 hash length: expected 40, got {}",
+                hash_str.len()
+            ))
+            .into());
+        }
+
         Ok(hash_str.to_string())
     }
 
@@ -635,38 +645,41 @@ impl BuckService {
                         None,
                     )
                 }
-                Some(old_hash) if *old_hash != new_hash => {
-                    files_to_upload.push(FileToUpload {
-                        path: file.path.clone(),
-                        reason: upload_reason::MODIFIED.to_string(),
-                    });
-                    // Check for overflow when accumulating upload_size
-                    upload_size = upload_size.checked_add(file.size).ok_or_else(|| {
-                        BuckError::ValidationError(format!(
-                            "Total upload size exceeds maximum (overflow detected). File: {}",
-                            file.path
-                        ))
-                    })?;
-                    (
-                        upload_status::PENDING.to_string(),
-                        Some(upload_reason::MODIFIED.to_string()),
-                        None,
-                    )
-                }
                 Some(old_hash) => {
-                    files_unchanged += 1;
-                    (
-                        upload_status::SKIPPED.to_string(),
-                        None,
-                        Some(old_hash.to_string()),
-                    )
+                    // Normalize old_hash for comparison
+                    let normalized_old_hash = self.parse_hash(old_hash)?;
+                    if normalized_old_hash != new_hash {
+                        files_to_upload.push(FileToUpload {
+                            path: file.path.clone(),
+                            reason: upload_reason::MODIFIED.to_string(),
+                        });
+                        // Check for overflow when accumulating upload_size
+                        upload_size = upload_size.checked_add(file.size).ok_or_else(|| {
+                            BuckError::ValidationError(format!(
+                                "Total upload size exceeds maximum (overflow detected). File: {}",
+                                file.path
+                            ))
+                        })?;
+                        (
+                            upload_status::PENDING.to_string(),
+                            Some(upload_reason::MODIFIED.to_string()),
+                            None,
+                        )
+                    } else {
+                        files_unchanged += 1;
+                        (
+                            upload_status::SKIPPED.to_string(),
+                            None,
+                            Some(format!("sha1:{}", normalized_old_hash)),
+                        )
+                    }
                 }
             };
 
             file_records.push(FileRecord {
                 file_path: file.path.clone(),
                 file_size: file.size as i64,
-                file_hash: new_hash.clone(),
+                file_hash: file.hash.clone(),
                 file_mode: Some(file.mode.clone()),
                 upload_status: status,
                 upload_reason: reason,
@@ -816,7 +829,7 @@ impl BuckService {
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `session_id` - Session ID
-    /// * `payload` - Complete payload with optional commit message and skip checks flag
+    /// * `payload` - Complete payload containing an optional commit message
     /// * `commit_artifacts` - Optional commit artifacts from MonoApiService (Git build in ceres)
     ///
     /// # Returns
@@ -917,6 +930,16 @@ impl BuckService {
             .await?;
 
         txn.commit().await?;
+
+        // TODO: Buck Upload completion flow - remaining steps (not implemented):
+        // 1. Output CL creation and diff logs (need to calculate file diffs)
+        // 2. Notify change-detector (need to implement change-detector client)
+        // 3. Buck2 build flow (need to integrate bellatrix and dependency analysis):
+        //    - Analyze affected targets (based on BUCK dependency graph)
+        //    - Return build target list (affected_targets)
+        //    - Start build tasks (only build affected_targets)
+        //    - Track build progress and results
+        //    - Push build progress and result logs
 
         Ok(CompleteResponse { commit_id })
     }
@@ -1292,16 +1315,23 @@ mod tests {
     #[test]
     fn test_parse_hash_with_prefix() {
         let service = create_test_service();
-        let result = service.parse_hash("sha1:abc123");
+        let result = service.parse_hash("sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "abc123");
+        assert_eq!(result.unwrap(), "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
     }
 
     #[test]
     fn test_parse_hash_without_prefix() {
         let service = create_test_service();
-        let result = service.parse_hash("abc123");
+        let result = service.parse_hash("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "abc123");
+        assert_eq!(result.unwrap(), "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_wrong_length() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:abc123");
+        assert!(result.is_err(), "Should reject hash with wrong length");
     }
 }

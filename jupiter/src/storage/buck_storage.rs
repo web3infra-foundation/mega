@@ -311,7 +311,7 @@ impl BuckStorage {
     ///
     /// # Arguments
     /// * `session_id` - The session containing the file
-    /// * `file_path` - Repository-relative path of the file
+    /// * `file_path` - Repository-relative path (from repo root; not a local filesystem path)
     ///
     /// # Returns
     /// - `Ok(Some(model))` if pending file found
@@ -341,7 +341,7 @@ impl BuckStorage {
     ///
     /// # Arguments
     /// * `session_id` - The session containing the file
-    /// * `file_path` - Repository-relative path of the file
+    /// * `file_path` - Repository-relative path (from repo root; not a local filesystem path)
     /// * `blob_id` - Database blob ID where content was stored
     ///
     /// # Returns

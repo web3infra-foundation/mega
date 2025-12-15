@@ -172,14 +172,15 @@ async fn upload_file(
         user.username
     );
 
-    // Validate Content-Type
-    if let Some(ct) = headers.get("content-type")
-        && ct != "application/octet-stream"
-    {
-        return Err(ApiError::with_status(
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            anyhow::anyhow!("Content-Type must be application/octet-stream"),
-        ));
+    // Validate Content-Type (must be present and application/octet-stream)
+    match headers.get("content-type") {
+        Some(ct) if ct == "application/octet-stream" => {}
+        _ => {
+            return Err(ApiError::with_status(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                anyhow::anyhow!("Content-Type must be application/octet-stream"),
+            ));
+        }
     }
 
     // Parse remaining headers
