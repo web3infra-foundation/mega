@@ -52,7 +52,7 @@ impl ClReviewerStorage {
     pub async fn update_system_required_reviewers(
         &self,
         cl_link: &str,
-        reviewers: &Vec<String>,
+        reviewers: &[String],
         system_required: bool,
     ) -> Result<(), MegaError> {
         for reviewer in reviewers {
@@ -84,20 +84,42 @@ impl ClReviewerStorage {
     pub async fn remove_reviewers(
         &self,
         cl_link: &str,
-        reviewers: &Vec<String>,
+        reviewers: &[String],
     ) -> Result<(), MegaError> {
-        for reviewer in reviewers {
-            mega_cl_reviewer::Entity::delete_many()
-                .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
-                .filter(mega_cl_reviewer::Column::Username.eq(reviewer.clone()))
-                .filter(mega_cl_reviewer::Column::SystemRequired.eq(false))
-                .exec(self.get_connection())
-                .await
-                .map_err(|e| {
-                    tracing::error!("{}", e);
-                    MegaError::Other(format!("fail to remove reviewer {}", reviewer.clone()))
-                })?;
+        if reviewers.is_empty() {
+            return Ok(());
         }
+        mega_cl_reviewer::Entity::delete_many()
+            .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
+            .filter(mega_cl_reviewer::Column::Username.is_in(reviewers.to_vec()))
+            .filter(mega_cl_reviewer::Column::SystemRequired.eq(false))
+            .exec(self.get_connection())
+            .await
+            .map_err(|e| {
+                tracing::error!("{}", e);
+                MegaError::Other(format!("fail to remove reviewers: {:?}", reviewers))
+            })?;
+        Ok(())
+    }
+
+    pub async fn remove_system_reviewers(
+        &self,
+        cl_link: &str,
+        reviewers: &[String],
+    ) -> Result<(), MegaError> {
+        if reviewers.is_empty() {
+            return Ok(());
+        }
+        mega_cl_reviewer::Entity::delete_many()
+            .filter(mega_cl_reviewer::Column::ClLink.eq(cl_link))
+            .filter(mega_cl_reviewer::Column::Username.is_in(reviewers.to_vec()))
+            .filter(mega_cl_reviewer::Column::SystemRequired.eq(true))
+            .exec(self.get_connection())
+            .await
+            .map_err(|e| {
+                tracing::error!("{}", e);
+                MegaError::Other(format!("fail to remove system reviewers: {:?}", reviewers))
+            })?;
         Ok(())
     }
 

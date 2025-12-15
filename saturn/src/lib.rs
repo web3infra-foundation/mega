@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 pub mod context;
 pub mod entitystore;
 mod objects;
+pub mod reviewer_parser;
 pub mod util;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

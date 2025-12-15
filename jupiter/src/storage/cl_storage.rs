@@ -49,6 +49,18 @@ impl ClStorage {
         Ok(model)
     }
 
+    pub async fn get_open_cls_by_path_prefix(
+        &self,
+        path_prefix: &str,
+    ) -> Result<Vec<mega_cl::Model>, MegaError> {
+        let models = mega_cl::Entity::find()
+            .filter(mega_cl::Column::Path.starts_with(path_prefix))
+            .filter(mega_cl::Column::Status.eq(MergeStatusEnum::Open))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
+    }
+
     pub async fn get_cl_list(
         &self,
         params: ListParams,
