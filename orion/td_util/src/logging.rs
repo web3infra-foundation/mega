@@ -23,7 +23,7 @@ pub fn init_logger_start_time() {
 }
 
 pub fn start_time() -> Instant {
-    START_TIME.get_or_init(Instant::now).clone()
+    *START_TIME.get_or_init(Instant::now)
 }
 
 pub fn elapsed() -> Duration {

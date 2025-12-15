@@ -381,7 +381,7 @@ impl CellPath {
     /// Only makes sense for directories that you know must be on package boundaries,
     /// e.g. `BUCK` or `PACKAGE` files.
     pub fn as_package(&self) -> Package {
-        Package(self.0.clone())
+        Package(self.0)
     }
 
     /// ```
@@ -521,7 +521,7 @@ impl Package {
 
     /// Represents the directory in which this package lives
     pub fn as_cell_path(&self) -> CellPath {
-        CellPath(self.0.clone())
+        CellPath(self.0)
     }
 }
 

@@ -47,8 +47,8 @@ pub async fn mount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Erro
         .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
         .build()?;
 
-    let mount_payload = if cl.is_some() {
-        json!({ "path": repo, "cl": cl })
+    let mount_payload = if let Some(cl_id) = cl {
+        json!({ "path": repo, "cl": cl_id })
     } else {
         json!({ "path": repo })
     };
@@ -140,9 +140,9 @@ pub async fn mount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Erro
 
 async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let client = reqwest::Client::new();
-    let unmount_payload = if cl.is_some() {
+    let unmount_payload = if let Some(cl_id) = cl {
         serde_json::json!({
-            "path": format!("{}_{}", repo.trim_start_matches('/'), cl.unwrap())
+            "path": format!("{}_{}", repo.trim_start_matches('/'), cl_id)
         })
     } else {
         serde_json::json!({

@@ -14,24 +14,20 @@
 use std::io;
 use std::process::ExitStatus;
 
-// 1. 定义一个扩展 Trait
+// defining own ExitStatus to avoid building under nightly version
 pub trait ExitStatusExt {
     fn exit_result(&self) -> Result<(), io::Error>;
 }
 
-// 2. 为 ExitStatus 实现这个 Trait
 impl ExitStatusExt for ExitStatus {
     fn exit_result(&self) -> Result<(), io::Error> {
         if self.success() {
             Ok(())
         } else {
-            // 由于标准库的 ExitStatusError 也是 unstable 的，
-            // 这里我们需要返回一个 std::io::Error 来替代。
-            // 这里的错误信息可以根据你的需要自定义。
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("process exited unsuccessfully: {}", self),
-            ))
+            Err(io::Error::other(format!(
+                "process exited unsuccessfully: {}",
+                self
+            )))
         }
     }
 }

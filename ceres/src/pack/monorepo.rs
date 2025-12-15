@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use std::{
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
-    pin::Pin,
     str::FromStr,
     sync::{
         Arc,
@@ -901,100 +900,6 @@ impl MonoRepo {
             .await?;
 
         Ok(())
-    }
-
-    pub async fn diff_recursive_trees_from_cl(
-        &self,
-    ) -> Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError> {
-        let mono_stg = self.storage.mono_storage();
-        let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
-        let from_tree: Tree =
-            Tree::from_mega_model(mono_stg.get_tree_by_hash(&from_c.tree).await?.unwrap());
-        let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
-        let to_tree: Tree =
-            Tree::from_mega_model(mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap());
-        Self::diff_recursive_trees_impl(self, PathBuf::new(), &from_tree, &to_tree).await
-    }
-
-    fn diff_recursive_trees_impl<'a>(
-        this: &'a Self,
-        path: PathBuf,
-        from_tree: &'a Tree,
-        to_tree: &'a Tree,
-    ) -> Pin<
-        Box<
-            dyn Future<Output = Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError>>
-                + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(async move {
-            let mono_stg = this.storage.mono_storage();
-            let mut from_tree_blobs = HashMap::new();
-            let mut from_tree_dirs = HashMap::new();
-            let mut to_tree_blobs = HashMap::new();
-            let mut to_tree_dirs = HashMap::new();
-            let mut res = Vec::new();
-
-            for item in &from_tree.tree_items {
-                if item.is_blob() {
-                    from_tree_blobs.insert(&item.name, item.id);
-                } else if item.is_tree() {
-                    from_tree_dirs.insert(&item.name, item.id);
-                }
-            }
-
-            for item in &to_tree.tree_items {
-                if item.is_blob() {
-                    let old = from_tree_blobs.get(&item.name).cloned();
-                    if old != Some(item.id.clone()) {
-                        res.push((path.join(&item.name), Some(item.id.clone()), old));
-                    }
-                    to_tree_blobs.insert(&item.name, item.id);
-                } else if item.is_tree() {
-                    let old = from_tree_dirs.get(&item.name).cloned();
-                    if old != Some(item.id.clone()) {
-                        res.push((path.join(&item.name), Some(item.id.clone()), old));
-                    }
-                    to_tree_dirs.insert(&item.name, item.id);
-                    if let Some(old_sha) = old {
-                        let old_tree_model = mono_stg
-                            .get_tree_by_hash(&old_sha.to_string())
-                            .await?
-                            .unwrap();
-                        let old_tree = Tree::from_mega_model(old_tree_model);
-                        let new_tree_model = mono_stg
-                            .get_tree_by_hash(&item.id.to_string())
-                            .await?
-                            .unwrap();
-                        let new_tree = Tree::from_mega_model(new_tree_model);
-
-                        let mut rescu = Self::diff_recursive_trees_impl(
-                            this,
-                            path.join(&item.name),
-                            &old_tree,
-                            &new_tree,
-                        )
-                        .await?;
-                        res.append(&mut rescu);
-                    }
-                }
-            }
-
-            for item in &from_tree.tree_items {
-                if item.is_blob() {
-                    if !to_tree_blobs.contains_key(&item.name) {
-                        res.push((path.join(&item.name), None, Some(item.id.clone())));
-                    }
-                } else if item.is_tree() {
-                    if !to_tree_dirs.contains_key(&item.name) {
-                        res.push((path.join(&item.name), None, Some(item.id.clone())));
-                    }
-                }
-            }
-
-            Ok(res)
-        })
     }
 
     pub async fn post_cl_operation(&self) -> Result<(), MegaError> {

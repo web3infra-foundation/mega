@@ -129,6 +129,10 @@ impl<'a> GraphImpact<'a> {
         self.recursive.len() + self.non_recursive.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a BuckTarget, ImpactTraceData)> {
         self.recursive
             .iter()

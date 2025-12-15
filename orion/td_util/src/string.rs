@@ -11,6 +11,7 @@
 use std::fmt;
 use std::ops::Deref;
 
+// use `internment` instead of original crate to avoid building under nightly
 use internment::Intern;
 use parse_display::Display;
 use serde::de::Visitor;
@@ -89,7 +90,7 @@ impl<'a> PartialEq<&'a str> for InternString {
     }
 }
 
-impl<'a> PartialEq<InternString> for &'a str {
+impl PartialEq<InternString> for &str {
     fn eq(&self, other: &InternString) -> bool {
         *self == other.as_str()
     }

@@ -82,7 +82,7 @@ impl Labels {
                     }
                     _ => {
                         // Regular CI label, add it to results
-                        result.push(label.clone());
+                        result.push(*label);
                     }
                 }
             }
@@ -301,7 +301,7 @@ impl<'de> Visitor<'de> for Visit<Labels> {
         let mut res = Vec::new();
         for xs in lbls {
             for x in xs.0.iter() {
-                res.push(x.clone());
+                res.push(*x);
             }
         }
         Ok(Labels(res.into_boxed_slice()))

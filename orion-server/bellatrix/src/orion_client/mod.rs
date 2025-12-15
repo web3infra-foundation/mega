@@ -19,10 +19,7 @@ impl ProjectRelativePath {
         let opt = abs_path
             .strip_prefix(base)
             .map(|s| s.trim_start_matches("/"));
-        match opt {
-            Some(s) => Some(Self(s.to_owned())),
-            None => None,
-        }
+        opt.map(|s| Self(s.to_owned()))
     }
 }
 
