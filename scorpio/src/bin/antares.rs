@@ -79,34 +79,39 @@ async fn main() {
         paths.state_file = p;
     }
 
-    let manager = AntaresManager::new(paths).await;
-
     match cli.command {
-        Commands::Mount { job_id, cl } => match manager.mount_job(&job_id, cl.as_deref()).await {
-            Ok(instance) => {
-                println!(
-                    "mounted job {} at {}",
-                    job_id,
-                    instance.mountpoint.display()
-                );
+        Commands::Mount { job_id, cl } => {
+            let manager = AntaresManager::new(paths.clone()).await;
+            match manager.mount_job(&job_id, cl.as_deref()).await {
+                Ok(instance) => {
+                    println!(
+                        "mounted job {} at {}",
+                        job_id,
+                        instance.mountpoint.display()
+                    );
+                }
+                Err(err) => {
+                    eprintln!("failed to mount job {}: {}", job_id, err);
+                    std::process::exit(1);
+                }
             }
-            Err(err) => {
-                eprintln!("failed to mount job {}: {}", job_id, err);
-                std::process::exit(1);
+        }
+        Commands::Umount { job_id } => {
+            let manager = AntaresManager::new(paths.clone()).await;
+            match manager.umount_job(&job_id).await {
+                Ok(Some(_)) => println!("unmounted job {}", job_id),
+                Ok(None) => {
+                    eprintln!("job {} not found", job_id);
+                    std::process::exit(1);
+                }
+                Err(err) => {
+                    eprintln!("failed to unmount job {}: {}", job_id, err);
+                    std::process::exit(1);
+                }
             }
-        },
-        Commands::Umount { job_id } => match manager.umount_job(&job_id).await {
-            Ok(Some(_)) => println!("unmounted job {}", job_id),
-            Ok(None) => {
-                eprintln!("job {} not found", job_id);
-                std::process::exit(1);
-            }
-            Err(err) => {
-                eprintln!("failed to unmount job {}: {}", job_id, err);
-                std::process::exit(1);
-            }
-        },
+        }
         Commands::List => {
+            let manager = AntaresManager::new(paths.clone()).await;
             let items = manager.list().await;
             if items.is_empty() {
                 println!("no active jobs");
