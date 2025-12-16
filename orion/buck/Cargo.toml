@@ -1,0 +1,29 @@
+[package]
+name = "td_util_buck"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+dashmap = { version = "5.5", features = ["serde"] }
+fnv = "1.0"
+glob = "0.3.0"
+globset = "0.4.10"
+itertools = "0.14.0"
+parse-display = "0.8.2"
+regex = "1.5.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.66"
+tempfile = "3.1.0"
+thiserror = "1.0.36"
+tracing = "0.1.22"
+
+td_util = { path = "../td_util" }
+audit = { path = "../audit" }
+
+utoipa-axum.workspace = true
+utoipa.workspace = true
+utoipa-swagger-ui = { workspace = true, features = ["axum"] }
