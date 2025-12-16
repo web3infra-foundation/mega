@@ -66,15 +66,25 @@ interface FileDiffProps {
   fileChangeIsLoading: boolean
   treeData: CommonResultVecMuiTreeNode['data']
   treeIsLoading: boolean
+  page: number
+  hasMoreData: boolean
+  isBlockingLoading: boolean
+  onLoadMore: () => void
 }
 
-export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData, treeIsLoading }: FileDiffProps) {
+export default function FileDiff({
+  fileChangeData,
+  fileChangeIsLoading,
+  treeData,
+  treeIsLoading,
+  page,
+  hasMoreData,
+  isBlockingLoading,
+  onLoadMore
+}: FileDiffProps) {
   const virtuosoRef = useRef<any>(null)
 
-  const [page, setPage] = useState(1)
-
   const [pageDataMap, setPageDataMap] = useState<Map<number, DiffItem[]>>(new Map())
-  const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => {
     if (fileChangeData?.items && !fileChangeIsLoading) {
@@ -86,8 +96,6 @@ export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData
         }
         return newMap
       })
-
-      setTotalCount(fileChangeData.total)
     }
   }, [fileChangeData, fileChangeIsLoading, page])
 
@@ -137,14 +145,10 @@ export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData
     [parsedFiles]
   )
 
-  const hasMoreData = useMemo(() => {
-    return fileDiff.length < totalCount
-  }, [fileDiff.length, totalCount])
-
   const loadMoreDiffs = useCallback(() => {
     if (fileChangeIsLoading || !hasMoreData) return
-    setPage((prev) => prev + 1)
-  }, [fileChangeIsLoading, hasMoreData])
+    onLoadMore()
+  }, [fileChangeIsLoading, hasMoreData, onLoadMore])
 
   useEffect(() => {
     setExpandedMap(Object.fromEntries(diffFiles.map((f) => [f.path, false])))
@@ -214,13 +218,21 @@ export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData
   }
 
   return (
-    <div className='mt-3 flex font-sans'>
+    <div className='relative mt-3 flex font-sans'>
+      {isBlockingLoading && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-white/60'>
+          <div className='flex items-center rounded-md bg-white px-3 py-2 shadow'>
+            <LoadingSpinner />
+            <span className='ml-2 text-sm text-gray-600'>Loading diffs...</span>
+          </div>
+        </div>
+      )}
       <div className='sticky top-5 h-[80vh] w-[300px] overflow-y-auto rounded-lg p-2'>
         <FileTree treeData={treeData} treeDataLoading={treeIsLoading} onFileClick={scrollToFile} />
       </div>
 
       <div className='h-full w-full flex-1 px-4'>
-        {totalCount === 0 && !fileChangeIsLoading ? (
+        {fileDiff.length === 0 && !fileChangeIsLoading && page === 1 ? (
           <div className='flex h-[85vh] items-center justify-center'>No File Changed</div>
         ) : (
           <Virtuoso
@@ -229,7 +241,7 @@ export default function FileDiff({ fileChangeData, fileChangeIsLoading, treeData
             totalCount={parsedFiles.length}
             itemContent={DiffItem}
             endReached={loadMoreDiffs}
-            components={{ Footer: () => fileChangeIsLoading && <LoadingSpinner /> }}
+            components={{ Footer: () => null }}
             increaseViewportBy={350}
           />
         )}

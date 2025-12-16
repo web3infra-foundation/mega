@@ -246,6 +246,10 @@ export const CommitsDetailView: React.FC = () => {
           fileChangeIsLoading={isLoadingFilesChanged}
           treeData={treeResponse?.data as CommonResultVecMuiTreeNode['data']}
           treeIsLoading={treeIsLoading}
+          page={1}
+          hasMoreData={false}
+          isBlockingLoading={isLoadingFilesChanged || treeIsLoading}
+          onLoadMore={() => undefined}
         />
       ) : (
         <div className='flex h-[200px] items-center justify-center text-gray-500'>No file changes</div>
