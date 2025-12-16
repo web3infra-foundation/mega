@@ -38,13 +38,13 @@ futures = "0.3.31"
 quote = "1.0.38"
 proc-macro2 = "1.0.93"
 uuid = { version = "1.14.0", features = ["v4"] }
-# libfuse-fs upgraded from 0.1.6 to 0.1.8 to address breaking API changes:
+# libfuse-fs upgraded from 0.1.6 to 0.1.9 to address breaking API changes:
 # - Fixed FUSE mount/unmount race conditions and improved error propagation.
 # - Changed trait bounds for async operations, required for Scorpio's async FUSE integration.
 # - Updated method signatures for file/directory operations to match rfuse3 and kernel expectations.
 # - 0.1.6 had issues with incomplete async support and incorrect error handling, causing panics in Scorpio.
 # NOTE: Verify release notes at the libfuse-fs repository before upgrading versions.
-libfuse-fs = "0.1.8"
+libfuse-fs = "0.1.9"
 regex = "1.11.1"
 whoami = "1.6.0"
 wax = "0.6.0"

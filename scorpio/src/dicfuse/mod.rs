@@ -1,8 +1,12 @@
 mod abi;
 mod async_io;
 mod content_store;
+pub mod manager;
 pub mod store;
 mod tree_store;
+
+pub use manager::DicfuseManager;
+
 use crate::manager::fetch::fetch_tree;
 use crate::util::config;
 use std::{
@@ -88,6 +92,78 @@ impl Layer for Dicfuse {
         );
         Err(std::io::Error::from_raw_os_error(libc::EROFS).into())
     }
+
+    /// Retrieve metadata with optional ID mapping control.
+    ///
+    /// For Dicfuse (a virtual read-only layer), we ignore the `mapping` flag and
+    /// construct a synthetic `stat64` from our in-memory `StorageItem`, similar
+    /// to the old `do_getattr_helper` behavior in earlier libfuse-fs versions.
+    async fn getattr_with_mapping(
+        &self,
+        inode: Inode,
+        _handle: Option<u64>,
+        _mapping: bool,
+    ) -> std::io::Result<(libc::stat64, std::time::Duration)> {
+        // Resolve inode -> StorageItem to derive type/size.
+        let item = self
+            .store
+            .get_inode(inode)
+            .await
+            .map_err(|_| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+
+        // Use existing ReplyEntry metadata to stay consistent with other Dicfuse paths.
+        let attr = item.get_stat().attr;
+
+        let size = if item.is_dir() {
+            0
+        } else {
+            self.store.get_file_len(inode) as i64
+        };
+
+        let type_bits: libc::mode_t = match attr.kind {
+            rfuse3::FileType::Directory => libc::S_IFDIR,
+            rfuse3::FileType::Symlink => libc::S_IFLNK,
+            _ => libc::S_IFREG,
+        };
+
+        let perm: libc::mode_t = if item.is_dir() {
+            attr.perm as libc::mode_t
+        } else if self.store.is_executable(inode) {
+            0o755
+        } else {
+            0o644
+        };
+        let mode: libc::mode_t = type_bits | perm;
+        let nlink = if attr.nlink > 0 {
+            attr.nlink
+        } else if item.is_dir() {
+            2
+        } else {
+            1
+        };
+
+        // Construct stat64 structure using zeroed() for platform-specific padding fields.
+        let mut stat: libc::stat64 = unsafe { std::mem::zeroed() };
+        stat.st_dev = 0;
+        stat.st_ino = inode;
+        stat.st_nlink = nlink as _;
+        stat.st_mode = mode;
+        stat.st_uid = attr.uid;
+        stat.st_gid = attr.gid;
+        stat.st_rdev = 0;
+        stat.st_size = size;
+        stat.st_blksize = 4096;
+        stat.st_blocks = (size + 511) / 512; // Round up to 512-byte blocks
+        stat.st_atime = attr.atime.sec;
+        stat.st_atime_nsec = attr.atime.nsec.into();
+        stat.st_mtime = attr.mtime.sec;
+        stat.st_mtime_nsec = attr.mtime.nsec.into();
+        stat.st_ctime = attr.ctime.sec;
+        stat.st_ctime_nsec = attr.ctime.nsec.into();
+
+        // TTL of 2 seconds, consistent with other Dicfuse operations.
+        Ok((stat, std::time::Duration::from_secs(2)))
+    }
 }
 
 #[allow(unused)]
@@ -147,6 +223,9 @@ impl Dicfuse {
 
                 let it_temp = self.store.get_by_path(&parent_item.to_string()).await?;
                 self.store.save_file(it_temp.get_inode(), data);
+                if i.mode == TreeItemMode::BlobExecutable {
+                    self.store.set_executable(it_temp.get_inode(), true);
+                }
             } else {
                 eprintln!("Request failed with status: {}", response.status());
             }
@@ -161,8 +240,26 @@ impl Dicfuse {
         if self.store.file_exists(parent_item.get_inode()) {
             return;
         }
-        let gpath = self.store.find_path(parent_item.get_inode()).await.unwrap();
-        let tree = fetch_tree(&gpath).await.unwrap();
+        let gpath = match self.store.find_path(parent_item.get_inode()).await {
+            Some(p) => p,
+            None => {
+                tracing::warn!(
+                    "load_files: find_path missing for inode {}",
+                    parent_item.get_inode()
+                );
+                return;
+            }
+        };
+        let tree = match fetch_tree(&gpath).await {
+            Ok(t) => t,
+            Err(err) => {
+                tracing::warn!(
+                    "load_files: fetch_tree failed for path {}: {err}",
+                    gpath.to_string()
+                );
+                return;
+            }
+        };
         let mut is_first = true;
         let client = Client::new();
         let file_blob_endpoint = config::file_blob_endpoint();
@@ -173,12 +270,24 @@ impl Dicfuse {
             }
             let url = format!("{}/{}", file_blob_endpoint, i.id);
             // Send GET request
-            let response = client.get(url).send().await.unwrap(); //todo error
+            let response = match client.get(url).send().await {
+                Ok(resp) => resp,
+                Err(err) => {
+                    tracing::warn!("load_files: request failed for {}: {err}", i.id);
+                    continue;
+                }
+            };
 
             // Ensure that the response status is successful
             if response.status().is_success() {
                 // Get the binary data from the response body
-                let content = response.bytes().await.unwrap(); //TODO error
+                let content = match response.bytes().await {
+                    Ok(b) => b,
+                    Err(err) => {
+                        tracing::warn!("load_files: read body failed for {}: {err}", i.id);
+                        continue;
+                    }
+                };
 
                 // Store the content in a Vec<u8>
                 let data: Vec<u8> = content.to_vec();
@@ -191,8 +300,14 @@ impl Dicfuse {
                         break;
                     }
                 }
-                assert!(hit_inodes.is_some()); // must find an inode from children.
-                let hit_inodes = hit_inodes.unwrap();
+                let Some(hit_inodes) = hit_inodes else {
+                    tracing::warn!(
+                        "load_files: inode not found for name {} in parent {}",
+                        i.name,
+                        gpath.to_string()
+                    );
+                    continue;
+                };
 
                 // Look up the buff, find Loaded file.
                 if is_first {
@@ -201,6 +316,9 @@ impl Dicfuse {
                         break;
                     }
                     self.store.save_file(hit_inodes, data);
+                    if i.mode == TreeItemMode::BlobExecutable {
+                        self.store.set_executable(hit_inodes, true);
+                    }
                     is_first = false;
                 }
             } else {
@@ -214,10 +332,12 @@ impl Dicfuse {
 #[cfg(test)]
 mod tests {
     use std::ffi::OsStr;
+    use std::path::PathBuf;
 
     use tokio::signal;
 
     use crate::dicfuse::Dicfuse;
+    use libfuse_fs::unionfs::layer::Layer;
 
     #[tokio::test]
     #[ignore = "manual test requiring root privileges for FUSE mount"]
@@ -239,5 +359,32 @@ mod tests {
                 mount_handle.unmount().await.unwrap()
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_getattr_with_mapping_preserves_mode_and_size() {
+        let base = PathBuf::from("/tmp/dicfuse_attr_test");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+
+        let dic = Dicfuse::new_with_store_path(base.to_str().unwrap()).await;
+
+        // Insert root and one file; mark file executable and with known content length.
+        dic.store.insert_mock_item(1, 0, "", true).await;
+        dic.store.insert_mock_item(2, 1, "file", false).await;
+        dic.store.save_file(2, b"abc".to_vec());
+        dic.store.set_executable(2, true);
+
+        let (file_stat, _) = dic.getattr_with_mapping(2, None, false).await.unwrap();
+        assert_eq!(file_stat.st_mode & libc::S_IFMT, libc::S_IFREG);
+        assert_eq!(file_stat.st_mode & 0o777, 0o755);
+        assert_eq!(file_stat.st_size, 3);
+
+        let (dir_stat, _) = dic.getattr_with_mapping(1, None, false).await.unwrap();
+        assert_eq!(dir_stat.st_mode & libc::S_IFMT, libc::S_IFDIR);
+        assert_eq!(dir_stat.st_mode & 0o777, 0o755);
+        assert_eq!(dir_stat.st_nlink, 2);
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

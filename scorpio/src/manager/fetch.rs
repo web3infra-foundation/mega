@@ -820,7 +820,11 @@ async fn fetch_and_save_file(
 /// Network operations, extracting Tree objects from HTTP byte streams
 #[allow(unused)]
 pub async fn fetch_tree(path: &GPath) -> Result<Tree, String> {
-    let url = format!("{}{}", config::tree_file_endpoint(), path);
+    // tree_file_endpoint() returns "{base_url}/api/v1/file/tree?path=/"
+    // We need to append the path without the leading slash to avoid double slashes
+    let path_str = path.to_string();
+    let clean_path = path_str.trim_start_matches('/');
+    let url = format!("{}{}", config::tree_file_endpoint(), clean_path);
     let response = reqwest::get(&url)
         .await
         .map_err(|e| format!("Request failed: {e}"))?;
