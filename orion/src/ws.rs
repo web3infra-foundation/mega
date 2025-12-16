@@ -1,8 +1,10 @@
 use crate::api::{BuildRequest, buck_build};
+use crate::repo::sapling::status::Status;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::ops::ControlFlow;
 use std::time::Duration;
+use td_util_buck::types::ProjectRelativePath;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -39,9 +41,9 @@ pub enum WSMessage {
     Task {
         id: String,
         repo: String,
-        target: String,
         args: Option<Vec<String>>,
         cl_link: String,
+        changes: Vec<Status<ProjectRelativePath>>,
     },
 }
 
@@ -191,9 +193,9 @@ async fn process_server_message(
                         WSMessage::Task {
                             id,
                             repo,
-                            target,
                             args,
                             cl_link: cl,
+                            changes,
                         } => {
                             tracing::info!("Received task: id={}", id);
                             tokio::spawn(async move {
@@ -213,9 +215,9 @@ async fn process_server_message(
                                     task_id_uuid,
                                     BuildRequest {
                                         repo,
-                                        target,
                                         args,
                                         cl,
+                                        changes,
                                     },
                                     sender.clone(),
                                 )

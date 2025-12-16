@@ -1,6 +1,7 @@
 use crate::model::builds;
 use chrono::FixedOffset;
 use dashmap::DashMap;
+use orion::repo::sapling::status::{ProjectRelativePath, Status};
 use orion::ws::WSMessage;
 use rand::Rng;
 use sea_orm::ActiveModelTrait;
@@ -23,6 +24,7 @@ pub struct BuildRequest {
     pub buck_hash: String,
     pub buckconfig_hash: String,
     pub args: Option<Vec<String>>,
+    pub changes: Vec<Status<ProjectRelativePath>>,
 }
 
 /// Pending task waiting for dispatch
@@ -34,7 +36,6 @@ pub struct PendingTask {
     pub repo: String,
     pub cl: i64,
     pub request: BuildRequest,
-    pub target: String,
     pub created_at: Instant,
 }
 
@@ -134,9 +135,9 @@ pub struct TaskQueueStats {
 #[allow(dead_code)]
 pub struct BuildInfo {
     pub repo: String,
-    pub target: String,
     pub args: Option<Vec<String>>,
     pub start_at: DateTimeUtc,
+    pub changes: Vec<Status<ProjectRelativePath>>,
     pub cl: String,
     pub _worker_id: String,
     pub log_file: Arc<Mutex<std::fs::File>>,
@@ -241,7 +242,6 @@ impl TaskScheduler {
         task_id: Uuid,
         cl_link: &str,
         request: BuildRequest,
-        target: String,
         repo: String,
         cl: i64,
     ) -> Result<Uuid, String> {
@@ -252,7 +252,6 @@ impl TaskScheduler {
             cl_link: cl_link.to_string(),
             build_id,
             request,
-            target,
             created_at: Instant::now(),
             repo,
             cl,
@@ -372,9 +371,9 @@ impl TaskScheduler {
         // Create build information
         let build_info = BuildInfo {
             repo: pending_task.repo.clone(),
-            target: pending_task.target.clone(),
             args: pending_task.request.args.clone(),
             start_at: chrono::Utc::now(),
+            changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
             log_file,
@@ -406,9 +405,9 @@ impl TaskScheduler {
         let msg = WSMessage::Task {
             id: pending_task.build_id.to_string(),
             repo: pending_task.repo,
-            target: pending_task.target,
             args: pending_task.request.args,
             cl_link: pending_task.cl_link.to_string(),
+            changes: pending_task.request.changes.clone(),
         };
 
         // Send task to worker
@@ -659,8 +658,8 @@ mod tests {
                 buck_hash: "hash1".to_string(),
                 buckconfig_hash: "config1".to_string(),
                 args: None,
+                changes: vec![],
             },
-            target: "target1".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -674,8 +673,8 @@ mod tests {
                 buck_hash: "hash2".to_string(),
                 buckconfig_hash: "config2".to_string(),
                 args: None,
+                changes: vec![],
             },
-            target: "target2".to_string(),
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -712,8 +711,8 @@ mod tests {
                 buck_hash: "hash".to_string(),
                 buckconfig_hash: "config".to_string(),
                 args: None,
+                changes: vec![],
             },
-            target: "target".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

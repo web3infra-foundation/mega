@@ -13,7 +13,11 @@ use std::{
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
-use bellatrix::{Bellatrix, orion_client::BuildInfo, orion_client::OrionBuildRequest};
+use bellatrix::{
+    Bellatrix,
+    orion_client::OrionBuildRequest,
+    orion_client::{BuildInfo, ProjectRelativePath, Status},
+};
 use callisto::{
     entity_ext::generate_link, mega_cl, mega_refs, raw_blob, sea_orm_active_enums::ConvTypeEnum,
 };
@@ -587,6 +591,29 @@ impl MonoRepo {
         let mono_stg = self.storage.mono_storage();
         let mono_api_service: MonoApiService = self.into();
 
+        let mut path = Some(cl_path);
+        let mut path_q = Vec::new();
+        while let Some(p) = path {
+            path_q.push(p);
+            path = p.parent();
+        }
+        if path_q.len() > 2 {
+            path_q.pop();
+            path_q.pop();
+
+            let p = path_q[path_q.len() - 1];
+            if p.parent().is_some()
+                && let Some(tree) = tree_ops::search_tree_by_path(&mono_api_service, p, None)
+                    .await
+                    .ok()
+                    .flatten()
+                && let Some(buck) = self.try_extract_buck(tree, cl_path)
+            {
+                return Ok(vec![buck]);
+            };
+            return Ok(vec![]);
+        }
+
         let mut search_trees: Vec<(PathBuf, Tree)> = vec![];
 
         let diff_trees = self.diff_trees_from_cl().await?;
@@ -608,23 +635,6 @@ impl MonoRepo {
             }
         }
 
-        // no buck file found
-        if res.is_empty() {
-            let mut path = Some(cl_path);
-            while let Some(p) = path {
-                if p.parent().is_some()
-                    && let Some(tree) = tree_ops::search_tree_by_path(&mono_api_service, p, None)
-                        .await
-                        .ok()
-                        .flatten()
-                    && let Some(buck) = self.try_extract_buck(tree, cl_path)
-                {
-                    return Ok(vec![buck]);
-                };
-
-                path = p.parent();
-            }
-        }
         Ok(res)
     }
 
@@ -910,7 +920,38 @@ impl MonoRepo {
                     self.path
                 );
             } else {
+                let old_files = self.get_commit_blobs(&cl_info.from_hash).await?;
+                let new_files = self.get_commit_blobs(&cl_info.to_hash).await?;
+                let cl_diff_files = self.cl_files_list(old_files, new_files.clone()).await?;
+
+                let cl_base = PathBuf::from(&cl_info.path);
+                let changes = cl_diff_files
+                    .into_iter()
+                    .map(|m| {
+                        let mut item: crate::model::change_list::ClFilesRes = m.into();
+                        item.path = cl_base.join(item.path).to_string_lossy().to_string();
+                        item
+                    })
+                    .collect::<Vec<_>>();
+
                 for buck_file in buck_files {
+                    let path_str = buck_file.path.to_str().expect("path is not valid UTF-8");
+                    let counter_changes: Vec<_> = changes
+                        .iter()
+                        .filter(|&s| PathBuf::from(&s.path).starts_with(&buck_file.path))
+                        .map(|s| {
+                            let path = ProjectRelativePath::from_abs(&s.path, path_str).unwrap();
+                            if s.action == "new" {
+                                Status::Added(path)
+                            } else if s.action == "deleted" {
+                                Status::Removed(path)
+                            } else if s.action == "modified" {
+                                Status::Modified(path)
+                            } else {
+                                unreachable!()
+                            }
+                        })
+                        .collect();
                     let req = OrionBuildRequest {
                         repo: buck_file.path.to_str().unwrap().to_string(),
                         cl_link: link.to_string(),
@@ -921,6 +962,7 @@ impl MonoRepo {
                             buck_hash: buck_file.buck.to_string(),
                             buckconfig_hash: buck_file.buck_config.to_string(),
                             args: Some(vec![]),
+                            changes: counter_changes,
                         }],
                     };
                     let bellatrix = self.bellatrix.clone();
@@ -934,6 +976,23 @@ impl MonoRepo {
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
         check_reg.run_checks(cl_info.clone().into()).await?;
         Ok(())
+    }
+
+    pub async fn get_commit_blobs(
+        &self,
+        commit_hash: &str,
+    ) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+        let api_service: MonoApiService = self.into();
+        api_service.get_commit_blobs(commit_hash).await
+    }
+
+    pub async fn cl_files_list(
+        &self,
+        old_files: Vec<(PathBuf, SHA1)>,
+        new_files: Vec<(PathBuf, SHA1)>,
+    ) -> Result<Vec<crate::model::change_list::ClDiffFile>, MegaError> {
+        let api_service: MonoApiService = self.into();
+        api_service.cl_files_list(old_files, new_files).await
     }
 }
 
