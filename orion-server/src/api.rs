@@ -334,9 +334,6 @@ pub async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<TaskRequest>,
 ) -> impl IntoResponse {
-    // for now we do not extract from file, just use the fixed build target.
-    let target = "//...".to_string();
-
     // create task id
     let task_id = Uuid::now_v7();
 
@@ -374,7 +371,7 @@ pub async fn task_handler(
                 &req.repo,
                 req.cl,
                 build.clone(),
-                target.clone(),
+                String::new(),
             )
             .await;
             results.push(result);
@@ -386,7 +383,6 @@ pub async fn task_handler(
                     task_id,
                     &req.cl_link,
                     build.clone(),
-                    target.clone(),
                     req.repo.clone(),
                     req.cl,
                 )
@@ -426,6 +422,9 @@ pub async fn task_handler(
 }
 
 /// Handle immediate task dispatch logic (original task_handler logic)
+///
+/// # Note
+/// The `target` field is deprecated, only remain for compatibility reasons.
 async fn handle_immediate_task_dispatch(
     state: AppState,
     task_id: Uuid,
@@ -476,8 +475,8 @@ async fn handle_immediate_task_dispatch(
     // Create build information structure
     let build_info = BuildInfo {
         repo: repo.to_string(),
-        target: target.clone(),
         args: req.args.clone(),
+        changes: req.changes.clone(),
         start_at: chrono::Utc::now(),
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
@@ -508,7 +507,7 @@ async fn handle_immediate_task_dispatch(
     let msg: WSMessage = WSMessage::Task {
         id: build_id.to_string(),
         repo: repo.to_string(),
-        target,
+        changes: req.changes.clone(),
         args: req.args.clone(),
         cl_link: cl_link.to_string(),
     };

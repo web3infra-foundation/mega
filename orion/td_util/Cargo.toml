@@ -1,0 +1,23 @@
+[package]
+name = "td_util"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+argfile = "0.1.5"
+clap = {version = "4.1.4"}
+equivalent = "1.0.0"
+futures = "0.3.30"
+itertools = "0.14.0"
+parse-display = "0.8.2"
+rayon = "1.6.1"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0.66"
+tempfile = "3.1.0"
+thiserror = "1.0.36"
+tokio = { version = "1.37", features = ["full"] }
+tracing = "0.1.22"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zstd = "0.12.3"
+internment = "0.8.6"

@@ -1,6 +1,7 @@
 // Orion worker client modules
 mod api;
 mod buck_controller;
+pub mod repo;
 mod util;
 mod ws;
 
@@ -25,7 +26,7 @@ async fn main() {
     let worker_id = std::env::var("ORION_WORKER_ID").unwrap_or_else(|_| {
         tracing::warn!("ORION_WORKER_ID not set, generating a random worker ID for this session.");
         // Generate time-ordered UUID for better traceability
-        Uuid::now_v7().to_string()
+        Uuid::new_v4().to_string()
     });
 
     tracing::info!("Starting orion worker...");

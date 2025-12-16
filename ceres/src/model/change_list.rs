@@ -140,6 +140,7 @@ pub struct ClFilesRes {
 
 impl From<ClDiffFile> for ClFilesRes {
     fn from(value: ClDiffFile) -> Self {
+        // if change, please modify `ceres/src/pack/monorepo.rs` also.
         match value {
             ClDiffFile::New(path, sha) => Self {
                 path: path.to_string_lossy().to_string(),
