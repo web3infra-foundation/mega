@@ -65,8 +65,14 @@ export const convertToTreeData = (responseData: any): MuiTreeNode[] => {
 
   // Handle the new API format where responseData is the tree structure directly
   const convertNode = (node: any, parentPath: string = ''): MuiTreeNode => {
-    // Build the full path by combining parent path with current node label
-    const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label
+    const rawPath: string | undefined = node.path
+    let fullPath: string
+
+    if (typeof rawPath === 'string' && rawPath.length > 0) {
+      fullPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath
+    } else {
+      fullPath = parentPath ? `${parentPath}/${node.label}` : node.label
+    }
 
     return {
       id: node.id,
