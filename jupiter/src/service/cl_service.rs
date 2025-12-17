@@ -66,4 +66,28 @@ impl CLService {
         };
         Ok(res)
     }
+
+    /// Create a new Draft CL
+    ///
+    /// # Arguments
+    /// * `path` - Repository path
+    /// * `link` - CL link
+    /// * `title` - CL title
+    /// * `from_hash` - Base commit hash
+    /// * `username` - User creating the CL
+    ///
+    /// # Returns
+    /// Returns the created CL link on success
+    pub async fn create_draft_cl(
+        &self,
+        path: &str,
+        link: &str,
+        title: &str,
+        from_hash: &str,
+        username: &str,
+    ) -> Result<String, MegaError> {
+        self.cl_storage
+            .new_cl_draft(path, link, title, from_hash, username)
+            .await
+    }
 }

@@ -7,6 +7,7 @@ use std::sync::{Arc, LazyLock};
 
 use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
+use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
@@ -75,6 +76,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         issue_service: IssueService::mock(),
         cl_service: CLService::mock(),
         merge_queue_service: MergeQueueService::mock(),
+        buck_service: BuckService::mock(),
         config: Arc::downgrade(&config),
     }
 }

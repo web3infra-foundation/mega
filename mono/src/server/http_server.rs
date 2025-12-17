@@ -16,6 +16,8 @@ use http::{HeaderValue, Method};
 
 use saturn::entitystore::EntityStore;
 use time::Duration;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -43,22 +45,165 @@ pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {
     PathBuf::from(full_path.replace(".git", "").replace(git_suffix, ""))
 }
 
+/// Spawns a background task to clean up expired Buck upload sessions.
+///
+/// Returns `None` if cleanup is disabled in configuration.
+fn spawn_cleanup_task(ctx: AppContext, token: CancellationToken) -> Option<JoinHandle<()>> {
+    let config = ctx.storage.config();
+    let buck_config = config.buck.clone().unwrap_or_default();
+
+    if !buck_config.enable_session_cleanup {
+        return None;
+    }
+
+    let cleanup_storage = ctx.storage.clone();
+    let cleanup_interval = buck_config.cleanup_interval;
+    let retention_days = buck_config.completed_retention_days;
+
+    Some(tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(cleanup_interval));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        tracing::info!(
+            "Buck upload session cleanup task started (interval: {}s, retention: {}d)",
+            cleanup_interval,
+            retention_days
+        );
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    match cleanup_storage
+                        .buck_storage()
+                        .delete_expired_sessions(retention_days)
+                        .await
+                    {
+                        Ok(count) => {
+                            if count > 0 {
+                                tracing::info!(
+                                    "Buck upload cleanup: deleted {} expired sessions",
+                                    count
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                "Buck upload cleanup failed: {}. Will retry in next interval.",
+                                e
+                            );
+                        }
+                    }
+                }
+                _ = token.cancelled() => {
+                    tracing::info!("Buck upload cleanup task received shutdown signal");
+                    break;
+                }
+            }
+        }
+
+        tracing::info!("Buck upload cleanup task stopped gracefully");
+    }))
+}
+
+/// Returns a future that completes when the cancellation token is triggered.
+async fn shutdown_signal(token: CancellationToken) {
+    token.cancelled().await;
+}
+
 pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
     let middleware = tower::util::MapRequestLayer::new(rewrite_lfs_request_uri::<Body>);
+
+    let shutdown_token = CancellationToken::new();
+    let cleanup_handle = spawn_cleanup_task(ctx.clone(), shutdown_token.clone());
+    let server_token = shutdown_token.clone();
+
     let app = app(ctx, host.clone(), port).await;
     let app_with_middleware = middleware.layer(app);
 
     let server_url = format!("{host}:{port}");
-
     let addr = SocketAddr::from_str(&server_url).unwrap();
     tracing::info!("HTTP server started up!");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app_with_middleware.into_make_service())
-        .await
-        .unwrap();
+
+    let server_future = axum::serve(listener, app_with_middleware.into_make_service())
+        .with_graceful_shutdown(shutdown_signal(server_token));
+
+    let server_handle = tokio::spawn(async move {
+        if let Err(e) = server_future.await {
+            tracing::error!("HTTP server error: {}", e);
+        }
+    });
+
+    tokio::pin!(server_handle);
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Received shutdown signal (Ctrl+C), starting graceful shutdown...");
+        }
+        result = server_handle.as_mut() => {
+            if let Err(e) = result {
+                tracing::error!("HTTP server unexpectedly stopped: {}", e);
+            }
+            tracing::info!("HTTP server stopped, initiating shutdown...");
+        }
+    }
+
+    tracing::info!("Broadcasting shutdown signal to all tasks...");
+    shutdown_token.cancel();
+
+    let (cleanup_result, server_result) = tokio::join!(
+        async {
+            if let Some(handle) = cleanup_handle {
+                match tokio::time::timeout(std::time::Duration::from_secs(30), handle).await {
+                    Ok(Ok(_)) => {
+                        tracing::info!("Cleanup task stopped successfully");
+                        Ok(())
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("Cleanup task panicked: {}", e);
+                        Err(())
+                    }
+                    Err(_) => {
+                        // Timeout indicates potential deadlock or extremely slow I/O.
+                        tracing::error!(
+                            "Cleanup task did not stop within 30s timeout. \
+                            This may indicate a deadlock or extremely slow I/O. \
+                            The task will be detached and may continue running. \
+                            Operators: check DB/Redis connectivity and long-running I/O; \
+                            consider increasing cleanup_interval if workloads are heavy."
+                        );
+                        Err(())
+                    }
+                }
+            } else {
+                Ok(())
+            }
+        },
+        async {
+            match server_handle.as_mut().await {
+                Ok(_) => {
+                    tracing::info!("HTTP server stopped gracefully");
+                    Ok(())
+                }
+                Err(e) => {
+                    tracing::error!("HTTP server join error: {}", e);
+                    Err(())
+                }
+            }
+        }
+    );
+
+    match (cleanup_result, server_result) {
+        (Ok(_), Ok(_)) => {
+            tracing::info!("Graceful shutdown completed successfully");
+        }
+        _ => {
+            tracing::warn!("Graceful shutdown completed with some errors");
+        }
+    }
 }
 
 /// This is the main entry for the mono server.
@@ -256,6 +401,7 @@ pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
 pub const USER_TAG: &str = "User Management";
 pub const REPO_TAG: &str = "Repo creation and synchronisation";
 pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
+pub const BUCK_TAG: &str = "Buck Upload API";
 #[derive(OpenApi)]
 #[openapi(
     tags(
