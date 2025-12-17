@@ -148,11 +148,11 @@ async fn main() {
 
             // Create service with new Dicfuse instance
             let service = Arc::new(AntaresServiceImpl::new(None).await);
-            let daemon = AntaresDaemon::new(addr, service);
+            let daemon = AntaresDaemon::new(service);
 
             tracing::info!("Starting Antares daemon on {}", addr);
 
-            if let Err(e) = daemon.serve().await {
+            if let Err(e) = daemon.serve(addr).await {
                 tracing::error!("Daemon error: {}", e);
                 std::process::exit(1);
             }

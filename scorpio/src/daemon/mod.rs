@@ -129,6 +129,12 @@ pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
     let lfs_route = crate::scolfs::route::router();
     let app = app.merge(lfs_route);
 
+    // Antares route - create service with new Dicfuse instance
+    let antares_service = Arc::new(antares::AntaresServiceImpl::new(None).await);
+    let antares_daemon = antares::AntaresDaemon::new(antares_service);
+    let antares_router = antares_daemon.router();
+    let app = app.nest("/antares", antares_router);
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2725").await.unwrap();
     axum::serve(listener, app).await.unwrap()
 }
