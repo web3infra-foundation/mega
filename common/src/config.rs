@@ -685,9 +685,10 @@ pub struct BuckConfig {
     #[serde(default = "default_max_files")]
     pub max_files: u32,
 
-    /// Maximum concurrent uploads (default: 5) - returned to client as suggestion
+    /// Maximum concurrent uploads (default: 5) - returned to client as suggestion.
+    /// Recommended range: 1-100. Values above 1000 are rejected to avoid overload.
     #[serde(default = "default_max_concurrent_uploads")]
-    pub max_concurrent_uploads: u8,
+    pub max_concurrent_uploads: u32,
 
     /// Global upload concurrency limit (default: 50)
     /// Controls the total number of concurrent upload requests
@@ -727,7 +728,7 @@ fn default_max_file_size() -> String {
 fn default_max_files() -> u32 {
     1000
 }
-fn default_max_concurrent_uploads() -> u8 {
+fn default_max_concurrent_uploads() -> u32 {
     5
 }
 fn default_upload_concurrency_limit() -> u32 {
@@ -760,6 +761,54 @@ impl BuckConfig {
     /// Returns the size in bytes, or an error message if parsing fails
     pub fn get_large_file_threshold_bytes(&self) -> Result<u64, String> {
         PackConfig::get_size_from_str(&self.large_file_threshold, || Ok(0)).map(|v| v as u64)
+    }
+
+    /// Validate configuration values
+    ///
+    /// # Returns
+    /// * `Ok(())` - All values are valid
+    /// * `Err(String)` - Error message describing the validation failure
+    pub fn validate(&self) -> Result<(), String> {
+        if self.max_concurrent_uploads < 1 {
+            return Err(format!(
+                "max_concurrent_uploads must be >= 1, got {}",
+                self.max_concurrent_uploads
+            ));
+        }
+
+        if self.max_concurrent_uploads > 1000 {
+            return Err(format!(
+                "max_concurrent_uploads must be <= 1000, got {}",
+                self.max_concurrent_uploads
+            ));
+        }
+
+        if self.upload_concurrency_limit < 1 {
+            return Err(format!(
+                "upload_concurrency_limit must be >= 1, got {}",
+                self.upload_concurrency_limit
+            ));
+        }
+
+        if self.large_file_concurrency_limit < 1 {
+            return Err(format!(
+                "large_file_concurrency_limit must be >= 1, got {}",
+                self.large_file_concurrency_limit
+            ));
+        }
+
+        if self.max_files == 0 {
+            return Err(format!("max_files must be > 0, got {}", self.max_files));
+        }
+
+        if self.session_timeout == 0 {
+            return Err(format!(
+                "session_timeout must be > 0, got {}",
+                self.session_timeout
+            ));
+        }
+
+        Ok(())
     }
 }
 
@@ -854,5 +903,55 @@ mod test {
             PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
             1024 * 1024 * 1024
         );
+    }
+
+    #[test]
+    fn test_buck_config_validate_success() {
+        let config = BuckConfig::default();
+        assert!(config.validate().is_ok(), "Default config should be valid");
+    }
+
+    #[test]
+    fn test_buck_config_validate_upload_limit_zero() {
+        let mut config = BuckConfig::default();
+        config.upload_concurrency_limit = 0;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("upload_concurrency_limit"));
+    }
+
+    #[test]
+    fn test_buck_config_validate_large_file_limit_zero() {
+        let mut config = BuckConfig::default();
+        config.large_file_concurrency_limit = 0;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("large_file_concurrency_limit"));
+    }
+
+    #[test]
+    fn test_buck_config_validate_max_files_zero() {
+        let mut config = BuckConfig::default();
+        config.max_files = 0;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("max_files"));
+    }
+
+    #[test]
+    fn test_buck_config_validate_session_timeout_zero() {
+        let mut config = BuckConfig::default();
+        config.session_timeout = 0;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("session_timeout"));
+    }
+
+    #[test]
+    fn test_buck_config_validate_valid_values() {
+        let mut config = BuckConfig::default();
+        config.upload_concurrency_limit = 100;
+        config.large_file_concurrency_limit = 20;
+        assert!(config.validate().is_ok());
     }
 }

@@ -14,6 +14,7 @@ use git_internal::{
 use crate::api_service::ApiHandler;
 use crate::api_service::tree_ops;
 use crate::model::git::DiffPreviewPayload;
+use futures::{StreamExt, stream};
 
 /// Convenience: get file blob oid at HEAD (or provided refs) by path
 pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(
@@ -31,6 +32,102 @@ pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(
         }
     }
     Ok(None)
+}
+
+/// Get blob IDs for multiple file paths in batch
+///
+/// # Arguments
+/// * `handler` - API handler implementing ApiHandler trait
+/// * `paths` - Slice of file paths to query
+/// * `refs` - Optional commit hash or ref name
+///
+/// # Returns
+/// HashMap mapping file paths to their blob IDs (as SHA1)
+/// Files not found will not be in the result (use contains_key to check)
+pub async fn get_files_blob_ids<T: ApiHandler + ?Sized>(
+    handler: &T,
+    paths: &[PathBuf],
+    refs: Option<&str>,
+) -> Result<HashMap<PathBuf, SHA1>, GitError> {
+    if paths.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    // Group paths by parent directory to minimize tree queries
+    batch_query_via_trees(handler, paths, refs).await
+}
+
+/// Batch query blob IDs via Git tree structure
+async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
+    handler: &T,
+    paths: &[PathBuf],
+    refs: Option<&str>,
+) -> Result<HashMap<PathBuf, SHA1>, GitError> {
+    // Group paths by parent directory
+    let mut paths_by_parent: HashMap<PathBuf, Vec<(PathBuf, String)>> = HashMap::new();
+    for path in paths {
+        let parent = path.parent().unwrap_or(Path::new("/"));
+        let file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        paths_by_parent
+            .entry(parent.to_path_buf())
+            .or_default()
+            .push((path.clone(), file_name));
+    }
+
+    // Calculate max concurrent queries based on database connection pool size
+    // Use Storage-provided recommended concurrency limit
+    let max_concurrent_tree_queries = handler.get_context().get_recommended_batch_concurrency();
+
+    let tree_queries: Vec<_> = paths_by_parent
+        .keys()
+        .map(|parent_path| {
+            let parent_path = parent_path.clone();
+            async move {
+                let tree_result = tree_ops::search_tree_by_path(handler, &parent_path, refs).await;
+                (parent_path, tree_result)
+            }
+        })
+        .collect();
+
+    // Execute tree queries in parallel (limit concurrency to avoid overwhelming DB)
+    let tree_results: Vec<_> = stream::iter(tree_queries)
+        .buffer_unordered(max_concurrent_tree_queries)
+        .collect()
+        .await;
+
+    // Extract blob IDs from trees
+    let mut result = HashMap::new();
+    for (parent_path, tree_result) in tree_results {
+        match tree_result {
+            Ok(Some(tree)) => {
+                if let Some(paths_in_parent) = paths_by_parent.get(&parent_path) {
+                    for (file_path, file_name) in paths_in_parent {
+                        if let Some(item) = tree.tree_items.iter().find(|x| x.name == *file_name)
+                            && item.mode == TreeItemMode::Blob
+                        {
+                            result.insert(file_path.clone(), item.id);
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                // Parent tree not found, skip files in this directory
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to get tree for parent path {}: {}",
+                    parent_path.display(),
+                    e
+                );
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 /// Preview unified diff for a single file change
@@ -81,7 +178,7 @@ pub async fn get_blob_as_string<T: ApiHandler + ?Sized>(
                 return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()));
             }
             _ => return Ok(None),
-        };
+        }
     }
     Ok(None)
 }
