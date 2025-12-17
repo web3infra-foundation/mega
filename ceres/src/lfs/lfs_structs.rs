@@ -137,7 +137,7 @@ pub struct BatchResponse {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 /// Response for fetching chunk IDs
-pub struct FetchchunkResponse {
+pub struct FetchChunkResponse {
     pub oid: String,
     pub size: i64,
     pub chunks: Vec<ChunkDownloadObject>,

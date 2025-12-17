@@ -43,7 +43,7 @@
 //! when using these handlers in a web application to prevent unauthorized access.
 use std::collections::HashMap;
 
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{
     Json,
     body::Body,
@@ -57,7 +57,7 @@ use utoipa_axum::router::OpenApiRouter;
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchRequest, BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest,
+        BatchRequest, BatchResponse, FetchChunkResponse, LockList, LockListQuery, LockRequest,
         LockResponse, RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList,
         VerifiableLockRequest,
     },
@@ -74,7 +74,7 @@ fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
         .route(
             "/objects/{object_id}",
-            get(lfs_download_object).put(lfs_upload_object),
+            put(lfs_upload_object).get(lfs_download_object),
         )
         .route(
             "/objects/{object_id}/chunks/{chunk_id}",
@@ -93,21 +93,47 @@ fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
 /// Git remote: https://git-server.com/foo/bar
 /// LFS server: https://git-server.com/foo/bar.git/info/lfs
 /// Locks API: https://git-server.com/foo/bar.git/info/lfs/locks
+///
+/// We expose both `/info/lfs` (standard Git LFS discovery path) and `/api/v1/lfs`
+/// (versioned REST path for internal consistency). Both paths serve identical handlers.
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
         .nest("/info/lfs", lfs_routes())
         .nest("/api/v1/lfs", lfs_routes())
 }
 
+/// Maps GitLFSError to HTTP status code and message.
+///
+/// This is a temporary workaround until handler layer returns typed errors instead of
+/// GitLFSError::GeneralError(String). The string matching approach is fragile but necessary
+/// because:
+/// 1. LFS routes need to return LFS-specific JSON format (application/vnd.git-lfs+json)
+/// 2. Handler layer currently only returns GitLFSError::GeneralError(String)
+/// 3. We need to map errors to appropriate HTTP status codes (404/400/500)
+///
+/// TODO: Refactor handler layer to use typed GitLFSError variants (NotFound, InvalidInput, etc.)
+/// and replace this function with direct pattern matching on error types.
 fn map_lfs_error<E: ToString>(err: E) -> (StatusCode, String) {
     let msg = err.to_string();
-    if msg.contains("Not found") || msg.contains("not found") {
+    // Match common error patterns from handler layer
+    // Note: This is fragile and should be replaced with typed errors
+    let msg_lower = msg.to_lowercase();
+    if msg_lower.contains("not found") || msg_lower.contains("doesn't exist") {
         (StatusCode::NOT_FOUND, msg)
-    } else if msg.contains("Invalid") {
+    } else if msg_lower.contains("invalid") || msg_lower.contains("bad request") {
         (StatusCode::BAD_REQUEST, msg)
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, msg)
     }
+}
+
+fn lfs_error_response(code: StatusCode, msg: String) -> Response<Body> {
+    let error_body = serde_json::json!({ "message": msg }).to_string();
+    Response::builder()
+        .status(code)
+        .header("Content-Type", LFS_CONTENT_TYPE)
+        .body(Body::from(error_body))
+        .unwrap()
 }
 
 /// List LFS locks
@@ -123,6 +149,8 @@ fn map_lfs_error<E: ToString>(err: E) -> (StatusCode, String) {
     ),
     responses(
         (status = 200, description = "List of locks", body = LockList, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
     tag = LFS_TAG
@@ -143,7 +171,12 @@ pub async fn list_locks(
         }
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
-            Err((code, msg))
+            let error_body = serde_json::json!({ "message": msg }).to_string();
+            Ok(Response::builder()
+                .status(code)
+                .header("Content-Type", LFS_CONTENT_TYPE)
+                .body(Body::from(error_body))
+                .unwrap())
         }
     }
 }
@@ -157,6 +190,8 @@ pub async fn list_locks(
     request_body = VerifiableLockRequest,
     responses(
         (status = 200, description = "Verifiable lock list", body = VerifiableLockList, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
     tag = LFS_TAG
@@ -176,10 +211,7 @@ pub async fn list_locks_for_verification(
         }
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -193,6 +225,8 @@ pub async fn list_locks_for_verification(
     request_body = LockRequest,
     responses(
         (status = 201, description = "Lock created successfully", body = LockResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request or parameters", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Resource not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or lock already exists")
     ),
     tag = LFS_TAG
@@ -217,10 +251,7 @@ pub async fn create_lock(
         }
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -237,6 +268,8 @@ pub async fn create_lock(
     request_body = UnlockRequest,
     responses(
         (status = 200, description = "Lock deleted successfully", body = UnlockResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or lock not found")
     ),
     tag = LFS_TAG
@@ -260,12 +293,10 @@ pub async fn delete_lock(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => Ok(lfs_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            err.to_string(),
+        )),
     }
 }
 
@@ -278,6 +309,8 @@ pub async fn delete_lock(
     request_body = BatchRequest,
     responses(
         (status = 200, description = "Batch response with object actions", body = BatchResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object(s) not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
     tag = LFS_TAG
@@ -299,10 +332,7 @@ pub async fn lfs_process_batch(
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
             tracing::error!("Error: {}", msg);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -317,7 +347,9 @@ pub async fn lfs_process_batch(
         ("object_id" = String, Path, description = "Object ID (OID) to fetch chunks for"),
     ),
     responses(
-        (status = 200, description = "Chunk IDs response", body = FetchchunkResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 200, description = "Chunk IDs response", body = FetchChunkResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or split mode not enabled")
     ),
     tag = LFS_TAG
@@ -330,7 +362,7 @@ pub async fn lfs_fetch_chunk_ids(
     match result {
         Ok(response) => {
             let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
-            let fetch_response = FetchchunkResponse {
+            let fetch_response = FetchChunkResponse {
                 oid,
                 size,
                 chunks: response,
@@ -344,10 +376,7 @@ pub async fn lfs_fetch_chunk_ids(
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
             tracing::error!("Error: {}", msg);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -363,6 +392,8 @@ pub async fn lfs_fetch_chunk_ids(
     ),
     responses(
         (status = 200, description = "Object data stream", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or object not found")
     ),
     tag = LFS_TAG
@@ -379,10 +410,7 @@ pub async fn lfs_download_object(
             .unwrap()),
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -401,8 +429,9 @@ pub async fn lfs_download_object(
     ),
     responses(
         (status = 200, description = "Chunk data", content_type = "application/octet-stream"),
-        (status = 400, description = "Bad request - missing or invalid offset/size parameters"),
-        (status = 500, description = "Internal server error or chunk not found")
+        (status = 400, description = "Bad request - missing or invalid offset/size parameters", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Chunk not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or chunk not found", content_type = "application/vnd.git-lfs+json")
     ),
     tag = LFS_TAG
 )]
@@ -438,10 +467,7 @@ pub async fn lfs_download_chunk(
             .unwrap()),
         Err(err) => {
             let (code, msg) = map_lfs_error(err);
-            Ok(Response::builder()
-                .status(code)
-                .body(Body::from(format!("Error: {msg}")))
-                .unwrap())
+            Ok(lfs_error_response(code, msg))
         }
     }
 }
@@ -458,6 +484,8 @@ pub async fn lfs_download_chunk(
     request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "Object data"),
     responses(
         (status = 200, description = "Object uploaded successfully", content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
     tag = LFS_TAG

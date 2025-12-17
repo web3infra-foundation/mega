@@ -138,10 +138,6 @@ pub async fn mount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Erro
     }
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 5943c38f ([antares]: change server router bind and add func for orion (#1725))
 #[allow(unused)]
 /// Mounts Antares filesystem via remote API.
 /// Inputs are repository path and optional change list identifier.
@@ -183,11 +179,6 @@ pub async fn mount_antares_fs(
     Ok(mountpoint)
 }
 
-<<<<<<< HEAD
-=======
->>>>>>> 118fb162 (Integrated Buck2-Change-Detector to orion-server and orion workflow (#1721))
-=======
->>>>>>> 5943c38f ([antares]: change server router bind and add func for orion (#1725))
 async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let client = reqwest::Client::new();
     let unmount_payload = if let Some(cl_id) = cl {
