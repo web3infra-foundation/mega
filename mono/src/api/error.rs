@@ -1,4 +1,5 @@
 use axum::response::{IntoResponse, Json, Response};
+use common::errors::{BuckError, MegaError};
 use common::model::CommonResult;
 use http::StatusCode;
 
@@ -83,17 +84,64 @@ impl IntoResponse for ApiError {
     }
 }
 
-// Backwards-compatible From: map generic errors to ApiError::internal
-// Parse [code:xxx] format to set proper HTTP status code
+// Generic From implementation: converts any error to ApiError
+// 1. Typed MegaError matching (for type-safe error handling)
+// 2. Fallback: parse [code:xxx] format (for backwards compatibility)
+// 3. Default: internal server error
 impl<E> From<E> for ApiError
 where
     E: Into<anyhow::Error>,
 {
     fn from(err: E) -> Self {
         let anyhow_err = err.into();
-        let err_str = anyhow_err.to_string();
 
-        // Parse [code:xxx] format and map to appropriate HTTP status code
+        // Try typed matching first: check if error is MegaError
+        // Use downcast_ref (borrowing) instead of downcast (ownership) to preserve error context
+        if let Some(mega_err) = anyhow_err.downcast_ref::<MegaError>() {
+            // Handle Buck business errors with specific HTTP status codes
+            if let MegaError::Buck(buck_err) = mega_err {
+                let status = match buck_err {
+                    BuckError::SessionNotFound(_) | BuckError::FileNotInManifest(_) => {
+                        StatusCode::NOT_FOUND
+                    }
+                    BuckError::SessionExpired => StatusCode::GONE,
+                    BuckError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
+                    BuckError::FileSizeExceedsLimit(_, _) => StatusCode::PAYLOAD_TOO_LARGE,
+                    BuckError::FileAlreadyUploaded(_) => StatusCode::CONFLICT,
+                    BuckError::Forbidden(_) => StatusCode::FORBIDDEN,
+                    BuckError::HashMismatch { .. }
+                    | BuckError::ValidationError(_)
+                    | BuckError::InvalidSessionStatus { .. }
+                    | BuckError::FilesNotFullyUploaded { .. } => StatusCode::BAD_REQUEST,
+                };
+                // Use original anyhow_err to preserve stack trace
+                return ApiError::with_status(status, anyhow_err);
+            }
+
+            // Handle other MegaError variants
+            match mega_err {
+                MegaError::Db(_) | MegaError::Redis(_) | MegaError::Io(_) => {
+                    // Hide internal details in production, return generic 500
+                    tracing::error!(
+                        error_type = %match mega_err {
+                            MegaError::Db(_) => "Db",
+                            MegaError::Redis(_) => "Redis",
+                            MegaError::Io(_) => "Io",
+                            _ => "Other",
+                        },
+                        "Internal error occurred"
+                    );
+                    tracing::debug!("Internal error: {:?}", mega_err);
+                    return ApiError::internal(anyhow::anyhow!("Internal server error"));
+                }
+                // For other MegaError variants, fall through to parse [code:xxx] format
+                _ => {}
+            }
+        }
+
+        // Fallback: parse [code:xxx] format to set proper HTTP status code
+        // This handles legacy error format and non-MegaError types
+        let err_str = anyhow_err.to_string();
         if let Some((code, _)) = parse_error_code(&err_str) {
             return match code {
                 "400" => ApiError::bad_request(anyhow_err),
@@ -106,6 +154,7 @@ where
             };
         }
 
+        // Default: map to internal server error
         ApiError::internal(anyhow_err)
     }
 }
