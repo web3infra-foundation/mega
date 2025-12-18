@@ -50,7 +50,16 @@ pub trait StorageConnector {
     /// # Errors
     ///
     /// Returns a `MegaError` if an error occurs during the batch save operation.
-    async fn batch_save_model<E, A>(
+    async fn batch_save_model<E, A>(&self, save_models: Vec<A>) -> Result<(), MegaError>
+    where
+        E: EntityTrait,
+        A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
+    {
+        let onconflict = OnConflict::new().do_nothing().to_owned();
+        Self::batch_save_model_with_conflict(self, save_models, onconflict).await
+    }
+
+    async fn batch_save_model_with_txn<E, A>(
         &self,
         save_models: Vec<A>,
         txn: Option<&DatabaseTransaction>,
@@ -60,7 +69,39 @@ pub trait StorageConnector {
         A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
     {
         let onconflict = OnConflict::new().do_nothing().to_owned();
-        Self::batch_save_model_with_conflict(self, save_models, onconflict, txn).await
+        Self::batch_save_model_with_conflict_and_txn(self, save_models, onconflict, txn).await
+    }
+
+    async fn batch_save_model_with_conflict_and_txn<E, A>(
+        &self,
+        save_models: Vec<A>,
+        onconflict: OnConflict,
+        txn: Option<&DatabaseTransaction>,
+    ) -> Result<(), MegaError>
+    where
+        E: EntityTrait,
+        A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
+    {
+        let conn = self.build_connection_with_txn(txn);
+
+        let mut i = 0;
+        let len = save_models.len();
+
+        while i < len {
+            let end = (i + Self::BATCH_CHUNK_SIZE).min(len);
+            let models = save_models[i..end].to_vec();
+            let _ = match E::insert_many(models)
+                .on_conflict(onconflict.clone())
+                .exec(&conn)
+                .await
+            {
+                Ok(_) => Ok(()),
+                Err(DbErr::RecordNotInserted) => Ok(()),
+                Err(e) => Err(e),
+            };
+            i = end;
+        }
+        Ok(())
     }
 
     /// Performs batch saving of models in the database with conflict resolution.
@@ -87,7 +128,6 @@ pub trait StorageConnector {
         &self,
         save_models: Vec<A>,
         onconflict: OnConflict,
-        txn: Option<&DatabaseTransaction>,
     ) -> Result<(), MegaError>
     where
         E: EntityTrait,
@@ -97,8 +137,7 @@ pub trait StorageConnector {
             let insert = E::insert_many(chunk.iter().cloned()).on_conflict(onconflict.clone());
 
             async move {
-                let conn = self.build_connection_with_txn(txn);
-                match insert.exec(&conn).await {
+                match insert.exec(self.get_connection()).await {
                     Ok(_) => Ok(()),
                     Err(DbErr::RecordNotInserted) => {
                         // ignore not inserted err

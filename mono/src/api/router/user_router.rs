@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     routing::get,
 };
 use russh::keys::{HashAlg, parse_public_key_base64};
@@ -12,7 +10,7 @@ use ceres::model::user::{AddSSHKey, ListSSHKey, ListToken};
 use common::{errors::MegaError, model::CommonResult};
 
 use crate::api::MonoApiServiceState;
-use crate::api::{error::ApiError, oauth::model::LoginUser, util};
+use crate::api::{error::ApiError, oauth::model::LoginUser};
 use crate::server::http_server::USER_TAG;
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -25,8 +23,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_key))
             .routes(routes!(generate_token))
             .routes(routes!(list_token))
-            .routes(routes!(remove_token))
-            .route("/repo-permissions", get(repo_permissions)),
+            .routes(routes!(remove_token)),
     )
 }
 
@@ -175,16 +172,6 @@ async fn list_token(
     let data = state.user_stg().list_token(user.username).await?;
     let res = data.into_iter().map(|x| x.into()).collect();
     Ok(Json(CommonResult::success(Some(res))))
-}
-
-async fn repo_permissions(
-    Query(query): Query<HashMap<String, String>>,
-    state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
-    let path = std::path::PathBuf::from(query.get("path").unwrap());
-    let _ = util::get_entitystore(path, state).await;
-    // TODO
-    Ok(Json(CommonResult::success(Some(String::new()))))
 }
 
 #[cfg(test)]

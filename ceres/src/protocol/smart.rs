@@ -584,7 +584,7 @@ pub mod test {
         let repo_path = tmp.path().join(repo_name);
         std::fs::create_dir_all(&repo_path)?;
 
-        let remote_url = format!("http://localhost:8000/third-party/{}", repo_name);
+        let remote_url = format!("http://localhost:8000/third-party/rust/src/{}", repo_name);
 
         // 1. git init
         Command::new("git")
