@@ -196,15 +196,11 @@ impl GitDbStorage {
             .expect("Failed to unwrap Arc")
             .into_inner();
 
-        let txn = self.connection.begin().await?;
-        self.batch_save_model(git_objects.commits, Some(&txn))
-            .await?;
-        self.batch_save_model(git_objects.trees, Some(&txn)).await?;
-        self.batch_save_model(git_objects.blobs, Some(&txn)).await?;
-        self.batch_save_model(git_objects.raw_blobs, Some(&txn))
-            .await?;
-        self.batch_save_model(git_objects.tags, Some(&txn)).await?;
-        txn.commit().await?;
+        self.batch_save_model(git_objects.commits).await?;
+        self.batch_save_model(git_objects.trees).await?;
+        self.batch_save_model(git_objects.blobs).await?;
+        self.batch_save_model(git_objects.raw_blobs).await?;
+        self.batch_save_model(git_objects.tags).await?;
         Ok(())
     }
 

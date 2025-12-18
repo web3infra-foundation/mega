@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, stream};
+use git_internal::hash::ObjectHash;
 use sea_orm::ActiveValue::Set;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
@@ -380,11 +381,11 @@ impl MonoStorage {
             .into_inner()
             .unwrap();
 
-        self.batch_save_model(git_objects.commits, None).await?;
-        self.batch_save_model(git_objects.trees, None).await?;
-        self.batch_save_model(git_objects.blobs, None).await?;
-        self.batch_save_model(git_objects.raw_blobs, None).await?;
-        self.batch_save_model(git_objects.tags, None).await?;
+        self.batch_save_model(git_objects.commits).await?;
+        self.batch_save_model(git_objects.trees).await?;
+        self.batch_save_model(git_objects.blobs).await?;
+        self.batch_save_model(git_objects.raw_blobs).await?;
+        self.batch_save_model(git_objects.tags).await?;
 
         // Process commit author bindings after saving objects
         let commits_to_process = Arc::try_unwrap(commits_to_process)
@@ -423,10 +424,8 @@ impl MonoStorage {
     pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
         let conn = self.get_connection();
 
-        //
         let txn: DatabaseTransaction = conn.begin().await?;
 
-        //
         let tables = [
             (
                 "mega_blob",
@@ -462,14 +461,12 @@ impl MonoStorage {
             ),
         ];
 
-        //
         for (name, res) in tables {
             if res.rows_affected > 0 {
                 tracing::info!("mega object Updated {} rows in {}", res.rows_affected, name);
             }
         }
 
-        //
         txn.commit().await?;
         Ok(())
     }
@@ -534,11 +531,11 @@ impl MonoStorage {
             .unwrap();
 
         let mega_trees = converter.mega_trees.borrow().values().cloned().collect();
-        self.batch_save_model(mega_trees, None).await.unwrap();
+        self.batch_save_model(mega_trees).await.unwrap();
         let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
-        self.batch_save_model(mega_blobs, None).await.unwrap();
+        self.batch_save_model(mega_blobs).await.unwrap();
         let raw_blobs = converter.raw_blobs.borrow().values().cloned().collect();
-        self.batch_save_model(raw_blobs, None).await.unwrap();
+        self.batch_save_model(raw_blobs).await.unwrap();
     }
 
     pub async fn attach_to_monorepo_parent_with_txn(
@@ -547,22 +544,13 @@ impl MonoStorage {
         commit: Commit,
         trees: Vec<Tree>,
     ) -> Result<(), MegaError> {
-        let save_trees: Vec<mega_tree::ActiveModel> = trees
-            .into_iter()
-            .map(|tree| {
-                let mut model: mega_tree::Model = tree.into_mega_model(EntryMeta::new());
-                model.commit_id = commit.id.to_string();
-                model.into()
-            })
-            .collect();
-
         // update ref & save commit
         mega_refs.ref_commit_hash = commit.id.to_string();
         mega_refs.ref_tree_hash = commit.tree_id.to_string();
         mega_refs.updated_at = chrono::Utc::now().naive_utc();
 
         let txn = self.connection.begin().await?;
-        self.batch_save_model(save_trees, Some(&txn)).await?;
+        self.save_mega_trees(trees, commit.id, Some(&txn)).await?;
         self.update_ref(mega_refs, Some(&txn)).await?;
         self.save_mega_commits(vec![commit], Some(&txn)).await?;
         txn.commit().await?;
@@ -726,7 +714,29 @@ impl MonoStorage {
             .map(|c| c.into_mega_model(EntryMeta::default()))
             .map(|m| m.into_active_model())
             .collect();
-        self.batch_save_model(save_models, txn).await.unwrap();
+        self.batch_save_model_with_txn(save_models, txn).await?;
+        Ok(())
+    }
+
+    pub async fn save_mega_trees(
+        &self,
+        trees: Vec<Tree>,
+        commit_id: ObjectHash,
+        txn: Option<&DatabaseTransaction>,
+    ) -> Result<(), MegaError> {
+        let save_models: Vec<mega_tree::ActiveModel> = trees
+            .into_iter()
+            .map(|t| t.into_mega_model(EntryMeta::default()))
+            .map(|mut m| {
+                m.commit_id = commit_id.to_string();
+                m.into_active_model()
+            })
+            .collect();
+        let on_conflict = OnConflict::columns(vec![mega_tree::Column::TreeId])
+            .do_nothing()
+            .to_owned();
+        self.batch_save_model_with_conflict_and_txn(save_models, on_conflict, txn)
+            .await?;
         Ok(())
     }
 
@@ -743,14 +753,14 @@ impl MonoStorage {
                 m.into_active_model()
             })
             .collect();
-        self.batch_save_model(mega_blobs, None).await.unwrap();
+        self.batch_save_model(mega_blobs).await?;
 
         let raw_blobs: Vec<raw_blob::ActiveModel> = blobs
             .into_iter()
             .map(|b| b.to_raw_blob())
             .map(|m| m.into_active_model())
             .collect();
-        self.batch_save_model(raw_blobs, None).await.unwrap();
+        self.batch_save_model(raw_blobs).await?;
 
         Ok(())
     }

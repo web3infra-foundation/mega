@@ -74,15 +74,6 @@ async fn reopen_cl(
     let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Closed {
-        // util::check_permissions(
-        //     &user.name,
-        //     &model.path,
-        //     ActionEnum::EditChangeList,
-        //     state.clone(),
-        // )
-        // .await
-        // .unwrap();
-
         let link = model.link.clone();
         state.cl_stg().reopen_cl(model).await?;
         state
@@ -120,14 +111,6 @@ async fn close_cl(
     let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
     if model.status == MergeStatusEnum::Open {
-        // util::check_permissions(
-        //     &user.name,
-        //     &model.path,
-        //     ActionEnum::EditChangeList,
-        //     state.clone(),
-        // )
-        // .await
-        // .unwrap();
         let link = model.link.clone();
         state.cl_stg().close_cl(model).await?;
         state
@@ -170,15 +153,6 @@ async fn merge(
     }
 
     if model.status == MergeStatusEnum::Open {
-        // let path = model.path.clone();
-        // util::check_permissions(
-        //     &user.username,
-        //     &path,
-        //     ActionEnum::ApproveChangeList,
-        //     state.clone(),
-        // )
-        // .await
-        // .unwrap();
         state.monorepo().merge_cl(&user.username, model).await?;
     }
     Ok(Json(CommonResult::success(None)))
