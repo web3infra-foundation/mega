@@ -25,9 +25,9 @@ impl GitObjectCache {
         let key = format!("{}:tree:{}", self.prefix, oid);
         let mut conn = self.connection.clone();
 
-        if let Ok(json) = conn.get::<_, Vec<u8>>(&key).await
-            && !json.is_empty()
-            && let Ok((tree, _)) = bincode::decode_from_slice(&json, bincode::config::standard())
+        if let Ok(data) = conn.get::<_, Vec<u8>>(&key).await
+            && !data.is_empty()
+            && let Ok((tree, _)) = bincode::decode_from_slice(&data, bincode::config::standard())
         {
             return Ok(Arc::new(tree));
         }
@@ -53,9 +53,9 @@ impl GitObjectCache {
         let mut conn = self.connection.clone();
         let key = format!("{}:commit:{}", self.prefix, oid);
 
-        if let Ok(json) = conn.get::<_, Vec<u8>>(&key).await
-            && !json.is_empty()
-            && let Ok((commit, _)) = bincode::decode_from_slice(&json, bincode::config::standard())
+        if let Ok(data) = conn.get::<_, Vec<u8>>(&key).await
+            && !data.is_empty()
+            && let Ok((commit, _)) = bincode::decode_from_slice(&data, bincode::config::standard())
         {
             return Ok(Arc::new(commit));
         }

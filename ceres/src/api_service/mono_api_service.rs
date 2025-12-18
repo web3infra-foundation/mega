@@ -496,7 +496,7 @@ impl ApiHandler for MonoApiService {
                     tree_model.into()
                 })
                 .collect();
-            storage.batch_save_model(save_trees, None).await?;
+            storage.batch_save_model(save_trees).await?;
             last_commit_id = new_commit_id;
         } else {
             // If missing_parts is not empty, we must create intermediate
@@ -607,7 +607,7 @@ impl ApiHandler for MonoApiService {
                 })
                 .collect();
             storage
-                .batch_save_model(save_trees, None)
+                .batch_save_model(save_trees)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
             last_commit_id = new_commit_id;
@@ -1282,7 +1282,7 @@ impl MonoApiService {
             .collect();
 
         storage
-            .batch_save_model(save_trees, None)
+            .batch_save_model(save_trees)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
