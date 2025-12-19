@@ -25,7 +25,6 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
-use ceres::model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameRequest, BlameResult};
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
