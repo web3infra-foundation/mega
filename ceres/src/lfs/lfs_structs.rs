@@ -109,8 +109,8 @@ pub struct Lock {
     pub owner: Option<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ToSchema)]
 /// User information for lock ownership
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ToSchema)]
 pub struct User {
     pub name: String,
 }
