@@ -115,12 +115,10 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 /// and replace this function with direct pattern matching on error types.
 fn map_lfs_error<E: ToString>(err: E) -> (StatusCode, String) {
     let msg = err.to_string();
-    // Match common error patterns from handler layer
-    // Note: This is fragile and should be replaced with typed errors
-    let msg_lower = msg.to_lowercase();
-    if msg_lower.contains("not found") || msg_lower.contains("doesn't exist") {
+    // Match common error patterns from handler layer (case-sensitive to avoid over-matching).
+    if msg.contains("Not found") || msg.contains("not found") || msg.contains("doesn't exist") {
         (StatusCode::NOT_FOUND, msg)
-    } else if msg_lower.contains("invalid") || msg_lower.contains("bad request") {
+    } else if msg.contains("Invalid") || msg.contains("invalid") || msg.contains("Bad request") {
         (StatusCode::BAD_REQUEST, msg)
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, msg)
