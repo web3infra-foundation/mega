@@ -315,13 +315,13 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         .layer(RequestDecompressionLayer::new())
         .with_state(api_state.clone())
         .split_for_parts();
-    
+
     // Register /info/lfs paths for runtime compatibility (not in OpenAPI)
     // Convert OpenApiRouter to Router to avoid including /info/lfs in OpenAPI docs
     let info_lfs_router: Router = lfs_router::lfs_routes()
         .with_state(api_state.clone())
         .into();
-    
+
     router
         .nest("/info/lfs", info_lfs_router)
         .merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api))

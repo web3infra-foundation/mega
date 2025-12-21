@@ -97,8 +97,7 @@ pub fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     // Only register /api/v1/lfs for OpenAPI to avoid path duplication
     // /info/lfs paths are still available at runtime via the main router
-    OpenApiRouter::new()
-        .nest("/api/v1/lfs", lfs_routes())
+    OpenApiRouter::new().nest("/api/v1/lfs", lfs_routes())
 }
 
 /// Maps GitLFSError to HTTP status code and message.
