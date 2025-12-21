@@ -43,7 +43,6 @@
 //! when using these handlers in a web application to prevent unauthorized access.
 use std::collections::HashMap;
 
-use axum::routing::{get, post, put};
 use axum::{
     Json,
     body::Body,
@@ -52,7 +51,7 @@ use axum::{
     response::Response,
 };
 use futures::TryStreamExt;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use ceres::lfs::{
     handler,
@@ -65,26 +64,22 @@ use ceres::lfs::{
 use common::errors::GitLFSError;
 
 use crate::api::MonoApiServiceState;
+use crate::server::http_server::LFS_TAG;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
-pub const LFS_TAG: &str = "Git LFS";
 
-fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
+pub fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
-        .route(
-            "/objects/{object_id}",
-            put(lfs_upload_object).get(lfs_download_object),
-        )
-        .route(
-            "/objects/{object_id}/chunks/{chunk_id}",
-            get(lfs_download_chunk),
-        )
-        .route("/objects/{object_id}/chunks", get(lfs_fetch_chunk_ids))
-        .route("/locks", get(list_locks).post(create_lock))
-        .route("/locks/verify", post(list_locks_for_verification))
-        .route("/locks/{id}/unlock", post(delete_lock))
-        .route("/objects/batch", post(lfs_process_batch))
+        .routes(routes!(lfs_upload_object))
+        .routes(routes!(lfs_download_object))
+        .routes(routes!(lfs_download_chunk))
+        .routes(routes!(lfs_fetch_chunk_ids))
+        .routes(routes!(list_locks))
+        .routes(routes!(create_lock))
+        .routes(routes!(list_locks_for_verification))
+        .routes(routes!(delete_lock))
+        .routes(routes!(lfs_process_batch))
 }
 
 /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
@@ -96,9 +91,13 @@ fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
 ///
 /// We expose both `/info/lfs` (standard Git LFS discovery path) and `/api/v1/lfs`
 /// (versioned REST path for internal consistency). Both paths serve identical handlers.
+///
+/// For OpenAPI documentation, we only register `/api/v1/lfs` paths to avoid duplication.
+/// The `/info/lfs` paths are still available at runtime for Git LFS client compatibility.
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    // Only register /api/v1/lfs for OpenAPI to avoid path duplication
+    // /info/lfs paths are still available at runtime via the main router
     OpenApiRouter::new()
-        .nest("/info/lfs", lfs_routes())
         .nest("/api/v1/lfs", lfs_routes())
 }
 
@@ -138,7 +137,7 @@ fn lfs_error_response(code: StatusCode, msg: String) -> Response<Body> {
 ///
 #[utoipa::path(
     get,
-    path = "/api/v1/lfs/locks",
+    path = "/locks",
     params(
         ("path" = Option<String>, Query, description = "Filter locks by file path"),
         ("id" = Option<String>, Query, description = "Filter locks by lock ID"),
@@ -151,7 +150,8 @@ fn lfs_error_response(code: StatusCode, msg: String) -> Response<Body> {
         (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "List LFS locks. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility."
 )]
 pub async fn list_locks(
     state: State<MonoApiServiceState>,
@@ -184,7 +184,7 @@ pub async fn list_locks(
 /// Verifies locks for a given ref, returning locks that belong to the current user (ours) and others (theirs).
 #[utoipa::path(
     post,
-    path = "/api/v1/lfs/locks/verify",
+    path = "/locks/verify",
     request_body = VerifiableLockRequest,
     responses(
         (status = 200, description = "Verifiable lock list", body = VerifiableLockList, content_type = "application/vnd.git-lfs+json"),
@@ -192,7 +192,8 @@ pub async fn list_locks(
         (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Verify LFS locks. This handler is also available at `/info/lfs/locks/verify` for Git LFS client compatibility."
 )]
 pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
@@ -219,7 +220,7 @@ pub async fn list_locks_for_verification(
 /// Creates a lock for a file path in the repository. The lock prevents other users from modifying the file.
 #[utoipa::path(
     post,
-    path = "/api/v1/lfs/locks",
+    path = "/locks",
     request_body = LockRequest,
     responses(
         (status = 201, description = "Lock created successfully", body = LockResponse, content_type = "application/vnd.git-lfs+json"),
@@ -227,7 +228,8 @@ pub async fn list_locks_for_verification(
         (status = 404, description = "Resource not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or lock already exists")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Create an LFS lock. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility."
 )]
 pub async fn create_lock(
     state: State<MonoApiServiceState>,
@@ -259,7 +261,7 @@ pub async fn create_lock(
 /// Deletes a lock by its ID. Requires the lock to belong to the current user unless force is set to true.
 #[utoipa::path(
     post,
-    path = "/api/v1/lfs/locks/{id}/unlock",
+    path = "/locks/{id}/unlock",
     params(
         ("id" = String, Path, description = "Lock ID to unlock"),
     ),
@@ -270,7 +272,8 @@ pub async fn create_lock(
         (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or lock not found")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Delete an LFS lock. This handler is also available at `/info/lfs/locks/{id}/unlock` for Git LFS client compatibility."
 )]
 pub async fn delete_lock(
     state: State<MonoApiServiceState>,
@@ -304,7 +307,7 @@ pub async fn delete_lock(
 /// Returns URLs and actions for each object.
 #[utoipa::path(
     post,
-    path = "/api/v1/lfs/objects/batch",
+    path = "/objects/batch",
     request_body = BatchRequest,
     responses(
         (status = 200, description = "Batch response with object actions", body = BatchResponse, content_type = "application/vnd.git-lfs+json"),
@@ -312,7 +315,8 @@ pub async fn delete_lock(
         (status = 404, description = "Object(s) not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Process LFS batch request. This handler is also available at `/info/lfs/objects/batch` for Git LFS client compatibility."
 )]
 pub async fn lfs_process_batch(
     state: State<MonoApiServiceState>,
@@ -341,7 +345,7 @@ pub async fn lfs_process_batch(
 /// Returns the list of chunk IDs for a large object that has been split into multiple chunks.
 #[utoipa::path(
     get,
-    path = "/api/v1/lfs/objects/{object_id}/chunks",
+    path = "/objects/{object_id}/chunks",
     params(
         ("object_id" = String, Path, description = "Object ID (OID) to fetch chunks for"),
     ),
@@ -351,7 +355,8 @@ pub async fn lfs_process_batch(
         (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or split mode not enabled")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Fetch chunk IDs for a split object. This handler is also available at `/info/lfs/objects/{object_id}/chunks` for Git LFS client compatibility."
 )]
 pub async fn lfs_fetch_chunk_ids(
     state: State<MonoApiServiceState>,
@@ -385,7 +390,7 @@ pub async fn lfs_fetch_chunk_ids(
 /// Downloads an LFS object by its OID. Returns the object data as a stream.
 #[utoipa::path(
     get,
-    path = "/api/v1/lfs/objects/{object_id}",
+    path = "/objects/{object_id}",
     params(
         ("object_id" = String, Path, description = "Object ID (OID) to download"),
     ),
@@ -395,7 +400,8 @@ pub async fn lfs_fetch_chunk_ids(
         (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or object not found")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Download an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
 )]
 pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
@@ -420,7 +426,7 @@ pub async fn lfs_download_object(
 /// Requires offset and size query parameters.
 #[utoipa::path(
     get,
-    path = "/api/v1/lfs/objects/{object_id}/chunks/{chunk_id}",
+    path = "/objects/{object_id}/chunks/{chunk_id}",
     params(
         ("object_id" = String, Path, description = "Original object ID"),
         ("chunk_id" = String, Path, description = "Chunk ID to download"),
@@ -433,7 +439,8 @@ pub async fn lfs_download_object(
         (status = 404, description = "Chunk not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error or chunk not found", content_type = "application/vnd.git-lfs+json")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Download a chunk of an LFS object. This handler is also available at `/info/lfs/objects/{object_id}/chunks/{chunk_id}` for Git LFS client compatibility."
 )]
 pub async fn lfs_download_chunk(
     state: State<MonoApiServiceState>,
@@ -447,7 +454,7 @@ pub async fn lfs_download_chunk(
         .get("size")
         .and_then(|size| size.parse::<u64>().ok());
     if offset.is_none() || size.is_none() {
-        return Err((
+        return Ok(lfs_error_response(
             StatusCode::BAD_REQUEST,
             "Valid offset and size query parameters are required".to_string(),
         ));
@@ -477,7 +484,7 @@ pub async fn lfs_download_chunk(
 /// Uploads an LFS object to the server. The object data should be sent in the request body.
 #[utoipa::path(
     put,
-    path = "/api/v1/lfs/objects/{object_id}",
+    path = "/objects/{object_id}",
     params(
         ("object_id" = String, Path, description = "Object ID (OID) to upload"),
     ),
@@ -488,7 +495,8 @@ pub async fn lfs_download_chunk(
         (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
         (status = 500, description = "Internal server error")
     ),
-    tag = LFS_TAG
+    tag = LFS_TAG,
+    description = "Upload an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
 )]
 pub async fn lfs_upload_object(
     state: State<MonoApiServiceState>,

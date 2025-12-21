@@ -313,9 +313,18 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
-        .with_state(api_state)
+        .with_state(api_state.clone())
         .split_for_parts();
-    router.merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api))
+    
+    // Register /info/lfs paths for runtime compatibility (not in OpenAPI)
+    // Convert OpenApiRouter to Router to avoid including /info/lfs in OpenAPI docs
+    let info_lfs_router: Router = lfs_router::lfs_routes()
+        .with_state(api_state.clone())
+        .into();
+    
+    router
+        .nest("/info/lfs", info_lfs_router)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api))
 }
 
 fn rewrite_lfs_request_uri<B>(mut req: Request<B>) -> Request<B> {
@@ -401,14 +410,9 @@ pub const USER_TAG: &str = "User Management";
 pub const REPO_TAG: &str = "Repo creation and synchronisation";
 pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
 pub const BUCK_TAG: &str = "Buck Upload API";
+pub const LFS_TAG: &str = "Git LFS";
 #[derive(OpenApi)]
-#[openapi(
-    tags(
-        (name = CODE_PREVIEW, description = "Git API endpoints"),
-        (name = CL_TAG, description = "Change List API endpoints"),
-        (name = MERGE_QUEUE_TAG, description = "Merge Queue Management API endpoints")
-    )
-)]
+#[openapi()]
 struct ApiDoc;
 
 #[cfg(test)]
