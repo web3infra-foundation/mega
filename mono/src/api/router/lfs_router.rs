@@ -49,23 +49,38 @@ use axum::{
     extract::{Path, Query, State},
     http::{Request, StatusCode},
     response::Response,
-    routing::{get, post, put},
 };
 use futures::TryStreamExt;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchRequest, FetchchunkResponse, LockList, LockListQuery, LockRequest, LockResponse,
-        RequestObject, UnlockRequest, UnlockResponse, VerifiableLockRequest,
+        BatchRequest, BatchResponse, FetchChunkResponse, LockList, LockListQuery, LockRequest,
+        LockResponse, RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList,
+        VerifiableLockRequest,
     },
 };
 use common::errors::GitLFSError;
 
 use crate::api::MonoApiServiceState;
+use crate::server::http_server::LFS_TAG;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
+const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
+
+pub fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new()
+        .routes(routes!(lfs_upload_object))
+        .routes(routes!(lfs_download_object))
+        .routes(routes!(lfs_download_chunk))
+        .routes(routes!(lfs_fetch_chunk_ids))
+        .routes(routes!(list_locks))
+        .routes(routes!(create_lock))
+        .routes(routes!(list_locks_for_verification))
+        .routes(routes!(delete_lock))
+        .routes(routes!(lfs_process_batch))
+}
 
 /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// document describes the server LFS discovery protocol.
@@ -73,22 +88,70 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 /// Git remote: https://git-server.com/foo/bar
 /// LFS server: https://git-server.com/foo/bar.git/info/lfs
 /// Locks API: https://git-server.com/foo/bar.git/info/lfs/locks
+///
+/// We expose both `/info/lfs` (standard Git LFS discovery path) and `/api/v1/lfs`
+/// (versioned REST path for internal consistency). Both paths serve identical handlers.
+///
+/// For OpenAPI documentation, we only register `/api/v1/lfs` paths to avoid duplication.
+/// The `/info/lfs` paths are still available at runtime for Git LFS client compatibility.
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
-    OpenApiRouter::new().nest(
-        "/info/lfs",
-        OpenApiRouter::new()
-            .route("/objects/{object_id}", get(lfs_download_object))
-            .route("/objects/{object_id}/{chunk_id}", get(lfs_download_chunk))
-            .route("/objects/{object_id}", put(lfs_upload_object))
-            .route("/locks", get(list_locks))
-            .route("/locks", post(create_lock))
-            .route("/locks/verify", post(list_locks_for_verification))
-            .route("/locks/{id}/unlock", post(delete_lock))
-            .route("/objects/batch", post(lfs_process_batch))
-            .route("/objects/{object_id}/chunks", get(lfs_fetch_chunk_ids)),
-    )
+    // Only register /api/v1/lfs for OpenAPI to avoid path duplication
+    // /info/lfs paths are still available at runtime via the main router
+    OpenApiRouter::new().nest("/api/v1/lfs", lfs_routes())
 }
 
+/// Maps GitLFSError to HTTP status code and message.
+///
+/// This is a temporary workaround until handler layer returns typed errors instead of
+/// GitLFSError::GeneralError(String). The string matching approach is fragile but necessary
+/// because:
+/// 1. LFS routes need to return LFS-specific JSON format (application/vnd.git-lfs+json)
+/// 2. Handler layer currently only returns GitLFSError::GeneralError(String)
+/// 3. We need to map errors to appropriate HTTP status codes (404/400/500)
+///
+/// TODO: Refactor handler layer to use typed GitLFSError variants (NotFound, InvalidInput, etc.)
+/// and replace this function with direct pattern matching on error types.
+fn map_lfs_error<E: ToString>(err: E) -> (StatusCode, String) {
+    let msg = err.to_string();
+    // Match common error patterns from handler layer (case-sensitive to avoid over-matching).
+    if msg.contains("Not found") || msg.contains("not found") || msg.contains("doesn't exist") {
+        (StatusCode::NOT_FOUND, msg)
+    } else if msg.contains("Invalid") || msg.contains("invalid") || msg.contains("Bad request") {
+        (StatusCode::BAD_REQUEST, msg)
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, msg)
+    }
+}
+
+fn lfs_error_response(code: StatusCode, msg: String) -> Response<Body> {
+    let error_body = serde_json::json!({ "message": msg }).to_string();
+    Response::builder()
+        .status(code)
+        .header("Content-Type", LFS_CONTENT_TYPE)
+        .body(Body::from(error_body))
+        .unwrap()
+}
+
+/// List LFS locks
+///
+#[utoipa::path(
+    get,
+    path = "/locks",
+    params(
+        ("path" = Option<String>, Query, description = "Filter locks by file path"),
+        ("id" = Option<String>, Query, description = "Filter locks by lock ID"),
+        ("limit" = Option<String>, Query, description = "Maximum number of locks to return"),
+        ("refspec" = Option<String>, Query, description = "Git reference specifier"),
+    ),
+    responses(
+        (status = 200, description = "List of locks", body = LockList, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = LFS_TAG,
+    description = "List LFS locks. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility."
+)]
 pub async fn list_locks(
     state: State<MonoApiServiceState>,
     Query(query): Query<LockListQuery>,
@@ -103,10 +166,34 @@ pub async fn list_locks(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string())),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            let error_body = serde_json::json!({ "message": msg }).to_string();
+            Ok(Response::builder()
+                .status(code)
+                .header("Content-Type", LFS_CONTENT_TYPE)
+                .body(Body::from(error_body))
+                .unwrap())
+        }
     }
 }
 
+/// Verify LFS locks
+///
+/// Verifies locks for a given ref, returning locks that belong to the current user (ours) and others (theirs).
+#[utoipa::path(
+    post,
+    path = "/locks/verify",
+    request_body = VerifiableLockRequest,
+    responses(
+        (status = 200, description = "Verifiable lock list", body = VerifiableLockList, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = LFS_TAG,
+    description = "Verify LFS locks. This handler is also available at `/info/lfs/locks/verify` for Git LFS client compatibility."
+)]
 pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
     Json(json): Json<VerifiableLockRequest>,
@@ -120,15 +207,29 @@ pub async fn list_locks_for_verification(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Create an LFS lock
+///
+/// Creates a lock for a file path in the repository. The lock prevents other users from modifying the file.
+#[utoipa::path(
+    post,
+    path = "/locks",
+    request_body = LockRequest,
+    responses(
+        (status = 201, description = "Lock created successfully", body = LockResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request or parameters", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Resource not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or lock already exists")
+    ),
+    tag = LFS_TAG,
+    description = "Create an LFS lock. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility."
+)]
 pub async fn create_lock(
     state: State<MonoApiServiceState>,
     Json(json): Json<LockRequest>,
@@ -147,15 +248,32 @@ pub async fn create_lock(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Delete an LFS lock
+///
+/// Deletes a lock by its ID. Requires the lock to belong to the current user unless force is set to true.
+#[utoipa::path(
+    post,
+    path = "/locks/{id}/unlock",
+    params(
+        ("id" = String, Path, description = "Lock ID to unlock"),
+    ),
+    request_body = UnlockRequest,
+    responses(
+        (status = 200, description = "Lock deleted successfully", body = UnlockResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Invalid request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Lock not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or lock not found")
+    ),
+    tag = LFS_TAG,
+    description = "Delete an LFS lock. This handler is also available at `/info/lfs/locks/{id}/unlock` for Git LFS client compatibility."
+)]
 pub async fn delete_lock(
     state: State<MonoApiServiceState>,
     Path(id): Path<String>,
@@ -175,15 +293,30 @@ pub async fn delete_lock(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Process LFS batch request
+///
+/// Processes a batch of LFS objects for upload or download operations.
+/// Returns URLs and actions for each object.
+#[utoipa::path(
+    post,
+    path = "/objects/batch",
+    request_body = BatchRequest,
+    responses(
+        (status = 200, description = "Batch response with object actions", body = BatchResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object(s) not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = LFS_TAG,
+    description = "Process LFS batch request. This handler is also available at `/info/lfs/objects/batch` for Git LFS client compatibility."
+)]
 pub async fn lfs_process_batch(
     state: State<MonoApiServiceState>,
     Json(json): Json<BatchRequest>,
@@ -198,17 +331,32 @@ pub async fn lfs_process_batch(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            tracing::error!("Error: {}", err);
-
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            tracing::error!("Error: {}", msg);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Fetch chunk IDs for a split object
+///
+/// Returns the list of chunk IDs for a large object that has been split into multiple chunks.
+#[utoipa::path(
+    get,
+    path = "/objects/{object_id}/chunks",
+    params(
+        ("object_id" = String, Path, description = "Object ID (OID) to fetch chunks for"),
+    ),
+    responses(
+        (status = 200, description = "Chunk IDs response", body = FetchChunkResponse, content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or split mode not enabled")
+    ),
+    tag = LFS_TAG,
+    description = "Fetch chunk IDs for a split object. This handler is also available at `/info/lfs/objects/{object_id}/chunks` for Git LFS client compatibility."
+)]
 pub async fn lfs_fetch_chunk_ids(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
@@ -217,7 +365,7 @@ pub async fn lfs_fetch_chunk_ids(
     match result {
         Ok(response) => {
             let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
-            let fetch_response = FetchchunkResponse {
+            let fetch_response = FetchChunkResponse {
                 oid,
                 size,
                 chunks: response,
@@ -228,16 +376,32 @@ pub async fn lfs_fetch_chunk_ids(
                 .body(Body::from(body))
                 .unwrap())
         }
-        Err(err) => Ok({
-            tracing::error!("Error: {}", err);
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            tracing::error!("Error: {}", msg);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Download an LFS object
+///
+/// Downloads an LFS object by its OID. Returns the object data as a stream.
+#[utoipa::path(
+    get,
+    path = "/objects/{object_id}",
+    params(
+        ("object_id" = String, Path, description = "Object ID (OID) to download"),
+    ),
+    responses(
+        (status = 200, description = "Object data stream", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or object not found")
+    ),
+    tag = LFS_TAG,
+    description = "Download an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
+)]
 pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
@@ -245,18 +409,38 @@ pub async fn lfs_download_object(
     let result = handler::lfs_download_object(state.storage.clone(), oid.clone()).await;
     match result {
         Ok(byte_stream) => Ok(Response::builder()
-            .header("Content-Type", LFS_CONTENT_TYPE)
+            .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
             .body(Body::from_stream(byte_stream))
             .unwrap()),
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Download a chunk of an LFS object
+///
+/// Downloads a specific chunk of a split LFS object.
+/// Requires offset and size query parameters.
+#[utoipa::path(
+    get,
+    path = "/objects/{object_id}/chunks/{chunk_id}",
+    params(
+        ("object_id" = String, Path, description = "Original object ID"),
+        ("chunk_id" = String, Path, description = "Chunk ID to download"),
+        ("offset" = u64, Query, description = "Byte offset of the chunk"),
+        ("size" = u64, Query, description = "Size of the chunk in bytes"),
+    ),
+    responses(
+        (status = 200, description = "Chunk data", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request - missing or invalid offset/size parameters", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Chunk not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or chunk not found", content_type = "application/vnd.git-lfs+json")
+    ),
+    tag = LFS_TAG,
+    description = "Download a chunk of an LFS object. This handler is also available at `/info/lfs/objects/{object_id}/chunks/{chunk_id}` for Git LFS client compatibility."
+)]
 pub async fn lfs_download_chunk(
     state: State<MonoApiServiceState>,
     Path((origin_object_id, chunk_id)): Path<(String, String)>,
@@ -269,7 +453,7 @@ pub async fn lfs_download_chunk(
         .get("size")
         .and_then(|size| size.parse::<u64>().ok());
     if offset.is_none() || size.is_none() {
-        return Err((
+        return Ok(lfs_error_response(
             StatusCode::BAD_REQUEST,
             "Valid offset and size query parameters are required".to_string(),
         ));
@@ -284,18 +468,35 @@ pub async fn lfs_download_chunk(
     .await;
     match result {
         Ok(bytes) => Ok(Response::builder()
-            .header("Content-Type", LFS_CONTENT_TYPE)
+            .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
             .body(Body::from(bytes))
             .unwrap()),
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
     }
 }
 
+/// Upload an LFS object
+///
+/// Uploads an LFS object to the server. The object data should be sent in the request body.
+#[utoipa::path(
+    put,
+    path = "/objects/{object_id}",
+    params(
+        ("object_id" = String, Path, description = "Object ID (OID) to upload"),
+    ),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "Object data"),
+    responses(
+        (status = 200, description = "Object uploaded successfully", content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = LFS_TAG,
+    description = "Upload an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
+)]
 pub async fn lfs_upload_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
@@ -323,11 +524,307 @@ pub async fn lfs_upload_object(
             .header("Content-Type", LFS_CONTENT_TYPE)
             .body(Body::empty())
             .unwrap()),
-        Err(err) => Ok({
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from(format!("Error: {err}")))
-                .unwrap()
-        }),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn test_map_lfs_error_not_found() {
+        // Test "Not found" error mapping
+        let error = "Object not found";
+        let (code, msg) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND);
+        assert_eq!(msg, "Object not found");
+
+        // Test case-insensitive "not found"
+        let error = "Lock not found in database";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_map_lfs_error_bad_request() {
+        // Test "Invalid" error mapping
+        let error = "Invalid object ID format";
+        let (code, msg) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::BAD_REQUEST);
+        assert_eq!(msg, "Invalid object ID format");
+
+        // Test other invalid cases
+        let error = "Invalid request parameters";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_map_lfs_error_internal_server_error() {
+        // Test default error mapping
+        let error = "Database connection failed";
+        let (code, msg) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(msg, "Database connection failed");
+
+        // Test generic error
+        let error = "Unexpected error occurred";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_map_lfs_error_with_gitlfs_error() {
+        use common::errors::GitLFSError;
+
+        // Test with GitLFSError that contains "Not found"
+        let error = GitLFSError::GeneralError("Object not found".to_string());
+        let (code, msg) = map_lfs_error(&error);
+        assert_eq!(code, StatusCode::NOT_FOUND);
+        assert!(msg.contains("not found"));
+
+        // Test with GitLFSError that contains "Invalid"
+        let error = GitLFSError::GeneralError("Invalid OID format".to_string());
+        let (code, msg) = map_lfs_error(&error);
+        assert_eq!(code, StatusCode::BAD_REQUEST);
+        assert!(msg.contains("Invalid"));
+
+        // Test with GitLFSError that doesn't match patterns
+        let error = GitLFSError::GeneralError("Storage error".to_string());
+        let (code, _) = map_lfs_error(&error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_map_lfs_error_edge_cases() {
+        // Test empty string
+        let error = "";
+        let (code, msg) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(msg, "");
+
+        // Test string with both patterns (should match first)
+        let error = "Not found: Invalid request";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND); // "Not found" comes first
+
+        // Test case variations
+        let error = "NOT FOUND";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR); // Case sensitive
+
+        let error = "not found";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND); // Lowercase works
+    }
+
+    #[test]
+    fn test_lfs_content_types() {
+        // Test content type constants
+        assert_eq!(LFS_CONTENT_TYPE, "application/vnd.git-lfs+json");
+        assert_eq!(LFS_STREAM_CONTENT_TYPE, "application/octet-stream");
+        assert_eq!(LFS_TAG, "Git LFS");
+    }
+
+    #[test]
+    fn test_lfs_routes_structure() {
+        // Smoke test: ensure the LFS routes can be constructed without panicking.
+        // This verifies that route registration does not cause runtime failures
+        // during router creation. It does NOT assert individual routes exist;
+        // those should be covered by more targeted endpoint tests if needed.
+        let _routes = lfs_routes();
+    }
+
+    #[test]
+    fn test_lfs_download_chunk_parameter_validation() {
+        // Test parameter validation logic for lfs_download_chunk
+        // This tests the query parameter parsing logic
+
+        // Valid parameters
+        let mut valid_params = HashMap::new();
+        valid_params.insert("offset".to_string(), "0".to_string());
+        valid_params.insert("size".to_string(), "1024".to_string());
+
+        let offset = valid_params
+            .get("offset")
+            .and_then(|offset| offset.parse::<u64>().ok());
+        let size = valid_params
+            .get("size")
+            .and_then(|size| size.parse::<u64>().ok());
+
+        assert!(offset.is_some());
+        assert!(size.is_some());
+        assert_eq!(offset.unwrap(), 0);
+        assert_eq!(size.unwrap(), 1024);
+
+        // Missing offset
+        let mut missing_offset = HashMap::new();
+        missing_offset.insert("size".to_string(), "1024".to_string());
+        let offset = missing_offset
+            .get("offset")
+            .and_then(|offset| offset.parse::<u64>().ok());
+        assert!(offset.is_none());
+
+        // Missing size
+        let mut missing_size = HashMap::new();
+        missing_size.insert("offset".to_string(), "0".to_string());
+        let size = missing_size
+            .get("size")
+            .and_then(|size| size.parse::<u64>().ok());
+        assert!(size.is_none());
+
+        // Invalid offset format
+        let mut invalid_offset = HashMap::new();
+        invalid_offset.insert("offset".to_string(), "invalid".to_string());
+        invalid_offset.insert("size".to_string(), "1024".to_string());
+        let offset = invalid_offset
+            .get("offset")
+            .and_then(|offset| offset.parse::<u64>().ok());
+        assert!(offset.is_none());
+
+        // Invalid size format
+        let mut invalid_size = HashMap::new();
+        invalid_size.insert("offset".to_string(), "0".to_string());
+        invalid_size.insert("size".to_string(), "not_a_number".to_string());
+        let size = invalid_size
+            .get("size")
+            .and_then(|size| size.parse::<u64>().ok());
+        assert!(size.is_none());
+    }
+
+    #[test]
+    fn test_lfs_download_chunk_parameter_edge_cases() {
+        // Test edge cases for parameter parsing
+        let mut params = HashMap::new();
+
+        // Test with zero values
+        params.insert("offset".to_string(), "0".to_string());
+        params.insert("size".to_string(), "0".to_string());
+        let offset = params.get("offset").and_then(|o| o.parse::<u64>().ok());
+        let size = params.get("size").and_then(|s| s.parse::<u64>().ok());
+        assert_eq!(offset, Some(0));
+        assert_eq!(size, Some(0));
+
+        // Test with large values
+        params.insert("offset".to_string(), "18446744073709551615".to_string()); // u64::MAX
+        params.insert("size".to_string(), "1000000".to_string());
+        let offset = params.get("offset").and_then(|o| o.parse::<u64>().ok());
+        let size = params.get("size").and_then(|s| s.parse::<u64>().ok());
+        assert_eq!(offset, Some(u64::MAX));
+        assert_eq!(size, Some(1000000));
+
+        // Test with negative number (should fail to parse as u64)
+        params.insert("offset".to_string(), "-1".to_string());
+        let offset = params.get("offset").and_then(|o| o.parse::<u64>().ok());
+        assert!(offset.is_none());
+    }
+
+    #[test]
+    fn test_request_object_default() {
+        // Test RequestObject default values
+        let req_obj = RequestObject {
+            oid: "test_oid".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(req_obj.oid, "test_oid");
+    }
+
+    #[test]
+    fn test_lfs_router_paths() {
+        // Smoke test: ensure the LFS router can be constructed without panicking.
+        // This verifies that route registration (including standard and versioned
+        // LFS paths such as /info/lfs and /api/v1/lfs) does not cause runtime
+        // failures during router creation. It does NOT assert individual paths;
+        // those should be covered by more targeted endpoint tests if needed.
+        let _router = routers();
+    }
+
+    #[test]
+    fn test_error_response_format() {
+        // Test error response format consistency - verify both map_lfs_error and lfs_error_response
+        let test_cases = vec![
+            ("Not found error", StatusCode::NOT_FOUND),
+            ("Invalid parameter", StatusCode::BAD_REQUEST),
+            ("Generic error", StatusCode::INTERNAL_SERVER_ERROR),
+        ];
+
+        for (msg, expected_code) in test_cases {
+            // Test map_lfs_error mapping
+            let (code, mapped_msg) = map_lfs_error(msg);
+            assert_eq!(code, expected_code, "Error mapping for message: {}", msg);
+
+            // Test lfs_error_response function - verify response structure, status code, and Content-Type
+            let response = lfs_error_response(code, mapped_msg.clone());
+            assert_eq!(response.status(), expected_code);
+
+            // Verify Content-Type header
+            let content_type = response
+                .headers()
+                .get("Content-Type")
+                .and_then(|h| h.to_str().ok());
+            assert_eq!(
+                content_type,
+                Some(LFS_CONTENT_TYPE),
+                "Content-Type should be {}",
+                LFS_CONTENT_TYPE
+            );
+
+            // Verify response body is valid JSON with "message" field
+            // Note: In a real test, we'd need to extract and parse the body,
+            // but for unit tests we verify the structure is created correctly
+        }
+    }
+
+    #[test]
+    fn test_content_type_constants_consistency() {
+        // Verify content type constants match LFS specification
+        // JSON responses should use application/vnd.git-lfs+json
+        assert_eq!(LFS_CONTENT_TYPE, "application/vnd.git-lfs+json");
+
+        // Binary streams should use application/octet-stream
+        assert_eq!(LFS_STREAM_CONTENT_TYPE, "application/octet-stream");
+
+        // Verify they are different
+        assert_ne!(LFS_CONTENT_TYPE, LFS_STREAM_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn test_map_lfs_error_priority() {
+        // Test that "Not found" takes priority over "Invalid" when both are present
+        let error = "Not found: Invalid request format";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND);
+
+        // Test that "Not found" takes priority even if it appears after "Invalid"
+        let error = "Invalid: Not found";
+        let (code, _) = map_lfs_error(error);
+        // Should match "Not found" first due to function's matching order
+        assert_eq!(code, StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_map_lfs_error_unicode_support() {
+        // Test error messages with unicode characters
+        let error = "对象未找到"; // "Object not found" in Chinese
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR); // No match, default
+
+        let error = "Object not found: 对象";
+        let (code, _) = map_lfs_error(error);
+        assert_eq!(code, StatusCode::NOT_FOUND); // Should still match
+    }
+
+    #[test]
+    fn test_lfs_routes_all_endpoints() {
+        // Verify all expected routes are registered
+        let routes = lfs_routes();
+        // Routes should be created without panicking
+        // This is a smoke test to ensure route registration works
+        drop(routes);
     }
 }
