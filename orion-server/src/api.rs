@@ -1021,16 +1021,6 @@ pub struct OrionClientQuery {
 }
 
 /// Endpoint to retrieve paginated Orion client information.
-///
-/// Accepts query parameters encapsulated in `PageParams<OrionClientQuery>`,
-/// which allow filtering by optional fields such as `hostname`.
-/// Returns a `CommonPage<OrionClientInfo>` containing the total number
-/// of matching clients and the corresponding page of client data.
-///
-/// - Method: POST
-/// - Path: `/orion-clients-info`
-/// - Request Body: `PageParams<OrionClientQuery>`
-/// - Response: 200 OK, body contains paginated Orion client information.
 #[utoipa::path(
     post,
     path = "/orion-clients-info",
