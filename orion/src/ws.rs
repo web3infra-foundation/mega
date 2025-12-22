@@ -155,11 +155,25 @@ async fn handle_connection(
     let send_task = tokio::spawn(async move {
         while let Some(msg) = internal_rx.recv().await {
             match msg {
-                // Orion client quene heartbeat error, considered as Lost
+                // Orion client queue heartbeat error, considered as Lost
                 WSMessage::Lost => {
-                    tracing::info!("Sending close frame");
-                    let _ = ws_sender.send(Message::Close(None)).await;
-                    break;
+                    tracing::info!("Sending Lost message before close frame");
+                    match serde_json::to_string(&WSMessage::Lost) {
+                        Ok(msg_str) => {
+                            if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
+                                tracing::error!(
+                                    "Failed to send Lost message to server: {}. Proceeding to close.",
+                                    e
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                "Failed to serialize WSMessage::Lost: {}. Proceeding to close.",
+                                e
+                            );
+                        }
+                    }
                 }
                 _ => match serde_json::to_string(&msg) {
                     Ok(msg_str) => {

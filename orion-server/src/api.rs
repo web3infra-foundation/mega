@@ -791,13 +791,23 @@ async fn process_message(
                     state.scheduler.notify_task_available();
                 }
                 WSMessage::TaskPhaseUpdate { id, phase } => {
-                    tracing::info!("Task phase updated by orion worker {id} with: {phase:?}");
-
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(&id) {
-                        worker.status = WorkerStatus::Busy {
-                            task_id: id,
-                            phase: Some(phase),
+                    tracing::info!(
+                        "Task phase updated by orion worker {current_worker_id} with: {phase:?}"
+                    );
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        if let WorkerStatus::Busy { task_id, .. } = &worker.status {
+                            if task_id == &id {
+                                worker.status = WorkerStatus::Busy {
+                                    task_id: id,
+                                    phase: Some(phase),
+                                }
+                            }
                         }
+                    }
+                }
+                WSMessage::Lost => {
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        worker.status = WorkerStatus::Lost
                     }
                 }
                 _ => {}
@@ -805,9 +815,6 @@ async fn process_message(
         }
         Message::Close(_) => {
             tracing::info!("Client {who} sent close message.");
-            if let Some(mut worker) = state.scheduler.workers.get_mut(worker_id.as_ref().unwrap()) {
-                worker.status = WorkerStatus::Lost
-            }
             return ControlFlow::Break(());
         }
         _ => {}
@@ -1041,27 +1048,26 @@ async fn get_orion_clients_info(
     let per_page = pagination.per_page.clamp(1u64, 100);
     let offset = (page - 1) * per_page;
 
-    let filtered_items: Vec<OrionClientInfo> = state
-        .scheduler
-        .workers
-        .iter()
-        .filter(|entry| {
-            if let Some(ref hostname) = query.hostname {
-                entry.value().hostname.contains(hostname)
-            } else {
-                true
+    let mut total: u64 = 0;
+    let mut items: Vec<OrionClientInfo> = Vec::with_capacity(per_page as usize);
+
+    for entry in state.scheduler.workers.iter() {
+        let matches = query
+            .hostname
+            .as_ref()
+            .map_or(true, |h| entry.value().hostname.contains(h));
+
+        if matches {
+            total += 1;
+
+            if total > offset && items.len() < per_page as usize {
+                items.push(OrionClientInfo::from_worker(
+                    entry.key().clone(),
+                    entry.value(),
+                ));
             }
-        })
-        .map(|entry| OrionClientInfo::from_worker(entry.key().clone(), entry.value()))
-        .collect();
-
-    let total = filtered_items.len() as u64;
-
-    let items = filtered_items
-        .into_iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .collect();
+        }
+    }
 
     Ok(Json(CommonPage { total, items }))
 }
@@ -1069,7 +1075,7 @@ async fn get_orion_clients_info(
 // Orion client status
 #[derive(Debug, Serialize, ToSchema)]
 pub struct OrionClientStatus {
-    /// Core（Idle / Busy / Error / Lost）
+    /// Core (Idle / Busy / Error / Lost)
     pub core_status: CoreWorkerStatus,
     /// Only when building
     pub phase: Option<TaskPhase>,
