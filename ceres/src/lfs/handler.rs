@@ -676,3 +676,86 @@ async fn lfs_check_sub_oid_exist(
     let result = storage.get_lfs_relations_ori_oid(sub_oid).await.unwrap();
     Ok(!result.is_empty())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lfs::lfs_structs::{Action, Ref, ResCondition, ResponseObject};
+
+    #[test]
+    fn response_object_download_existing() {
+        let meta = MetaObject {
+            oid: "oid1".into(),
+            size: 10,
+            exist: true,
+            splited: false,
+        };
+        let res = ResponseObject::new(
+            &meta,
+            ResCondition {
+                file_exist: true,
+                operation: Operation::Download,
+                use_tus: false,
+            },
+            "http://dl",
+            "http://ul",
+        );
+        assert!(res.actions.is_some());
+        let actions = res.actions.unwrap();
+        assert!(actions.contains_key(&Action::Download));
+        assert!(res.error.is_none());
+    }
+
+    #[test]
+    fn response_object_upload_new() {
+        let meta = MetaObject {
+            oid: "oid2".into(),
+            size: 20,
+            exist: false,
+            splited: false,
+        };
+        let res = ResponseObject::new(
+            &meta,
+            ResCondition {
+                file_exist: false,
+                operation: Operation::Upload,
+                use_tus: false,
+            },
+            "http://dl",
+            "http://ul",
+        );
+        let actions = res.actions.expect("upload should provide actions");
+        assert!(actions.contains_key(&Action::Upload));
+        assert!(res.error.is_none());
+    }
+
+    #[test]
+    fn response_object_download_missing_sets_error() {
+        let meta = MetaObject {
+            oid: "oid3".into(),
+            size: 30,
+            exist: false,
+            splited: false,
+        };
+        let res = ResponseObject::new(
+            &meta,
+            ResCondition {
+                file_exist: false,
+                operation: Operation::Download,
+                use_tus: false,
+            },
+            "http://dl",
+            "http://ul",
+        );
+        assert!(res.actions.is_none());
+        assert!(res.error.is_some());
+        assert_eq!(res.error.unwrap().code, 404);
+    }
+
+    #[test]
+    fn unlock_request_defaults() {
+        let req = UnlockRequest::default();
+        assert!(req.force.is_none());
+        assert_eq!(req.refs, Ref { name: "".into() });
+    }
+}
