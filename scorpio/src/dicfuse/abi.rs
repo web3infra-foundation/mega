@@ -6,8 +6,11 @@ use rfuse3::{
 };
 
 pub fn default_file_entry(inode: u64) -> ReplyEntry {
+    // Short TTL to surface changes quickly in debugging/interactive scenarios.
+    // TODO: Consider making TTL configurable or increasing to 30-60 seconds for production.
+    // Current 2-second TTL causes frequent kernel attribute lookups which may impact performance.
     ReplyEntry {
-        ttl: Duration::new(500, 0),
+        ttl: Duration::new(2, 0),
         attr: FileAttr {
             ino: inode,
             size: 0,
@@ -28,8 +31,11 @@ pub fn default_file_entry(inode: u64) -> ReplyEntry {
 }
 
 pub fn default_dic_entry(inode: u64) -> ReplyEntry {
+    // Short TTL to surface changes quickly in debugging/interactive scenarios.
+    // TODO: Consider making TTL configurable or increasing to 30-60 seconds for production.
+    // Current 2-second TTL causes frequent kernel attribute lookups which may impact performance.
     ReplyEntry {
-        ttl: Duration::new(500, 0),
+        ttl: Duration::new(2, 0),
         attr: FileAttr {
             ino: inode,
             size: 0,

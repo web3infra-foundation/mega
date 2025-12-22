@@ -51,6 +51,10 @@ pub enum MegaError {
     #[error("Git error: {0}")]
     Git(#[from] GitError),
 
+    // --- BuckError ---
+    #[error("Buck API error: {0}")]
+    Buck(#[from] BuckError),
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),
@@ -78,6 +82,43 @@ impl From<MegaError> for GitError {
 pub enum GitLFSError {
     #[error("Something went wrong in Git LFS: {0}")]
     GeneralError(String),
+}
+
+/// Buck upload API errors
+#[derive(Debug, Error)]
+pub enum BuckError {
+    #[error("Session not found: {0}")]
+    SessionNotFound(String),
+
+    #[error("Session expired")]
+    SessionExpired,
+
+    #[error("File not in manifest: {0}")]
+    FileNotInManifest(String),
+
+    #[error("Rate limit exceeded")]
+    RateLimitExceeded,
+
+    #[error("File size exceeds limit: {0} > {1}")]
+    FileSizeExceedsLimit(u64, u64),
+
+    #[error("File already uploaded: {0}")]
+    FileAlreadyUploaded(String),
+
+    #[error("Hash mismatch: expected {expected}, got {actual}")]
+    HashMismatch { expected: String, actual: String },
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
+    #[error("Invalid session status: expected {expected:?}, got {actual:?}")]
+    InvalidSessionStatus { expected: String, actual: String },
+
+    #[error("Files not fully uploaded: {missing_count} files remaining")]
+    FilesNotFullyUploaded { missing_count: u32 },
 }
 
 #[derive(Debug, Error)]

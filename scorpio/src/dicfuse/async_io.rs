@@ -8,6 +8,7 @@ use rfuse3::raw::reply::DirectoryEntry;
 use rfuse3::{Errno, Inode, Result};
 
 use super::Dicfuse;
+use crate::dicfuse::abi::{default_dic_entry, default_file_entry};
 use crate::dicfuse::store::load_dir;
 use futures::stream::iter;
 impl Filesystem for Dicfuse {
@@ -15,11 +16,13 @@ impl Filesystem for Dicfuse {
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         let s = self.store.clone();
 
-        // Synchronously initialize the root directory if needed; this call blocks until
-        // the root is ready. import_arc will quickly set up the root directory if the DB is empty,
-        // ensuring the filesystem is immediately usable for basic operations like readdir.
-        // Only the heavy directory loading from the remote server is performed in the background.
-        super::store::import_arc(s).await;
+        // Spawn import_arc as a background task to avoid blocking FUSE mount
+        // This allows the filesystem to be mounted immediately while directory
+        // loading happens in the background. This is critical for performance
+        // and prevents mount timeouts when loading large directory trees.
+        tokio::spawn(async move {
+            super::store::import_arc(s).await;
+        });
 
         Ok(ReplyInit {
             max_write: NonZeroU32::new(128 * 1024).unwrap(),
@@ -413,16 +416,51 @@ impl Filesystem for Dicfuse {
         for (index, item) in items.iter().enumerate() {
             let entry_offset = (index + 2) as i64;
             if entry_offset > offset as i64 {
-                let attr = self.get_stat(item.clone()).await;
+                // Add timeout to prevent blocking if get_stat or get_filetype hang
+                // This can happen if Dicfuse is still loading data or if there's a lock contention
+                let item_name = item.get_name();
+                let get_stat_future = self.get_stat(item.clone());
+                let get_filetype_future = item.get_filetype();
+
+                // Use timeout to prevent infinite blocking
+                // This is critical when Dicfuse is still loading data in the background
+                let (stat_result, filetype) = match tokio::time::timeout(
+                    tokio::time::Duration::from_millis(500),
+                    async {
+                        let stat = get_stat_future.await;
+                        let ft = get_filetype_future.await;
+                        (stat, ft)
+                    },
+                )
+                .await
+                {
+                    Ok((stat, ft)) => (stat, ft),
+                    Err(_) => {
+                        tracing::warn!("get_stat/get_filetype timed out for item {} in readdirplus (Dicfuse may still be loading)", item_name);
+                        // Use default entries to avoid blocking
+                        // Try to determine if it's a directory by checking if we can get the item
+                        let default_entry = match self.store.get_inode(item.get_inode()).await {
+                            Ok(i) if i.is_dir() => default_dic_entry(item.get_inode()),
+                            _ => default_file_entry(item.get_inode()),
+                        };
+                        let default_ft = if default_entry.attr.kind == rfuse3::FileType::Directory {
+                            rfuse3::FileType::Directory
+                        } else {
+                            rfuse3::FileType::RegularFile
+                        };
+                        (default_entry, default_ft)
+                    }
+                };
+
                 d.push(Ok(DirectoryEntryPlus {
                     inode: item.get_inode(),
-                    kind: item.get_filetype().await,
-                    name: item.get_name().into(),
+                    kind: filetype,
+                    name: item_name.into(),
                     offset: entry_offset + 1,
                     generation: 0,
-                    attr: attr.attr,
-                    entry_ttl: attr.ttl,
-                    attr_ttl: attr.ttl,
+                    attr: stat_result.attr,
+                    entry_ttl: stat_result.ttl,
+                    attr_ttl: stat_result.ttl,
                 }));
             }
         }

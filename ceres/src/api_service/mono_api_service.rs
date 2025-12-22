@@ -41,9 +41,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::api_service::buck_tree_builder::BuckCommitBuilder;
 use crate::api_service::cache::GitObjectCache;
 use crate::api_service::state::ProtocolApiState;
 use crate::api_service::{ApiHandler, tree_ops};
+use crate::model::buck::{CompletePayload, CompleteResponse, ManifestPayload, ManifestResponse};
+use crate::model::buck::{FileChange, FileToUpload as ApiFileToUpload};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
@@ -61,7 +64,7 @@ use callisto::sea_orm_active_enums::{
     ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum,
 };
 use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
-use common::errors::MegaError;
+use common::errors::{BuckError, MegaError};
 use common::model::{DiffItem, Pagination};
 use common::utils::MEGA_BRANCH_NAME;
 use git_internal::diff::Diff as GitDiff;
@@ -71,8 +74,12 @@ use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use jupiter::service::buck_service::{
+    CommitArtifacts, CompletePayload as SvcCompletePayload, CompleteResponse as SvcCompleteResponse,
+};
 use jupiter::storage::Storage;
 use jupiter::storage::base_storage::StorageConnector;
+use jupiter::storage::buck_storage::{session_status, upload_status};
 use jupiter::storage::mono_storage::RefUpdateData;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
@@ -489,7 +496,7 @@ impl ApiHandler for MonoApiService {
                     tree_model.into()
                 })
                 .collect();
-            storage.batch_save_model(save_trees, None).await?;
+            storage.batch_save_model(save_trees).await?;
             last_commit_id = new_commit_id;
         } else {
             // If missing_parts is not empty, we must create intermediate
@@ -600,7 +607,7 @@ impl ApiHandler for MonoApiService {
                 })
                 .collect();
             storage
-                .batch_save_model(save_trees, None)
+                .batch_save_model(save_trees)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
             last_commit_id = new_commit_id;
@@ -1275,7 +1282,7 @@ impl MonoApiService {
             .collect();
 
         storage
-            .batch_save_model(save_trees, None)
+            .batch_save_model(save_trees)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
@@ -1646,6 +1653,276 @@ impl MonoApiService {
         }
 
         Ok(result)
+    }
+
+    // ========== Buck Upload API Methods ==========
+
+    /// Create buck upload session.
+    ///
+    /// # Arguments
+    /// * `username` - User creating the session
+    /// * `path` - Repository path
+    ///
+    /// # Returns
+    /// Returns `SessionResponse` on success
+    pub async fn create_buck_session(
+        &self,
+        username: &str,
+        path: &str,
+    ) -> Result<jupiter::service::buck_service::SessionResponse, MegaError> {
+        let refs = self
+            .storage
+            .mono_storage()
+            .get_main_ref(path)
+            .await?
+            .ok_or_else(|| MegaError::Other(format!("Path not found: {}", path)))?;
+        let response = self
+            .storage
+            .buck_service
+            .create_session(username, path, refs.ref_commit_hash)
+            .await?;
+
+        Ok(response)
+    }
+
+    /// Process buck upload manifest.
+    ///
+    /// # Arguments
+    /// * `username` - User processing the manifest
+    /// * `session_id` - Session ID
+    /// * `payload` - Manifest payload
+    ///
+    /// # Returns
+    /// Returns `ManifestResponse` on success
+    pub async fn process_buck_manifest(
+        &self,
+        username: &str,
+        session_id: &str,
+        payload: ManifestPayload,
+    ) -> Result<ManifestResponse, MegaError> {
+        let session = self
+            .storage
+            .buck_storage()
+            .get_session(session_id)
+            .await?
+            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(session_id.to_string())))?;
+
+        if session.user_id != username {
+            return Err(MegaError::Buck(BuckError::Forbidden(
+                "Session belongs to another user".to_string(),
+            )));
+        }
+
+        let manifest_paths: Vec<PathBuf> = payload
+            .files
+            .iter()
+            .map(|f| PathBuf::from(&f.path))
+            .collect();
+
+        let existing_file_hashes = crate::api_service::blob_ops::get_files_blob_ids(
+            self,
+            &manifest_paths,
+            session.from_hash.as_deref(),
+        )
+        .await
+        .map_err(MegaError::Git)?;
+
+        let existing_file_hashes: HashMap<PathBuf, String> = existing_file_hashes
+            .into_iter()
+            .map(|(path, sha1)| (path, sha1.to_string()))
+            .collect();
+
+        // Convert payload to service layer type
+        let service_payload = jupiter::service::buck_service::ManifestPayload {
+            files: payload
+                .files
+                .iter()
+                .map(|f| jupiter::service::buck_service::ManifestFile {
+                    path: f.path.clone(),
+                    size: f.size,
+                    hash: f.hash.clone(),
+                    mode: f.mode.clone(),
+                })
+                .collect(),
+            commit_message: payload.commit_message.clone(),
+        };
+
+        let svc_resp = self
+            .storage
+            .buck_service
+            .process_manifest(username, session_id, service_payload, existing_file_hashes)
+            .await?;
+
+        // Convert back to API layer response
+        let api_resp = ManifestResponse {
+            total_files: svc_resp.total_files,
+            total_size: svc_resp.total_size,
+            files_to_upload: svc_resp
+                .files_to_upload
+                .into_iter()
+                .map(|f| ApiFileToUpload {
+                    path: f.path,
+                    reason: f.reason,
+                })
+                .collect(),
+            files_unchanged: svc_resp.files_unchanged,
+            upload_size: svc_resp.upload_size,
+        };
+
+        Ok(api_resp)
+    }
+
+    /// Complete buck upload.
+    ///
+    /// # Arguments
+    /// * `username` - User completing the upload
+    /// * `session_id` - Session ID
+    /// * `payload` - Complete payload containing an optional commit message
+    ///
+    /// # Returns
+    /// Returns `CompleteResponse` on success
+    pub async fn complete_buck_upload(
+        &self,
+        username: &str,
+        session_id: &str,
+        payload: CompletePayload,
+    ) -> Result<CompleteResponse, MegaError> {
+        let session = self
+            .storage
+            .buck_storage()
+            .get_session(session_id)
+            .await?
+            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(session_id.to_string())))?;
+
+        if session.user_id != username {
+            return Err(MegaError::Buck(BuckError::Forbidden(
+                "Session belongs to another user".to_string(),
+            )));
+        }
+
+        if ![session_status::MANIFEST_UPLOADED, session_status::UPLOADING]
+            .contains(&session.status.as_str())
+        {
+            return Err(MegaError::Buck(BuckError::InvalidSessionStatus {
+                expected: format!(
+                    "{} or {}",
+                    session_status::MANIFEST_UPLOADED,
+                    session_status::UPLOADING
+                ),
+                actual: session.status.clone(),
+            }));
+        }
+
+        let pending = self
+            .storage
+            .buck_storage()
+            .count_pending_files(session_id)
+            .await?;
+        if pending > 0 {
+            return Err(MegaError::Buck(BuckError::FilesNotFullyUploaded {
+                missing_count: pending as u32,
+            }));
+        }
+
+        let all_files = self
+            .storage
+            .buck_storage()
+            .get_all_files(session_id)
+            .await?;
+        for file in &all_files {
+            if file.blob_id.is_none() {
+                return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                    "Missing blob_id for file: {} (status: {})",
+                    file.file_path, file.upload_status
+                ))));
+            }
+        }
+
+        // Build commit
+        let file_changes: Vec<FileChange> = all_files
+            .iter()
+            .filter(|f| f.upload_status == upload_status::UPLOADED)
+            .map(|f| {
+                let blob_id = f.blob_id.as_ref().unwrap();
+                let normalized_blob_id =
+                    format!("sha1:{}", blob_id.strip_prefix("sha1:").unwrap_or(blob_id));
+                FileChange::new(
+                    f.file_path.clone(),
+                    normalized_blob_id,
+                    f.file_mode.clone().unwrap_or_else(|| "100644".to_string()),
+                )
+            })
+            .collect();
+
+        let commit_message = payload
+            .commit_message
+            .clone()
+            .or(session.commit_message.clone())
+            .unwrap_or_else(|| "Upload via buck push".to_string());
+
+        let commit_result = if file_changes.is_empty() {
+            None
+        } else {
+            let builder = BuckCommitBuilder::new(self.storage.mono_storage());
+            let result = builder
+                .build_commit(
+                    session.from_hash.as_deref().unwrap_or_default(),
+                    &file_changes,
+                    &commit_message,
+                )
+                .await?;
+            Some(result)
+        };
+
+        // Convert to artifacts acceptable by BuckService
+        let artifacts = commit_result.map(|res| {
+            let commit_model: callisto::mega_commit::ActiveModel = res
+                .commit
+                .clone()
+                .into_mega_model(git_internal::internal::metadata::EntryMeta::default())
+                .into();
+            let new_tree_models: Vec<callisto::mega_tree::ActiveModel> =
+                res.new_tree_models.into_iter().map(|m| m.into()).collect();
+            CommitArtifacts {
+                commit_id: res.commit_id,
+                tree_hash: res.tree_hash,
+                new_tree_models,
+                commit_model,
+            }
+        });
+
+        let svc_resp: SvcCompleteResponse = self
+            .storage
+            .buck_service
+            .complete_upload(
+                username,
+                session_id,
+                SvcCompletePayload {
+                    commit_message: payload.commit_message.clone(),
+                },
+                artifacts,
+            )
+            .await?;
+
+        // Calculate uploaded files count
+        let uploaded_files_count = file_changes.len() as u32;
+
+        // TODO: Buck Upload completion flow - remaining steps (not implemented):
+        // 1. Output CL creation and diff logs (need to calculate file diffs, see get_diff_by_blobs)
+        // 2. Notify change-detector with CL change content (need to implement change-detector client)
+        // 3. Analyze affected targets (based on BUCK dependency graph, need to parse BUCK files)
+        // 4. Return build target list (affected_targets)
+        // 5. Start Buck2 build tasks (only build affected_targets, see bellatrix integration in post_cl_operation)
+        // 6. Return build results (success/failure/log path)
+        // 7. Push build progress and result logs (need real-time push mechanism)
+
+        Ok(CompleteResponse {
+            cl_id: session.id,
+            cl_link: session.session_id.clone(),
+            commit_id: svc_resp.commit_id,
+            files_count: uploaded_files_count,
+            created_at: session.created_at.to_string(),
+        })
     }
 
     /// Ensures the background merge processor is running.

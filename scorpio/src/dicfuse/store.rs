@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::content_store::ContentStorage;
@@ -202,9 +202,16 @@ impl From<reqwest::Error> for DictionaryError {
 // Get Mega dictionary tree from server
 #[allow(unused)]
 async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
-    static CLIENT: Lazy<Client> = Lazy::new(Client::new);
+    static CLIENT: Lazy<Client> = Lazy::new(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .build()
+            .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
+    });
     let client = CLIENT.clone();
-    let url = format!("{}/api/v1/tree?path=/{}", config::base_url(), path);
+    // Remove leading slash from path to avoid double slashes in URL
+    let clean_path = path.trim_start_matches('/');
+    let url = format!("{}/api/v1/tree?path=/{}", config::base_url(), clean_path);
     let kk = client.get(&url).send().await;
     if kk.is_err() {
         return Err(DictionaryError {
@@ -219,32 +226,114 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
     }
 }
 
-/// Download a file from the server using its OID/hash
+/// Download a file from the server using its OID/hash with retry mechanism
 async fn fetch_file(oid: &str) -> Vec<u8> {
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
-    let client = Client::new();
+    static CLIENT: Lazy<Client> = Lazy::new(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(30)) // 30 second timeout for file downloads (files may be large)
+            .build()
+            .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
+    });
+    let client = CLIENT.clone();
 
-    // Send GET request
-    let response = match client.get(url).send().await {
-        Ok(resp) => resp,
-        Err(_) => {
-            eprintln!("Failed to fetch file with OID: {oid}");
-            return Vec::new(); // Return empty vector on error
-        }
-    };
+    const MAX_RETRIES: u32 = 3;
+    // Base delay for linear backoff: 100ms, 200ms, 300ms for attempts 0, 1, 2
+    // Linear backoff is appropriate here since we only retry a few times with short delays
+    const RETRY_DELAY_MS: u64 = 100;
 
-    // Ensure that the response status is successful
-    if response.status().is_success() {
-        // Get the binary data from the response body
-        let content = match response.bytes().await {
-            Ok(bytes) => bytes,
-            Err(_) => {
-                eprintln!("Failed to read content for OID: {oid}");
-                return Vec::new(); // Return empty vector on error
+    // Retry logic for network errors
+    for attempt in 0..MAX_RETRIES {
+        // Send GET request
+        let response = match client.get(&url).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                if attempt < MAX_RETRIES - 1 {
+                    // Retry on network errors (timeout, connection refused, etc.)
+                    debug!(
+                        "Failed to fetch file with OID: {oid} (attempt {}/{}), retrying...",
+                        attempt + 1,
+                        MAX_RETRIES
+                    );
+                    debug!("  URL: {url}");
+                    debug!("  Error: {e}");
+                    tokio::time::sleep(Duration::from_millis(
+                        RETRY_DELAY_MS * (attempt + 1) as u64,
+                    ))
+                    .await;
+                    continue;
+                } else {
+                    // Final attempt failed, log and return empty
+                    debug!(
+                        "Failed to fetch file with OID: {oid} after {} attempts",
+                        MAX_RETRIES
+                    );
+                    debug!("  URL: {url}");
+                    debug!("  Error: {e}");
+                    return Vec::new();
+                }
             }
         };
-        return content.to_vec();
+
+        // Ensure that the response status is successful
+        if response.status().is_success() {
+            // Get the binary data from the response body
+            match response.bytes().await {
+                Ok(bytes) => return bytes.to_vec(),
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        debug!(
+                            "Failed to read content for OID: {oid} (attempt {}/{}), retrying...",
+                            attempt + 1,
+                            MAX_RETRIES
+                        );
+                        debug!("  URL: {url}");
+                        debug!("  Error: {e}");
+                        tokio::time::sleep(Duration::from_millis(
+                            RETRY_DELAY_MS * (attempt + 1) as u64,
+                        ))
+                        .await;
+                        continue;
+                    } else {
+                        debug!(
+                            "Failed to read content for OID: {oid} after {} attempts",
+                            MAX_RETRIES
+                        );
+                        debug!("  URL: {url}");
+                        debug!("  Error: {e}");
+                        return Vec::new();
+                    }
+                }
+            }
+        } else {
+            let status = response.status();
+            // Don't retry on HTTP errors (4xx, 5xx) - these are permanent failures
+            if status.is_client_error() || status.is_server_error() {
+                debug!("Failed to fetch file: HTTP {} for OID: {oid}", status);
+                debug!("  URL: {url}");
+                return Vec::new();
+            }
+            // For other status codes (e.g., 3xx redirects), retry
+            if attempt < MAX_RETRIES - 1 {
+                debug!(
+                    "Unexpected HTTP status {} for OID: {oid} (attempt {}/{}), retrying...",
+                    status,
+                    attempt + 1,
+                    MAX_RETRIES
+                );
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt + 1) as u64))
+                    .await;
+                continue;
+            } else {
+                debug!(
+                    "Failed to fetch file: HTTP {} for OID: {oid} after {} attempts",
+                    status, MAX_RETRIES
+                );
+                debug!("  URL: {url}");
+                return Vec::new();
+            }
+        }
     }
     Vec::new()
 }
@@ -265,82 +354,166 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         clean_path
     );
 
-    let response = match client.get(&url).send().await {
-        Ok(resp) => resp,
-        Err(e) => {
-            eprintln!("Failed to fetch tree: {e}");
-            return Ok(ApiResponseExt {
-                _req_result: false,
-                data: Vec::new(),
-                _err_message: format!("Failed to fetch tree: {e}"),
-            });
-        }
-    };
+    const MAX_RETRIES: u32 = 3;
+    // Base delay for linear backoff: 100ms, 200ms, 300ms for attempts 0, 1, 2
+    // Linear backoff is appropriate here since we only retry a few times with short delays
+    const RETRY_DELAY_MS: u64 = 100;
 
-    let tree_info: TreeInfoResponse = match response.json().await {
-        Ok(info) => info,
-        Err(e) => {
-            eprintln!("Failed to parse commit info: {e}");
-            return Ok(ApiResponseExt {
-                _req_result: false,
-                data: Vec::new(),
-                _err_message: format!("Failed to parse commit info: {e}"),
-            });
-        }
-    };
-
-    if !tree_info.req_result {
-        eprintln!(
-            "server response fetch dir error: {:?}",
-            tree_info.err_message
-        );
-        return Ok(ApiResponseExt {
-            _req_result: false,
-            data: Vec::new(),
-            _err_message: format!(
-                "server response fetch dir error: {:?}",
-                tree_info.err_message
-            ),
-        });
-    }
-
-    let mut data = Vec::with_capacity(tree_info.data.len());
-
-    let base_path = if path.is_empty() || path == "/" {
-        "".to_string()
-    } else if path.ends_with('/') {
-        path.to_string()
-    } else {
-        format!("{path}/")
-    };
-
-    for info in tree_info.data {
-        let full_path = if base_path.is_empty() {
-            format!("/{}", info.name)
-        } else {
-            format!("/{}{}", base_path.trim_start_matches('/'), info.name)
+    // Retry logic for network errors
+    for attempt in 0..MAX_RETRIES {
+        let response = match client.get(&url).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                if attempt < MAX_RETRIES - 1 {
+                    // Retry on network errors (timeout, connection refused, etc.)
+                    debug!(
+                        "Failed to fetch tree: {e} (attempt {}/{}), retrying...",
+                        attempt + 1,
+                        MAX_RETRIES
+                    );
+                    debug!("  URL: {url}");
+                    debug!("  Path: {path}");
+                    tokio::time::sleep(Duration::from_millis(
+                        RETRY_DELAY_MS * (attempt + 1) as u64,
+                    ))
+                    .await;
+                    continue;
+                } else {
+                    // Final attempt failed
+                    debug!("Failed to fetch tree: {e} after {} attempts", MAX_RETRIES);
+                    debug!("  URL: {url}");
+                    debug!("  Path: {path}");
+                    return Ok(ApiResponseExt {
+                        _req_result: false,
+                        data: Vec::new(),
+                        _err_message: format!("Failed to fetch tree: {e}"),
+                    });
+                }
+            }
         };
 
-        data.push(ItemExt {
-            item: Item {
-                name: info.name,
-                path: full_path,
-                content_type: info.content_type,
-            },
-            hash: info.oid,
+        // Check response status before parsing JSON
+        if !response.status().is_success() {
+            let status = response.status();
+            // Don't retry on HTTP errors (4xx, 5xx) - these are permanent failures
+            if status.is_client_error() || status.is_server_error() {
+                debug!("Failed to fetch tree: HTTP {} for path: {path}", status);
+                debug!("  URL: {url}");
+                return Ok(ApiResponseExt {
+                    _req_result: false,
+                    data: Vec::new(),
+                    _err_message: format!("HTTP {}: Failed to fetch tree for path: {path}", status),
+                });
+            }
+            // For other status codes, retry
+            if attempt < MAX_RETRIES - 1 {
+                debug!(
+                    "Unexpected HTTP status {} for path: {path} (attempt {}/{}), retrying...",
+                    status,
+                    attempt + 1,
+                    MAX_RETRIES
+                );
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt + 1) as u64))
+                    .await;
+                continue;
+            }
+        }
+
+        // Parse JSON response
+        let tree_info: TreeInfoResponse = match response.json().await {
+            Ok(info) => info,
+            Err(e) => {
+                if attempt < MAX_RETRIES - 1 {
+                    debug!(
+                        "Failed to parse commit info: {e} (attempt {}/{}), retrying...",
+                        attempt + 1,
+                        MAX_RETRIES
+                    );
+                    tokio::time::sleep(Duration::from_millis(
+                        RETRY_DELAY_MS * (attempt + 1) as u64,
+                    ))
+                    .await;
+                    continue;
+                } else {
+                    debug!(
+                        "Failed to parse commit info: {e} after {} attempts",
+                        MAX_RETRIES
+                    );
+                    return Ok(ApiResponseExt {
+                        _req_result: false,
+                        data: Vec::new(),
+                        _err_message: format!("Failed to parse commit info: {e}"),
+                    });
+                }
+            }
+        };
+
+        if !tree_info.req_result {
+            debug!(
+                "server response fetch dir error: {:?}",
+                tree_info.err_message
+            );
+            return Ok(ApiResponseExt {
+                _req_result: false,
+                data: Vec::new(),
+                _err_message: format!(
+                    "server response fetch dir error: {:?}",
+                    tree_info.err_message
+                ),
+            });
+        }
+
+        // Successfully parsed response, process data
+        let mut data = Vec::with_capacity(tree_info.data.len());
+
+        let base_path = if path.is_empty() || path == "/" {
+            "".to_string()
+        } else if path.ends_with('/') {
+            path.to_string()
+        } else {
+            format!("{path}/")
+        };
+
+        for info in tree_info.data {
+            let full_path = if base_path.is_empty() {
+                format!("/{}", info.name)
+            } else {
+                format!("/{}{}", base_path.trim_start_matches('/'), info.name)
+            };
+
+            data.push(ItemExt {
+                item: Item {
+                    name: info.name,
+                    path: full_path,
+                    content_type: info.content_type,
+                },
+                hash: info.oid,
+            });
+        }
+
+        return Ok(ApiResponseExt {
+            _req_result: true,
+            data,
+            _err_message: String::new(),
         });
     }
 
+    // All retries exhausted
     Ok(ApiResponseExt {
-        _req_result: true,
-        data,
-        _err_message: String::new(),
+        _req_result: false,
+        data: Vec::new(),
+        _err_message: format!("Failed to fetch tree after {} attempts", MAX_RETRIES),
     })
 }
 
 /// Get the directory hash from the server
 async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
-    static CLIENT: Lazy<Client> = Lazy::new(Client::new);
+    static CLIENT: Lazy<Client> = Lazy::new(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .build()
+            .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
+    });
     let client = CLIENT.clone();
 
     let clean_path = path.trim_start_matches('/');
@@ -424,9 +597,11 @@ pub struct DictionaryStore {
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
     max_depth: Arc<usize>,                   // max depth for loading directories
-    init_notify: Arc<Notify>,                // used in dir_test to notify the start of the test..
+    pub init_notify: Arc<Notify>,            // used in dir_test to notify the start of the test..
     persistent_content_store: Arc<ContentStorage>, // persistent content store for saving and retrieving file contents
     open_buff: Arc<DashMap<u64, Vec<u8>>>,         // buffer for open files
+    /// Tracks executable bit for files. Populated when downloading git blobs.
+    exec_flags: Arc<DashMap<u64, bool>>,
 }
 
 #[allow(unused)]
@@ -445,6 +620,7 @@ impl DictionaryStore {
                 ContentStorage::new().expect("Failed to create ContentStorage"),
             ),
             open_buff: Arc::new(DashMap::new()),
+            exec_flags: Arc::new(DashMap::new()),
         }
     }
 
@@ -463,6 +639,7 @@ impl DictionaryStore {
                 ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
             ),
             open_buff: Arc::new(DashMap::new()),
+            exec_flags: Arc::new(DashMap::new()),
         }
     }
     #[inline(always)]
@@ -813,6 +990,17 @@ impl DictionaryStore {
 /// File operations interface for in-memory file management
 /// Provides functions to handle file content stored in memory buffer (open_buff)
 impl DictionaryStore {
+    pub fn set_executable(&self, inode: u64, executable: bool) {
+        self.exec_flags.insert(inode, executable);
+    }
+
+    pub fn is_executable(&self, inode: u64) -> bool {
+        self.exec_flags
+            .get(&inode)
+            .map(|v| *v.value())
+            .unwrap_or(false)
+    }
+
     pub fn get_file_len(&self, inode: u64) -> u64 {
         self.open_buff.get(&inode).map_or(0, |v| v.len() as u64)
     }
@@ -858,11 +1046,21 @@ impl DictionaryStore {
 /// * `parent_path` - The path to an empty directory where subdirectories will be loaded.
 /// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
 pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) {
-    println!("load_dir_depth {parent_path:?}");
+    let start_time = std::time::Instant::now();
+    println!("[load_dir_depth] Starting to load directory tree from {parent_path:?} with max_depth={max_depth}");
     let queue = Arc::new(SegQueue::new());
     let items = fetch_dir(&parent_path).await.unwrap().data;
+    println!(
+        "[load_dir_depth] Fetched {} items from {parent_path:?}",
+        items.len()
+    );
     // only count the directories.
     let dir_count = items.iter().filter(|it| it.item.is_dir()).count();
+    let file_count = items.len() - dir_count;
+    println!(
+        "[load_dir_depth] Found {} directories and {} files in {parent_path:?}",
+        dir_count, file_count
+    );
     let active_producers = Arc::new(AtomicUsize::new(dir_count));
     // let active_producers = Arc::new(AtomicUsize::new(items.len()));
     {
@@ -907,14 +1105,25 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
         let producers = Arc::clone(&active_producers);
 
         workers.push(tokio::spawn(async move {
+            // Rate limiting: add small delay between requests to avoid overwhelming the server
+            const REQUEST_DELAY_MS: u64 = 10; // 10ms delay between requests per worker
+
             while producers.load(Ordering::Acquire) > 0 || !queue.is_empty() {
                 if let Some(inode) = queue.pop() {
                     //get the whole path.
                     let path =
                         "/".to_string() + &path_store.get_all_path(inode).unwrap().to_string();
-                    println!("Worker processing path: {path}");
+                    let remaining_producers = producers.load(Ordering::Acquire);
+                    let queue_size = queue.len();
+                    if queue_size.is_multiple_of(10) || remaining_producers.is_multiple_of(50) {
+                        println!("[load_dir_depth] Worker processing path: {path} (remaining producers: {}, queue size: {})", remaining_producers, queue_size);
+                    }
+                    // Rate limiting: small delay before each request to avoid overwhelming server
+                    tokio::time::sleep(Duration::from_millis(REQUEST_DELAY_MS)).await;
+
                     // get all children inode
-                    match fetch_dir(&path).await {
+                    let result = fetch_dir(&path).await;
+                    match result {
                         Ok(new_items) => {
                             let new_items = new_items.data;
                             for newit in new_items {
@@ -951,19 +1160,23 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                                 }
                             }
                         }
-                        Err(_) => {
-                            // Continue to the next iteration if there was an error
+                        Err(e) => {
+                            // Log error but continue - still need to decrement producer count
+                            debug!("Failed to fetch directory {path}: {e}");
                         }
                     };
 
+                    // Always decrement producer count after processing, regardless of success or failure
                     producers.fetch_sub(1, Ordering::Release);
                 } else {
                     // If there are no active producers and the queue is empty, exit the loop
-                    if producers.load(Ordering::Acquire) == 0 {
+                    let current_producers = producers.load(Ordering::Acquire);
+                    if current_producers == 0 {
                         return;
                     }
                     // yield to wait unfinished tasks
-                    tokio::task::yield_now().await;
+                    // Add a small delay to avoid busy waiting
+                    tokio::time::sleep(Duration::from_millis(10)).await;
                 }
             }
         }));
@@ -973,7 +1186,21 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
     // while let Some(worker) = workers.pop() {
     //     worker.await.expect("Worker panicked");
     // }
+    println!(
+        "[load_dir_depth] Waiting for {} workers to complete...",
+        worker_count
+    );
+    println!(
+        "[load_dir_depth] Current state: producers={}, queue_size={}",
+        active_producers.load(Ordering::Acquire),
+        queue.len()
+    );
     join_all(workers).await;
+    let elapsed = start_time.elapsed();
+    println!(
+        "[load_dir_depth] Completed loading directory tree from {parent_path:?} in {:.2}s",
+        elapsed.as_secs_f64()
+    );
 }
 
 pub async fn import_arc(store: Arc<DictionaryStore>) {
@@ -1016,14 +1243,15 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         store.dirs.insert("/".to_string(), root_dir_item);
     }
 
-    // Spawn directory loading as background task to avoid blocking FUSE mount
-    let store_clone = store.clone();
+    // Load directory tree synchronously - caller awaits completion
     let max_depth = store.max_depth() + 2;
-    let store_for_notify = store_clone.clone();
-    tokio::spawn(async move {
-        load_dir_depth(store_clone, "/".to_string(), max_depth).await;
-        store_for_notify.init_notify.notify_waiters();
-    });
+    println!(
+        "[import_arc] Loading directory tree with max_depth={max_depth} (config load_dir_depth={})",
+        store.max_depth()
+    );
+    load_dir_depth(store.clone(), "/".to_string(), max_depth).await;
+    println!("[import_arc] Directory tree loading completed");
+    store.init_notify.notify_waiters();
 
     // Spawn background task for periodic directory watching
     tokio::spawn(async move {
@@ -1331,6 +1559,32 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
 /// Watch the directory and update the dictionary has loaded.
 pub async fn watch_dir(store: Arc<DictionaryStore>) {
     update_dir(store, "/".to_string()).await;
+}
+
+/// Test-only helper methods for DictionaryStore
+#[cfg(test)]
+impl DictionaryStore {
+    /// Insert a mock item for testing purposes.
+    /// This allows tests to set up the internal state without network calls.
+    pub async fn insert_mock_item(&self, inode: u64, parent: u64, name: &str, is_dir: bool) {
+        let item = ItemExt {
+            item: Item {
+                name: name.to_string(),
+                path: if name.is_empty() {
+                    "/".to_string()
+                } else {
+                    format!("/{name}")
+                },
+                content_type: if is_dir {
+                    INODE_DICTIONARY.to_string()
+                } else {
+                    INODE_FILE.to_string()
+                },
+            },
+            hash: String::new(),
+        };
+        let _ = self.persistent_path_store.insert_item(inode, parent, item);
+    }
 }
 
 #[cfg(test)]

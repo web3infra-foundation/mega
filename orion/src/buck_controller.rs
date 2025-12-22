@@ -150,6 +150,47 @@ pub async fn mount_fs(
     }
 }
 
+#[allow(unused)]
+/// Mounts Antares filesystem via remote API.
+/// Inputs are repository path and optional change list identifier.
+/// Returns mountpoint path on success.
+pub async fn mount_antares_fs(
+    repo: &str,
+    cl: Option<&str>,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
+        .build()?;
+
+    let mount_payload = if let Some(cl_id) = cl {
+        json!({ "path": repo, "cl": cl_id })
+    } else {
+        json!({ "path": repo })
+    };
+
+    let mount_res = client
+        .post("http://localhost:2725/antares/mounts")
+        .header("Content-Type", "application/json")
+        .body(mount_payload.to_string())
+        .send()
+        .await?;
+
+    let mount_body: Value = mount_res.json().await?;
+
+    let mountpoint = mount_body
+        .get("mountpoint")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing mountpoint in Antares mount response")?
+        .to_string();
+
+    tracing::info!(
+        "Antares mount created successfully: mountpoint={}",
+        mountpoint
+    );
+
+    Ok(mountpoint)
+}
+
 async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let client = reqwest::Client::new();
     let unmount_payload = if let Some(cl_id) = cl {

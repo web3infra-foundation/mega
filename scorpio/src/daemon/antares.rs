@@ -27,7 +27,6 @@ use crate::dicfuse::Dicfuse;
 
 /// High-level HTTP daemon that exposes Antares orchestration capabilities.
 pub struct AntaresDaemon<S: AntaresService> {
-    bind_addr: SocketAddr,
     service: Arc<S>,
     shutdown_timeout: Duration,
 }
@@ -36,10 +35,9 @@ impl<S> AntaresDaemon<S>
 where
     S: AntaresService + 'static,
 {
-    /// Construct a daemon bound to the provided socket and backed by the given service.
-    pub fn new(bind_addr: SocketAddr, service: Arc<S>) -> Self {
+    /// Construct a daemon backed by the given service.
+    pub fn new(service: Arc<S>) -> Self {
         Self {
-            bind_addr,
             service,
             shutdown_timeout: Duration::from_secs(10),
         }
@@ -64,21 +62,21 @@ where
 
     /// Run the HTTP server until it receives a shutdown signal.
     /// Note: For graceful shutdown with mount cleanup, use AntaresDaemon<AntaresServiceImpl>.
-    pub async fn serve(self) -> Result<(), ApiError> {
+    pub async fn serve(self, bind_addr: SocketAddr) -> Result<(), ApiError> {
         let router = self.router();
         let shutdown_timeout = self.shutdown_timeout;
         let service = self.service.clone();
 
-        let listener = tokio::net::TcpListener::bind(self.bind_addr)
+        let listener = tokio::net::TcpListener::bind(bind_addr)
             .await
             .map_err(|e| {
                 ApiError::Service(ServiceError::Internal(format!(
                     "failed to bind to {}: {}",
-                    self.bind_addr, e
+                    bind_addr, e
                 )))
             })?;
 
-        tracing::info!("Antares daemon listening on {}", self.bind_addr);
+        tracing::info!("Antares daemon listening on {}", bind_addr);
 
         axum::serve(listener, router)
             .with_graceful_shutdown(async move {
@@ -765,7 +763,7 @@ mod tests {
 
     fn create_test_router() -> Router {
         let service = Arc::new(MockAntaresService::new());
-        let daemon = AntaresDaemon::new("127.0.0.1:0".parse().unwrap(), service);
+        let daemon = AntaresDaemon::new(service);
         daemon.router()
     }
 
