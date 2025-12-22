@@ -4,6 +4,7 @@ use crate::scheduler::{
     create_log_file, get_build_log_dir,
 };
 use anyhow::Result;
+use axum::routing::post;
 use axum::{
     Json, Router,
     extract::{
@@ -104,7 +105,7 @@ impl AppState {
 pub fn routers() -> Router<AppState> {
     Router::new()
         .route("/ws", any(ws_handler))
-        .route("/task", axum::routing::post(task_handler))
+        .route("/task", post(task_handler))
         .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route(
@@ -113,7 +114,7 @@ pub fn routers() -> Router<AppState> {
         )
         .route("/tasks/{cl}", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
-        .route("/orion-clients-info", get(get_orion_clients_info))
+        .route("/orion-clients-info", post(get_orion_clients_info))
         .route(
             "/orion-client-status/{id}",
             get(get_orion_client_status_by_id),
@@ -1016,9 +1017,20 @@ impl OrionClientInfo {
 /// When no extra conditions are required, this struct can be left empty.
 #[derive(Debug, Deserialize, ToSchema, Clone)]
 pub struct OrionClientQuery {
-    hostname: Option<String>,
+    pub hostname: Option<String>,
 }
 
+/// Endpoint to retrieve paginated Orion client information.
+///
+/// Accepts query parameters encapsulated in `PageParams<OrionClientQuery>`,
+/// which allow filtering by optional fields such as `hostname`.
+/// Returns a `CommonPage<OrionClientInfo>` containing the total number
+/// of matching clients and the corresponding page of client data.
+///
+/// - Method: POST
+/// - Path: `/orion-clients-info`
+/// - Request Body: `PageParams<OrionClientQuery>`
+/// - Response: 200 OK, body contains paginated Orion client information.
 #[utoipa::path(
     post,
     path = "/orion-clients-info",
@@ -1035,7 +1047,7 @@ async fn get_orion_clients_info(
     let query = params.additional.clone();
 
     let page = pagination.page.max(1);
-    // per_page is must in [1, 100]
+    // per_page must be in 1..=100
     let per_page = pagination.per_page.clamp(1u64, 100);
     let offset = (page - 1) * per_page;
 
@@ -1113,7 +1125,7 @@ impl OrionClientStatus {
     }
 }
 
-/// Get Orion client status
+/// Retrieve the current status of a specific Orion client by its ID.
 #[utoipa::path(
     get,
     path = "/orion-client-status/{id}",
@@ -1122,7 +1134,7 @@ impl OrionClientStatus {
     ),
     responses(
         (status = 200, description = "Orion status", body = OrionClientStatus),
-        (status = 500, description = "Internal error", body = serde_json::Value)
+        (status = 404, description = "Orion client not found", body = serde_json::Value)
     )
 )]
 async fn get_orion_client_status_by_id(
