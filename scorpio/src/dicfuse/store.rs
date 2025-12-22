@@ -1226,16 +1226,16 @@ impl DictionaryStore {
         self.open_buff.get(&inode).map_or(0, |v| v.len() as u64)
     }
 
-    pub fn get_persisted_size(&self, inode: u64) -> u64 {
-        self.persistent_size_store
-            .get_size(inode)
-            .ok()
-            .flatten()
-            .unwrap_or(0)
+    pub fn get_persisted_size(&self, inode: u64) -> Option<u64> {
+        self.persistent_size_store.get_size(inode).ok().flatten()
     }
 
     pub fn set_persisted_size(&self, inode: u64, size: u64) {
         let _ = self.persistent_size_store.set_size(inode, size);
+    }
+
+    fn get_open_buff_len(&self, inode: u64) -> Option<u64> {
+        self.open_buff.get(&inode).map(|v| v.len() as u64)
     }
 
     /// Get a file size suitable for `stat`:
@@ -1243,13 +1243,12 @@ impl DictionaryStore {
     /// - If content is already cached in memory, use that (and persist it)
     /// - As a last resort, fetch size from remote by hash/oid (HEAD/Range) and persist it
     pub async fn get_or_fetch_file_size(&self, inode: u64, oid: &str) -> u64 {
-        let persisted = self.get_persisted_size(inode);
-        if persisted > 0 {
+        if let Some(persisted) = self.get_persisted_size(inode) {
+            // NOTE: 0 is a valid cached size (empty file). We treat "not cached" as None.
             return persisted;
         }
 
-        let mem_len = self.get_file_len(inode);
-        if mem_len > 0 {
+        if let Some(mem_len) = self.get_open_buff_len(inode) {
             self.set_persisted_size(inode, mem_len);
             return mem_len;
         }
@@ -1258,9 +1257,7 @@ impl DictionaryStore {
         if let Ok(content) = self.persistent_content_store.get_file_content(inode) {
             let len = content.len() as u64;
             self.open_buff.insert(inode, content);
-            if len > 0 {
-                self.set_persisted_size(inode, len);
-            }
+            self.set_persisted_size(inode, len);
             return len;
         }
 
@@ -1269,9 +1266,7 @@ impl DictionaryStore {
         }
 
         if let Some(sz) = fetch_file_size(oid).await {
-            if sz > 0 {
-                self.set_persisted_size(inode, sz);
-            }
+            self.set_persisted_size(inode, sz);
             return sz;
         }
 
@@ -1735,7 +1730,8 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     );
     let root_item = DicItem {
         inode: 1,
-        path_name: GPath::from(user_root.clone()),
+        // Keep root consistent with other GPath usage (no leading slash, empty segments removed).
+        path_name: GPath::new(),
         content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
         children: Mutex::new(HashMap::new()),
         parent: UNKNOW_INODE, // root has no parent

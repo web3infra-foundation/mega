@@ -857,6 +857,15 @@ impl AntaresService for AntaresServiceImpl {
                             job_id
                         )));
                     }
+                    // If the mount is being torn down, do NOT treat this as an idempotent success.
+                    // Otherwise we may return a mount_id that is about to be removed, causing
+                    // follow-up describe/delete calls to 404.
+                    if !matches!(entry.state, MountLifecycle::Mounted) {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
+                            job_id, entry.state
+                        )));
+                    }
                     entry.update_last_seen();
                     return Ok(MountCreated {
                         mount_id: existing_id,
@@ -963,7 +972,7 @@ impl AntaresService for AntaresServiceImpl {
                 let _ = fuse.unmount().await;
                 let _ = std::fs::remove_dir_all(&mountpoint_str);
                 let _ = std::fs::remove_dir_all(&upper_dir_str);
-                if let Some(ref c) = cl_dir_str {
+                if let Some(c) = cl_dir_str.as_deref() {
                     let _ = std::fs::remove_dir_all(c);
                 }
                 return Err(err);
@@ -985,7 +994,7 @@ impl AntaresService for AntaresServiceImpl {
             let _ = fuse.unmount().await;
             let _ = std::fs::remove_dir_all(&mountpoint_str);
             let _ = std::fs::remove_dir_all(&upper_dir_str);
-            if let Some(ref c) = cl_dir_str {
+            if let Some(c) = cl_dir_str.as_deref() {
                 let _ = std::fs::remove_dir_all(c);
             }
             return Err(err);
@@ -1163,6 +1172,12 @@ impl AntaresService for AntaresServiceImpl {
         let entry = mounts
             .get(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot build CL",
+                mount_id, entry.state
+            )));
+        }
 
         // Get or create CL directory path
         let cl_root = crate::util::config::antares_cl_root();
@@ -1184,9 +1199,19 @@ impl AntaresService for AntaresServiceImpl {
         let mut mounts = self.mounts.write().await;
         let mut index = self.path_index.write().await;
 
-        let entry = mounts
-            .get_mut(&mount_id)
-            .ok_or(ServiceError::NotFound(mount_id))?;
+        let entry = mounts.get_mut(&mount_id).ok_or_else(|| {
+            // Best-effort cleanup: build_cl created cl_dir_path but the mount vanished.
+            let _ = std::fs::remove_dir_all(&cl_dir_path);
+            ServiceError::NotFound(mount_id)
+        })?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            // Best-effort cleanup: don't leave behind a CL directory for a mount being torn down.
+            let _ = std::fs::remove_dir_all(&cl_dir_path);
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot build CL",
+                mount_id, entry.state
+            )));
+        }
 
         // Update entry with new CL info
         let old_cl = entry.cl.clone();
@@ -1226,6 +1251,12 @@ impl AntaresService for AntaresServiceImpl {
         let entry = mounts
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot clear CL",
+                mount_id, entry.state
+            )));
+        }
 
         if entry.cl.is_none() {
             return Err(ServiceError::InvalidRequest(
@@ -1325,6 +1356,18 @@ mod tests {
                     .values()
                     .find(|m| m.job_id.as_deref() == Some(job_id))
                 {
+                    if existing.path != request.path || existing.cl != request.cl {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' already mounted with different path/cl",
+                            job_id
+                        )));
+                    }
+                    if !matches!(existing.state, MountLifecycle::Mounted) {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
+                            job_id, existing.state
+                        )));
+                    }
                     return Ok(MountCreated {
                         mount_id: existing.mount_id,
                         mountpoint: existing.mountpoint.clone(),
@@ -1410,6 +1453,12 @@ mod tests {
             let status = mounts
                 .get_mut(&mount_id)
                 .ok_or(ServiceError::NotFound(mount_id))?;
+            if !matches!(status.state, MountLifecycle::Mounted) {
+                return Err(ServiceError::InvalidRequest(format!(
+                    "mount {} is currently in state {:?}; cannot build CL",
+                    mount_id, status.state
+                )));
+            }
             status.cl = Some(cl_link);
             status.layers.cl = Some(format!("/tmp/mock_cl/{}", mount_id));
             Ok(status.clone())
@@ -1420,6 +1469,12 @@ mod tests {
             let status = mounts
                 .get_mut(&mount_id)
                 .ok_or(ServiceError::NotFound(mount_id))?;
+            if !matches!(status.state, MountLifecycle::Mounted) {
+                return Err(ServiceError::InvalidRequest(format!(
+                    "mount {} is currently in state {:?}; cannot clear CL",
+                    mount_id, status.state
+                )));
+            }
             if status.cl.is_none() {
                 return Err(ServiceError::InvalidRequest(
                     "mount has no CL layer to clear".into(),
@@ -1771,6 +1826,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_job_id_idempotent_rejected_when_unmounting() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let request = CreateMountRequest {
+            job_id: Some("job-123".into()),
+            build_id: None,
+            path: "/third-party/mega".into(),
+            cl: Some("CL123".into()),
+        };
+
+        let first = service.create_mount(request.clone()).await.unwrap();
+
+        // Simulate a concurrent teardown where job_id is still present but mount is unmounting.
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&first.mount_id).unwrap();
+            s.state = MountLifecycle::Unmounting;
+        }
+
+        let second = service.create_mount(request).await;
+        assert!(matches!(second, Err(ServiceError::InvalidRequest(_))));
+    }
+
+    #[tokio::test]
     async fn test_same_path_cl_different_job_id_allowed() {
         let service = Arc::new(MockAntaresService::new());
 
@@ -1959,6 +2038,30 @@ mod tests {
         let status = service.build_cl(mount_id, "CL123".into()).await.unwrap();
         assert_eq!(status.cl, Some("CL123".into()));
         assert!(status.layers.cl.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_build_cl_rejected_when_unmounting() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&created.mount_id).unwrap();
+            s.state = MountLifecycle::Unmounting;
+        }
+
+        let result = service.build_cl(created.mount_id, "CL123".into()).await;
+        assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
     }
 
     /// Test build_cl API - mount not found

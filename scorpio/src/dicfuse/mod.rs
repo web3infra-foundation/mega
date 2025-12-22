@@ -281,7 +281,7 @@ impl Dicfuse {
             e.attr.size = 0;
             return e;
         }
-        e.attr.size = self.store.get_persisted_size(item.get_inode());
+        e.attr.size = self.store.get_persisted_size(item.get_inode()).unwrap_or(0);
         e
     }
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()> {
