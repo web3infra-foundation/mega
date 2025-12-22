@@ -2,16 +2,20 @@
 
 ## 概述
 
-Antares 是一个轻量级的控制平面，按需创建基于 overlay 的 FUSE 挂载。每个 HTTP 请求会构建一个由以下层组成的 overlay 文件系统：
+Antares 是一个轻量级的控制平面，按需创建基于 overlay 语义的 **FUSE（用户态）挂载**。
+
+> 重要说明：这里的 overlay 指的是 `libfuse-fs` 提供的用户态 `OverlayFs`（unionfs/overlay 语义），**不是 Linux 内核 overlayfs**（`mount -t overlay ... lowerdir=`）那套内核态实现。
+
+每个 HTTP 请求会构建一个由以下层组成的 overlay 文件系统：
 - **Dicfuse** (共享，只读) 位于底层
 - **CL passthrough** (可选，每个挂载独立) 位于中间层
 - **Upper passthrough** (每个挂载独立，读写) 位于顶层
 
 ### 工作流程
-1. 客户端调用 Antares HTTP API，指定 monorepo 路径和可选的 CL 标识符
-2. 服务器复用全局的 `Arc<Dicfuse>`，自动生成各挂载的目录，并组装层列表
+1. 客户端调用 Antares HTTP API，指定 monorepo 路径、可选 CL，以及可选的 `job_id/build_id`
+2. 服务器复用共享的 `Dicfuse`（并按 `base_path` 缓存复用），自动生成各挂载的目录，并组装层列表
 3. `OverlayFs` 被包装在 `LoggingFileSystem` 中，通过 `rfuse3` 在 Tokio 任务中挂载
-4. 响应返回 mount ID；后续的 DELETE 请求通过 `fusermount -u` 卸载
+4. 响应返回 mount ID；后续的 DELETE 请求可以通过 `mount_id` 或通过 `job_id`（任务粒度）卸载
 
 ### FUSE 层次结构
 ```mermaid
@@ -57,17 +61,31 @@ flowchart TD
 
 **描述**: 创建一个新的 FUSE 挂载。系统会自动基于 UUID 生成所有内部路径。
 
+如果提供 `job_id`/`build_id`，则该 API 对同一任务 ID **幂等**：重复调用会返回同一个挂载（不会创建重复实例），并用于绑定任务生命周期。
+
 **请求体**:
 ```json
 {
+  "job_id": "job-123",
+  "build_id": "build-456",
   "path": "/third-party/mega",
   "cl": "12345"
 }
 ```
 
 **字段说明**:
+- `job_id` (可选): 构建任务标识符（推荐）。提供后创建挂载对该任务幂等。
+- `build_id` (可选): 备选的任务标识符。若同时提供 `job_id` 与 `build_id`，以 `job_id` 为准。
 - `path` (必填): 要挂载的 monorepo 路径
 - `cl` (可选): CL (changelist) 标识符，用于创建 CL 层
+
+**幂等与冲突策略**:
+- **提供 `job_id/build_id`**：
+  - 同一个 `job_id` 重复 `POST /mounts`：返回同一个挂载（幂等）
+  - 同一个 `job_id` 但 `path/cl` 不一致：返回 400（防止任务 ID 被误复用）
+  - 不同 `job_id` 可以挂载相同的 `path/cl`（支持高并发构建，upper/CL 独立）
+- **未提供 `job_id/build_id`**：
+  - 仍沿用旧逻辑：相同 `(path, cl)` 会被判定为重复挂载并返回 400
 
 **路径生成规则**:
 所有内部路径基于 UUID 自动生成：
@@ -113,6 +131,7 @@ flowchart TD
   "mounts": [
     {
       "mount_id": "550e8400-e29b-41d4-a716-446655440000",
+      "job_id": "job-123",
       "path": "/third-party/mega",
       "cl": "12345",
       "mountpoint": "/var/lib/antares/mounts/550e8400-e29b-41d4-a716-446655440000",
@@ -144,6 +163,7 @@ flowchart TD
 ```json
 {
   "mount_id": "550e8400-e29b-41d4-a716-446655440000",
+  "job_id": "job-123",
   "path": "/third-party/mega",
   "cl": "12345",
   "mountpoint": "/var/lib/antares/mounts/550e8400-e29b-41d4-a716-446655440000",
@@ -162,6 +182,24 @@ flowchart TD
 ```json
 {
   "error": "mount 550e8400-e29b-41d4-a716-446655440000 not found",
+  "code": "NOT_FOUND"
+}
+```
+
+---
+
+### 4.1. 按任务 ID 查询挂载
+
+**端点**: `GET /mounts/by-job/{job_id}`
+
+**描述**: 通过 `job_id/build_id` 查询挂载详情（适用于“任务粒度”的挂载生命周期管理）。
+
+**响应**: 同 `GET /mounts/{mount_id}`。
+
+**错误响应** (404 Not Found):
+```json
+{
+  "error": "mount for task job-123 not found",
   "code": "NOT_FOUND"
 }
 ```
@@ -217,6 +255,168 @@ flowchart TD
 
 ---
 
+### 5.1. 按任务 ID 删除挂载
+
+**端点**: `DELETE /mounts/by-job/{job_id}`
+
+**描述**: 通过 `job_id/build_id` 卸载并删除挂载（更贴合构建系统的任务生命周期）。
+
+**响应**: 返回被删除挂载的 `MountStatus`（`state` 为 `Unmounted`）。
+
+**错误响应** (404 Not Found):
+```json
+{
+  "error": "mount for task job-123 not found",
+  "code": "NOT_FOUND"
+}
+```
+
+---
+
+## OpenAPI 3.0（摘要）
+
+> 用于前端生成 client / 校验 schema。需要更完整 spec 时可再补齐 components/response schema。
+
+```yaml
+openapi: 3.0.3
+info:
+  title: Antares Mount API
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:2726
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /mounts:
+    get:
+      summary: List mounts
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create mount (idempotent when job_id/build_id provided)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                job_id: { type: string }
+                build_id: { type: string }
+                path: { type: string }
+                cl: { type: string }
+      responses:
+        "200":
+          description: Created
+  /mounts/{mount_id}:
+    get:
+      summary: Describe mount
+      parameters:
+        - in: path
+          name: mount_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+    delete:
+      summary: Delete mount
+      parameters:
+        - in: path
+          name: mount_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+  /mounts/by-job/{job_id}:
+    get:
+      summary: Describe mount by job_id
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    delete:
+      summary: Delete mount by job_id
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /mounts/{mount_id}/cl:
+    post:
+      summary: Build/Rebuild CL layer
+      parameters:
+        - in: path
+          name: mount_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cl]
+              properties:
+                cl: { type: string }
+      responses:
+        "200": { description: OK }
+    delete:
+      summary: Clear CL layer
+      parameters:
+        - in: path
+          name: mount_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+```
+
+---
+
+## 典型用法（建议）
+
+### 启动守护进程
+
+```bash
+# 在 scorpio 目录下
+cargo run -p scorpio --bin antares -- serve --bind 0.0.0.0:2726
+```
+
+### 任务粒度挂载（推荐）
+
+```bash
+curl -sS -X POST http://127.0.0.1:2726/mounts \
+  -H 'content-type: application/json' \
+  -d '{"job_id":"job-123","path":"/third-party/mega","cl":"CL123"}'
+```
+
+重复调用同一个 `job_id` 将返回同一个挂载（幂等）。
+
+### 任务粒度卸载（推荐）
+
+```bash
+curl -sS -X DELETE http://127.0.0.1:2726/mounts/by-job/job-123
+```
+
+### 使用 CLI 走 HTTP（推荐用于构建客户端）
+
+```bash
+cargo run -p scorpio --bin antares -- http-mount --endpoint http://127.0.0.1:2726 --job-id job-123 /third-party/mega --cl CL123
+```
+
+---
+
 ## 数据模型
 
 ### MountStatus
@@ -237,6 +437,76 @@ flowchart TD
   "state": "MountLifecycle",    // 挂载生命周期状态
   "created_at_epoch_ms": u64,   // 创建时间戳（毫秒）
   "last_seen_epoch_ms": u64     // 最后更新时间戳（毫秒）
+}
+```
+
+### TypeScript 类型（可选）
+
+前端/构建客户端使用 TypeScript，可以直接使用下面的类型定义（与 HTTP 返回 JSON 字段对齐）：
+
+```typescript
+export interface CreateMountRequest {
+  job_id?: string;
+  build_id?: string;
+  path: string;
+  cl?: string;
+}
+
+export interface BuildClRequest {
+  cl: string;
+}
+
+export interface MountCreated {
+  mount_id: string; // UUID
+  mountpoint: string;
+}
+
+export interface MountLayers {
+  upper: string;
+  cl: string | null;
+  dicfuse: string;
+}
+
+export type MountLifecycle =
+  | "Provisioning"
+  | "Mounted"
+  | "Unmounting"
+  | "Unmounted"
+  | { Failed: { reason: string } };
+
+export interface MountStatus {
+  mount_id: string; // UUID
+  job_id: string | null;
+  path: string;
+  cl: string | null;
+  mountpoint: string;
+  layers: MountLayers;
+  state: MountLifecycle;
+  created_at_epoch_ms: number;
+  last_seen_epoch_ms: number;
+}
+
+export interface MountCollection {
+  mounts: MountStatus[];
+}
+
+export interface HealthResponse {
+  status: "healthy" | "degraded";
+  mount_count: number;
+  uptime_secs: number;
+}
+
+export type ErrorCode =
+  | "INVALID_REQUEST"
+  | "BAD_PAYLOAD"
+  | "NOT_FOUND"
+  | "FUSE_ERROR"
+  | "INTERNAL_ERROR"
+  | "SHUTDOWN";
+
+export interface ErrorBody {
+  error: string;
+  code: ErrorCode;
 }
 ```
 
@@ -375,3 +645,10 @@ curl -X DELETE http://localhost:2726/mounts/550e8400-e29b-41d4-a716-446655440000
 ```bash
 curl http://localhost:2726/health
 ```
+
+### 客户端超时与重试建议
+
+- `POST /mounts`：建议客户端 timeout 设为 **30–120s**（冷启动需要 Dicfuse 目录树 ready）
+- `GET /mounts*`：建议 **5s**（纯查询）
+- `DELETE /mounts*`：建议 **30s**（卸载可能等待）
+- `POST /mounts/{id}/cl`：建议 **60s**（依赖外部 CL 服务）

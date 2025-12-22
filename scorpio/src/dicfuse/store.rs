@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::io;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -23,6 +23,7 @@ use tracing::{debug, info, warn};
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::content_store::ContentStorage;
+use super::size_store::SizeStorage;
 use super::tree_store::{StorageItem, TreeStorage};
 use crate::util::{config, GPath};
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
@@ -338,6 +339,74 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
     Vec::new()
 }
 
+/// Fetch file size (in bytes) for a blob without downloading the full content.
+///
+/// Strategy:
+/// 1) Try HTTP HEAD and read Content-Length.
+/// 2) Fallback to GET with Range: bytes=0-0 and parse Content-Range.
+async fn fetch_file_size(oid: &str) -> Option<u64> {
+    use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE, RANGE};
+
+    let file_blob_endpoint = config::file_blob_endpoint();
+    let url = format!("{file_blob_endpoint}/{oid}");
+    static CLIENT: Lazy<Client> = Lazy::new(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| Client::new())
+    });
+    let client = CLIENT.clone();
+
+    // 1) HEAD
+    if let Ok(resp) = client.head(&url).send().await {
+        if resp.status().is_success() {
+            if let Some(v) = resp.headers().get(CONTENT_LENGTH) {
+                if let Ok(s) = v.to_str() {
+                    if let Ok(n) = s.parse::<u64>() {
+                        return Some(n);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2) Range GET (0-0)
+    let resp = client
+        .get(&url)
+        .header(RANGE, "bytes=0-0")
+        .send()
+        .await
+        .ok()?;
+    if !(resp.status().is_success() || resp.status().as_u16() == 206) {
+        return None;
+    }
+
+    // Prefer Content-Range: bytes 0-0/12345
+    if let Some(v) = resp.headers().get(CONTENT_RANGE) {
+        if let Ok(s) = v.to_str() {
+            if let Some(total) = s.rsplit('/').next() {
+                if let Ok(n) = total.parse::<u64>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+
+    // Fallback: Content-Length on a 206 should be 1, but if server ignores Range it may be full.
+    if let Some(v) = resp.headers().get(CONTENT_LENGTH) {
+        if let Ok(s) = v.to_str() {
+            if let Ok(n) = s.parse::<u64>() {
+                // Only accept plausible small values if Range was honored.
+                if n <= 1 {
+                    return Some(n);
+                }
+            }
+        }
+    }
+
+    None
+}
+
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
@@ -598,10 +667,16 @@ pub struct DictionaryStore {
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
     max_depth: Arc<usize>,                   // max depth for loading directories
     pub init_notify: Arc<Notify>,            // used in dir_test to notify the start of the test..
+    /// Guards `import_arc` so we don't start multiple background imports concurrently for the same store.
+    import_started: AtomicBool,
     persistent_content_store: Arc<ContentStorage>, // persistent content store for saving and retrieving file contents
+    persistent_size_store: Arc<SizeStorage>,       // persistent size store (inode -> size)
     open_buff: Arc<DashMap<u64, Vec<u8>>>,         // buffer for open files
     /// Tracks executable bit for files. Populated when downloading git blobs.
     exec_flags: Arc<DashMap<u64, bool>>,
+    /// Base path for subdirectory mounting (e.g., "/third-party/mega").
+    /// When set, only content under this path is accessible.
+    base_path: String,
 }
 
 #[allow(unused)]
@@ -616,11 +691,16 @@ impl DictionaryStore {
             dirs: Arc::new(DashMap::new()),
             max_depth: Arc::new(config::load_dir_depth()),
             init_notify: Arc::new(Notify::new()),
+            import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(
                 ContentStorage::new().expect("Failed to create ContentStorage"),
             ),
+            persistent_size_store: Arc::new(
+                SizeStorage::new().expect("Failed to create SizeStorage"),
+            ),
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
+            base_path: String::new(),
         }
     }
 
@@ -635,13 +715,119 @@ impl DictionaryStore {
             dirs: Arc::new(DashMap::new()),
             max_depth: Arc::new(config::load_dir_depth()),
             init_notify: Arc::new(Notify::new()),
+            import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(
                 ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
             ),
+            persistent_size_store: Arc::new(
+                SizeStorage::new_with_path(store_path).expect("Failed to create SizeStorage"),
+            ),
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
+            base_path: String::new(),
         }
     }
+
+    /// Create a new DictionaryStore with a base path and an explicit store path.
+    ///
+    /// This is primarily used to avoid DB lock conflicts when multiple Dicfuse instances
+    /// (e.g., different Antares mounts) are created concurrently. Each instance can use a
+    /// dedicated `store_path` directory to keep its sled DB files isolated.
+    pub async fn new_with_base_path_and_store_path(base_path: &str, store_path: &str) -> Self {
+        let tree_store =
+            TreeStorage::new_with_path(store_path).expect("Failed to create TreeStorage");
+        DictionaryStore {
+            next_inode: AtomicU64::new(1),
+            inodes: Arc::new(Mutex::new(HashMap::new())),
+            radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
+            persistent_path_store: Arc::new(tree_store),
+            dirs: Arc::new(DashMap::new()),
+            max_depth: Arc::new(config::load_dir_depth()),
+            init_notify: Arc::new(Notify::new()),
+            import_started: AtomicBool::new(false),
+            persistent_content_store: Arc::new(
+                ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
+            ),
+            persistent_size_store: Arc::new(
+                SizeStorage::new_with_path(store_path).expect("Failed to create SizeStorage"),
+            ),
+            open_buff: Arc::new(DashMap::new()),
+            exec_flags: Arc::new(DashMap::new()),
+            base_path: base_path.to_string(),
+        }
+    }
+
+    /// Returns true if this call is the first one to start import for this store.
+    pub fn try_start_import(&self) -> bool {
+        !self.import_started.swap(true, Ordering::AcqRel)
+    }
+
+    /// Create a new DictionaryStore with a base path for subdirectory mounting.
+    ///
+    /// When `base_path` is set (e.g., "/third-party/mega"), the store will:
+    /// - Only load content under the specified path
+    /// - Remap paths so the base_path becomes the root "/"
+    ///
+    /// # Arguments
+    /// * `base_path` - The subdirectory path to use as root (e.g., "/third-party/mega")
+    pub async fn new_with_base_path(base_path: &str) -> Self {
+        // IMPORTANT: avoid opening the same sled DB path multiple times (can cause lock conflicts).
+        // We isolate per-base_path stores under a deterministic subdirectory of the configured store_path.
+        let store_root = config::store_path();
+        let store_path =
+            super::compute_store_dir_for_base_path_with_store_root(store_root, base_path);
+
+        std::fs::create_dir_all(&store_path)
+            .expect("Failed to create per-base_path store directory");
+
+        Self::new_with_base_path_and_store_path(base_path, &store_path).await
+    }
+
+    /// Get the base path for this store.
+    pub fn base_path(&self) -> &str {
+        &self.base_path
+    }
+
+    /// Convert a user-visible path to the real path in the monorepo.
+    ///
+    /// When base_path = "/third-party/mega":
+    /// - "/" -> "/third-party/mega"
+    /// - "/src" -> "/third-party/mega/src"
+    pub fn to_real_path(&self, user_path: &str) -> String {
+        if self.base_path.is_empty() || self.base_path == "/" {
+            user_path.to_string()
+        } else {
+            let base = self.base_path.trim_end_matches('/');
+            if user_path == "/" || user_path.is_empty() {
+                base.to_string()
+            } else {
+                format!("{}{}", base, user_path)
+            }
+        }
+    }
+
+    /// Convert a real monorepo path to user-visible path.
+    ///
+    /// When base_path = "/third-party/mega":
+    /// - "/third-party/mega" -> "/"
+    /// - "/third-party/mega/src" -> "/src"
+    ///
+    /// Returns None if the path is not under the base_path.
+    pub fn to_user_path(&self, real_path: &str) -> Option<String> {
+        if self.base_path.is_empty() || self.base_path == "/" {
+            Some(real_path.to_string())
+        } else {
+            let base = self.base_path.trim_end_matches('/');
+            if real_path == base {
+                Some("/".to_string())
+            } else if real_path.starts_with(&format!("{}/", base)) {
+                Some(real_path[base.len()..].to_string())
+            } else {
+                None
+            }
+        }
+    }
+
     #[inline(always)]
     pub fn max_depth(&self) -> usize {
         *self.max_depth
@@ -794,26 +980,65 @@ impl DictionaryStore {
     /// When a file changed,the parent directory's hash changed too.
     /// So we need to update the ancestors' hash .
     pub async fn update_ancestors_hash(&self, inode: u64) {
-        let item = self.persistent_path_store.get_item(inode).unwrap();
-        let mut parent_inode = item.get_parent();
-        while parent_inode != 1 {
-            let path = "/".to_string()
+        // Walk up from `inode` to root, refreshing directory hashes.
+        //
+        // NOTE: the directory tree should be a DAG rooted at inode=1. In case of corrupted
+        // on-disk state (e.g., bad parent pointers), guard against cycles to avoid infinite loops.
+        const MAX_STEPS: usize = 1024;
+        let mut visited: std::collections::HashSet<u64> = std::collections::HashSet::new();
+
+        let mut cur = inode;
+        for _ in 0..MAX_STEPS {
+            if !visited.insert(cur) {
+                warn!("update_ancestors_hash: detected parent cycle at inode {cur}; aborting");
+                return;
+            }
+            let cur_item = match self.persistent_path_store.get_item(cur) {
+                Ok(i) => i,
+                Err(e) => {
+                    warn!("update_ancestors_hash: missing inode {cur}: {e}");
+                    return;
+                }
+            };
+            let parent_inode = cur_item.get_parent();
+            if parent_inode == 0 || parent_inode == 1 {
+                return;
+            }
+
+            let user_path = "/".to_string()
                 + &self
                     .persistent_path_store
                     .get_all_path(parent_inode)
-                    .unwrap()
+                    .unwrap_or_else(|_| GPath::new())
                     .to_string();
-            println!("update hash {path:?}");
-            let hash = get_dir_hash(&path).await;
+            let real_path = self.to_real_path(&user_path);
+
+            let hash = get_dir_hash(&real_path).await;
             if hash.is_empty() {
                 return;
             }
-            self.persistent_path_store
+
+            if let Err(e) = self
+                .persistent_path_store
                 .update_item_hash(parent_inode, hash.to_owned())
-                .unwrap();
-            self.dirs.get_mut(&path).unwrap().hash = hash;
-            parent_inode = item.get_parent();
+            {
+                warn!("update_ancestors_hash: failed to update hash for inode {parent_inode}: {e}");
+                return;
+            }
+
+            ensure_dir_tracked(&self.dirs, &user_path);
+            if let Some(mut dir) = self.dirs.get_mut(&user_path) {
+                dir.hash = hash;
+            }
+
+            cur = parent_inode;
         }
+
+        warn!(
+            "update_ancestors_hash: exceeded MAX_STEPS={MAX_STEPS} starting from inode {inode}; aborting"
+        );
+        // TODO(dicfuse): Increment a metric/counter here so operators can detect corrupted
+        // parent pointers / excessive depth issues in production.
     }
     /// When scorpio start,if the db is not empty, we need to load all the files to the memory.
     fn load_file(&self, inode: u64) -> Result<(), io::Error> {
@@ -972,14 +1197,10 @@ impl DictionaryStore {
             // 3. Get the children of the directory
 
             let children = self.persistent_path_store.get_children(parent)?;
-            let mut total_bytes_written = 0;
-            let mut current_offset = 0;
-
             // 4. build a list of StorageItem structs for each child.
-            for (i, child) in children.iter().enumerate() {
+            for child in children.iter() {
                 re.push(child.clone());
             }
-            print!("readdri len :{}", re.len());
             Ok(re)
         } else {
             Err(io::Error::new(io::ErrorKind::NotFound, "Not a directory"))
@@ -1004,6 +1225,58 @@ impl DictionaryStore {
     pub fn get_file_len(&self, inode: u64) -> u64 {
         self.open_buff.get(&inode).map_or(0, |v| v.len() as u64)
     }
+
+    pub fn get_persisted_size(&self, inode: u64) -> u64 {
+        self.persistent_size_store
+            .get_size(inode)
+            .ok()
+            .flatten()
+            .unwrap_or(0)
+    }
+
+    pub fn set_persisted_size(&self, inode: u64, size: u64) {
+        let _ = self.persistent_size_store.set_size(inode, size);
+    }
+
+    /// Get a file size suitable for `stat`:
+    /// - Prefer persisted size (from size.db)
+    /// - If content is already cached in memory, use that (and persist it)
+    /// - As a last resort, fetch size from remote by hash/oid (HEAD/Range) and persist it
+    pub async fn get_or_fetch_file_size(&self, inode: u64, oid: &str) -> u64 {
+        let persisted = self.get_persisted_size(inode);
+        if persisted > 0 {
+            return persisted;
+        }
+
+        let mem_len = self.get_file_len(inode);
+        if mem_len > 0 {
+            self.set_persisted_size(inode, mem_len);
+            return mem_len;
+        }
+
+        // If file content exists on disk (content.db), load it into memory and use its length.
+        if let Ok(content) = self.persistent_content_store.get_file_content(inode) {
+            let len = content.len() as u64;
+            self.open_buff.insert(inode, content);
+            if len > 0 {
+                self.set_persisted_size(inode, len);
+            }
+            return len;
+        }
+
+        if oid.is_empty() {
+            return 0;
+        }
+
+        if let Some(sz) = fetch_file_size(oid).await {
+            if sz > 0 {
+                self.set_persisted_size(inode, sz);
+            }
+            return sz;
+        }
+
+        0
+    }
     pub fn remove_file_by_node(&self, inode: u64) -> Result<(), io::Error> {
         self.persistent_content_store.remove_file(inode)?;
         self.open_buff.remove(&inode);
@@ -1011,6 +1284,10 @@ impl DictionaryStore {
     }
     /// Save to db and then save in the memory.
     pub fn save_file(&self, inode: u64, content: Vec<u8>) {
+        // Persist size metadata so getattr can report correct size even with lazy content.
+        let _ = self
+            .persistent_size_store
+            .set_size(inode, content.len() as u64);
         self.persistent_content_store
             .insert_file(inode, &content)
             .expect("Failed to save file content");
@@ -1018,7 +1295,13 @@ impl DictionaryStore {
     }
     /// Check if the file exists in the memory.
     pub fn file_exists(&self, inode: u64) -> bool {
-        self.open_buff.contains_key(&inode)
+        if self.open_buff.contains_key(&inode) {
+            return true;
+        }
+        // If persisted on disk, treat it as existing (lazy load into memory on demand).
+        self.persistent_content_store
+            .get_file_content(inode)
+            .is_ok()
     }
     /// Get the file content from the memory.
     pub fn get_file_content(&self, inode: u64) -> Option<Ref<'_, u64, Vec<u8>>> {
@@ -1040,18 +1323,144 @@ impl DictionaryStore {
         }
     }
 }
+
+/// Convert an `ItemExt` whose `item.path` is a real monorepo path into a user-visible path,
+/// according to the store's `base_path` remapping rules.
+///
+/// - For the default/root view (`base_path == ""` or "/"), this is a no-op.
+/// - For subdirectory mounts (`base_path == "/third-party/mega"`), this strips the base prefix:
+///   - real: "/third-party/mega/scorpio/Cargo.toml" -> user: "/scorpio/Cargo.toml"
+fn map_itemext_to_user(store: &DictionaryStore, it: ItemExt) -> Option<ItemExt> {
+    // When base_path is set, the server should only return items under base_path.
+    // If it returns out-of-scope paths, we drop them. Log (rate-limited) to aid debugging.
+    static DROPPED_OUT_OF_SCOPE: std::sync::atomic::AtomicUsize =
+        std::sync::atomic::AtomicUsize::new(0);
+
+    let ItemExt {
+        item: Item {
+            name,
+            path,
+            content_type,
+        },
+        hash,
+    } = it;
+    let user_path = match store.to_user_path(&path) {
+        Some(p) => p,
+        None => {
+            if !store.base_path.is_empty() && store.base_path != "/" {
+                let n = DROPPED_OUT_OF_SCOPE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if n < 20 {
+                    debug!(
+                        "map_itemext_to_user: dropping out-of-scope item path={:?} base_path={:?}",
+                        path, store.base_path
+                    );
+                }
+            }
+            return None;
+        }
+    };
+    Some(ItemExt {
+        item: Item {
+            name,
+            path: user_path,
+            content_type,
+        },
+        hash,
+    })
+}
+
+/// Ensure a directory path is tracked in `dirs` so callers can safely update `file_list`.
+fn ensure_dir_tracked(dirs: &DashMap<String, DirItem>, path: &str) {
+    if !dirs.contains_key(path) {
+        dirs.insert(
+            path.to_string(),
+            DirItem {
+                hash: String::new(),
+                file_list: HashMap::new(),
+            },
+        );
+    }
+}
+
+fn import_done_marker_path(store: &DictionaryStore) -> PathBuf {
+    // Global (root) store uses the configured store_path directly.
+    // Subdirectory stores are under "{store_root}/dicfuse/{sha256(base_path)[:16]}".
+    let store_dir = super::compute_store_dir_for_base_path_with_store_root(
+        config::store_path(),
+        store.base_path(),
+    );
+
+    PathBuf::from(store_dir).join(".dicfuse_import_done")
+}
+
+async fn reset_store_for_import(store: &DictionaryStore) {
+    // Clear persisted DBs (path + content) to avoid duplicating inodes for existing paths.
+    // This is necessary because `update_inode()` currently always allocates a fresh inode.
+    let _ = store.persistent_path_store.clear_all();
+    let _ = store.persistent_content_store.clear_all();
+    let _ = store.persistent_size_store.clear_all();
+
+    // Clear in-memory caches.
+    store.open_buff.clear();
+    store.exec_flags.clear();
+    store.dirs.clear();
+    store.inodes.lock().await.clear();
+    *store.radix_trie.lock().await = radix_trie::Trie::new();
+
+    store.next_inode.store(1, Ordering::Relaxed);
+}
+
 /// Loads subdirectories from a remote server into an empty parent directory up to a specified depth.
 ///
 /// # Arguments
 /// * `parent_path` - The path to an empty directory where subdirectories will be loaded.
 /// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
+///
+/// # TODO(dicfuse-antares-integration)
+/// - Implement parallel file content prefetching for common build artifacts
+/// - Add configurable rate limiting per remote server
+/// - Support resumable loading for network interruptions
+/// - Add metrics/tracing for load time analysis
 pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) {
     let start_time = std::time::Instant::now();
-    println!("[load_dir_depth] Starting to load directory tree from {parent_path:?} with max_depth={max_depth}");
-    let queue = Arc::new(SegQueue::new());
-    let items = fetch_dir(&parent_path).await.unwrap().data;
+    // IMPORTANT: `parent_path` is the USER-visible path (i.e., relative to the mount root).
+    // For subdirectory mounts, we must translate it to the real monorepo path for network calls.
+    let parent_path = if parent_path.is_empty() {
+        "/".to_string()
+    } else {
+        parent_path
+    };
+    let real_parent_path = store.to_real_path(&parent_path);
+
     println!(
-        "[load_dir_depth] Fetched {} items from {parent_path:?}",
+        "[load_dir_depth] Starting to load directory tree from user={parent_path:?} real={real_parent_path:?} with max_depth={max_depth}"
+    );
+    let queue = Arc::new(SegQueue::new());
+    let fetched = match fetch_dir(&real_parent_path).await {
+        Ok(r) => r,
+        Err(e) => {
+            warn!(
+                "[load_dir_depth] Failed to fetch directory listing for real={real_parent_path:?}: {e}"
+            );
+            return;
+        }
+    };
+    if !fetched._req_result {
+        warn!(
+            "[load_dir_depth] Server reported failure for real={real_parent_path:?}: {}",
+            fetched._err_message
+        );
+        return;
+    }
+
+    // Convert all returned paths into user-visible paths (base_path-stripped for subdir mounts).
+    let items: Vec<ItemExt> = fetched
+        .data
+        .into_iter()
+        .filter_map(|it| map_itemext_to_user(store.as_ref(), it))
+        .collect();
+    println!(
+        "[load_dir_depth] Fetched {} items from user={parent_path:?} real={real_parent_path:?}",
         items.len()
     );
     // only count the directories.
@@ -1065,16 +1474,43 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
     // let active_producers = Arc::new(AtomicUsize::new(items.len()));
     {
         let locks = store.dirs.clone();
+        // Ensure the parent directory is tracked in the in-memory `dirs` map.
+        // This prevents panics in update paths (watch_dir/update_dir) and allows us to
+        // safely record child entries in `file_list`.
+        ensure_dir_tracked(&locks, &parent_path);
+
+        // Get parent inode once before the loop (with proper error handling)
+        let parent_node = match store.get_inode_from_path(&parent_path).await {
+            Ok(inode) => inode,
+            Err(e) => {
+                println!(
+                    "[load_dir_depth] ERROR: parent_path '{}' not found in radix_trie: {}. Aborting load.",
+                    parent_path, e
+                );
+                return;
+            }
+        };
+
         for it in items {
             let is_dir = it.item.is_dir();
             let path = it.item.path.to_owned();
-            locks
-                .get_mut(&parent_path)
-                .unwrap()
-                .file_list
-                .insert(path.to_owned(), false);
-            let parent_node = store.get_inode_from_path(&parent_path).await.unwrap();
-            let it_inode = store.update_inode(parent_node, it.clone()).await.unwrap();
+
+            // Update parent's file_list for change tracking.
+            if let Some(mut parent_dir) = locks.get_mut(&parent_path) {
+                parent_dir.file_list.insert(path.to_owned(), false);
+            }
+
+            let it_inode = match store.update_inode(parent_node, it.clone()).await {
+                Ok(inode) => inode,
+                Err(e) => {
+                    println!(
+                        "[load_dir_depth] ERROR: failed to update inode for '{}': {}",
+                        path, e
+                    );
+                    continue;
+                }
+            };
+
             if is_dir {
                 queue.push(it_inode);
                 locks.insert(
@@ -1085,7 +1521,9 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                     },
                 );
             } else {
-                store.fetch_file_content(it_inode, it.hash.as_str()).await;
+                // NOTE: Do NOT prefetch file contents during directory tree loading.
+                // Dicfuse should fetch file contents on-demand on read() to keep initial load fast,
+                // especially for large monorepos.
             }
         }
     }
@@ -1110,59 +1548,92 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
 
             while producers.load(Ordering::Acquire) > 0 || !queue.is_empty() {
                 if let Some(inode) = queue.pop() {
-                    //get the whole path.
-                    let path =
-                        "/".to_string() + &path_store.get_all_path(inode).unwrap().to_string();
+                    // Build USER path from inode (e.g., "/scorpio/src").
+                    let path = match path_store.get_all_path(inode) {
+                        Ok(p) => "/".to_string() + &p.to_string(),
+                        Err(e) => {
+                            debug!(
+                                "[load_dir_depth] Worker failed to resolve inode {} to path: {e}",
+                                inode
+                            );
+                            producers.fetch_sub(1, Ordering::Release);
+                            continue;
+                        }
+                    };
+                    // Translate to REAL monorepo path for network calls (handles base_path mounts).
+                    let real_path = store.to_real_path(&path);
                     let remaining_producers = producers.load(Ordering::Acquire);
                     let queue_size = queue.len();
                     if queue_size.is_multiple_of(10) || remaining_producers.is_multiple_of(50) {
-                        println!("[load_dir_depth] Worker processing path: {path} (remaining producers: {}, queue size: {})", remaining_producers, queue_size);
+                        println!("[load_dir_depth] Worker processing user path: {path} (real: {real_path}) (remaining producers: {}, queue size: {})", remaining_producers, queue_size);
                     }
                     // Rate limiting: small delay before each request to avoid overwhelming server
                     tokio::time::sleep(Duration::from_millis(REQUEST_DELAY_MS)).await;
 
                     // get all children inode
-                    let result = fetch_dir(&path).await;
+                    let result = fetch_dir(&real_path).await;
                     match result {
-                        Ok(new_items) => {
-                            let new_items = new_items.data;
-                            for newit in new_items {
-                                let is_dir = newit.item.is_dir();
-                                let tmp_path = newit.item.path.to_owned();
-                                store
-                                    .dirs
-                                    .get_mut(&path)
-                                    .unwrap()
-                                    .file_list
-                                    .insert(tmp_path.to_owned(), false);
-                                let new_inode =
-                                    store.update_inode(inode, newit.clone()).await.unwrap();
-                                if is_dir {
-                                    // If it's a directory, push it to the queue and add the producer count
-                                    if tmp_path.matches('/').count() < max_depth {
-                                        producers.fetch_add(1, Ordering::Relaxed);
-                                        queue.push(new_inode);
-                                    } else {
-                                        println!("max_depth reach path = {tmp_path:?}");
+                        Ok(resp) => {
+                            if !resp._req_result {
+                                debug!(
+                                    "[load_dir_depth] fetch_dir failed for real={real_path:?}: {}",
+                                    resp._err_message
+                                );
+                            } else {
+                                // Convert to USER-visible paths for storage.
+                                let new_items: Vec<ItemExt> = resp
+                                    .data
+                                    .into_iter()
+                                    .filter_map(|it| map_itemext_to_user(store.as_ref(), it))
+                                    .collect();
+
+                                // Ensure parent dir exists before updating file_list.
+                                ensure_dir_tracked(&store.dirs, &path);
+
+                                for newit in new_items {
+                                    let is_dir = newit.item.is_dir();
+                                    let tmp_path = newit.item.path.to_owned(); // USER path
+
+                                    // Track child in parent's file_list.
+                                    if let Some(mut parent_dir) = store.dirs.get_mut(&path) {
+                                        parent_dir.file_list.insert(tmp_path.to_owned(), false);
                                     }
-                                    store.dirs.insert(
-                                        tmp_path,
-                                        DirItem {
-                                            hash: newit.hash,
-                                            file_list: HashMap::new(),
-                                        },
-                                    );
-                                } else {
-                                    // If it's a file, fetch its content
-                                    store
-                                        .fetch_file_content(new_inode, newit.hash.as_str())
-                                        .await;
+
+                                    let new_inode = match store.update_inode(inode, newit.clone()).await {
+                                        Ok(i) => i,
+                                        Err(e) => {
+                                            debug!(
+                                                "[load_dir_depth] update_inode failed for parent={} child={}: {e}",
+                                                inode, tmp_path
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                                    if is_dir {
+                                        // If it's a directory, push it to the queue and add the producer count.
+                                        if tmp_path.matches('/').count() < max_depth {
+                                            producers.fetch_add(1, Ordering::Relaxed);
+                                            queue.push(new_inode);
+                                        } else {
+                                            // Depth limit reached; do not enqueue deeper traversal.
+                                        }
+                                        store.dirs.insert(
+                                            tmp_path,
+                                            DirItem {
+                                                hash: newit.hash,
+                                                file_list: HashMap::new(),
+                                            },
+                                        );
+                                    } else {
+                                        // NOTE: Do NOT prefetch file contents during directory tree loading.
+                                    }
                                 }
                             }
                         }
                         Err(e) => {
                             // Log error but continue - still need to decrement producer count
-                            debug!("Failed to fetch directory {path}: {e}");
+                            debug!("Failed to fetch directory real={real_path:?} (user={path:?}): {e}");
                         }
                     };
 
@@ -1204,60 +1675,102 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
 }
 
 pub async fn import_arc(store: Arc<DictionaryStore>) {
-    //first load the db.
+    // Dicfuse always exposes a USER-visible root "/".
+    // If `base_path` is configured, USER paths are remapped to REAL monorepo paths:
+    //   user "/scorpio" -> real "/third-party/mega/scorpio"
+    let user_root = "/".to_string();
+    let real_root = store.to_real_path(&user_root);
+    let marker_path = import_done_marker_path(store.as_ref());
+
+    // 1) Try to load existing DB state.
+    // If it looks non-empty, we can return early; otherwise, we fall back to a remote warm-up.
     if store.load_db().await.is_ok() {
-        store.init_notify.notify_waiters();
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-                watch_dir(store.clone()).await;
-            }
-        });
-        return;
-    } else {
-        //if the db is null,then init the store and load from mono.
-        let _ = store.persistent_path_store.insert_item(
-            1,
-            UNKNOW_INODE,
-            ItemExt {
-                item: Item {
-                    name: "".to_string(),
-                    path: "/".to_string(),
-                    content_type: INODE_DICTIONARY.to_string(),
-                },
-                hash: String::new(),
-            },
-        );
-        let root_item = DicItem {
-            inode: 1,
-            path_name: GPath::new(),
-            content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
-            children: Mutex::new(HashMap::new()),
-            parent: UNKNOW_INODE, //  root dictory has no parent
-        };
-        let root_dir_item = DirItem {
-            hash: String::new(),
-            file_list: HashMap::new(),
-        };
-        store.inodes.lock().await.insert(1, root_item.into());
-        store.dirs.insert("/".to_string(), root_dir_item);
+        let marker_ok = marker_path.exists();
+        // Consider DB usable only if the root has children.
+        // This avoids a "success" load on a partially-initialized DB (e.g., after a previous panic),
+        // which would leave the mount empty forever.
+        let has_children = store
+            .persistent_path_store
+            .get_children(1)
+            .map(|c| !c.is_empty())
+            .unwrap_or(false);
+
+        // Always make sure the root is tracked in dirs.
+        ensure_dir_tracked(&store.dirs, &user_root);
+
+        if has_children && marker_ok {
+            store.init_notify.notify_waiters();
+            let watch_path = user_root.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                    watch_dir_path(store.clone(), &watch_path).await;
+                }
+            });
+            return;
+        } else {
+            warn!(
+                "[import_arc] Existing DB is not usable (has_children={has_children}, marker_ok={marker_ok}); rebuilding from remote (real_root={real_root:?}, base_path={:?})",
+                store.base_path
+            );
+            // fall through to remote warm-up (after clearing state)
+        }
     }
+
+    // Clear any partially-initialized store before rebuilding to avoid inode duplication.
+    reset_store_for_import(store.as_ref()).await;
+
+    // 2) Initialize root inode (idempotent: overwrite is fine).
+    let _ = store.persistent_path_store.insert_item(
+        1,
+        UNKNOW_INODE,
+        ItemExt {
+            item: Item {
+                name: "".to_string(),
+                path: user_root.clone(),
+                content_type: INODE_DICTIONARY.to_string(),
+            },
+            hash: String::new(),
+        },
+    );
+    let root_item = DicItem {
+        inode: 1,
+        path_name: GPath::from(user_root.clone()),
+        content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
+        children: Mutex::new(HashMap::new()),
+        parent: UNKNOW_INODE, // root has no parent
+    };
+    store.inodes.lock().await.insert(1, root_item.into());
+    ensure_dir_tracked(&store.dirs, &user_root);
 
     // Load directory tree synchronously - caller awaits completion
     let max_depth = store.max_depth() + 2;
     println!(
-        "[import_arc] Loading directory tree with max_depth={max_depth} (config load_dir_depth={})",
+        "[import_arc] Loading directory tree from user='{}' real='{}' with max_depth={max_depth} (config load_dir_depth={})",
+        user_root,
+        real_root,
         store.max_depth()
     );
-    load_dir_depth(store.clone(), "/".to_string(), max_depth).await;
-    println!("[import_arc] Directory tree loading completed");
+    load_dir_depth(store.clone(), user_root.clone(), max_depth).await;
+    println!(
+        "[import_arc] Directory tree loading completed for user='{}' real='{}'",
+        user_root, real_root
+    );
+
+    // Mark import as complete so subsequent startups can trust the on-disk cache.
+    if let Some(parent) = marker_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&marker_path, b"ok\n");
+
     store.init_notify.notify_waiters();
 
     // Spawn background task for periodic directory watching
+    let watch_path = user_root;
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-            watch_dir(store.clone()).await;
+            watch_dir_path(store.clone(), &watch_path).await;
         }
     });
 }
@@ -1289,6 +1802,15 @@ pub async fn load_dir(
     parent_path: String,
     max_depth: usize,
 ) -> Result<bool, io::Error> {
+    // `parent_path` is USER-visible (relative to mount root). Normalize it.
+    let parent_path = if parent_path.is_empty() {
+        "/".to_string()
+    } else if !parent_path.starts_with('/') {
+        format!("/{parent_path}")
+    } else {
+        parent_path
+    };
+
     if parent_path.matches('/').count() >= max_depth {
         info!("max depth reached for path: {parent_path}");
         return Ok(false);
@@ -1326,60 +1848,66 @@ pub async fn load_dir(
         ));
     }
 
-    // Also ensure we are tracking this directory in the in-memory dirs map.
-    if !dirs.contains_key(&parent_path) {
-        warn!("load_dir: directory not tracked in dirs map: {parent_path}");
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "directory not tracked",
-        ));
-    }
+    // Ensure we are tracking this directory in the in-memory dirs map.
+    ensure_dir_tracked(&dirs, &parent_path);
 
-    let self_hash = get_dir_hash(&parent_path).await;
+    // Translate USER path -> REAL path for network calls.
+    let real_parent_path = store.to_real_path(&parent_path);
+
+    let self_hash = get_dir_hash(&real_parent_path).await;
 
     //the dir may be deleted.
     if self_hash.is_empty() {
-        info!("Directory {parent_path} is empty, no items to load.");
+        // This can happen if the directory does not exist (yet) or the server is temporarily
+        // unavailable. Keep it at debug to avoid log spam under high concurrency.
+        debug!("Directory {real_parent_path} is empty or not found, no items to load.");
         return Ok(true);
     }
-    info!("load_dir parent_path {parent_path:?}");
+    info!("load_dir parent_path user={parent_path:?} real={real_parent_path:?}");
 
     //empty dir,load the dir to the max_depth.
-    if dirs.get(&parent_path).unwrap().file_list.is_empty() {
+    let is_empty = dirs
+        .get(&parent_path)
+        .map(|d| d.file_list.is_empty())
+        .unwrap_or(true);
+    if is_empty {
         load_dir_depth(store.clone(), parent_path.to_owned(), max_depth).await;
 
-        if dirs.get(&parent_path).unwrap().hash != self_hash {
-            dirs.get_mut(&parent_path).unwrap().hash = self_hash.to_owned();
-            let inode = store.get_inode_from_path(&parent_path).await.unwrap();
-            tree_db.update_item_hash(inode, self_hash).unwrap();
-            return Ok(true);
+        if let Some(mut dir) = dirs.get_mut(&parent_path) {
+            if dir.hash != self_hash {
+                dir.hash = self_hash.to_owned();
+                let _ = tree_db.update_item_hash(parent_inode, self_hash);
+                return Ok(true);
+            }
         }
         return Ok(false);
     }
     // if the dir's hash is same as the parent dir's hash,
     //then check the subdir from the db,no need to get from the server..
-    if dirs.get(&parent_path).unwrap().hash == self_hash {
-        let item = store.persistent_path_store.get_item(parent_inode).unwrap();
-        let children = item.get_children();
-        for child in children {
-            let child_item = store.persistent_path_store.get_item(child).unwrap();
+    let cached_hash = dirs
+        .get(&parent_path)
+        .map(|d| d.hash.clone())
+        .unwrap_or_default();
+    if cached_hash == self_hash {
+        let item = match store.persistent_path_store.get_item(parent_inode) {
+            Ok(i) => i,
+            Err(e) => {
+                warn!("load_dir: failed to get parent inode {parent_inode}: {e}");
+                return Ok(false);
+            }
+        };
+        for child in item.get_children() {
+            let child_item = match store.persistent_path_store.get_item(child) {
+                Ok(i) => i,
+                Err(_) => continue,
+            };
             if child_item.is_dir() {
-                info!(
-                    "handle dir /{:?}",
-                    tree_db.get_all_path(child).unwrap().to_string()
-                );
-                if let Err(e) = load_dir(
-                    store.clone(),
-                    "/".to_string() + &tree_db.get_all_path(child).unwrap().to_string(),
-                    max_depth,
-                )
-                .await
-                {
-                    warn!(
-                        "load_dir failed for child {:?}: {}",
-                        tree_db.get_all_path(child),
-                        e
-                    );
+                let child_user = match tree_db.get_all_path(child) {
+                    Ok(p) => "/".to_string() + &p.to_string(),
+                    Err(_) => continue,
+                };
+                if let Err(e) = load_dir(store.clone(), child_user, max_depth).await {
+                    warn!("load_dir: failed for child dir {child}: {e}");
                 }
             }
         }
@@ -1387,46 +1915,67 @@ pub async fn load_dir(
     }
     //last, if the dir's hash is different from the parent dir's hash,
     //then fetch the dir from the server.
-    let items = fetch_dir(&parent_path).await.unwrap().data;
-    dirs.get_mut(&parent_path).unwrap().hash = self_hash.to_owned();
-    let inode = store.get_inode_from_path(&parent_path).await.unwrap();
-    tree_db.update_item_hash(inode, self_hash).unwrap();
+    let fetched = fetch_dir(&real_parent_path)
+        .await
+        .map_err(|e| io::Error::other(e.to_string()))?;
+    if !fetched._req_result {
+        warn!(
+            "load_dir: fetch_dir failed for real={real_parent_path:?}: {}",
+            fetched._err_message
+        );
+        return Ok(false);
+    }
+    let items: Vec<ItemExt> = fetched
+        .data
+        .into_iter()
+        .filter_map(|it| map_itemext_to_user(store.as_ref(), it))
+        .collect();
+
+    if let Some(mut dir) = dirs.get_mut(&parent_path) {
+        dir.hash = self_hash.to_owned();
+    }
+    tree_db
+        .update_item_hash(parent_inode, self_hash)
+        .map_err(io::Error::other)?;
     for it in items {
         let is_dir = it.item.is_dir();
-        let path = it.item.path.to_owned();
+        let path = it.item.path.to_owned(); // USER path
 
         // the item already exists in the parent directory.
-        if dirs
+        let existed = dirs
             .get(&parent_path)
-            .unwrap()
-            .file_list
-            .contains_key(&path)
-        {
-            dirs.get_mut(&parent_path)
-                .unwrap()
-                .file_list
-                .insert(path.to_owned(), true);
+            .map(|d| d.file_list.contains_key(&path))
+            .unwrap_or(false);
+        if existed {
+            if let Some(mut dir) = dirs.get_mut(&parent_path) {
+                dir.file_list.insert(path.to_owned(), true);
+            }
             if is_dir {
                 info!("hash changes dir {path:?}");
                 if let Err(e) = load_dir(store.clone(), path.to_owned(), max_depth).await {
                     warn!("load_dir failed for updated dir {path:?}: {e}");
                 }
-            } else {
-                let inode = store.get_inode_from_path(&path).await.unwrap();
-                let item = store.persistent_path_store.get_item(inode).unwrap();
-                if item.hash != it.hash {
-                    // update the hash in the db.
-                    tree_db.update_item_hash(inode, it.hash.to_owned()).unwrap();
-                    store.fetch_file_content(inode, &it.hash).await
+            } else if let Ok(inode) = store.get_inode_from_path(&path).await {
+                if let Ok(item) = store.persistent_path_store.get_item(inode) {
+                    if item.hash != it.hash {
+                        let _ = tree_db.update_item_hash(inode, it.hash.to_owned());
+                        // Invalidate any cached content; it will be fetched lazily on read().
+                        let _ = store.remove_file_by_node(inode);
+                    }
                 }
             }
         } else {
-            dirs.get_mut(&parent_path)
-                .unwrap()
-                .file_list
-                .insert(path.to_owned(), true);
+            if let Some(mut dir) = dirs.get_mut(&parent_path) {
+                dir.file_list.insert(path.to_owned(), true);
+            }
             info!("load dir add new file {path:?}");
-            let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
+            let _new_node = match store.update_inode(parent_inode, it.clone()).await {
+                Ok(i) => i,
+                Err(e) => {
+                    warn!("load_dir: update_inode failed for {path:?}: {e}");
+                    continue;
+                }
+            };
             //fetch a new dir.
             if is_dir {
                 info!("add dir {path:?}");
@@ -1439,15 +1988,13 @@ pub async fn load_dir(
                 );
                 load_dir_depth(store.clone(), path.to_owned(), max_depth).await;
             } else {
-                store.fetch_file_content(new_node, &it.hash).await
+                // Do not prefetch content for newly discovered files; fetch lazily on read().
             }
         }
     }
     let mut remove_items = Vec::new();
-    dirs.get_mut(&parent_path)
-        .unwrap()
-        .file_list
-        .retain(|path, v| {
+    if let Some(mut dir) = dirs.get_mut(&parent_path) {
+        dir.file_list.retain(|path, v| {
             let result = *v;
             if !(*v) {
                 remove_items.push(path.clone());
@@ -1456,11 +2003,13 @@ pub async fn load_dir(
             }
             result
         });
+    }
     for item in remove_items {
-        let inode = store.get_inode_from_path(&item).await.unwrap();
-        info!("delete {inode:?} {item} ");
-        tree_db.remove_item(inode).unwrap();
-        let _ = store.remove_file_by_node(inode);
+        if let Ok(inode) = store.get_inode_from_path(&item).await {
+            info!("delete {inode:?} {item} ");
+            let _ = tree_db.remove_item(inode);
+            let _ = store.remove_file_by_node(inode);
+        }
     }
     Ok(true)
 }
@@ -1469,90 +2018,20 @@ pub async fn load_dir(
 /// This function is only used to update the directory which has been loaded.
 /// It will update the directory but do not load the new directory.
 pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
-    let tree_db = store.persistent_path_store.clone();
-    let items = fetch_dir(&parent_path).await.unwrap().data;
-    let dirs = store.dirs.clone();
-
-    for it in items {
-        let is_dir = it.item.is_dir();
-        let path = it.item.path.to_owned();
-
-        // the item already exists in the parent directory.
-        if dirs
-            .get(&parent_path)
-            .unwrap()
-            .file_list
-            .contains_key(&path)
-        {
-            dirs.get_mut(&parent_path)
-                .unwrap()
-                .file_list
-                .insert(path.to_owned(), true);
-
-            let inode = store.get_inode_from_path(&path).await.unwrap();
-            let item = store.persistent_path_store.get_item(inode).unwrap();
-            if item.hash != it.hash {
-                if is_dir {
-                    //when the dir's hash changed,fetch the dir.
-                    // If the path already exists, update the hash
-                    update_dir(store.clone(), path.to_owned()).await;
-
-                    let mut dir_it = dirs.get_mut(&path).unwrap();
-                    dir_it.hash = it.hash.to_owned();
-                    //also update the hash in the db.
-
-                    println!("modify dir {path:?}");
-                } else {
-                    // If it's a file, fetch its content
-                    // update the hash in the db.
-                    store.fetch_file_content(inode, &it.hash).await
-                }
-                tree_db.update_item_hash(inode, it.hash).unwrap();
-            }
-        } else {
-            dirs.get_mut(&parent_path)
-                .unwrap()
-                .file_list
-                .insert(path.to_owned(), true);
-            println!("update_dir new add file {path:?}");
-            let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
-
-            let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
-            //fetch a new dir.
-            if is_dir {
-                println!("add dir {path:?}");
-                dirs.insert(
-                    path,
-                    DirItem {
-                        hash: it.hash,
-                        file_list: HashMap::new(),
-                    },
-                );
-            } else {
-                // If it's a file, fetch its content
-                store.fetch_file_content(new_node, &it.hash).await;
-            }
-        }
-    }
-
-    let mut remove_items = Vec::new();
-    dirs.get_mut(&parent_path)
-        .unwrap()
-        .file_list
-        .retain(|path, v| {
-            let result = *v;
-            if !(*v) {
-                remove_items.push(path.clone());
-            } else {
-                *v = false;
-            }
-            result
-        });
-    for item in remove_items {
-        let inode = store.get_inode_from_path(&item).await.unwrap();
-        println!("delete {inode:?} {item} ");
-        tree_db.remove_item(inode).unwrap();
-        let _ = store.remove_file_by_node(inode);
+    // Keep the watcher logic simple and resilient: delegate to `load_dir`, which already:
+    // - Converts USER paths to REAL paths for network calls (base_path-aware)
+    // - Updates in-memory `dirs` and on-disk tree state
+    // - Avoids panics on missing entries
+    let parent_path = if parent_path.is_empty() {
+        "/".to_string()
+    } else if !parent_path.starts_with('/') {
+        format!("/{parent_path}")
+    } else {
+        parent_path
+    };
+    let max_depth = store.max_depth() + 2 + parent_path.matches('/').count();
+    if let Err(e) = load_dir(store, parent_path, max_depth).await {
+        warn!("update_dir: load_dir failed: {e}");
     }
 }
 
@@ -1561,20 +2040,39 @@ pub async fn watch_dir(store: Arc<DictionaryStore>) {
     update_dir(store, "/".to_string()).await;
 }
 
+/// Watch and update a specific directory path (for subdirectory mounting support)
+pub async fn watch_dir_path(store: Arc<DictionaryStore>, path: &str) {
+    update_dir(store, path.to_string()).await;
+}
+
 /// Test-only helper methods for DictionaryStore
 #[cfg(test)]
 impl DictionaryStore {
     /// Insert a mock item for testing purposes.
     /// This allows tests to set up the internal state without network calls.
     pub async fn insert_mock_item(&self, inode: u64, parent: u64, name: &str, is_dir: bool) {
+        // Build a deterministic full path based on the parent entry.
+        // Note: DictionaryStore internally stores paths without leading "/" in the radix trie
+        // (via `GPath::from(...).to_string()`), but the Item path is represented with leading "/".
+        let full_path = if inode == 1 || name.is_empty() {
+            "/".to_string()
+        } else {
+            let parent_path = self
+                .persistent_path_store
+                .get_all_path(parent)
+                .map(|p| p.to_string())
+                .unwrap_or_default();
+            if parent_path.is_empty() {
+                format!("/{name}")
+            } else {
+                format!("/{parent_path}/{name}")
+            }
+        };
+
         let item = ItemExt {
             item: Item {
                 name: name.to_string(),
-                path: if name.is_empty() {
-                    "/".to_string()
-                } else {
-                    format!("/{name}")
-                },
+                path: full_path.clone(),
                 content_type: if is_dir {
                     INODE_DICTIONARY.to_string()
                 } else {
@@ -1584,6 +2082,12 @@ impl DictionaryStore {
             hash: String::new(),
         };
         let _ = self.persistent_path_store.insert_item(inode, parent, item);
+
+        // Keep trie in sync so `get_by_path` works in tests.
+        self.radix_trie
+            .lock()
+            .await
+            .insert(GPath::from(full_path).to_string(), inode);
     }
 }
 
@@ -1615,5 +2119,105 @@ mod tests {
 
         let c = t.children();
         c.into_iter().for_each(|it| println!("{it:?}\n"))
+    }
+
+    /// Helper function to create a DictionaryStore with base_path for testing.
+    /// Uses a temporary directory to avoid database lock conflicts in parallel tests.
+    async fn create_store_with_base_path_for_test(base_path: &str) -> DictionaryStore {
+        use uuid::Uuid;
+
+        // Generate a unique temporary directory for each test
+        let test_id = Uuid::new_v4();
+        let tmp_dir = format!("/tmp/scorpio_test_{}", test_id);
+        std::fs::create_dir_all(&tmp_dir).expect("Failed to create test temp directory");
+
+        let tree_store = TreeStorage::new_with_path(&tmp_dir)
+            .expect("Failed to create TreeStorage with temp path");
+        let content_store = ContentStorage::new_with_path(&tmp_dir)
+            .expect("Failed to create ContentStorage with temp path");
+        let size_store = super::super::size_store::SizeStorage::new_with_path(&tmp_dir)
+            .expect("Failed to create SizeStorage with temp path");
+
+        DictionaryStore {
+            next_inode: AtomicU64::new(1),
+            inodes: Arc::new(Mutex::new(HashMap::new())),
+            radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
+            persistent_path_store: Arc::new(tree_store),
+            dirs: Arc::new(DashMap::new()),
+            max_depth: Arc::new(config::load_dir_depth()),
+            init_notify: Arc::new(Notify::new()),
+            import_started: AtomicBool::new(false),
+            persistent_content_store: Arc::new(content_store),
+            persistent_size_store: Arc::new(size_store),
+            open_buff: Arc::new(DashMap::new()),
+            exec_flags: Arc::new(DashMap::new()),
+            base_path: base_path.to_string(),
+        }
+    }
+
+    /// Test path conversion methods for subdirectory mounting
+    #[tokio::test]
+    async fn test_base_path_conversion() {
+        // Test with base_path set, using isolated temp database
+        let store = create_store_with_base_path_for_test("/third-party/mega").await;
+
+        // Test to_real_path
+        assert_eq!(store.to_real_path("/"), "/third-party/mega");
+        assert_eq!(store.to_real_path("/src"), "/third-party/mega/src");
+        assert_eq!(
+            store.to_real_path("/src/main.rs"),
+            "/third-party/mega/src/main.rs"
+        );
+
+        // Test to_user_path
+        assert_eq!(
+            store.to_user_path("/third-party/mega"),
+            Some("/".to_string())
+        );
+        assert_eq!(
+            store.to_user_path("/third-party/mega/src"),
+            Some("/src".to_string())
+        );
+        assert_eq!(
+            store.to_user_path("/third-party/mega/src/main.rs"),
+            Some("/src/main.rs".to_string())
+        );
+        assert_eq!(store.to_user_path("/other/path"), None);
+    }
+
+    /// Test path conversion with empty base_path (full monorepo access)
+    #[tokio::test]
+    async fn test_empty_base_path_conversion() {
+        let store = create_store_with_base_path_for_test("").await;
+
+        // With empty base_path, paths should pass through unchanged
+        assert_eq!(store.to_real_path("/"), "/");
+        assert_eq!(store.to_real_path("/src"), "/src");
+
+        assert_eq!(store.to_user_path("/"), Some("/".to_string()));
+        assert_eq!(store.to_user_path("/src"), Some("/src".to_string()));
+    }
+
+    /// Test path conversion with root base_path
+    #[tokio::test]
+    async fn test_root_base_path_conversion() {
+        let store = create_store_with_base_path_for_test("/").await;
+
+        // With "/" base_path, paths should pass through unchanged
+        assert_eq!(store.to_real_path("/"), "/");
+        assert_eq!(store.to_real_path("/src"), "/src");
+
+        assert_eq!(store.to_user_path("/"), Some("/".to_string()));
+        assert_eq!(store.to_user_path("/src"), Some("/src".to_string()));
+    }
+
+    /// Test base_path with trailing slash
+    #[tokio::test]
+    async fn test_base_path_with_trailing_slash() {
+        let store = create_store_with_base_path_for_test("/third-party/mega/").await;
+
+        // Trailing slash should be handled correctly
+        assert_eq!(store.to_real_path("/"), "/third-party/mega");
+        assert_eq!(store.to_real_path("/src"), "/third-party/mega/src");
     }
 }

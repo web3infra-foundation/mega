@@ -96,86 +96,40 @@ impl AntaresFuse {
 
         self.fuse_task = Some(fuse_task);
 
-        // Poll the mountpoint until it becomes accessible (up to ~1s) to avoid race on slow machines.
-        // Use timeout to prevent blocking if FUSE operations are slow (e.g., Dicfuse loading data)
-        const RETRIES: usize = 5; // Reduced retries since we have timeout per attempt
-        const READ_DIR_TIMEOUT_MS: u64 = 200; // 200ms timeout per read_dir attempt
+        // IMPORTANT: Do NOT poll read_dir on the FUSE mountpoint from the async HTTP handler!
+        // This can cause deadlocks because:
+        // 1. tokio::fs::read_dir uses spawn_blocking internally
+        // 2. The FUSE operation goes to the kernel which sends it to our FUSE daemon
+        // 3. The FUSE daemon might need to wait for Dicfuse data (network I/O)
+        // 4. This can block tokio worker threads and starve the runtime
+        //
+        // Instead, we just verify the mountpoint directory exists (a simple stat that doesn't
+        // go through FUSE) and trust the FUSE session is running.
+        //
+        // The mount will be considered successful if:
+        // 1. The mountpoint directory exists, AND
+        // 2. The FUSE task has been spawned
+        //
+        // Actual FUSE readiness will be verified lazily when clients access the mount.
 
-        for attempt in 0..RETRIES {
-            // Use timeout to prevent read_dir from blocking indefinitely
-            // This is important when Dicfuse is still loading data in the background
-            tracing::debug!(
-                "Mount attempt {}: checking mountpoint {}",
-                attempt + 1,
-                self.mountpoint.display()
-            );
-            let read_dir_future = tokio::fs::read_dir(&self.mountpoint);
-            let start_time = std::time::Instant::now();
-            match tokio::time::timeout(
-                tokio::time::Duration::from_millis(READ_DIR_TIMEOUT_MS),
-                read_dir_future,
-            )
-            .await
-            {
-                Ok(Ok(_)) => {
-                    tracing::debug!(
-                        "Mountpoint {} accessible after {}ms",
-                        self.mountpoint.display(),
-                        start_time.elapsed().as_millis()
-                    );
-                    return Ok(());
-                }
-                Ok(Err(e)) => {
-                    tracing::debug!(
-                        "Mountpoint {} not accessible yet (attempt {}): {:?}",
-                        self.mountpoint.display(),
-                        attempt + 1,
-                        e
-                    );
-                    // Directory not accessible yet, continue polling
-                }
-                Err(_) => {
-                    tracing::warn!(
-                        "Mountpoint {} read_dir timed out after {}ms (attempt {}), Dicfuse may still be loading",
-                        self.mountpoint.display(),
-                        start_time.elapsed().as_millis(),
-                        attempt + 1
-                    );
-                    // Timeout: read_dir took too long, likely because Dicfuse is loading data.
-                    // This is acceptable - the mount is successful, just slow to respond.
-                    // If this is the last attempt, check if mountpoint exists as fallback.
-                    if attempt == RETRIES - 1 && self.mountpoint.exists() {
-                        tracing::warn!(
-                            "Mountpoint {} exists but read_dir timed out (Dicfuse may still be loading)",
-                            self.mountpoint.display()
-                        );
-                        // TODO(dicfuse-global-singleton): Replace polling with a readiness signal from
-                        // DicfuseManager/global import task so Antares can block on actual tree-load
-                        // completion instead of relying on time-based heuristics.
-                        return Ok(()); // Consider mount successful if directory exists
-                    }
-                }
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
+        // Small delay to let the FUSE session initialize
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-        // Final fallback: if mountpoint exists, consider mount successful
-        // This handles the case where Dicfuse is still loading data but mount is functional
+        // Check mountpoint exists (this is a local stat, not through FUSE)
         if self.mountpoint.exists() {
-            tracing::warn!(
-                "Mountpoint {} exists but read_dir timed out after {} attempts (Dicfuse may still be loading)",
-                self.mountpoint.display(),
-                RETRIES
+            tracing::info!(
+                "Mount spawned for {}; FUSE session running (Dicfuse may still be loading in background)",
+                self.mountpoint.display()
             );
             return Ok(());
         }
 
+        // If mountpoint doesn't exist after a brief delay, something went wrong
         Err(std::io::Error::new(
-            std::io::ErrorKind::TimedOut,
+            std::io::ErrorKind::NotFound,
             format!(
-                "mountpoint {} not ready after {} attempts",
-                self.mountpoint.display(),
-                RETRIES
+                "mountpoint {} does not exist after FUSE spawn",
+                self.mountpoint.display()
             ),
         ))
     }
@@ -245,10 +199,873 @@ mod tests {
     use super::AntaresFuse;
     use crate::dicfuse::Dicfuse;
     use crate::util::config;
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use libfuse_fs::context::OperationContext;
+    use libfuse_fs::unionfs::{config::Config as UnionConfig, layer::Layer, OverlayFs};
+    use rfuse3::raw::reply::{
+        DirectoryEntry, FileAttr, ReplyAttr, ReplyCreated, ReplyData, ReplyDirectory, ReplyEntry,
+        ReplyInit, ReplyOpen, ReplyWrite, ReplyXAttr,
+    };
+    use rfuse3::raw::{Filesystem, Request};
+    use rfuse3::{FileType, Inode, Result as FuseResult, Timestamp};
     use serial_test::serial;
+    use std::collections::HashMap;
+    use std::ffi::{OsStr, OsString};
+    use std::num::NonZeroU32;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use tokio::time::{sleep, Duration};
     use uuid::Uuid;
+
+    #[derive(Debug, Clone)]
+    struct MemNode {
+        inode: u64,
+        parent: u64,
+        kind: FileType,
+        perm: u16,
+        uid: u32,
+        gid: u32,
+        data: Vec<u8>,
+    }
+
+    #[derive(Debug, Default)]
+    struct MemState {
+        nodes: HashMap<u64, MemNode>,
+        children: HashMap<u64, HashMap<OsString, u64>>,
+    }
+
+    /// A tiny in-memory upper layer used to test OverlayFs copy-up semantics without requiring
+    /// passthroughfs (open_by_handle_at) or an actual kernel mount.
+    #[derive(Debug)]
+    struct MemUpperLayer {
+        next_inode: AtomicU64,
+        state: tokio::sync::RwLock<MemState>,
+    }
+
+    impl MemUpperLayer {
+        fn new() -> Self {
+            let uid = unsafe { libc::getuid() } as u32;
+            let gid = unsafe { libc::getgid() } as u32;
+            let mut st = MemState::default();
+            st.nodes.insert(
+                1,
+                MemNode {
+                    inode: 1,
+                    parent: 0,
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    uid,
+                    gid,
+                    data: Vec::new(),
+                },
+            );
+            Self {
+                next_inode: AtomicU64::new(1),
+                state: tokio::sync::RwLock::new(st),
+            }
+        }
+
+        fn now_ts() -> Timestamp {
+            Timestamp::from(std::time::SystemTime::now())
+        }
+
+        fn file_attr(node: &MemNode) -> FileAttr {
+            let ts = Self::now_ts();
+            FileAttr {
+                ino: node.inode,
+                size: node.data.len() as u64,
+                blocks: 0,
+                atime: ts,
+                mtime: ts,
+                ctime: ts,
+                kind: node.kind,
+                perm: node.perm,
+                nlink: if node.kind == FileType::Directory {
+                    2
+                } else {
+                    1
+                },
+                uid: node.uid,
+                gid: node.gid,
+                rdev: 0,
+                blksize: 4096,
+            }
+        }
+
+        async fn create_child(
+            &self,
+            parent: u64,
+            name: &OsStr,
+            kind: FileType,
+            perm: u16,
+        ) -> std::io::Result<u64> {
+            let mut st = self.state.write().await;
+            let parent_node = st
+                .nodes
+                .get(&parent)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            if parent_node.kind != FileType::Directory {
+                return Err(std::io::Error::from_raw_os_error(libc::ENOTDIR));
+            }
+
+            let existing = st.children.get(&parent).and_then(|m| m.get(name).copied());
+            if let Some(inode) = existing {
+                return Ok(inode);
+            }
+
+            let inode = self.next_inode.fetch_add(1, Ordering::Relaxed) + 1;
+            let uid = unsafe { libc::getuid() } as u32;
+            let gid = unsafe { libc::getgid() } as u32;
+            st.nodes.insert(
+                inode,
+                MemNode {
+                    inode,
+                    parent,
+                    kind,
+                    perm,
+                    uid,
+                    gid,
+                    data: Vec::new(),
+                },
+            );
+            st.children
+                .entry(parent)
+                .or_default()
+                .insert(name.to_os_string(), inode);
+            Ok(inode)
+        }
+
+        async fn get_child_inode(&self, parent: u64, name: &OsStr) -> Option<u64> {
+            let st = self.state.read().await;
+            st.children.get(&parent).and_then(|m| m.get(name).copied())
+        }
+
+        async fn read_file_by_name(&self, name: &str) -> Option<Vec<u8>> {
+            let st = self.state.read().await;
+            let ino = st
+                .children
+                .get(&1)
+                .and_then(|m| m.get(OsStr::new(name)))
+                .copied()?;
+            st.nodes.get(&ino).map(|n| n.data.clone())
+        }
+    }
+
+    impl Filesystem for MemUpperLayer {
+        async fn init(&self, _req: Request) -> FuseResult<ReplyInit> {
+            Ok(ReplyInit {
+                max_write: NonZeroU32::new(128 * 1024).unwrap(),
+            })
+        }
+
+        async fn destroy(&self, _req: Request) {}
+
+        async fn lookup(
+            &self,
+            _req: Request,
+            parent: Inode,
+            name: &OsStr,
+        ) -> FuseResult<ReplyEntry> {
+            let inode = self
+                .get_child_inode(parent, name)
+                .await
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            let st = self.state.read().await;
+            let node = st
+                .nodes
+                .get(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            Ok(ReplyEntry {
+                ttl: Duration::from_secs(1),
+                attr: Self::file_attr(node),
+                generation: 0,
+            })
+        }
+
+        async fn getattr(
+            &self,
+            _req: Request,
+            inode: Inode,
+            _fh: Option<u64>,
+            _flags: u32,
+        ) -> FuseResult<ReplyAttr> {
+            let st = self.state.read().await;
+            let node = st
+                .nodes
+                .get(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            Ok(ReplyAttr {
+                ttl: Duration::from_secs(1),
+                attr: Self::file_attr(node),
+            })
+        }
+
+        async fn setattr(
+            &self,
+            _req: Request,
+            inode: Inode,
+            _fh: Option<u64>,
+            _set_attr: rfuse3::SetAttr,
+        ) -> FuseResult<ReplyAttr> {
+            // Minimal: accept setattr and return current attrs. Overlay copy-up uses this to
+            // preserve ownership/mode; our in-memory layer does not model these changes yet.
+            self.getattr(_req, inode, _fh, 0).await
+        }
+
+        async fn open(&self, _req: Request, inode: Inode, _flags: u32) -> FuseResult<ReplyOpen> {
+            // Use inode as the handle.
+            Ok(ReplyOpen {
+                fh: inode,
+                flags: 0,
+            })
+        }
+
+        async fn read(
+            &self,
+            _req: Request,
+            inode: Inode,
+            _fh: u64,
+            offset: u64,
+            size: u32,
+        ) -> FuseResult<ReplyData> {
+            let st = self.state.read().await;
+            let node = st
+                .nodes
+                .get(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            let off = offset as usize;
+            let end = (off + size as usize).min(node.data.len());
+            let slice = if off >= node.data.len() {
+                &[]
+            } else {
+                &node.data[off..end]
+            };
+            Ok(ReplyData {
+                data: Bytes::copy_from_slice(slice),
+            })
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        async fn write(
+            &self,
+            _req: Request,
+            inode: Inode,
+            _fh: u64,
+            offset: u64,
+            data: &[u8],
+            _write_flags: u32,
+            _flags: u32,
+        ) -> FuseResult<ReplyWrite> {
+            let mut st = self.state.write().await;
+            let node = st
+                .nodes
+                .get_mut(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            if node.kind == FileType::Directory {
+                return Err(std::io::Error::from_raw_os_error(libc::EISDIR).into());
+            }
+            let off = offset as usize;
+            let needed = off + data.len();
+            if node.data.len() < needed {
+                node.data.resize(needed, 0);
+            }
+            node.data[off..off + data.len()].copy_from_slice(data);
+            Ok(ReplyWrite {
+                written: data.len() as u32,
+            })
+        }
+
+        async fn setxattr(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            _name: &OsStr,
+            _value: &[u8],
+            _flags: u32,
+            _position: u32,
+        ) -> FuseResult<()> {
+            // No-op xattr support for overlay bookkeeping.
+            Ok(())
+        }
+
+        async fn getxattr(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            _name: &OsStr,
+            _size: u32,
+        ) -> FuseResult<ReplyXAttr> {
+            Err(std::io::Error::from_raw_os_error(libc::ENODATA).into())
+        }
+
+        async fn listxattr(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            size: u32,
+        ) -> FuseResult<ReplyXAttr> {
+            if size == 0 {
+                Ok(ReplyXAttr::Size(0))
+            } else {
+                Ok(ReplyXAttr::Data(Bytes::new()))
+            }
+        }
+
+        async fn removexattr(&self, _req: Request, _inode: Inode, _name: &OsStr) -> FuseResult<()> {
+            Ok(())
+        }
+
+        async fn readdir<'a>(
+            &'a self,
+            _req: Request,
+            parent: Inode,
+            _fh: u64,
+            offset: i64,
+        ) -> FuseResult<
+            ReplyDirectory<impl futures::Stream<Item = FuseResult<DirectoryEntry>> + Send + 'a>,
+        > {
+            use futures::stream::iter;
+
+            let st = self.state.read().await;
+            let parent_node = st
+                .nodes
+                .get(&parent)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            if parent_node.kind != FileType::Directory {
+                return Err(std::io::Error::from_raw_os_error(libc::ENOTDIR).into());
+            }
+            let parent_parent_inode = if parent == 1 { 1 } else { parent_node.parent };
+
+            let mut out: Vec<std::result::Result<DirectoryEntry, rfuse3::Errno>> = Vec::new();
+
+            // offset 0: ".", offset 1: "..", offset 2+: children
+            if offset < 1 {
+                out.push(Ok(DirectoryEntry {
+                    inode: parent,
+                    kind: FileType::Directory,
+                    name: ".".into(),
+                    offset: 1,
+                }));
+            }
+            if offset < 2 {
+                out.push(Ok(DirectoryEntry {
+                    inode: parent_parent_inode,
+                    kind: FileType::Directory,
+                    name: "..".into(),
+                    offset: 2,
+                }));
+            }
+
+            if let Some(children) = st.children.get(&parent) {
+                for (idx, (name, inode)) in children.iter().enumerate() {
+                    let entry_offset = (idx + 2) as i64;
+                    if entry_offset > offset {
+                        let kind = st
+                            .nodes
+                            .get(inode)
+                            .map(|n| n.kind)
+                            .unwrap_or(FileType::RegularFile);
+                        out.push(Ok(DirectoryEntry {
+                            inode: *inode,
+                            kind,
+                            name: name.clone(),
+                            offset: entry_offset + 1,
+                        }));
+                    }
+                }
+            }
+
+            Ok(ReplyDirectory {
+                entries: iter(out.into_iter()),
+            })
+        }
+
+        async fn releasedir(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            _fh: u64,
+            _flags: u32,
+        ) -> FuseResult<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl Layer for MemUpperLayer {
+        fn root_inode(&self) -> Inode {
+            1
+        }
+
+        async fn create_with_context(
+            &self,
+            _ctx: OperationContext,
+            parent: Inode,
+            name: &OsStr,
+            _mode: u32,
+            _flags: u32,
+        ) -> FuseResult<ReplyCreated> {
+            let inode = self
+                .create_child(parent, name, FileType::RegularFile, 0o644)
+                .await
+                .map_err(rfuse3::Errno::from)?;
+            let st = self.state.read().await;
+            let node = st
+                .nodes
+                .get(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            Ok(ReplyCreated {
+                ttl: Duration::from_secs(1),
+                attr: Self::file_attr(node),
+                generation: 0,
+                fh: inode,
+                flags: 0,
+            })
+        }
+
+        async fn mkdir_with_context(
+            &self,
+            _ctx: OperationContext,
+            parent: Inode,
+            name: &OsStr,
+            _mode: u32,
+            _umask: u32,
+        ) -> FuseResult<ReplyEntry> {
+            let inode = self
+                .create_child(parent, name, FileType::Directory, 0o755)
+                .await
+                .map_err(rfuse3::Errno::from)?;
+            let st = self.state.read().await;
+            let node = st
+                .nodes
+                .get(&inode)
+                .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+            Ok(ReplyEntry {
+                ttl: Duration::from_secs(1),
+                attr: Self::file_attr(node),
+                generation: 0,
+            })
+        }
+
+        async fn symlink_with_context(
+            &self,
+            _ctx: OperationContext,
+            _parent: Inode,
+            _name: &OsStr,
+            _link: &OsStr,
+        ) -> FuseResult<ReplyEntry> {
+            Err(std::io::Error::from_raw_os_error(libc::ENOSYS).into())
+        }
+    }
+
+    /// No actual mount required: validate copy-up behavior via `OverlayFs`'s Filesystem interface.
+    #[tokio::test]
+    async fn test_overlay_copyup_without_mount_does_not_mutate_dicfuse_lower() {
+        let test_id = Uuid::new_v4();
+        let store_path = format!("/tmp/scorpio_dicfuse_unit_store_{test_id}");
+        let _ = std::fs::remove_dir_all(&store_path);
+        std::fs::create_dir_all(&store_path).unwrap();
+
+        // Lower: dicfuse (read-only)
+        let dic = std::sync::Arc::new(Dicfuse::new_with_store_path(&store_path).await);
+        dic.store.insert_mock_item(1, 0, "", true).await; // root
+        dic.store.insert_mock_item(2, 1, "hello.txt", false).await;
+        dic.store.save_file(2, b"lower".to_vec());
+        dic.store.load_db().await.unwrap();
+
+        // Upper: in-memory writable layer.
+        let upper = std::sync::Arc::new(MemUpperLayer::new());
+
+        let cfg = UnionConfig {
+            mountpoint: PathBuf::from(format!("/tmp/scorpio_overlay_unit_{test_id}")),
+            do_import: true,
+            ..Default::default()
+        };
+
+        let overlay = OverlayFs::new(
+            Some(upper.clone() as std::sync::Arc<dyn Layer>),
+            vec![dic.clone() as std::sync::Arc<dyn Layer>],
+            cfg,
+            1,
+        )
+        .unwrap();
+
+        overlay.init(Request::default()).await.unwrap();
+
+        let entry = overlay
+            .lookup(Request::default(), 1, OsStr::new("hello.txt"))
+            .await
+            .unwrap();
+        let overlay_ino = entry.attr.ino;
+
+        // Read initial content from lower.
+        let ro = overlay
+            .open(Request::default(), overlay_ino, libc::O_RDONLY as u32)
+            .await
+            .unwrap();
+        let data = overlay
+            .read(Request::default(), overlay_ino, ro.fh, 0, 32)
+            .await
+            .unwrap();
+        assert_eq!(data.data.as_ref(), b"lower");
+
+        // Write triggers copy-up.
+        let wo = overlay
+            .open(Request::default(), overlay_ino, libc::O_WRONLY as u32)
+            .await
+            .unwrap();
+        overlay
+            .write(Request::default(), overlay_ino, wo.fh, 0, b"upper", 0, 0)
+            .await
+            .unwrap();
+
+        // Now read should see upper content.
+        let ro2 = overlay
+            .open(Request::default(), overlay_ino, libc::O_RDONLY as u32)
+            .await
+            .unwrap();
+        let data2 = overlay
+            .read(Request::default(), overlay_ino, ro2.fh, 0, 32)
+            .await
+            .unwrap();
+        assert_eq!(data2.data.as_ref(), b"upper");
+
+        // Verify upper contains the file and lower store did not change.
+        assert_eq!(
+            upper.read_file_by_name("hello.txt").await.unwrap(),
+            b"upper"
+        );
+        assert_eq!(dic.store.get_file_content(2).unwrap().to_vec(), b"lower");
+
+        let _ = std::fs::remove_dir_all(&store_path);
+    }
+
+    /// No actual mount required: validate multiple overlays share the same Dicfuse lower while uppers stay isolated.
+    #[tokio::test]
+    async fn test_two_overlays_share_dicfuse_lower_isolate_upper_without_mount() {
+        // Ensure config is loaded so dicfuse import logic (if triggered by OverlayFs) can resolve store_path.
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
+        let test_id = Uuid::new_v4();
+        let store_path = format!("/tmp/scorpio_dicfuse_unit_store2_{test_id}");
+        let _ = std::fs::remove_dir_all(&store_path);
+        std::fs::create_dir_all(&store_path).unwrap();
+
+        let dic = std::sync::Arc::new(Dicfuse::new_with_store_path(&store_path).await);
+        dic.store.insert_mock_item(1, 0, "", true).await;
+        dic.store.insert_mock_item(2, 1, "hello.txt", false).await;
+        dic.store.save_file(2, b"lower".to_vec());
+        dic.store.load_db().await.unwrap();
+
+        // OverlayFs with do_import=true may trigger Dicfuse background import logic.
+        // Ensure it treats the pre-seeded sled DB as reusable (skip network fetch) by writing the marker.
+        // NOTE: Marker location is derived from configured store_path for the root view.
+        let marker_path =
+            std::path::PathBuf::from(config::store_path()).join(".dicfuse_import_done");
+        if let Some(parent) = marker_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&marker_path, b"ok\n");
+
+        let upper1 = std::sync::Arc::new(MemUpperLayer::new());
+        let upper2 = std::sync::Arc::new(MemUpperLayer::new());
+
+        let cfg1 = UnionConfig {
+            mountpoint: PathBuf::from(format!("/tmp/scorpio_overlay_unit2_a_{test_id}")),
+            // Keep import enabled so OverlayFs builds the view, but Dicfuse import should be skipped by marker above.
+            do_import: true,
+            ..Default::default()
+        };
+        let cfg2 = UnionConfig {
+            mountpoint: PathBuf::from(format!("/tmp/scorpio_overlay_unit2_b_{test_id}")),
+            do_import: true,
+            ..Default::default()
+        };
+
+        let overlay1 = std::sync::Arc::new(
+            OverlayFs::new(
+                Some(upper1.clone() as std::sync::Arc<dyn Layer>),
+                vec![dic.clone() as std::sync::Arc<dyn Layer>],
+                cfg1,
+                1,
+            )
+            .unwrap(),
+        );
+        let overlay2 = std::sync::Arc::new(
+            OverlayFs::new(
+                Some(upper2.clone() as std::sync::Arc<dyn Layer>),
+                vec![dic.clone() as std::sync::Arc<dyn Layer>],
+                cfg2,
+                1,
+            )
+            .unwrap(),
+        );
+
+        overlay1.init(Request::default()).await.unwrap();
+        overlay2.init(Request::default()).await.unwrap();
+
+        let e1 = overlay1
+            .lookup(Request::default(), 1, OsStr::new("hello.txt"))
+            .await
+            .unwrap();
+        let e2 = overlay2
+            .lookup(Request::default(), 1, OsStr::new("hello.txt"))
+            .await
+            .unwrap();
+        let ino1 = e1.attr.ino;
+        let ino2 = e2.attr.ino;
+
+        // Concurrent reads from both overlays should be consistent.
+        let o1 = overlay1.clone();
+        let o2 = overlay2.clone();
+        let t1 = tokio::spawn(async move {
+            for _ in 0..50 {
+                let ro = o1
+                    .open(Request::default(), ino1, libc::O_RDONLY as u32)
+                    .await
+                    .unwrap();
+                let data = o1
+                    .read(Request::default(), ino1, ro.fh, 0, 32)
+                    .await
+                    .unwrap();
+                assert_eq!(data.data.as_ref(), b"lower");
+            }
+        });
+        let t2 = tokio::spawn(async move {
+            for _ in 0..50 {
+                let ro = o2
+                    .open(Request::default(), ino2, libc::O_RDONLY as u32)
+                    .await
+                    .unwrap();
+                let data = o2
+                    .read(Request::default(), ino2, ro.fh, 0, 32)
+                    .await
+                    .unwrap();
+                assert_eq!(data.data.as_ref(), b"lower");
+            }
+        });
+        let _ = tokio::join!(t1, t2);
+
+        // Write in overlay1 must not affect overlay2.
+        let wo = overlay1
+            .open(Request::default(), ino1, libc::O_WRONLY as u32)
+            .await
+            .unwrap();
+        overlay1
+            .write(Request::default(), ino1, wo.fh, 0, b"upper1", 0, 0)
+            .await
+            .unwrap();
+
+        let ro1 = overlay1
+            .open(Request::default(), ino1, libc::O_RDONLY as u32)
+            .await
+            .unwrap();
+        let d1 = overlay1
+            .read(Request::default(), ino1, ro1.fh, 0, 32)
+            .await
+            .unwrap();
+        assert_eq!(d1.data.as_ref(), b"upper1");
+
+        let ro2 = overlay2
+            .open(Request::default(), ino2, libc::O_RDONLY as u32)
+            .await
+            .unwrap();
+        let d2 = overlay2
+            .read(Request::default(), ino2, ro2.fh, 0, 32)
+            .await
+            .unwrap();
+        assert_eq!(d2.data.as_ref(), b"lower");
+
+        assert_eq!(
+            upper1.read_file_by_name("hello.txt").await.unwrap(),
+            b"upper1"
+        );
+        assert!(upper2.read_file_by_name("hello.txt").await.is_none());
+
+        // Lower store content must remain unchanged.
+        assert_eq!(dic.store.get_file_content(2).unwrap().to_vec(), b"lower");
+
+        let _ = std::fs::remove_file(&marker_path);
+        let _ = std::fs::remove_dir_all(&store_path);
+    }
+
+    fn fuse_test_prereqs_or_skip() -> bool {
+        let uid = unsafe { libc::geteuid() };
+        if uid != 0 {
+            println!("Skipping: requires root privileges");
+            return false;
+        }
+
+        if !std::path::Path::new("/dev/fuse").exists() {
+            println!("Skipping: /dev/fuse not available");
+            return false;
+        }
+
+        // AntaresFuse::unmount uses `fusermount -uz`.
+        if std::process::Command::new("fusermount")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            println!("Skipping: fusermount not found");
+            return false;
+        }
+
+        true
+    }
+
+    async fn retry_read(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
+        // FUSE mounts can become ready slightly after mount() returns; retry briefly.
+        const RETRIES: usize = 20;
+        const SLEEP_MS: u64 = 50;
+        for attempt in 0..RETRIES {
+            match std::fs::read(path) {
+                Ok(v) => return Ok(v),
+                Err(e) if attempt + 1 < RETRIES => {
+                    tracing::debug!(
+                        "retry_read({}): attempt {} failed: {}",
+                        path.display(),
+                        attempt + 1,
+                        e
+                    );
+                    sleep(Duration::from_millis(SLEEP_MS)).await;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        unreachable!()
+    }
+
+    /// Validate: when Dicfuse is used as the lower layer, writes copy-up into upper and do not mutate Dicfuse's read-only data.
+    #[tokio::test]
+    #[serial] // Avoid overlapping FUSE mounts in tests.
+    async fn test_dicfuse_lower_copyup_does_not_mutate_lower() {
+        if !fuse_test_prereqs_or_skip() {
+            return;
+        }
+
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
+        let test_id = Uuid::new_v4();
+        let base = PathBuf::from(format!("/tmp/antares_e2e_ro_{test_id}"));
+        let _ = std::fs::remove_dir_all(&base);
+
+        let mount = base.join("mnt");
+        let upper = base.join("upper");
+        let store_path = base.join("store");
+        std::fs::create_dir_all(&store_path).unwrap();
+
+        // Prepare a minimal Dicfuse store without any network calls.
+        let dic =
+            std::sync::Arc::new(Dicfuse::new_with_store_path(store_path.to_str().unwrap()).await);
+        dic.store.insert_mock_item(1, 0, "", true).await; // root
+        dic.store.insert_mock_item(2, 1, "hello.txt", false).await;
+        dic.store.save_file(2, b"lower".to_vec());
+        dic.store.load_db().await.unwrap();
+
+        let mut fuse = AntaresFuse::new(mount.clone(), dic.clone(), upper.clone(), None)
+            .await
+            .unwrap();
+        fuse.mount().await.unwrap();
+
+        let mounted_file = mount.join("hello.txt");
+
+        // Read from mount should return lower content initially.
+        let before = retry_read(&mounted_file).await.unwrap();
+        assert_eq!(before, b"lower");
+
+        // Write should copy-up into upper and not mutate dicfuse store.
+        std::fs::write(&mounted_file, b"upper").unwrap();
+
+        let after = retry_read(&mounted_file).await.unwrap();
+        assert_eq!(after, b"upper");
+
+        let upper_file = upper.join("hello.txt");
+        assert!(upper_file.exists(), "copy-up should create file in upper");
+        assert_eq!(std::fs::read(&upper_file).unwrap(), b"upper");
+
+        // Lower store content must remain unchanged.
+        let lower_content = dic.store.get_file_content(2).unwrap().to_vec();
+        assert_eq!(lower_content, b"lower");
+
+        fuse.unmount().await.unwrap();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Validate: when multiple Antares instances share the same Dicfuse lower, reads are consistent and each mount's upper is isolated.
+    #[tokio::test]
+    #[serial] // Avoid overlapping FUSE mounts in tests.
+    async fn test_concurrent_mounts_share_dicfuse_but_isolate_upper() {
+        if !fuse_test_prereqs_or_skip() {
+            return;
+        }
+
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
+        let test_id = Uuid::new_v4();
+        let base = PathBuf::from(format!("/tmp/antares_e2e_concurrent_{test_id}"));
+        let _ = std::fs::remove_dir_all(&base);
+
+        let mount1 = base.join("mnt1");
+        let mount2 = base.join("mnt2");
+        let upper1 = base.join("upper1");
+        let upper2 = base.join("upper2");
+        let store_path = base.join("store");
+        std::fs::create_dir_all(&store_path).unwrap();
+
+        let dic =
+            std::sync::Arc::new(Dicfuse::new_with_store_path(store_path.to_str().unwrap()).await);
+        dic.store.insert_mock_item(1, 0, "", true).await; // root
+        dic.store.insert_mock_item(2, 1, "hello.txt", false).await;
+        dic.store.save_file(2, b"lower".to_vec());
+        dic.store.load_db().await.unwrap();
+
+        let mut fuse1 = AntaresFuse::new(mount1.clone(), dic.clone(), upper1.clone(), None)
+            .await
+            .unwrap();
+        let mut fuse2 = AntaresFuse::new(mount2.clone(), dic.clone(), upper2.clone(), None)
+            .await
+            .unwrap();
+
+        fuse1.mount().await.unwrap();
+        fuse2.mount().await.unwrap();
+
+        let file1 = mount1.join("hello.txt");
+        let file2 = mount2.join("hello.txt");
+
+        // Initial reads should come from lower in both mounts.
+        assert_eq!(retry_read(&file1).await.unwrap(), b"lower");
+        assert_eq!(retry_read(&file2).await.unwrap(), b"lower");
+
+        // Write in mount1 should only affect upper1, not mount2.
+        std::fs::write(&file1, b"upper1").unwrap();
+
+        assert_eq!(retry_read(&file1).await.unwrap(), b"upper1");
+        assert_eq!(retry_read(&file2).await.unwrap(), b"lower");
+
+        assert_eq!(std::fs::read(upper1.join("hello.txt")).unwrap(), b"upper1");
+        assert!(
+            !upper2.join("hello.txt").exists(),
+            "upper2 should remain untouched"
+        );
+
+        fuse1.unmount().await.unwrap();
+        fuse2.unmount().await.unwrap();
+        let _ = std::fs::remove_dir_all(&base);
+    }
 
     #[tokio::test]
     #[ignore]

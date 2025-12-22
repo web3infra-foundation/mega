@@ -16,13 +16,14 @@ impl Filesystem for Dicfuse {
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
         let s = self.store.clone();
 
-        // Spawn import_arc as a background task to avoid blocking FUSE mount
-        // This allows the filesystem to be mounted immediately while directory
-        // loading happens in the background. This is critical for performance
-        // and prevents mount timeouts when loading large directory trees.
-        tokio::spawn(async move {
-            super::store::import_arc(s).await;
-        });
+        // Spawn import_arc as a background task to avoid blocking FUSE mount.
+        // Guarded so we don't start multiple concurrent imports for the same store
+        // (DicfuseManager may already have started one).
+        if s.try_start_import() {
+            tokio::spawn(async move {
+                super::store::import_arc(s).await;
+            });
+        }
 
         Ok(ReplyInit {
             max_write: NonZeroU32::new(128 * 1024).unwrap(),
@@ -44,6 +45,17 @@ impl Filesystem for Dicfuse {
         })
     }
 
+    async fn setattr(
+        &self,
+        _req: Request,
+        _inode: Inode,
+        _fh: Option<u64>,
+        _set_attr: SetAttr,
+    ) -> Result<ReplyAttr> {
+        // Read-only filesystem: deny metadata mutation (chmod/chown/utimens/truncate, etc).
+        Err(libc::EROFS.into())
+    }
+
     /// clean up filesystem. Called on filesystem exit which is fuseblk, in normal fuse filesystem,
     /// kernel may call forget for root. There is some discuss for this
     /// <https://github.com/bazil/fuse/issues/82#issuecomment-88126886>,
@@ -63,6 +75,18 @@ impl Filesystem for Dicfuse {
         let re = self.get_stat(child).await;
         Ok(re)
     }
+
+    async fn symlink(
+        &self,
+        _req: Request,
+        _parent: Inode,
+        _name: &OsStr,
+        _link: &OsStr,
+    ) -> Result<ReplyEntry> {
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
+    }
+
     async fn mknod(
         &self,
         _req: Request,
@@ -71,7 +95,8 @@ impl Filesystem for Dicfuse {
         _mode: u32,
         _rdev: u32,
     ) -> Result<ReplyEntry> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn statfs(&self, _req: Request, _inode: Inode) -> Result<ReplyStatFs> {
@@ -113,7 +138,8 @@ impl Filesystem for Dicfuse {
         _flags: u32,
         _position: u32,
     ) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny metadata mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn getxattr(
@@ -129,24 +155,33 @@ impl Filesystem for Dicfuse {
         Err(std::io::Error::from_raw_os_error(libc::ENODATA).into())
     }
 
-    async fn listxattr(&self, _req: Request, _inode: Inode, _size: u32) -> Result<ReplyXAttr> {
-        Err(libc::ENOSYS.into())
+    async fn listxattr(&self, _req: Request, _inode: Inode, size: u32) -> Result<ReplyXAttr> {
+        // Dicfuse does not expose extended attributes. Return an empty list.
+        if size == 0 {
+            Ok(ReplyXAttr::Size(0))
+        } else {
+            Ok(ReplyXAttr::Data(Bytes::new()))
+        }
     }
 
     async fn removexattr(&self, _req: Request, _inode: Inode, _name: &OsStr) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny metadata mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn flush(&self, _req: Request, _inode: Inode, _fh: u64, _lock_owner: u64) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // No-op for read-only filesystem.
+        Ok(())
     }
 
     async fn unlink(&self, _req: Request, _parent: Inode, _name: &OsStr) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn rmdir(&self, _req: Request, _parent: Inode, _name: &OsStr) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn rename(
@@ -157,7 +192,8 @@ impl Filesystem for Dicfuse {
         _new_parent: Inode,
         _new_name: &OsStr,
     ) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn mkdir(
@@ -168,7 +204,8 @@ impl Filesystem for Dicfuse {
         _mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn link(
@@ -178,7 +215,8 @@ impl Filesystem for Dicfuse {
         _new_parent: Inode,
         _new_name: &OsStr,
     ) -> Result<ReplyEntry> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
     /// open a directory. Filesystem may store an arbitrary file handle (pointer, index, etc) in
     /// `fh`, and use this in other all other directory stream operations
@@ -205,9 +243,18 @@ impl Filesystem for Dicfuse {
     /// See `fuse_file_info` structure in
     /// [fuse_common.h](https://libfuse.github.io/doxygen/include_2fuse__common_8h_source.html) for
     /// more details.
-    async fn open(&self, _req: Request, inode: Inode, _flags: u32) -> Result<ReplyOpen> {
-        println!("open a new readonly one inode {inode}");
-        // let trees = fetch_tree();
+    async fn open(&self, _req: Request, inode: Inode, flags: u32) -> Result<ReplyOpen> {
+        // Dicfuse is strictly read-only. Reject open requests that imply write access so that
+        // callers (including overlay layers) can reliably trigger copy-up behavior elsewhere.
+        let readonly = flags
+            & (libc::O_APPEND | libc::O_CREAT | libc::O_TRUNC | libc::O_RDWR | libc::O_WRONLY)
+                as u32
+            == 0;
+        if !readonly {
+            return Err(libc::EROFS.into());
+        }
+
+        tracing::debug!("dicfuse: open inode {} (read-only)", inode);
         Ok(ReplyOpen { fh: 0, flags: 0 })
     }
     /// read data. Read should send exactly the number of bytes requested except on EOF or error,
@@ -228,6 +275,21 @@ impl Filesystem for Dicfuse {
                 data: Bytes::from("".as_bytes()),
             });
         }
+
+        // On-demand file fetching:
+        // If the content is not in memory yet, fetch it from the remote using the stored hash/oid.
+        if !self.store.file_exists(inode) {
+            let item = self.store.get_inode(inode).await?;
+            if item.is_dir() {
+                return Err(std::io::Error::from_raw_os_error(libc::EISDIR).into());
+            }
+            if item.hash.is_empty() {
+                return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
+            }
+            // Best-effort fetch (network errors return empty content today).
+            self.store.fetch_file_content(inode, &item.hash).await;
+        }
+
         let datas = self
             .store
             .get_file_content(inode)
@@ -270,13 +332,12 @@ impl Filesystem for Dicfuse {
         _inode: Inode,
         _fh: u64,
         _offset: u64,
-        data: &[u8],
+        _data: &[u8],
         _write_flags: u32,
         _flags: u32,
     ) -> Result<ReplyWrite> {
-        Ok(ReplyWrite {
-            written: data.len() as u32,
-        })
+        // Read-only filesystem: deny writes.
+        Err(libc::EROFS.into())
     }
 
     async fn releasedir(&self, _req: Request, _inode: Inode, _fh: u64, _flags: u32) -> Result<()> {
@@ -317,8 +378,8 @@ impl Filesystem for Dicfuse {
             all_items[..].to_vec()
         };
 
-        let parent_item = self.store.get_inode(parent).await?;
-        self.load_files(parent_item, &items).await;
+        // NOTE: Avoid any synchronous network IO here.
+        // Directory listing must be fast; file contents will be fetched lazily on read().
 
         // offset 0: ".", offset 1: "..", offset 2+: actual entries
         if offset < 1 {
@@ -419,7 +480,9 @@ impl Filesystem for Dicfuse {
                 // Add timeout to prevent blocking if get_stat or get_filetype hang
                 // This can happen if Dicfuse is still loading data or if there's a lock contention
                 let item_name = item.get_name();
-                let get_stat_future = self.get_stat(item.clone());
+                // IMPORTANT: avoid triggering network IO in readdirplus.
+                // Use a fast local stat (size may be 0 until getattr/open triggers size fetch).
+                let get_stat_future = self.get_stat_fast(item.clone());
                 let get_filetype_future = item.get_filetype();
 
                 // Use timeout to prevent infinite blocking
@@ -477,7 +540,8 @@ impl Filesystem for Dicfuse {
         _mode: u32,
         _flags: u32,
     ) -> Result<ReplyCreated> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn interrupt(&self, _req: Request, _unique: u64) -> Result<()> {
@@ -534,7 +598,8 @@ impl Filesystem for Dicfuse {
         _length: u64,
         _mode: u32,
     ) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn rename2(
@@ -546,7 +611,8 @@ impl Filesystem for Dicfuse {
         _new_name: &OsStr,
         _flags: u32,
     ) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny mutation.
+        Err(libc::EROFS.into())
     }
 
     async fn lseek(
@@ -572,6 +638,7 @@ impl Filesystem for Dicfuse {
         _length: u64,
         _flags: u64,
     ) -> Result<ReplyCopyFileRange> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny writes.
+        Err(libc::EROFS.into())
     }
 }

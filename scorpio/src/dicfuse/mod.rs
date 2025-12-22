@@ -2,6 +2,7 @@ mod abi;
 mod async_io;
 mod content_store;
 pub mod manager;
+mod size_store;
 pub mod store;
 mod tree_store;
 
@@ -13,6 +14,29 @@ use std::{
     ffi::{OsStr, OsString},
     sync::Arc,
 };
+
+/// Compute the backing store directory for a given base path.
+///
+/// - Global (root) view uses the configured `store_root` directly.
+/// - Subdirectory stores are under "{store_root}/dicfuse/{sha256(base_path)[:16]}".
+pub(crate) fn compute_store_dir_for_base_path_with_store_root(
+    store_root: &str,
+    base_path: &str,
+) -> String {
+    let normalized = if base_path.is_empty() || base_path == "/" {
+        "/".to_string()
+    } else {
+        base_path.trim_end_matches('/').to_string()
+    };
+
+    if normalized == "/" {
+        store_root.to_string()
+    } else {
+        let digest = ring::digest::digest(&ring::digest::SHA256, normalized.as_bytes());
+        let hex = hex::encode(digest.as_ref());
+        format!("{}/dicfuse/{}", store_root, &hex[..16])
+    }
+}
 
 use async_trait::async_trait;
 use git_internal::internal::object::tree::TreeItemMode;
@@ -114,10 +138,13 @@ impl Layer for Dicfuse {
         // Use existing ReplyEntry metadata to stay consistent with other Dicfuse paths.
         let attr = item.get_stat().attr;
 
-        let size = if item.is_dir() {
+        let size: i64 = if item.is_dir() {
             0
         } else {
-            self.store.get_file_len(inode) as i64
+            self.store
+                .get_or_fetch_file_size(inode, &item.hash)
+                .await
+                .min(i64::MAX as u64) as i64
         };
 
         let type_bits: libc::mode_t = match attr.kind {
@@ -183,9 +210,78 @@ impl Dicfuse {
                 .into(),
         }
     }
+
+    /// Create a new Dicfuse instance with a base path and an explicit store path.
+    ///
+    /// This is useful for Antares build scenarios where multiple mounts may coexist and we want
+    /// to isolate on-disk caches to avoid sled DB lock conflicts.
+    pub async fn new_with_base_path_and_store_path(base_path: &str, store_path: &str) -> Self {
+        Self {
+            readable: config::dicfuse_readable(),
+            store: DictionaryStore::new_with_base_path_and_store_path(base_path, store_path)
+                .await
+                .into(),
+        }
+    }
+
+    /// Create a new Dicfuse instance with a base path for subdirectory mounting.
+    ///
+    /// When `base_path` is set (e.g., "/third-party/mega"), the filesystem will:
+    /// - Only expose content under the specified path
+    /// - Remap paths so the base_path becomes the root "/"
+    ///
+    /// This is useful for Antares build scenarios where only a specific
+    /// subdirectory of the monorepo is needed for a build task.
+    ///
+    /// # Arguments
+    /// * `base_path` - The subdirectory path to use as root (e.g., "/third-party/mega")
+    ///
+    /// # Example
+    /// ```ignore
+    /// let dicfuse = Dicfuse::new_with_base_path("/third-party/mega").await;
+    /// // Accessing "/" in this dicfuse actually accesses "/third-party/mega" in the monorepo
+    /// ```
+    pub async fn new_with_base_path(base_path: &str) -> Self {
+        Self {
+            readable: config::dicfuse_readable(),
+            store: DictionaryStore::new_with_base_path(base_path).await.into(),
+        }
+    }
+
+    /// Get the base path of this Dicfuse instance.
+    ///
+    /// Returns an empty string if no base path is set (full monorepo access).
+    pub fn base_path(&self) -> &str {
+        self.store.base_path()
+    }
+
     pub async fn get_stat(&self, item: StorageItem) -> ReplyEntry {
         let mut e = item.get_stat();
-        e.attr.size = self.store.get_file_len(item.get_inode());
+        if item.is_dir() {
+            e.attr.size = 0;
+            return e;
+        }
+
+        // Prefer persisted size (size.db) and fetch size on-demand if missing, so cold-start files
+        // do not incorrectly report size=0 (which may prevent subsequent reads).
+        let size = self
+            .store
+            .get_or_fetch_file_size(item.get_inode(), &item.hash)
+            .await;
+        e.attr.size = size;
+        e
+    }
+
+    /// Fast stat helper for hot paths (e.g., readdirplus): avoids any network IO.
+    /// Size will be taken from persisted size metadata if present; otherwise it may be 0 until
+    /// a later getattr/open triggers size discovery.
+    pub async fn get_stat_fast(&self, item: StorageItem) -> ReplyEntry {
+        let mut e = item.get_stat();
+        if item.is_dir() {
+            e.attr.size = 0;
+            return e;
+        }
+        e.attr.size = self.store.get_persisted_size(item.get_inode());
         e
     }
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()> {

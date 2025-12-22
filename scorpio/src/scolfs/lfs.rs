@@ -13,11 +13,11 @@ use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use wax::Pattern;
 
-// 使用 Lazy 和 Mutex 实现单例模式
+// Use Lazy + Mutex to implement a singleton.
 pub static LFS_PATTERNSTON: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| {
-    // 在初始化时调用 add_lfs_patterns 函数
+    // Call add_lfs_patterns() during initialization.
     let patterns = extract_lfs_patterns(utils::lfs_attribate().to_str().unwrap()).unwrap();
-    Arc::new(Mutex::new(patterns)) // 确保返回的是 Mutex 类型
+    Arc::new(Mutex::new(patterns)) // Ensure we return a Mutex-wrapped value.
 });
 pub async fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
