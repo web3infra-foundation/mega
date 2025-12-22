@@ -139,7 +139,7 @@ async fn start_health_check_task(state: AppState) {
                 tracing::info!("Removed dead worker: {}", worker_id);
 
                 // If worker was busy, mark task as interrupted
-                if let crate::scheduler::WorkerStatus::Busy(task_id) = worker_info.status {
+                if let crate::scheduler::WorkerStatus::Busy { task_id, .. } = worker_info.status {
                     tracing::warn!(
                         "Worker {} was busy with task {}. Marking task as Interrupted.",
                         worker_id,

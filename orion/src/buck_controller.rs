@@ -1,6 +1,6 @@
 use crate::repo::diff;
 use crate::repo::sapling::status::Status;
-use crate::ws::WSMessage;
+use crate::ws::{TaskPhase, WSMessage};
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
 use td_util_buck::types::{ProjectRelativePath, TargetLabel};
@@ -39,10 +39,22 @@ const MOUNT_TIMEOUT_SECS: u64 = 7200;
 /// # Returns
 /// * `Ok(true)` - Mount operation completed successfully
 /// * `Err(_)` - Mount request failed or timed out
-pub async fn mount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
+pub async fn mount_fs(
+    repo: &str,
+    cl: Option<&str>,
+    sender: Option<UnboundedSender<WSMessage>>,
+    build_id: Option<String>,
+) -> Result<bool, Box<dyn Error + Send + Sync>> {
     // Mount operations may trigger remote repo fetching, dependency downloads,
     // or other network-heavy steps. To avoid premature timeouts when the network
     // is slow, we use a generous 2-hour timeout here. This can be tuned later.
+    if let (Some(sender), Some(build_id)) = (&sender, &build_id) {
+        let _ = sender.send(WSMessage::TaskPhaseUpdate {
+            id: build_id.clone(),
+            phase: TaskPhase::DownloadingSource,
+        });
+    }
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
         .build()?;
@@ -258,8 +270,8 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo '{}'", id, repo);
 
-    mount_fs(&repo, Some(&cl)).await?;
-    mount_fs(&repo, None).await?;
+    mount_fs(&repo, Some(&cl), Some(sender.clone()), Some(id.clone())).await?;
+    mount_fs(&repo, None, Some(sender.clone()), Some(id.clone())).await?;
     let targets = get_build_targets(&repo, &cl, changes).await?;
 
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);
@@ -275,6 +287,14 @@ pub async fn build(
     tracing::debug!("[Task {}] Executing command: {:?}", id, cmd);
 
     let mut child = cmd.spawn()?;
+
+    if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
+        id: id.clone(),
+        phase: TaskPhase::RunningBuild,
+    }) {
+        tracing::error!("Failed to send RunningBuild phase update: {}", e);
+    }
+
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
     let mut stdout_reader = tokio::io::BufReader::new(stdout).lines();

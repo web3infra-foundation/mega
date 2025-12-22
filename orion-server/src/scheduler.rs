@@ -2,7 +2,7 @@ use crate::model::builds;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use orion::repo::sapling::status::{ProjectRelativePath, Status};
-use orion::ws::WSMessage;
+use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
 use sea_orm::ActiveModelTrait;
 use sea_orm::{ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
@@ -144,10 +144,17 @@ pub struct BuildInfo {
 }
 
 /// Status of a worker node
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub enum WorkerStatus {
     Idle,
-    Busy(String), // Contains task ID when busy
+    Busy {
+        // Contains task ID when busy
+        task_id: String,
+        // Show task phase when needed
+        phase: Option<TaskPhase>,
+    },
+    Error(String), // Contains fail message
+    Lost,          // Heartbeat timeout
 }
 
 /// Information about a connected worker
@@ -156,6 +163,9 @@ pub struct WorkerInfo {
     pub sender: UnboundedSender<WSMessage>,
     pub status: WorkerStatus,
     pub last_heartbeat: DateTimeUtc,
+    pub hostname: String,
+    pub start_time: DateTimeUtc,
+    pub orion_version: String,
 }
 
 /// Task scheduler - manages task queue and worker assignment
@@ -413,7 +423,10 @@ impl TaskScheduler {
         // Send task to worker
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
-                worker.status = WorkerStatus::Busy(pending_task.build_id.to_string());
+                worker.status = WorkerStatus::Busy {
+                    task_id: pending_task.build_id.to_string(),
+                    phase: None,
+                };
                 self.active_builds
                     .insert(pending_task.build_id.to_string(), build_info);
                 tracing::info!(

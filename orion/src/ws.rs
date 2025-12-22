@@ -11,7 +11,14 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
+use utoipa::ToSchema;
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub enum TaskPhase {
+    DownloadingSource,
+    RunningBuild,
+}
 
 /// Message protocol for WebSocket communication between worker and server.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,8 +27,15 @@ pub enum WSMessage {
     // Worker -> Server messages
     Register {
         id: String,
+        hostname: String,
+        orion_version: String,
     },
     Heartbeat,
+    Lost, // Heartbeat timeout
+    TaskPhaseUpdate {
+        id: String,
+        phase: TaskPhase,
+    },
     TaskAck {
         id: String,
         success: bool,
@@ -70,7 +84,7 @@ pub async fn run_client(server_addr: String, worker_id: String) {
                 // Reset reconnect delay after successful connection
                 reconnect_delay = Duration::from_secs(1);
                 // Handle the active connection
-                handle_connection(ws_stream, worker_id.clone()).await;
+                handle_connection(ws_stream, worker_id.clone(), server_addr.clone()).await;
                 tracing::warn!("Disconnected from server.");
             }
             Err(e) => {
@@ -100,18 +114,24 @@ pub async fn run_client(server_addr: String, worker_id: String) {
 async fn handle_connection(
     ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
     worker_id: String,
+    server_addr: String,
 ) {
     let (ws_sender, mut ws_receiver) = ws_stream.split();
     let (internal_tx, mut internal_rx): (UnboundedSender<WSMessage>, UnboundedReceiver<WSMessage>) =
         mpsc::unbounded_channel();
 
     let worker_id_clone = worker_id.clone();
+    let hostname_clone = server_addr.clone();
+    let orion_version = env!("CARGO_PKG_VERSION").to_string(); // Get from Cargo.toml
+
     let internal_tx_clone = internal_tx.clone();
     let heartbeat_task = tokio::spawn(async move {
         tracing::info!("Registering with worker ID: {}", worker_id_clone);
         if internal_tx_clone
             .send(WSMessage::Register {
                 id: worker_id_clone,
+                hostname: hostname_clone,
+                orion_version,
             })
             .is_err()
         {
@@ -124,6 +144,8 @@ async fn handle_connection(
             tracing::debug!("Sending heartbeat...");
             if internal_tx_clone.send(WSMessage::Heartbeat).is_err() {
                 tracing::warn!("Failed to queue heartbeat message. Internal channel closed.");
+
+                let _ = internal_tx_clone.send(WSMessage::Lost);
                 break;
             }
         }
@@ -132,19 +154,27 @@ async fn handle_connection(
     let mut ws_sender = ws_sender;
     let send_task = tokio::spawn(async move {
         while let Some(msg) = internal_rx.recv().await {
-            match serde_json::to_string(&msg) {
-                Ok(msg_str) => {
-                    if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
-                        tracing::error!(
-                            "Failed to send message to server: {}. Terminating send task.",
-                            e
-                        );
-                        break;
+            match msg {
+                // Orion client quene heartbeat error, considered as Lost
+                WSMessage::Lost => {
+                    tracing::info!("Sending close frame");
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    break;
+                }
+                _ => match serde_json::to_string(&msg) {
+                    Ok(msg_str) => {
+                        if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
+                            tracing::error!(
+                                "Failed to send message to server: {}. Terminating send task.",
+                                e
+                            );
+                            break;
+                        }
                     }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to serialize WSMessage: {}", e);
-                }
+                    Err(e) => {
+                        tracing::error!("Failed to serialize WSMessage: {}", e);
+                    }
+                },
             }
         }
     });
