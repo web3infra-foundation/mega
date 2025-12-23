@@ -1,3 +1,4 @@
+use crate::log::log_service::LogService;
 use crate::model::builds;
 use chrono::FixedOffset;
 use dashmap::DashMap;
@@ -7,12 +8,9 @@ use rand::Rng;
 use sea_orm::ActiveModelTrait;
 use sea_orm::{ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::io::SeekFrom;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -21,9 +19,6 @@ use uuid::Uuid;
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
-    pub buck_hash: String,
-    pub buckconfig_hash: String,
-    pub args: Option<Vec<String>>,
     pub changes: Vec<Status<ProjectRelativePath>>,
 }
 
@@ -134,13 +129,13 @@ pub struct TaskQueueStats {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct BuildInfo {
+    pub task_id: String,
+    pub build_id: String,
     pub repo: String,
-    pub args: Option<Vec<String>>,
     pub start_at: DateTimeUtc,
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub cl: String,
     pub _worker_id: String,
-    pub log_file: Arc<Mutex<std::fs::File>>,
 }
 
 /// Status of a worker node
@@ -233,17 +228,6 @@ impl TaskScheduler {
             active_builds,
             conn,
         }
-    }
-
-    /// Read a segment of a log file by task id at given offset, limited to max_len bytes.
-    #[allow(dead_code)]
-    async fn read_log_segment(
-        &self,
-        build_id: &str,
-        offset: u64,
-        max_len: usize,
-    ) -> Result<LogSegment, LogReadError> {
-        read_log_segment_raw(build_id, offset, max_len).await
     }
 
     /// Add task-bound build to queue
@@ -364,29 +348,15 @@ impl TaskScheduler {
         };
         let chosen_id = idle_workers[chosen_index].clone();
 
-        // Create log file
-        let log_file = match create_log_file(&pending_task.build_id.to_string()) {
-            Ok(file) => Arc::new(Mutex::new(file)),
-            Err(e) => {
-                tracing::error!(
-                    "Failed to create log file for task {}/{}: {}",
-                    pending_task.task_id,
-                    pending_task.build_id,
-                    e
-                );
-                return Err(format!("Failed to create log file: {e}"));
-            }
-        };
-
         // Create build information
         let build_info = BuildInfo {
+            task_id: pending_task.task_id.to_string(),
+            build_id: pending_task.build_id.to_string(),
             repo: pending_task.repo.clone(),
-            args: pending_task.request.args.clone(),
             start_at: chrono::Utc::now(),
             changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
-            log_file,
         };
 
         // Insert build record
@@ -400,8 +370,13 @@ impl TaskScheduler {
             end_at: Set(None),
             repo: Set(build_info.repo.clone()),
             target: Set("//...".to_string()),
-            args: Set(build_info.args.as_ref().map(|v| json!(v))),
-            output_file: Set(format!("{}/{}", get_build_log_dir(), pending_task.build_id)),
+            args: Set(None),
+            output_file: Set(format!(
+                "{}/{}/{}.log",
+                pending_task.task_id,
+                LogService::last_segment(&pending_task.repo),
+                pending_task.build_id
+            )),
             created_at: Set(build_info
                 .start_at
                 .with_timezone(&FixedOffset::east_opt(0).unwrap())),
@@ -415,7 +390,6 @@ impl TaskScheduler {
         let msg = WSMessage::Task {
             id: pending_task.build_id.to_string(),
             repo: pending_task.repo,
-            args: pending_task.request.args,
             cl_link: pending_task.cl_link.to_string(),
             changes: pending_task.request.changes.clone(),
         };
@@ -515,147 +489,9 @@ impl TaskScheduler {
     }
 }
 
-/// Read a segment of a task log file.
-/// Returns metadata and data slice (UTF-8 lossy converted).
-pub async fn read_log_segment_raw(
-    build_id: &str,
-    offset: u64,
-    max_len: usize,
-) -> Result<LogSegment, LogReadError> {
-    let log_path = format!("{}/{}", get_build_log_dir(), build_id);
-    let path = std::path::Path::new(&log_path);
-    if !path.exists() {
-        return Err(LogReadError::NotFound);
-    }
-
-    let meta = tokio::fs::metadata(path).await.map_err(LogReadError::Io)?;
-    let size = meta.len();
-    if offset > size {
-        return Err(LogReadError::OffsetOutOfRange { size });
-    }
-
-    // Fast path: only metadata
-    if max_len == 0 || offset == size {
-        return Ok(LogSegment {
-            build_id: build_id.to_string(),
-            offset,
-            len: 0,
-            data: String::new(),
-            next_offset: offset,
-            file_size: size,
-            eof: offset >= size,
-        });
-    }
-
-    let mut file = tokio::fs::File::open(path)
-        .await
-        .map_err(LogReadError::Io)?;
-    file.seek(SeekFrom::Start(offset))
-        .await
-        .map_err(LogReadError::Io)?;
-
-    let remaining = (size - offset) as usize;
-    let to_read = remaining.min(max_len);
-    let mut buf = vec![0u8; to_read];
-    let read_bytes = file.read(&mut buf).await.map_err(LogReadError::Io)?;
-    buf.truncate(read_bytes);
-    let data = String::from_utf8_lossy(&buf).to_string();
-    let next_offset = offset + read_bytes as u64;
-    let eof = next_offset >= size;
-
-    Ok(LogSegment {
-        build_id: build_id.to_string(),
-        offset,
-        len: read_bytes,
-        data,
-        next_offset,
-        file_size: size,
-        eof,
-    })
-}
-
-/// Unified accessor for the build log directory (BUILD_LOG_DIR).
-///
-/// Behavior differs between test and non-test builds:
-///
-/// Non-test (`cfg(not(test))`):
-///   * Uses `once_cell::sync::Lazy` to read the env var exactly once at first access.
-///   * Panics early if the variable is missing (surfacing deployment misconfiguration).
-///   * Cannot be changed at runtime (subsequent env var edits are ignored).
-///
-/// Test (`cfg(test)`):
-///   * Allows setting `BUILD_LOG_DIR` before the first call in each test thread.
-///   * Uses `thread_local!` + `Cell<Option<&'static str>>`; on first access leaks the string via `Box::leak` only once per thread (bounded leak acceptable in tests).
-///   * Motivation:
-///       - Avoid a global `Lazy` capturing a temporary directory too early for all tests.
-///       - Keep memory growth bounded (one leaked string per thread at most).
-///   * Changing the environment variable in the same thread after first access has no effect.
-///
-/// Usage in tests:
-/// ```ignore
-/// let tmp = tempfile::tempdir().unwrap();
-/// std::env::set_var("BUILD_LOG_DIR", tmp.path());
-/// let dir = get_build_log_dir();
-/// ```
-///
-/// # Panics
-/// Panics if `BUILD_LOG_DIR` is not set at first access.
-///
-/// # Thread Safety
-/// Returns an immutable `&'static str`. Non-test mode uses a `Lazy` (thread-safe once init);
-/// test mode uses per-thread initialization to avoid cross-thread contention / early capture.
-///
-/// # Possible Future Improvement
-/// If hot-swapping the directory is ever required, this could return `Arc<PathBuf>` and expose
-/// an atomic update mechanism. Current requirements favor simplicity and immutability.
-pub fn get_build_log_dir() -> &'static str {
-    // Body only distinguishes cfg paths; see doc comment above for detailed rationale.
-    #[cfg(not(test))]
-    {
-        use once_cell::sync::Lazy;
-        static BUILD_LOG_DIR: Lazy<String> =
-            Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
-        &BUILD_LOG_DIR
-    }
-    #[cfg(test)]
-    {
-        // Test mode: allow setting BUILD_LOG_DIR before first use; only leak once per thread.
-        use std::cell::Cell;
-        thread_local! {
-            static BUILD_LOG_DIR_TLS: Cell<Option<&'static str>> = const { Cell::new(None) };
-        }
-        BUILD_LOG_DIR_TLS.with(|cell| {
-            if cell.get().is_none() {
-                let val = std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set");
-                let leaked: &'static str = Box::leak(val.into_boxed_str());
-                cell.set(Some(leaked));
-            }
-            cell.get().unwrap()
-        })
-    }
-}
-
-/// Create log file
-pub fn create_log_file(build_id: &str) -> Result<std::fs::File, std::io::Error> {
-    let log_path = format!("{}/{}", get_build_log_dir(), build_id);
-    let path = std::path::Path::new(&log_path);
-
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    // Create or open the log file in append mode
-    std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     /// Test task queue basic functionality
     #[test]
@@ -667,12 +503,7 @@ mod tests {
         let task1 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest {
-                buck_hash: "hash1".to_string(),
-                buckconfig_hash: "config1".to_string(),
-                args: None,
-                changes: vec![],
-            },
+            request: BuildRequest { changes: vec![] },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -682,12 +513,7 @@ mod tests {
         let task2 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest {
-                buck_hash: "hash2".to_string(),
-                buckconfig_hash: "config2".to_string(),
-                args: None,
-                changes: vec![],
-            },
+            request: BuildRequest { changes: vec![] },
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -720,12 +546,7 @@ mod tests {
         let task = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest {
-                buck_hash: "hash".to_string(),
-                buckconfig_hash: "config".to_string(),
-                args: None,
-                changes: vec![],
-            },
+            request: BuildRequest { changes: vec![] },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -738,42 +559,5 @@ mod tests {
 
         // Should fail when full
         assert!(queue.enqueue(task).is_err());
-    }
-
-    #[tokio::test]
-    async fn test_read_log_segment_basic() {
-        // Prepare temp dir
-        let tmp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
-        }
-        let build_id = "segment-test";
-        let mut file = create_log_file(build_id).unwrap();
-        write!(file, "Hello World! This is a test log.").unwrap();
-
-        // Read first 5 bytes
-        let seg = read_log_segment_raw(build_id, 0, 5).await.unwrap();
-        assert_eq!(seg.offset, 0);
-        assert_eq!(seg.len, 5);
-        assert_eq!(seg.data, "Hello");
-        assert!(!seg.eof);
-
-        // Read next bytes
-        let seg2 = read_log_segment_raw(build_id, seg.next_offset, 100)
-            .await
-            .unwrap();
-        assert!(seg2.data.starts_with(" World"));
-    }
-
-    #[tokio::test]
-    async fn test_read_log_segment_offset_out_of_range() {
-        let tmp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var("BUILD_LOG_DIR", tmp.path().to_str().unwrap());
-        }
-        let build_id = "segment-oob";
-        let _ = create_log_file(build_id).unwrap();
-        let res = read_log_segment_raw(build_id, 10, 10).await;
-        assert!(matches!(res, Err(LogReadError::OffsetOutOfRange { .. })));
     }
 }

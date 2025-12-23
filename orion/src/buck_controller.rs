@@ -306,7 +306,6 @@ async fn get_build_targets(
 pub async fn build(
     id: String,
     repo: String,
-    _args: Vec<String>,
     cl: String,
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,

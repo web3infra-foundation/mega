@@ -1,10 +1,11 @@
+use crate::log::log_service::{LogEvent, LogService};
 use crate::model::{builds, tasks};
 use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
-    create_log_file, get_build_log_dir,
 };
 use anyhow::Result;
 use axum::routing::post;
+use axum::extract::Query;
 use axum::{
     Json, Router,
     extract::{
@@ -12,12 +13,13 @@ use axum::{
         ws::{Message, Utf8Bytes, WebSocket},
     },
     http::StatusCode,
-    response::{IntoResponse, Sse, sse::Event, sse::KeepAlive},
+    response::{IntoResponse, Sse, sse::Event},
     routing::{any, get},
 };
 use chrono::{FixedOffset, Utc};
 use common::model::{CommonPage, PageParams};
 use dashmap::DashMap;
+use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
@@ -26,16 +28,13 @@ use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::convert::Infallible;
-use std::io::Write;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, BufReader};
-use tokio::sync::Mutex;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio::sync::{mpsc, watch};
+use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -64,10 +63,6 @@ pub enum TaskStatusEnum {
     #[default]
     NotFound,
 }
-/// Default log limit for segmented log retrieval
-const DEFAULT_LOG_LIMIT: usize = 4096;
-/// Default log offset for segmented log retrieval
-const DEFAULT_LOG_OFFSET: u64 = 1;
 
 /// Request structure for creating a task
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -80,11 +75,21 @@ pub struct TaskRequest {
     pub builds: Vec<scheduler::BuildRequest>,
 }
 
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct TaskHistoryQuery {
+    pub task_id: String,
+    pub build_id: String,
+    pub repo: String,
+    pub start: Option<usize>,
+    pub end: Option<usize>,
+}
+
 /// Shared application state containing worker connections, database, and active builds
 #[derive(Clone)]
 pub struct AppState {
     pub scheduler: TaskScheduler,
     pub conn: DatabaseConnection,
+    pub log_service: LogService,
 }
 
 impl AppState {
@@ -92,12 +97,17 @@ impl AppState {
     pub fn new(
         conn: DatabaseConnection,
         queue_config: Option<crate::scheduler::TaskQueueConfig>,
+        log_service: LogService,
     ) -> Self {
         let workers = Arc::new(DashMap::new());
         let active_builds = Arc::new(DashMap::new());
         let scheduler = TaskScheduler::new(conn.clone(), workers, active_builds, queue_config);
 
-        Self { scheduler, conn }
+        Self {
+            scheduler,
+            conn,
+            log_service,
+        }
     }
 }
 
@@ -108,10 +118,7 @@ pub fn routers() -> Router<AppState> {
         .route("/task", post(task_handler))
         .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
-        .route(
-            "/task-history-output/{id}",
-            get(task_history_output_handler),
-        )
+        .route("/task-history-output", get(task_history_output_handler))
         .route("/tasks/{cl}", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
         .route("/orion-clients-info", post(get_orion_clients_info))
@@ -157,63 +164,64 @@ pub async fn task_output_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
-    let log_path = std::path::Path::new(&log_path_str);
-
-    // Return error message if log file doesn't exist
-    if !log_path.exists() {
+    if !state.scheduler.active_builds.contains_key(&id) {
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let file = tokio::fs::File::open(log_path).await.unwrap();
-    let mut reader = tokio::io::BufReader::new(file);
-    reader.seek(tokio::io::SeekFrom::End(0)).await.unwrap();
+    // Use watch channel as stop signal for all streams
+    let (stop_tx, stop_rx) = watch::channel(true);
 
-    // Build an asynchronous data channel
-    // Spawn background task: handle both log + heartbeat with select
-    let (tx, rx) = mpsc::unbounded_channel::<Event>();
+    let log_stop_rx = stop_rx.clone();
+    // Log stream with termination condition
+    let log_stream = state
+        .log_service
+        .subscribe_for_build(id.clone())
+        .map(|log_event| {
+            Ok::<Event, Infallible>(Event::default().event("log").data(log_event.line))
+        })
+        .take_while(move |_| {
+            let stop_rx = log_stop_rx.clone();
+            async move { *stop_rx.borrow() }
+        });
+
+    let heart_stop_rx = stop_rx.clone();
+    // Heartbeat stream every 15 seconds with termination condition
+    let heartbeat_stream = IntervalStream::new(tokio::time::interval(Duration::from_secs(15)))
+        .map(|_| Ok::<Event, Infallible>(Event::default().comment("heartbeat")))
+        .take_while(move |_| {
+            let stop_rx_clone = heart_stop_rx.clone();
+            async move { *stop_rx_clone.borrow() }
+        });
+
+    // Spawn a task to watch active_builds and send stop signal when build ends
+    let stop_tx_clone = stop_tx.clone();
     tokio::spawn(async move {
-        let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
         loop {
-            let mut buf = String::new();
-            let active_builds = state.scheduler.active_builds.clone();
-            let is_building = active_builds.contains_key(&id);
-
-            tokio::select! {
-                size = reader.read_to_string(&mut buf) => {
-                    let size = size.unwrap();
-                    if size == 0 {
-                        if is_building {
-                            continue;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        let _ = tx.send(Event::default().data(buf.trim_end()));
-                    }
-                }
-                _ = heartbeat.tick() => {
-                    let _ = tx.send(Event::default().comment("heartbeat"));
-                }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            if !state.scheduler.active_builds.contains_key(&id) {
+                let _ = stop_tx_clone.send(false);
+                break;
             }
         }
     });
 
-    let stream = UnboundedReceiverStream::new(rx).map(Ok::<_, Infallible>);
+    // Merge log and heartbeat streams
+    let stream = select(log_stream, heartbeat_stream);
 
-    Ok(Sse::new(stream).keep_alive(KeepAlive::new()))
+    Ok(Sse::new(stream))
 }
 
 /// Provides the ability to read historical task logs
 /// supporting either retrieving the entire log at once or segmenting it by line count.
 #[utoipa::path(
     get,
-    path = "/task-history-output/{id}",
+    path = "/task-history-output",
     params(
-        ("id" = String, Path, description = "Build ID whose log to read"),
-        ("type" = String, Query, description = "The type of log retrieval: \"full\" indicates full retrieval, while \"segment\" indicates retrieval of segments.",example = "full"),
-        ("offset" = Option<u64>, Query, description = "Start line number (1-based)"),
-        ("limit"  = Option<usize>, Query, description = "Max number of lines to return"),
+        ("task_id" = String, Query, description = "Task ID whose log to read"),
+        ("build_id" = String, Query, description = "Build ID whose log to read"),
+        ("repo" = String, Query, description = "build repository path"),
+        ("start" = Option<usize>, Query, description = "Start line number (0-based)"),
+        ("end"  = Option<usize>, Query, description = "End line number"),
     ),
     responses(
         (status = 200, description = "History Log"),
@@ -223,110 +231,53 @@ pub async fn task_output_handler(
     )
 )]
 pub async fn task_history_output_handler(
-    Path(id): Path<String>,
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    State(state): State<AppState>,
+    Query(params): Query<TaskHistoryQuery>,
 ) -> impl IntoResponse {
-    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
-    let log_path = std::path::Path::new(&log_path_str);
+    // Determine which read method to call
+    let log_result = if matches!((params.start, params.end), (None, None)) {
+        state
+            .log_service
+            .read_full_log(&params.task_id, &params.repo, &params.build_id)
+            .await
+    } else {
+        // Unwrap start/end, default to 0 if needed
+        let start = params.start.unwrap_or(0);
+        let end = params.end.unwrap_or(usize::MAX);
+        state
+            .log_service
+            .read_log_range(&params.task_id, &params.repo, &params.build_id, start, end)
+            .await
+    };
 
-    // Return error message if log file doesn't exist
-    if !log_path.exists() {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "message": "Error: Log File Not Found"
-            })),
-        );
-    }
-
-    let log_type = params.get("type").map(|s| s.as_str());
-    match log_type {
-        Some("full") => {
-            // Read the entire log file
-            let file = match tokio::fs::File::open(log_path).await {
-                Ok(f) => f,
-                Err(_) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({ "message": "Failed to open log file" })),
-                    );
-                }
-            };
-            let mut reader = tokio::io::BufReader::new(file);
-            let mut buf = String::new();
-            if reader.read_to_string(&mut buf).await.is_err() {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({ "message": "Failed to read log file" })),
-                );
-            }
-
-            // Split the content into lines and count them
-            let lines: Vec<&str> = buf.lines().collect();
-            let len = lines.len();
-
-            (
-                StatusCode::OK,
+    // Handle result
+    let log_content = match log_result {
+        Ok(content) => content,
+        Err(e) => {
+            tracing::error!("read log failed: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
-                    "data": lines,
-                    "len": len
+                    "message": "Failed to read log file"
                 })),
-            )
+            );
         }
-        Some("segment") => {
-            // Parse offset
-            let offset = params
-                .get("offset")
-                .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(DEFAULT_LOG_OFFSET)
-                .saturating_sub(1);
-            let limit = params
-                .get("limit")
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(DEFAULT_LOG_LIMIT);
+    };
 
-            // Read Range Log
-            let file = match tokio::fs::File::open(log_path).await {
-                Ok(f) => f,
-                Err(_) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({ "message": "Failed to open log file" })),
-                    );
-                }
-            };
-            let reader = tokio::io::BufReader::new(file);
-            let mut lines_vec = Vec::new();
-            let mut lines = reader.lines();
-            let mut idx = 0;
-            let mut count = 0;
+    // Split the content into lines and count them
+    let lines: Vec<&str> = log_content.lines().collect();
+    let len = lines.len();
 
-            while let Ok(Some(line)) = lines.next_line().await {
-                if idx >= offset {
-                    lines_vec.push(line);
-                    count += 1;
-                    if count >= limit {
-                        break;
-                    }
-                }
-                idx += 1;
-            }
-
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "data": lines_vec,
-                    "len": lines_vec.len()
-                })),
-            )
-        }
-        _ => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "message": "Invalid type" })),
-        ),
-    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "data": lines,
+            "len": len
+        })),
+    )
 }
 
+/// Creates build tasks and returns the task ID and status (immediate or queued)
 #[utoipa::path(
     post,
     path = "/task",
@@ -336,8 +287,6 @@ pub async fn task_history_output_handler(
         (status = 503, description = "Queue is full", body = serde_json::Value)
     )
 )]
-/// Creates new build tasks based on the builds count in TaskRequest and either assigns them immediately or queues them for later processing
-/// Returns task ID and status information upon successful creation
 pub async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<TaskRequest>,
@@ -462,33 +411,15 @@ async fn handle_immediate_task_dispatch(
     let chosen_id = idle_workers[chosen_index].clone();
     let build_id = Uuid::now_v7();
 
-    // Create log file for the task
-    let log_file = match create_log_file(&build_id.to_string()) {
-        Ok(file) => Arc::new(Mutex::new(file)),
-        Err(e) => {
-            tracing::error!(
-                "Failed to create log file for build {}/{}: {}",
-                task_id,
-                build_id,
-                e
-            );
-            return BuildResult {
-                build_id: "".to_string(),
-                status: "error".to_string(),
-                message: "Failed to create log file".to_string(),
-            };
-        }
-    };
-
     // Create build information structure
     let build_info = BuildInfo {
+        task_id: task_id.to_string(),
+        build_id: build_id.to_string(),
         repo: repo.to_string(),
-        args: req.args.clone(),
         changes: req.changes.clone(),
         start_at: chrono::Utc::now(),
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
-        log_file,
     };
 
     // Use the model's insert_build method for direct insertion
@@ -497,7 +428,6 @@ async fn handle_immediate_task_dispatch(
         task_id,
         repo.to_string(),
         target.clone(),
-        req.clone(),
         &state.conn,
     )
     .await
@@ -516,7 +446,6 @@ async fn handle_immediate_task_dispatch(
         id: build_id.to_string(),
         repo: repo.to_string(),
         changes: req.changes.clone(),
-        args: req.args.clone(),
         cl_link: cl_link.to_string(),
     };
 
@@ -744,19 +673,25 @@ async fn process_message(
                 WSMessage::BuildOutput { id, output } => {
                     // Write build output to the associated log file
                     if let Some(build_info) = state.scheduler.active_builds.get(&id) {
-                        let log_file = build_info.log_file.clone();
-                        tokio::spawn(async move {
-                            let mut file = log_file.lock().await;
-                            if let Err(e) = writeln!(file, "{output}") {
-                                tracing::error!(
-                                    "Failed to write to log file for task {}: {}",
-                                    id,
-                                    e
-                                );
-                            } else if let Err(e) = file.flush() {
-                                tracing::error!("Failed to flush log file for task {}: {}", id, e);
-                            }
-                        });
+                        let log_event = LogEvent {
+                            task_id: build_info.task_id.clone(),
+                            repo_name: LogService::last_segment(&build_info.repo.clone())
+                                .to_string(),
+                            build_id: build_info.build_id.clone(),
+                            line: output.clone(),
+                            is_end: false,
+                        };
+                        // Publish the log event to the log stream
+                        state.log_service.publish(log_event.clone());
+
+                        // Debug output showing the published log
+                        tracing::debug!(
+                            "Published log for build_id {} (task: {}, repo: {}): {}",
+                            id,
+                            build_info.task_id,
+                            build_info.repo,
+                            output
+                        );
                     } else {
                         tracing::warn!("Received output for unknown task: {}", id);
                     }
@@ -771,6 +706,19 @@ async fn process_message(
                     tracing::info!(
                         "Build {id} completed by worker {current_worker_id} with exit code: {exit_code:?}"
                     );
+
+                    // Send final log event
+                    if let Some(build_info) = state.scheduler.active_builds.get(&id) {
+                        let log_event = LogEvent {
+                            task_id: build_info.task_id.clone(),
+                            repo_name: LogService::last_segment(&build_info.repo.clone())
+                                .to_string(),
+                            build_id: build_info.build_id.clone(),
+                            line: String::from(""), // Empty line to signal end
+                            is_end: true,           // This is the end of the log
+                        };
+                        state.log_service.publish(log_event);
+                    }
 
                     // Remove from active builds and update database
                     state.scheduler.active_builds.remove(&id);
@@ -924,6 +872,7 @@ pub async fn tasks_handler(
 ) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
     let db = &state.conn;
     let active_builds = state.scheduler.active_builds.clone();
+
     match tasks::Entity::find()
         .filter(tasks::Column::ClId.eq(cl))
         .all(db)
@@ -940,17 +889,32 @@ pub async fn tasks_handler(
                     .await
                     .unwrap_or_else(|_| vec![]);
 
-                // Convert build models to DTOs with individual status
                 let mut build_list: Vec<BuildDTO> = Vec::new();
                 for build_model in build_models {
                     let build_id_str = build_model.id.to_string();
                     let is_active = active_builds.contains_key(&build_id_str);
                     let status = BuildDTO::determine_status(&build_model, is_active);
                     let mut dto = BuildDTO::from_model(build_model, status);
-                    dto.cause_by = find_caused_by_next_line(&dto.id).await.unwrap_or_else(|e| {
-                        tracing::error!("Failed to read cause by line: {}", e);
-                        None
-                    });
+
+                    // Read log from LogService instead of file system
+                    match state
+                        .log_service
+                        .read_full_log(
+                            &m.id.to_string(),
+                            &LogService::last_segment(&dto.repo).to_string(),
+                            &build_id_str,
+                        )
+                        .await
+                    {
+                        Ok(log_content) => {
+                            dto.cause_by = find_caused_by_next_line_in_content(&log_content).await;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to read log for build {}: {}", build_id_str, e);
+                            dto.cause_by = None;
+                        }
+                    }
+
                     build_list.push(dto);
                 }
 
@@ -969,38 +933,20 @@ pub async fn tasks_handler(
     }
 }
 
-async fn find_caused_by_next_line(id: &str) -> Result<Option<String>> {
-    let log_path_str = format!("{}/{}", get_build_log_dir(), id);
-    let log_path = std::path::Path::new(&log_path_str);
-    tracing::debug!("log path str: {}", log_path_str);
-
-    // Return Ok(None) if log file doesn't exist
-    if !log_path.exists() {
-        return Ok(None);
-    }
-
-    let file = tokio::fs::File::open(log_path)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to open log file {}: {}", log_path_str, e))?;
-
-    let reader = BufReader::new(file);
-    let mut lines = reader.lines();
+async fn find_caused_by_next_line_in_content(content: &str) -> Option<String> {
     let mut last_was_caused = false;
 
-    while let Some(line) = lines
-        .next_line()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to read log file: {}", e))?
-    {
+    for line in content.lines() {
         if last_was_caused {
-            return Ok(Some(line));
+            return Some(line.to_string());
         }
 
         if line.trim() == "Caused by:" {
             last_was_caused = true;
         }
     }
-    Ok(None)
+
+    None
 }
 
 // Orion client information
