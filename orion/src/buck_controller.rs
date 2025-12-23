@@ -48,11 +48,13 @@ pub async fn mount_fs(
     // Mount operations may trigger remote repo fetching, dependency downloads,
     // or other network-heavy steps. To avoid premature timeouts when the network
     // is slow, we use a generous 2-hour timeout here. This can be tuned later.
-    if let (Some(sender), Some(build_id)) = (&sender, &build_id) {
-        let _ = sender.send(WSMessage::TaskPhaseUpdate {
+    if let (Some(sender), Some(build_id)) = (&sender, &build_id)
+        && let Err(err) = sender.send(WSMessage::TaskPhaseUpdate {
             id: build_id.clone(),
             phase: TaskPhase::DownloadingSource,
-        });
+        })
+    {
+        tracing::error!("failed to send TaskPhaseUpdate (DownloadingSource): {err}");
     }
 
     let client = reqwest::Client::builder()

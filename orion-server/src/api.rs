@@ -731,6 +731,14 @@ async fn process_message(
                     if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.last_heartbeat = chrono::Utc::now();
                         tracing::debug!("Received heartbeat from {current_worker_id}");
+
+                        // If the worker was previously in Error state, a successful heartbeat now restores it to Idle.
+                        if let WorkerStatus::Error(_) = worker.status {
+                            worker.status = WorkerStatus::Idle;
+                            tracing::info!(
+                                "Worker {current_worker_id} recovered from Error to Idle via heartbeat."
+                            );
+                        }
                     }
                 }
                 WSMessage::BuildOutput { id, output } => {
@@ -794,15 +802,14 @@ async fn process_message(
                     tracing::info!(
                         "Task phase updated by orion worker {current_worker_id} with: {phase:?}"
                     );
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
-                        if let WorkerStatus::Busy { task_id, .. } = &worker.status {
-                            if task_id == &id {
-                                worker.status = WorkerStatus::Busy {
-                                    task_id: id,
-                                    phase: Some(phase),
-                                }
-                            }
-                        }
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id)
+                        && let WorkerStatus::Busy { task_id, .. } = &worker.status
+                        && task_id == &id
+                    {
+                        worker.status = WorkerStatus::Busy {
+                            task_id: id,
+                            phase: Some(phase),
+                        };
                     }
                 }
                 WSMessage::Lost => {
@@ -1055,7 +1062,7 @@ async fn get_orion_clients_info(
         let matches = query
             .hostname
             .as_ref()
-            .map_or(true, |h| entry.value().hostname.contains(h));
+            .is_none_or(|h| entry.value().hostname.contains(h));
 
         if matches {
             total += 1;

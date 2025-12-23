@@ -31,7 +31,7 @@ pub enum WSMessage {
         orion_version: String,
     },
     Heartbeat,
-    Lost, // Heartbeat timeout
+    Lost, // Sent by the client when its internal channel has closed (client-initiated disconnect)
     TaskPhaseUpdate {
         id: String,
         phase: TaskPhase,
@@ -144,8 +144,6 @@ async fn handle_connection(
             tracing::debug!("Sending heartbeat...");
             if internal_tx_clone.send(WSMessage::Heartbeat).is_err() {
                 tracing::warn!("Failed to queue heartbeat message. Internal channel closed.");
-
-                let _ = internal_tx_clone.send(WSMessage::Lost);
                 break;
             }
         }
@@ -154,43 +152,28 @@ async fn handle_connection(
     let mut ws_sender = ws_sender;
     let send_task = tokio::spawn(async move {
         while let Some(msg) = internal_rx.recv().await {
-            match msg {
-                // Orion client queue heartbeat error, considered as Lost
-                WSMessage::Lost => {
-                    tracing::info!("Sending Lost message before close frame");
-                    match serde_json::to_string(&WSMessage::Lost) {
-                        Ok(msg_str) => {
-                            if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
-                                tracing::error!(
-                                    "Failed to send Lost message to server: {}. Proceeding to close.",
-                                    e
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to serialize WSMessage::Lost: {}. Proceeding to close.",
-                                e
-                            );
-                        }
+            match serde_json::to_string(&msg) {
+                Ok(msg_str) => {
+                    if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
+                        tracing::error!(
+                            "Failed to send message to server: {}. Terminating send task.",
+                            e
+                        );
+                        break;
                     }
                 }
-                _ => match serde_json::to_string(&msg) {
-                    Ok(msg_str) => {
-                        if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
-                            tracing::error!(
-                                "Failed to send message to server: {}. Terminating send task.",
-                                e
-                            );
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to serialize WSMessage: {}", e);
-                    }
-                },
+                Err(e) => {
+                    tracing::error!("Failed to serialize WSMessage: {}", e);
+                }
             }
         }
+
+        // One of the critical tasks has terminated; the connection is lost.
+        let _ = ws_sender
+            .send(Message::Text(
+                serde_json::to_string(&WSMessage::Lost).unwrap().into(),
+            ))
+            .await;
     });
 
     let internal_tx_clone = internal_tx.clone();
