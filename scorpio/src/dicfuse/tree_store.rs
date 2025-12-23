@@ -202,6 +202,15 @@ impl TreeStorage {
             .map_err(Error::other)?;
         Ok(())
     }
+
+    /// Clear all persisted path metadata.
+    ///
+    /// This is used to recover from partially-initialized stores (e.g., when a previous import
+    /// was interrupted). After clearing, the caller can rebuild the tree from the remote.
+    pub fn clear_all(&self) -> io::Result<()> {
+        self.db.clear().map_err(Error::other)?;
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {

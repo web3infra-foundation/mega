@@ -38,4 +38,13 @@ impl ContentStorage {
         self.db.remove(inode.to_be_bytes())?;
         Ok(())
     }
+
+    /// Clear all persisted file contents.
+    ///
+    /// This is used to recover from partially-initialized stores (e.g., when a previous import
+    /// was interrupted) and to avoid reusing stale cached contents.
+    pub fn clear_all(&self) -> io::Result<()> {
+        self.db.clear().map_err(Error::other)?;
+        Ok(())
+    }
 }
