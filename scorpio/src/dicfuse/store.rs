@@ -1290,6 +1290,14 @@ impl DictionaryStore {
         0
     }
     pub fn remove_file_by_node(&self, inode: u64) -> Result<(), io::Error> {
+        // Best-effort: clear size metadata too, so concurrent getattr during refetch cannot
+        // observe a stale persisted size (especially problematic if it was cached as 0).
+        if let Err(e) = self.persistent_size_store.remove_size(inode) {
+            warn!(
+                "remove_file_by_node: failed to remove persisted size for inode {}: {}",
+                inode, e
+            );
+        }
         self.persistent_content_store.remove_file(inode)?;
         self.open_buff.remove(&inode);
         Ok(())
@@ -1320,7 +1328,7 @@ impl DictionaryStore {
         self.open_buff.get(&inode)
     }
 
-    /// Doanload the file content from the server and save it to the db and memory.
+    /// Download the file content from the server and save it to the db and memory.
     pub async fn fetch_file_content(&self, inode: u64, oid: &str) -> io::Result<()> {
         let content = fetch_file(oid).await?;
         self.save_file(inode, content);
