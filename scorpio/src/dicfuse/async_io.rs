@@ -10,6 +10,7 @@ use rfuse3::{Errno, Inode, Result};
 use super::Dicfuse;
 use crate::dicfuse::abi::{default_dic_entry, default_file_entry};
 use crate::dicfuse::store::load_dir;
+use crate::dicfuse::store::EMPTY_BLOB_OID;
 use futures::stream::iter;
 impl Filesystem for Dicfuse {
     /// initialize filesystem. Called before any other filesystem method.
@@ -276,9 +277,16 @@ impl Filesystem for Dicfuse {
             });
         }
 
+        // Fast path: already in memory.
+        if self.store.get_file_content(inode).is_none() {
+            // If persisted on disk (content.db), load into memory first.
+            // This avoids re-downloading and also prevents file_exists()/open_buff mismatches.
+            let _ = self.store.ensure_file_loaded(inode);
+        }
+
         // On-demand file fetching:
-        // If the content is not in memory yet, fetch it from the remote using the stored hash/oid.
-        if !self.store.file_exists(inode) {
+        // If still not in memory, fetch it from the remote using the stored hash/oid.
+        if self.store.get_file_content(inode).is_none() {
             let item = self.store.get_inode(inode).await?;
             if item.is_dir() {
                 return Err(std::io::Error::from_raw_os_error(libc::EISDIR).into());
@@ -286,8 +294,52 @@ impl Filesystem for Dicfuse {
             if item.hash.is_empty() {
                 return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
             }
-            // Best-effort fetch (network errors return empty content today).
-            self.store.fetch_file_content(inode, &item.hash).await;
+            // IMPORTANT: on network/HTTP failure, do NOT cache empty content.
+            if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
+                tracing::warn!(
+                    "dicfuse: failed to fetch inode {} oid {}: {}",
+                    inode,
+                    item.hash,
+                    e
+                );
+                let errno = if e.kind() == std::io::ErrorKind::NotFound {
+                    libc::ENOENT
+                } else {
+                    libc::EIO
+                };
+                return Err(std::io::Error::from_raw_os_error(errno).into());
+            }
+        }
+
+        let datas = self
+            .store
+            .get_file_content(inode)
+            .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+        let is_empty = datas.is_empty();
+        drop(datas);
+
+        // Defensive: if we ended up with empty content for a blob that is not the git empty blob,
+        // this is most likely a previously poisoned cache (historical bug: failed downloads cached
+        // as empty). Attempt a one-time refetch and return EIO on failure.
+        if is_empty {
+            let item = self.store.get_inode(inode).await?;
+            if !item.is_dir() && !item.hash.is_empty() && item.hash != EMPTY_BLOB_OID {
+                let _ = self.store.remove_file_by_node(inode);
+                if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
+                    tracing::warn!(
+                        "dicfuse: refetch failed for inode {} oid {}: {}",
+                        inode,
+                        item.hash,
+                        e
+                    );
+                    let errno = if e.kind() == std::io::ErrorKind::NotFound {
+                        libc::ENOENT
+                    } else {
+                        libc::EIO
+                    };
+                    return Err(std::io::Error::from_raw_os_error(errno).into());
+                }
+            }
         }
 
         let datas = self

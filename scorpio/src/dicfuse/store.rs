@@ -26,6 +26,12 @@ use super::content_store::ContentStorage;
 use super::size_store::SizeStorage;
 use super::tree_store::{StorageItem, TreeStorage};
 use crate::util::{config, GPath};
+
+/// Git SHA1 for an empty blob (0-byte file).
+///
+/// This lets us distinguish legitimate empty files from failures (e.g., network/HTTP errors)
+/// that must NOT be cached as empty content.
+pub(crate) const EMPTY_BLOB_OID: &str = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391";
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE: &str = "file";
 const INODE_DICTIONARY: &str = "directory";
@@ -227,8 +233,19 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
     }
 }
 
-/// Download a file from the server using its OID/hash with retry mechanism
-async fn fetch_file(oid: &str) -> Vec<u8> {
+fn reqwest_err_to_io(err: reqwest::Error) -> io::Error {
+    if err.is_timeout() {
+        io::Error::new(io::ErrorKind::TimedOut, err.to_string())
+    } else {
+        io::Error::other(err.to_string())
+    }
+}
+
+/// Download a file from the server using its OID/hash with retry mechanism.
+///
+/// IMPORTANT: This returns an error on failures. Callers must NOT treat failures as empty files,
+/// otherwise we may poison persistent caches with 0-byte content.
+async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
     static CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -265,14 +282,14 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
                     .await;
                     continue;
                 } else {
-                    // Final attempt failed, log and return empty
+                    // Final attempt failed
                     debug!(
                         "Failed to fetch file with OID: {oid} after {} attempts",
                         MAX_RETRIES
                     );
                     debug!("  URL: {url}");
                     debug!("  Error: {e}");
-                    return Vec::new();
+                    return Err(reqwest_err_to_io(e));
                 }
             }
         };
@@ -281,7 +298,7 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
         if response.status().is_success() {
             // Get the binary data from the response body
             match response.bytes().await {
-                Ok(bytes) => return bytes.to_vec(),
+                Ok(bytes) => return Ok(bytes.to_vec()),
                 Err(e) => {
                     if attempt < MAX_RETRIES - 1 {
                         debug!(
@@ -303,40 +320,26 @@ async fn fetch_file(oid: &str) -> Vec<u8> {
                         );
                         debug!("  URL: {url}");
                         debug!("  Error: {e}");
-                        return Vec::new();
+                        return Err(reqwest_err_to_io(e));
                     }
                 }
             }
         } else {
             let status = response.status();
-            // Don't retry on HTTP errors (4xx, 5xx) - these are permanent failures
-            if status.is_client_error() || status.is_server_error() {
-                debug!("Failed to fetch file: HTTP {} for OID: {oid}", status);
-                debug!("  URL: {url}");
-                return Vec::new();
-            }
-            // For other status codes (e.g., 3xx redirects), retry
-            if attempt < MAX_RETRIES - 1 {
-                debug!(
-                    "Unexpected HTTP status {} for OID: {oid} (attempt {}/{}), retrying...",
-                    status,
-                    attempt + 1,
-                    MAX_RETRIES
-                );
-                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt + 1) as u64))
-                    .await;
-                continue;
+            debug!("Failed to fetch file: HTTP {} for OID: {oid}", status);
+            debug!("  URL: {url}");
+            let kind = if status == reqwest::StatusCode::NOT_FOUND {
+                io::ErrorKind::NotFound
             } else {
-                debug!(
-                    "Failed to fetch file: HTTP {} for OID: {oid} after {} attempts",
-                    status, MAX_RETRIES
-                );
-                debug!("  URL: {url}");
-                return Vec::new();
-            }
+                io::ErrorKind::Other
+            };
+            return Err(io::Error::new(
+                kind,
+                format!("HTTP {}: failed to fetch oid {}", status, oid),
+            ));
         }
     }
-    Vec::new()
+    Err(io::Error::other(format!("failed to fetch oid {oid}")))
 }
 
 /// Fetch file size (in bytes) for a blob without downloading the full content.
@@ -1248,17 +1251,31 @@ impl DictionaryStore {
             return persisted;
         }
 
+        // Fast-path for known-empty blobs (git empty blob hash).
+        if !oid.is_empty() && oid == EMPTY_BLOB_OID {
+            self.set_persisted_size(inode, 0);
+            return 0;
+        }
+
         if let Some(mem_len) = self.get_open_buff_len(inode) {
-            self.set_persisted_size(inode, mem_len);
-            return mem_len;
+            // Only trust in-memory length when it's non-zero. A zero-length buffer may be:
+            // - a legitimate empty file, or
+            // - a previously poisoned cache (e.g., fetch failure incorrectly cached as empty).
+            // For len==0, fall through to remote size discovery.
+            if mem_len > 0 {
+                self.set_persisted_size(inode, mem_len);
+                return mem_len;
+            }
         }
 
         // If file content exists on disk (content.db), load it into memory and use its length.
         if let Ok(content) = self.persistent_content_store.get_file_content(inode) {
             let len = content.len() as u64;
             self.open_buff.insert(inode, content);
-            self.set_persisted_size(inode, len);
-            return len;
+            if len > 0 {
+                self.set_persisted_size(inode, len);
+                return len;
+            }
         }
 
         if oid.is_empty() {
@@ -1304,9 +1321,30 @@ impl DictionaryStore {
     }
 
     /// Doanload the file content from the server and save it to the db and memory.
-    pub async fn fetch_file_content(&self, inode: u64, oid: &str) {
-        let content = fetch_file(oid).await;
+    pub async fn fetch_file_content(&self, inode: u64, oid: &str) -> io::Result<()> {
+        let content = fetch_file(oid).await?;
         self.save_file(inode, content);
+        Ok(())
+    }
+
+    /// Best-effort: ensure a file's content is loaded into memory (`open_buff`) if it's persisted.
+    ///
+    /// Returns:
+    /// - Ok(true)  if content is now available in memory
+    /// - Ok(false) if content is not in persistent storage
+    /// - Err(_)    on storage errors
+    pub fn ensure_file_loaded(&self, inode: u64) -> io::Result<bool> {
+        if self.open_buff.contains_key(&inode) {
+            return Ok(true);
+        }
+        match self.persistent_content_store.get_file_content(inode) {
+            Ok(content) => {
+                self.open_buff.insert(inode, content);
+                Ok(true)
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(e),
+        }
     }
     /// Return the content of a file by its path.
     pub async fn get_file_content_by_path(&self, path: &str) -> Result<Vec<u8>, io::Error> {
