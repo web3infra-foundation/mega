@@ -4,8 +4,8 @@ use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
 };
 use anyhow::Result;
-use axum::routing::post;
 use axum::extract::Query;
+use axum::routing::post;
 use axum::{
     Json, Router,
     extract::{
