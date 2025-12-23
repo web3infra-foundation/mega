@@ -29,7 +29,7 @@ impl GPath {
         self.path.pop()
     }
     pub fn name(&self) -> String {
-        self.path.last().unwrap().clone()
+        self.path.last().cloned().unwrap_or_default()
     }
     pub fn part(&self, i: usize, j: usize) -> String {
         self.path[i..j].join("/")
@@ -42,7 +42,12 @@ impl From<String> for GPath {
             s.remove(0);
         }
         GPath {
-            path: s.split('/').map(String::from).collect(),
+            // Normalize: drop empty segments so "/" becomes an empty path and "a/" == "a".
+            path: s
+                .split('/')
+                .filter(|part| !part.is_empty())
+                .map(String::from)
+                .collect(),
         }
     }
 }
