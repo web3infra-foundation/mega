@@ -24,6 +24,8 @@ use uuid::Uuid;
 
 use crate::antares::fuse::AntaresFuse;
 use crate::dicfuse::Dicfuse;
+use crate::dicfuse::DicfuseManager;
+use crate::manager::cl::build_cl_layer;
 
 /// High-level HTTP daemon that exposes Antares orchestration capabilities.
 pub struct AntaresDaemon<S: AntaresService> {
@@ -55,8 +57,12 @@ where
             .route("/health", get(Self::healthcheck))
             .route("/mounts", post(Self::create_mount))
             .route("/mounts", get(Self::list_mounts))
+            .route("/mounts/by-job/{job_id}", get(Self::describe_mount_by_job))
+            .route("/mounts/by-job/{job_id}", delete(Self::delete_mount_by_job))
             .route("/mounts/{mount_id}", get(Self::describe_mount))
             .route("/mounts/{mount_id}", delete(Self::delete_mount))
+            .route("/mounts/{mount_id}/cl", post(Self::build_cl))
+            .route("/mounts/{mount_id}/cl", delete(Self::clear_cl))
             .with_state(self.service.clone())
     }
 
@@ -116,6 +122,22 @@ where
         Ok(Json(MountCollection { mounts }))
     }
 
+    async fn describe_mount_by_job(
+        State(service): State<Arc<S>>,
+        Path(job_id): Path<String>,
+    ) -> Result<Json<MountStatus>, ApiError> {
+        let status = service.describe_mount_by_job(job_id).await?;
+        Ok(Json(status))
+    }
+
+    async fn delete_mount_by_job(
+        State(service): State<Arc<S>>,
+        Path(job_id): Path<String>,
+    ) -> Result<Json<MountStatus>, ApiError> {
+        let status = service.delete_mount_by_job(job_id).await?;
+        Ok(Json(status))
+    }
+
     async fn describe_mount(
         State(service): State<Arc<S>>,
         Path(mount_id): Path<Uuid>,
@@ -131,6 +153,23 @@ where
         let status = service.delete_mount(mount_id).await?;
         Ok(Json(status))
     }
+
+    async fn build_cl(
+        State(service): State<Arc<S>>,
+        Path(mount_id): Path<Uuid>,
+        Json(request): Json<BuildClRequest>,
+    ) -> Result<Json<MountStatus>, ApiError> {
+        let status = service.build_cl(mount_id, request.cl).await?;
+        Ok(Json(status))
+    }
+
+    async fn clear_cl(
+        State(service): State<Arc<S>>,
+        Path(mount_id): Path<Uuid>,
+    ) -> Result<Json<MountStatus>, ApiError> {
+        let status = service.clear_cl(mount_id).await?;
+        Ok(Json(status))
+    }
 }
 
 /// Asynchronous service boundary that the HTTP layer depends on.
@@ -142,6 +181,30 @@ pub trait AntaresService: Send + Sync {
     async fn list_mounts(&self) -> Result<Vec<MountStatus>, ServiceError>;
     async fn describe_mount(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError>;
     async fn delete_mount(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError>;
+
+    /// Describe a mount by build task identifier (job/build id).
+    ///
+    /// Default implementation scans `list_mounts()`; implementations may override
+    /// for efficiency.
+    async fn describe_mount_by_job(&self, job_id: String) -> Result<MountStatus, ServiceError> {
+        let mounts = self.list_mounts().await?;
+        mounts
+            .into_iter()
+            .find(|m| m.job_id.as_deref() == Some(job_id.as_str()))
+            .ok_or(ServiceError::NotFoundTask(job_id))
+    }
+
+    /// Delete (unmount) a mount by build task identifier (job/build id).
+    ///
+    /// Default implementation resolves to a mount_id and delegates to `delete_mount()`.
+    async fn delete_mount_by_job(&self, job_id: String) -> Result<MountStatus, ServiceError> {
+        let status = self.describe_mount_by_job(job_id.clone()).await?;
+        self.delete_mount(status.mount_id).await
+    }
+    /// Build or rebuild the CL layer for an existing mount
+    async fn build_cl(&self, mount_id: Uuid, cl_link: String) -> Result<MountStatus, ServiceError>;
+    /// Clear the CL layer for an existing mount
+    async fn clear_cl(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError>;
     async fn health_info(&self) -> HealthResponse;
     async fn shutdown_cleanup(&self) -> Result<(), ServiceError>;
 }
@@ -159,11 +222,28 @@ pub trait AntaresService: Send + Sync {
 /// The UUID is generated per mount request, ensuring unique paths for each mount instance.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CreateMountRequest {
+    /// Optional build task identifier (job-level mount). When provided, Antares will treat
+    /// mount creation as idempotent for the same task id.
+    ///
+    /// This is preferred in build systems to bind mount lifecycle to a task.
+    #[serde(default)]
+    pub job_id: Option<String>,
+    /// Optional alternative task identifier (build-level). If both `job_id` and `build_id`
+    /// are provided, `job_id` takes precedence.
+    #[serde(default)]
+    pub build_id: Option<String>,
     /// Monorepo path to mount (e.g., "/third-party/mega")
     pub path: String,
     /// Optional CL (changelist) identifier for the CL layer
     #[serde(default)]
     pub cl: Option<String>,
+}
+
+/// Request payload for building/rebuilding a CL layer.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BuildClRequest {
+    /// CL (changelist) link identifier
+    pub cl: String,
 }
 
 /// Response returned after mount creation succeeds.
@@ -180,6 +260,9 @@ pub struct MountCreated {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MountStatus {
     pub mount_id: Uuid,
+    /// Optional build task identifier (job/build id) associated with this mount.
+    #[serde(default)]
+    pub job_id: Option<String>,
     /// The monorepo path being mounted
     pub path: String,
     /// Optional CL identifier
@@ -243,6 +326,8 @@ pub enum ServiceError {
     InvalidRequest(String),
     #[error("mount not found: {0}")]
     NotFound(Uuid),
+    #[error("mount not found for task id: {0}")]
+    NotFoundTask(String),
     #[error("failed to interact with fuse stack: {0}")]
     FuseFailure(String),
     #[error("unexpected error: {0}")]
@@ -270,6 +355,11 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 "NOT_FOUND",
                 format!("mount {} not found", id),
+            ),
+            ApiError::Service(ServiceError::NotFoundTask(task)) => (
+                StatusCode::NOT_FOUND,
+                "NOT_FOUND",
+                format!("mount for task {} not found", task),
             ),
             ApiError::Service(ServiceError::FuseFailure(msg)) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "FUSE_ERROR", msg.clone())
@@ -303,6 +393,8 @@ impl IntoResponse for ApiError {
 /// Internal entry tracking a single mount.
 struct MountEntry {
     mount_id: Uuid,
+    /// Optional build task identifier (job/build id) associated with this mount.
+    job_id: Option<String>,
     /// The monorepo path being mounted
     path: String,
     /// Optional CL identifier
@@ -324,6 +416,7 @@ impl MountEntry {
     fn to_status(&self) -> MountStatus {
         MountStatus {
             mount_id: self.mount_id,
+            job_id: self.job_id.clone(),
             path: self.path.clone(),
             cl: self.cl.clone(),
             mountpoint: self.mountpoint.clone(),
@@ -354,17 +447,46 @@ fn current_epoch_ms() -> u64 {
 
 /// Type alias for path index: maps (monorepo_path, optional_cl) to mount_id.
 type PathIndex = Arc<RwLock<HashMap<(String, Option<String>), Uuid>>>;
+/// Type alias for job index: maps a build task id (job_id/build_id) to mount_id.
+type JobIndex = Arc<RwLock<HashMap<String, Uuid>>>;
+
+/// Persisted mount state for recovery across restarts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistedMountState {
+    pub mount_id: Uuid,
+    #[serde(default)]
+    pub job_id: Option<String>,
+    pub path: String,
+    pub cl: Option<String>,
+    pub mountpoint: String,
+    pub upper_dir: String,
+    pub cl_dir: Option<String>,
+    pub created_at_epoch_ms: u64,
+}
+
+/// Persisted state file structure.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PersistedState {
+    pub mounts: Vec<PersistedMountState>,
+}
 
 /// Concrete implementation of AntaresService.
 pub struct AntaresServiceImpl {
-    /// Shared Dicfuse instance (read-only base layer).
+    /// Shared Dicfuse instance for root path (read-only base layer).
     dicfuse: Arc<Dicfuse>,
+    /// Cache of Dicfuse instances keyed by base_path for subdirectory mounts.
+    /// This avoids creating duplicate instances for the same path.
+    dicfuse_cache: Arc<RwLock<HashMap<String, Arc<Dicfuse>>>>,
     /// Active mounts indexed by UUID.
     mounts: Arc<RwLock<HashMap<Uuid, MountEntry>>>,
     /// Fast lookup for (path, cl) -> mount_id to avoid linear scans.
     path_index: PathIndex,
+    /// Fast lookup for (job_id/build_id) -> mount_id for task-granularity mounts.
+    job_index: JobIndex,
     /// Service start time for uptime calculation.
     start_time: Instant,
+    /// Path to the state file for persistence.
+    state_file: PathBuf,
 }
 
 impl AntaresServiceImpl {
@@ -378,13 +500,275 @@ impl AntaresServiceImpl {
     pub async fn new(dicfuse: Option<Arc<Dicfuse>>) -> Self {
         let dic = match dicfuse {
             Some(d) => d,
-            None => Arc::new(Dicfuse::new().await),
+            None => DicfuseManager::global().await,
         };
+        let state_file = PathBuf::from(crate::util::config::antares_state_file());
         Self {
             dicfuse: dic,
+            dicfuse_cache: Arc::new(RwLock::new(HashMap::new())),
             mounts: Arc::new(RwLock::new(HashMap::new())),
             path_index: Arc::new(RwLock::new(HashMap::new())),
+            job_index: Arc::new(RwLock::new(HashMap::new())),
             start_time: Instant::now(),
+            state_file,
+        }
+    }
+
+    /// Create a new service instance and recover previous mounts if available.
+    ///
+    /// # Arguments
+    /// * `dicfuse` - Optional shared Dicfuse instance. If None, creates a new one.
+    ///
+    /// # Note
+    /// Requires config to be initialized via `config::init_config()` before calling.
+    pub async fn new_with_recovery(dicfuse: Option<Arc<Dicfuse>>) -> Self {
+        let instance = Self::new(dicfuse).await;
+        instance.recover_mounts().await;
+        instance
+    }
+
+    /// Get or create a Dicfuse instance for the given path.
+    ///
+    /// For root path ("/" or empty), returns the shared global instance.
+    /// For subdirectory paths, returns a cached instance or creates a new one.
+    /// This ensures that multiple mounts with the same base_path share the same
+    /// Dicfuse instance, avoiding unnecessary duplication.
+    ///
+    /// IMPORTANT: For newly created instances, this method waits for the Dicfuse
+    /// directory tree to be fully initialized before returning. This prevents
+    /// FUSE mount failures due to root inode not being set up yet.
+    ///
+    /// # TODO(dicfuse-antares-integration)
+    /// - Support incremental directory tree loading to reduce initial wait time
+    /// - Add progress callback for long-running initialization
+    /// - Consider lazy loading for very large subdirectory mounts
+    async fn get_or_create_dicfuse(&self, path: &str) -> Result<Arc<Dicfuse>, ServiceError> {
+        // For root path, use the shared global instance
+        if path.is_empty() || path == "/" {
+            return Ok(self.dicfuse.clone());
+        }
+
+        // Normalize the path for consistent cache keys
+        let normalized_path = path.trim_end_matches('/').to_string();
+
+        // Check cache first - if found, it's already initialized
+        {
+            let cache = self.dicfuse_cache.read().await;
+            if let Some(dicfuse) = cache.get(&normalized_path) {
+                tracing::debug!(
+                    "Using cached Dicfuse instance for path: {}",
+                    normalized_path
+                );
+                return Ok(dicfuse.clone());
+            }
+        }
+
+        // Not in cache, create new instance
+        let new_dicfuse = DicfuseManager::for_base_path(&normalized_path).await;
+
+        // CRITICAL: Wait for the Dicfuse directory tree to be fully loaded before
+        // returning. Without this, FUSE mount may fail because the root inode
+        // is not set up yet when import_arc hasn't completed.
+        const INIT_TIMEOUT_SECS: u64 = 120;
+        // TODO(dicfuse-antares-integration): If many concurrent requests initialize DIFFERENT
+        // base paths, we may enqueue a large number of concurrent warmups (network + memory).
+        // Consider adding a global semaphore/queue to cap concurrent initializations.
+        tracing::info!(
+            "Waiting for Dicfuse instance to initialize for path: {} (timeout: {}s)",
+            normalized_path,
+            INIT_TIMEOUT_SECS
+        );
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(INIT_TIMEOUT_SECS),
+            new_dicfuse.store.wait_for_ready(),
+        )
+        .await
+        {
+            Ok(_) => {
+                tracing::info!(
+                    "Dicfuse initialized successfully for path: {}",
+                    normalized_path
+                );
+            }
+            Err(_) => {
+                tracing::error!(
+                    "Dicfuse initialization timed out for path: {} after {}s",
+                    normalized_path,
+                    INIT_TIMEOUT_SECS
+                );
+                return Err(ServiceError::FuseFailure(format!(
+                    "Dicfuse initialization timed out for path '{}' after {}s. \
+                     Check network connectivity to the monorepo server.",
+                    normalized_path, INIT_TIMEOUT_SECS
+                )));
+            }
+        }
+
+        // Insert into cache
+        {
+            let mut cache = self.dicfuse_cache.write().await;
+            // Double-check in case another task created it while we were waiting
+            if let Some(dicfuse) = cache.get(&normalized_path) {
+                return Ok(dicfuse.clone());
+            }
+            cache.insert(normalized_path.clone(), new_dicfuse.clone());
+            tracing::info!(
+                "Created and cached new Dicfuse instance for path: {}",
+                normalized_path
+            );
+        }
+
+        Ok(new_dicfuse)
+    }
+
+    /// Persist current mount state to file.
+    async fn persist_state(&self) {
+        let mounts = self.mounts.read().await;
+        let state = PersistedState {
+            mounts: mounts
+                .values()
+                .filter(|e| matches!(e.state, MountLifecycle::Mounted))
+                .map(|e| PersistedMountState {
+                    mount_id: e.mount_id,
+                    job_id: e.job_id.clone(),
+                    path: e.path.clone(),
+                    cl: e.cl.clone(),
+                    mountpoint: e.mountpoint.clone(),
+                    upper_dir: e.upper_dir.clone(),
+                    cl_dir: e.cl_dir.clone(),
+                    created_at_epoch_ms: e.created_at_epoch_ms,
+                })
+                .collect(),
+        };
+        drop(mounts);
+
+        // Write state to file
+        if let Some(parent) = self.state_file.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                tracing::warn!("Failed to create state directory: {}", e);
+                return;
+            }
+        }
+
+        match toml::to_string_pretty(&state) {
+            Ok(content) => {
+                if let Err(e) = std::fs::write(&self.state_file, content) {
+                    tracing::warn!("Failed to write state file: {}", e);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to serialize state: {}", e);
+            }
+        }
+    }
+
+    /// Recover mounts from persisted state file.
+    async fn recover_mounts(&self) {
+        if !self.state_file.exists() {
+            tracing::debug!(
+                "No state file found at {:?}, skipping recovery",
+                self.state_file
+            );
+            return;
+        }
+
+        let content = match std::fs::read_to_string(&self.state_file) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Failed to read state file: {}", e);
+                return;
+            }
+        };
+
+        let state: PersistedState = match toml::from_str(&content) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Failed to parse state file: {}", e);
+                tracing::error!(
+                    "Failed to parse state file at {:?}: {}. Skipping mount recovery.",
+                    self.state_file,
+                    e
+                );
+                return;
+            }
+        };
+
+        tracing::info!("Recovering {} mounts from state file", state.mounts.len());
+
+        for persisted in state.mounts {
+            // Check if mountpoint still exists
+            let mountpoint = PathBuf::from(&persisted.mountpoint);
+            if !mountpoint.exists() {
+                tracing::info!(
+                    "Skipping recovery of mount {} - mountpoint no longer exists",
+                    persisted.mount_id
+                );
+                continue;
+            }
+
+            // Get or create Dicfuse instance (uses cache for subdirectory paths)
+            let dicfuse = match self.get_or_create_dicfuse(&persisted.path).await {
+                Ok(d) => d,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get Dicfuse for {} during recovery: {}",
+                        persisted.mount_id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            let upper_dir = PathBuf::from(&persisted.upper_dir);
+            let cl_dir = persisted.cl_dir.as_ref().map(PathBuf::from);
+
+            // Try to create and mount AntaresFuse
+            match AntaresFuse::new(mountpoint.clone(), dicfuse, upper_dir, cl_dir.clone()).await {
+                Ok(mut fuse) => {
+                    if let Err(e) = fuse.mount().await {
+                        tracing::warn!(
+                            "Failed to remount {} during recovery: {}",
+                            persisted.mount_id,
+                            e
+                        );
+                        continue;
+                    }
+
+                    // Create entry
+                    let entry = MountEntry {
+                        mount_id: persisted.mount_id,
+                        job_id: persisted.job_id.clone(),
+                        path: persisted.path.clone(),
+                        cl: persisted.cl.clone(),
+                        mountpoint: persisted.mountpoint.clone(),
+                        upper_dir: persisted.upper_dir.clone(),
+                        cl_dir: persisted.cl_dir.clone(),
+                        fuse,
+                        state: MountLifecycle::Mounted,
+                        created_at_epoch_ms: persisted.created_at_epoch_ms,
+                        last_seen_epoch_ms: current_epoch_ms(),
+                    };
+
+                    let mut mounts = self.mounts.write().await;
+                    let mut index = self.path_index.write().await;
+                    let mut job_index = self.job_index.write().await;
+                    mounts.insert(persisted.mount_id, entry);
+                    if let Some(job_id) = persisted.job_id {
+                        job_index.insert(job_id, persisted.mount_id);
+                    } else {
+                        index.insert((persisted.path, persisted.cl), persisted.mount_id);
+                    }
+
+                    tracing::info!("Recovered mount {} at {:?}", persisted.mount_id, mountpoint);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to create AntaresFuse for recovery of {}: {}",
+                        persisted.mount_id,
+                        e
+                    );
+                }
+            }
         }
     }
 
@@ -416,6 +800,7 @@ impl AntaresServiceImpl {
     pub async fn shutdown_cleanup_impl(&self) -> Result<(), ServiceError> {
         let mut mounts = self.mounts.write().await;
         let mut index = self.path_index.write().await;
+        let mut job_index = self.job_index.write().await;
 
         for (mount_id, mut entry) in mounts.drain() {
             tracing::info!("Unmounting {} during shutdown", mount_id);
@@ -423,8 +808,12 @@ impl AntaresServiceImpl {
                 tracing::warn!("Failed to unmount {} during shutdown: {}", mount_id, e);
                 // Continue with other mounts even if one fails
             }
-            index.retain(|_, v| v != &mount_id);
         }
+        // All mounts drained; clear indices.
+        // TODO(antares): If we ever decide to keep failed-unmount mounts in memory/state for
+        // later retry, revisit index cleanup to avoid inconsistencies.
+        index.clear();
+        job_index.clear();
         Ok(())
     }
 }
@@ -438,8 +827,56 @@ impl AntaresService for AntaresServiceImpl {
         // 1. Validate request
         Self::validate_request(&request)?;
 
-        // 2. Check if path+cl combination is already mounted
-        if self
+        // Derive a task identifier (job/build id) if provided.
+        let task_id: Option<String> = request
+            .job_id
+            .clone()
+            .or(request.build_id.clone())
+            .and_then(|s| {
+                let trimmed = s.trim().to_string();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
+            });
+
+        // 2. Idempotency / de-dup policy:
+        // - If task_id is provided: treat create as idempotent for the same task id.
+        //   This supports build-task-granularity mounts.
+        // - If task_id is NOT provided: keep legacy behavior and reject duplicate (path, cl).
+        if let Some(ref job_id) = task_id {
+            // Fast path: already mounted for this task id -> return existing mount.
+            if let Some(existing_id) = { self.job_index.read().await.get(job_id).cloned() } {
+                let mut mounts = self.mounts.write().await;
+                if let Some(entry) = mounts.get_mut(&existing_id) {
+                    // Guard against job_id reuse with different request params.
+                    if entry.path != request.path || entry.cl != request.cl {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' already mounted with different path/cl",
+                            job_id
+                        )));
+                    }
+                    // If the mount is being torn down, do NOT treat this as an idempotent success.
+                    // Otherwise we may return a mount_id that is about to be removed, causing
+                    // follow-up describe/delete calls to 404.
+                    if !matches!(entry.state, MountLifecycle::Mounted) {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
+                            job_id, entry.state
+                        )));
+                    }
+                    entry.update_last_seen();
+                    return Ok(MountCreated {
+                        mount_id: existing_id,
+                        mountpoint: entry.mountpoint.clone(),
+                    });
+                } else {
+                    // Stale index entry: remove and continue with fresh mount creation.
+                    self.job_index.write().await.remove(job_id);
+                }
+            }
+        } else if self
             .is_path_already_mounted(&request.path, request.cl.as_deref())
             .await
         {
@@ -470,50 +907,124 @@ impl AntaresService for AntaresServiceImpl {
         let upper_dir = PathBuf::from(&upper_dir_str);
         let cl_dir = cl_dir_str.as_ref().map(PathBuf::from);
 
-        // 4. Create AntaresFuse instance (may take time, not holding lock)
-        let mut fuse = AntaresFuse::new(mountpoint, self.dicfuse.clone(), upper_dir, cl_dir)
+        // 4. Build CL layer if cl is provided
+        if let Some(ref cl_link) = request.cl {
+            if let Some(ref cl_dir_path) = cl_dir {
+                build_cl_layer(cl_link, cl_dir_path.clone(), &request.path)
+                    .await
+                    .map_err(|e| {
+                        ServiceError::Internal(format!("failed to build CL layer: {}", e))
+                    })?;
+                tracing::info!(
+                    "Built CL layer for {} with link {} at {:?}",
+                    request.path,
+                    cl_link,
+                    cl_dir_path
+                );
+            }
+        }
+
+        // 5. Get or create Dicfuse instance for this mount (uses cache for subdirectory paths)
+        // If a specific base path is requested (not root), get from cache or create a dedicated
+        // Dicfuse with path remapping. Otherwise, use the shared global instance.
+        // This may take time for new subdirectory paths as it waits for import_arc to complete.
+        let dicfuse = self.get_or_create_dicfuse(&request.path).await?;
+
+        // 6. Create AntaresFuse instance (may take time, not holding lock)
+        let mut fuse = AntaresFuse::new(mountpoint, dicfuse, upper_dir, cl_dir)
             .await
             .map_err(|e| ServiceError::FuseFailure(format!("failed to create fuse: {}", e)))?;
 
-        // 5. Mount the filesystem
+        // 7. Mount the filesystem
         fuse.mount()
             .await
             .map_err(|e| ServiceError::FuseFailure(format!("failed to mount: {}", e)))?;
 
-        // 6. Create entry
+        // 8. Record timestamps. We'll only construct MountEntry after passing the duplicate check
+        // so we can rollback the FUSE mount safely on race losers.
         let now = current_epoch_ms();
 
+        // 9. Insert into mounts map
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+        let mut job_index = self.job_index.write().await;
+
+        // Double-check for races after acquiring write locks (match the policy above).
+        if let Some(ref job_id) = task_id {
+            if job_index.contains_key(job_id) {
+                // IMPORTANT: rollback the freshly mounted FUSE session before returning.
+                // Under concurrent POST /mounts for the same job_id/build_id, the losing request
+                // may have already mounted a FUSE session but not yet inserted it into mounts /
+                // job_index. Returning early here would leak an orphan mount that cannot be
+                // tracked or cleaned up.
+                let err = ServiceError::InvalidRequest(format!(
+                    "job_id/build_id '{}' is already mounted",
+                    job_id
+                ));
+                drop(mounts);
+                drop(index);
+                drop(job_index);
+
+                tracing::warn!(
+                    "create_mount duplicate task_id detected after mount; rolling back orphan mount {}",
+                    mount_id
+                );
+                let _ = fuse.unmount().await;
+                let _ = std::fs::remove_dir_all(&mountpoint_str);
+                let _ = std::fs::remove_dir_all(&upper_dir_str);
+                if let Some(c) = cl_dir_str.as_deref() {
+                    let _ = std::fs::remove_dir_all(c);
+                }
+                return Err(err);
+            }
+        } else if index.contains_key(&(request.path.clone(), request.cl.clone())) {
+            // Same rollback logic as above for legacy (path, cl) duplicates.
+            let err = ServiceError::InvalidRequest(format!(
+                "path {} with cl {:?} is already mounted",
+                request.path, request.cl
+            ));
+            drop(mounts);
+            drop(index);
+            drop(job_index);
+
+            tracing::warn!(
+                "create_mount duplicate (path, cl) detected after mount; rolling back orphan mount {}",
+                mount_id
+            );
+            let _ = fuse.unmount().await;
+            let _ = std::fs::remove_dir_all(&mountpoint_str);
+            let _ = std::fs::remove_dir_all(&upper_dir_str);
+            if let Some(c) = cl_dir_str.as_deref() {
+                let _ = std::fs::remove_dir_all(c);
+            }
+            return Err(err);
+        }
+
+        // Now it's safe to commit the mount into the in-memory state.
         let entry = MountEntry {
             mount_id,
+            job_id: task_id.clone(),
             path: request.path.clone(),
             cl: request.cl.clone(),
             mountpoint: mountpoint_str.clone(),
-            upper_dir: upper_dir_str,
-            cl_dir: cl_dir_str,
+            upper_dir: upper_dir_str.clone(),
+            cl_dir: cl_dir_str.clone(),
             fuse,
             state: MountLifecycle::Mounted,
             created_at_epoch_ms: now,
             last_seen_epoch_ms: now,
         };
 
-        // 7. Insert into mounts map
-        let mut mounts = self.mounts.write().await;
-        let mut index = self.path_index.write().await;
-
-        // Double-check for races after acquiring write locks
-        if index.contains_key(&(request.path.clone(), request.cl.clone())) {
-            return Err(ServiceError::InvalidRequest(format!(
-                "path {} with cl {:?} is already mounted",
-                request.path, request.cl
-            )));
-        }
-
         // Preserve path/cl for logging before moving into index
         let path_for_log = request.path.clone();
         let cl_for_log = request.cl.clone();
 
         mounts.insert(mount_id, entry);
-        index.insert((request.path, request.cl), mount_id);
+        if let Some(job_id) = task_id {
+            job_index.insert(job_id, mount_id);
+        } else {
+            index.insert((request.path.clone(), request.cl.clone()), mount_id);
+        }
 
         tracing::info!(
             "Created mount {} for path '{}' (cl: {:?}) at {}",
@@ -522,6 +1033,16 @@ impl AntaresService for AntaresServiceImpl {
             cl_for_log,
             mountpoint_str
         );
+
+        // IMPORTANT: release locks before persisting state.
+        // `persist_state()` acquires `self.mounts.read()`. If we keep holding `mounts.write()`
+        // here, the task deadlocks and the HTTP request never returns (curl hangs at step [1]).
+        drop(mounts);
+        drop(index);
+        drop(job_index);
+
+        // Persist state to file for recovery
+        self.persist_state().await;
 
         Ok(MountCreated {
             mount_id,
@@ -560,6 +1081,7 @@ impl AntaresService for AntaresServiceImpl {
         // Store path/cl for index removal, then take ownership of fuse for unmount
         let path = entry.path.clone();
         let cl = entry.cl.clone();
+        let job_id = entry.job_id.clone();
         let mountpoint = PathBuf::from(&entry.mountpoint);
         let upper_dir = PathBuf::from(&entry.upper_dir);
         let cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
@@ -588,6 +1110,7 @@ impl AntaresService for AntaresServiceImpl {
         // Reacquire locks to update state and remove if needed
         let mut mounts = self.mounts.write().await;
         let mut index = self.path_index.write().await;
+        let mut job_index = self.job_index.write().await;
 
         let entry = match mounts.get_mut(&mount_id) {
             Some(entry) => entry,
@@ -598,6 +1121,7 @@ impl AntaresService for AntaresServiceImpl {
                 );
                 drop(mounts);
                 drop(index);
+                drop(job_index);
                 return Err(ServiceError::Internal(format!(
                     "Mount entry {} not found during unmount; this should not happen",
                     mount_id
@@ -617,6 +1141,7 @@ impl AntaresService for AntaresServiceImpl {
             let status = entry.to_status();
             drop(mounts);
             drop(index);
+            drop(job_index);
             return Ok(status);
         } else {
             entry.state = MountLifecycle::Unmounted;
@@ -624,12 +1149,156 @@ impl AntaresService for AntaresServiceImpl {
             // Remove from mounts and index only after successful unmount
             let status = entry.to_status();
             mounts.remove(&mount_id);
-            index.remove(&(path, cl));
+            if let Some(job_id) = job_id {
+                job_index.remove(&job_id);
+            } else {
+                index.remove(&(path, cl));
+            }
             drop(mounts);
             drop(index);
+            drop(job_index);
             tracing::info!("Deleted mount {}", mount_id);
+
+            // Persist state to file for recovery
+            self.persist_state().await;
+
             Ok(status)
         }
+    }
+
+    async fn build_cl(&self, mount_id: Uuid, cl_link: String) -> Result<MountStatus, ServiceError> {
+        // Get mount entry and verify it exists
+        let mounts = self.mounts.read().await;
+        let entry = mounts
+            .get(&mount_id)
+            .ok_or(ServiceError::NotFound(mount_id))?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot build CL",
+                mount_id, entry.state
+            )));
+        }
+
+        // Get or create CL directory path
+        let cl_root = crate::util::config::antares_cl_root();
+        let cl_dir_str = format!("{}/{}", cl_root, mount_id);
+        let cl_dir_path = PathBuf::from(&cl_dir_str);
+
+        // Store path for build_cl_layer before releasing lock
+        let repo_path = entry.path.clone();
+
+        // Release lock before potentially slow CL layer build
+        drop(mounts);
+
+        // Build the CL layer
+        build_cl_layer(&cl_link, cl_dir_path.clone(), &repo_path)
+            .await
+            .map_err(|e| ServiceError::Internal(format!("failed to build CL layer: {}", e)))?;
+
+        // Reacquire lock to update entry
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+
+        let entry = mounts.get_mut(&mount_id).ok_or_else(|| {
+            // Best-effort cleanup: build_cl created cl_dir_path but the mount vanished.
+            let _ = std::fs::remove_dir_all(&cl_dir_path);
+            ServiceError::NotFound(mount_id)
+        })?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            // Best-effort cleanup: don't leave behind a CL directory for a mount being torn down.
+            let _ = std::fs::remove_dir_all(&cl_dir_path);
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot build CL",
+                mount_id, entry.state
+            )));
+        }
+
+        // Update entry with new CL info
+        let old_cl = entry.cl.clone();
+        entry.cl = Some(cl_link.clone());
+        entry.cl_dir = Some(cl_dir_str);
+        entry.update_last_seen();
+
+        // Update path index if CL changed (legacy mounts only).
+        // Task-granularity mounts are keyed by job_id/build_id and are not tracked in path_index.
+        if entry.job_id.is_none() && old_cl != entry.cl {
+            let path = entry.path.clone();
+            // Remove old index entry
+            index.remove(&(path.clone(), old_cl));
+            // Add new index entry
+            index.insert((path, entry.cl.clone()), mount_id);
+        }
+
+        let status = entry.to_status();
+        tracing::info!(
+            "Built CL layer for mount {} with link {}",
+            mount_id,
+            cl_link
+        );
+        drop(mounts);
+        drop(index);
+
+        // Persist state to file for recovery (CL changes must survive restarts).
+        self.persist_state().await;
+
+        Ok(status)
+    }
+
+    async fn clear_cl(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+
+        let entry = mounts
+            .get_mut(&mount_id)
+            .ok_or(ServiceError::NotFound(mount_id))?;
+        if !matches!(entry.state, MountLifecycle::Mounted) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; cannot clear CL",
+                mount_id, entry.state
+            )));
+        }
+
+        if entry.cl.is_none() {
+            return Err(ServiceError::InvalidRequest(
+                "mount has no CL layer to clear".into(),
+            ));
+        }
+
+        // Remove CL directory contents
+        if let Some(ref cl_dir) = entry.cl_dir {
+            let cl_path = PathBuf::from(cl_dir);
+            if cl_path.exists() {
+                std::fs::remove_dir_all(&cl_path).map_err(|e| {
+                    ServiceError::Internal(format!("failed to remove CL directory: {}", e))
+                })?;
+                // Recreate empty directory
+                std::fs::create_dir_all(&cl_path).map_err(|e| {
+                    ServiceError::Internal(format!("failed to recreate CL directory: {}", e))
+                })?;
+            }
+        }
+
+        // Update path index (legacy mounts only).
+        if entry.job_id.is_none() {
+            let path = entry.path.clone();
+            let old_cl = entry.cl.clone();
+            index.remove(&(path.clone(), old_cl));
+            index.insert((path, None), mount_id);
+        }
+
+        // Clear CL from entry
+        entry.cl = None;
+        entry.update_last_seen();
+
+        let status = entry.to_status();
+        tracing::info!("Cleared CL layer for mount {}", mount_id);
+        drop(mounts);
+        drop(index);
+
+        // Persist state to file for recovery (CL changes must survive restarts).
+        self.persist_state().await;
+
+        Ok(status)
     }
 
     async fn health_info(&self) -> HealthResponse {
@@ -650,6 +1319,7 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use futures::future::join_all;
     use tower::ServiceExt;
 
     /// Mock service for testing HTTP layer without actual FUSE operations
@@ -675,8 +1345,35 @@ mod tests {
                 return Err(ServiceError::InvalidRequest("path cannot be empty".into()));
             }
 
-            // Check for duplicate path+cl
-            {
+            let task_id = request.job_id.clone().or(request.build_id.clone());
+
+            // Idempotency / de-dup policy:
+            // - If task_id is provided: idempotent per task id.
+            // - Otherwise: legacy behavior, reject duplicate (path, cl).
+            if let Some(ref job_id) = task_id {
+                let mounts = self.mounts.read().await;
+                if let Some(existing) = mounts
+                    .values()
+                    .find(|m| m.job_id.as_deref() == Some(job_id))
+                {
+                    if existing.path != request.path || existing.cl != request.cl {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' already mounted with different path/cl",
+                            job_id
+                        )));
+                    }
+                    if !matches!(existing.state, MountLifecycle::Mounted) {
+                        return Err(ServiceError::InvalidRequest(format!(
+                            "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
+                            job_id, existing.state
+                        )));
+                    }
+                    return Ok(MountCreated {
+                        mount_id: existing.mount_id,
+                        mountpoint: existing.mountpoint.clone(),
+                    });
+                }
+            } else {
                 let mounts = self.mounts.read().await;
                 if mounts
                     .values()
@@ -701,6 +1398,7 @@ mod tests {
 
             let status = MountStatus {
                 mount_id,
+                job_id: task_id.clone(),
                 path: request.path,
                 cl: request.cl,
                 mountpoint: mountpoint.clone(),
@@ -744,6 +1442,47 @@ mod tests {
                     s
                 })
                 .ok_or(ServiceError::NotFound(mount_id))
+        }
+
+        async fn build_cl(
+            &self,
+            mount_id: Uuid,
+            cl_link: String,
+        ) -> Result<MountStatus, ServiceError> {
+            let mut mounts = self.mounts.write().await;
+            let status = mounts
+                .get_mut(&mount_id)
+                .ok_or(ServiceError::NotFound(mount_id))?;
+            if !matches!(status.state, MountLifecycle::Mounted) {
+                return Err(ServiceError::InvalidRequest(format!(
+                    "mount {} is currently in state {:?}; cannot build CL",
+                    mount_id, status.state
+                )));
+            }
+            status.cl = Some(cl_link);
+            status.layers.cl = Some(format!("/tmp/mock_cl/{}", mount_id));
+            Ok(status.clone())
+        }
+
+        async fn clear_cl(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
+            let mut mounts = self.mounts.write().await;
+            let status = mounts
+                .get_mut(&mount_id)
+                .ok_or(ServiceError::NotFound(mount_id))?;
+            if !matches!(status.state, MountLifecycle::Mounted) {
+                return Err(ServiceError::InvalidRequest(format!(
+                    "mount {} is currently in state {:?}; cannot clear CL",
+                    mount_id, status.state
+                )));
+            }
+            if status.cl.is_none() {
+                return Err(ServiceError::InvalidRequest(
+                    "mount has no CL layer to clear".into(),
+                ));
+            }
+            status.cl = None;
+            status.layers.cl = None;
+            Ok(status.clone())
         }
 
         async fn health_info(&self) -> HealthResponse {
@@ -819,6 +1558,86 @@ mod tests {
         let created: MountCreated = serde_json::from_slice(&body).unwrap();
         // Mountpoint is auto-generated with UUID
         assert!(created.mountpoint.starts_with("/tmp/mock_mnt/"));
+    }
+
+    #[tokio::test]
+    async fn test_mount_by_job_and_delete_by_job() {
+        let app = create_test_router();
+
+        let body = serde_json::json!({
+            "job_id": "job-1",
+            "path": "/third-party/mega",
+            "cl": "CL123"
+        });
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mounts")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Describe by job_id
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/mounts/by-job/job-1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let status: MountStatus = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status.job_id.as_deref(), Some("job-1"));
+        assert_eq!(status.path, "/third-party/mega");
+        assert_eq!(status.cl.as_deref(), Some("CL123"));
+
+        // Delete by job_id
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/mounts/by-job/job-1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let deleted: MountStatus = serde_json::from_slice(&body).unwrap();
+        assert_eq!(deleted.job_id.as_deref(), Some("job-1"));
+        assert!(matches!(deleted.state, MountLifecycle::Unmounted));
+
+        // Now describe should be 404.
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/mounts/by-job/job-1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
@@ -949,6 +1768,8 @@ mod tests {
                 let svc = service.clone();
                 tokio::spawn(async move {
                     svc.create_mount(CreateMountRequest {
+                        job_id: None,
+                        build_id: None,
                         path: format!("/project/path{}", i),
                         cl: None,
                     })
@@ -971,6 +1792,8 @@ mod tests {
         let service = Arc::new(MockAntaresService::new());
 
         let request = CreateMountRequest {
+            job_id: None,
+            build_id: None,
             path: "/third-party/mega".into(),
             cl: Some("CL123".into()),
         };
@@ -985,12 +1808,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_job_id_idempotent() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let request = CreateMountRequest {
+            job_id: Some("job-123".into()),
+            build_id: None,
+            path: "/third-party/mega".into(),
+            cl: Some("CL123".into()),
+        };
+
+        let first = service.create_mount(request.clone()).await.unwrap();
+        let second = service.create_mount(request).await.unwrap();
+
+        assert_eq!(first.mount_id, second.mount_id);
+        assert_eq!(first.mountpoint, second.mountpoint);
+    }
+
+    #[tokio::test]
+    async fn test_job_id_idempotent_rejected_when_unmounting() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let request = CreateMountRequest {
+            job_id: Some("job-123".into()),
+            build_id: None,
+            path: "/third-party/mega".into(),
+            cl: Some("CL123".into()),
+        };
+
+        let first = service.create_mount(request.clone()).await.unwrap();
+
+        // Simulate a concurrent teardown where job_id is still present but mount is unmounting.
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&first.mount_id).unwrap();
+            s.state = MountLifecycle::Unmounting;
+        }
+
+        let second = service.create_mount(request).await;
+        assert!(matches!(second, Err(ServiceError::InvalidRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn test_same_path_cl_different_job_id_allowed() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let req1 = CreateMountRequest {
+            job_id: Some("job-a".into()),
+            build_id: None,
+            path: "/third-party/mega".into(),
+            cl: Some("CL123".into()),
+        };
+        let req2 = CreateMountRequest {
+            job_id: Some("job-b".into()),
+            build_id: None,
+            path: "/third-party/mega".into(),
+            cl: Some("CL123".into()),
+        };
+
+        let r1 = service.create_mount(req1).await;
+        let r2 = service.create_mount(req2).await;
+        assert!(r1.is_ok());
+        assert!(r2.is_ok());
+
+        let mounts = service.list_mounts().await.unwrap();
+        assert_eq!(mounts.len(), 2);
+    }
+
+    #[tokio::test]
     async fn test_delete_mount_success() {
         let service = Arc::new(MockAntaresService::new());
 
         // Create a mount
         let created = service
             .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
                 path: "/third-party/mega".into(),
                 cl: None,
             })
@@ -1015,6 +1908,8 @@ mod tests {
         // Mount with CL1
         let result1 = service
             .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
                 path: "/third-party/mega".into(),
                 cl: Some("CL1".into()),
             })
@@ -1024,6 +1919,8 @@ mod tests {
         // Mount with CL2 (same path, different CL) should succeed
         let result2 = service
             .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
                 path: "/third-party/mega".into(),
                 cl: Some("CL2".into()),
             })
@@ -1033,5 +1930,273 @@ mod tests {
         // Should have 2 mounts
         let mounts = service.list_mounts().await.unwrap();
         assert_eq!(mounts.len(), 2);
+    }
+
+    /// Test concurrent mount creation to verify thread safety.
+    /// This validates that multiple Antares instances can safely share
+    /// the same service and create mounts concurrently.
+    #[tokio::test]
+    async fn test_concurrent_mount_creation() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // Spawn 10 concurrent mount creation tasks
+        let mut handles = Vec::new();
+        for i in 0..10 {
+            let svc = service.clone();
+            let handle = tokio::spawn(async move {
+                let request = CreateMountRequest {
+                    job_id: None,
+                    build_id: None,
+                    path: format!("/concurrent-path-{}", i),
+                    cl: None,
+                };
+                svc.create_mount(request).await
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all tasks to complete
+        let results: Vec<_> = join_all(handles).await;
+
+        // All should succeed
+        let mut success_count = 0;
+        for result in results {
+            match result {
+                Ok(Ok(_)) => success_count += 1,
+                Ok(Err(e)) => panic!("Mount creation failed: {:?}", e),
+                Err(e) => panic!("Task panicked: {:?}", e),
+            }
+        }
+        assert_eq!(success_count, 10, "All 10 concurrent mounts should succeed");
+
+        // Verify all mounts are listed
+        let mounts = service.list_mounts().await.unwrap();
+        assert_eq!(
+            mounts.len(),
+            10,
+            "Should have 10 mounts after concurrent creation"
+        );
+
+        // Verify paths are unique
+        let paths: std::collections::HashSet<_> = mounts.iter().map(|m| m.path.clone()).collect();
+        assert_eq!(paths.len(), 10, "All paths should be unique");
+    }
+
+    /// Test concurrent operations on the same mount.
+    #[tokio::test]
+    async fn test_concurrent_operations_same_mount() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // Create a mount
+        let request = CreateMountRequest {
+            job_id: None,
+            build_id: None,
+            path: "/test-concurrent-ops".to_string(),
+            cl: None,
+        };
+        let created = service.create_mount(request).await.unwrap();
+        let mount_id = created.mount_id;
+
+        // Spawn multiple concurrent describe operations
+        let mut handles = Vec::new();
+        for _ in 0..20 {
+            let svc = service.clone();
+            let id = mount_id;
+            let handle = tokio::spawn(async move { svc.describe_mount(id).await });
+            handles.push(handle);
+        }
+
+        // All describe operations should succeed
+        let results: Vec<_> = join_all(handles).await;
+        for result in results {
+            assert!(
+                result.is_ok() && result.unwrap().is_ok(),
+                "All describe operations should succeed"
+            );
+        }
+    }
+
+    /// Test build_cl API - successfully add CL layer to mount
+    #[tokio::test]
+    async fn test_build_cl_success() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // Create a mount without CL
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        let mount_id = created.mount_id;
+
+        // Build CL layer
+        let status = service.build_cl(mount_id, "CL123".into()).await.unwrap();
+        assert_eq!(status.cl, Some("CL123".into()));
+        assert!(status.layers.cl.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_build_cl_rejected_when_unmounting() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&created.mount_id).unwrap();
+            s.state = MountLifecycle::Unmounting;
+        }
+
+        let result = service.build_cl(created.mount_id, "CL123".into()).await;
+        assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
+    }
+
+    /// Test build_cl API - mount not found
+    #[tokio::test]
+    async fn test_build_cl_not_found() {
+        let service = Arc::new(MockAntaresService::new());
+        let fake_id = Uuid::new_v4();
+
+        let result = service.build_cl(fake_id, "CL123".into()).await;
+        assert!(matches!(result, Err(ServiceError::NotFound(_))));
+    }
+
+    /// Test clear_cl API - successfully clear CL layer
+    #[tokio::test]
+    async fn test_clear_cl_success() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // Create a mount with CL
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: Some("CL123".into()),
+            })
+            .await
+            .unwrap();
+
+        let mount_id = created.mount_id;
+
+        // Clear CL layer
+        let status = service.clear_cl(mount_id).await.unwrap();
+        assert_eq!(status.cl, None);
+        assert!(status.layers.cl.is_none());
+    }
+
+    /// Test clear_cl API - no CL layer to clear
+    #[tokio::test]
+    async fn test_clear_cl_no_layer() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // Create a mount without CL
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        let mount_id = created.mount_id;
+
+        // Try to clear non-existent CL layer
+        let result = service.clear_cl(mount_id).await;
+        assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
+    }
+
+    /// Test HTTP endpoint for build_cl
+    #[tokio::test]
+    async fn test_http_build_cl() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // First create a mount
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/test/path".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        let daemon = AntaresDaemon::new(service);
+        let app = daemon.router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/mounts/{}/cl", created.mount_id))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"cl":"CL456"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let status: MountStatus = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status.cl, Some("CL456".into()));
+    }
+
+    /// Test HTTP endpoint for clear_cl
+    #[tokio::test]
+    async fn test_http_clear_cl() {
+        let service = Arc::new(MockAntaresService::new());
+
+        // First create a mount with CL
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/test/path".into(),
+                cl: Some("CL123".into()),
+            })
+            .await
+            .unwrap();
+
+        let daemon = AntaresDaemon::new(service);
+        let app = daemon.router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/mounts/{}/cl", created.mount_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let status: MountStatus = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status.cl, None);
     }
 }

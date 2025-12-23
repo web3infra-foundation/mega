@@ -1,7 +1,12 @@
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::sync::OnceCell;
 
+use dashmap::DashMap;
+
 use super::Dicfuse;
+use crate::util::config;
 
 /// Global Dicfuse instance manager.
 ///
@@ -34,6 +39,35 @@ use super::Dicfuse;
 pub struct DicfuseManager;
 
 static GLOBAL_DICFUSE: OnceCell<Arc<Dicfuse>> = OnceCell::const_new();
+static DICFUSE_CACHE: OnceCell<DashMap<DicfuseCacheKey, Arc<OnceCell<Arc<Dicfuse>>>>> =
+    OnceCell::const_new();
+
+#[derive(Debug, Clone, Eq)]
+struct DicfuseCacheKey {
+    store_root: String,
+    base_path: String,
+}
+
+impl PartialEq for DicfuseCacheKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.store_root == other.store_root && self.base_path == other.base_path
+    }
+}
+
+impl Hash for DicfuseCacheKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.store_root.hash(state);
+        self.base_path.hash(state);
+    }
+}
+
+fn normalize_base_path(base_path: &str) -> String {
+    if base_path.is_empty() || base_path == "/" {
+        "/".to_string()
+    } else {
+        base_path.trim_end_matches('/').to_string()
+    }
+}
 
 impl DicfuseManager {
     /// Get or initialize the global Dicfuse instance.
@@ -67,9 +101,88 @@ impl DicfuseManager {
     /// ```
     pub async fn global() -> Arc<Dicfuse> {
         GLOBAL_DICFUSE
-            .get_or_init(|| async { Arc::new(Dicfuse::new().await) })
+            .get_or_init(|| async {
+                let dicfuse = Arc::new(Dicfuse::new().await);
+                // Trigger import_arc immediately so directory tree starts loading.
+                // Guarded so we don't start multiple concurrent imports for the same store.
+                if dicfuse.store.try_start_import() {
+                    let store_clone = dicfuse.store.clone();
+                    tokio::spawn(async move {
+                        super::store::import_arc(store_clone).await;
+                    });
+                }
+                dicfuse
+            })
             .await
             .clone()
+    }
+
+    /// Get or initialize a shared Dicfuse instance for a specific base path.
+    ///
+    /// This enables multiple Antares mounts that use the same `base_path` to share one Dicfuse
+    /// instance (and thus one set of in-memory caches), improving stability and performance in
+    /// high-concurrency build scenarios.
+    ///
+    /// The `store_root` is the configured `store_path` directory from config; per-base_path stores
+    /// are isolated under that root to avoid sled DB lock conflicts.
+    ///
+    /// # TODO(dicfuse-antares-integration)
+    /// - Add LRU eviction for cached Dicfuse instances to limit memory usage
+    /// - Support instance prewarming for known build paths
+    /// - Add health check / refresh mechanism for long-lived instances
+    pub async fn for_base_path(base_path: &str) -> Arc<Dicfuse> {
+        let store_root = config::store_path().to_string();
+        Self::for_base_path_with_store_root(base_path, &store_root).await
+    }
+
+    /// Same as `for_base_path`, but allows explicitly specifying the store root directory.
+    /// Useful for tests that want isolated on-disk state.
+    pub async fn for_base_path_with_store_root(base_path: &str, store_root: &str) -> Arc<Dicfuse> {
+        let normalized = normalize_base_path(base_path);
+
+        // For the root view, prefer the global singleton when using the default store_root.
+        if normalized == "/" && store_root == config::store_path() {
+            return Self::global().await;
+        }
+
+        let cache = DICFUSE_CACHE.get_or_init(|| async { DashMap::new() }).await;
+
+        let key = DicfuseCacheKey {
+            store_root: store_root.to_string(),
+            base_path: normalized.clone(),
+        };
+
+        let cell = cache
+            .entry(key)
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
+
+        cell.get_or_init(|| async move {
+            // Use a deterministic per-base_path directory so multiple mounts can share it.
+            // Keep it stable across process restarts for cache reuse.
+            let store_path =
+                super::compute_store_dir_for_base_path_with_store_root(store_root, &normalized);
+            let _ = std::fs::create_dir_all(&store_path);
+
+            let dicfuse = Arc::new(
+                Dicfuse::new_with_base_path_and_store_path(&normalized, &store_path).await,
+            );
+
+            // IMPORTANT: Trigger import_arc immediately so the directory tree starts loading.
+            // This is necessary because `import_arc` is normally called in `Filesystem::init()`
+            // when FUSE mounts, but callers may need to wait_for_ready() BEFORE mounting
+            // (e.g., the Antares daemon needs the root inode to be set up first).
+            if dicfuse.store.try_start_import() {
+                let store_clone = dicfuse.store.clone();
+                tokio::spawn(async move {
+                    super::store::import_arc(store_clone).await;
+                });
+            }
+
+            dicfuse
+        })
+        .await
+        .clone()
     }
 
     /// Create a new Dicfuse instance (for testing or special cases).
@@ -107,7 +220,15 @@ impl DicfuseManager {
     /// the global on-disk database path configured in `scorpio_test.toml`.
     #[allow(clippy::new_ret_no_self)]
     pub async fn new() -> Arc<Dicfuse> {
-        Arc::new(Dicfuse::new().await)
+        // IMPORTANT: avoid opening the global on-disk DB path (can conflict with the global singleton).
+        // Use a unique temporary store root for isolated instances.
+        let nanos = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let tmp_root = format!("/tmp/scorpio_dicfuse_isolated_{}", nanos);
+        let _ = std::fs::create_dir_all(&tmp_root);
+        Arc::new(Dicfuse::new_with_store_path(&tmp_root).await)
     }
 }
 

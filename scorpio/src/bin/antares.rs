@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
+use reqwest::blocking::Client;
 use scorpio::antares::{AntaresManager, AntaresPaths};
 use scorpio::daemon::antares::{AntaresDaemon, AntaresServiceImpl};
 use scorpio::util::config;
@@ -53,6 +54,20 @@ enum Commands {
         /// Address to bind to (e.g., "0.0.0.0:2726")
         #[arg(long, default_value = "0.0.0.0:2726")]
         bind: String,
+    },
+    /// Mount via HTTP daemon (recommended for build systems to ensure unified behavior).
+    HttpMount {
+        /// Unique job identifier (recommended). If omitted, the daemon will create a UUID-based mount.
+        #[arg(long)]
+        job_id: Option<String>,
+        /// Monorepo path to mount (e.g., "/third-party/mega")
+        path: String,
+        /// Optional CL identifier
+        #[arg(long)]
+        cl: Option<String>,
+        /// Daemon base URL (e.g., "http://127.0.0.1:2726")
+        #[arg(long, default_value = "http://127.0.0.1:2726")]
+        endpoint: String,
     },
 }
 
@@ -155,6 +170,46 @@ async fn main() {
             if let Err(e) = daemon.serve(addr).await {
                 tracing::error!("Daemon error: {}", e);
                 std::process::exit(1);
+            }
+        }
+        Commands::HttpMount {
+            job_id,
+            path,
+            cl,
+            endpoint,
+        } => {
+            let client = Client::new();
+            let url = format!("{}/mounts", endpoint.trim_end_matches('/'));
+            let payload = serde_json::json!({
+                "job_id": job_id,
+                "path": path,
+                "cl": cl,
+            });
+
+            let resp = client
+                .post(url)
+                .header("content-type", "application/json")
+                .json(&payload)
+                .send();
+
+            match resp {
+                Ok(r) if r.status().is_success() => {
+                    let created: serde_json::Value = r.json().unwrap_or_else(|e| {
+                        eprintln!("failed to parse response json: {e}");
+                        std::process::exit(1);
+                    });
+                    println!("{}", serde_json::to_string_pretty(&created).unwrap());
+                }
+                Ok(r) => {
+                    let status = r.status();
+                    let body = r.text().unwrap_or_default();
+                    eprintln!("http mount failed: status={} body={}", status, body);
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("http mount request failed: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     }
