@@ -41,7 +41,6 @@ pub enum WSMessage {
     Task {
         id: String,
         repo: String,
-        args: Option<Vec<String>>,
         cl_link: String,
         changes: Vec<Status<ProjectRelativePath>>,
     },
@@ -193,7 +192,6 @@ async fn process_server_message(
                         WSMessage::Task {
                             id,
                             repo,
-                            args,
                             cl_link: cl,
                             changes,
                         } => {
@@ -213,12 +211,7 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    BuildRequest {
-                                        repo,
-                                        args,
-                                        cl,
-                                        changes,
-                                    },
+                                    BuildRequest { repo, cl, changes },
                                     sender.clone(),
                                 )
                                 .await;

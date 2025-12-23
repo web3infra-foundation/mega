@@ -1,5 +1,6 @@
 mod api;
 mod buck2;
+mod log;
 mod model;
 mod scheduler;
 mod server;

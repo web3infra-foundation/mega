@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
@@ -13,6 +14,8 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{self, AppState};
+use crate::log::log_service::LogService;
+use crate::log::store::{LogStore, local_log_store, s3_log_store};
 use crate::model::builds;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
@@ -40,6 +43,47 @@ use crate::model::builds;
 )]
 pub struct ApiDoc;
 
+pub async fn init_log_service() -> LogService {
+    // Read buffer size from environment, defaulting to 4096 if unset or invalid
+    let buffer = std::env::var("LOG_STREAM_BUFFER")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(4096);
+
+    // Read log store type and bucket/build dir
+    let log_store_type = std::env::var("LOGGER_STORAGE_TYPE")
+        .expect("LOGGER_STORAGE_TYPE is not set in the environment");
+    let bucket_name = std::env::var("BUCKET_NAME").unwrap_or_else(|_| "default-bucket".to_string());
+    let build_log_dir = std::env::var("BUILD_LOG_DIR").unwrap_or_else(|_| "/tmp/logs".to_string());
+
+    // Initialize local log store
+    let local_log_store = Arc::new(local_log_store::LocalLogStore::new(&build_log_dir));
+
+    // Initialize cloud log store based on type
+    let cloud_log_store: Arc<dyn LogStore + Send + Sync> = match log_store_type.as_str() {
+        "s3" => {
+            let access_key =
+                std::env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID must be set for S3");
+            let secret_key = std::env::var("AWS_SECRET_ACCESS_KEY")
+                .expect("AWS_SECRET_ACCESS_KEY must be set for S3");
+            let region =
+                std::env::var("AWS_DEFAULT_REGION").expect("AWS_DEFAULT_REGION must be set for S3");
+
+            let store =
+                s3_log_store::S3LogStore::new(&bucket_name, &region, &access_key, &secret_key)
+                    .await;
+            Arc::new(store)
+        }
+        other => panic!(
+            "Unsupported LOGGER_STORAGE_TYPE: {}. Supported values: [s3]",
+            other
+        ),
+    };
+
+    // Create the LogService
+    LogService::new(local_log_store, cloud_log_store, buffer)
+}
+
 /// Starts the Orion server with the specified port
 /// Initializes database connection, sets up routes, and starts health check tasks
 pub async fn start_server(port: u16) {
@@ -48,7 +92,15 @@ pub async fn start_server(port: u16) {
         .await
         .expect("Database connection failed");
 
-    let state = AppState::new(conn, None);
+    // Initialize the LogService and spawn a background task to watch logs,
+    // then create the application state with the same LogService instance.
+    let log_service = init_log_service().await;
+    let log_service_clone = log_service.clone();
+    tokio::spawn(async move {
+        log_service_clone.watch_logs().await;
+    });
+
+    let state = AppState::new(conn, None, log_service);
 
     // Start background health check task
     tokio::spawn(start_health_check_task(state.clone()));

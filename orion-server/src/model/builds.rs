@@ -4,9 +4,7 @@ use chrono::Utc;
 use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue::Set, ConnectionTrait};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-
-use crate::scheduler::BuildRequest;
+use serde_json::Value;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "builds")]
@@ -75,16 +73,9 @@ impl Model {
         task_id: Uuid,
         repo: String,
         target: String,
-        build: BuildRequest,
         db: &impl ConnectionTrait,
     ) -> Result<Model, DbErr> {
-        let build_model = Self::create_build(
-            build_id,
-            task_id,
-            repo,
-            target,
-            build.args.map(|a| json!(a)),
-        );
+        let build_model = Self::create_build(build_id, task_id, repo, target, None);
         build_model.insert(db).await
     }
 }

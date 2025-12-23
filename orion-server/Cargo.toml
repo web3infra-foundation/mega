@@ -11,11 +11,12 @@ axum = { workspace = true, features = ["macros", "ws"] }
 axum-extra = { workspace = true, features = ["erased-json"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "process"] }
 tokio-retry = "0.3"
-tokio-stream = "0.1.17"
+tokio-stream = { version = "0.1.17", features = ["sync"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+futures = { workspace = true }
 futures-util = { workspace = true }
 uuid = { workspace = true, features = ["v7"] }
 tower-http = { workspace = true, features = ["trace", "cors"] }
@@ -36,7 +37,10 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest.workspace = true
 thiserror = "2.0"
-anyhow = "1.0"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+aws-config = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

@@ -10,8 +10,6 @@ use uuid::Uuid;
 pub struct BuildRequest {
     /// Repository path or identifier
     pub repo: String,
-    /// Additional command-line arguments for the build
-    pub args: Option<Vec<String>>,
     /// Change List identifier for context
     pub cl: String,
     /// Commit changes
@@ -58,7 +56,6 @@ pub async fn buck_build(
         let build_result = match buck_controller::build(
             id_str.clone(),
             req.repo,
-            req.args.unwrap_or_default(),
             req.cl,
             sender.clone(),
             req.changes,
