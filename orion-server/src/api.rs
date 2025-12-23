@@ -750,14 +750,30 @@ async fn process_message(
                     tracing::info!(
                         "Task phase updated by orion worker {current_worker_id} with: {phase:?}"
                     );
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id)
-                        && let WorkerStatus::Busy { task_id, .. } = &worker.status
-                        && task_id == &id
-                    {
-                        worker.status = WorkerStatus::Busy {
-                            task_id: id,
-                            phase: Some(phase),
-                        };
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        if let WorkerStatus::Busy { task_id, .. } = &worker.status {
+                            if task_id == &id {
+                                worker.status = WorkerStatus::Busy {
+                                    task_id: id,
+                                    phase: Some(phase),
+                                };
+                            } else {
+                                tracing::warn!(
+                                    "Ignoring TaskPhaseUpdate for worker {current_worker_id}: \
+                                     task_id mismatch (expected {task_id}, got {id})"
+                                );
+                            }
+                        } else {
+                            tracing::warn!(
+                                "Ignoring TaskPhaseUpdate for worker {current_worker_id}: \
+                                 worker not in Busy state (current status: {:?})",
+                                worker.status
+                            );
+                        }
+                    } else {
+                        tracing::warn!(
+                            "Ignoring TaskPhaseUpdate: unknown worker {current_worker_id}"
+                        );
                     }
                 }
                 WSMessage::Lost => {

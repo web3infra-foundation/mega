@@ -14,6 +14,7 @@ use tokio_tungstenite::{
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+/// Task phase when in buck2 build
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub enum TaskPhase {
     DownloadingSource,
@@ -31,7 +32,9 @@ pub enum WSMessage {
         orion_version: String,
     },
     Heartbeat,
-    Lost, // Sent by the client when its internal channel has closed (client-initiated disconnect)
+    // Sent by the client when its internal channel has closed (client-initiated disconnect)
+    Lost,
+    // Sent when a task is in the build process and its execution phase changes.
     TaskPhaseUpdate {
         id: String,
         phase: TaskPhase,
