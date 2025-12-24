@@ -11,7 +11,15 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
+use utoipa::ToSchema;
 use uuid::Uuid;
+
+/// Task phase when in buck2 build
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub enum TaskPhase {
+    DownloadingSource,
+    RunningBuild,
+}
 
 /// Message protocol for WebSocket communication between worker and server.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,8 +28,15 @@ pub enum WSMessage {
     // Worker -> Server messages
     Register {
         id: String,
+        hostname: String,
+        orion_version: String,
     },
     Heartbeat,
+    // Sent when a task is in the build process and its execution phase changes.
+    TaskPhaseUpdate {
+        id: String,
+        phase: TaskPhase,
+    },
     TaskAck {
         id: String,
         success: bool,
@@ -69,7 +84,7 @@ pub async fn run_client(server_addr: String, worker_id: String) {
                 // Reset reconnect delay after successful connection
                 reconnect_delay = Duration::from_secs(1);
                 // Handle the active connection
-                handle_connection(ws_stream, worker_id.clone()).await;
+                handle_connection(ws_stream, worker_id.clone(), server_addr.clone()).await;
                 tracing::warn!("Disconnected from server.");
             }
             Err(e) => {
@@ -99,18 +114,24 @@ pub async fn run_client(server_addr: String, worker_id: String) {
 async fn handle_connection(
     ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
     worker_id: String,
+    server_addr: String,
 ) {
     let (ws_sender, mut ws_receiver) = ws_stream.split();
     let (internal_tx, mut internal_rx): (UnboundedSender<WSMessage>, UnboundedReceiver<WSMessage>) =
         mpsc::unbounded_channel();
 
     let worker_id_clone = worker_id.clone();
+    let hostname_clone = server_addr.clone();
+    let orion_version = env!("CARGO_PKG_VERSION").to_string(); // Get from Cargo.toml
+
     let internal_tx_clone = internal_tx.clone();
     let heartbeat_task = tokio::spawn(async move {
         tracing::info!("Registering with worker ID: {}", worker_id_clone);
         if internal_tx_clone
             .send(WSMessage::Register {
                 id: worker_id_clone,
+                hostname: hostname_clone,
+                orion_version,
             })
             .is_err()
         {

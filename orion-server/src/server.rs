@@ -26,6 +26,8 @@ use crate::model::builds;
         api::task_output_handler,
         api::task_history_output_handler,
         api::tasks_handler,
+        api::get_orion_clients_info,
+        api::get_orion_client_status_by_id
     ),
     components(
         schemas(
@@ -33,8 +35,11 @@ use crate::model::builds;
             crate::scheduler::LogSegment,
             api::TaskStatusEnum,
             api::BuildDTO,
-            api::TaskInfoDTO
-
+            api::TaskInfoDTO,
+            api::OrionClientInfo,
+            api::OrionClientStatus,
+            api::CoreWorkerStatus,
+            api::OrionClientQuery
         )
     ),
     tags(
@@ -191,7 +196,7 @@ async fn start_health_check_task(state: AppState) {
                 tracing::info!("Removed dead worker: {}", worker_id);
 
                 // If worker was busy, mark task as interrupted
-                if let crate::scheduler::WorkerStatus::Busy(task_id) = worker_info.status {
+                if let crate::scheduler::WorkerStatus::Busy { task_id, .. } = worker_info.status {
                     tracing::warn!(
                         "Worker {} was busy with task {}. Marking task as Interrupted.",
                         worker_id,
