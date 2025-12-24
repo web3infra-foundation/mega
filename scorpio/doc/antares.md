@@ -4,7 +4,7 @@
 
 Antares 是一个轻量级的控制平面，按需创建基于 overlay 语义的 **FUSE（用户态）挂载**。
 
-> 重要说明：这里的 overlay 指的是 `libfuse-fs` 提供的用户态 `OverlayFs`（unionfs/overlay 语义），**不是 Linux 内核 overlayfs**（`mount -t overlay ... lowerdir=`）那套内核态实现。
+> 重要说明：这里的 overlay 指的是 `libfuse-fs` 提供的用户态 `OverlayFs`（unionfs/overlay 语义），**不是 Linux 内核 overlayfs**（`mount -t overlay ... lowerdir=`）相关的内核态实现。
 
 每个 HTTP 请求会构建一个由以下层组成的 overlay 文件系统：
 - **Dicfuse** (共享，只读) 位于底层
@@ -18,7 +18,7 @@ Antares 是一个轻量级的控制平面，按需创建基于 overlay 语义的
 4. 响应返回 mount ID；后续的 DELETE 请求可以通过 `mount_id` 或通过 `job_id`（任务粒度）卸载
 
 ### Dicfuse 就绪与懒加载
-- Antares 创建挂载时只需要 Dicfuse **root inode 已初始化**（不再依赖“目录树预热完成”）。
+- Antares 创建挂载时只需要 Dicfuse **root inode 已初始化**。
 - 目录元数据采用 **按目录粒度懒加载**：首次 `lookup/readdir` 命中未加载目录时，会拉取该目录的一层 children 并建立 inode/path 映射；文件内容仍保持 read() 时按需拉取。
 - 为避免并发下重复加载同一目录，Dicfuse 对每个目录路径有独立锁（同目录只会有一个加载协程在跑）。
 
