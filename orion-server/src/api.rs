@@ -776,16 +776,18 @@ async fn process_message(
                         );
                     }
                 }
-                WSMessage::Lost => {
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
-                        worker.status = WorkerStatus::Lost
-                    }
-                }
                 _ => {}
             }
         }
         Message::Close(_) => {
             tracing::info!("Client {who} sent close message.");
+            if let Some(id) = worker_id.take()
+                && let Some(mut worker) = state.scheduler.workers.get_mut(&id)
+            {
+                worker.status = WorkerStatus::Lost;
+                tracing::info!("Worker {id} marked as Lost due to connection close");
+            }
+
             return ControlFlow::Break(());
         }
         _ => {}

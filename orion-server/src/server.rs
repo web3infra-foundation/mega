@@ -26,6 +26,8 @@ use crate::model::builds;
         api::task_output_handler,
         api::task_history_output_handler,
         api::tasks_handler,
+        api::get_orion_clients_info,
+        api::get_orion_client_status_by_id
     ),
     components(
         schemas(
@@ -33,8 +35,11 @@ use crate::model::builds;
             crate::scheduler::LogSegment,
             api::TaskStatusEnum,
             api::BuildDTO,
-            api::TaskInfoDTO
-
+            api::TaskInfoDTO,
+            api::OrionClientInfo,
+            api::OrionClientStatus,
+            api::CoreWorkerStatus,
+            api::OrionClientQuery
         )
     ),
     tags(
