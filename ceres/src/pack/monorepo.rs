@@ -738,12 +738,10 @@ impl MonoRepo {
 
         tracing::info!("[Cedar Reviewer] Policy file modified in CL update, resyncing reviewers");
 
-        // Get CL link and path
         let link_guard = self.cl_link.read().await;
         let cl_link = link_guard
             .as_ref()
             .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
-        let path_str = self.path.to_string_lossy();
 
         // Collect policies from all changed file paths
         let policy_contents = self.collect_policy_contents(&changed_files).await;
@@ -753,7 +751,7 @@ impl MonoRepo {
 
         let reviewer_service = ReviewerService::from_storage(self.storage.reviewer_storage());
         reviewer_service
-            .sync_system_reviewers(cl_link, &path_str, &policy_contents, &changed_files)
+            .sync_system_reviewers(cl_link, &policy_contents, &changed_files)
             .await?;
 
         tracing::info!("[Cedar Reviewer] Reviewers resynced for CL {}", cl_link);
@@ -794,7 +792,9 @@ impl MonoRepo {
 
         // 2. Collect directories from all changed files within this CL
         for file_path in changed_files {
-            let path = PathBuf::from(file_path);
+            // Safety: ensure path is relative by removing any leading '/'
+            let relative_path = file_path.trim_start_matches('/');
+            let path = PathBuf::from(relative_path);
 
             // Get the logical parent directory (skip .cedar directories)
             // For "servicea/.cedar/policies.cedar" -> we want "servicea"
@@ -811,6 +811,7 @@ impl MonoRepo {
             // Add all ancestor directories of the logical parent (within CL scope)
             for ancestor in logical_parent.ancestors() {
                 if ancestor.as_os_str().is_empty() {
+                    // Empty path is skipped because CL root (self.path) is already added in step 1
                     continue;
                 }
 
@@ -822,10 +823,7 @@ impl MonoRepo {
 
                 // Join with CL path to get the full path within the repository
                 let full_path = self.path.join(ancestor);
-                // Only add if it's within or equal to the CL path
-                if full_path.starts_with(&self.path) {
-                    all_policy_dirs.insert(full_path);
-                }
+                all_policy_dirs.insert(full_path);
             }
         }
 
@@ -868,7 +866,6 @@ impl MonoRepo {
         let cl_link = link_guard
             .as_ref()
             .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
-        let path_str = self.path.to_string_lossy();
 
         // Get all changed files to match against policy rules
         let changed_files = self.get_changed_files().await.unwrap_or_default();
@@ -881,7 +878,7 @@ impl MonoRepo {
 
         let reviewer_service = ReviewerService::from_storage(self.storage.reviewer_storage());
         reviewer_service
-            .assign_system_reviewers(cl_link, &path_str, &policy_contents, &changed_files)
+            .assign_system_reviewers(cl_link, &policy_contents, &changed_files)
             .await?;
 
         Ok(())

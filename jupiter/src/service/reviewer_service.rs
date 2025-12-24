@@ -14,7 +14,7 @@ use crate::storage::{base_storage::BaseStorage, cl_reviewer_storage::ClReviewerS
 ///
 /// For policy files (e.g., "servicea/.cedar/policies.cedar"), returns the parent
 /// directory path with trailing slash (e.g., "servicea/").
-/// For regular files, returns the path unchanged.
+/// For regular files, returns the path unchanged (as an owned String).
 fn to_policy_match_path(file_path: &str) -> String {
     if file_path.ends_with(".cedar/policies.cedar") || file_path.ends_with(".cedar\\policies.cedar")
     {
@@ -22,11 +22,12 @@ fn to_policy_match_path(file_path: &str) -> String {
         let parent = path.parent().unwrap_or(std::path::Path::new(""));
         let logical_parent = parent.parent().unwrap_or(std::path::Path::new(""));
 
-        let mut p = logical_parent.to_string_lossy().to_string();
-        if !p.is_empty() && !p.ends_with('/') {
-            p.push('/');
+        // Empty path represents root directory and will match global policies
+        let mut logical_path = logical_parent.to_string_lossy().to_string();
+        if !logical_path.is_empty() && !logical_path.ends_with('/') {
+            logical_path.push('/');
         }
-        p
+        logical_path
     } else {
         file_path.to_string()
     }
@@ -52,7 +53,9 @@ fn collect_reviewers(
         }
     }
 
-    all_reviewers_set.into_iter().collect()
+    let mut all_reviewers: Vec<String> = all_reviewers_set.into_iter().collect();
+    all_reviewers.sort();
+    all_reviewers
 }
 
 #[derive(Clone)]
@@ -79,7 +82,6 @@ impl ReviewerService {
     ///
     /// # Arguments
     /// * `cl_link` - The CL link identifier
-    /// * `cl_path` - The path of the CL (used for logging)
     /// * `policy_contents` - List of (policy_path, content) tuples, from root to leaf
     /// * `changed_files` - List of changed file paths relative to CL root
     ///
@@ -88,7 +90,6 @@ impl ReviewerService {
     pub async fn assign_system_reviewers(
         &self,
         cl_link: &str,
-        _cl_path: &str,
         policy_contents: &[(PathBuf, String)],
         changed_files: &[String],
     ) -> Result<Vec<String>, MegaError> {
@@ -138,13 +139,11 @@ impl ReviewerService {
     ///
     /// # Arguments
     /// * `cl_link` - The CL link identifier
-    /// * `cl_path` - The path of the CL (used for logging)
     /// * `policy_contents` - List of (policy_path, content) tuples, from root to leaf
     /// * `changed_files` - List of changed file paths relative to CL root
     pub async fn sync_system_reviewers(
         &self,
         cl_link: &str,
-        _cl_path: &str,
         policy_contents: &[(PathBuf, String)],
         changed_files: &[String],
     ) -> Result<(), MegaError> {
@@ -190,14 +189,14 @@ mod tests {
     // --- Helpers ---
 
     fn make_policy(path: &str, reviewers: &[&str]) -> String {
-        let list = reviewers
+        let reviewer_list = reviewers
             .iter()
             .map(|r| format!("\"{}\"", r))
             .collect::<Vec<_>>()
             .join(", ");
         format!(
             r#"permit(action == "code:review", principal, resource) when {{ resource.path.startsWith("{}") }} to [{}];"#,
-            path, list
+            path, reviewer_list
         )
     }
 
@@ -233,12 +232,7 @@ mod tests {
         ];
 
         let assigned = service
-            .assign_system_reviewers(
-                cl_link,
-                "/project/test_cedar_policy",
-                &policies,
-                &changed_files,
-            )
+            .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
         println!("Assigned Reviewers: {:?}", assigned);
@@ -284,12 +278,7 @@ mod tests {
 
         let changed_files = vec!["servicea/core/logic.rs".to_string()];
         let assigned = service
-            .assign_system_reviewers(
-                cl_link,
-                "/project/test_cedar_policy",
-                &policies,
-                &changed_files,
-            )
+            .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
         println!("Assigned Reviewers (Override Case): {:?}", assigned);
@@ -340,12 +329,7 @@ mod tests {
         ];
 
         let assigned = service
-            .assign_system_reviewers(
-                cl_link,
-                "/project/test_cedar_policy",
-                &policies,
-                &changed_files,
-            )
+            .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
         println!("Assigned Reviewers (Hybrid): {:?}", assigned);
@@ -367,6 +351,52 @@ mod tests {
             assigned.len(),
             2,
             "Should contain exactly Global Owner + New Service Owner"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_preserves_manual_reviewers() {
+        let temp = tempdir().unwrap();
+        let service = ReviewerService::from_storage(test_storage(&temp).await.reviewer_storage());
+        let cl_link = "cl_manual_preserve";
+
+        service
+            .reviewer_storage
+            .add_reviewers(cl_link, vec!["manual_user".to_string()])
+            .await
+            .unwrap();
+
+        let policies = vec![(
+            PathBuf::from("/project/test_cedar_policy/.cedar/policies.cedar"),
+            make_policy("", &["system_user"]),
+        )];
+
+        let changed_files = vec!["servicea/core/logic.rs".to_string()];
+        service
+            .sync_system_reviewers(cl_link, &policies, &changed_files)
+            .await
+            .unwrap();
+
+        let reviewers = service
+            .reviewer_storage
+            .list_reviewers(cl_link)
+            .await
+            .unwrap();
+
+        // Verify manual reviewer is preserved with system_required = false
+        let manual = reviewers.iter().find(|r| r.username == "manual_user");
+        assert!(manual.is_some(), "Manual reviewer should be preserved");
+        assert!(
+            !manual.unwrap().system_required,
+            "Manual reviewer should have system_required = false"
+        );
+
+        // Verify system reviewer is added with system_required = true
+        let system = reviewers.iter().find(|r| r.username == "system_user");
+        assert!(system.is_some(), "System reviewer should be added");
+        assert!(
+            system.unwrap().system_required,
+            "System reviewer should have system_required = true"
         );
     }
 }
