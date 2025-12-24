@@ -5,6 +5,7 @@ use crate::scheduler::{
 };
 use anyhow::Result;
 use axum::extract::Query;
+use axum::routing::post;
 use axum::{
     Json, Router,
     extract::{
@@ -16,11 +17,13 @@ use axum::{
     routing::{any, get},
 };
 use chrono::{FixedOffset, Utc};
+use common::model::{CommonPage, PageParams};
 use dashmap::DashMap;
 use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
-use orion::ws::WSMessage;
+use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
+use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -112,12 +115,17 @@ impl AppState {
 pub fn routers() -> Router<AppState> {
     Router::new()
         .route("/ws", any(ws_handler))
-        .route("/task", axum::routing::post(task_handler))
+        .route("/task", post(task_handler))
         .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/task-history-output", get(task_history_output_handler))
         .route("/tasks/{cl}", get(tasks_handler))
         .route("/queue-stats", get(queue_stats_handler))
+        .route("/orion-clients-info", post(get_orion_clients_info))
+        .route(
+            "/orion-client-status/{id}",
+            get(get_orion_client_status_by_id),
+        )
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -445,7 +453,10 @@ async fn handle_immediate_task_dispatch(
     if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
         && worker.sender.send(msg).is_ok()
     {
-        worker.status = WorkerStatus::Busy(build_id.to_string());
+        worker.status = WorkerStatus::Busy {
+            task_id: build_id.to_string(),
+            phase: None,
+        };
         state
             .scheduler
             .active_builds
@@ -606,7 +617,12 @@ async fn process_message(
 
             // Handle worker registration (must be first message)
             if worker_id.is_none() {
-                if let WSMessage::Register { id } = ws_msg {
+                if let WSMessage::Register {
+                    id,
+                    hostname,
+                    orion_version,
+                } = ws_msg
+                {
                     tracing::info!("Worker from {who} registered as: {id}");
                     state.scheduler.workers.insert(
                         id.clone(),
@@ -614,6 +630,9 @@ async fn process_message(
                             sender: tx.clone(),
                             status: WorkerStatus::Idle,
                             last_heartbeat: chrono::Utc::now(),
+                            start_time: chrono::Utc::now(),
+                            hostname,
+                            orion_version,
                         },
                     );
                     *worker_id = Some(id);
@@ -641,6 +660,14 @@ async fn process_message(
                     if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
                         worker.last_heartbeat = chrono::Utc::now();
                         tracing::debug!("Received heartbeat from {current_worker_id}");
+
+                        // If the worker was previously in Error state, a successful heartbeat now restores it to Idle.
+                        if let WorkerStatus::Error(_) = worker.status {
+                            worker.status = WorkerStatus::Idle;
+                            tracing::info!(
+                                "Worker {current_worker_id} recovered from Error to Idle via heartbeat."
+                            );
+                        }
                     }
                 }
                 WSMessage::BuildOutput { id, output } => {
@@ -671,9 +698,9 @@ async fn process_message(
                 }
                 WSMessage::BuildComplete {
                     id,
-                    success: _,
+                    success,
                     exit_code,
-                    message: _,
+                    message,
                 } => {
                     // Handle build completion
                     tracing::info!(
@@ -707,13 +734,52 @@ async fn process_message(
                         .exec(&state.conn)
                         .await;
 
-                    // Mark worker as idle again
+                    // Mark the worker as idle or error depending on whether the task succeeds.
                     if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
-                        worker.status = WorkerStatus::Idle;
+                        worker.status = if success {
+                            WorkerStatus::Idle
+                        } else {
+                            WorkerStatus::Error(message)
+                        };
                     }
 
                     // After worker becomes idle, notify to process queued tasks
                     state.scheduler.notify_task_available();
+                }
+                WSMessage::TaskPhaseUpdate { id, phase } => {
+                    tracing::info!(
+                        "Task phase updated by orion worker {current_worker_id} with: {phase:?}"
+                    );
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        if let WorkerStatus::Busy { task_id, .. } = &worker.status {
+                            if task_id == &id {
+                                worker.status = WorkerStatus::Busy {
+                                    task_id: id,
+                                    phase: Some(phase),
+                                };
+                            } else {
+                                tracing::warn!(
+                                    "Ignoring TaskPhaseUpdate for worker {current_worker_id}: \
+                                     task_id mismatch (expected {task_id}, got {id})"
+                                );
+                            }
+                        } else {
+                            tracing::warn!(
+                                "Ignoring TaskPhaseUpdate for worker {current_worker_id}: \
+                                 worker not in Busy state (current status: {:?})",
+                                worker.status
+                            );
+                        }
+                    } else {
+                        tracing::warn!(
+                            "Ignoring TaskPhaseUpdate: unknown worker {current_worker_id}"
+                        );
+                    }
+                }
+                WSMessage::Lost => {
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        worker.status = WorkerStatus::Lost
+                    }
                 }
                 _ => {}
             }
@@ -897,6 +963,161 @@ async fn find_caused_by_next_line_in_content(content: &str) -> Option<String> {
     }
 
     None
+}
+
+// Orion client information
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OrionClientInfo {
+    pub client_id: String,
+    pub hostname: String,
+    pub orion_version: String,
+    #[schema(value_type = String, format = "date-time")]
+    pub start_time: DateTimeUtc,
+    #[schema(value_type = String, format = "date-time")]
+    pub last_heartbeat: DateTimeUtc,
+}
+
+impl OrionClientInfo {
+    fn from_worker(client_id: impl Into<String>, worker: &WorkerInfo) -> Self {
+        Self {
+            client_id: client_id.into(),
+            hostname: worker.hostname.clone(),
+            orion_version: worker.orion_version.clone(),
+            start_time: worker.start_time,
+            last_heartbeat: worker.last_heartbeat,
+        }
+    }
+}
+
+/// Additional query parameters for querying Orion clients.
+/// When no extra conditions are required, this struct can be left empty.
+#[derive(Debug, Deserialize, ToSchema, Clone)]
+pub struct OrionClientQuery {
+    pub hostname: Option<String>,
+}
+
+/// Endpoint to retrieve paginated Orion client information.
+#[utoipa::path(
+    post,
+    path = "/orion-clients-info",
+    request_body = PageParams<OrionClientQuery>,
+    responses(
+        (status = 200, description = "Paged Orion client information", body = CommonPage<OrionClientInfo>)
+    )
+)]
+async fn get_orion_clients_info(
+    State(state): State<AppState>,
+    Json(params): Json<PageParams<OrionClientQuery>>,
+) -> Result<Json<CommonPage<OrionClientInfo>>, (StatusCode, Json<serde_json::Value>)> {
+    let pagination = params.pagination;
+    let query = params.additional.clone();
+
+    let page = pagination.page.max(1);
+    // per_page must be in 1..=100
+    let per_page = pagination.per_page.clamp(1u64, 100);
+    let offset = (page - 1) * per_page;
+
+    let mut total: u64 = 0;
+    let mut items: Vec<OrionClientInfo> = Vec::with_capacity(per_page as usize);
+
+    for entry in state.scheduler.workers.iter() {
+        let matches = query
+            .hostname
+            .as_ref()
+            .is_none_or(|h| entry.value().hostname.contains(h));
+
+        if matches {
+            total += 1;
+
+            if total > offset && items.len() < per_page as usize {
+                items.push(OrionClientInfo::from_worker(
+                    entry.key().clone(),
+                    entry.value(),
+                ));
+            }
+        }
+    }
+
+    Ok(Json(CommonPage { total, items }))
+}
+
+// Orion client status
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OrionClientStatus {
+    /// Core (Idle / Busy / Error / Lost)
+    pub core_status: CoreWorkerStatus,
+    /// Only when building
+    pub phase: Option<TaskPhase>,
+    /// Only when error
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub enum CoreWorkerStatus {
+    Idle,
+    Busy,
+    Error,
+    Lost,
+}
+
+impl OrionClientStatus {
+    pub fn from_worker_status(worker: &WorkerInfo) -> Self {
+        match &worker.status {
+            WorkerStatus::Idle => Self {
+                core_status: CoreWorkerStatus::Idle,
+                phase: None,
+                error_message: None,
+            },
+
+            WorkerStatus::Busy { phase, .. } => Self {
+                core_status: CoreWorkerStatus::Busy,
+                phase: phase.clone(),
+                error_message: None,
+            },
+
+            WorkerStatus::Error(msg) => Self {
+                core_status: CoreWorkerStatus::Error,
+                phase: None,
+                error_message: Some(msg.clone()),
+            },
+
+            WorkerStatus::Lost => Self {
+                core_status: CoreWorkerStatus::Lost,
+                phase: None,
+                error_message: None,
+            },
+        }
+    }
+}
+
+/// Retrieve the current status of a specific Orion client by its ID.
+#[utoipa::path(
+    get,
+    path = "/orion-client-status/{id}",
+    params(
+        ("id" = String, description = "Orion client Id")
+    ),
+    responses(
+        (status = 200, description = "Orion status", body = OrionClientStatus),
+        (status = 404, description = "Orion client not found", body = serde_json::Value)
+    )
+)]
+async fn get_orion_client_status_by_id(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<OrionClientStatus>, (StatusCode, Json<serde_json::Value>)> {
+    let worker = state.scheduler.workers.get(&id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "message": "Orion client not found"
+            })),
+        )
+    })?;
+
+    let status = OrionClientStatus::from_worker_status(&worker);
+
+    Ok(Json(status))
 }
 
 #[cfg(test)]
