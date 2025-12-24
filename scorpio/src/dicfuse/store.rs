@@ -33,7 +33,7 @@ use crate::util::{config, GPath};
 /// This lets us distinguish legitimate empty files from failures (e.g., network/HTTP errors)
 /// that must NOT be cached as empty content.
 pub(crate) const EMPTY_BLOB_OID: &str = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391";
-const UNKNOW_INODE: u64 = 0; // illegal inode number;
+const UNKNOWN_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE: &str = "file";
 const INODE_DICTIONARY: &str = "directory";
 
@@ -344,6 +344,25 @@ async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
             }
         } else {
             let status = response.status();
+
+            // Retry on likely-transient server-side failures.
+            // - 5xx: server errors
+            // - 429: rate limiting
+            if attempt < MAX_RETRIES - 1
+                && (status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
+            {
+                debug!(
+                    "Failed to fetch file: HTTP {} for OID: {oid} (attempt {}/{}), retrying...",
+                    status,
+                    attempt + 1,
+                    MAX_RETRIES
+                );
+                debug!("  URL: {url}");
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt + 1) as u64))
+                    .await;
+                continue;
+            }
+
             debug!("Failed to fetch file: HTTP {} for OID: {oid}", status);
             debug!("  URL: {url}");
             let kind = if status == reqwest::StatusCode::NOT_FOUND {
@@ -1042,7 +1061,7 @@ impl DictionaryStore {
             return Ok("/".to_string());
         }
         let p = self.persistent_path_store.get_all_path(inode)?;
-        Ok(format!("/{}", p.to_string()))
+        Ok(format!("/{p}"))
     }
 
     async fn upsert_inode(&self, parent: u64, item: ItemExt) -> io::Result<u64> {
@@ -2138,7 +2157,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     // 2) Initialize root inode (idempotent: overwrite is fine).
     let _ = store.persistent_path_store.insert_item(
         1,
-        UNKNOW_INODE,
+        UNKNOWN_INODE,
         ItemExt {
             item: Item {
                 name: "".to_string(),
@@ -2154,7 +2173,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         path_name: GPath::new(),
         content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
         children: Mutex::new(HashMap::new()),
-        parent: UNKNOW_INODE, // root has no parent
+        parent: UNKNOWN_INODE, // root has no parent
     };
     store.inodes.lock().await.insert(1, root_item.into());
     ensure_dir_tracked(&store.dirs, &user_root);
@@ -2162,12 +2181,6 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     // Mark ready as soon as the root inode exists so Antares can mount immediately.
     // Directory entries will be populated lazily on lookup/readdir, while import continues.
     store.mark_ready();
-
-    // Mark store initialization as complete so subsequent startups can trust the on-disk cache.
-    if let Some(parent) = marker_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(&marker_path, b"ok\n");
 
     // Limit concurrent warmups/imports across stores to avoid remote pressure spikes.
     let _permit = global_import_semaphore()
@@ -2177,11 +2190,15 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
 
     // Always do a shallow root listing once (best-effort). This warms the root and persists children,
     // while still keeping mount time-to-usable low (root is already ready).
-    if let Err(e) = store.ensure_dir_loaded(1).await {
-        warn!(
-            "[import_arc] ensure_dir_loaded(root) failed (user_root={user_root:?} real_root={real_root:?}): {e}"
-        );
-    }
+    let seeded_ok = match store.ensure_dir_loaded(1).await {
+        Ok(()) => true,
+        Err(e) => {
+            warn!(
+                "[import_arc] ensure_dir_loaded(root) failed (user_root={user_root:?} real_root={real_root:?}): {e}"
+            );
+            false
+        }
+    };
 
     // Optional deep prewarm: disabled by default for Antares subdir mounts (max_depth=0).
     if store.max_depth() > 0 {
@@ -2196,6 +2213,21 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         info!(
             "[import_arc] Skipping deep prewarm (max_depth=0) for base_path={:?}",
             store.base_path
+        );
+    }
+
+    // Only write the import marker AFTER we've successfully seeded at least the root directory.
+    // This prevents a crash between "marker written" and "directory data populated" from leaving
+    // the store permanently empty on next startup.
+    if seeded_ok {
+        if let Some(parent) = marker_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&marker_path, b"ok\n");
+    } else {
+        warn!(
+            "[import_arc] skipping import marker write because root seed failed (marker_path={:?})",
+            marker_path
         );
     }
 
@@ -2594,7 +2626,7 @@ mod tests {
         t.insert(String::from("/a/c/2"), 0);
         t.insert(String::from("/a/b/1"), 0);
 
-        assert!(t.children().into_iter().next().is_some());
+        assert!(t.children().next().is_some());
     }
 
     #[tokio::test]
