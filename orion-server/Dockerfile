@@ -1,5 +1,5 @@
 # ────── Stage 1: Build ──────
-FROM rust:1.88 as builder
+FROM rust:1.92-bookworm AS builder
 
 # 构建上下文中的父目录将作为 /app 挂载
 WORKDIR /app
