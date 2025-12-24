@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 orion = { workspace = true }
-common = { workspace = true }
 
 http = { workspace = true }
 axum = { workspace = true, features = ["macros", "ws"] }
