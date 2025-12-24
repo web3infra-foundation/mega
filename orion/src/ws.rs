@@ -32,8 +32,6 @@ pub enum WSMessage {
         orion_version: String,
     },
     Heartbeat,
-    // Sent by the client when its internal channel has closed (client-initiated disconnect)
-    Lost,
     // Sent when a task is in the build process and its execution phase changes.
     TaskPhaseUpdate {
         id: String,
@@ -169,13 +167,6 @@ async fn handle_connection(
                 }
             }
         }
-
-        // One of the critical tasks has terminated; the connection is lost.
-        let _ = ws_sender
-            .send(Message::Text(
-                serde_json::to_string(&WSMessage::Lost).unwrap().into(),
-            ))
-            .await;
     });
 
     let internal_tx_clone = internal_tx.clone();
