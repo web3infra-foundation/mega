@@ -207,6 +207,7 @@ mod tests {
     use std::path::Path;
 
     use crate::internal::protocol::{LFSClient, ProtocolClient};
+    use crate::util::config;
     use git_internal::internal::{object::blob::Blob, pack::entry::Entry};
 
     use crate::scolfs::{ext::BlobExt, ScorpioLFS};
@@ -215,6 +216,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_lfs_patterns() {
+        // Ensure config is initialized so LFS helper paths resolve under a writable store_dir.
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
         let binding = utils::lfs_attribate();
         let attr_path = binding.to_str().unwrap();
         // Clean up before test
