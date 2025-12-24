@@ -7,7 +7,10 @@ use rfuse3::raw::{Filesystem, Request};
 use tokio::sync::Mutex;
 
 use crate::util::config as sconfig;
-use crate::{dicfuse::Dicfuse, manager::ScorpioManager};
+use crate::{
+    dicfuse::{Dicfuse, DicfuseManager},
+    manager::ScorpioManager,
+};
 use std::{
     collections::HashMap,
     io::Error,
@@ -47,7 +50,9 @@ impl MegaFuse {
     /// A new `MegaFuse` instance.
     pub async fn new() -> Self {
         Self {
-            dic: Arc::new(Dicfuse::new().await),
+            // Use the global Dicfuse singleton to avoid sled DB lock conflicts and duplicate imports
+            // when Scorpio daemon also hosts Antares (which relies on DicfuseManager).
+            dic: DicfuseManager::global().await,
             overlayfs: Arc::new(Mutex::new(HashMap::new())),
             inodes_alloc: InodeAlloc::new(),
         }

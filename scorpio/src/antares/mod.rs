@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::dicfuse::Dicfuse;
+use crate::dicfuse::DicfuseManager;
 use crate::util::config;
 
 /// Global paths used by Antares to place layers and state.
@@ -80,7 +81,7 @@ pub struct AntaresManager {
 impl AntaresManager {
     /// Build an independent Antares manager with its own Dicfuse instance.
     pub async fn new(paths: AntaresPaths) -> Self {
-        let dic = Arc::new(Dicfuse::new().await);
+        let dic = DicfuseManager::global().await;
         let instances = Self::load_state(&paths.state_file).unwrap_or_default();
         Self {
             dic,
@@ -95,6 +96,13 @@ impl AntaresManager {
         job_id: &str,
         cl_name: Option<&str>,
     ) -> std::io::Result<AntaresConfig> {
+        let start = std::time::Instant::now();
+        tracing::info!(
+            "antares: mount_job start job_id={} cl={:?}",
+            job_id,
+            cl_name
+        );
+
         // Prepare per-job paths
         let upper_id = Uuid::new_v4().to_string();
         let upper_dir = self.paths.upper_root.join(&upper_id);
@@ -129,6 +137,12 @@ impl AntaresManager {
 
         self.persist_state().await?;
 
+        tracing::info!(
+            "antares: mount_job done job_id={} mountpoint={} elapsed={:.2}s",
+            job_id,
+            instance.mountpoint.display(),
+            start.elapsed().as_secs_f64()
+        );
         Ok(instance)
     }
 
@@ -232,6 +246,14 @@ mod tests {
 
     #[tokio::test]
     async fn mount_and_list_registers_instance() {
+        // Ensure config is initialized so Dicfuse (used by AntaresManager) can open its local store
+        // under a writable path (see scorpio/scorpio.toml defaults).
+        if let Err(e) = config::init_config("./scorpio.toml") {
+            if !e.contains("already initialized") {
+                panic!("Failed to load config: {e}");
+            }
+        }
+
         let root = tempdir().unwrap();
         let upper = root.path().join("upper");
         let cl = root.path().join("cl");

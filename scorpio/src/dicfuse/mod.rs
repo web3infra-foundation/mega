@@ -262,11 +262,9 @@ impl Dicfuse {
             return e;
         }
 
-        // Prefer persisted size (size.db) and fetch size on-demand if missing, so cold-start files
-        // do not incorrectly report size=0 (which may prevent subsequent reads).
         let size = self
             .store
-            .get_or_fetch_file_size(item.get_inode(), &item.hash)
+            .file_size_for_stat(item.get_inode(), &item.hash)
             .await;
         e.attr.size = size;
         e
