@@ -17,6 +17,11 @@ Antares 是一个轻量级的控制平面，按需创建基于 overlay 语义的
 3. `OverlayFs` 被包装在 `LoggingFileSystem` 中，通过 `rfuse3` 在 Tokio 任务中挂载
 4. 响应返回 mount ID；后续的 DELETE 请求可以通过 `mount_id` 或通过 `job_id`（任务粒度）卸载
 
+### Dicfuse 就绪与懒加载
+- Antares 创建挂载时只需要 Dicfuse **root inode 已初始化**（不再依赖“目录树预热完成”）。
+- 目录元数据采用 **按目录粒度懒加载**：首次 `lookup/readdir` 命中未加载目录时，会拉取该目录的一层 children 并建立 inode/path 映射；文件内容仍保持 read() 时按需拉取。
+- 为避免并发下重复加载同一目录，Dicfuse 对每个目录路径有独立锁（同目录只会有一个加载协程在跑）。
+
 ### FUSE 层次结构
 ```mermaid
 flowchart TD

@@ -15,10 +15,11 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
+use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
 use super::abi::{default_dic_entry, default_file_entry};
@@ -35,6 +36,14 @@ pub(crate) const EMPTY_BLOB_OID: &str = "e69de29bb2d1d6434b8b29ae775ad8c2e48c539
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE: &str = "file";
 const INODE_DICTIONARY: &str = "directory";
+
+static GLOBAL_IMPORT_SEMAPHORE: OnceLock<Arc<Semaphore>> = OnceLock::new();
+
+fn global_import_semaphore() -> Arc<Semaphore> {
+    GLOBAL_IMPORT_SEMAPHORE
+        .get_or_init(|| Arc::new(Semaphore::new(config::dicfuse_import_concurrency())))
+        .clone()
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Item {
@@ -246,6 +255,7 @@ fn reqwest_err_to_io(err: reqwest::Error) -> io::Error {
 /// IMPORTANT: This returns an error on failures. Callers must NOT treat failures as empty files,
 /// otherwise we may poison persistent caches with 0-byte content.
 async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
+    let start = Instant::now();
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
     static CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -298,7 +308,15 @@ async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
         if response.status().is_success() {
             // Get the binary data from the response body
             match response.bytes().await {
-                Ok(bytes) => return Ok(bytes.to_vec()),
+                Ok(bytes) => {
+                    debug!(
+                        "fetch_file: ok oid={} bytes={} elapsed={:.2}s",
+                        oid,
+                        bytes.len(),
+                        start.elapsed().as_secs_f64()
+                    );
+                    return Ok(bytes.to_vec());
+                }
                 Err(e) => {
                     if attempt < MAX_RETRIES - 1 {
                         debug!(
@@ -347,7 +365,12 @@ async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
 /// Strategy:
 /// 1) Try HTTP HEAD and read Content-Length.
 /// 2) Fallback to GET with Range: bytes=0-0 and parse Content-Range.
+#[cfg(test)]
+static FETCH_FILE_SIZE_CALLS: AtomicUsize = AtomicUsize::new(0);
 async fn fetch_file_size(oid: &str) -> Option<u64> {
+    #[cfg(test)]
+    FETCH_FILE_SIZE_CALLS.fetch_add(1, Ordering::Relaxed);
+
     use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE, RANGE};
 
     let file_blob_endpoint = config::file_blob_endpoint();
@@ -366,6 +389,7 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
             if let Some(v) = resp.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = v.to_str() {
                     if let Ok(n) = s.parse::<u64>() {
+                        debug!("fetch_file_size: head ok oid={} size={}", oid, n);
                         return Some(n);
                     }
                 }
@@ -389,6 +413,7 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
         if let Ok(s) = v.to_str() {
             if let Some(total) = s.rsplit('/').next() {
                 if let Ok(n) = total.parse::<u64>() {
+                    debug!("fetch_file_size: range ok oid={} size={}", oid, n);
                     return Some(n);
                 }
             }
@@ -411,6 +436,7 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
 }
 
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
+    let start = Instant::now();
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
@@ -563,6 +589,12 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
             });
         }
 
+        debug!(
+            "fetch_dir: ok user_path={:?} items={} elapsed={:.2}s",
+            path,
+            data.len(),
+            start.elapsed().as_secs_f64()
+        );
         return Ok(ApiResponseExt {
             _req_result: true,
             data,
@@ -580,6 +612,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
 
 /// Get the directory hash from the server
 async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
+    let start = Instant::now();
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
@@ -646,6 +679,12 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
         });
     }
 
+    debug!(
+        "fetch_get_dir_hash: ok user_path={:?} items={} elapsed={:.2}s",
+        path,
+        data.len(),
+        start.elapsed().as_secs_f64()
+    );
     Ok(ApiResponseExt {
         _req_result: true,
         data,
@@ -659,17 +698,27 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
 pub struct DirItem {
     hash: String,
     file_list: HashMap<String, bool>,
+    /// Whether we have fetched this directory's children listing at least once.
+    ///
+    /// This distinguishes "not loaded yet" from a legitimately empty directory.
+    loaded: bool,
+    /// Best-effort in-memory TTL to avoid frequent remote refreshes (used by load_dir/watch paths).
+    last_sync: Option<Instant>,
 }
 
 pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     // dirs: Arc<Mutex<HashMap<String, DirItem>>>, //save all the dirs.
     dirs: Arc<DashMap<String, DirItem>>, // save all the dirs.
+    /// Per-directory async locks to avoid concurrent loads producing duplicate inodes.
+    dir_locks: Arc<DashMap<String, Arc<Mutex<()>>>>,
     next_inode: AtomicU64,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
     max_depth: Arc<usize>,                   // max depth for loading directories
     pub init_notify: Arc<Notify>,            // used in dir_test to notify the start of the test..
+    /// One-way readiness latch for consumers (e.g., Antares) that need root inode available.
+    ready: AtomicBool,
     /// Guards `import_arc` so we don't start multiple background imports concurrently for the same store.
     import_started: AtomicBool,
     persistent_content_store: Arc<ContentStorage>, // persistent content store for saving and retrieving file contents
@@ -680,20 +729,36 @@ pub struct DictionaryStore {
     /// Base path for subdirectory mounting (e.g., "/third-party/mega").
     /// When set, only content under this path is accessible.
     base_path: String,
+    /// Root directory for this store's on-disk DB files (path.db/content.db/size.db/markers).
+    ///
+    /// Important for Antares/base_path mounts where multiple Dicfuse instances must not share
+    /// the same sled DB directory.
+    store_dir: String,
+    /// Metadata stat mode (fast avoids any network size probing).
+    stat_mode: config::DicfuseStatMode,
+    /// TTL for directory refresh paths (load_dir/watch).
+    dir_sync_ttl: Duration,
+    /// Best-effort memory bound for open file cache.
+    open_buff_max_bytes: u64,
+    open_buff_max_files: usize,
+    open_buff_bytes: AtomicU64,
 }
 
 #[allow(unused)]
 impl DictionaryStore {
     pub async fn new() -> Self {
         let tree_store = TreeStorage::new().expect("Failed to create TreeStorage");
+        let store_dir = config::store_path().to_string();
         DictionaryStore {
             next_inode: AtomicU64::new(1),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
             dirs: Arc::new(DashMap::new()),
+            dir_locks: Arc::new(DashMap::new()),
             max_depth: Arc::new(config::load_dir_depth()),
             init_notify: Arc::new(Notify::new()),
+            ready: AtomicBool::new(false),
             import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(
                 ContentStorage::new().expect("Failed to create ContentStorage"),
@@ -704,20 +769,29 @@ impl DictionaryStore {
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
             base_path: String::new(),
+            store_dir,
+            stat_mode: config::dicfuse_stat_mode(),
+            dir_sync_ttl: Duration::from_secs(config::dicfuse_dir_sync_ttl_secs()),
+            open_buff_max_bytes: config::dicfuse_open_buff_max_bytes(),
+            open_buff_max_files: config::dicfuse_open_buff_max_files(),
+            open_buff_bytes: AtomicU64::new(0),
         }
     }
 
     pub async fn new_with_store_path(store_path: &str) -> Self {
         let tree_store =
             TreeStorage::new_with_path(store_path).expect("Failed to create TreeStorage");
+        let store_dir = store_path.to_string();
         DictionaryStore {
             next_inode: AtomicU64::new(1),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
             dirs: Arc::new(DashMap::new()),
+            dir_locks: Arc::new(DashMap::new()),
             max_depth: Arc::new(config::load_dir_depth()),
             init_notify: Arc::new(Notify::new()),
+            ready: AtomicBool::new(false),
             import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(
                 ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
@@ -728,6 +802,12 @@ impl DictionaryStore {
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
             base_path: String::new(),
+            store_dir,
+            stat_mode: config::dicfuse_stat_mode(),
+            dir_sync_ttl: Duration::from_secs(config::dicfuse_dir_sync_ttl_secs()),
+            open_buff_max_bytes: config::dicfuse_open_buff_max_bytes(),
+            open_buff_max_files: config::dicfuse_open_buff_max_files(),
+            open_buff_bytes: AtomicU64::new(0),
         }
     }
 
@@ -739,14 +819,43 @@ impl DictionaryStore {
     pub async fn new_with_base_path_and_store_path(base_path: &str, store_path: &str) -> Self {
         let tree_store =
             TreeStorage::new_with_path(store_path).expect("Failed to create TreeStorage");
+        let store_dir = store_path.to_string();
+        let is_subdir_mount = !(base_path.is_empty() || base_path == "/");
+        let max_depth = if is_subdir_mount {
+            config::antares_load_dir_depth()
+        } else {
+            config::load_dir_depth()
+        };
+        let stat_mode = if is_subdir_mount {
+            config::antares_dicfuse_stat_mode()
+        } else {
+            config::dicfuse_stat_mode()
+        };
+        let dir_sync_ttl = if is_subdir_mount {
+            Duration::from_secs(config::antares_dicfuse_dir_sync_ttl_secs())
+        } else {
+            Duration::from_secs(config::dicfuse_dir_sync_ttl_secs())
+        };
+        let open_buff_max_bytes = if is_subdir_mount {
+            config::antares_dicfuse_open_buff_max_bytes()
+        } else {
+            config::dicfuse_open_buff_max_bytes()
+        };
+        let open_buff_max_files = if is_subdir_mount {
+            config::antares_dicfuse_open_buff_max_files()
+        } else {
+            config::dicfuse_open_buff_max_files()
+        };
         DictionaryStore {
             next_inode: AtomicU64::new(1),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
             dirs: Arc::new(DashMap::new()),
-            max_depth: Arc::new(config::load_dir_depth()),
+            dir_locks: Arc::new(DashMap::new()),
+            max_depth: Arc::new(max_depth),
             init_notify: Arc::new(Notify::new()),
+            ready: AtomicBool::new(false),
             import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(
                 ContentStorage::new_with_path(store_path).expect("Failed to create ContentStorage"),
@@ -757,6 +866,12 @@ impl DictionaryStore {
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
             base_path: base_path.to_string(),
+            store_dir,
+            stat_mode,
+            dir_sync_ttl,
+            open_buff_max_bytes,
+            open_buff_max_files,
+            open_buff_bytes: AtomicU64::new(0),
         }
     }
 
@@ -835,9 +950,215 @@ impl DictionaryStore {
     pub fn max_depth(&self) -> usize {
         *self.max_depth
     }
+
+    pub fn stat_mode(&self) -> config::DicfuseStatMode {
+        self.stat_mode
+    }
+
+    pub fn dir_sync_ttl(&self) -> Duration {
+        self.dir_sync_ttl
+    }
+
+    fn open_buff_cache_enabled(&self) -> bool {
+        self.open_buff_max_bytes > 0 && self.open_buff_max_files > 0
+    }
+
+    fn open_buff_maybe_evict_for_insert(&self, new_len: u64) {
+        if !self.open_buff_cache_enabled() {
+            return;
+        }
+
+        let cur_files = self.open_buff.len();
+        let cur_bytes = self.open_buff_bytes.load(Ordering::Acquire);
+        if cur_files >= self.open_buff_max_files
+            || cur_bytes.saturating_add(new_len) > self.open_buff_max_bytes
+        {
+            debug!(
+                "dicfuse: open_buff eviction: cur_files={} cur_bytes={} new_len={} max_files={} max_bytes={}",
+                cur_files,
+                cur_bytes,
+                new_len,
+                self.open_buff_max_files,
+                self.open_buff_max_bytes
+            );
+            self.open_buff.clear();
+            self.open_buff_bytes.store(0, Ordering::Release);
+        }
+    }
+
+    fn open_buff_insert(&self, inode: u64, content: Vec<u8>) {
+        if !self.open_buff_cache_enabled() {
+            return;
+        }
+
+        let new_len = content.len() as u64;
+        if new_len > self.open_buff_max_bytes {
+            // Too large to cache under current limits; keep only persisted content.
+            return;
+        }
+
+        self.open_buff_maybe_evict_for_insert(new_len);
+        if let Some(old) = self.open_buff.insert(inode, content) {
+            self.open_buff_bytes
+                .fetch_sub(old.len() as u64, Ordering::AcqRel);
+        }
+        self.open_buff_bytes.fetch_add(new_len, Ordering::AcqRel);
+    }
+
+    fn open_buff_remove(&self, inode: u64) {
+        if let Some((_, old)) = self.open_buff.remove(&inode) {
+            self.open_buff_bytes
+                .fetch_sub(old.len() as u64, Ordering::AcqRel);
+        }
+    }
+
+    fn mark_ready(&self) {
+        // Mark as ready first, then notify.
+        self.ready.store(true, Ordering::Release);
+        // Wake current waiters.
+        self.init_notify.notify_waiters();
+        // Also store a permit for any future waiter to avoid missed notifications.
+        self.init_notify.notify_one();
+    }
+
     pub async fn wait_for_ready(&self) {
-        // Wait for the store to be initialized
-        self.init_notify.notified().await;
+        // Wait for the store to be initialized. This is a latch-style wait:
+        // - If already ready, return immediately.
+        // - Otherwise, wait for a notification (with a stored permit via notify_one).
+        while !self.ready.load(Ordering::Acquire) {
+            self.init_notify.notified().await;
+        }
+    }
+
+    fn dir_lock_for_path(&self, user_path: &str) -> Arc<Mutex<()>> {
+        self.dir_locks
+            .entry(user_path.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+
+    fn inode_to_user_path(&self, inode: u64) -> io::Result<String> {
+        if inode == 1 {
+            return Ok("/".to_string());
+        }
+        let p = self.persistent_path_store.get_all_path(inode)?;
+        Ok(format!("/{}", p.to_string()))
+    }
+
+    async fn upsert_inode(&self, parent: u64, item: ItemExt) -> io::Result<u64> {
+        // Use radix trie as the authoritative mapping from path -> inode.
+        let key = GPath::from(item.item.path.clone()).to_string();
+        let existing = {
+            let trie = self.radix_trie.lock().await;
+            trie.get(&key).copied()
+        };
+
+        if let Some(inode) = existing {
+            return Ok(inode);
+        }
+
+        self.update_inode(parent, item).await
+    }
+
+    /// Ensure a directory's children are loaded at least once.
+    ///
+    /// This enables "lazy directory loading": if a path lookup reaches an unloaded directory,
+    /// we fetch one directory listing from the server, populate inode/path mappings, and then
+    /// subsequent lookups become pure-local.
+    pub async fn ensure_dir_loaded(&self, parent_inode: u64) -> io::Result<()> {
+        let parent_user_path = self.inode_to_user_path(parent_inode)?;
+        ensure_dir_tracked(&self.dirs, &parent_user_path);
+
+        // Fast path: already loaded.
+        if let Some(dir) = self.dirs.get(&parent_user_path) {
+            if dir.loaded {
+                return Ok(());
+            }
+        }
+
+        let lock = self.dir_lock_for_path(&parent_user_path);
+        let _guard = lock.lock().await;
+
+        // Re-check under lock.
+        if let Some(dir) = self.dirs.get(&parent_user_path) {
+            if dir.loaded {
+                return Ok(());
+            }
+        }
+
+        // Fetch remote listing and populate children.
+        let real_parent_path = self.to_real_path(&parent_user_path);
+        let fetched = fetch_dir(&real_parent_path)
+            .await
+            .map_err(|e| io::Error::other(e.to_string()))?;
+        if !fetched._req_result {
+            return Err(io::Error::other(fetched._err_message));
+        }
+
+        let items: Vec<ItemExt> = fetched
+            .data
+            .into_iter()
+            .filter_map(|it| map_itemext_to_user(self, it))
+            .collect();
+
+        // Track entries seen during this sync using file_list booleans (same pattern as load_dir()).
+        if let Some(mut dir) = self.dirs.get_mut(&parent_user_path) {
+            for it in &items {
+                dir.file_list.insert(it.item.path.clone(), true);
+            }
+        }
+
+        // Populate tree/trie for children.
+        for it in items {
+            let is_dir = it.item.is_dir();
+            let child_path = it.item.path.clone(); // USER path (leading '/')
+
+            let child_inode = self.upsert_inode(parent_inode, it.clone()).await?;
+
+            if let Ok(existing) = self.persistent_path_store.get_item(child_inode) {
+                if existing.hash != it.hash {
+                    let _ = self
+                        .persistent_path_store
+                        .update_item_hash(child_inode, it.hash.clone());
+                    // If a file changed, invalidate cached content so reads refetch lazily.
+                    if !is_dir {
+                        let _ = self.remove_file_by_node(child_inode);
+                    }
+                }
+            }
+
+            if is_dir {
+                ensure_dir_tracked(&self.dirs, &child_path);
+                if let Some(mut child_dir) = self.dirs.get_mut(&child_path) {
+                    child_dir.hash = it.hash;
+                }
+            }
+        }
+
+        // Prune missing children and finalize loaded state.
+        let mut remove_items = Vec::new();
+        if let Some(mut dir) = self.dirs.get_mut(&parent_user_path) {
+            dir.file_list.retain(|path, seen| {
+                if !*seen {
+                    remove_items.push(path.clone());
+                    false
+                } else {
+                    *seen = false;
+                    true
+                }
+            });
+            dir.loaded = true;
+            dir.last_sync = Some(Instant::now());
+        }
+
+        for path in remove_items {
+            if let Ok(inode) = self.get_inode_from_path(&path).await {
+                let _ = self.persistent_path_store.remove_item(inode);
+                let _ = self.remove_file_by_node(inode);
+            }
+        }
+
+        Ok(())
     }
     async fn update_inode(&self, parent: u64, item: ItemExt) -> std::io::Result<u64> {
         let alloc_inode = self
@@ -967,14 +1288,14 @@ impl DictionaryStore {
                 .traverse_directory(&normalized_base_dir, &normalized_base_dir, &mut depth_items)
                 .await
             {
-                println!("Error traversing directory {normalized_base_dir}: {e}");
+                warn!("Error traversing directory {normalized_base_dir}: {e}");
             }
 
             if normalized_base_dir != "/" {
                 depth_items.entry(0).or_default();
             }
         } else {
-            println!("Base directory {normalized_base_dir} not found");
+            debug!("Base directory {normalized_base_dir} not found");
         }
 
         depth_items
@@ -1044,24 +1365,23 @@ impl DictionaryStore {
         // parent pointers / excessive depth issues in production.
     }
     /// When scorpio start,if the db is not empty, we need to load all the files to the memory.
-    fn load_file(&self, inode: u64) -> Result<(), io::Error> {
-        let file_content = self.persistent_content_store.get_file_content(inode)?;
-        let _ = self.open_buff.insert(inode, file_content);
-        Ok(())
-    }
-
     #[async_recursion]
     /// Loads directories recursively from the parent path into memory.
     async fn load_dirs(&self, path: PathBuf, parent_inode: u64) -> Result<(), io::Error> {
         let root_item = self.persistent_path_store.get_item(parent_inode)?;
+        let children = root_item.get_children();
+        // If the directory exists in our persisted path store, treat it as "loaded".
+        // Even for empty directories, this avoids re-fetching on first access after restart.
+        let loaded = true;
         self.dirs.insert(
             path.to_string_lossy().to_string(),
             DirItem {
                 hash: root_item.hash.to_owned(),
                 file_list: HashMap::new(),
+                loaded,
+                last_sync: Some(Instant::now()),
             },
         );
-        let children = root_item.get_children();
         for child in children {
             self.next_inode.fetch_max(child, Ordering::Relaxed);
             let child_item = self.persistent_path_store.get_item(child)?;
@@ -1078,8 +1398,6 @@ impl DictionaryStore {
 
             if child_item.is_dir() {
                 self.load_dirs(child_path, child).await?;
-            } else {
-                self.load_file(child);
             }
         }
         Ok(())
@@ -1129,7 +1447,7 @@ impl DictionaryStore {
 
             let it = self.persistent_path_store.get_all_path(one_inode).unwrap();
             let path = it.to_string();
-            println!("fetch path :{path}");
+            debug!("fetch path :{path}");
             // get tree by parent inode.
             new_items = fetch_dir(&path).await.unwrap().data;
 
@@ -1271,7 +1589,6 @@ impl DictionaryStore {
         // If file content exists on disk (content.db), load it into memory and use its length.
         if let Ok(content) = self.persistent_content_store.get_file_content(inode) {
             let len = content.len() as u64;
-            self.open_buff.insert(inode, content);
             if len > 0 {
                 self.set_persisted_size(inode, len);
                 return len;
@@ -1289,6 +1606,32 @@ impl DictionaryStore {
 
         0
     }
+
+    /// Get a file size suitable for `stat`, honoring this store's `stat_mode`.
+    ///
+    /// - `Fast`: never probes remote size; returns persisted size if present, otherwise 0.
+    /// - `Accurate`: may probe remote size (HEAD/Range) when missing.
+    pub async fn file_size_for_stat(&self, inode: u64, oid: &str) -> u64 {
+        match self.stat_mode() {
+            config::DicfuseStatMode::Fast => {
+                if !oid.is_empty() && oid == EMPTY_BLOB_OID {
+                    self.set_persisted_size(inode, 0);
+                    return 0;
+                }
+                if let Some(persisted) = self.get_persisted_size(inode) {
+                    return persisted;
+                }
+                if let Some(mem_len) = self.get_open_buff_len(inode) {
+                    if mem_len > 0 {
+                        self.set_persisted_size(inode, mem_len);
+                        return mem_len;
+                    }
+                }
+                0
+            }
+            config::DicfuseStatMode::Accurate => self.get_or_fetch_file_size(inode, oid).await,
+        }
+    }
     pub fn remove_file_by_node(&self, inode: u64) -> Result<(), io::Error> {
         // Best-effort: clear size metadata too, so concurrent getattr during refetch cannot
         // observe a stale persisted size (especially problematic if it was cached as 0).
@@ -1299,7 +1642,7 @@ impl DictionaryStore {
             );
         }
         self.persistent_content_store.remove_file(inode)?;
-        self.open_buff.remove(&inode);
+        self.open_buff_remove(inode);
         Ok(())
     }
     /// Save to db and then save in the memory.
@@ -1311,14 +1654,18 @@ impl DictionaryStore {
         self.persistent_content_store
             .insert_file(inode, &content)
             .expect("Failed to save file content");
-        self.open_buff.insert(inode, content);
+        self.open_buff_insert(inode, content);
     }
     /// Check if the file exists in the memory.
     pub fn file_exists(&self, inode: u64) -> bool {
         if self.open_buff.contains_key(&inode) {
             return true;
         }
-        // If persisted on disk, treat it as existing (lazy load into memory on demand).
+        // Prefer size.db as an existence check to avoid reading full blob bytes from sled.
+        if let Ok(Some(_)) = self.persistent_size_store.get_size(inode) {
+            return true;
+        }
+        // Backward-compat: older caches may have content without size metadata.
         self.persistent_content_store
             .get_file_content(inode)
             .is_ok()
@@ -1326,6 +1673,11 @@ impl DictionaryStore {
     /// Get the file content from the memory.
     pub fn get_file_content(&self, inode: u64) -> Option<Ref<'_, u64, Vec<u8>>> {
         self.open_buff.get(&inode)
+    }
+
+    /// Get the file content from persistent storage (content.db).
+    pub fn get_persisted_file_content(&self, inode: u64) -> io::Result<Vec<u8>> {
+        self.persistent_content_store.get_file_content(inode)
     }
 
     /// Download the file content from the server and save it to the db and memory.
@@ -1347,8 +1699,15 @@ impl DictionaryStore {
         }
         match self.persistent_content_store.get_file_content(inode) {
             Ok(content) => {
-                self.open_buff.insert(inode, content);
-                Ok(true)
+                // Best-effort cache: obey open_buff bounds.
+                let can_cache = self.open_buff_cache_enabled()
+                    && (content.len() as u64) <= self.open_buff_max_bytes;
+                if can_cache {
+                    self.open_buff_insert(inode, content);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(e) => Err(e),
@@ -1358,10 +1717,9 @@ impl DictionaryStore {
     pub async fn get_file_content_by_path(&self, path: &str) -> Result<Vec<u8>, io::Error> {
         let inode = self.get_inode_from_path(path).await?;
         if let Some(content) = self.get_file_content(inode) {
-            Ok(content.to_vec())
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "File not found"))
+            return Ok(content.to_vec());
         }
+        self.persistent_content_store.get_file_content(inode)
     }
 }
 
@@ -1418,20 +1776,15 @@ fn ensure_dir_tracked(dirs: &DashMap<String, DirItem>, path: &str) {
             DirItem {
                 hash: String::new(),
                 file_list: HashMap::new(),
+                loaded: false,
+                last_sync: None,
             },
         );
     }
 }
 
 fn import_done_marker_path(store: &DictionaryStore) -> PathBuf {
-    // Global (root) store uses the configured store_path directly.
-    // Subdirectory stores are under "{store_root}/dicfuse/{sha256(base_path)[:16]}".
-    let store_dir = super::compute_store_dir_for_base_path_with_store_root(
-        config::store_path(),
-        store.base_path(),
-    );
-
-    PathBuf::from(store_dir).join(".dicfuse_import_done")
+    PathBuf::from(&store.store_dir).join(".dicfuse_import_done")
 }
 
 async fn reset_store_for_import(store: &DictionaryStore) {
@@ -1443,12 +1796,15 @@ async fn reset_store_for_import(store: &DictionaryStore) {
 
     // Clear in-memory caches.
     store.open_buff.clear();
+    store.open_buff_bytes.store(0, Ordering::Release);
     store.exec_flags.clear();
     store.dirs.clear();
+    store.dir_locks.clear();
     store.inodes.lock().await.clear();
     *store.radix_trie.lock().await = radix_trie::Trie::new();
 
     store.next_inode.store(1, Ordering::Relaxed);
+    store.ready.store(false, Ordering::Release);
 }
 
 /// Loads subdirectories from a remote server into an empty parent directory up to a specified depth.
@@ -1473,9 +1829,14 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
     };
     let real_parent_path = store.to_real_path(&parent_path);
 
-    println!(
-        "[load_dir_depth] Starting to load directory tree from user={parent_path:?} real={real_parent_path:?} with max_depth={max_depth}"
+    info!(
+        "[load_dir_depth] starting load (user={parent_path:?} real={real_parent_path:?} max_depth={max_depth})"
     );
+
+    // Ensure we don't concurrently load the same directory (e.g., import_arc + on-demand lookups).
+    let dir_lock = store.dir_lock_for_path(&parent_path);
+    let _dir_guard = dir_lock.lock().await;
+
     let queue = Arc::new(SegQueue::new());
     let fetched = match fetch_dir(&real_parent_path).await {
         Ok(r) => r,
@@ -1500,15 +1861,15 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
         .into_iter()
         .filter_map(|it| map_itemext_to_user(store.as_ref(), it))
         .collect();
-    println!(
-        "[load_dir_depth] Fetched {} items from user={parent_path:?} real={real_parent_path:?}",
+    info!(
+        "[load_dir_depth] fetched {} items (user={parent_path:?} real={real_parent_path:?})",
         items.len()
     );
     // only count the directories.
     let dir_count = items.iter().filter(|it| it.item.is_dir()).count();
     let file_count = items.len() - dir_count;
-    println!(
-        "[load_dir_depth] Found {} directories and {} files in {parent_path:?}",
+    info!(
+        "[load_dir_depth] discovered {} dirs and {} files (user={parent_path:?})",
         dir_count, file_count
     );
     let active_producers = Arc::new(AtomicUsize::new(dir_count));
@@ -1519,14 +1880,17 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
         // This prevents panics in update paths (watch_dir/update_dir) and allows us to
         // safely record child entries in `file_list`.
         ensure_dir_tracked(&locks, &parent_path);
+        if let Some(mut parent_dir) = locks.get_mut(&parent_path) {
+            parent_dir.loaded = true;
+            parent_dir.last_sync = Some(Instant::now());
+        }
 
         // Get parent inode once before the loop (with proper error handling)
         let parent_node = match store.get_inode_from_path(&parent_path).await {
             Ok(inode) => inode,
             Err(e) => {
-                println!(
-                    "[load_dir_depth] ERROR: parent_path '{}' not found in radix_trie: {}. Aborting load.",
-                    parent_path, e
+                warn!(
+                    "[load_dir_depth] parent_path not found in radix_trie (user={parent_path:?}): {e}"
                 );
                 return;
             }
@@ -1541,13 +1905,10 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                 parent_dir.file_list.insert(path.to_owned(), false);
             }
 
-            let it_inode = match store.update_inode(parent_node, it.clone()).await {
+            let it_inode = match store.upsert_inode(parent_node, it.clone()).await {
                 Ok(inode) => inode,
                 Err(e) => {
-                    println!(
-                        "[load_dir_depth] ERROR: failed to update inode for '{}': {}",
-                        path, e
-                    );
+                    warn!("[load_dir_depth] upsert_inode failed (path={path:?}): {e}");
                     continue;
                 }
             };
@@ -1559,6 +1920,8 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                     DirItem {
                         hash: it.hash,
                         file_list: HashMap::new(),
+                        loaded: false,
+                        last_sync: None,
                     },
                 );
             } else {
@@ -1569,7 +1932,10 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
         }
     }
 
-    let worker_count = 10;
+    // Release the parent directory lock before spawning workers for deeper traversal.
+    drop(_dir_guard);
+
+    let worker_count = std::cmp::max(1, config::fetch_file_thread());
     let mut workers = Vec::with_capacity(worker_count);
 
     // clone shared resource.
@@ -1606,8 +1972,17 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                     let remaining_producers = producers.load(Ordering::Acquire);
                     let queue_size = queue.len();
                     if queue_size.is_multiple_of(10) || remaining_producers.is_multiple_of(50) {
-                        println!("[load_dir_depth] Worker processing user path: {path} (real: {real_path}) (remaining producers: {}, queue size: {})", remaining_producers, queue_size);
+                        debug!(
+                            "[load_dir_depth] processing user path={path} real={real_path} remaining_producers={} queue_size={}",
+                            remaining_producers,
+                            queue_size
+                        );
                     }
+
+                    // Prevent concurrent loads of the same directory (e.g., on-demand lookup + import).
+                    let dir_lock = store.dir_lock_for_path(&path);
+                    let _dir_guard = dir_lock.lock().await;
+
                     // Rate limiting: small delay before each request to avoid overwhelming server
                     tokio::time::sleep(Duration::from_millis(REQUEST_DELAY_MS)).await;
 
@@ -1630,6 +2005,10 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
 
                                 // Ensure parent dir exists before updating file_list.
                                 ensure_dir_tracked(&store.dirs, &path);
+                                if let Some(mut parent_dir) = store.dirs.get_mut(&path) {
+                                    parent_dir.loaded = true;
+                                    parent_dir.last_sync = Some(Instant::now());
+                                }
 
                                 for newit in new_items {
                                     let is_dir = newit.item.is_dir();
@@ -1640,7 +2019,8 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                                         parent_dir.file_list.insert(tmp_path.to_owned(), false);
                                     }
 
-                                    let new_inode = match store.update_inode(inode, newit.clone()).await {
+                                    let new_inode =
+                                        match store.upsert_inode(inode, newit.clone()).await {
                                         Ok(i) => i,
                                         Err(e) => {
                                             debug!(
@@ -1664,6 +2044,8 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                                             DirItem {
                                                 hash: newit.hash,
                                                 file_list: HashMap::new(),
+                                                loaded: false,
+                                                last_sync: None,
                                             },
                                         );
                                     } else {
@@ -1698,19 +2080,16 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
     // while let Some(worker) = workers.pop() {
     //     worker.await.expect("Worker panicked");
     // }
-    println!(
-        "[load_dir_depth] Waiting for {} workers to complete...",
-        worker_count
-    );
-    println!(
-        "[load_dir_depth] Current state: producers={}, queue_size={}",
+    info!("[load_dir_depth] waiting for {} workers", worker_count);
+    debug!(
+        "[load_dir_depth] state: producers={} queue_size={}",
         active_producers.load(Ordering::Acquire),
         queue.len()
     );
     join_all(workers).await;
     let elapsed = start_time.elapsed();
-    println!(
-        "[load_dir_depth] Completed loading directory tree from {parent_path:?} in {:.2}s",
+    info!(
+        "[load_dir_depth] completed loading directory tree from user={parent_path:?} in {:.2}s",
         elapsed.as_secs_f64()
     );
 }
@@ -1724,38 +2103,33 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     let marker_path = import_done_marker_path(store.as_ref());
 
     // 1) Try to load existing DB state.
-    // If it looks non-empty, we can return early; otherwise, we fall back to a remote warm-up.
+    // The import marker acts as a durable latch that the DB directory is initialized for this store.
     if store.load_db().await.is_ok() {
         let marker_ok = marker_path.exists();
-        // Consider DB usable only if the root has children.
-        // This avoids a "success" load on a partially-initialized DB (e.g., after a previous panic),
-        // which would leave the mount empty forever.
-        let has_children = store
-            .persistent_path_store
-            .get_children(1)
-            .map(|c| !c.is_empty())
-            .unwrap_or(false);
+        let has_root = store.persistent_path_store.get_item(1).is_ok();
 
         // Always make sure the root is tracked in dirs.
         ensure_dir_tracked(&store.dirs, &user_root);
 
-        if has_children && marker_ok {
-            store.init_notify.notify_waiters();
-            let watch_path = user_root.clone();
-            tokio::spawn(async move {
-                loop {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-                    watch_dir_path(store.clone(), &watch_path).await;
-                }
-            });
+        if marker_ok && has_root {
+            store.mark_ready();
+            if store.max_depth() > 0 {
+                let watch_path = user_root.clone();
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                        watch_dir_path(store.clone(), &watch_path).await;
+                    }
+                });
+            }
             return;
-        } else {
-            warn!(
-                "[import_arc] Existing DB is not usable (has_children={has_children}, marker_ok={marker_ok}); rebuilding from remote (real_root={real_root:?}, base_path={:?})",
-                store.base_path
-            );
-            // fall through to remote warm-up (after clearing state)
         }
+
+        warn!(
+            "[import_arc] Existing DB is not usable (has_root={has_root}, marker_ok={marker_ok}); rebuilding (real_root={real_root:?}, base_path={:?})",
+            store.base_path
+        );
+        // fall through to rebuild (after clearing state)
     }
 
     // Clear any partially-initialized store before rebuilding to avoid inode duplication.
@@ -1785,36 +2159,60 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     store.inodes.lock().await.insert(1, root_item.into());
     ensure_dir_tracked(&store.dirs, &user_root);
 
-    // Load directory tree synchronously - caller awaits completion
-    let max_depth = store.max_depth() + 2;
-    println!(
-        "[import_arc] Loading directory tree from user='{}' real='{}' with max_depth={max_depth} (config load_dir_depth={})",
-        user_root,
-        real_root,
-        store.max_depth()
-    );
-    load_dir_depth(store.clone(), user_root.clone(), max_depth).await;
-    println!(
-        "[import_arc] Directory tree loading completed for user='{}' real='{}'",
-        user_root, real_root
-    );
+    // Mark ready as soon as the root inode exists so Antares can mount immediately.
+    // Directory entries will be populated lazily on lookup/readdir, while import continues.
+    store.mark_ready();
 
-    // Mark import as complete so subsequent startups can trust the on-disk cache.
+    // Mark store initialization as complete so subsequent startups can trust the on-disk cache.
     if let Some(parent) = marker_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
     let _ = std::fs::write(&marker_path, b"ok\n");
 
-    store.init_notify.notify_waiters();
+    // Limit concurrent warmups/imports across stores to avoid remote pressure spikes.
+    let _permit = global_import_semaphore()
+        .acquire_owned()
+        .await
+        .expect("global import semaphore closed");
 
-    // Spawn background task for periodic directory watching
-    let watch_path = user_root;
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-            watch_dir_path(store.clone(), &watch_path).await;
-        }
-    });
+    // Always do a shallow root listing once (best-effort). This warms the root and persists children,
+    // while still keeping mount time-to-usable low (root is already ready).
+    if let Err(e) = store.ensure_dir_loaded(1).await {
+        warn!(
+            "[import_arc] ensure_dir_loaded(root) failed (user_root={user_root:?} real_root={real_root:?}): {e}"
+        );
+    }
+
+    // Optional deep prewarm: disabled by default for Antares subdir mounts (max_depth=0).
+    if store.max_depth() > 0 {
+        let max_depth = store.max_depth() + 2;
+        info!(
+            "[import_arc] Prewarming directory tree (user_root={user_root:?} real_root={real_root:?} max_depth={max_depth} load_dir_depth={})",
+            store.max_depth()
+        );
+        load_dir_depth(store.clone(), user_root.clone(), max_depth).await;
+        info!("[import_arc] Prewarm completed (user_root={user_root:?} real_root={real_root:?})");
+    } else {
+        info!(
+            "[import_arc] Skipping deep prewarm (max_depth=0) for base_path={:?}",
+            store.base_path
+        );
+    }
+
+    store.mark_ready();
+
+    // Spawn background task for periodic directory watching.
+    // For Antares subdir mounts (default max_depth=0), we skip the watcher to avoid background
+    // remote storms; directories are refreshed lazily when accessed.
+    if store.max_depth() > 0 {
+        let watch_path = user_root;
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                watch_dir_path(store.clone(), &watch_path).await;
+            }
+        });
+    }
 }
 
 /// Get the directory hash from the server
@@ -1893,6 +2291,22 @@ pub async fn load_dir(
     // Ensure we are tracking this directory in the in-memory dirs map.
     ensure_dir_tracked(&dirs, &parent_path);
 
+    // Best-effort TTL: avoid repeated refreshes of the same directory in hot loops.
+    let ttl = store.dir_sync_ttl();
+    if ttl != Duration::from_secs(0) {
+        if let Some(d) = dirs.get(&parent_path) {
+            if let Some(ts) = d.last_sync {
+                if ts.elapsed() < ttl {
+                    debug!(
+                        "load_dir: skip refresh due to TTL (user={parent_path:?} ttl={:?})",
+                        ttl
+                    );
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
     // Translate USER path -> REAL path for network calls.
     let real_parent_path = store.to_real_path(&parent_path);
 
@@ -1907,22 +2321,37 @@ pub async fn load_dir(
     }
     info!("load_dir parent_path user={parent_path:?} real={real_parent_path:?}");
 
-    //empty dir,load the dir to the max_depth.
-    let is_empty = dirs
+    // If this directory was never loaded, do a shallow one-level load and stop.
+    // This avoids treating "not loaded" as "empty" and prevents deep/BFS prewarm on hot paths.
+    let (was_loaded, file_list_empty) = dirs
         .get(&parent_path)
-        .map(|d| d.file_list.is_empty())
-        .unwrap_or(true);
-    if is_empty {
-        load_dir_depth(store.clone(), parent_path.to_owned(), max_depth).await;
+        .map(|d| (d.loaded, d.file_list.is_empty()))
+        .unwrap_or((false, true));
+    if !was_loaded {
+        store.ensure_dir_loaded(parent_inode).await?;
+        if let Some(mut dir) = dirs.get_mut(&parent_path) {
+            dir.loaded = true;
+            dir.hash = self_hash.to_owned();
+            dir.last_sync = Some(Instant::now());
+        }
+        let _ = tree_db.update_item_hash(parent_inode, self_hash);
+        return Ok(true);
+    }
 
+    // For already-loaded but empty directories, just refresh the hash and return.
+    if file_list_empty {
+        let mut changed = false;
         if let Some(mut dir) = dirs.get_mut(&parent_path) {
             if dir.hash != self_hash {
                 dir.hash = self_hash.to_owned();
-                let _ = tree_db.update_item_hash(parent_inode, self_hash);
-                return Ok(true);
+                changed = true;
             }
+            dir.last_sync = Some(Instant::now());
         }
-        return Ok(false);
+        if changed {
+            let _ = tree_db.update_item_hash(parent_inode, self_hash);
+        }
+        return Ok(changed);
     }
     // if the dir's hash is same as the parent dir's hash,
     //then check the subdir from the db,no need to get from the server..
@@ -1931,6 +2360,9 @@ pub async fn load_dir(
         .map(|d| d.hash.clone())
         .unwrap_or_default();
     if cached_hash == self_hash {
+        if let Some(mut dir) = dirs.get_mut(&parent_path) {
+            dir.last_sync = Some(Instant::now());
+        }
         let item = match store.persistent_path_store.get_item(parent_inode) {
             Ok(i) => i,
             Err(e) => {
@@ -1975,6 +2407,7 @@ pub async fn load_dir(
 
     if let Some(mut dir) = dirs.get_mut(&parent_path) {
         dir.hash = self_hash.to_owned();
+        dir.last_sync = Some(Instant::now());
     }
     tree_db
         .update_item_hash(parent_inode, self_hash)
@@ -2011,7 +2444,7 @@ pub async fn load_dir(
                 dir.file_list.insert(path.to_owned(), true);
             }
             info!("load dir add new file {path:?}");
-            let _new_node = match store.update_inode(parent_inode, it.clone()).await {
+            let _new_node = match store.upsert_inode(parent_inode, it.clone()).await {
                 Ok(i) => i,
                 Err(e) => {
                     warn!("load_dir: update_inode failed for {path:?}: {e}");
@@ -2026,9 +2459,11 @@ pub async fn load_dir(
                     DirItem {
                         hash: it.hash,
                         file_list: HashMap::new(),
+                        loaded: false,
+                        last_sync: None,
                     },
                 );
-                load_dir_depth(store.clone(), path.to_owned(), max_depth).await;
+                // Do not deep-prewarm here; allow on-demand lazy loads and/or background watchers.
             } else {
                 // Do not prefetch content for newly discovered files; fetch lazily on read().
             }
@@ -2045,6 +2480,7 @@ pub async fn load_dir(
             }
             result
         });
+        dir.last_sync = Some(Instant::now());
     }
     for item in remove_items {
         if let Ok(inode) = store.get_inode_from_path(&item).await {
@@ -2143,8 +2579,7 @@ mod tests {
     async fn test_fetch_tree_success() {
         let path: &str = "/third-party/mega";
 
-        let result = fetch_tree(path).await.unwrap();
-        println!("result: {result:?}");
+        let _result = fetch_tree(path).await.unwrap();
     }
 
     #[test]
@@ -2159,8 +2594,64 @@ mod tests {
         t.insert(String::from("/a/c/2"), 0);
         t.insert(String::from("/a/b/1"), 0);
 
-        let c = t.children();
-        c.into_iter().for_each(|it| println!("{it:?}\n"))
+        assert!(t.children().into_iter().next().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_stat_mode_fast_does_not_probe_remote_size() {
+        use tempfile::tempdir;
+
+        FETCH_FILE_SIZE_CALLS.store(0, Ordering::Relaxed);
+
+        let tmp = tempdir().unwrap();
+        let mut store = DictionaryStore::new_with_base_path_and_store_path(
+            "/third-party/mega",
+            tmp.path().to_str().unwrap(),
+        )
+        .await;
+        // Force fast mode regardless of global config initialization ordering.
+        store.stat_mode = config::DicfuseStatMode::Fast;
+
+        // Seed a file entry with a non-empty oid/hash, but with no persisted size.
+        store.insert_mock_item(1, 0, "", true).await;
+        store.insert_mock_item(2, 1, "foo.txt", false).await;
+        let _ = store
+            .persistent_path_store
+            .update_item_hash(2, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_string());
+
+        let sz = store.file_size_for_stat(2, "deadbeef").await;
+        assert_eq!(sz, 0);
+        assert_eq!(FETCH_FILE_SIZE_CALLS.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_open_buff_eviction_clears_cache_but_keeps_persisted_content() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let mut store = DictionaryStore::new_with_store_path(tmp.path().to_str().unwrap()).await;
+
+        store.open_buff_max_bytes = 10;
+        store.open_buff_max_files = 1024;
+        store.open_buff_bytes.store(0, Ordering::Release);
+
+        store.save_file(1, b"123456".to_vec()); // 6 bytes
+        assert!(store.open_buff.contains_key(&1));
+
+        // Next insert would exceed max_bytes -> evict all, then cache the new one.
+        store.save_file(2, b"abcdef".to_vec()); // 6 bytes
+        assert!(!store.open_buff.contains_key(&1));
+        assert!(store.open_buff.contains_key(&2));
+
+        // Persisted content remains available.
+        assert_eq!(
+            store.get_persisted_file_content(1).unwrap(),
+            b"123456".to_vec()
+        );
+        assert_eq!(
+            store.get_persisted_file_content(2).unwrap(),
+            b"abcdef".to_vec()
+        );
     }
 
     /// Helper function to create a DictionaryStore with base_path for testing.
@@ -2180,20 +2671,55 @@ mod tests {
         let size_store = super::super::size_store::SizeStorage::new_with_path(&tmp_dir)
             .expect("Failed to create SizeStorage with temp path");
 
+        let is_subdir_mount = !(base_path.is_empty() || base_path == "/");
+        let max_depth = if is_subdir_mount {
+            config::antares_load_dir_depth()
+        } else {
+            config::load_dir_depth()
+        };
+        let stat_mode = if is_subdir_mount {
+            config::antares_dicfuse_stat_mode()
+        } else {
+            config::dicfuse_stat_mode()
+        };
+        let dir_sync_ttl = if is_subdir_mount {
+            Duration::from_secs(config::antares_dicfuse_dir_sync_ttl_secs())
+        } else {
+            Duration::from_secs(config::dicfuse_dir_sync_ttl_secs())
+        };
+        let open_buff_max_bytes = if is_subdir_mount {
+            config::antares_dicfuse_open_buff_max_bytes()
+        } else {
+            config::dicfuse_open_buff_max_bytes()
+        };
+        let open_buff_max_files = if is_subdir_mount {
+            config::antares_dicfuse_open_buff_max_files()
+        } else {
+            config::dicfuse_open_buff_max_files()
+        };
+
         DictionaryStore {
             next_inode: AtomicU64::new(1),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
             dirs: Arc::new(DashMap::new()),
-            max_depth: Arc::new(config::load_dir_depth()),
+            dir_locks: Arc::new(DashMap::new()),
+            max_depth: Arc::new(max_depth),
             init_notify: Arc::new(Notify::new()),
+            ready: AtomicBool::new(false),
             import_started: AtomicBool::new(false),
             persistent_content_store: Arc::new(content_store),
             persistent_size_store: Arc::new(size_store),
             open_buff: Arc::new(DashMap::new()),
             exec_flags: Arc::new(DashMap::new()),
             base_path: base_path.to_string(),
+            store_dir: tmp_dir,
+            stat_mode,
+            dir_sync_ttl,
+            open_buff_max_bytes,
+            open_buff_max_files,
+            open_buff_bytes: AtomicU64::new(0),
         }
     }
 

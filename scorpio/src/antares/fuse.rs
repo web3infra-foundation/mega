@@ -84,6 +84,11 @@ impl AntaresFuse {
             return Ok(());
         }
 
+        // Ensure mountpoint exists *before* mounting. This is a plain filesystem check.
+        // Do not probe it *after* mounting, because that may trigger FUSE getattr and can fail
+        // transiently while Dicfuse is still loading.
+        std::fs::metadata(&self.mountpoint)?;
+
         let overlay = self.build_overlay().await?;
         let logfs = LoggingFileSystem::new(overlay);
         let handle = mount_filesystem(logfs, self.mountpoint.as_os_str()).await;
@@ -96,42 +101,11 @@ impl AntaresFuse {
 
         self.fuse_task = Some(fuse_task);
 
-        // IMPORTANT: Do NOT poll read_dir on the FUSE mountpoint from the async HTTP handler!
-        // This can cause deadlocks because:
-        // 1. tokio::fs::read_dir uses spawn_blocking internally
-        // 2. The FUSE operation goes to the kernel which sends it to our FUSE daemon
-        // 3. The FUSE daemon might need to wait for Dicfuse data (network I/O)
-        // 4. This can block tokio worker threads and starve the runtime
-        //
-        // Instead, we just verify the mountpoint directory exists (a simple stat that doesn't
-        // go through FUSE) and trust the FUSE session is running.
-        //
-        // The mount will be considered successful if:
-        // 1. The mountpoint directory exists, AND
-        // 2. The FUSE task has been spawned
-        //
-        // Actual FUSE readiness will be verified lazily when clients access the mount.
-
-        // Small delay to let the FUSE session initialize
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-        // Check mountpoint exists (this is a local stat, not through FUSE)
-        if self.mountpoint.exists() {
-            tracing::info!(
-                "Mount spawned for {}; FUSE session running (Dicfuse may still be loading in background)",
-                self.mountpoint.display()
-            );
-            return Ok(());
-        }
-
-        // If mountpoint doesn't exist after a brief delay, something went wrong
-        Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!(
-                "mountpoint {} does not exist after FUSE spawn",
-                self.mountpoint.display()
-            ),
-        ))
+        tracing::info!(
+            "Mount spawned for {}; FUSE session running (Dicfuse may still be loading in background)",
+            self.mountpoint.display()
+        );
+        Ok(())
     }
 
     /// Unmount the FUSE session if mounted.
@@ -763,10 +737,9 @@ mod tests {
         dic.store.load_db().await.unwrap();
 
         // OverlayFs with do_import=true may trigger Dicfuse background import logic.
-        // Ensure it treats the pre-seeded sled DB as reusable (skip network fetch) by writing the marker.
-        // NOTE: Marker location is derived from configured store_path for the root view.
-        let marker_path =
-            std::path::PathBuf::from(config::store_path()).join(".dicfuse_import_done");
+        // Ensure it treats the pre-seeded sled DB as reusable (skip network fetch) by writing the marker
+        // into the SAME store directory we seeded.
+        let marker_path = std::path::PathBuf::from(&store_path).join(".dicfuse_import_done");
         if let Some(parent) = marker_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

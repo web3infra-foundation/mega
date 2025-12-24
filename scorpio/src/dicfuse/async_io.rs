@@ -9,7 +9,6 @@ use rfuse3::{Errno, Inode, Result};
 
 use super::Dicfuse;
 use crate::dicfuse::abi::{default_dic_entry, default_file_entry};
-use crate::dicfuse::store::load_dir;
 use crate::dicfuse::store::EMPTY_BLOB_OID;
 use futures::stream::iter;
 impl Filesystem for Dicfuse {
@@ -72,7 +71,15 @@ impl Filesystem for Dicfuse {
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
 
         ppath.push(name.to_string_lossy().into_owned());
-        let child = store.get_by_path(&ppath.to_string()).await?;
+        let child = match store.get_by_path(&ppath.to_string()).await {
+            Ok(v) => v,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Lazy directory loading: populate the parent directory once and retry.
+                store.ensure_dir_loaded(parent).await?;
+                store.get_by_path(&ppath.to_string()).await?
+            }
+            Err(e) => return Err(e.into()),
+        };
         let re = self.get_stat(child).await;
         Ok(re)
     }
@@ -277,16 +284,103 @@ impl Filesystem for Dicfuse {
             });
         }
 
-        // Fast path: already in memory.
-        if self.store.get_file_content(inode).is_none() {
-            // If persisted on disk (content.db), load into memory first.
-            // This avoids re-downloading and also prevents file_exists()/open_buff mismatches.
-            let _ = self.store.ensure_file_loaded(inode);
-        }
+        // The file content may be:
+        // - cached in-memory (open_buff),
+        // - persisted on disk (content.db) but not cached (open_buff bounded/disabled),
+        // - not present locally and needs on-demand fetch.
+        let mut persisted: Option<Vec<u8>> = None;
 
-        // On-demand file fetching:
-        // If still not in memory, fetch it from the remote using the stored hash/oid.
-        if self.store.get_file_content(inode).is_none() {
+        for attempt in 0..2 {
+            // Prefer in-memory.
+            if let Some(datas) = self.store.get_file_content(inode) {
+                let is_empty = datas.is_empty();
+                drop(datas);
+
+                if is_empty && attempt == 0 {
+                    // Defensive: avoid serving poisoned empty cache for non-empty blobs.
+                    let item = self.store.get_inode(inode).await?;
+                    if !item.is_dir() && !item.hash.is_empty() && item.hash != EMPTY_BLOB_OID {
+                        let _ = self.store.remove_file_by_node(inode);
+                        if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
+                            tracing::warn!(
+                                "dicfuse: refetch failed for inode {} oid {}: {}",
+                                inode,
+                                item.hash,
+                                e
+                            );
+                            let errno = if e.kind() == std::io::ErrorKind::NotFound {
+                                libc::ENOENT
+                            } else {
+                                libc::EIO
+                            };
+                            return Err(std::io::Error::from_raw_os_error(errno).into());
+                        }
+                        continue;
+                    }
+                }
+
+                let datas = self
+                    .store
+                    .get_file_content(inode)
+                    .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+                let _offset = offset as usize;
+                let end = (_offset + size as usize).min(datas.len());
+                let slice = &datas[_offset..end];
+                return Ok(ReplyData {
+                    data: Bytes::copy_from_slice(slice),
+                });
+            }
+
+            // Next: try persisted content.db (without forcing it into open_buff).
+            if persisted.is_none() {
+                match self.store.get_persisted_file_content(inode) {
+                    Ok(v) => persisted = Some(v),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            "dicfuse: failed to read persisted content inode {}: {}",
+                            inode,
+                            e
+                        );
+                        return Err(std::io::Error::from_raw_os_error(libc::EIO).into());
+                    }
+                }
+            }
+
+            if let Some(buf) = persisted.as_ref() {
+                let is_empty = buf.is_empty();
+                if is_empty && attempt == 0 {
+                    let item = self.store.get_inode(inode).await?;
+                    if !item.is_dir() && !item.hash.is_empty() && item.hash != EMPTY_BLOB_OID {
+                        let _ = self.store.remove_file_by_node(inode);
+                        if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
+                            tracing::warn!(
+                                "dicfuse: refetch failed for inode {} oid {}: {}",
+                                inode,
+                                item.hash,
+                                e
+                            );
+                            let errno = if e.kind() == std::io::ErrorKind::NotFound {
+                                libc::ENOENT
+                            } else {
+                                libc::EIO
+                            };
+                            return Err(std::io::Error::from_raw_os_error(errno).into());
+                        }
+                        persisted = None;
+                        continue;
+                    }
+                }
+
+                let _offset = offset as usize;
+                let end = (_offset + size as usize).min(buf.len());
+                let slice = &buf[_offset..end];
+                return Ok(ReplyData {
+                    data: Bytes::copy_from_slice(slice),
+                });
+            }
+
+            // Finally: on-demand fetch.
             let item = self.store.get_inode(inode).await?;
             if item.is_dir() {
                 return Err(std::io::Error::from_raw_os_error(libc::EISDIR).into());
@@ -294,7 +388,6 @@ impl Filesystem for Dicfuse {
             if item.hash.is_empty() {
                 return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
             }
-            // IMPORTANT: on network/HTTP failure, do NOT cache empty content.
             if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
                 tracing::warn!(
                     "dicfuse: failed to fetch inode {} oid {}: {}",
@@ -311,71 +404,16 @@ impl Filesystem for Dicfuse {
             }
         }
 
-        let datas = self
-            .store
-            .get_file_content(inode)
-            .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
-        let is_empty = datas.is_empty();
-        drop(datas);
-
-        // Defensive: if we ended up with empty content for a blob that is not the git empty blob,
-        // this is most likely a previously poisoned cache (historical bug: failed downloads cached
-        // as empty). Attempt a one-time refetch and return EIO on failure.
-        if is_empty {
-            let item = self.store.get_inode(inode).await?;
-            if !item.is_dir() && !item.hash.is_empty() && item.hash != EMPTY_BLOB_OID {
-                let _ = self.store.remove_file_by_node(inode);
-                if let Err(e) = self.store.fetch_file_content(inode, &item.hash).await {
-                    tracing::warn!(
-                        "dicfuse: refetch failed for inode {} oid {}: {}",
-                        inode,
-                        item.hash,
-                        e
-                    );
-                    let errno = if e.kind() == std::io::ErrorKind::NotFound {
-                        libc::ENOENT
-                    } else {
-                        libc::EIO
-                    };
-                    return Err(std::io::Error::from_raw_os_error(errno).into());
-                }
-            }
-        }
-
-        let datas = self
-            .store
-            .get_file_content(inode)
-            .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
-        let _offset = offset as usize;
-        let end = (_offset + size as usize).min(datas.len());
-        let slice = &datas[_offset..end];
-        //println!("read result :{:?}",slice);
-        Ok(ReplyData {
-            data: Bytes::copy_from_slice(slice),
-        })
+        Err(std::io::Error::from_raw_os_error(libc::EIO).into())
     }
     async fn access(&self, _req: Request, inode: Inode, _mask: u32) -> Result<()> {
-        // Verify inode exists
-        self.store.get_inode(inode).await?;
-
-        // Try to get path and load directory contents
-        match self.store.find_path(inode).await {
-            Some(path) => {
-                let load_parent = "/".to_string() + &path.to_string();
-                let max_depth = self.store.max_depth() + load_parent.matches('/').count();
-
-                let hash_changed = load_dir(self.store.clone(), load_parent, max_depth).await?;
-                if hash_changed {
-                    // Refresh ancestor hashes when directory contents changed
-                    self.store.update_ancestors_hash(inode).await;
-                }
-                Ok(())
-            }
-            None => {
-                // Inode exists but no path: this is an error, likely corruption
-                Err(std::io::Error::from_raw_os_error(libc::ENOENT).into())
-            }
+        // Access is a metadata permission check; keep it lightweight.
+        // For directories, ensure at least one children listing exists (lazy).
+        let item = self.store.get_inode(inode).await?;
+        if item.is_dir() {
+            self.store.ensure_dir_loaded(inode).await?;
         }
+        Ok(())
     }
 
     async fn write(
@@ -414,6 +452,8 @@ impl Filesystem for Dicfuse {
         offset: i64,
     ) -> Result<ReplyDirectory<impl futures::Stream<Item = Result<DirectoryEntry>> + Send + 'a>>
     {
+        // Ensure directory entries exist before listing.
+        self.store.ensure_dir_loaded(parent).await?;
         let all_items = self.store.do_readdir(parent, fh, 0).await?;
         let mut d: Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
@@ -478,6 +518,8 @@ impl Filesystem for Dicfuse {
     ) -> Result<
         ReplyDirectoryPlus<impl futures::Stream<Item = Result<DirectoryEntryPlus>> + Send + 'a>,
     > {
+        // Ensure directory entries exist before listing (first access may require one network fetch).
+        self.store.ensure_dir_loaded(parent).await?;
         let all_items = self.store.do_readdir(parent, fh, 0).await?;
         let mut d: Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
 
