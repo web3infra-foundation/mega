@@ -46,7 +46,7 @@ use crate::api_service::cache::GitObjectCache;
 use crate::api_service::state::ProtocolApiState;
 use crate::api_service::{ApiHandler, tree_ops};
 use crate::model::buck::{CompletePayload, CompleteResponse, ManifestPayload, ManifestResponse};
-use crate::model::buck::{FileChange, FileToUpload as ApiFileToUpload};
+use crate::model::buck::{DEFAULT_MODE, FileChange, FileToUpload as ApiFileToUpload};
 use crate::model::change_list::ClDiffFile;
 use crate::model::git::CreateEntryInfo;
 use crate::model::git::{EditFilePayload, EditFileResult};
@@ -1741,7 +1741,6 @@ impl MonoApiService {
                     path: f.path.clone(),
                     size: f.size,
                     hash: f.hash.clone(),
-                    mode: f.mode.clone(),
                 })
                 .collect(),
             commit_message: payload.commit_message.clone(),
@@ -1849,7 +1848,9 @@ impl MonoApiService {
                 FileChange::new(
                     f.file_path.clone(),
                     normalized_blob_id,
-                    f.file_mode.clone().unwrap_or_else(|| "100644".to_string()),
+                    f.file_mode
+                        .clone()
+                        .unwrap_or_else(|| DEFAULT_MODE.to_string()),
                 )
             })
             .collect();
