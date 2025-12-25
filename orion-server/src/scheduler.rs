@@ -16,6 +16,19 @@ use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+const LEGACY_TARGET: &str = "//...";
+
+/// Resolve target with legacy fallback.
+pub fn resolve_target(target: Option<String>) -> (String, bool) {
+    let trimmed = target.unwrap_or_default().trim().to_string();
+
+    if trimmed.is_empty() {
+        (LEGACY_TARGET.to_string(), true)
+    } else {
+        (trimmed, false)
+    }
+}
+
 /// Request payload for creating a new build task
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -34,6 +47,7 @@ pub struct PendingTask {
     pub repo: String,
     pub cl: i64,
     pub request: BuildRequest,
+    pub resolved_target: String,
     pub created_at: Instant,
 }
 
@@ -255,12 +269,26 @@ impl TaskScheduler {
         cl: i64,
     ) -> Result<Uuid, String> {
         let build_id = Uuid::now_v7();
+        let (resolved_target, fallback_used) = resolve_target(request.target.clone());
+        if fallback_used {
+            tracing::warn!(
+                "Fallback to legacy single-target mode for queued task {} build {}",
+                task_id,
+                build_id
+            );
+        }
+
+        let request = BuildRequest {
+            target: Some(resolved_target.clone()),
+            ..request
+        };
 
         let pending_task = PendingTask {
             task_id,
             cl_link: cl_link.to_string(),
             build_id,
             request,
+            resolved_target,
             created_at: Instant::now(),
             repo,
             cl,
@@ -372,7 +400,7 @@ impl TaskScheduler {
             changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
-            target: pending_task.request.target.clone(),
+            target: Some(pending_task.resolved_target.clone()),
         };
 
         // Insert build record
@@ -385,11 +413,7 @@ impl TaskScheduler {
                 .with_timezone(&FixedOffset::east_opt(0).unwrap())),
             end_at: Set(None),
             repo: Set(build_info.repo.clone()),
-            target: Set(pending_task
-                .request
-                .target
-                .clone()
-                .unwrap_or_else(|| "//...".to_string())),
+            target: Set(pending_task.resolved_target.clone()),
             args: Set(None),
             output_file: Set(format!(
                 "{}/{}/{}.log",
@@ -412,7 +436,7 @@ impl TaskScheduler {
             repo: pending_task.repo,
             cl_link: pending_task.cl_link.to_string(),
             changes: pending_task.request.changes.clone(),
-            target: pending_task.request.target.clone(),
+            target: Some(pending_task.resolved_target),
         };
 
         // Send task to worker
@@ -528,6 +552,7 @@ mod tests {
                 changes: vec![],
                 target: None,
             },
+            resolved_target: "//...".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -541,6 +566,7 @@ mod tests {
                 changes: vec![],
                 target: None,
             },
+            resolved_target: "//...".to_string(),
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -577,6 +603,7 @@ mod tests {
                 changes: vec![],
                 target: None,
             },
+            resolved_target: "//...".to_string(),
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

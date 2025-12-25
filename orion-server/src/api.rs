@@ -3,6 +3,7 @@ use crate::log::log_service::{LogEvent, LogService};
 use crate::model::{builds, tasks};
 use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+    resolve_target,
 };
 use anyhow::Result;
 use axum::extract::Query;
@@ -390,6 +391,14 @@ async fn handle_immediate_task_dispatch(
     cl: i64,
     req: BuildRequest,
 ) -> BuildResult {
+    let (resolved_target, fallback_used) = resolve_target(req.target.clone());
+    if fallback_used {
+        tracing::warn!(
+            "Fallback to legacy single-target mode for immediate task {} build",
+            task_id
+        );
+    }
+
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
 
@@ -419,7 +428,7 @@ async fn handle_immediate_task_dispatch(
         start_at: chrono::Utc::now(),
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
-        target: req.target.clone(),
+        target: Some(resolved_target.clone()),
     };
 
     // Use the model's insert_build method for direct insertion
@@ -427,7 +436,7 @@ async fn handle_immediate_task_dispatch(
         build_id,
         task_id,
         repo.to_string(),
-        req.target.clone().unwrap_or_else(|| "//...".to_string()),
+        resolved_target.clone(),
         &state.conn,
     )
     .await
@@ -447,7 +456,7 @@ async fn handle_immediate_task_dispatch(
         repo: repo.to_string(),
         changes: req.changes.clone(),
         cl_link: cl_link.to_string(),
-        target: req.target.clone(),
+        target: Some(resolved_target),
     };
 
     // Send task to the selected worker
@@ -808,6 +817,8 @@ pub struct BuildDTO {
     pub target: String,
     pub args: Option<Value>,
     pub output_file: String,
+    /// Explicit log path for this build (target-scoped)
+    pub log_path: String,
     pub created_at: String,
     pub status: TaskStatusEnum,
     pub cause_by: Option<String>,
@@ -816,6 +827,7 @@ pub struct BuildDTO {
 impl BuildDTO {
     /// Converts a database model to a DTO for API responses
     pub fn from_model(model: builds::Model, status: TaskStatusEnum) -> Self {
+        let output_file = model.output_file.clone();
         Self {
             id: model.id.to_string(),
             task_id: model.task_id.to_string(),
@@ -825,7 +837,8 @@ impl BuildDTO {
             repo: model.repo,
             target: model.target,
             args: model.args.map(|v| json!(v)),
-            output_file: model.output_file,
+            output_file: output_file.clone(),
+            log_path: output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             status,
             cause_by: None,
@@ -1200,6 +1213,7 @@ mod tests {
             target: "//:target".to_string(),
             args: None,
             output_file: "path.log".to_string(),
+            log_path: "path.log".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             status,
             cause_by: None,
@@ -1228,6 +1242,30 @@ mod tests {
         let (status, partial) = aggregate_task_status(&builds);
         assert!(partial);
         assert!(matches!(status, TaskStatusEnum::Building));
+    }
+
+    #[test]
+    fn aggregate_status_full_success() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Completed),
+            dummy_build(TaskStatusEnum::Completed),
+        ];
+
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(!partial);
+        assert!(matches!(status, TaskStatusEnum::Completed));
+    }
+
+    #[test]
+    fn aggregate_status_success_and_canceled() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Completed),
+            dummy_build(TaskStatusEnum::Canceled),
+        ];
+
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(partial);
+        assert!(matches!(status, TaskStatusEnum::Failed));
     }
 
     /// Test random number generation for worker selection
