@@ -19,9 +19,33 @@ pub struct ScorpioConfig {
 const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
 const DEFAULT_FETCH_FILE_THREAD: usize = 10;
 const DEFAULT_ANTARES_SUBDIR: &str = "antares";
+const DEFAULT_DICFUSE_IMPORT_CONCURRENCY: usize = 4;
+const DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS: u64 = 5;
+const DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 256 * 1024 * 1024; // 256MiB
+const DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 4096;
+
+// Antares defaults: optimized for build lowerdir stability and resource predictability.
+const DEFAULT_ANTARES_LOAD_DIR_DEPTH: usize = 0; // disable deep prewarm; rely on lazy per-dir loads
+const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 64 * 1024 * 1024; // 64MiB
+const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 1024;
 
 // Global configuration management
 static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DicfuseStatMode {
+    Fast,
+    Accurate,
+}
+
+fn parse_stat_mode(v: Option<&String>, default: DicfuseStatMode) -> DicfuseStatMode {
+    match v.map(|s| s.trim().to_ascii_lowercase()) {
+        Some(s) if s == "fast" => DicfuseStatMode::Fast,
+        Some(s) if s == "accurate" => DicfuseStatMode::Accurate,
+        Some(_) => default,
+        None => default,
+    }
+}
 
 /// Initialize global configuration
 ///
@@ -57,7 +81,8 @@ pub fn init_config(path: &str) -> ConfigResult<()> {
 /// `ConfigResult<()>` - Success or error
 fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResult<()> {
     let username = whoami::username();
-    let base_path = format!("/home/{username}/megadir");
+    // Prefer a writable, container-friendly default. Users can still override via scorpio.toml.
+    let base_path = format!("/tmp/megadir-{username}");
 
     // Check if critical fields are empty (first run scenario)
     let is_first_run = config
@@ -158,20 +183,50 @@ fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResul
             toml::to_string(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
         fs::write(path, &toml)
             .map_err(|e| format!("Failed to save config {}: {e}", Path::new(path).display()))?;
+    }
 
-        // Create the config.toml
-        let config_file = config
-            .get("config_file")
-            .ok_or("Missing 'config_file' in configuration".to_string())?;
-        if !Path::new(config_file).exists() {
-            fs::write(config_file, "works=[]").map_err(|e| {
-                format!(
-                    "Failed to create {}: {}",
-                    config.get("config_file").unwrap(),
-                    e
-                )
-            })?;
+    // Always ensure runtime paths exist (even when the config was fully specified).
+    // This keeps `scorpio` runnable out-of-the-box when `config_file` is missing, and avoids
+    // surprising panics due to missing directories under /tmp.
+    for key in [
+        "workspace",
+        "store_path",
+        "antares_upper_root",
+        "antares_cl_root",
+        "antares_mount_root",
+    ] {
+        if let Some(p) = config.get(key) {
+            if !p.is_empty() {
+                if let Err(e) = fs::create_dir_all(Path::new(p)) {
+                    if e.kind() != std::io::ErrorKind::AlreadyExists {
+                        return Err(format!("Failed to create directory {}: {}", p, e));
+                    }
+                }
+            }
         }
+    }
+
+    if let Some(state_file) = config.get("antares_state_file") {
+        if let Some(parent) = Path::new(state_file).parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                if e.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!(
+                        "Failed to create parent directory {}: {}",
+                        parent.display(),
+                        e
+                    ));
+                }
+            }
+        }
+    }
+
+    // Ensure the `config_file` exists (default: config.toml with works=[]).
+    let config_file = config
+        .get("config_file")
+        .ok_or("Missing 'config_file' in configuration".to_string())?;
+    if !Path::new(config_file).exists() {
+        fs::write(config_file, "works=[]")
+            .map_err(|e| format!("Failed to create {config_file}: {e}"))?;
     }
     Ok(())
 }
@@ -188,7 +243,8 @@ fn get_config() -> &'static ScorpioConfig {
     SCORPIO_CONFIG.get_or_init(|| {
         // Generate sensible defaults
         let username = whoami::username();
-        let base_path = format!("/home/{username}/megadir");
+        // Prefer a writable, container-friendly default. Users can still override via scorpio.toml.
+        let base_path = format!("/tmp/megadir-{username}");
         let mut config = HashMap::new();
         config.insert("base_url".to_string(), "http://localhost:8000".to_string());
         config.insert("workspace".to_string(), format!("{base_path}/mount"));
@@ -208,6 +264,42 @@ fn get_config() -> &'static ScorpioConfig {
         config.insert(
             "fetch_file_thread".to_string(),
             DEFAULT_FETCH_FILE_THREAD.to_string(),
+        );
+        config.insert(
+            "dicfuse_import_concurrency".to_string(),
+            DEFAULT_DICFUSE_IMPORT_CONCURRENCY.to_string(),
+        );
+        config.insert(
+            "dicfuse_dir_sync_ttl_secs".to_string(),
+            DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
+        );
+        config.insert("dicfuse_stat_mode".to_string(), "accurate".to_string());
+        config.insert(
+            "dicfuse_open_buff_max_bytes".to_string(),
+            DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES.to_string(),
+        );
+        config.insert(
+            "dicfuse_open_buff_max_files".to_string(),
+            DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES.to_string(),
+        );
+
+        // Antares-tuned Dicfuse knobs
+        config.insert(
+            "antares_load_dir_depth".to_string(),
+            DEFAULT_ANTARES_LOAD_DIR_DEPTH.to_string(),
+        );
+        config.insert("antares_dicfuse_stat_mode".to_string(), "fast".to_string());
+        config.insert(
+            "antares_dicfuse_open_buff_max_bytes".to_string(),
+            DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES.to_string(),
+        );
+        config.insert(
+            "antares_dicfuse_open_buff_max_files".to_string(),
+            DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES.to_string(),
+        );
+        config.insert(
+            "antares_dicfuse_dir_sync_ttl_secs".to_string(),
+            DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
         );
         // Antares defaults under base_path/antares
         config.insert(
@@ -354,6 +446,84 @@ pub fn fetch_file_thread() -> usize {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_FETCH_FILE_THREAD)
 }
+
+pub fn dicfuse_import_concurrency() -> usize {
+    get_config()
+        .config
+        .get("dicfuse_import_concurrency")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_IMPORT_CONCURRENCY)
+}
+
+pub fn dicfuse_dir_sync_ttl_secs() -> u64 {
+    get_config()
+        .config
+        .get("dicfuse_dir_sync_ttl_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
+}
+
+pub fn dicfuse_stat_mode() -> DicfuseStatMode {
+    parse_stat_mode(
+        get_config().config.get("dicfuse_stat_mode"),
+        DicfuseStatMode::Accurate,
+    )
+}
+
+pub fn dicfuse_open_buff_max_bytes() -> u64 {
+    get_config()
+        .config
+        .get("dicfuse_open_buff_max_bytes")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES)
+}
+
+pub fn dicfuse_open_buff_max_files() -> usize {
+    get_config()
+        .config
+        .get("dicfuse_open_buff_max_files")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES)
+}
+
+pub fn antares_load_dir_depth() -> usize {
+    get_config()
+        .config
+        .get("antares_load_dir_depth")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_ANTARES_LOAD_DIR_DEPTH)
+}
+
+pub fn antares_dicfuse_dir_sync_ttl_secs() -> u64 {
+    get_config()
+        .config
+        .get("antares_dicfuse_dir_sync_ttl_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
+}
+
+pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
+    parse_stat_mode(
+        get_config().config.get("antares_dicfuse_stat_mode"),
+        DicfuseStatMode::Fast,
+    )
+}
+
+pub fn antares_dicfuse_open_buff_max_bytes() -> u64 {
+    get_config()
+        .config
+        .get("antares_dicfuse_open_buff_max_bytes")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES)
+}
+
+pub fn antares_dicfuse_open_buff_max_files() -> usize {
+    get_config()
+        .config
+        .get("antares_dicfuse_open_buff_max_files")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,28 +547,39 @@ mod tests {
         "#;
         let config_path = "/tmp/scorpio.toml";
         std::fs::write(config_path, config_content).expect("Failed to write test config file");
-        let _ = init_config(config_path);
-        assert_eq!(base_url(), "http://localhost:8000");
-        assert_eq!(
-            workspace(),
-            format!("/home/{}/megadir/mount", whoami::username())
-        );
-        assert_eq!(
-            store_path(),
-            format!("/home/{}/megadir/store", whoami::username())
-        );
-        assert_eq!(git_author(), "MEGA");
-        assert_eq!(git_email(), "admin@mega.org");
-        assert_eq!(
-            file_blob_endpoint(),
-            "http://localhost:8000/api/v1/file/blob"
-        );
-        assert_eq!(load_dir_depth(), 3);
-        assert_eq!(fetch_file_thread(), 10);
-        assert_eq!(config_file(), "config.toml");
-        assert!(antares_upper_root().ends_with("/megadir/antares/upper"));
-        assert!(antares_cl_root().ends_with("/megadir/antares/cl"));
-        assert!(antares_mount_root().ends_with("/megadir/antares/mnt"));
-        assert!(antares_state_file().ends_with("/megadir/antares/state.toml"));
+        match init_config(config_path) {
+            Ok(()) => {
+                assert_eq!(base_url(), "http://localhost:8000");
+                assert_eq!(
+                    workspace(),
+                    format!("/tmp/megadir-{}/mount", whoami::username())
+                );
+                assert_eq!(
+                    store_path(),
+                    format!("/tmp/megadir-{}/store", whoami::username())
+                );
+                assert_eq!(git_author(), "MEGA");
+                assert_eq!(git_email(), "admin@mega.org");
+                assert_eq!(
+                    file_blob_endpoint(),
+                    "http://localhost:8000/api/v1/file/blob"
+                );
+                assert_eq!(load_dir_depth(), 3);
+                assert_eq!(fetch_file_thread(), 10);
+                assert_eq!(config_file(), "config.toml");
+                assert!(antares_upper_root().ends_with("/antares/upper"));
+                assert!(antares_cl_root().ends_with("/antares/cl"));
+                assert!(antares_mount_root().ends_with("/antares/mnt"));
+                assert!(antares_state_file().ends_with("/antares/state.toml"));
+            }
+            Err(e) if e.contains("already initialized") => {
+                // Other tests may have initialized the global config first; assert basic invariants.
+                assert!(!base_url().is_empty());
+                assert!(!workspace().is_empty());
+                assert!(!store_path().is_empty());
+                assert!(file_blob_endpoint().starts_with(base_url()));
+            }
+            Err(e) => panic!("Failed to load config: {e}"),
+        }
     }
 }

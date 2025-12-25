@@ -46,10 +46,6 @@ pub struct ManifestFile {
     /// File hash in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
     /// Example: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709"
     pub hash: String,
-    /// File mode (100644, 100755, or 120000)
-    /// Defaults to 100644 (regular file) if not specified
-    #[serde(default = "default_mode")]
-    pub mode: String,
 }
 
 /// Parse and validate SHA1 hash in "sha1:HEXSTRING" format
@@ -107,11 +103,8 @@ impl ManifestFile {
     }
 }
 
-const DEFAULT_MODE: &str = "100644";
-
-fn default_mode() -> String {
-    DEFAULT_MODE.to_string()
-}
+/// Default file mode used when mode is not provided by client
+pub const DEFAULT_MODE: &str = "100644";
 
 /// Response for manifest upload
 #[derive(Debug, Serialize, ToSchema)]

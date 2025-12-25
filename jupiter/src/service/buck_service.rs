@@ -55,7 +55,6 @@ pub struct ManifestFile {
     pub path: String,
     pub size: u64,
     pub hash: String,
-    pub mode: String,
 }
 
 /// Manifest payload.
@@ -356,25 +355,19 @@ impl BuckService {
         })
     }
 
-    /// Validate a manifest entry (path/hash/mode).
+    /// Validate a manifest entry (path/hash).
     ///
-    /// Performs comprehensive validation of file path, hash format, and file mode.
+    /// Performs comprehensive validation of file path and hash format.
     /// Validates path security (no absolute paths, path traversal, .git directories),
-    /// hash format, and file mode.
+    /// and hash format.
     ///
     /// # Arguments
     /// * `path` - File path to validate
     /// * `hash` - Hash string to validate (must start with "sha1:" and be 40 hex chars)
-    /// * `mode` - File mode to validate
     ///
     /// # Returns
     /// Returns `Ok(())` if validation passes, or `MegaError` with `BuckError` variant on failure
-    pub fn validate_manifest_entry(
-        &self,
-        path: &str,
-        hash: &str,
-        mode: &str,
-    ) -> Result<(), MegaError> {
+    pub fn validate_manifest_entry(&self, path: &str, hash: &str) -> Result<(), MegaError> {
         // Path checks
         if path.starts_with('/') {
             return Err(BuckError::ValidationError(format!(
@@ -438,11 +431,6 @@ impl BuckService {
                 hash
             ))
             .into());
-        }
-
-        // Mode checks
-        if !["100644", "100755", "120000"].contains(&mode) {
-            return Err(BuckError::ValidationError(format!("Invalid mode: {}", mode)).into());
         }
 
         // Path length & depth checks
@@ -606,7 +594,7 @@ impl BuckService {
         let mut file_records = Vec::new();
 
         for file in &payload.files {
-            self.validate_manifest_entry(&file.path, &file.hash, &file.mode)?;
+            self.validate_manifest_entry(&file.path, &file.hash)?;
             if !seen_paths.insert(&file.path) {
                 return Err(BuckError::ValidationError(format!(
                     "Duplicate file path in manifest: {}",
@@ -680,7 +668,7 @@ impl BuckService {
                 file_path: file.path.clone(),
                 file_size: file.size as i64,
                 file_hash: file.hash.clone(),
-                file_mode: Some(file.mode.clone()),
+                file_mode: Some("100644".to_string()), // Always use default mode
                 upload_status: status,
                 upload_reason: reason,
                 blob_id: existing_blob_id,
@@ -977,7 +965,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "/absolute/path.txt",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), "Absolute path should be rejected");
     }
@@ -988,7 +975,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "path\\to\\file.txt",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), "Backslash separator should be rejected");
     }
@@ -1005,11 +991,8 @@ mod tests {
         ];
 
         for path in windows_paths {
-            let result = service.validate_manifest_entry(
-                path,
-                "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-                "100644",
-            );
+            let result = service
+                .validate_manifest_entry(path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
             assert!(
                 result.is_err(),
                 "Windows absolute path should be rejected: {}",
@@ -1024,7 +1007,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "relative/path.txt",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_ok(), "Relative path should be valid");
     }
@@ -1035,7 +1017,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             ".git/config",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), ".git directory at root should be rejected");
     }
@@ -1046,7 +1027,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "submodule/.git/config",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), "Nested .git directory should be rejected");
     }
@@ -1057,7 +1037,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "a/b/c/.git/objects/pack",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), "Deeply nested .git should be rejected");
     }
@@ -1069,7 +1048,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             ".gitignore",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_ok(), ".gitignore file should be allowed");
     }
@@ -1080,7 +1058,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "empty_dir/.gitkeep",
             "sha1:e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
-            "100644",
         );
         assert!(result.is_ok(), ".gitkeep file should be allowed");
     }
@@ -1091,7 +1068,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "../etc/passwd",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(result.is_err(), "Path traversal should be rejected");
     }
@@ -1102,7 +1078,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "a/b/../../../etc/passwd",
             "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
         );
         assert!(
             result.is_err(),
@@ -1116,7 +1091,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "file.txt",
             "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3", // Missing sha1:
-            "100644",
         );
         assert!(
             result.is_err(),
@@ -1130,7 +1104,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "file.txt",
             "sha1:abc123", // Too short
-            "100644",
         );
         assert!(result.is_err(), "Hash with wrong length should be rejected");
     }
@@ -1141,7 +1114,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "file.txt",
             "sha1:A94A8FE5CCB19BA61C4C0873D391E987982FBBD3", // Uppercase
-            "100644",
         );
         assert!(result.is_err(), "Uppercase hash should be rejected");
     }
@@ -1152,7 +1124,6 @@ mod tests {
         let result = service.validate_manifest_entry(
             "file.txt",
             "sha1:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", // Invalid chars
-            "100644",
         );
         assert!(result.is_err(), "Non-hex characters should be rejected");
     }
@@ -1160,47 +1131,9 @@ mod tests {
     #[test]
     fn test_validate_accepts_valid_hash() {
         let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            "file.txt",
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
+        let result = service
+            .validate_manifest_entry("file.txt", "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(result.is_ok(), "Valid hash should be accepted");
-    }
-
-    #[test]
-    fn test_validate_accepts_valid_modes() {
-        let service = create_test_service();
-        for mode in &["100644", "100755", "120000"] {
-            let result = service.validate_manifest_entry(
-                "file.txt",
-                "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-                mode,
-            );
-            assert!(result.is_ok(), "Mode {} should be valid", mode);
-        }
-    }
-
-    #[test]
-    fn test_validate_rejects_invalid_mode() {
-        let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            "file.txt",
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "777",
-        );
-        assert!(result.is_err(), "Invalid mode should be rejected");
-    }
-
-    #[test]
-    fn test_validate_accepts_default_mode() {
-        let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            "file.txt",
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
-        assert!(result.is_ok(), "Default mode (100644) should be accepted");
     }
 
     #[test]
@@ -1210,11 +1143,8 @@ mod tests {
         assert!(long_path.len() > 4096, "Test path should exceed 4096 chars");
 
         let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            &long_path,
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
+        let result = service
+            .validate_manifest_entry(&long_path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(
             result.is_err(),
             "Path longer than 4096 characters should be rejected"
@@ -1234,11 +1164,8 @@ mod tests {
         );
 
         let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            &deep_path,
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
+        let result = service
+            .validate_manifest_entry(&deep_path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(
             result.is_err(),
             "Path with nesting deeper than 100 levels should be rejected"
@@ -1252,11 +1179,8 @@ mod tests {
         assert_eq!(limit_path.len(), 4096);
 
         let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            &limit_path,
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
+        let result = service
+            .validate_manifest_entry(&limit_path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(
             result.is_ok(),
             "Path at exactly 4096 characters should be accepted"
@@ -1272,11 +1196,8 @@ mod tests {
         assert_eq!(depth, 100, "Test path should have exactly 100 levels");
 
         let service = create_test_service();
-        let result = service.validate_manifest_entry(
-            &limit_path,
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "100644",
-        );
+        let result = service
+            .validate_manifest_entry(&limit_path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
         assert!(
             result.is_ok(),
             "Path with exactly 100 levels should be accepted"
@@ -1295,11 +1216,8 @@ mod tests {
         ];
 
         for path in invalid_paths {
-            let result = service.validate_manifest_entry(
-                path,
-                "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-                "100644",
-            );
+            let result = service
+                .validate_manifest_entry(path, "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
             assert!(
                 result.is_err(),
                 "Invalid path segment should be rejected: {}",

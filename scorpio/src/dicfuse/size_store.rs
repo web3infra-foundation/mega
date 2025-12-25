@@ -45,6 +45,11 @@ impl SizeStorage {
         }
     }
 
+    pub fn remove_size(&self, inode: u64) -> io::Result<()> {
+        let _ = self.db.remove(inode.to_be_bytes()).map_err(Error::other)?;
+        Ok(())
+    }
+
     pub fn clear_all(&self) -> io::Result<()> {
         self.db.clear().map_err(Error::other)?;
         Ok(())
