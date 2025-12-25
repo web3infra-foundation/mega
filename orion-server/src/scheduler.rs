@@ -20,6 +20,10 @@ use uuid::Uuid;
 const LEGACY_TARGET: &str = "//...";
 
 /// Resolve target with legacy fallback.
+///
+/// Returns `(resolved_target, fallback_used)`.
+/// - If `target` is `None` or empty/whitespace, fallback to `//...` (Buck2 pattern for all).
+/// - Otherwise, trims and returns the provided target.
 pub fn resolve_target(target: Option<String>) -> (String, bool) {
     let trimmed = target.unwrap_or_default().trim().to_string();
 
@@ -49,6 +53,7 @@ pub struct PendingTask {
     pub cl: i64,
     pub request: BuildRequest,
     pub resolved_target: String,
+    pub fallback_used: bool,
     pub created_at: Instant,
 }
 
@@ -292,6 +297,7 @@ impl TaskScheduler {
             build_id,
             request,
             resolved_target,
+            fallback_used,
             created_at: Instant::now(),
             repo,
             cl,
@@ -446,7 +452,11 @@ impl TaskScheduler {
             repo: pending_task.repo,
             cl_link: pending_task.cl_link.to_string(),
             changes: pending_task.request.changes.clone(),
-            target: Some(pending_task.resolved_target),
+            target: if pending_task.fallback_used {
+                None
+            } else {
+                Some(pending_task.resolved_target)
+            },
         };
 
         // Send task to worker
@@ -548,6 +558,27 @@ impl TaskScheduler {
 mod tests {
     use super::*;
 
+    #[test]
+    fn resolve_target_none_falls_back() {
+        let (t, fb) = resolve_target(None);
+        assert_eq!(t, "//...");
+        assert!(fb);
+    }
+
+    #[test]
+    fn resolve_target_empty_falls_back() {
+        let (t, fb) = resolve_target(Some("   ".to_string()));
+        assert_eq!(t, "//...");
+        assert!(fb);
+    }
+
+    #[test]
+    fn resolve_target_trims_and_keeps() {
+        let (t, fb) = resolve_target(Some(" //app:lib ".to_string()));
+        assert_eq!(t, "//app:lib");
+        assert!(!fb);
+    }
+
     /// Test task queue basic functionality
     #[test]
     fn test_task_queue_fifo() {
@@ -563,6 +594,7 @@ mod tests {
                 target: None,
             },
             resolved_target: "//...".to_string(),
+            fallback_used: true,
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -577,6 +609,7 @@ mod tests {
                 target: None,
             },
             resolved_target: "//...".to_string(),
+            fallback_used: true,
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -614,6 +647,7 @@ mod tests {
                 target: None,
             },
             resolved_target: "//...".to_string(),
+            fallback_used: true,
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

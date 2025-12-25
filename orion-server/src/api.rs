@@ -920,8 +920,6 @@ pub struct BuildDTO {
     pub target: String,
     pub args: Option<Value>,
     pub output_file: String,
-    /// Explicit log path for this build (target-scoped)
-    pub log_path: String,
     pub created_at: String,
     pub status: TaskStatusEnum,
     pub cause_by: Option<String>,
@@ -930,7 +928,6 @@ pub struct BuildDTO {
 impl BuildDTO {
     /// Converts a database model to a DTO for API responses
     pub fn from_model(model: builds::Model, status: TaskStatusEnum) -> Self {
-        let output_file = model.output_file.clone();
         Self {
             id: model.id.to_string(),
             task_id: model.task_id.to_string(),
@@ -940,8 +937,7 @@ impl BuildDTO {
             repo: model.repo,
             target: model.target,
             args: model.args.map(|v| json!(v)),
-            output_file: output_file.clone(),
-            log_path: output_file,
+            output_file: model.output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             status,
             cause_by: None,
@@ -965,7 +961,16 @@ impl BuildDTO {
     }
 }
 
-/// Aggregate CL-level status from all target builds.
+/// Aggregate CL-level status from per-target builds.
+///
+/// Returns a tuple of (overall_status, partial_success). Priority:
+/// 1) Any Failed/Interrupted/Canceled -> Failed
+/// 2) Else any Building/Pending -> Building
+/// 3) Else any Completed -> Completed
+/// 4) Else -> Pending
+///
+/// `partial_success` is true if at least one build Completed AND at least one
+/// other build is Running/Pending or Failed/Interrupted/Canceled.
 fn aggregate_task_status(builds: &[BuildDTO]) -> (TaskStatusEnum, bool) {
     if builds.is_empty() {
         return (TaskStatusEnum::NotFound, false);
@@ -984,7 +989,7 @@ fn aggregate_task_status(builds: &[BuildDTO]) -> (TaskStatusEnum, bool) {
         )
     });
 
-    // Status priority: failure > running/pending > completed > pending (no data)
+    // Status priority: failure > running/pending > completed > all pending/not found
     let status = match (has_failure, has_running, has_success) {
         (true, _, _) => TaskStatusEnum::Failed,
         (false, true, _) => TaskStatusEnum::Building,
@@ -1315,7 +1320,6 @@ mod tests {
             target: "//:target".to_string(),
             args: None,
             output_file: "path.log".to_string(),
-            log_path: "path.log".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             status,
             cause_by: None,
@@ -1367,6 +1371,47 @@ mod tests {
 
         let (status, partial) = aggregate_task_status(&builds);
         assert!(partial);
+        assert!(matches!(status, TaskStatusEnum::Failed));
+    }
+
+    #[test]
+    fn aggregate_status_empty_builds() {
+        let builds = vec![];
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(!partial);
+        assert!(matches!(status, TaskStatusEnum::NotFound));
+    }
+
+    #[test]
+    fn aggregate_status_all_pending() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Pending),
+            dummy_build(TaskStatusEnum::Pending),
+        ];
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(!partial);
+        assert!(matches!(status, TaskStatusEnum::Pending));
+    }
+
+    #[test]
+    fn aggregate_status_all_failed() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Failed),
+            dummy_build(TaskStatusEnum::Failed),
+        ];
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(!partial);
+        assert!(matches!(status, TaskStatusEnum::Failed));
+    }
+
+    #[test]
+    fn aggregate_status_interrupted_and_failed() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Interrupted),
+            dummy_build(TaskStatusEnum::Failed),
+        ];
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(!partial);
         assert!(matches!(status, TaskStatusEnum::Failed));
     }
 
