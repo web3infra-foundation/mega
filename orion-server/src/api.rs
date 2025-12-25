@@ -59,6 +59,7 @@ pub enum TaskStatusEnum {
     Building,
     Interrupted, // Task was interrupted, exit code is None
     Failed,
+    Canceled,
     Completed,
     #[default]
     NotFound,
@@ -328,7 +329,6 @@ pub async fn task_handler(
                 &req.repo,
                 req.cl,
                 build.clone(),
-                String::new(),
             )
             .await;
             results.push(result);
@@ -389,7 +389,6 @@ async fn handle_immediate_task_dispatch(
     repo: &str,
     cl: i64,
     req: BuildRequest,
-    target: String,
 ) -> BuildResult {
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
@@ -420,6 +419,7 @@ async fn handle_immediate_task_dispatch(
         start_at: chrono::Utc::now(),
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
+        target: req.target.clone(),
     };
 
     // Use the model's insert_build method for direct insertion
@@ -427,7 +427,7 @@ async fn handle_immediate_task_dispatch(
         build_id,
         task_id,
         repo.to_string(),
-        target.clone(),
+        req.target.clone().unwrap_or_else(|| "//...".to_string()),
         &state.conn,
     )
     .await
@@ -447,6 +447,7 @@ async fn handle_immediate_task_dispatch(
         repo: repo.to_string(),
         changes: req.changes.clone(),
         cl_link: cl_link.to_string(),
+        target: req.target.clone(),
     };
 
     // Send task to the selected worker
@@ -848,6 +849,40 @@ impl BuildDTO {
     }
 }
 
+/// Aggregate CL-level status from all target builds.
+fn aggregate_task_status(builds: &[BuildDTO]) -> (TaskStatusEnum, bool) {
+    if builds.is_empty() {
+        return (TaskStatusEnum::NotFound, false);
+    }
+
+    let has_success = builds
+        .iter()
+        .any(|b| matches!(b.status, TaskStatusEnum::Completed));
+    let has_running = builds
+        .iter()
+        .any(|b| matches!(b.status, TaskStatusEnum::Building | TaskStatusEnum::Pending));
+    let has_failure = builds.iter().any(|b| {
+        matches!(
+            b.status,
+            TaskStatusEnum::Failed | TaskStatusEnum::Interrupted | TaskStatusEnum::Canceled
+        )
+    });
+
+    let partial_success = has_success && (has_failure || has_running);
+
+    let status = if has_failure {
+        TaskStatusEnum::Failed
+    } else if has_running {
+        TaskStatusEnum::Building
+    } else if has_success {
+        TaskStatusEnum::Completed
+    } else {
+        TaskStatusEnum::Pending
+    };
+
+    (status, partial_success)
+}
+
 /// Task information including current status
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TaskInfoDTO {
@@ -857,10 +892,17 @@ pub struct TaskInfoDTO {
     pub template: Option<serde_json::Value>,
     pub created_at: String,
     pub build_list: Vec<BuildDTO>,
+    pub status: TaskStatusEnum,
+    pub partial_success: bool,
 }
 
 impl TaskInfoDTO {
-    fn from_model(model: tasks::Model, build_list: Vec<BuildDTO>) -> Self {
+    fn from_model(
+        model: tasks::Model,
+        build_list: Vec<BuildDTO>,
+        status: TaskStatusEnum,
+        partial_success: bool,
+    ) -> Self {
         Self {
             task_id: model.id.to_string(),
             cl_id: model.cl_id,
@@ -868,6 +910,8 @@ impl TaskInfoDTO {
             template: model.template,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             build_list,
+            status,
+            partial_success,
         }
     }
 }
@@ -936,7 +980,13 @@ pub async fn tasks_handler(
                     build_list.push(dto);
                 }
 
-                tasks.push(TaskInfoDTO::from_model(m, build_list));
+                let (status, partial_success) = aggregate_task_status(&build_list);
+                tasks.push(TaskInfoDTO::from_model(
+                    m,
+                    build_list,
+                    status,
+                    partial_success,
+                ));
             }
 
             Ok(Json(tasks))
@@ -1137,6 +1187,49 @@ pub async fn get_orion_client_status_by_id(
 
 #[cfg(test)]
 mod tests {
+    use super::{BuildDTO, TaskStatusEnum, aggregate_task_status};
+
+    fn dummy_build(status: TaskStatusEnum) -> BuildDTO {
+        BuildDTO {
+            id: "build".to_string(),
+            task_id: "task".to_string(),
+            exit_code: None,
+            start_at: "2024-01-01T00:00:00Z".to_string(),
+            end_at: None,
+            repo: "repo".to_string(),
+            target: "//:target".to_string(),
+            args: None,
+            output_file: "path.log".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            status,
+            cause_by: None,
+        }
+    }
+
+    #[test]
+    fn aggregate_status_handles_partial_success() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Completed),
+            dummy_build(TaskStatusEnum::Failed),
+        ];
+
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(partial);
+        assert!(matches!(status, TaskStatusEnum::Failed));
+    }
+
+    #[test]
+    fn aggregate_status_handles_running() {
+        let builds = vec![
+            dummy_build(TaskStatusEnum::Completed),
+            dummy_build(TaskStatusEnum::Building),
+        ];
+
+        let (status, partial) = aggregate_task_status(&builds);
+        assert!(partial);
+        assert!(matches!(status, TaskStatusEnum::Building));
+    }
+
     /// Test random number generation for worker selection
     #[test]
     fn test_rng() {

@@ -58,6 +58,7 @@ pub enum WSMessage {
         repo: String,
         cl_link: String,
         changes: Vec<Status<ProjectRelativePath>>,
+        target: Option<String>,
     },
 }
 
@@ -215,6 +216,7 @@ async fn process_server_message(
                             repo,
                             cl_link: cl,
                             changes,
+                            target,
                         } => {
                             tracing::info!("Received task: id={}", id);
                             tokio::spawn(async move {
@@ -232,7 +234,12 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    BuildRequest { repo, cl, changes },
+                                    BuildRequest {
+                                        repo,
+                                        cl,
+                                        changes,
+                                        target,
+                                    },
                                     sender.clone(),
                                 )
                                 .await;

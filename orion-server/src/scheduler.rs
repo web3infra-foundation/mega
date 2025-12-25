@@ -21,6 +21,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
     pub changes: Vec<Status<ProjectRelativePath>>,
+    /// Optional buck2 target label for this build unit. When absent, worker falls back to change detection.
+    pub target: Option<String>,
 }
 
 /// Pending task waiting for dispatch
@@ -137,6 +139,7 @@ pub struct BuildInfo {
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub cl: String,
     pub _worker_id: String,
+    pub target: Option<String>,
 }
 
 /// Status of a worker node
@@ -369,6 +372,7 @@ impl TaskScheduler {
             changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
+            target: pending_task.request.target.clone(),
         };
 
         // Insert build record
@@ -381,7 +385,11 @@ impl TaskScheduler {
                 .with_timezone(&FixedOffset::east_opt(0).unwrap())),
             end_at: Set(None),
             repo: Set(build_info.repo.clone()),
-            target: Set("//...".to_string()),
+            target: Set(pending_task
+                .request
+                .target
+                .clone()
+                .unwrap_or_else(|| "//...".to_string())),
             args: Set(None),
             output_file: Set(format!(
                 "{}/{}/{}.log",
@@ -404,6 +412,7 @@ impl TaskScheduler {
             repo: pending_task.repo,
             cl_link: pending_task.cl_link.to_string(),
             changes: pending_task.request.changes.clone(),
+            target: pending_task.request.target.clone(),
         };
 
         // Send task to worker
@@ -515,7 +524,10 @@ mod tests {
         let task1 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -525,7 +537,10 @@ mod tests {
         let task2 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -558,7 +573,10 @@ mod tests {
         let task = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

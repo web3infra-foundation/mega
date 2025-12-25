@@ -9,8 +9,6 @@
  */
 
 use std::collections::HashMap;
-
-use td_util::no_hash::BuildNoHash;
 use tracing::warn;
 
 use crate::package_resolver::PackageResolver;
@@ -19,8 +17,8 @@ use crate::types::TargetLabel;
 use crate::types::TargetPattern;
 
 pub struct TargetMap<T> {
-    literal: HashMap<TargetLabel, Vec<T>, BuildNoHash>,
-    non_recursive_pattern: HashMap<Package, Vec<T>, BuildNoHash>,
+    literal: HashMap<TargetLabel, Vec<T>>,
+    non_recursive_pattern: HashMap<Package, Vec<T>>,
     recursive_pattern: PackageResolver<Vec<T>>,
 }
 
@@ -38,8 +36,8 @@ impl<T> TargetMap<T> {
     /// The capacity is used for `insert` capacity, rather than `insert_pattern` capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            literal: HashMap::with_capacity_and_hasher(capacity, BuildNoHash::default()),
-            non_recursive_pattern: HashMap::with_hasher(BuildNoHash::default()),
+            literal: HashMap::with_capacity(capacity),
+            non_recursive_pattern: HashMap::new(),
             recursive_pattern: PackageResolver::new(),
         }
     }
