@@ -496,7 +496,7 @@ impl Drop for MountGuard {
 /// # Arguments
 /// * `id` - Build task identifier for logging and tracking
 /// * `repo` - Repository path for filesystem mounting
-/// * `target` - Buck build target specification  
+/// * `target` - Optional Buck target label; when `None`, change detection is used to compute targets.
 /// * `args` - Additional command-line arguments for buck
 /// * `cl` - Change List context identifier
 /// * `sender` - WebSocket channel for streaming build output
@@ -517,9 +517,14 @@ pub async fn build(
     let (mount_point, mount_id) = mount_antares_fs(&id, &repo, Some(&cl)).await?;
     let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
     // Decide targets: use explicit target if provided, otherwise run change detection on the mount point.
-    let targets = match target {
-        Some(t) => vec![TargetLabel::new(&t)],
-        None => get_build_targets(&mount_point, changes).await?,
+    // Use String to allow pattern targets (e.g. //...) without constructing invalid TargetLabel.
+    let targets: Vec<String> = match target {
+        Some(t) => vec![t],
+        None => get_build_targets(&mount_point, changes)
+            .await?
+            .into_iter()
+            .map(|label| label.as_str().to_string())
+            .collect(),
     };
 
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);

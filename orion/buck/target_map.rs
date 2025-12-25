@@ -18,6 +18,8 @@ use crate::types::TargetPattern;
 
 pub struct TargetMap<T> {
     literal: HashMap<TargetLabel, Vec<T>>,
+    // NOTE: use default hasher; TargetMap size is small and not hot-path,
+    // and avoids invalid NoHash usage with InternString-based keys.
     non_recursive_pattern: HashMap<Package, Vec<T>>,
     recursive_pattern: PackageResolver<Vec<T>>,
 }
