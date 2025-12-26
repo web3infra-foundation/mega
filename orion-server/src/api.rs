@@ -991,11 +991,22 @@ impl OrionClientInfo {
     }
 }
 
+// Orion client status
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq, Eq)]
+pub enum CoreWorkerStatus {
+    Idle,
+    Busy,
+    Error,
+    Lost,
+}
+
 /// Additional query parameters for querying Orion clients.
 /// When no extra conditions are required, this struct can be left empty.
 #[derive(Debug, Deserialize, ToSchema, Clone)]
 pub struct OrionClientQuery {
     pub hostname: Option<String>,
+    pub status: Option<CoreWorkerStatus>,
+    pub phase: Option<TaskPhase>, // Only in Busy status
 }
 
 /// Endpoint to retrieve paginated Orion client information.
@@ -1007,7 +1018,7 @@ pub struct OrionClientQuery {
         (status = 200, description = "Paged Orion client information", body = CommonPage<OrionClientInfo>)
     )
 )]
-async fn get_orion_clients_info(
+pub async fn get_orion_clients_info(
     State(state): State<AppState>,
     Json(params): Json<PageParams<OrionClientQuery>>,
 ) -> Result<Json<CommonPage<OrionClientInfo>>, (StatusCode, Json<serde_json::Value>)> {
@@ -1026,7 +1037,17 @@ async fn get_orion_clients_info(
         let matches = query
             .hostname
             .as_ref()
-            .is_none_or(|h| entry.value().hostname.contains(h));
+            .is_none_or(|h| entry.value().hostname.contains(h))
+            && query
+                .status
+                .as_ref()
+                .is_none_or(|s| entry.value().status.status_type() == *s)
+            && query.phase.as_ref().is_none_or(|p| {
+                matches!(
+                    entry.value().status,
+                    WorkerStatus::Busy { phase: Some(ref x), .. } if *x == *p
+                )
+            });
 
         if matches {
             total += 1;
@@ -1052,14 +1073,6 @@ pub struct OrionClientStatus {
     pub phase: Option<TaskPhase>,
     /// Only when error
     pub error_message: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub enum CoreWorkerStatus {
-    Idle,
-    Busy,
-    Error,
-    Lost,
 }
 
 impl OrionClientStatus {
@@ -1104,7 +1117,7 @@ impl OrionClientStatus {
         (status = 404, description = "Orion client not found", body = serde_json::Value)
     )
 )]
-async fn get_orion_client_status_by_id(
+pub async fn get_orion_client_status_by_id(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<OrionClientStatus>, (StatusCode, Json<serde_json::Value>)> {

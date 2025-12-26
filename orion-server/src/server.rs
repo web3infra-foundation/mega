@@ -6,6 +6,7 @@ use axum::Router;
 use axum::routing::get;
 use chrono::{FixedOffset, Utc};
 use http::{HeaderValue, Method};
+use orion::ws::TaskPhase;
 use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -39,7 +40,8 @@ use crate::model::builds;
             api::OrionClientInfo,
             api::OrionClientStatus,
             api::CoreWorkerStatus,
-            api::OrionClientQuery
+            api::OrionClientQuery,
+            TaskPhase,
         )
     ),
     tags(

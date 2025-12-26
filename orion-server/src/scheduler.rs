@@ -1,3 +1,4 @@
+use crate::api::CoreWorkerStatus;
 use crate::log::log_service::LogService;
 use crate::model::builds;
 use chrono::FixedOffset;
@@ -139,7 +140,7 @@ pub struct BuildInfo {
 }
 
 /// Status of a worker node
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq, Eq)]
 pub enum WorkerStatus {
     Idle,
     Busy {
@@ -150,6 +151,17 @@ pub enum WorkerStatus {
     },
     Error(String), // Contains fail message
     Lost,          // Heartbeat timeout
+}
+
+impl WorkerStatus {
+    pub fn status_type(&self) -> CoreWorkerStatus {
+        match self {
+            WorkerStatus::Idle => CoreWorkerStatus::Idle,
+            WorkerStatus::Busy { .. } => CoreWorkerStatus::Busy,
+            WorkerStatus::Error(_) => CoreWorkerStatus::Error,
+            WorkerStatus::Lost => CoreWorkerStatus::Lost,
+        }
+    }
 }
 
 /// Information about a connected worker
