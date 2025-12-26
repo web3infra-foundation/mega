@@ -289,9 +289,9 @@ function CallTranscript({
                   <div className='flex justify-end'>
                     {!previousGroupHasSameUser && (
                       <ConditionalWrap
-                        condition={!!member.id}
+                        condition={Boolean(member.id && member.user.username)}
                         wrap={(children) => (
-                          <MemberHovercard username={member.user.username}>{children}</MemberHovercard>
+                          <MemberHovercard username={member.user.username!}>{children}</MemberHovercard>
                         )}
                       >
                         <Avatar

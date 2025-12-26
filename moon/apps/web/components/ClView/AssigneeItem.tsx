@@ -13,6 +13,21 @@ const AssigneeItem = ({ conv }: ReopenItemProps) => {
   const comment = conv.comment?.split(' ') ?? []
   const { data: member } = useGetOrganizationMember({ username: conv.username })
 
+  const memberForAvatar =
+    member?.user?.id && member.user.username && member.user.display_name && member.user.avatar_urls
+      ? {
+          deactivated: member.deactivated,
+          user: {
+            id: member.user.id,
+            username: member.user.username,
+            display_name: member.user.display_name,
+            avatar_urls: member.user.avatar_urls,
+            notifications_paused: member.user.notifications_paused ?? false,
+            integration: member.user.integration ?? false
+          }
+        }
+      : null
+
   const assignees = match[1].split('", "')
 
   return (
@@ -28,7 +43,7 @@ const AssigneeItem = ({ conv }: ReopenItemProps) => {
             </MemberHovercard>
           )}
         >
-          {member ? <MemberAvatar member={member} size='sm' /> : 'Avatar not found'}
+          {memberForAvatar ? <MemberAvatar member={memberForAvatar} size='sm' /> : 'Avatar not found'}
         </ConditionalWrap>
         <div>
           <span className='font-semibold'>{conv.username} </span>

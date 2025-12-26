@@ -38,6 +38,21 @@ interface CommentProps {
 const Comment = React.memo<CommentProps>(({ conv, id, whoamI, editorRef }: CommentProps) => {
   const { data: member } = useGetOrganizationMember({ username: conv.username })
 
+  const memberForAvatar =
+    member?.user?.id && member.user.username && member.user.display_name && member.user.avatar_urls
+      ? {
+          deactivated: member.deactivated,
+          user: {
+            id: member.user.id,
+            username: member.user.username,
+            display_name: member.user.display_name,
+            avatar_urls: member.user.avatar_urls,
+            notifications_paused: member.user.notifications_paused ?? false,
+            integration: member.user.integration ?? false
+          }
+        }
+      : null
+
   const extensions = useMemo(() => getNoteExtensions({ linkUnfurl: {} }), [])
   const handleReactionSelect = useHandleExpression({ conv, id, type: whoamI })
   const [editId, setEditId] = useAtom(editIdAtom)
@@ -59,7 +74,7 @@ const Comment = React.memo<CommentProps>(({ conv, id, whoamI, editorRef }: Comme
                 </MemberHovercard>
               )}
             >
-              {member ? <MemberAvatar member={member} size='sm' /> : 'Avatar not found'}
+              {memberForAvatar ? <MemberAvatar member={memberForAvatar} size='sm' /> : 'Avatar not found'}
             </ConditionalWrap>
           </div>
           <div className='cursor-pointer'>

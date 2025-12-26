@@ -29,21 +29,23 @@ export type AvatarUrls = {
   xxl: string
 }
 
+/** User information for lock ownership */
 export type User = {
-  id: string
-  avatar_url: string
-  avatar_urls: AvatarUrls
-  cover_photo_url: string | null
-  email: string
-  username: string
-  display_name: string
-  system: boolean
-  integration: boolean
-  notifications_paused: boolean
-  notification_pause_expires_at: string | null
-  timezone: string | null
-  logged_in: boolean
-  type_name: string
+  id?: string
+  avatar_url?: string
+  avatar_urls?: AvatarUrls
+  cover_photo_url?: string | null
+  email?: string
+  username?: string
+  display_name?: string
+  system?: boolean
+  integration?: boolean
+  notifications_paused?: boolean
+  notification_pause_expires_at?: string | null
+  timezone?: string | null
+  logged_in?: boolean
+  type_name?: string
+  name: string
 }
 
 export type OrganizationMembershipStatus = {
@@ -61,6 +63,7 @@ export type OrganizationMember = {
   created_at: string
   deactivated: boolean
   is_organization_member: boolean
+  /** User information for lock ownership */
   user: User
   status: OrganizationMembershipStatus | null
 }
@@ -545,6 +548,7 @@ export type Post = {
 
 export type Permission = {
   id: string
+  /** User information for lock ownership */
   user: User
   action: 'view' | 'edit'
 }
@@ -1710,6 +1714,7 @@ export type OrganizationMembershipRequest = {
   id: string
   created_at: string
   organization_slug: string
+  /** User information for lock ownership */
   user: User
 }
 
@@ -3060,6 +3065,21 @@ export type AssigneeUpdatePayload = {
   link: string
 }
 
+/** Batch request for LFS operations */
+export type BatchRequest = {
+  hash_algo: string
+  objects: RequestObject[]
+  operation: Operation
+  transfers: string[]
+}
+
+/** Batch response for LFS operations */
+export type BatchResponse = {
+  hash_algo: string
+  objects: ResponseObject[]
+  transfer: TransferMode
+}
+
 /** A continuous block of lines attributed to the same commit. */
 export type BlameBlock = {
   /** Blame information for a specific commit */
@@ -3086,32 +3106,6 @@ export type BlameInfo = {
   commit_time: number
   /** @min 0 */
   original_line_number: number
-}
-
-/** Query parameters for blame requests */
-export type BlameQuery = {
-  /** @min 0 */
-  end_line?: number | null
-  /** @min 0 */
-  page?: number | null
-  /** @min 0 */
-  page_size?: number | null
-  /** @min 0 */
-  start_line?: number | null
-}
-
-/** Request parameters for blame API endpoints */
-export type BlameRequest = {
-  /** @min 0 */
-  end_line?: number | null
-  /** @min 0 */
-  page?: number | null
-  /** @min 0 */
-  page_size?: number | null
-  path?: string
-  refs?: string
-  /** @min 0 */
-  start_line?: number | null
 }
 
 /** Complete blame result for a file */
@@ -3166,6 +3160,17 @@ export enum CheckType {
   CodeReview = 'CodeReview'
 }
 
+/** Chunk download object information */
+export type ChunkDownloadObject = {
+  /** Link information for LFS object transfer */
+  link: Link
+  /** @format int64 */
+  offset: number
+  /** @format int64 */
+  size: number
+  sub_oid: string
+}
+
 export type ClFilesRes = {
   action: string
   path: string
@@ -3180,12 +3185,6 @@ export type CloneRepoPayload = {
 
 export type CommitBindingResponse = {
   username?: string | null
-}
-
-export type CommitDetail = {
-  commit: CommitSummary
-  /** Unified diff list compared with the previous commit (or merged parent in case of multiple parents) */
-  diffs: DiffItem[]
 }
 
 export type CommitFilesChangedPage = {
@@ -3296,16 +3295,6 @@ export type CommonResultCommitBindingResponse = {
   req_result: boolean
 }
 
-export type CommonResultCommitDetail = {
-  data?: {
-    commit: CommitSummary
-    /** Unified diff list compared with the previous commit (or merged parent in case of multiple parents) */
-    diffs: DiffItem[]
-  }
-  err_message: string
-  req_result: boolean
-}
-
 export type CommonResultCommitFilesChangedPage = {
   data?: {
     commit: CommitSummary
@@ -3401,6 +3390,40 @@ export type CommonResultCommonPageLabelItem = {
   req_result: boolean
 }
 
+export type CommonResultCompleteResponse = {
+  /**
+   * Response for upload completion
+   *
+   * Note:
+   * - Does not include build status (build is triggered asynchronously).
+   * - When there are no file changes, no new commit is created. In that case
+   *   `commit_id` may be empty or equal to the session's base commit hash
+   *   (`from_hash`, if provided). Clients must tolerate an empty `commit_id`
+   *   for the "no-change" completion path.
+   */
+  data?: {
+    /**
+     * Change List ID
+     * @format int64
+     */
+    cl_id: number
+    /** CL link (same as session_id) */
+    cl_link: string
+    /** Created commit hash */
+    commit_id: string
+    /** CL creation time (RFC3339 format) */
+    created_at: string
+    /**
+     * Total number of files in the commit
+     * @format int32
+     * @min 0
+     */
+    files_count: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultDeleteTagResponse = {
   /** Delete tag response */
   data?: {
@@ -3431,6 +3454,24 @@ export type CommonResultEditFileResult = {
     new_oid: string
     /** Saved file path */
     path: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultFileUploadResponse = {
+  /** Response for file upload */
+  data?: {
+    /** File path in repository (relative to repo root; not a local filesystem path) */
+    file_path: string
+    /**
+     * Uploaded file size in bytes
+     * @format int64
+     * @min 0
+     */
+    uploaded_size: number
+    /** Whether hash verification passed (if hash was provided) */
+    verified?: boolean | null
   }
   err_message: string
   req_result: boolean
@@ -3468,6 +3509,40 @@ export type CommonResultLabelItem = {
     /** @format int64 */
     id: number
     name: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultManifestResponse = {
+  /** Response for manifest upload */
+  data?: {
+    /** List of files that need to be uploaded */
+    files_to_upload: FileToUpload[]
+    /**
+     * Number of unchanged files (skipped)
+     * @format int32
+     * @min 0
+     */
+    files_unchanged: number
+    /**
+     * Total number of files in manifest
+     * @format int32
+     * @min 0
+     */
+    total_files: number
+    /**
+     * Total size of all files in bytes
+     * @format int64
+     * @min 0
+     */
+    total_size: number
+    /**
+     * Total size of files to upload in bytes
+     * @format int64
+     * @min 0
+     */
+    upload_size: number
   }
   err_message: string
   req_result: boolean
@@ -3515,6 +3590,36 @@ export type CommonResultQueueStatusResponse = {
 export type CommonResultReviewersResponse = {
   data?: {
     result: ReviewerInfo[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultSessionResponse = {
+  /** Response for session creation */
+  data?: {
+    /** Session expiration time (RFC3339 format) */
+    expires_at: string
+    /**
+     * Recommended concurrent upload count
+     * @format int32
+     * @min 0
+     */
+    max_concurrent_uploads: number
+    /**
+     * Maximum file size in bytes
+     * @format int64
+     * @min 0
+     */
+    max_file_size: number
+    /**
+     * Maximum number of files per session
+     * @format int32
+     * @min 0
+     */
+    max_files: number
+    /** Unique session identifier (8 characters) */
+    session_id: string
   }
   err_message: string
   req_result: boolean
@@ -3709,6 +3814,42 @@ export type CommonResultBool = {
   req_result: boolean
 }
 
+/** Request payload for completing upload */
+export type CompletePayload = {
+  /** Optional commit message (overrides manifest message) */
+  commit_message?: string | null
+}
+
+/**
+ * Response for upload completion
+ *
+ * Note:
+ * - Does not include build status (build is triggered asynchronously).
+ * - When there are no file changes, no new commit is created. In that case
+ *   `commit_id` may be empty or equal to the session's base commit hash
+ *   (`from_hash`, if provided). Clients must tolerate an empty `commit_id`
+ *   for the "no-change" completion path.
+ */
+export type CompleteResponse = {
+  /**
+   * Change List ID
+   * @format int64
+   */
+  cl_id: number
+  /** CL link (same as session_id) */
+  cl_link: string
+  /** Created commit hash */
+  commit_id: string
+  /** CL creation time (RFC3339 format) */
+  created_at: string
+  /**
+   * Total number of files in the commit
+   * @format int32
+   * @min 0
+   */
+  files_count: number
+}
+
 export type Condition = {
   description: string
   display_name: string
@@ -3778,6 +3919,12 @@ export type CreateEntryInfo = {
   is_directory: boolean
   name: string
   /** leave empty if it's under root */
+  path: string
+}
+
+/** Request payload for creating an upload session */
+export type CreateSessionPayload = {
+  /** Repository path, e.g. "/project/mega" */
   path: string
 }
 
@@ -3863,10 +4010,40 @@ export enum FailureType {
   Timeout = 'Timeout'
 }
 
+/** Response for fetching chunk IDs */
+export type FetchChunkResponse = {
+  chunks: ChunkDownloadObject[]
+  oid: string
+  /** @format int64 */
+  size: number
+}
+
+/** File that needs to be uploaded */
+export type FileToUpload = {
+  /** File path */
+  path: string
+  /** Upload reason: "new" or "modified" */
+  reason: string
+}
+
 export type FileTreeItem = {
   /** @min 0 */
   total_count: number
   tree_items: TreeBriefItem[]
+}
+
+/** Response for file upload */
+export type FileUploadResponse = {
+  /** File path in repository (relative to repo root; not a local filesystem path) */
+  file_path: string
+  /**
+   * Uploaded file size in bytes
+   * @format int64
+   * @min 0
+   */
+  uploaded_size: number
+  /** Whether hash verification passed (if hash was provided) */
+  verified?: boolean | null
 }
 
 export type FilesChangedPage = {
@@ -3955,6 +4132,13 @@ export type LatestCommitInfo = {
   status: string
 }
 
+/** Link information for LFS object transfer */
+export type Link = {
+  expires_at: string
+  header?: Record<string, string>
+  href: string
+}
+
 export type ListPayload = {
   asc: boolean
   assignees?: any[] | null
@@ -3980,6 +4164,89 @@ export type ListToken = {
   /** @format int64 */
   id: number
   token: string
+}
+
+/** LFS lock information */
+export type Lock = {
+  id: string
+  locked_at: string
+  owner?: null | User
+  path: string
+}
+
+/** List of locks */
+export type LockList = {
+  locks: Lock[]
+  next_cursor: string
+}
+
+/** Request to create a lock */
+export type LockRequest = {
+  path: string
+  /** Git reference information */
+  refs: Ref
+}
+
+/** Response after creating a lock */
+export type LockResponse = {
+  /** LFS lock information */
+  lock: Lock
+  message: string
+}
+
+/** File entry in the manifest */
+export type ManifestFile = {
+  /**
+   * File hash in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
+   * Example: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   */
+  hash: string
+  /** Relative file path (must not start with '/') */
+  path: string
+  /**
+   * File size in bytes
+   * @format int64
+   * @min 0
+   */
+  size: number
+}
+
+/** Request payload for uploading file manifest */
+export type ManifestPayload = {
+  /** Optional commit message */
+  commit_message?: string | null
+  /** List of files to upload */
+  files: ManifestFile[]
+}
+
+/** Response for manifest upload */
+export type ManifestResponse = {
+  /** List of files that need to be uploaded */
+  files_to_upload: FileToUpload[]
+  /**
+   * Number of unchanged files (skipped)
+   * @format int32
+   * @min 0
+   */
+  files_unchanged: number
+  /**
+   * Total number of files in manifest
+   * @format int32
+   * @min 0
+   */
+  total_files: number
+  /**
+   * Total size of all files in bytes
+   * @format int64
+   * @min 0
+   */
+  total_size: number
+  /**
+   * Total size of files to upload in bytes
+   * @format int64
+   * @min 0
+   */
+  upload_size: number
 }
 
 export type MergeBoxRes = {
@@ -4018,6 +4285,18 @@ export type NewLabel = {
   color: string
   description: string
   name: string
+}
+
+/** Error information for LFS object operations */
+export type ObjectError = {
+  /** @format int64 */
+  code: number
+  message: string
+}
+
+export enum Operation {
+  Download = 'download',
+  Upload = 'upload'
 }
 
 export type PageParamsCommitHistoryParams = {
@@ -4144,13 +4423,39 @@ export type ReactionRequest = {
   content: string
 }
 
+/** Git reference information */
+export type Ref = {
+  name: string
+}
+
 export type RemoveGpgRequest = {
   key_id: string
+}
+
+/** Request object for LFS operations */
+export type RequestObject = {
+  authorization?: string
+  oid: string
+  password?: string
+  repo?: string
+  /** @format int64 */
+  size: number
+  user?: string
 }
 
 export enum RequirementsState {
   UNMERGEABLE = 'UNMERGEABLE',
   MERGEABLE = 'MERGEABLE'
+}
+
+/** Response object for LFS batch operations */
+export type ResponseObject = {
+  actions?: object | null
+  authenticated?: boolean | null
+  error?: null | ObjectError
+  oid: string
+  /** @format int64 */
+  size: number
 }
 
 export type ReviewerInfo = {
@@ -4165,6 +4470,32 @@ export type ReviewerPayload = {
 
 export type ReviewersResponse = {
   result: ReviewerInfo[]
+}
+
+/** Response for session creation */
+export type SessionResponse = {
+  /** Session expiration time (RFC3339 format) */
+  expires_at: string
+  /**
+   * Recommended concurrent upload count
+   * @format int32
+   * @min 0
+   */
+  max_concurrent_uploads: number
+  /**
+   * Maximum file size in bytes
+   * @format int64
+   * @min 0
+   */
+  max_file_size: number
+  /**
+   * Maximum number of files per session
+   * @format int32
+   * @min 0
+   */
+  max_files: number
+  /** Unique session identifier (8 characters) */
+  session_id: string
 }
 
 export type ShowResponse = {
@@ -4215,6 +4546,12 @@ export type TagResponse = {
   tagger: string
 }
 
+export enum TransferMode {
+  Basic = 'basic',
+  Multipart = 'multipart',
+  STREAMING = 'STREAMING'
+}
+
 export type TreeBriefItem = {
   content_type: string
   name: string
@@ -4238,6 +4575,20 @@ export type TreeHashItem = {
 export type TreeResponse = {
   file_tree: Record<string, FileTreeItem>
   tree_items: TreeBriefItem[]
+}
+
+/** Request to unlock a file */
+export type UnlockRequest = {
+  force?: boolean | null
+  /** Git reference information */
+  refs: Ref
+}
+
+/** Response after unlocking a file */
+export type UnlockResponse = {
+  /** LFS lock information */
+  lock: Lock
+  message: string
 }
 
 export type UpdateClStatusPayload = {
@@ -4276,6 +4627,22 @@ export type Vec = {
   visible: boolean
 }[]
 
+/** List of verifiable locks */
+export type VerifiableLockList = {
+  next_cursor: string
+  ours: Lock[]
+  theirs: Lock[]
+}
+
+/** Request to verify locks */
+export type VerifiableLockRequest = {
+  cursor?: string | null
+  /** @format int64 */
+  limit?: number | null
+  /** Git reference information */
+  refs: Ref
+}
+
 /** Data transfer object for build information in API responses */
 export type BuildDTO = {
   args?: any
@@ -4296,9 +4663,31 @@ export type BuildDTO = {
 
 /** Request payload for creating a new build task */
 export type BuildRequest = {
-  args?: any[] | null
-  buck_hash: string
-  buckconfig_hash: string
+  changes: StatusProjectRelativePath[]
+}
+
+export type CommonPageOrionClientInfo = {
+  items: {
+    client_id: string
+    hostname: string
+    /** @format date-time */
+    last_heartbeat: string
+    orion_version: string
+    /** @format date-time */
+    start_time: string
+  }[]
+  /**
+   * @format int64
+   * @min 0
+   */
+  total: number
+}
+
+export enum CoreWorkerStatus {
+  Idle = 'Idle',
+  Busy = 'Busy',
+  Error = 'Error',
+  Lost = 'Lost'
 }
 
 /** Log segment read result */
@@ -4334,6 +4723,59 @@ export type LogSegment = {
   offset: number
 }
 
+export type OrionClientInfo = {
+  client_id: string
+  hostname: string
+  /** @format date-time */
+  last_heartbeat: string
+  orion_version: string
+  /** @format date-time */
+  start_time: string
+}
+
+/**
+ * Additional query parameters for querying Orion clients.
+ * When no extra conditions are required, this struct can be left empty.
+ */
+export type OrionClientQuery = {
+  hostname?: string | null
+  phase?: null | TaskPhase
+  status?: null | CoreWorkerStatus
+}
+
+export type OrionClientStatus = {
+  /** Core (Idle / Busy / Error / Lost) */
+  core_status: CoreWorkerStatus
+  /** Only when error */
+  error_message?: string | null
+  /** Only when building */
+  phase?: null | TaskPhase
+}
+
+export type PageParamsOrionClientQuery = {
+  /**
+   * Additional query parameters for querying Orion clients.
+   * When no extra conditions are required, this struct can be left empty.
+   */
+  additional: {
+    hostname?: string | null
+    phase?: null | TaskPhase
+    status?: null | CoreWorkerStatus
+  }
+  pagination: Pagination
+}
+
+export type StatusProjectRelativePath =
+  | {
+      Modified: string
+    }
+  | {
+      Added: string
+    }
+  | {
+      Removed: string
+    }
+
 /** Task information including current status */
 export type TaskInfoDTO = {
   build_list: BuildDTO[]
@@ -4343,6 +4785,12 @@ export type TaskInfoDTO = {
   task_id: string
   task_name?: string | null
   template?: any
+}
+
+/** Task phase when in buck2 build */
+export enum TaskPhase {
+  DownloadingSource = 'DownloadingSource',
+  RunningBuild = 'RunningBuild'
 }
 
 /** Request structure for creating a task */
@@ -5521,6 +5969,14 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
+export type PostApiBuckSessionStartData = CommonResultSessionResponse
+
+export type PostApiBuckSessionCompleteData = CommonResultCompleteResponse
+
+export type PostApiBuckSessionFileData = CommonResultFileUploadResponse
+
+export type PostApiBuckSessionManifestData = CommonResultManifestResponse
+
 export type PostApiClAssigneesData = CommonResultString
 
 export type PostApiClLabelsData = CommonResultString
@@ -5564,15 +6020,6 @@ export type PostApiClTitleData = CommonResultString
 export type PostApiCommitsHistoryData = CommonResultCommonPageCommitSummary
 
 export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
-
-export type GetApiCommitsDetailParams = {
-  /** Repository/Subrepo selector (required) */
-  path: string
-  /** Commit SHA */
-  sha: string
-}
-
-export type GetApiCommitsDetailData = CommonResultCommitDetail
 
 export type PostApiCommitsFilesChangedParams = {
   /** Repository/Subrepo selector (required) */
@@ -5648,6 +6095,56 @@ export type GetApiLatestCommitParams = {
 }
 
 export type GetApiLatestCommitData = LatestCommitInfo
+
+export type GetApiLfsLocksParams = {
+  /** Filter locks by file path */
+  path?: string
+  /** Filter locks by lock ID */
+  id?: string
+  /** Maximum number of locks to return */
+  limit?: string
+  /** Git reference specifier */
+  refspec?: string
+}
+
+export type GetApiLfsLocksData = LockList
+
+export type PostApiLfsLocksData = LockResponse
+
+export type PostApiLfsLocksVerifyData = VerifiableLockList
+
+export type PostApiLfsLocksUnlockData = UnlockResponse
+
+export type PostApiLfsObjectsBatchData = BatchResponse
+
+export type GetApiLfsObjectsByObjectIdData = any
+
+export type PutApiLfsObjectsByObjectIdPayload = number[]
+
+export type PutApiLfsObjectsByObjectIdData = any
+
+export type GetApiLfsObjectsChunksData = FetchChunkResponse
+
+export type GetApiLfsObjectsChunksByChunkIdParams = {
+  /**
+   * Byte offset of the chunk
+   * @format int64
+   * @min 0
+   */
+  offset: number
+  /**
+   * Size of the chunk in bytes
+   * @format int64
+   * @min 0
+   */
+  size: number
+  /** Original object ID */
+  objectId: string
+  /** Chunk ID to download */
+  chunkId: string
+}
+
+export type GetApiLfsObjectsChunksByChunkIdData = any
 
 export type PostApiMergeQueueAddData = CommonResultAddToQueueResponse
 
@@ -5742,32 +6239,34 @@ export type GetApiUserTokenListData = CommonResultVecListToken
 
 export type DeleteApiUserTokenByKeyIdData = CommonResultString
 
+export type GetOrionClientStatusByIdData = OrionClientStatus
+
+export type PostOrionClientsInfoData = CommonPageOrionClientInfo
+
 export type PostTaskData = any
 
 export type GetTaskBuildListByIdData = string[]
 
-export type GetTaskHistoryOutputByIdParams = {
-  /**
-   * The type of log retrieval: "full" indicates full retrieval, while "segment" indicates retrieval of segments.
-   * @example "full"
-   */
-  type: string
-  /**
-   * Start line number (1-based)
-   * @format int64
-   * @min 0
-   */
-  offset?: number
-  /**
-   * Max number of lines to return
-   * @min 0
-   */
-  limit?: number
+export type GetTaskHistoryOutputParams = {
+  /** Task ID whose log to read */
+  task_id: string
   /** Build ID whose log to read */
-  id: string
+  build_id: string
+  /** build repository path */
+  repo: string
+  /**
+   * Start line number (0-based)
+   * @min 0
+   */
+  start?: number
+  /**
+   * End line number
+   * @min 0
+   */
+  end?: number
 }
 
-export type GetTaskHistoryOutputByIdData = any
+export type GetTaskHistoryOutputData = any
 
 export type GetTaskOutputByIdData = any
 
@@ -6057,14 +6556,38 @@ function dataTaggedQueryKey(key: unknown) {
  */
 export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
   /**
- * No description
- *
- * @tags api
- * @name PostTask
- * @summary Creates new build tasks based on the builds count in TaskRequest and either assigns them immediately or queues them for later processing
-Returns task ID and status information upon successful creation
- * @request POST:/task
- */
+   * No description
+   *
+   * @tags api
+   * @name PostOrionClientsInfo
+   * @summary Endpoint to retrieve paginated Orion client information.
+   * @request POST:/orion-clients-info
+   */
+  postOrionClientsInfo = () => {
+    const base = 'POST:/orion-clients-info' as const
+
+    return {
+      baseKey: dataTaggedQueryKey<PostOrionClientsInfoData>([base]),
+      requestKey: () => dataTaggedQueryKey<PostOrionClientsInfoData>([base]),
+      request: (data: PageParamsOrionClientQuery, params: RequestParams = {}) =>
+        this.request<PostOrionClientsInfoData>({
+          path: `/orion-clients-info`,
+          method: 'POST',
+          body: data,
+          type: ContentType.Json,
+          ...params
+        })
+    }
+  }
+
+  /**
+   * No description
+   *
+   * @tags api
+   * @name PostTask
+   * @summary Creates build tasks and returns the task ID and status (immediate or queued)
+   * @request POST:/task
+   */
   postTask = () => {
     const base = 'POST:/task' as const
 
@@ -6077,6 +6600,31 @@ Returns task ID and status information upon successful creation
           method: 'POST',
           body: data,
           type: ContentType.Json,
+          ...params
+        })
+    }
+  }
+
+  /**
+ * No description
+ *
+ * @tags api
+ * @name GetTaskHistoryOutput
+ * @summary Provides the ability to read historical task logs
+supporting either retrieving the entire log at once or segmenting it by line count.
+ * @request GET:/task-history-output
+ */
+  getTaskHistoryOutput = () => {
+    const base = 'GET:/task-history-output' as const
+
+    return {
+      baseKey: dataTaggedQueryKey<GetTaskHistoryOutputData>([base]),
+      requestKey: (params: GetTaskHistoryOutputParams) => dataTaggedQueryKey<GetTaskHistoryOutputData>([base, params]),
+      request: (query: GetTaskHistoryOutputParams, params: RequestParams = {}) =>
+        this.request<GetTaskHistoryOutputData>({
+          path: `/task-history-output`,
+          method: 'GET',
+          query: query,
           ...params
         })
     }
@@ -14127,6 +14675,104 @@ Returns task ID and status information upon successful creation
     },
 
     /**
+     * @description Creates a new upload session and pre-creates a Draft CL.
+     *
+     * @tags Buck Upload API
+     * @name PostApiBuckSessionStart
+     * @summary Create upload session
+     * @request POST:/api/v1/buck/session/start
+     */
+    postApiBuckSessionStart: () => {
+      const base = 'POST:/api/v1/buck/session/start' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBuckSessionStartData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiBuckSessionStartData>([base]),
+        request: (data: CreateSessionPayload, params: RequestParams = {}) =>
+          this.request<PostApiBuckSessionStartData>({
+            path: `/api/v1/buck/session/start`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Complete the upload session, create Git commit, and activate CL. Returns immediately - CI build is triggered asynchronously.
+     *
+     * @tags Buck Upload API
+     * @name PostApiBuckSessionComplete
+     * @summary Complete upload
+     * @request POST:/api/v1/buck/session/{session_id}/complete
+     */
+    postApiBuckSessionComplete: () => {
+      const base = 'POST:/api/v1/buck/session/{session_id}/complete' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBuckSessionCompleteData>([base]),
+        requestKey: (sessionId: string) => dataTaggedQueryKey<PostApiBuckSessionCompleteData>([base, sessionId]),
+        request: (sessionId: string, data: CompletePayload, params: RequestParams = {}) =>
+          this.request<PostApiBuckSessionCompleteData>({
+            path: `/api/v1/buck/session/${sessionId}/complete`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Upload a single file content. Can be called concurrently for different files.
+     *
+     * @tags Buck Upload API
+     * @name PostApiBuckSessionFile
+     * @summary Upload file
+     * @request POST:/api/v1/buck/session/{session_id}/file
+     */
+    postApiBuckSessionFile: () => {
+      const base = 'POST:/api/v1/buck/session/{session_id}/file' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBuckSessionFileData>([base]),
+        requestKey: (sessionId: string) => dataTaggedQueryKey<PostApiBuckSessionFileData>([base, sessionId]),
+        request: (sessionId: string, params: RequestParams = {}) =>
+          this.request<PostApiBuckSessionFileData>({
+            path: `/api/v1/buck/session/${sessionId}/file`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Submit file manifest and get list of files that need to be uploaded.
+     *
+     * @tags Buck Upload API
+     * @name PostApiBuckSessionManifest
+     * @summary Upload file manifest
+     * @request POST:/api/v1/buck/session/{session_id}/manifest
+     */
+    postApiBuckSessionManifest: () => {
+      const base = 'POST:/api/v1/buck/session/{session_id}/manifest' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBuckSessionManifestData>([base]),
+        requestKey: (sessionId: string) => dataTaggedQueryKey<PostApiBuckSessionManifestData>([base, sessionId]),
+        request: (sessionId: string, data: ManifestPayload, params: RequestParams = {}) =>
+          this.request<PostApiBuckSessionManifestData>({
+            path: `/api/v1/buck/session/${sessionId}/manifest`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
      * No description
      *
      * @tags Change List
@@ -14460,11 +15106,11 @@ It's for local testing purposes.
     },
 
     /**
-     * @description the function get user's campsite_id from the login user info automatically
+     * No description
      *
      * @tags Change List
      * @name PostApiClReviewerApprove
-     * @summary Change the reviewer state
+     * @summary Change the reviewer approval state
      * @request POST:/api/v1/cl/{link}/reviewer/approve
      */
     postApiClReviewerApprove: () => {
@@ -14559,7 +15205,7 @@ It's for local testing purposes.
      *
      * @tags Change List
      * @name PostApiClStatus
-     * @summary Update CL status (Draft ↔ Open)
+     * @summary Update CL status (Draft or Open)
      * @request POST:/api/v1/cl/{link}/status
      */
     postApiClStatus: () => {
@@ -14649,30 +15295,6 @@ It's for local testing purposes.
             method: 'PUT',
             body: data,
             type: ContentType.Json,
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags Code Preview
-     * @name GetApiCommitsDetail
-     * @summary Get commit detail (summary + diff merged with parents)
-     * @request GET:/api/v1/commits/{sha}/detail
-     */
-    getApiCommitsDetail: () => {
-      const base = 'GET:/api/v1/commits/{sha}/detail' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiCommitsDetailData>([base]),
-        requestKey: (params: GetApiCommitsDetailParams) => dataTaggedQueryKey<GetApiCommitsDetailData>([base, params]),
-        request: ({ sha, ...query }: GetApiCommitsDetailParams, params: RequestParams = {}) =>
-          this.request<GetApiCommitsDetailData>({
-            path: `/api/v1/commits/${sha}/detail`,
-            method: 'GET',
-            query: query,
             ...params
           })
       }
@@ -15305,6 +15927,225 @@ It's for local testing purposes.
         request: (query: GetApiLatestCommitParams, params: RequestParams = {}) =>
           this.request<GetApiLatestCommitData>({
             path: `/api/v1/latest-commit`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description List LFS locks. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name GetApiLfsLocks
+     * @summary List LFS locks
+     * @request GET:/api/v1/lfs/locks
+     */
+    getApiLfsLocks: () => {
+      const base = 'GET:/api/v1/lfs/locks' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLfsLocksData>([base]),
+        requestKey: (params: GetApiLfsLocksParams) => dataTaggedQueryKey<GetApiLfsLocksData>([base, params]),
+        request: (query: GetApiLfsLocksParams, params: RequestParams = {}) =>
+          this.request<GetApiLfsLocksData>({
+            path: `/api/v1/lfs/locks`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Create an LFS lock. This handler is also available at `/info/lfs/locks` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name PostApiLfsLocks
+     * @summary Create an LFS lock
+     * @request POST:/api/v1/lfs/locks
+     */
+    postApiLfsLocks: () => {
+      const base = 'POST:/api/v1/lfs/locks' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLfsLocksData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiLfsLocksData>([base]),
+        request: (data: LockRequest, params: RequestParams = {}) =>
+          this.request<PostApiLfsLocksData>({
+            path: `/api/v1/lfs/locks`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Verify LFS locks. This handler is also available at `/info/lfs/locks/verify` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name PostApiLfsLocksVerify
+     * @summary Verify LFS locks
+     * @request POST:/api/v1/lfs/locks/verify
+     */
+    postApiLfsLocksVerify: () => {
+      const base = 'POST:/api/v1/lfs/locks/verify' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLfsLocksVerifyData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiLfsLocksVerifyData>([base]),
+        request: (data: VerifiableLockRequest, params: RequestParams = {}) =>
+          this.request<PostApiLfsLocksVerifyData>({
+            path: `/api/v1/lfs/locks/verify`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Delete an LFS lock. This handler is also available at `/info/lfs/locks/{id}/unlock` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name PostApiLfsLocksUnlock
+     * @summary Delete an LFS lock
+     * @request POST:/api/v1/lfs/locks/{id}/unlock
+     */
+    postApiLfsLocksUnlock: () => {
+      const base = 'POST:/api/v1/lfs/locks/{id}/unlock' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLfsLocksUnlockData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<PostApiLfsLocksUnlockData>([base, id]),
+        request: (id: string, data: UnlockRequest, params: RequestParams = {}) =>
+          this.request<PostApiLfsLocksUnlockData>({
+            path: `/api/v1/lfs/locks/${id}/unlock`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Process LFS batch request. This handler is also available at `/info/lfs/objects/batch` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name PostApiLfsObjectsBatch
+     * @summary Process LFS batch request
+     * @request POST:/api/v1/lfs/objects/batch
+     */
+    postApiLfsObjectsBatch: () => {
+      const base = 'POST:/api/v1/lfs/objects/batch' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiLfsObjectsBatchData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiLfsObjectsBatchData>([base]),
+        request: (data: BatchRequest, params: RequestParams = {}) =>
+          this.request<PostApiLfsObjectsBatchData>({
+            path: `/api/v1/lfs/objects/batch`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Download an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name GetApiLfsObjectsByObjectId
+     * @summary Download an LFS object
+     * @request GET:/api/v1/lfs/objects/{object_id}
+     */
+    getApiLfsObjectsByObjectId: () => {
+      const base = 'GET:/api/v1/lfs/objects/{object_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLfsObjectsByObjectIdData>([base]),
+        requestKey: (objectId: string) => dataTaggedQueryKey<GetApiLfsObjectsByObjectIdData>([base, objectId]),
+        request: (objectId: string, params: RequestParams = {}) =>
+          this.request<GetApiLfsObjectsByObjectIdData>({
+            path: `/api/v1/lfs/objects/${objectId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Upload an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name PutApiLfsObjectsByObjectId
+     * @summary Upload an LFS object
+     * @request PUT:/api/v1/lfs/objects/{object_id}
+     */
+    putApiLfsObjectsByObjectId: () => {
+      const base = 'PUT:/api/v1/lfs/objects/{object_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiLfsObjectsByObjectIdData>([base]),
+        requestKey: (objectId: string) => dataTaggedQueryKey<PutApiLfsObjectsByObjectIdData>([base, objectId]),
+        request: (objectId: string, data: PutApiLfsObjectsByObjectIdPayload, params: RequestParams = {}) =>
+          this.request<PutApiLfsObjectsByObjectIdData>({
+            path: `/api/v1/lfs/objects/${objectId}`,
+            method: 'PUT',
+            body: data,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Fetch chunk IDs for a split object. This handler is also available at `/info/lfs/objects/{object_id}/chunks` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name GetApiLfsObjectsChunks
+     * @summary Fetch chunk IDs for a split object
+     * @request GET:/api/v1/lfs/objects/{object_id}/chunks
+     */
+    getApiLfsObjectsChunks: () => {
+      const base = 'GET:/api/v1/lfs/objects/{object_id}/chunks' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLfsObjectsChunksData>([base]),
+        requestKey: (objectId: string) => dataTaggedQueryKey<GetApiLfsObjectsChunksData>([base, objectId]),
+        request: (objectId: string, params: RequestParams = {}) =>
+          this.request<GetApiLfsObjectsChunksData>({
+            path: `/api/v1/lfs/objects/${objectId}/chunks`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Download a chunk of an LFS object. This handler is also available at `/info/lfs/objects/{object_id}/chunks/{chunk_id}` for Git LFS client compatibility.
+     *
+     * @tags Git LFS
+     * @name GetApiLfsObjectsChunksByChunkId
+     * @summary Download a chunk of an LFS object
+     * @request GET:/api/v1/lfs/objects/{object_id}/chunks/{chunk_id}
+     */
+    getApiLfsObjectsChunksByChunkId: () => {
+      const base = 'GET:/api/v1/lfs/objects/{object_id}/chunks/{chunk_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLfsObjectsChunksByChunkIdData>([base]),
+        requestKey: (params: GetApiLfsObjectsChunksByChunkIdParams) =>
+          dataTaggedQueryKey<GetApiLfsObjectsChunksByChunkIdData>([base, params]),
+        request: ({ objectId, chunkId, ...query }: GetApiLfsObjectsChunksByChunkIdParams, params: RequestParams = {}) =>
+          this.request<GetApiLfsObjectsChunksByChunkIdData>({
+            path: `/api/v1/lfs/objects/${objectId}/chunks/${chunkId}`,
             method: 'GET',
             query: query,
             ...params
@@ -16055,6 +16896,29 @@ It's for local testing purposes.
      * No description
      *
      * @tags api
+     * @name GetOrionClientStatusById
+     * @summary Retrieve the current status of a specific Orion client by its ID.
+     * @request GET:/orion-client-status/{id}
+     */
+    getOrionClientStatusById: () => {
+      const base = 'GET:/orion-client-status/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetOrionClientStatusByIdData>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<GetOrionClientStatusByIdData>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<GetOrionClientStatusByIdData>({
+            path: `/orion-client-status/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags api
      * @name GetTaskBuildListById
      * @request GET:/task-build-list/{id}
      */
@@ -16068,32 +16932,6 @@ It's for local testing purposes.
           this.request<GetTaskBuildListByIdData>({
             path: `/task-build-list/${id}`,
             method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
- * No description
- *
- * @tags api
- * @name GetTaskHistoryOutputById
- * @summary Provides the ability to read historical task logs
-supporting either retrieving the entire log at once or segmenting it by line count.
- * @request GET:/task-history-output/{id}
- */
-    getTaskHistoryOutputById: () => {
-      const base = 'GET:/task-history-output/{id}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base]),
-        requestKey: (params: GetTaskHistoryOutputByIdParams) =>
-          dataTaggedQueryKey<GetTaskHistoryOutputByIdData>([base, params]),
-        request: ({ id, ...query }: GetTaskHistoryOutputByIdParams, params: RequestParams = {}) =>
-          this.request<GetTaskHistoryOutputByIdData>({
-            path: `/task-history-output/${id}`,
-            method: 'GET',
-            query: query,
             ...params
           })
       }

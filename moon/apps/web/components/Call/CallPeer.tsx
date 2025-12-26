@@ -101,7 +101,7 @@ export function CallPeer({
         <div className='relative flex h-full w-full items-center justify-center'>
           {minimized && peer.isLocal ? (
             <>
-              {user && (
+              {user?.avatar_urls?.xxl ? (
                 <Image
                   src={user.avatar_urls.xxl}
                   alt=''
@@ -109,6 +109,8 @@ export function CallPeer({
                   height={256}
                   className='aspect-square h-auto max-h-[50%] min-h-[32px] w-auto min-w-[32px] max-w-[50%] flex-none select-none rounded-full'
                 />
+              ) : (
+                <Avatar urls={user?.avatar_urls} size='xl' />
               )}
             </>
           ) : (
