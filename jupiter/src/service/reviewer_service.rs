@@ -1,6 +1,4 @@
-//! Service for managing system required reviewers.
-//!
-//! This service handles automatic reviewer assignment based on Cedar policy files.
+//! Service for managing system required reviewers based on Cedar policy files.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -11,10 +9,8 @@ use saturn::reviewer_parser::aggregate_reviewers;
 use crate::storage::{base_storage::BaseStorage, cl_reviewer_storage::ClReviewerStorage};
 
 /// Convert a file path to its logical directory path for Cedar policy matching.
-///
-/// For policy files (e.g., "servicea/.cedar/policies.cedar"), returns the parent
-/// directory path with trailing slash (e.g., "servicea/").
-/// For regular files, returns the path unchanged (as an owned String).
+/// For policy files, returns the parent directory with trailing slash.
+/// For regular files, returns the path unchanged.
 fn to_policy_match_path(file_path: &str) -> String {
     if file_path.ends_with(".cedar/policies.cedar") || file_path.ends_with(".cedar\\policies.cedar")
     {
@@ -75,18 +71,10 @@ impl ReviewerService {
         Self { reviewer_storage }
     }
 
-    /// Assign system required reviewers for multiple changed files
+    /// Assign system required reviewers based on Cedar policies.
     ///
-    /// This method iterates through all changed files and aggregates reviewers
-    /// from policy files that match each file path.
-    ///
-    /// # Arguments
-    /// * `cl_link` - The CL link identifier
-    /// * `policy_contents` - List of (policy_path, content) tuples, from root to leaf
-    /// * `changed_files` - List of changed file paths relative to CL root
-    ///
-    /// # Returns
-    /// List of assigned reviewer usernames
+    /// Iterates through changed files and aggregates reviewers from matching policies.
+    /// Returns list of assigned reviewer usernames.
     pub async fn assign_system_reviewers(
         &self,
         cl_link: &str,
@@ -130,17 +118,9 @@ impl ReviewerService {
         Ok(all_reviewers)
     }
 
-    /// Sync system required reviewers for multiple changed files
+    /// Sync system required reviewers when policy files change.
     ///
-    /// This method:
-    /// 1. Removes all current system_required reviewers
-    /// 2. Aggregates reviewers from hierarchical policy files for all changed files
-    /// 3. Adds new reviewers as system_required
-    ///
-    /// # Arguments
-    /// * `cl_link` - The CL link identifier
-    /// * `policy_contents` - List of (policy_path, content) tuples, from root to leaf
-    /// * `changed_files` - List of changed file paths relative to CL root
+    /// Removes current system reviewers and re-assigns based on updated policies.
     pub async fn sync_system_reviewers(
         &self,
         cl_link: &str,
