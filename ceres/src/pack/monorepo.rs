@@ -710,14 +710,14 @@ impl MonoRepo {
             }
         };
 
-        // Cedar reviewer auto-assignment for new CL
+        // Auto-assign reviewers for new CL
         if is_new_cl && let Err(e) = self.assign_system_reviewers().await {
-            tracing::warn!("[Cedar Reviewer] Failed to assign reviewers: {}", e);
+            tracing::warn!("Failed to assign Cedar reviewers: {}", e);
         }
 
         // Resync reviewers when existing CL updates policy files
         if !is_new_cl && let Err(e) = self.resync_current_cl_reviewers_if_policy_changed().await {
-            tracing::warn!("[Cedar Reviewer] Failed to resync reviewers: {}", e);
+            tracing::warn!("Failed to resync Cedar reviewers: {}", e);
         }
 
         Ok(())
@@ -728,7 +728,7 @@ impl MonoRepo {
         path.ends_with(".cedar/policies.cedar") || path.ends_with(".cedar\\policies.cedar")
     }
 
-    /// Resync reviewers for current CL when policy files are modified in the same push
+    /// Resync reviewers when policy files are modified in an existing CL.
     async fn resync_current_cl_reviewers_if_policy_changed(&self) -> Result<(), MegaError> {
         let changed_files = self.get_changed_files().await?;
 
@@ -736,14 +736,11 @@ impl MonoRepo {
             return Ok(());
         }
 
-        tracing::info!("[Cedar Reviewer] Policy file modified in CL update, resyncing reviewers");
-
         let link_guard = self.cl_link.read().await;
         let cl_link = link_guard
             .as_ref()
             .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
 
-        // Collect policies from all changed file paths
         let policy_contents = self.collect_policy_contents(&changed_files).await;
         if policy_contents.is_empty() {
             return Ok(());
@@ -754,124 +751,119 @@ impl MonoRepo {
             .sync_system_reviewers(cl_link, &policy_contents, &changed_files)
             .await?;
 
-        tracing::info!("[Cedar Reviewer] Reviewers resynced for CL {}", cl_link);
         Ok(())
     }
 
-    /// Get list of files changed in this commit
+    /// Get list of files changed between from_hash and to_hash commits.
+    /// Returns paths relative to the CL root directory with forward slashes.
     async fn get_changed_files(&self) -> Result<Vec<String>, MegaError> {
         let mono_api_service: MonoApiService = self.into();
 
-        // Get file lists for both commits
         let old_files = mono_api_service.get_commit_blobs(&self.from_hash).await?;
         let new_files = mono_api_service.get_commit_blobs(&self.to_hash).await?;
-
-        // Compare and get changed files
         let changed = mono_api_service.cl_files_list(old_files, new_files).await?;
 
-        // Extract file paths as strings
+        // Normalize CL root path to use forward slashes
+        let cl_root = self.path.to_string_lossy().replace('\\', "/");
+        let cl_root_normalized = cl_root.trim_start_matches('/');
+
         let file_paths: Vec<String> = changed
             .iter()
-            .map(|f| f.path().to_string_lossy().to_string())
+            .map(|f| {
+                let full_path = f.path().to_string_lossy().replace('\\', "/");
+                let full_path_normalized = full_path.trim_start_matches('/');
+
+                // Strip CL root prefix to get relative path
+                if let Some(rel) = full_path_normalized.strip_prefix(cl_root_normalized) {
+                    rel.trim_start_matches('/').to_string()
+                } else {
+                    full_path.to_string()
+                }
+            })
             .collect();
 
         Ok(file_paths)
     }
 
-    /// Collect policy files from CL directory and all changed file paths within the CL
-    /// Returns list of (policy_path, content) tuples, ordered from CL root to leaf
-    ///
-    /// # Arguments
-    /// * `changed_files` - List of changed file paths relative to CL root
+    /// Collect Cedar policy files from directories of all changed files.
+    /// Returns list of (policy_path, content) tuples, ordered from root to leaf.
     async fn collect_policy_contents(&self, changed_files: &[String]) -> Vec<(PathBuf, String)> {
         let mono_api_service: MonoApiService = self.into();
         let mut all_policy_dirs: HashSet<PathBuf> = HashSet::new();
 
-        // 1. Always include the CL root directory itself
-        all_policy_dirs.insert(self.path.clone());
+        // Always include the CL root directory
+        all_policy_dirs.insert(PathBuf::new());
 
-        // 2. Collect directories from all changed files within this CL
+        // Collect ancestor directories from all changed files
         for file_path in changed_files {
-            // Safety: ensure path is relative by removing any leading '/'
-            let relative_path = file_path.trim_start_matches('/');
-            let path = PathBuf::from(relative_path);
+            let relative_path = file_path.trim_start_matches('/').replace('\\', "/");
+            let path = PathBuf::from(&relative_path);
 
-            // Get the logical parent directory (skip .cedar directories)
-            // For "servicea/.cedar/policies.cedar" -> we want "servicea"
-            // For "servicea/core/mod.rs" -> we want "servicea/core" and "servicea"
             let parent = path.parent().unwrap_or(std::path::Path::new(""));
 
-            // If parent is .cedar directory, go up one more level
+            // Skip .cedar directory itself, use its parent
             let logical_parent = if parent.file_name().map(|n| n == ".cedar").unwrap_or(false) {
                 parent.parent().unwrap_or(std::path::Path::new(""))
             } else {
                 parent
             };
 
-            // Add all ancestor directories of the logical parent (within CL scope)
             for ancestor in logical_parent.ancestors() {
-                if ancestor.as_os_str().is_empty() {
-                    // Empty path is skipped because CL root (self.path) is already added in step 1
-                    continue;
-                }
-
-                // Skip any path that contains .cedar component
                 let ancestor_str = ancestor.to_string_lossy();
                 if ancestor_str.contains(".cedar") {
                     continue;
                 }
-
-                // Join with CL path to get the full path within the repository
-                let full_path = self.path.join(ancestor);
-                all_policy_dirs.insert(full_path);
+                let normalized = PathBuf::from(ancestor_str.replace('\\', "/"));
+                all_policy_dirs.insert(normalized);
             }
         }
 
-        // 3. Sort directories by depth (CL root to leaf) for correct override semantics
+        // Sort by depth for correct override semantics (root policies first)
         let mut sorted_dirs: Vec<PathBuf> = all_policy_dirs.into_iter().collect();
         sorted_dirs.sort_by_key(|p| p.components().count());
 
-        // 4. Collect policy contents from all directories
         let mut policy_contents: Vec<(PathBuf, String)> = Vec::new();
-        let mut seen_policies: HashSet<PathBuf> = HashSet::new();
+        let mut seen_policies: HashSet<String> = HashSet::new();
 
         for dir in sorted_dirs {
-            let policy_path = dir.join(".cedar/policies.cedar");
+            let policy_relative_path = if dir.as_os_str().is_empty() {
+                ".cedar/policies.cedar".to_string()
+            } else {
+                let dir_str = dir.to_string_lossy().replace('\\', "/");
+                format!("{}/.cedar/policies.cedar", dir_str)
+            };
 
-            // Skip if we've already processed this policy file
-            if seen_policies.contains(&policy_path) {
+            if seen_policies.contains(&policy_relative_path) {
                 continue;
             }
 
+            let lookup_path = PathBuf::from(&policy_relative_path);
+            let self_path_str = self.path.to_string_lossy().replace('\\', "/");
+            let full_policy_path_str = format!("{}/{}", self_path_str, policy_relative_path);
+            let full_policy_path = PathBuf::from(&full_policy_path_str);
+
             if let Ok(Some(content)) = mono_api_service
-                .get_blob_as_string(policy_path.clone(), Some(&self.to_hash))
+                .get_blob_as_string(lookup_path, Some(&self.to_hash))
                 .await
             {
-                tracing::debug!(
-                    "[Cedar Reviewer] Found policy file: {}",
-                    policy_path.display()
-                );
-                seen_policies.insert(policy_path.clone());
-                policy_contents.push((policy_path, content));
+                seen_policies.insert(policy_relative_path);
+                policy_contents.push((full_policy_path, content));
             }
         }
 
         policy_contents
     }
 
-    /// Auto-assign system required reviewers based on .cedar/policies.cedar
-    /// Collects policies from all changed file paths, not just CL root ancestors
+    /// Auto-assign system required reviewers based on Cedar policy files.
     async fn assign_system_reviewers(&self) -> Result<(), MegaError> {
         let link_guard = self.cl_link.read().await;
         let cl_link = link_guard
             .as_ref()
             .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
 
-        // Get all changed files to match against policy rules
-        let changed_files = self.get_changed_files().await.unwrap_or_default();
-
-        // Collect policies from all changed file paths
+        let changed_files = self.get_changed_files().await?;
         let policy_contents = self.collect_policy_contents(&changed_files).await;
+
         if policy_contents.is_empty() {
             return Ok(());
         }
