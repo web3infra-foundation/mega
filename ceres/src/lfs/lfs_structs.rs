@@ -100,19 +100,19 @@ pub struct RequestObject {
     pub authorization: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+/// User information for lock ownership
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ToSchema)]
+pub struct LockUser {
+    pub name: String,
+}
+
 /// LFS lock information
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Lock {
     pub id: String,
     pub path: String,
     pub locked_at: String,
-    pub owner: Option<User>,
-}
-
-/// User information for lock ownership
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ToSchema)]
-pub struct User {
-    pub name: String,
+    pub owner: Option<LockUser>,
 }
 
 #[derive(Serialize, Deserialize, Debug, ToSchema)]
