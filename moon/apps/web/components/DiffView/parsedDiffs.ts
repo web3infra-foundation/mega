@@ -9,16 +9,20 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
   if (diffText.length < 1) return []
 
   return diffText.map((block) => {
+    const isBinary = /Binary files.*differ/.test(block.data)
+
     const lang = getLangFromFileNameToDiff(block.path)
-
-    const isBinary = block.data.includes('Binary files differ')
-
-    const isEmptyDiff = !block.data.includes('@@')
 
     let diff = block.data
 
-    if (isEmptyDiff) {
-      diff = 'EMPTY_DIFF_MARKER'
+    if (isBinary) {
+      /* empty */
+    } else {
+      const isEmptyDiff = !block.data.includes('@@')
+
+      if (isEmptyDiff) {
+        diff = 'EMPTY_DIFF_MARKER'
+      }
     }
 
     if (!diff.endsWith('\n')) {
