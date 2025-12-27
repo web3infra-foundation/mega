@@ -486,9 +486,10 @@ const CodeContent = ({
             return (
               <div
                 key={`block-${blockIndex}`}
+                data-index={blockIndex}
                 className={`border-x border-gray-200 transition-colors duration-150 ${
                   isFirstBlock ? 'border-t' : ''
-                } ${isLastBlock ? 'rounded-b-lg border-b' : ''}`}
+                } ${isLastBlock ? 'rounded-b-lg border-b' : 'border-b'}`}
               >
                 <div className='flex min-w-0'>
                   <div className='flex w-1 flex-shrink-0 items-center'>
