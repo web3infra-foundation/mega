@@ -1689,7 +1689,7 @@ impl MonoApiService {
     ///
     /// # Arguments
     /// * `username` - User processing the manifest
-    /// * `session_id` - Session ID
+    /// * `cl_link` - CL link
     /// * `payload` - Manifest payload
     ///
     /// # Returns
@@ -1697,15 +1697,15 @@ impl MonoApiService {
     pub async fn process_buck_manifest(
         &self,
         username: &str,
-        session_id: &str,
+        cl_link: &str,
         payload: ManifestPayload,
     ) -> Result<ManifestResponse, MegaError> {
         let session = self
             .storage
             .buck_storage()
-            .get_session(session_id)
+            .get_session(cl_link)
             .await?
-            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(session_id.to_string())))?;
+            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(cl_link.to_string())))?;
 
         if session.user_id != username {
             return Err(MegaError::Buck(BuckError::Forbidden(
@@ -1749,7 +1749,7 @@ impl MonoApiService {
         let svc_resp = self
             .storage
             .buck_service
-            .process_manifest(username, session_id, service_payload, existing_file_hashes)
+            .process_manifest(username, cl_link, service_payload, existing_file_hashes)
             .await?;
 
         // Convert back to API layer response
@@ -1775,7 +1775,7 @@ impl MonoApiService {
     ///
     /// # Arguments
     /// * `username` - User completing the upload
-    /// * `session_id` - Session ID
+    /// * `cl_link` - CL link
     /// * `payload` - Complete payload containing an optional commit message
     ///
     /// # Returns
@@ -1783,15 +1783,15 @@ impl MonoApiService {
     pub async fn complete_buck_upload(
         &self,
         username: &str,
-        session_id: &str,
+        cl_link: &str,
         payload: CompletePayload,
     ) -> Result<CompleteResponse, MegaError> {
         let session = self
             .storage
             .buck_storage()
-            .get_session(session_id)
+            .get_session(cl_link)
             .await?
-            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(session_id.to_string())))?;
+            .ok_or_else(|| MegaError::Buck(BuckError::SessionNotFound(cl_link.to_string())))?;
 
         if session.user_id != username {
             return Err(MegaError::Buck(BuckError::Forbidden(
@@ -1815,7 +1815,7 @@ impl MonoApiService {
         let pending = self
             .storage
             .buck_storage()
-            .count_pending_files(session_id)
+            .count_pending_files(cl_link)
             .await?;
         if pending > 0 {
             return Err(MegaError::Buck(BuckError::FilesNotFullyUploaded {
@@ -1823,11 +1823,7 @@ impl MonoApiService {
             }));
         }
 
-        let all_files = self
-            .storage
-            .buck_storage()
-            .get_all_files(session_id)
-            .await?;
+        let all_files = self.storage.buck_storage().get_all_files(cl_link).await?;
         for file in &all_files {
             if file.blob_id.is_none() {
                 return Err(MegaError::Buck(BuckError::ValidationError(format!(
@@ -1897,7 +1893,7 @@ impl MonoApiService {
             .buck_service
             .complete_upload(
                 username,
-                session_id,
+                cl_link,
                 SvcCompletePayload {
                     commit_message: payload.commit_message.clone(),
                 },

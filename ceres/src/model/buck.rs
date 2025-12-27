@@ -15,8 +15,8 @@ pub struct CreateSessionPayload {
 /// Response for session creation
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SessionResponse {
-    /// Unique session identifier (8 characters)
-    pub session_id: String,
+    /// CL link (8-character alphanumeric identifier, same as session_id)
+    pub cl_link: String,
     /// Session expiration time (RFC3339 format)
     pub expires_at: String,
     /// Maximum file size in bytes
