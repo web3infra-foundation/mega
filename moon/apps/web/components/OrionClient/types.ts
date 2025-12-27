@@ -1,19 +1,11 @@
 'use client'
 
-export type OrionClientStatus =
-  | 'idle'
-  | 'busy'
-  | 'running'
-  | 'downloading'
-  | 'preparing'
-  | 'uploading'
-  | 'error'
-  | 'offline'
+export type OrionClientStatus = 'idle' | 'busy' | 'running' | 'downloading' | 'error' | 'offline'
 
 export interface OrionClient {
   client_id: string
   hostname: string
-  instance_id: string
+  instance_id?: string
   orion_version: string
   start_time: string
   last_heartbeat: string

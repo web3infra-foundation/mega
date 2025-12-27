@@ -4,137 +4,102 @@ import React from 'react'
 import { Pagination } from '@primer/react'
 import Head from 'next/head'
 
+import {
+  CoreWorkerStatus,
+  PageParamsOrionClientQuery,
+  PostOrionClientsInfoData,
+  TaskPhase
+} from '@gitmono/types/generated'
 import { UIText } from '@gitmono/ui'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
-import { ClientsTable, deriveStatus, OrionClient, OrionClientStatus } from '@/components/OrionClient'
+import { ClientsTable, OrionClientStatus } from '@/components/OrionClient'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+import { usePostOrionClientsInfo } from '@/hooks/OrionClient/OrionClientsInfo'
 import { PageWithLayout } from '@/utils/types'
 
 const OrionClientPage: PageWithLayout<any> = () => {
-  const mockClients = React.useMemo<OrionClient[]>(
-    () => [
-      {
-        client_id: 'worker-1',
-        hostname: 'build-node-01',
-        instance_id: 'i-09f3a1b2c3',
-        orion_version: '0.3.1',
-        start_time: '2025-12-17T09:23:11Z',
-        last_heartbeat: '2025-12-20T09:22:50Z',
-        status: 'running'
-      },
-      {
-        client_id: 'worker-2',
-        hostname: 'build-node-02',
-        instance_id: 'i-09f3a1b2c4',
-        orion_version: '0.3.1',
-        start_time: '2025-12-18T11:11:00Z',
-        last_heartbeat: '2025-12-20T09:22:00Z',
-        status: 'busy'
-      },
-      {
-        client_id: 'worker-3',
-        hostname: 'build-node-03',
-        instance_id: 'pod-009',
-        orion_version: '0.3.0',
-        start_time: '2025-12-17T08:00:00Z',
-        last_heartbeat: '2025-12-20T09:21:10Z',
-        status: 'idle'
-      },
-      {
-        client_id: 'worker-4',
-        hostname: 'build-node-04',
-        instance_id: 'pod-010',
-        orion_version: '0.3.0',
-        start_time: '2025-12-17T08:00:00Z',
-        last_heartbeat: '2025-12-20T09:20:00Z',
-        status: 'error'
-      },
-      {
-        client_id: 'worker-5',
-        hostname: 'build-node-05',
-        instance_id: 'pod-011',
-        orion_version: '0.2.9',
-        start_time: '2025-12-17T08:00:00Z',
-        last_heartbeat: '2025-12-20T09:19:10Z',
-        status: 'preparing'
-      },
-      {
-        client_id: 'worker-6',
-        hostname: 'build-node-06',
-        instance_id: 'pod-012',
-        orion_version: '0.2.9',
-        start_time: '2025-12-17T08:00:00Z',
-        // no status -> derive from heartbeat, will become offline if >30s
-        last_heartbeat: '2025-12-20T09:17:00Z'
-      },
-      {
-        client_id: 'worker-7',
-        hostname: 'build-node-07',
-        instance_id: 'pod-013',
-        orion_version: '0.3.1',
-        start_time: '2025-12-19T03:10:00Z',
-        last_heartbeat: '2025-12-20T09:22:10Z',
-        status: 'downloading'
-      },
-      {
-        client_id: 'worker-8',
-        hostname: 'build-node-08',
-        instance_id: 'pod-014',
-        orion_version: '0.3.1',
-        start_time: '2025-12-19T03:12:00Z',
-        last_heartbeat: '2025-12-20T09:21:40Z',
-        status: 'uploading'
-      },
-      {
-        client_id: 'worker-9',
-        hostname: 'build-node-09',
-        instance_id: 'pod-015',
-        orion_version: '0.3.1',
-        start_time: '2025-12-19T03:15:00Z',
-        last_heartbeat: '2025-12-19T01:10:03Z',
-        status: 'idle'
-      }
-    ],
-    []
-  )
-
-  const [searchQuery, setSearchQuery] = React.useState<string>('')
+  const [hostnameInput, setHostnameInput] = React.useState<string>('')
+  const [debouncedHostname, setDebouncedHostname] = React.useState<string>('')
   const [statusFilter, setStatusFilter] = React.useState<OrionClientStatus | 'all'>('all')
   const [currentPage, setCurrentPage] = React.useState<number>(1)
 
   const perPage = 8
 
-  const filtered = React.useMemo(() => {
-    return mockClients.filter((c) => {
-      const status = deriveStatus(c)
-      const matchStatus = statusFilter === 'all' ? true : status === statusFilter
+  const { mutate, isPending, error } = usePostOrionClientsInfo()
+  const [clientsPage, setClientsPage] = React.useState<PostOrionClientsInfoData | null>(null)
 
-      const text = searchQuery.trim().toLowerCase()
-      const matchText =
-        text === '' || c.client_id.toLowerCase().includes(text) || c.hostname.toLowerCase().includes(text)
+  React.useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedHostname(hostnameInput)
+    }, 500)
 
-      return matchStatus && matchText
+    return () => clearTimeout(handle)
+  }, [hostnameInput])
+
+  const requestPayload = React.useMemo<PageParamsOrionClientQuery>(() => {
+    const text = debouncedHostname.trim()
+    const additional: PageParamsOrionClientQuery['additional'] = {}
+
+    if (text !== '') {
+      additional.hostname = text
+    }
+
+    if (statusFilter === 'idle') {
+      additional.status = CoreWorkerStatus.Idle
+    } else if (statusFilter === 'error') {
+      additional.status = CoreWorkerStatus.Error
+    } else if (statusFilter === 'offline') {
+      additional.status = CoreWorkerStatus.Lost
+    } else if (statusFilter === 'busy') {
+      additional.status = CoreWorkerStatus.Busy
+    } else if (statusFilter === 'downloading') {
+      additional.status = CoreWorkerStatus.Busy
+      additional.phase = TaskPhase.DownloadingSource
+    } else if (statusFilter === 'running') {
+      additional.status = CoreWorkerStatus.Busy
+      additional.phase = TaskPhase.RunningBuild
+    }
+
+    return {
+      pagination: { page: currentPage, per_page: perPage },
+      additional
+    }
+  }, [currentPage, debouncedHostname, perPage, statusFilter])
+
+  React.useEffect(() => {
+    mutate(requestPayload, {
+      onSuccess: (data) => {
+        setClientsPage(data)
+      }
     })
-  }, [mockClients, searchQuery, statusFilter])
+  }, [mutate, requestPayload])
+
+  const total = clientsPage?.total ?? 0
 
   const pageCount = React.useMemo(() => {
-    return Math.max(1, Math.ceil(filtered.length / perPage))
-  }, [filtered.length])
+    return Math.max(1, Math.ceil(total / perPage))
+  }, [perPage, total])
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter])
+  }, [hostnameInput, statusFilter])
 
   React.useEffect(() => {
     setCurrentPage((p) => Math.min(Math.max(1, p), pageCount))
   }, [pageCount])
 
-  const pagedClients = React.useMemo(() => {
-    const start = (currentPage - 1) * perPage
+  const clients = React.useMemo(() => {
+    const items = clientsPage?.items ?? []
 
-    return filtered.slice(start, start + perPage)
-  }, [currentPage, filtered])
+    return items.map((c) => ({
+      client_id: c.client_id,
+      hostname: c.hostname,
+      orion_version: c.orion_version,
+      start_time: c.start_time,
+      last_heartbeat: c.last_heartbeat
+    }))
+  }, [clientsPage])
 
   return (
     <>
@@ -147,7 +112,7 @@ const OrionClientPage: PageWithLayout<any> = () => {
             <div>
               <h1 className='text-xl font-semibold'>Orion Clients</h1>
               <UIText color='text-muted' size='text-sm'>
-                Total clients {filtered.length}
+                Total clients {total}
               </UIText>
             </div>
           </div>
@@ -174,29 +139,34 @@ const OrionClientPage: PageWithLayout<any> = () => {
           </div>
           <input
             type='text'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search by Client ID / Hostname'
+            value={hostnameInput}
+            onChange={(e) => setHostnameInput(e.target.value)}
+            placeholder='Search by Hostname'
             className='w-full flex-1 border-none bg-transparent text-sm text-gray-700 outline-none ring-0 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-500'
           />
         </div>
 
         <ClientsTable
-          clients={pagedClients}
+          clients={clients}
+          isLoading={isPending}
           statusFilter={statusFilter}
           onStatusChange={(value: OrionClientStatus | 'all') => setStatusFilter(value)}
           statusOptions={[
             { value: 'all', label: 'All statuses' },
             { value: 'idle', label: 'Idle' },
             { value: 'busy', label: 'Busy' },
-            { value: 'downloading', label: 'Downloading source' },
-            { value: 'preparing', label: 'Preparing environment' },
-            { value: 'running', label: 'Running build' },
-            { value: 'uploading', label: 'Uploading artifacts' },
+            { value: 'downloading', label: '\u00A0\u00A0Downloading source' },
+            { value: 'running', label: '\u00A0\u00A0Running build' },
             { value: 'error', label: 'Error' },
             { value: 'offline', label: 'Lost / Offline' }
           ]}
         />
+
+        {error ? (
+          <UIText color='text-muted' size='text-sm'>
+            Failed to load Orion clients: {error.message}
+          </UIText>
+        ) : null}
 
         {pageCount > 1 ? (
           <div className='flex w-full justify-center pt-2'>

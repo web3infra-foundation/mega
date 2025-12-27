@@ -3,7 +3,10 @@
 import React from 'react'
 import { DataTable } from '@primer/react/experimental'
 
+import { CoreWorkerStatus, TaskPhase } from '@gitmono/types/generated'
 import { Select, SelectTrigger, SelectValue, UIText } from '@gitmono/ui'
+
+import { useGetOrionClientStatusById } from '@/hooks/OrionClient/OrionClientStatusById'
 
 import { StatusBadge } from './StatusBadge'
 import { deriveStatus, OrionClient, OrionClientStatus } from './types'
@@ -86,7 +89,7 @@ export function ClientsTable({ clients, isLoading, statusFilter, onStatusChange,
         ),
         field: 'statusDerived',
         width: '14%',
-        renderCell: (row: Row) => <StatusBadge status={row.statusDerived} />
+        renderCell: (row: Row) => <OrionClientStatusCell client={row} />
       }
     ],
     [onStatusChange, statusFilter, statusOptions]
@@ -112,6 +115,38 @@ export function ClientsTable({ clients, isLoading, statusFilter, onStatusChange,
       ) : null}
     </div>
   )
+}
+
+function OrionClientStatusCell({ client }: { client: OrionClient }) {
+  const { data, isLoading, isError } = useGetOrionClientStatusById(client.client_id, undefined, 5 * 60 * 1000)
+
+  if (isLoading) {
+    return (
+      <UIText color='text-muted' size='text-xs'>
+        Loading…
+      </UIText>
+    )
+  }
+
+  if (isError || !data) {
+    return <StatusBadge status={deriveStatus(client)} />
+  }
+
+  return <StatusBadge status={mapApiStatusToUiStatus(data.core_status, data.phase)} />
+}
+
+function mapApiStatusToUiStatus(coreStatus: CoreWorkerStatus, phase: TaskPhase | null | undefined): OrionClientStatus {
+  if (coreStatus === CoreWorkerStatus.Idle) return 'idle'
+  if (coreStatus === CoreWorkerStatus.Error) return 'error'
+  if (coreStatus === CoreWorkerStatus.Lost) return 'offline'
+
+  if (coreStatus === CoreWorkerStatus.Busy) {
+    if (phase === TaskPhase.DownloadingSource) return 'downloading'
+    if (phase === TaskPhase.RunningBuild) return 'running'
+    return 'busy'
+  }
+
+  return 'idle'
 }
 
 function formatDateTime(iso: string) {

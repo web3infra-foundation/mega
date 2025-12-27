@@ -24,24 +24,32 @@ const Checks = ({ cl }: { cl: number }) => {
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
 
-    const allBuildIds = tasks.flatMap((task) => task.build_list.map((build) => build.id))
+    const builds = tasks.flatMap((task) =>
+      (task.build_list ?? []).map((build) => ({
+        build_id: build.id,
+        task_id: build.task_id ?? task.task_id,
+        repo: build.repo
+      }))
+    )
 
-    if (allBuildIds.length === 0) return
+    const validBuilds = builds.filter((b) => Boolean(b.build_id && b.task_id && b.repo))
 
-    allBuildIds.forEach((id) => {
-      setEventSource(id)
-      setLogStatus((prev) => ({ ...prev, [id]: 'loading' }))
+    if (validBuilds.length === 0) return
+
+    validBuilds.forEach((b) => {
+      setEventSource(b.build_id)
+      setLogStatus((prev) => ({ ...prev, [b.build_id]: 'loading' }))
     })
 
     const fetchLogs = async () => {
       const logsResult = await Promise.allSettled(
-        allBuildIds.map(async (id) => {
+        validBuilds.map(async ({ build_id, task_id, repo }) => {
           try {
-            const res = await fetchHTTPLog({ id, type: 'full' })
+            const res = await fetchHTTPLog({ task_id, build_id, repo })
 
-            return { id, res, error: null }
+            return { id: build_id, res, error: null }
           } catch (error) {
-            return { id, res: null, error }
+            return { id: build_id, res: null, error }
           }
         })
       )
@@ -78,7 +86,7 @@ const Checks = ({ cl }: { cl: number }) => {
           }
         } else {
           // Promise.allSettled rejected (shouldn't happen with try-catch, but defensive)
-          const id = allBuildIds[logsResult.indexOf(item)]
+          const id = validBuilds[logsResult.indexOf(item)]?.build_id
 
           if (id) {
             newLogStatus[id] = 'error'
@@ -93,8 +101,8 @@ const Checks = ({ cl }: { cl: number }) => {
 
     fetchLogs()
 
-    if (!buildid && allBuildIds.length > 0) {
-      setBuildId(allBuildIds[0])
+    if (!buildid && validBuilds.length > 0) {
+      setBuildId(validBuilds[0].build_id)
     }
 
     return () => {
