@@ -190,7 +190,7 @@ export function getLangFromFileName(fileName: string): string {
 }
 
 export function getLangFromFileNameToDiff(fileName: string): string {
-  if (!fileName) return 'binary'
+  if (!fileName) return 'plaintext'
   const lowerFileName = fileName.toLowerCase()
   const baseName = lowerFileName.split('/').pop() || ''
 
@@ -209,8 +209,8 @@ export function getLangFromFileNameToDiff(fileName: string): string {
   if (lastPart) {
     const extension = lastPart[0]
 
-    return LANGUAGE_MAP[extension] ?? 'binary'
+    return LANGUAGE_MAP[extension] ?? 'plaintext'
   }
 
-  return 'binary'
+  return 'plaintext'
 }
