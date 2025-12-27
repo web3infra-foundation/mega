@@ -227,7 +227,7 @@ async fn test_create_session_success() {
     // Verify session was created
     let session = storage
         .buck_storage()
-        .get_session(&response.session_id)
+        .get_session(&response.cl_link)
         .await
         .unwrap()
         .expect("Session should exist");
@@ -240,7 +240,7 @@ async fn test_create_session_success() {
     // Verify CL was created
     let cl = storage
         .cl_storage()
-        .get_cl(&response.session_id)
+        .get_cl(&response.cl_link)
         .await
         .unwrap();
     assert!(cl.is_some(), "Draft CL should be created");
@@ -289,7 +289,7 @@ async fn test_create_session_expires_at_calculation() {
     // Verify it matches session's expires_at
     let session = storage
         .buck_storage()
-        .get_session(&response.session_id)
+        .get_session(&response.cl_link)
         .await
         .unwrap()
         .unwrap();
