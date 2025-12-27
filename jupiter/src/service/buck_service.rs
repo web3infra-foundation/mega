@@ -42,7 +42,7 @@ pub struct BuckService {
 /// Response for creating a buck upload session.
 #[derive(Debug, Clone)]
 pub struct SessionResponse {
-    pub session_id: String,
+    pub cl_link: String,
     pub expires_at: String,
     pub max_file_size: u64,
     pub max_files: u32,
@@ -347,7 +347,7 @@ impl BuckService {
 
         // Build response
         Ok(SessionResponse {
-            session_id,
+            cl_link: session_id,
             expires_at: expires_at.to_rfc3339(),
             max_file_size: self.max_file_size,
             max_files: self.max_files,
@@ -564,7 +564,7 @@ impl BuckService {
     pub async fn process_manifest(
         &self,
         username: &str,
-        session_id: &str,
+        cl_link: &str,
         payload: ManifestPayload,
         existing_file_hashes: HashMap<PathBuf, String>,
     ) -> Result<ManifestResponse, MegaError> {
@@ -582,7 +582,7 @@ impl BuckService {
         }
 
         // Validate session status (owner/status/not expired)
-        self.validate_session(session_id, username, &[session_status::CREATED])
+        self.validate_session(cl_link, username, &[session_status::CREATED])
             .await?;
 
         // Validate and compare each file
@@ -677,13 +677,13 @@ impl BuckService {
 
         // Batch insert file records (idempotent via ON CONFLICT DO NOTHING)
         self.buck_storage
-            .batch_insert_files(session_id, file_records)
+            .batch_insert_files(cl_link, file_records)
             .await?;
 
         // Update session status
         self.buck_storage
             .update_session_status_with_pool(
-                session_id,
+                cl_link,
                 session_status::MANIFEST_UPLOADED,
                 payload.commit_message.as_deref(),
             )
@@ -705,7 +705,7 @@ impl BuckService {
     ///
     /// # Arguments
     /// * `username` - User uploading the file
-    /// * `session_id` - Session ID
+    /// * `cl_link` - CL link (8-character alphanumeric identifier)
     /// * `file_path` - Path of the file to upload
     /// * `file_size` - Expected file size in bytes
     /// * `file_hash` - Optional expected hash for verification
@@ -716,7 +716,7 @@ impl BuckService {
     pub async fn upload_file(
         &self,
         username: &str,
-        session_id: &str,
+        cl_link: &str,
         file_path: &str,
         file_size: u64,
         file_hash: Option<&str>,
@@ -724,7 +724,7 @@ impl BuckService {
     ) -> Result<FileUploadResponse, MegaError> {
         // Validate session status (manifest_uploaded or uploading)
         self.validate_session(
-            session_id,
+            cl_link,
             username,
             &[session_status::MANIFEST_UPLOADED, session_status::UPLOADING],
         )
@@ -733,7 +733,7 @@ impl BuckService {
         // Get pending record
         let pending = self
             .buck_storage
-            .get_pending_file(session_id, file_path)
+            .get_pending_file(cl_link, file_path)
             .await?
             .ok_or_else(|| MegaError::Buck(BuckError::FileNotInManifest(file_path.to_string())))?;
 
@@ -783,7 +783,7 @@ impl BuckService {
         };
         let rows = self
             .buck_storage
-            .mark_file_uploaded(session_id, file_path, &blob_hash)
+            .mark_file_uploaded(cl_link, file_path, &blob_hash)
             .await?;
 
         if rows == 0 {
@@ -795,7 +795,7 @@ impl BuckService {
         // concurrent uploads try to update the session status simultaneously.
         self.buck_storage
             .update_session_status_if_current_with_pool(
-                session_id,
+                cl_link,
                 session_status::MANIFEST_UPLOADED,
                 session_status::UPLOADING,
                 None,
@@ -816,7 +816,7 @@ impl BuckService {
     ///
     /// # Arguments
     /// * `username` - User completing the upload
-    /// * `session_id` - Session ID
+    /// * `cl_link` - CL link (8-character alphanumeric identifier)
     /// * `payload` - Complete payload containing an optional commit message
     /// * `commit_artifacts` - Optional commit artifacts from MonoApiService (Git build in ceres)
     ///
@@ -825,21 +825,21 @@ impl BuckService {
     pub async fn complete_upload(
         &self,
         username: &str,
-        session_id: &str,
+        cl_link: &str,
         payload: CompletePayload,
         commit_artifacts: Option<CommitArtifacts>,
     ) -> Result<CompleteResponse, MegaError> {
         // Validate session status
         let session = self
             .validate_session(
-                session_id,
+                cl_link,
                 username,
                 &[session_status::MANIFEST_UPLOADED, session_status::UPLOADING],
             )
             .await?;
 
         // Ensure no pending files
-        let pending = self.buck_storage.count_pending_files(session_id).await?;
+        let pending = self.buck_storage.count_pending_files(cl_link).await?;
         if pending > 0 {
             return Err(BuckError::FilesNotFullyUploaded {
                 missing_count: pending as u32,
@@ -848,7 +848,7 @@ impl BuckService {
         }
 
         // Get all files and verify blob_id exists
-        let all_files = self.buck_storage.get_all_files(session_id).await?;
+        let all_files = self.buck_storage.get_all_files(cl_link).await?;
         for file in &all_files {
             if file.blob_id.is_none() {
                 return Err(BuckError::FilesNotFullyUploaded {
@@ -881,7 +881,7 @@ impl BuckService {
                 .await?;
 
             // Update/create CL ref
-            let cl_ref_name = format!("refs/cl/{}", session_id);
+            let cl_ref_name = format!("refs/cl/{}", cl_link);
             self.mono_storage
                 .save_or_update_cl_ref_in_txn(
                     &txn,
@@ -896,7 +896,7 @@ impl BuckService {
             self.mono_storage
                 .get_and_update_cl_in_txn(
                     &txn,
-                    session_id,
+                    cl_link,
                     session.from_hash.as_deref().unwrap_or_default(),
                     &artifacts.commit_id,
                     payload
@@ -911,7 +911,7 @@ impl BuckService {
         self.buck_storage
             .update_session_status(
                 &txn,
-                session_id,
+                cl_link,
                 session_status::COMPLETED,
                 payload.commit_message.as_deref(),
             )

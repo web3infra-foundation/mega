@@ -63,7 +63,7 @@ async fn create_session(
         .map_err(ApiError::from)?;
 
     let response = SessionResponse {
-        session_id: service_resp.session_id,
+        cl_link: service_resp.cl_link,
         expires_at: service_resp.expires_at,
         max_file_size: service_resp.max_file_size,
         max_files: service_resp.max_files,
@@ -78,8 +78,10 @@ async fn create_session(
 /// Submit file manifest and get list of files that need to be uploaded.
 #[utoipa::path(
     post,
-    params(("session_id", description = "Session ID")),
-    path = "/session/{session_id}/manifest",
+    params(
+        ("cl_link" = String, Path, description = "CL link (8-character alphanumeric identifier)")
+    ),
+    path = "/session/{cl_link}/manifest",
     request_body = ManifestPayload,
     responses(
         (status = 200, body = CommonResult<ManifestResponse>),
@@ -91,13 +93,13 @@ async fn create_session(
 )]
 async fn upload_manifest(
     user: LoginUser,
-    Path(session_id): Path<String>,
+    Path(cl_link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<ManifestPayload>,
 ) -> Result<Json<CommonResult<ManifestResponse>>, ApiError> {
     let response = state
         .monorepo()
-        .process_buck_manifest(&user.username, &session_id, payload)
+        .process_buck_manifest(&user.username, &cl_link, payload)
         .await
         .map_err(ApiError::from)?;
 
@@ -109,8 +111,10 @@ async fn upload_manifest(
 /// Upload a single file content. Can be called concurrently for different files.
 #[utoipa::path(
     post,
-    params(("session_id", description = "Session ID")),
-    path = "/session/{session_id}/file",
+    params(
+        ("cl_link" = String, Path, description = "CL link (8-character alphanumeric identifier)")
+    ),
+    path = "/session/{cl_link}/file",
     responses(
         (status = 200, body = CommonResult<FileUploadResponse>),
         (status = 400, description = "Invalid parameters or validation failed"),
@@ -122,7 +126,7 @@ async fn upload_manifest(
 )]
 async fn upload_file(
     user: LoginUser,
-    Path(session_id): Path<String>,
+    Path(cl_link): Path<String>,
     state: State<MonoApiServiceState>,
     headers: HeaderMap,
     req: Request<Body>,
@@ -155,8 +159,8 @@ async fn upload_file(
         .try_acquire_upload_permits(file_size)
         .map_err(|e| {
             tracing::warn!(
-                "Buck upload rate limited: session={}, file_size={}, user={}, error={}",
-                session_id,
+                "Buck upload rate limited: cl_link={}, file_size={}, user={}, error={}",
+                cl_link,
                 file_size,
                 user.username,
                 e
@@ -165,8 +169,8 @@ async fn upload_file(
         })?;
 
     tracing::debug!(
-        "Buck upload started: session={}, file_size={}, is_large_file={}, user={}",
-        session_id,
+        "Buck upload started: cl_link={}, file_size={}, is_large_file={}, user={}",
+        cl_link,
         file_size,
         _large_file_permit.is_some(),
         user.username
@@ -209,7 +213,7 @@ async fn upload_file(
         .buck_service
         .upload_file(
             &user.username,
-            &session_id,
+            &cl_link,
             &file_path,
             file_size,
             file_hash.as_deref(),
@@ -231,8 +235,10 @@ async fn upload_file(
 /// Returns immediately - CI build is triggered asynchronously.
 #[utoipa::path(
     post,
-    params(("session_id", description = "Session ID")),
-    path = "/session/{session_id}/complete",
+    params(
+        ("cl_link" = String, Path, description = "CL link (8-character alphanumeric identifier)")
+    ),
+    path = "/session/{cl_link}/complete",
     request_body = CompletePayload,
     responses(
         (status = 200, body = CommonResult<CompleteResponse>),
@@ -244,13 +250,13 @@ async fn upload_file(
 )]
 async fn complete_upload(
     user: LoginUser,
-    Path(session_id): Path<String>,
+    Path(cl_link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<CompletePayload>,
 ) -> Result<Json<CommonResult<CompleteResponse>>, ApiError> {
     let response = state
         .monorepo()
-        .complete_buck_upload(&user.username, &session_id, payload)
+        .complete_buck_upload(&user.username, &cl_link, payload)
         .await
         .map_err(ApiError::from)?;
 
