@@ -19,13 +19,16 @@ use bellatrix::{
     orion_client::{BuildInfo, ProjectRelativePath, Status},
 };
 use callisto::{
-    entity_ext::generate_link, mega_cl, mega_refs, raw_blob, sea_orm_active_enums::ConvTypeEnum,
+    entity_ext::generate_link, mega_cl, mega_commit, mega_refs, sea_orm_active_enums::ConvTypeEnum,
 };
 use common::{
     errors::MegaError,
     utils::{self, ZERO_ID},
 };
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
+use git_internal::internal::{
+    metadata::{EntryMeta, MetaAttached},
+    object::signature::Signature,
+};
 use git_internal::{
     errors::GitError,
     hash::SHA1,
@@ -34,9 +37,9 @@ use git_internal::{
         pack::{encode::PackEncoder, entry::Entry},
     },
 };
-use jupiter::service::reviewer_service::ReviewerService;
 use jupiter::storage::Storage;
 use jupiter::utils::converter::FromMegaModel;
+use jupiter::{object_storage::MultiObjectByteStream, service::reviewer_service::ReviewerService};
 
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
@@ -161,16 +164,35 @@ impl RepoHandler for MonoRepo {
         &self,
         entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
     ) -> Result<(), MegaError> {
-        let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
         let commit_id = if let Some(commit) = &*current_commit {
             commit.id.to_string()
         } else {
             String::new()
         };
-        storage
-            .save_entry(&commit_id, entry_list, self.username.clone())
-            .await
+        let commit_models = self
+            .storage
+            .mono_service
+            .save_entry(&commit_id, entry_list)
+            .await?;
+
+        if !commit_models.is_empty() {
+            let commits_to_process: Result<Vec<(String, String)>, MegaError> = commit_models
+                .into_iter()
+                .map(|c| {
+                    let model: mega_commit::Model = c.try_into()?;
+                    let author_bytes = model.author.as_deref().unwrap_or("").as_bytes();
+                    let signature = Signature::from_data(author_bytes.to_vec())?;
+                    Ok((model.commit_id, signature.email))
+                })
+                .collect();
+
+            self.storage
+                .mono_storage()
+                .process_commit_bindings(&commits_to_process?, self.username.clone().as_deref())
+                .await?;
+        }
+        Ok(())
     }
 
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
@@ -262,7 +284,7 @@ impl RepoHandler for MonoRepo {
             .unwrap();
         for have_tree in have_trees {
             self.traverse(Tree::from_mega_model(have_tree), &mut exist_objs, None)
-                .await;
+                .await?;
         }
 
         let mut counted_obj = HashSet::new();
@@ -287,7 +309,7 @@ impl RepoHandler for MonoRepo {
                 &mut exist_objs,
                 Some(&entry_tx),
             )
-            .await;
+            .await?;
             entry_tx
                 .send(MetaAttached {
                     inner: c.into(),
@@ -316,11 +338,8 @@ impl RepoHandler for MonoRepo {
     async fn get_blobs_by_hashes(
         &self,
         hashes: Vec<String>,
-    ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        self.storage
-            .raw_db_storage()
-            .get_raw_blobs_by_hashes(hashes)
-            .await
+    ) -> Result<MultiObjectByteStream<'_>, MegaError> {
+        Ok(self.storage.git_service.get_objects_stream(hashes))
     }
 
     async fn get_blob_metadata_by_hashes(

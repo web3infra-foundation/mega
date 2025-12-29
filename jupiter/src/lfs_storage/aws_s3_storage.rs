@@ -9,7 +9,7 @@ use aws_sdk_s3::error::ProvideErrorMetadata;
 use aws_sdk_s3::presigning::PresigningConfig;
 use bytes::Bytes;
 
-use common::config::LFSAwsConfig;
+use common::config::S3Config;
 use common::errors::{GitLFSError, MegaError};
 
 use crate::lfs_storage::{LfsFileStorage, transform_path};
@@ -21,15 +21,15 @@ pub struct AwsS3Storage {
 }
 
 impl AwsS3Storage {
-    pub async fn init(aws_config: LFSAwsConfig) -> AwsS3Storage {
-        let region_provider = RegionProviderChain::first_try(Region::new(aws_config.s3_region));
+    pub async fn init(config: S3Config) -> AwsS3Storage {
+        let region_provider = RegionProviderChain::first_try(Region::new(config.region));
         let region = region_provider.region().await.expect("Invalid region str");
 
         let shared_config = aws_config::from_env()
             .region(region_provider)
             .credentials_provider(Credentials::new(
-                aws_config.s3_access_key_id,
-                aws_config.s3_secret_access_key,
+                config.access_key_id,
+                config.secret_access_key,
                 None,
                 None,
                 "example",
@@ -40,7 +40,7 @@ impl AwsS3Storage {
         let client = Client::new(&shared_config);
         AwsS3Storage {
             client,
-            bucket_name: aws_config.s3_bucket,
+            bucket_name: config.bucket,
             _region: region,
         }
     }

@@ -66,15 +66,15 @@ pub async fn get_blob_file(
 ) -> Result<Response, ApiError> {
     let api_handler = state.monorepo();
 
-    let result = api_handler.get_raw_blob_by_hash(&oid).await.unwrap();
+    let result = api_handler.get_raw_blob_by_hash(&oid).await;
     let file_name = format!("inline; filename=\"{oid}\"");
     match result {
-        Some(model) => Ok(Response::builder()
+        Ok(data) => Ok(Response::builder()
             .header("Content-Type", "application/octet-stream")
             .header("Content-Disposition", file_name)
-            .body(Body::from(model.data.unwrap()))
+            .body(Body::from(data))
             .unwrap()),
-        None => Ok({
+        Err(_) => Ok({
             Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())

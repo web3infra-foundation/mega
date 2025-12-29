@@ -5,7 +5,7 @@ use aws_s3_storage::AwsS3Storage;
 use bytes::Bytes;
 
 use common::{
-    config::{LFSConfig, StorageType},
+    config::{LFSConfig, S3Config, StorageType},
     errors::{GitLFSError, MegaError},
 };
 use sea_orm::DatabaseConnection;
@@ -55,11 +55,12 @@ fn transform_path(sha1: &str) -> String {
 
 pub async fn init(
     lfs_config: LFSConfig,
+    s3_config: S3Config,
     connection: Arc<DatabaseConnection>,
 ) -> Arc<dyn LfsFileStorage> {
     match lfs_config.storage_type {
         StorageType::LocalFs => Arc::new(LocalStorage::init(lfs_config.local, connection)),
-        StorageType::AwsS3 => Arc::new(AwsS3Storage::init(lfs_config.aws).await),
+        StorageType::S3 => Arc::new(AwsS3Storage::init(s3_config).await),
         _ => unreachable!(
             "Not supported value of config `storage_type`, support value can be 'local_fs' or 'aws_s3'"
         ),

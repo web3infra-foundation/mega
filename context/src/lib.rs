@@ -25,13 +25,21 @@ impl AppContext {
     pub async fn new(config: common::config::Config) -> Self {
         let config = Arc::new(config);
 
-        let storage = jupiter::storage::Storage::new(config.clone()).await;
+        let storage = jupiter::storage::Storage::new(config.clone())
+            .await
+            .expect("init monorepo storage err");
         let connection = init_connection(&config.redis).await;
 
         let storage_for_vault = storage.clone();
         let vault = vault::integration::vault_core::VaultCore::new(storage_for_vault).await;
 
-        storage.mono_storage().init_monorepo(&config.monorepo).await;
+        let stg = storage.mono_storage();
+        let blobs = stg.init_monorepo(&config.monorepo).await;
+        storage
+            .git_service
+            .put_objects(blobs)
+            .await
+            .expect("init monorepo failed");
 
         Self {
             storage,

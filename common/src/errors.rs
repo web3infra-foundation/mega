@@ -55,6 +55,9 @@ pub enum MegaError {
     #[error("Buck API error: {0}")]
     Buck(#[from] BuckError),
 
+    #[error("Not Found error: {0}")]
+    NotFound(String),
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),

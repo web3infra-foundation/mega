@@ -148,10 +148,9 @@ pub async fn preview_file_diff<T: ApiHandler + ?Sized>(
 
     // local content reader: use DB for old oid and memory for new
     let mut cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
-    if let Some(oid) = old_oid_opt
-        && let Some(model) = handler.get_raw_blob_by_hash(&oid.to_string()).await?
-    {
-        cache.insert(oid, model.data.unwrap_or_default());
+    if let Some(oid) = old_oid_opt {
+        let data = handler.get_raw_blob_by_hash(&oid.to_string()).await?;
+        cache.insert(oid, data);
     }
     cache.insert(new_blob.id, payload.content.into_bytes());
 
@@ -174,8 +173,8 @@ pub async fn get_blob_as_string<T: ApiHandler + ?Sized>(
         && let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename)
     {
         match handler.get_raw_blob_by_hash(&item.id.to_string()).await {
-            Ok(Some(model)) => {
-                return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()));
+            Ok(data) => {
+                return Ok(Some(String::from_utf8(data).unwrap()));
             }
             _ => return Ok(None),
         }

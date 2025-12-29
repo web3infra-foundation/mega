@@ -443,10 +443,10 @@ impl ApiHandler for ImportApiService {
                 inner: Entry::from(new_commit.clone()),
                 meta: EntryMeta::new(),
             });
-            git_storage
+            self.storage
+                .import_service
                 .save_entry(self.repo.repo_id, entries)
-                .await
-                .map_err(|e| GitError::CustomError(e.to_string()))?;
+                .await?;
 
             // Update ref to new commit id
             git_storage
