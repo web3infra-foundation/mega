@@ -13,22 +13,26 @@ pub mod lfs_db_storage;
 pub mod merge_queue_storage;
 pub mod mono_storage;
 pub mod note_storage;
-pub mod raw_db_storage;
 pub mod relay_storage;
 pub mod stg_common;
 pub mod user_storage;
 pub mod vault_storage;
 
+use common::errors::MegaError;
 use std::sync::{Arc, LazyLock, Weak};
 use tokio::sync::Semaphore;
 
 use common::config::Config;
 
 use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
+use crate::object_storage::factory::{ObjectStorageConfig, ObjectStorageFactory};
 use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
+use crate::service::git_service::GitService;
+use crate::service::import_service::ImportService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
+use crate::service::mono_service::MonoService;
 use crate::storage::conversation_storage::ConversationStorage;
 use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
 use crate::storage::init::database_connection;
@@ -36,8 +40,8 @@ use crate::storage::{
     buck_storage::BuckStorage, cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
     git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
     lfs_db_storage::LfsDbStorage, merge_queue_storage::MergeQueueStorage,
-    mono_storage::MonoStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
-    user_storage::UserStorage, vault_storage::VaultStorage,
+    mono_storage::MonoStorage, relay_storage::RelayStorage, user_storage::UserStorage,
+    vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -49,7 +53,6 @@ pub struct AppService {
     pub mono_storage: MonoStorage,
     pub git_db_storage: GitDbStorage,
     pub gpg_storage: GpgStorage,
-    pub raw_db_storage: RawDbStorage,
     pub lfs_db_storage: LfsDbStorage,
     pub relay_storage: RelayStorage,
     pub user_storage: UserStorage,
@@ -73,7 +76,6 @@ impl AppService {
             mono_storage: MonoStorage { base: mock.clone() },
             git_db_storage: GitDbStorage { base: mock.clone() },
             gpg_storage: GpgStorage { base: mock.clone() },
-            raw_db_storage: RawDbStorage { base: mock.clone() },
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
             relay_storage: RelayStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
@@ -99,18 +101,20 @@ pub struct Storage {
     pub cl_service: CLService,
     pub merge_queue_service: MergeQueueService,
     pub buck_service: BuckService,
+    pub mono_service: MonoService,
+    pub import_service: ImportService,
+    pub git_service: GitService,
     pub config: Weak<Config>,
 }
 
 impl Storage {
-    pub async fn new(config: Arc<Config>) -> Self {
+    pub async fn new(config: Arc<Config>) -> Result<Self, MegaError> {
         let connection = Arc::new(database_connection(&config.database).await);
         let base = BaseStorage::new(connection.clone());
 
         let mono_storage = MonoStorage { base: base.clone() };
         let git_db_storage = GitDbStorage { base: base.clone() };
         let gpg_storage = GpgStorage { base: base.clone() };
-        let raw_db_storage = RawDbStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
         let relay_storage = RelayStorage { base: base.clone() };
         let user_storage = UserStorage { base: base.clone() };
@@ -118,13 +122,31 @@ impl Storage {
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
-        let lfs_file_storage = lfs_storage::init(config.lfs.clone(), connection.clone()).await;
+        let lfs_file_storage =
+            lfs_storage::init(config.lfs.clone(), config.s3.clone(), connection.clone()).await;
         let note_storage = NoteStorage { base: base.clone() };
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
         let buck_storage = BuckStorage { base: base.clone() };
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
+
+        let git_service = GitService {
+            obj_storage: ObjectStorageFactory::create(ObjectStorageConfig::from_config(
+                config.monorepo.storage_type.clone(),
+                config.clone(),
+            ))
+            .await?,
+        };
+        let mono_service = MonoService {
+            mono_storage: mono_storage.clone(),
+            git_service: git_service.clone(),
+        };
+
+        let import_service = ImportService {
+            git_db_storage: git_db_storage.clone(),
+            git_service: git_service.clone(),
+        };
 
         let buck_config = config.buck.clone().unwrap_or_default();
 
@@ -149,7 +171,6 @@ impl Storage {
             mono_storage: mono_storage.clone(),
             git_db_storage,
             gpg_storage,
-            raw_db_storage,
             lfs_db_storage,
             relay_storage,
             user_storage,
@@ -172,17 +193,21 @@ impl Storage {
             upload_semaphore,
             large_file_semaphore,
             buck_config,
+            git_service.clone(),
         )
         .expect("failed to create BuckService");
 
-        Storage {
+        Ok(Storage {
             app_service: app_service.into(),
             config: Arc::downgrade(&config),
             issue_service: IssueService::new(base.clone()),
             cl_service: CLService::new(base.clone()),
             merge_queue_service,
             buck_service,
-        }
+            git_service,
+            mono_service,
+            import_service,
+        })
     }
 
     pub fn config(&self) -> Arc<Config> {
@@ -212,10 +237,6 @@ impl Storage {
 
     pub fn gpg_storage(&self) -> GpgStorage {
         self.app_service.gpg_storage.clone()
-    }
-
-    pub fn raw_db_storage(&self) -> RawDbStorage {
-        self.app_service.raw_db_storage.clone()
     }
 
     pub fn lfs_db_storage(&self) -> LfsDbStorage {
@@ -286,6 +307,9 @@ impl Storage {
             merge_queue_service: MergeQueueService::mock(),
             buck_service: BuckService::mock(),
             config: Arc::downgrade(&*CONFIG),
+            git_service: GitService::mock(),
+            mono_service: MonoService::mock(),
+            import_service: ImportService::mock(),
         }
     }
 }

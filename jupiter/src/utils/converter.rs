@@ -3,19 +3,15 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use callisto::mega_refs;
-use common::config::MonoConfig;
-use common::utils::{MEGA_BRANCH_NAME, generate_id};
-
-// Callisto models
 use callisto::{
     git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob,
     sea_orm_active_enums::StorageTypeEnum,
 };
-
+use common::config::MonoConfig;
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
 use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
 use git_internal::internal::pack::entry::Entry;
-// git_internal types
 use git_internal::{
     hash::SHA1,
     internal::object::{
@@ -86,14 +82,14 @@ pub enum GitObject {
 pub enum GitObjectModel {
     Commit(git_commit::Model),
     Tree(git_tree::Model),
-    Blob(git_blob::Model, raw_blob::Model),
+    Blob(git_blob::Model, Vec<u8>),
     Tag(git_tag::Model),
 }
 
 pub enum MegaObjectModel {
     Commit(mega_commit::Model),
     Tree(mega_tree::Model),
-    Blob(mega_blob::Model, raw_blob::Model),
+    Blob(mega_blob::Model, Vec<u8>),
     Tag(mega_tag::Model),
 }
 
@@ -103,7 +99,9 @@ impl GitObject {
             GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into_mega_model(meta)),
             GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into_mega_model(meta)),
             GitObject::Blob(blob) => {
-                MegaObjectModel::Blob(blob.clone().into_mega_model(meta), blob.to_raw_blob())
+                let blob_data = blob.data.clone();
+                let mega_model = blob.into_mega_model(meta);
+                MegaObjectModel::Blob(mega_model, blob_data)
             }
             GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into_mega_model(meta)),
         }
@@ -114,7 +112,9 @@ impl GitObject {
             GitObject::Commit(commit) => GitObjectModel::Commit(commit.into_git_model(meta)),
             GitObject::Tree(tree) => GitObjectModel::Tree(tree.into_git_model(meta)),
             GitObject::Blob(blob) => {
-                GitObjectModel::Blob(blob.clone().into_git_model(meta), blob.to_raw_blob())
+                let blob_data = blob.data.clone();
+                let git_model = blob.into_git_model(meta);
+                GitObjectModel::Blob(git_model, blob_data)
             }
             GitObject::Tag(tag) => GitObjectModel::Tag(tag.into_git_model(meta)),
         }
@@ -475,7 +475,7 @@ pub struct MegaModelConverter {
     pub blob_maps: HashMap<SHA1, Blob>,
     pub mega_trees: RefCell<HashMap<SHA1, mega_tree::ActiveModel>>,
     pub mega_blobs: RefCell<HashMap<SHA1, mega_blob::ActiveModel>>,
-    pub raw_blobs: RefCell<HashMap<SHA1, raw_blob::ActiveModel>>,
+    pub raw_blobs: RefCell<Vec<Blob>>,
     pub refs: mega_refs::ActiveModel,
 }
 
@@ -487,7 +487,7 @@ impl MegaModelConverter {
         self.mega_trees
             .borrow_mut()
             .insert(root_tree.id, mega_tree.clone().into());
-        self.traverse_for_update(&self.root_tree);
+        self.traverse_for_update(root_tree);
     }
 
     fn traverse_for_update(&self, tree: &Tree) {
@@ -509,8 +509,8 @@ impl MegaModelConverter {
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());
-                let raw_blob: raw_blob::Model = blob.to_raw_blob();
-                self.raw_blobs.borrow_mut().insert(blob.id, raw_blob.into());
+
+                self.raw_blobs.borrow_mut().push(blob.clone());
             }
         }
     }
@@ -537,7 +537,7 @@ impl MegaModelConverter {
             blob_maps,
             mega_trees: RefCell::new(HashMap::new()),
             mega_blobs: RefCell::new(HashMap::new()),
-            raw_blobs: RefCell::new(HashMap::new()),
+            raw_blobs: RefCell::new(Vec::new()),
             refs: mega_ref.into(),
         };
         converter.traverse_from_root();
@@ -789,11 +789,9 @@ mod test {
         let converter = MegaModelConverter::init(&mono_config);
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
-        let raw_blob = converter.raw_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
         assert_eq!(mega_trees.len(), dir_nums + 1);
         assert_eq!(mega_blobs.len(), dir_nums);
-        assert_eq!(raw_blob.len(), dir_nums);
     }
 
     #[test]

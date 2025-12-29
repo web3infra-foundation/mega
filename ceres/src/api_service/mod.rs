@@ -6,7 +6,6 @@ use std::{
 
 use async_trait::async_trait;
 
-use callisto::raw_blob;
 use common::config::BlameConfig;
 use common::errors::MegaError;
 use common::model::{DiffItem, Pagination};
@@ -119,9 +118,11 @@ pub trait ApiHandler: Send + Sync {
     /// Create a file or directory entry under the monorepo path. Returns the new commit id on success.
     async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<String, GitError>;
 
-    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
-        let context = self.get_context();
-        context.raw_db_storage().get_raw_blob_by_hash(hash).await
+    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Vec<u8>, MegaError> {
+        self.get_context()
+            .git_service
+            .get_object_as_bytes(hash)
+            .await
     }
 
     /// Preview unified diff for a single file change

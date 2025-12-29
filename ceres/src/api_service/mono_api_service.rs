@@ -302,7 +302,6 @@ impl ApiHandler for MonoApiService {
 
     /// Save file edit in monorepo with optimistic concurrency check
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
-        let storage = self.storage.mono_storage();
         let file_path = PathBuf::from(&payload.path);
         let parent_path = file_path
             .parent()
@@ -335,10 +334,11 @@ impl ApiHandler for MonoApiService {
         let new_commit_id = self
             .apply_update_result(&result, &payload.commit_message, None)
             .await?;
-        storage
-            .save_mega_blobs(&new_commit_id, vec![&new_blob])
-            .await
-            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        self.storage
+            .mono_service
+            .save_blobs(&new_commit_id, vec![new_blob.clone()])
+            .await?;
 
         Ok(EditFileResult {
             commit_id: new_commit_id,
@@ -486,7 +486,12 @@ impl ApiHandler for MonoApiService {
                 .apply_update_result(&update_result, &entry_info.commit_msg(), None)
                 .await?;
 
-            storage.save_mega_blobs(&new_commit_id, vec![&blob]).await?;
+            // storage.save_mega_blobs(&new_commit_id, vec![&blob]).await?;
+
+            self.storage
+                .mono_service
+                .save_blobs(&new_commit_id, vec![blob])
+                .await?;
 
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
@@ -593,10 +598,10 @@ impl ApiHandler for MonoApiService {
                 .apply_update_result(&update_result, &entry_info.commit_msg(), None)
                 .await?;
 
-            storage
-                .save_mega_blobs(&new_commit_id, vec![&blob])
-                .await
-                .map_err(|e| GitError::CustomError(e.to_string()))?;
+            self.storage
+                .mono_service
+                .save_blobs(&new_commit_id, vec![blob])
+                .await?;
 
             let save_trees: Vec<mega_tree::ActiveModel> = save_trees
                 .into_iter()
@@ -1374,12 +1379,8 @@ impl MonoApiService {
         let mut failed_hashes = Vec::new();
         for hash in all_hashes {
             match self.get_raw_blob_by_hash(&hash.to_string()).await {
-                Ok(Some(blob)) => {
-                    blob_cache.insert(hash, blob.data.unwrap_or_default());
-                }
-                Ok(None) => {
-                    tracing::warn!("Blob not found for hash: {}", hash);
-                    blob_cache.insert(hash, Vec::new());
+                Ok(data) => {
+                    blob_cache.insert(hash, data);
                 }
                 Err(e) => {
                     tracing::error!("Failed to fetch blob {}: {}", hash, e);

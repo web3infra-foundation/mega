@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::TryStreamExt;
 use futures::{Stream, future::join_all};
+use jupiter::object_storage::MultiObjectByteStream;
 use std::collections::HashMap;
 use std::{
     collections::HashSet,
@@ -15,7 +17,6 @@ use tokio::sync::{Semaphore, mpsc::UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
-use callisto::raw_blob;
 use common::{
     config::PackConfig,
     errors::{MegaError, ProtocolError},
@@ -48,7 +49,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         self: Arc<Self>,
         mut rx: UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
         _rx_pack_id: UnboundedReceiver<SHA1>,
-    ) -> Result<(), GitError> {
+    ) -> Result<(), MegaError> {
         let mut entry_list = vec![];
         let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
         let mut join_tasks = vec![];
@@ -85,6 +86,10 @@ pub trait RepoHandler: Send + Sync + 'static {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => {
                     tracing::error!("Task {} save_entry Err: {:?}", i, e);
+                    return Err(MegaError::Other(format!(
+                        "Failed to save entry in repository in task {}: {}",
+                        i, e
+                    )));
                 }
                 Err(join_err) => {
                     tracing::error!("Task {} panic or cancle: {:?}", i, join_err);
@@ -147,7 +152,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     async fn get_blobs_by_hashes(
         &self,
         hashes: Vec<String>,
-    ) -> Result<Vec<raw_blob::Model>, MegaError>;
+    ) -> Result<MultiObjectByteStream<'_>, MegaError>;
 
     async fn get_blob_metadata_by_hashes(
         &self,
@@ -256,7 +261,7 @@ pub trait RepoHandler: Send + Sync + 'static {
         tree: Tree,
         exist_objs: &mut HashSet<String>,
         sender: Option<&tokio::sync::mpsc::Sender<MetaAttached<Entry, EntryMeta>>>,
-    ) {
+    ) -> Result<(), MegaError> {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
 
@@ -272,31 +277,40 @@ pub trait RepoHandler: Send + Sync + 'static {
         }
 
         if let Some(sender) = sender {
-            let blobs = self
-                .get_blobs_by_hashes(search_blob_ids.clone())
-                .await
-                .unwrap();
+            let blobs = self.get_blobs_by_hashes(search_blob_ids.clone()).await?;
             let blobs_ext_data = self
-                .get_blob_metadata_by_hashes(search_blob_ids)
-                .await
-                .unwrap();
-            for b in blobs {
-                let data = b.data.unwrap_or_default();
-                let blob: Blob = Blob::from_content_bytes(data);
-                let ext_data = blobs_ext_data.get(&b.sha1).unwrap();
-                sender
-                    .send(MetaAttached {
-                        inner: blob.into(),
-                        meta: ext_data.to_owned(),
-                    })
-                    .await
-                    .unwrap();
-            }
+                .get_blob_metadata_by_hashes(search_blob_ids.clone())
+                .await?;
+
+            let default_meta = EntryMeta::default();
+            blobs
+                .try_for_each_concurrent(16, |(_, stream, _)| async {
+                    let data = stream
+                        .try_fold(Vec::new(), |mut acc, bytes| async move {
+                            acc.extend_from_slice(&bytes);
+                            Ok(acc)
+                        })
+                        .await?;
+                    let blob = Blob::from_content_bytes(data);
+                    let ext_data = blobs_ext_data
+                        .get(&blob.id.to_string())
+                        .unwrap_or(&default_meta);
+                    sender
+                        .send(MetaAttached {
+                            inner: blob.into(),
+                            meta: ext_data.to_owned(),
+                        })
+                        .await
+                        .unwrap();
+
+                    Ok(())
+                })
+                .await?;
         }
 
-        let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
+        let trees = self.get_trees_by_hashes(search_tree_ids).await?;
         for t in trees {
-            self.traverse(t, exist_objs, sender).await;
+            self.traverse(t, exist_objs, sender).await?;
         }
 
         if let Some(sender) = sender {
@@ -308,6 +322,7 @@ pub trait RepoHandler: Send + Sync + 'static {
                 .await
                 .unwrap();
         }
+        Ok(())
     }
 
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError>;

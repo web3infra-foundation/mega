@@ -13,12 +13,12 @@ use sea_orm::TransactionTrait;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::service::cl_service::CLService;
+use crate::service::git_service::GitService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::buck_storage::{
     BuckStorage, FileRecord, session_status, upload_reason, upload_status,
 };
 use crate::storage::mono_storage::MonoStorage;
-use crate::storage::raw_db_storage::RawDbStorage;
 
 /// Buck upload service.
 ///
@@ -28,7 +28,7 @@ use crate::storage::raw_db_storage::RawDbStorage;
 pub struct BuckService {
     pub buck_storage: BuckStorage,
     pub mono_storage: MonoStorage,
-    pub raw_db_storage: RawDbStorage,
+    pub git_service: GitService,
     pub cl_service: CLService,
     pub upload_semaphore: Arc<Semaphore>,
     pub large_file_semaphore: Arc<Semaphore>,
@@ -118,10 +118,10 @@ impl BuckService {
         upload_semaphore: Arc<Semaphore>,
         large_file_semaphore: Arc<Semaphore>,
         buck_config: BuckConfig,
+        git_service: GitService,
     ) -> Result<Self, MegaError> {
         let buck_storage = BuckStorage { base: base.clone() };
         let mono_storage = MonoStorage { base: base.clone() };
-        let raw_db_storage = RawDbStorage { base: base.clone() };
 
         // Parse configuration values
         let max_file_size = buck_config.get_max_file_size_bytes().map_err(|e| {
@@ -145,7 +145,7 @@ impl BuckService {
         Ok(Self {
             buck_storage,
             mono_storage,
-            raw_db_storage,
+            git_service,
             cl_service,
             upload_semaphore,
             large_file_semaphore,
@@ -258,6 +258,7 @@ impl BuckService {
         let upload_semaphore = Arc::new(Semaphore::new(10));
         let large_file_semaphore = Arc::new(Semaphore::new(5));
         let buck_config = BuckConfig::default();
+        let git_service = GitService::mock();
 
         Self::new(
             base,
@@ -265,6 +266,7 @@ impl BuckService {
             upload_semaphore,
             large_file_semaphore,
             buck_config,
+            git_service,
         )
         .expect("mock BuckService should never fail")
     }
@@ -753,10 +755,7 @@ impl BuckService {
         }
 
         // Write blob to storage
-        let blob_hash = self
-            .raw_db_storage
-            .save_raw_blob_from_content(file_content.to_vec())
-            .await?;
+        let blob_hash = self.git_service.save_object_from_raw(file_content).await?;
 
         // Optional hash verification
         let verified = if let Some(expected_hash) = file_hash {
@@ -951,6 +950,7 @@ mod tests {
             upload_semaphore,
             large_file_semaphore,
             buck_config,
+            GitService::mock(),
         )
         .expect("Failed to create test BuckService")
     }

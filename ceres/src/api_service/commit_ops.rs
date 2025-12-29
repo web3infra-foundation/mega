@@ -698,16 +698,9 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
     let ctx = handler.get_context();
     let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
     for hash in &all_hashes {
-        match ctx
-            .raw_db_storage()
-            .get_raw_blob_by_hash(&hash.to_string())
-            .await
-        {
-            Ok(Some(blob)) => {
-                blob_cache.insert(*hash, blob.data.unwrap_or_default());
-            }
-            Ok(None) => {
-                tracing::warn!("Missing blob data for hash {}", hash);
+        match ctx.git_service.get_object_as_bytes(&hash.to_string()).await {
+            Ok(blob) => {
+                blob_cache.insert(*hash, blob);
             }
             Err(e) => tracing::warn!("Failed to read blob {}: {}", hash, e),
         }

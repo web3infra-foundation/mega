@@ -27,19 +27,22 @@ sea-orm-migration = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 bytes = { workspace = true }
+async-stream = { workspace = true }
 chrono = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 idgenerator = { workspace = true }
 serde = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tokio-util = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-std"] }
+tokio-util = { workspace = true, features = ["io"] }
 uuid = { workspace = true }
 hex = { workspace = true }
 ring = { workspace = true }
 aws-config = { workspace = true, features = ["behavior-version-latest"] }
-aws-sdk-s3 = { workspace = true, features = ["rt-tokio"] }
+aws-sdk-s3 = { workspace = true, features = ["rt-tokio", "http-1x"] }
+http-body = { workspace = true }
+http-body-util = { workspace = true }
 anyhow = { workspace = true }
 tempfile = { workspace = true }
 indexmap = { workspace = true }
