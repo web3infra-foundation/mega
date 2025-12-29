@@ -723,18 +723,9 @@ impl MonoRepo {
         Ok(())
     }
 
-    /// Check if a file path is a Cedar policy file
-    fn is_policy_file(path: &str) -> bool {
-        path.ends_with(".cedar/policies.cedar") || path.ends_with(".cedar\\policies.cedar")
-    }
-
     /// Resync reviewers when policy files are modified in an existing CL.
     async fn resync_current_cl_reviewers_if_policy_changed(&self) -> Result<(), MegaError> {
         let changed_files = self.get_changed_files().await?;
-
-        if !changed_files.iter().any(|f| Self::is_policy_file(f)) {
-            return Ok(());
-        }
 
         let link_guard = self.cl_link.read().await;
         let cl_link = link_guard
@@ -825,6 +816,12 @@ impl MonoRepo {
         let mut policy_contents: Vec<(PathBuf, String)> = Vec::new();
         let mut seen_policies: HashSet<String> = HashSet::new();
 
+        let policy_commit = if self.from_hash == ZERO_ID {
+            &self.to_hash
+        } else {
+            &self.from_hash
+        };
+
         for dir in sorted_dirs {
             let policy_relative_path = if dir.as_os_str().is_empty() {
                 ".cedar/policies.cedar".to_string()
@@ -843,7 +840,7 @@ impl MonoRepo {
             let full_policy_path = PathBuf::from(&full_policy_path_str);
 
             if let Ok(Some(content)) = mono_api_service
-                .get_blob_as_string(lookup_path, Some(&self.to_hash))
+                .get_blob_as_string(lookup_path, Some(policy_commit))
                 .await
             {
                 seen_policies.insert(policy_relative_path);
