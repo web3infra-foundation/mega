@@ -13,6 +13,7 @@ use common::config::BuckConfig;
 use git_internal::internal::object::blob::Blob;
 use jupiter::service::buck_service::{BuckService, ManifestPayload};
 use jupiter::service::cl_service::CLService;
+use jupiter::service::git_service::GitService;
 use jupiter::storage::buck_storage::{session_status, upload_reason, upload_status};
 use jupiter::tests::test_storage;
 use serial_test::serial;
@@ -51,6 +52,7 @@ async fn create_test_buck_service_with_db()
         upload_semaphore,
         large_file_semaphore,
         buck_config,
+        GitService::mock(),
     )
     .expect("Failed to create BuckService");
 
@@ -1133,8 +1135,8 @@ async fn test_complete_upload_success() {
 
     // Save blob to database
     storage
-        .raw_db_storage()
-        .save_raw_blob_from_content(vec![0u8; 100])
+        .git_service
+        .save_object_from_raw(vec![0u8; 100].into())
         .await
         .unwrap();
 
@@ -1377,8 +1379,8 @@ async fn test_complete_upload_idempotency() {
         .unwrap();
 
     storage
-        .raw_db_storage()
-        .save_raw_blob_from_content(vec![0u8; 100])
+        .git_service
+        .save_object_from_raw(vec![0u8; 100].into())
         .await
         .unwrap();
 

@@ -99,6 +99,7 @@ pub struct Config {
     pub redis: RedisConfig,
     #[serde(default)]
     pub buck: Option<BuckConfig>,
+    pub s3: S3Config,
 }
 
 impl Config {
@@ -130,6 +131,7 @@ impl Config {
             build: BuildConfig::default(),
             redis: RedisConfig::default(),
             buck: None,
+            s3: S3Config::default(),
         }
     }
 
@@ -325,6 +327,7 @@ impl Default for DbConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
+    pub storage_type: StorageType,
     pub import_dir: PathBuf,
     pub admin: String,
     pub root_dirs: Vec<String>,
@@ -333,6 +336,7 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
+            storage_type: StorageType::LocalFs,
             import_dir: PathBuf::from("/third-party"),
             admin: String::from("admin"),
             root_dirs: vec![
@@ -516,7 +520,6 @@ impl PackConfig {
 pub struct LFSConfig {
     pub storage_type: StorageType,
     pub local: LFSLocalConfig,
-    pub aws: LFSAwsConfig,
     pub ssh: LFSSshConfig,
 }
 
@@ -525,7 +528,7 @@ pub struct LFSConfig {
 pub enum StorageType {
     Database,
     LocalFs,
-    AwsS3,
+    S3,
 }
 
 impl From<StorageTypeEnum> for StorageType {
@@ -533,7 +536,7 @@ impl From<StorageTypeEnum> for StorageType {
         match value {
             StorageTypeEnum::Database => StorageType::Database,
             StorageTypeEnum::LocalFs => StorageType::LocalFs,
-            StorageTypeEnum::AwsS3 => StorageType::AwsS3,
+            StorageTypeEnum::AwsS3 => StorageType::S3,
         }
     }
 }
@@ -543,7 +546,7 @@ impl From<StorageType> for StorageTypeEnum {
         match value {
             StorageType::Database => StorageTypeEnum::Database,
             StorageType::LocalFs => StorageTypeEnum::LocalFs,
-            StorageType::AwsS3 => StorageTypeEnum::AwsS3,
+            StorageType::S3 => StorageTypeEnum::AwsS3,
         }
     }
 }
@@ -553,7 +556,6 @@ impl Default for LFSConfig {
         Self {
             storage_type: StorageType::LocalFs,
             local: LFSLocalConfig::default(),
-            aws: LFSAwsConfig::default(),
             ssh: LFSSshConfig::default(),
         }
     }
@@ -577,13 +579,6 @@ impl Default for LFSLocalConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct LFSAwsConfig {
-    pub s3_bucket: String,
-    pub s3_region: String,
-    pub s3_access_key_id: String,
-    pub s3_secret_access_key: String,
-}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSSshConfig {
     pub http_url: String,
@@ -595,6 +590,15 @@ impl Default for LFSSshConfig {
             http_url: "http://localhost:8000".to_string(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct S3Config {
+    pub region: String,
+    pub bucket: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub endpoint_url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

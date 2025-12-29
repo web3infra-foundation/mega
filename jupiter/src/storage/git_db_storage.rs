@@ -1,23 +1,18 @@
 use std::ops::Deref;
-use std::sync::Arc;
 
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::utils::generate_id;
-use futures::{Stream, StreamExt, stream};
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
+use futures::Stream;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbBackend, DbErr, EntityTrait,
     IntoActiveModel, QueryFilter, QueryTrait, Set, TransactionTrait,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
-use tokio::sync::Mutex;
 
-use crate::utils::converter::{GitObjectModel, process_entry};
-use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
+use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs};
 use common::errors::MegaError;
 use common::model::Pagination;
-use git_internal::internal::pack::entry::Entry;
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
@@ -31,15 +26,6 @@ impl Deref for GitDbStorage {
     fn deref(&self) -> &Self::Target {
         &self.base
     }
-}
-
-#[derive(Debug)]
-struct GitObjects {
-    commits: Vec<git_commit::ActiveModel>,
-    trees: Vec<git_tree::ActiveModel>,
-    blobs: Vec<git_blob::ActiveModel>,
-    raw_blobs: Vec<raw_blob::ActiveModel>,
-    tags: Vec<git_tag::ActiveModel>,
 }
 
 impl GitDbStorage {
@@ -145,63 +131,6 @@ impl GitDbStorage {
             .count(self.get_connection())
             .await?;
         Ok(result > 0)
-    }
-
-    pub async fn save_entry(
-        &self,
-        repo_id: i64,
-        entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
-    ) -> Result<(), MegaError> {
-        let git_objects = Arc::new(Mutex::new(GitObjects {
-            commits: Vec::new(),
-            trees: Vec::new(),
-            blobs: Vec::new(),
-            raw_blobs: Vec::new(),
-            tags: Vec::new(),
-        }));
-
-        stream::iter(entry_list)
-            .for_each_concurrent(None, |entry| {
-                let git_objects = git_objects.clone();
-
-                async move {
-                    let raw_obj = process_entry(entry.inner);
-                    let model = raw_obj.convert_to_git_model(entry.meta);
-                    let mut git_objects = git_objects.lock().await;
-
-                    match model {
-                        GitObjectModel::Commit(mut commit) => {
-                            commit.repo_id = repo_id;
-                            git_objects.commits.push(commit.into_active_model())
-                        }
-                        GitObjectModel::Tree(mut tree) => {
-                            tree.repo_id = repo_id;
-                            git_objects.trees.push(tree.clone().into_active_model());
-                        }
-                        GitObjectModel::Blob(mut blob, raw) => {
-                            blob.repo_id = repo_id;
-                            git_objects.blobs.push(blob.clone().into_active_model());
-                            git_objects.raw_blobs.push(raw.into_active_model());
-                        }
-                        GitObjectModel::Tag(mut tag) => {
-                            tag.repo_id = repo_id;
-                            git_objects.tags.push(tag.into_active_model())
-                        }
-                    }
-                }
-            })
-            .await;
-
-        let git_objects = Arc::try_unwrap(git_objects)
-            .expect("Failed to unwrap Arc")
-            .into_inner();
-
-        self.batch_save_model(git_objects.commits).await?;
-        self.batch_save_model(git_objects.trees).await?;
-        self.batch_save_model(git_objects.blobs).await?;
-        self.batch_save_model(git_objects.raw_blobs).await?;
-        self.batch_save_model(git_objects.tags).await?;
-        Ok(())
     }
 
     pub async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {

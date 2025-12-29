@@ -44,7 +44,7 @@ acquire_timeout = 3
 # If exceeded, the connection attempt will fail.
 connect_timeout = 3
 
-# Whether to enable SQLx Log
+# Whether to enable SQLx logging
 sqlx_logging = false
 
 [authentication]
@@ -74,6 +74,9 @@ admin = "admin"
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release", "model"]
 
+# git object storage type, support values can be "local_fs" or "s3"
+storage_type = "s3"
+
 [build]
 
 # enable build system trigger
@@ -100,8 +103,8 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 [lfs]
-# lfs file storage type, support values can be "local_fs" or "aws_s3"
-storage_type = "local_fs"
+# lfs file storage type, support values can be "local_fs" or "s3"
+storage_type = "s3"
 
 [lfs.ssh]
 # The lfs ssh transport protocol still relies on http to send files
@@ -118,11 +121,34 @@ enable_split = true # Default is disabled. Set to true to enable file splitting.
 # Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
 split_size = "20M"
 
-[lfs.aws]
-s3_bucket = "gitmono"
-s3_region = "ap-southeast-2"
-s3_access_key_id = ""
-s3_secret_access_key = ""
+
+[s3]
+# AWS region name.
+# For AWS S3 this must match the bucket's region.
+# For S3-compatible services (e.g. RustFS), this is usually ignored
+# but still required by the AWS SDK.
+region = "us-east-1"
+
+# Name of the S3 bucket used to store objects.
+# The bucket must already exist, or the application should create it on startup.
+bucket = "mega"
+
+# Access key ID for S3 authentication.
+# For AWS: IAM user's access key.
+# For S3-compatible services: service-specific access key.
+access_key_id = ""
+
+# Secret access key corresponding to the access_key_id.
+# Keep this value secure and never commit it to version control.
+secret_access_key = ""
+
+
+# Custom S3 endpoint URL.
+# Use the default AWS endpoint when empty.
+# For local or self-hosted S3-compatible services (e.g. RustFS),
+# set this to the service endpoint.
+endpoint_url = "http://localhost:9000"
+
 
 [oauth]
 # GitHub OAuth application client id and secret

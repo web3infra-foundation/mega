@@ -105,11 +105,9 @@ async fn get_file_content_and_hash<T: ApiHandler + ?Sized>(
     let blob = handler
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
-        .map_err(|e| GitError::CustomError(e.to_string()))?
-        .ok_or_else(|| GitError::CustomError("[code:404] Blob data missing".to_string()))?;
+        .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-    let content = String::from_utf8(blob.data.unwrap_or_default())
-        .map_err(|e| GitError::ConversionError(e.to_string()))?;
+    let content = String::from_utf8(blob).map_err(|e| GitError::ConversionError(e.to_string()))?;
 
     Ok((content, blob_hash))
 }
@@ -313,10 +311,9 @@ async fn get_file_content_at_commit<T: ApiHandler + ?Sized>(
     let blob = handler
         .get_raw_blob_by_hash(&blob_hash.to_string())
         .await
-        .map_err(|e| GitError::CustomError(format!("Failed to get blob: {}", e)))?
-        .ok_or_else(|| GitError::CustomError("[code:404] Blob not found".to_string()))?;
+        .map_err(|e| GitError::CustomError(format!("Failed to get blob: {}", e)))?;
 
-    String::from_utf8(blob.data.unwrap_or_default())
+    String::from_utf8(blob)
         .map_err(|e| GitError::ConversionError(format!("Invalid UTF-8 in blob: {}", e)))
 }
 

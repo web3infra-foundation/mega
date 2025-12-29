@@ -10,11 +10,11 @@ use std::{
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use futures::StreamExt;
-use tokio::sync::mpsc::{self};
+use futures::{StreamExt, TryStreamExt};
+use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{raw_blob, sea_orm_active_enums::RefTypeEnum};
+use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::MegaError;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::{
@@ -25,7 +25,10 @@ use git_internal::{
     },
 };
 use git_internal::{hash::SHA1, internal::pack::encode::PackEncoder};
-use jupiter::utils::converter::FromGitModel;
+use jupiter::{
+    object_storage::MultiObjectByteStream, service::git_service::GitService,
+    storage::git_db_storage::GitDbStorage, utils::converter::FromGitModel,
+};
 use jupiter::{redis::lock::RedLock, storage::Storage};
 
 use crate::{
@@ -75,8 +78,10 @@ impl RepoHandler for ImportRepo {
         &self,
         entry_list: Vec<MetaAttached<Entry, EntryMeta>>,
     ) -> Result<(), MegaError> {
-        let storage = self.storage.git_db_storage();
-        storage.save_entry(self.repo.repo_id, entry_list).await
+        self.storage
+            .import_service
+            .save_entry(self.repo.repo_id, entry_list)
+            .await
     }
 
     async fn update_pack_id(&self, temp_pack_id: &str, pack_id: &str) -> Result<(), MegaError> {
@@ -94,110 +99,16 @@ impl RepoHandler for ImportRepo {
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
         let storage = self.storage.git_db_storage();
-        let raw_storage = self.storage.raw_db_storage();
+        let git_service = self.storage.git_service.clone();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
-        encoder.encode_async(entry_rx).await.unwrap();
+        encoder.encode_async(entry_rx).await?;
 
         let repo_id = self.repo.repo_id;
         tokio::spawn(async move {
-            let mut commit_stream = storage.get_commits_by_repo_id(repo_id).await.unwrap();
-
-            while let Some(model) = commit_stream.next().await {
-                match model {
-                    Ok(m) => {
-                        let c: Commit = Commit::from_git_model(m);
-                        let entry = MetaAttached {
-                            inner: c.into(),
-                            meta: EntryMeta::new(),
-                        };
-                        entry_tx.send(entry).await.unwrap();
-                    }
-                    Err(err) => eprintln!("Error: {err:?}"),
-                }
+            if let Err(e) = process_objects(repo_id, git_service, storage, entry_tx).await {
+                tracing::error!(?e, "process_blobs failed");
             }
-            tracing::info!("send commits end");
-
-            let mut tree_stream = storage.get_trees_by_repo_id(repo_id).await.unwrap();
-            while let Some(model) = tree_stream.next().await {
-                match model {
-                    Ok(m) => {
-                        let t: Tree = Tree::from_git_model(m);
-                        let entry = MetaAttached {
-                            inner: t.into(),
-                            meta: EntryMeta::new(),
-                        };
-                        entry_tx.send(entry).await.unwrap();
-                    }
-                    Err(err) => eprintln!("Error: {err:?}"),
-                }
-            }
-            tracing::info!("send trees end");
-
-            let mut bid_stream = storage.get_blobs_by_repo_id(repo_id).await.unwrap();
-            let mut bids = vec![];
-            while let Some(model) = bid_stream.next().await {
-                match model {
-                    Ok(m) => bids.push(m.blob_id),
-                    Err(err) => eprintln!("Error: {err:?}"),
-                }
-            }
-
-            // let mut blob_handler = vec![];
-            for chunk in bids.chunks(1000) {
-                let raw_storage = raw_storage.clone();
-                let sender_clone = entry_tx.clone();
-                let chunk_clone = chunk.to_vec();
-                // let handler = tokio::spawn(async move {
-                let mut blob_stream = raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
-                while let Some(model) = blob_stream.next().await {
-                    match model {
-                        Ok(m) => {
-                            // TODO handle storage type
-                            let data = m.data.unwrap_or_default();
-                            let b: Blob = Blob::from_content_bytes(data);
-                            // let blob_with_data = storage.get_blobs_by_hashes(repo_id,vec![b.id.to_string()]).await?.iter().next().unwrap();
-                            let blob_with_data = storage
-                                .get_blobs_by_hashes(repo_id, vec![b.id.to_string()])
-                                .await
-                                .expect("get_blobs_by_hashes failed")
-                                .into_iter()
-                                .next()
-                                .expect("blob metadata not found");
-
-                            let meta_data = EntryMeta {
-                                pack_id: Some(blob_with_data.pack_id.clone()),
-                                pack_offset: Some(blob_with_data.pack_offset as usize),
-                                file_path: Some(blob_with_data.file_path.clone()),
-                                is_delta: Some(blob_with_data.is_delta_in_pack),
-                            };
-
-                            let entry = MetaAttached {
-                                inner: b.into(),
-                                meta: meta_data,
-                            };
-                            sender_clone.send(entry).await.unwrap();
-                        }
-                        Err(err) => eprintln!("Error: {err:?}"),
-                    }
-                }
-                // });
-                // blob_handler.push(handler);
-            }
-            // join_all(blob_handler).await;
-            tracing::info!("send blobs end");
-
-            let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
-            for m in tags.into_iter() {
-                let c: Tag = Tag::from_git_model(m);
-                let entry = MetaAttached {
-                    inner: c.into(),
-                    meta: EntryMeta::new(),
-                };
-                entry_tx.send(entry).await.unwrap();
-            }
-            drop(entry_tx);
-            tracing::info!("sending all object end...");
         });
 
         Ok(ReceiverStream::new(stream_rx))
@@ -269,7 +180,7 @@ impl RepoHandler for ImportRepo {
         // traverse to get exist_objs
         for have_tree in have_trees {
             self.traverse(Tree::from_git_model(have_tree), &mut exist_objs, None)
-                .await;
+                .await?;
         }
 
         let mut counted_obj = HashSet::new();
@@ -294,7 +205,7 @@ impl RepoHandler for ImportRepo {
                 &mut exist_objs,
                 Some(&entry_tx),
             )
-            .await;
+            .await?;
             entry_tx
                 .send(MetaAttached {
                     inner: c.into(),
@@ -323,11 +234,8 @@ impl RepoHandler for ImportRepo {
     async fn get_blobs_by_hashes(
         &self,
         hashes: Vec<String>,
-    ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        self.storage
-            .raw_db_storage()
-            .get_raw_blobs_by_hashes(hashes)
-            .await
+    ) -> Result<MultiObjectByteStream<'_>, MegaError> {
+        Ok(self.storage.git_service.get_objects_stream(hashes))
     }
 
     async fn get_blob_metadata_by_hashes(
@@ -506,6 +414,95 @@ impl ImportRepo {
             .await?;
         Ok(())
     }
+}
+
+async fn process_objects(
+    repo_id: i64,
+    git_service: GitService,
+    storage: GitDbStorage,
+    entry_tx: Sender<MetaAttached<Entry, EntryMeta>>,
+) -> Result<(), MegaError> {
+    let mut commit_stream = storage.get_commits_by_repo_id(repo_id).await?;
+
+    while let Some(model) = commit_stream.next().await {
+        match model {
+            Ok(m) => {
+                let c: Commit = Commit::from_git_model(m);
+                let entry = MetaAttached {
+                    inner: c.into(),
+                    meta: EntryMeta::new(),
+                };
+                entry_tx.send(entry).await.expect("send error");
+            }
+            Err(err) => eprintln!("Error: {err:?}"),
+        }
+    }
+    tracing::info!("send commits end");
+
+    let mut tree_stream = storage.get_trees_by_repo_id(repo_id).await?;
+    while let Some(model) = tree_stream.next().await {
+        match model {
+            Ok(m) => {
+                let t: Tree = Tree::from_git_model(m);
+                let entry = MetaAttached {
+                    inner: t.into(),
+                    meta: EntryMeta::new(),
+                };
+                entry_tx.send(entry).await.expect("send error");
+            }
+            Err(err) => eprintln!("Error: {err:?}"),
+        }
+    }
+    tracing::info!("send trees end");
+
+    let mut bid_stream = storage.get_blobs_by_repo_id(repo_id).await?;
+    let mut bids = vec![];
+    while let Some(model) = bid_stream.next().await {
+        match model {
+            Ok(m) => bids.push(m.blob_id),
+            Err(err) => eprintln!("Error: {err:?}"),
+        }
+    }
+
+    let entry_tx = entry_tx.clone();
+    git_service
+        .get_objects_stream(bids)
+        .try_for_each_concurrent(16, |(_, stream, _)| {
+            let sender_clone = entry_tx.clone();
+            async move {
+                let data = stream
+                    .try_fold(Vec::new(), |mut acc, bytes| async move {
+                        acc.extend_from_slice(&bytes);
+                        Ok(acc)
+                    })
+                    .await?;
+                let blob = Blob::from_content_bytes(data);
+                sender_clone
+                    .send(MetaAttached {
+                        inner: blob.into(),
+                        meta: EntryMeta::default(),
+                    })
+                    .await
+                    .expect("send error");
+
+                Ok(())
+            }
+        })
+        .await?;
+
+    tracing::info!("send blobs end");
+
+    let tags = storage.get_tags_by_repo_id(repo_id).await?;
+    for m in tags.into_iter() {
+        let c: Tag = Tag::from_git_model(m);
+        let entry = MetaAttached {
+            inner: c.into(),
+            meta: EntryMeta::new(),
+        };
+        entry_tx.send(entry).await.expect("send error");
+    }
+    tracing::info!("sending all object end...");
+    Ok(())
 }
 
 #[cfg(test)]

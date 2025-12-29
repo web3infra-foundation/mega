@@ -9,8 +9,11 @@ use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
 use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
+use crate::service::git_service::GitService;
+use crate::service::import_service::ImportService;
 use crate::service::issue_service::IssueService;
 use crate::service::merge_queue_service::MergeQueueService;
+use crate::service::mono_service::MonoService;
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
 use crate::storage::gpg_storage::GpgStorage;
@@ -21,8 +24,8 @@ use crate::storage::{
     buck_storage::BuckStorage, cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
-    user_storage::UserStorage, vault_storage::VaultStorage,
+    mono_storage::MonoStorage, relay_storage::RelayStorage, user_storage::UserStorage,
+    vault_storage::VaultStorage,
 };
 
 pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
@@ -52,7 +55,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         mono_storage: MonoStorage { base: base.clone() },
         git_db_storage: GitDbStorage { base: base.clone() },
         gpg_storage: GpgStorage { base: base.clone() },
-        raw_db_storage: RawDbStorage { base: base.clone() },
         lfs_db_storage: LfsDbStorage { base: base.clone() },
         relay_storage: RelayStorage { base: base.clone() },
         user_storage: UserStorage { base: base.clone() },
@@ -78,5 +80,8 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         merge_queue_service: MergeQueueService::mock(),
         buck_service: BuckService::mock(),
         config: Arc::downgrade(&config),
+        git_service: GitService::mock(),
+        mono_service: MonoService::mock(),
+        import_service: ImportService::mock(),
     }
 }
