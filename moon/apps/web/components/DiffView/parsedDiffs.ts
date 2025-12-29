@@ -9,47 +9,30 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
   if (diffText.length < 1) return []
 
   return diffText.map((block) => {
-    let path = ''
+    const isBinary = /Binary files.*differ/.test(block.data)
 
-    const diffGitMatch = block.data.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m)
+    const lang = getLangFromFileNameToDiff(block.path)
 
-    if (diffGitMatch) {
-      const originalPath = diffGitMatch[1]?.trim()
-      const newPath = diffGitMatch[2]?.trim()
+    let diff = block.data
 
-      if (newPath && newPath !== '/dev/null') {
-        path = newPath
-      } else {
-        path = originalPath
+    if (isBinary) {
+      /* empty */
+    } else {
+      const isEmptyDiff = !block.data.includes('@@')
+
+      if (isEmptyDiff) {
+        diff = 'EMPTY_DIFF_MARKER'
       }
     }
 
-    if (getLangFromFileNameToDiff(path) === 'binary') {
-      return {
-        path,
-        lang: getLangFromFileNameToDiff(path),
-        diff: block.data
-      }
-    }
-
-    let diffWithHeader = block.data
-    const headerRegex = /^(diff|index|---|\+\+\+|new file mode|@@)/
-    const hunkContent = block.data.split('\n').filter((line) => !headerRegex.test(line.trim()))
-
-    const isEmptyHunk = hunkContent.every((line) => line.trim() === '')
-
-    if (!block.data.includes('@@') || isEmptyHunk) {
-      diffWithHeader = 'EMPTY_DIFF_MARKER'
-    }
-
-    if (!diffWithHeader.endsWith('\n')) {
-      diffWithHeader += '\n'
+    if (!diff.endsWith('\n')) {
+      diff += '\n'
     }
 
     return {
       path: block.path,
-      lang: getLangFromFileNameToDiff(path),
-      diff: diffWithHeader
+      lang: isBinary ? 'binary' : lang,
+      diff
     }
   })
 }

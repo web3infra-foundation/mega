@@ -12,7 +12,7 @@ import { Dialog } from '@gitmono/ui/Dialog'
 import { useDiffPreview } from '@/hooks/useDiffPreview'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useUpdateBlob } from '@/hooks/useUpdateBlob'
-import { getLangFromFileName } from '@/utils/getLanguageDetection'
+import { getLangFromFileNameToDiff } from '@/utils/getLanguageDetection'
 
 interface BlobEditorProps {
   fileContent: string
@@ -64,7 +64,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     return dir ? `${dir}/${editedFileName}` : editedFileName
   }, [pathSegments, editedFileName])
 
-  const detectedLanguage = useMemo(() => getLangFromFileName(editedFileName), [editedFileName])
+  const detectedLanguage = useMemo(() => getLangFromFileNameToDiff(editedFileName), [editedFileName])
 
   const handlePreviewClick = useCallback(async () => {
     setViewMode('preview')
@@ -83,7 +83,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         setDiffResult(result)
 
         if (result?.data?.data) {
-          const diff = new DiffFile('', '', '', '', [result.data.data], detectedLanguage || 'plaintext')
+          const diff = new DiffFile('', '', '', '', [result.data.data], detectedLanguage)
 
           diff.init()
           diff.buildSplitDiffLines()
