@@ -77,7 +77,7 @@ root_dirs = ["third-party", "project", "doc", "release", "model"]
 [build]
 
 # enable build system trigger
-enable_build = false
+enable_build = true
 
 # build system url
 orion_server = "https://orion.gitmega.com"

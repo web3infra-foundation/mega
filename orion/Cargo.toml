@@ -33,3 +33,5 @@ thiserror = "1.0.36"
 utoipa-axum.workspace = true
 utoipa.workspace = true
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
+wiremock = "0.6.5"
+serial_test = "3.2.0"
