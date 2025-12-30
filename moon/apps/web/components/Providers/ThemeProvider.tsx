@@ -5,5 +5,9 @@ interface Props {
 }
 
 export function ThemeProvider({ children }: Props) {
-  return <Theme attribute='class'>{children}</Theme>
+  return (
+    <Theme attribute='class' defaultTheme='light' enableSystem={false}>
+      {children}
+    </Theme>
+  )
 }
