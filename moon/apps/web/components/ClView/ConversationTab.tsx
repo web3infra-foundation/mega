@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { Button, LoadingSpinner } from '@gitmono/ui'
+import { Button, LoadingSpinner, Tooltip } from '@gitmono/ui'
 import { PicturePlusIcon, TrashIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/utils'
 
@@ -224,15 +224,28 @@ export const ConversationTab = React.memo<ConversationTabProps>(
                       >
                         {isApproved ? 'Approved' : 'Pending'}
                       </span>
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteReviewer(i)
-                        }}
-                        className='pointer-events-auto cursor-pointer rounded-full border-2 hover:bg-red-800'
-                      >
-                        <TrashIcon />
-                      </span>
+                      {reviewer?.system_required ? (
+                        <Tooltip label='Required reviewer, cannot be removed'>
+                          <span
+                            className='pointer-events-auto cursor-not-allowed rounded-full border-2 opacity-40'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                            }}
+                          >
+                            <TrashIcon />
+                          </span>
+                        </Tooltip>
+                      ) : (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteReviewer(i)
+                          }}
+                          className='pointer-events-auto cursor-pointer rounded-full border-2 hover:bg-red-800'
+                        >
+                          <TrashIcon />
+                        </span>
+                      )}
                     </div>
                   )
                 })}

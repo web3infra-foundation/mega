@@ -6576,3 +6576,30 @@ export function AppsIcon(props: IconProps) {
     </svg>
   )
 }
+
+export function ServerStackIcon(props: IconProps) {
+  const { size = 20, ...rest } = props
+
+  return (
+    <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...rest}>
+      <path
+        d='M4.75 5C4.75 4.58579 5.08579 4.25 5.5 4.25H18.5C18.9142 4.25 19.25 4.58579 19.25 5V9C19.25 9.41421 18.9142 9.75 18.5 9.75H5.5C5.08579 9.75 4.75 9.41421 4.75 9V5Z'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M4.75 15C4.75 14.5858 5.08579 14.25 5.5 14.25H18.5C18.9142 14.25 19.25 14.5858 19.25 15V19C19.25 19.4142 18.9142 19.75 18.5 19.75H5.5C5.08579 19.75 4.75 19.4142 4.75 19V15Z'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <circle cx='7.5' cy='7' r='1' fill='currentColor' />
+      <circle cx='7.5' cy='17' r='1' fill='currentColor' />
+      <path d='M10.75 7H16.25' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+      <path d='M10.75 17H16.25' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+    </svg>
+  )
+}
