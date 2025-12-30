@@ -11,6 +11,7 @@ import { SidebarIssue } from '@/components/Sidebar/SidebarIssue'
 import { SidebarLink } from '@/components/Sidebar/SidebarLink'
 import { SidebarMergeQueue } from '@/components/Sidebar/SidebarMergeQueue'
 import { SidebarCalls, SidebarDocs, SidebarHome, SidebarMessages } from '@/components/Sidebar/SidebarMyWorkGroup'
+import { SidebarOc } from '@/components/Sidebar/SidebarOc'
 import { SidebarTags } from '@/components/Sidebar/SidebarTags'
 import { SidebarChangeList } from '@/components/Sidebar/SiderbarChangeList'
 import { useScope } from '@/contexts/scope'
@@ -31,7 +32,8 @@ const componentMap = {
   cl: SidebarChangeList,
   mq: SidebarMergeQueue,
   issue: SidebarIssue,
-  rust: SidebarCratespro
+  rust: SidebarCratespro,
+  oc: SidebarOc
 }
 
 export function DynamicSidebarItem({ config }: DynamicSidebarItemProps) {
