@@ -31,8 +31,8 @@ fn s3_key(key: &ObjectKey) -> String {
     let shard3 = &id[4..6];
 
     format!(
-        "{:?}/{}/{}/{}/{}",
-        key.namespace.as_str(),
+        "{}/{}/{}/{}/{}",
+        key.namespace,
         shard1,
         shard2,
         shard3,
@@ -180,5 +180,24 @@ impl ObjectStorage for RustfsObjectStorage {
                 return Err(MegaError::Other(detail));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::object_storage::ObjectNamespace;
+
+    use super::*;
+
+    #[test]
+    fn test_s3_key_basic() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Git,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        let result = s3_key(&key);
+
+        assert_eq!(result, "git/ab/cd/ef/1234567890");
     }
 }

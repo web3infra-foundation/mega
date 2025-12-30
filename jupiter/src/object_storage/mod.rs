@@ -1,3 +1,4 @@
+use std::fmt;
 use std::pin::Pin;
 use std::{any::Any, collections::HashMap};
 
@@ -31,12 +32,18 @@ pub enum ObjectNamespace {
 }
 
 impl ObjectNamespace {
-    pub fn as_str(&self) -> &'static str {
+    fn as_str(&self) -> &'static str {
         match self {
             ObjectNamespace::Git => "git",
             ObjectNamespace::Lfs => "lfs",
             ObjectNamespace::Log => "log",
         }
+    }
+}
+
+impl fmt::Display for ObjectNamespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -77,11 +84,6 @@ pub type MultiObjectByteStream<'a> = Pin<
         dyn Stream<Item = Result<(ObjectKey, ObjectByteStream, ObjectMeta), MegaError>> + Send + 'a,
     >,
 >;
-
-pub struct PutObjectResult {
-    pub etag: Option<String>,
-    pub size: u64,
-}
 
 #[async_trait::async_trait]
 pub trait ObjectStorage: Send + Sync {

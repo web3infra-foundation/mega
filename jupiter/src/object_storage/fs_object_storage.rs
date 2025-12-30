@@ -1,7 +1,7 @@
 use std::{any::Any, path::PathBuf};
 
 use bytes::Bytes;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use tokio::{
     fs,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -10,7 +10,7 @@ use tokio::{
 use common::errors::MegaError;
 
 use crate::object_storage::{
-    MultiObjectByteStream, ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage,
+    ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage,
 };
 
 #[derive(Clone)]
@@ -92,28 +92,5 @@ impl ObjectStorage for FsObjectStorage {
                 ..Default::default()
             },
         ))
-    }
-
-    async fn put_many(
-        &self,
-        objects: MultiObjectByteStream<'_>,
-        concurrency: usize,
-    ) -> Result<(), MegaError> {
-        objects
-            .try_for_each_concurrent(concurrency, |(key, stream, meta)| async move {
-                self.put(&key, stream, meta).await?;
-                Ok(())
-            })
-            .await
-    }
-    fn get_many(&self, keys: Vec<ObjectKey>, concurrency: usize) -> MultiObjectByteStream<'_> {
-        Box::pin(
-            futures::stream::iter(keys)
-                .map(move |key| async move {
-                    let (stream, meta) = self.get(&key).await?;
-                    Ok((key, stream, meta))
-                })
-                .buffer_unordered(concurrency),
-        )
     }
 }
