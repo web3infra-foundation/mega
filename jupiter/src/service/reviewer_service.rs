@@ -215,7 +215,6 @@ mod tests {
             .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
-        println!("Assigned Reviewers: {:?}", assigned);
 
         assert!(
             assigned.contains(&"1550220889".to_string()),
@@ -261,7 +260,6 @@ mod tests {
             .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
-        println!("Assigned Reviewers (Override Case): {:?}", assigned);
 
         assert!(
             assigned.contains(&"1550220889".to_string()),
@@ -312,7 +310,6 @@ mod tests {
             .assign_system_reviewers(cl_link, &policies, &changed_files)
             .await
             .unwrap();
-        println!("Assigned Reviewers (Hybrid): {:?}", assigned);
 
         assert!(
             assigned.contains(&"benjamin_747".to_string()),

@@ -796,6 +796,7 @@ impl MonoRepo {
     }
 
     /// Collect Cedar policy files from directories of all changed files.
+    /// Tries from_hash first for security, then falls back to to_hash for new directories.
     /// Returns list of (policy_path, content) tuples, ordered from root to leaf.
     async fn collect_policy_contents(&self, changed_files: &[String]) -> Vec<(PathBuf, String)> {
         let mono_api_service: MonoApiService = self.into();
@@ -835,11 +836,7 @@ impl MonoRepo {
         let mut policy_contents: Vec<(PathBuf, String)> = Vec::new();
         let mut seen_policies: HashSet<String> = HashSet::new();
 
-        let policy_commit = if self.from_hash == ZERO_ID {
-            &self.to_hash
-        } else {
-            &self.from_hash
-        };
+        let self_path_str = self.path.to_string_lossy().replace('\\', "/");
 
         for dir in sorted_dirs {
             let policy_relative_path = if dir.as_os_str().is_empty() {
@@ -854,15 +851,35 @@ impl MonoRepo {
             }
 
             let lookup_path = PathBuf::from(&policy_relative_path);
-            let self_path_str = self.path.to_string_lossy().replace('\\', "/");
-            let full_policy_path_str = format!("{}/{}", self_path_str, policy_relative_path);
-            let full_policy_path = PathBuf::from(&full_policy_path_str);
 
-            if let Ok(Some(content)) = mono_api_service
-                .get_blob_as_string(lookup_path, Some(policy_commit))
-                .await
-            {
-                seen_policies.insert(policy_relative_path);
+            // Try from_hash first for security (use existing policy).
+            // If not found, fall back to to_hash for new directories.
+            let content = if self.from_hash != ZERO_ID {
+                if let Ok(Some(content)) = mono_api_service
+                    .get_blob_as_string(lookup_path.clone(), Some(&self.from_hash))
+                    .await
+                {
+                    Some(content)
+                } else {
+                    mono_api_service
+                        .get_blob_as_string(lookup_path, Some(&self.to_hash))
+                        .await
+                        .ok()
+                        .flatten()
+                }
+            } else {
+                // First commit (from_hash is ZERO_ID), use to_hash
+                mono_api_service
+                    .get_blob_as_string(lookup_path, Some(&self.to_hash))
+                    .await
+                    .ok()
+                    .flatten()
+            };
+
+            if let Some(content) = content {
+                seen_policies.insert(policy_relative_path.clone());
+                let full_policy_path =
+                    PathBuf::from(format!("{}/{}", self_path_str, policy_relative_path));
                 policy_contents.push((full_policy_path, content));
             }
         }
