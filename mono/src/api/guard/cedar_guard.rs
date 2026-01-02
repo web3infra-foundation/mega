@@ -58,17 +58,48 @@ fn match_operation(
     suffix: &str,
     patterns: &HashMap<String, String>,
 ) -> Option<(ActionEnum, String)> {
+    let suffix = suffix.trim_matches('/');
+
     for (pattern, action) in patterns {
-        let op = pattern.trim_start_matches("/{link}/");
-        if suffix.ends_with(op) {
-            // Before: /{link}/approve
-            // After trimming: {link}
-            let mr_link = suffix
-                .trim_end_matches(op)
-                .trim_end_matches('/')
-                .trim_start_matches('/')
-                .to_string();
-            return Some((ActionEnum::from(action.as_str()), mr_link));
+        let pattern_trimmed = pattern.trim_matches('/');
+
+        if pattern_trimmed.contains("{link}") {
+            let parts: Vec<&str> = pattern_trimmed.split("{link}").collect();
+            if parts.len() == 2 {
+                let prefix = parts[0].trim_matches('/');
+                let op = parts[1].trim_matches('/');
+
+                if (prefix.is_empty() || suffix.starts_with(prefix))
+                    && (op.is_empty() || suffix.ends_with(op))
+                {
+                    // Bounds check: ensure suffix is long enough
+                    let prefix_len = prefix.len();
+                    let op_len = op.len();
+                    if prefix_len + op_len > suffix.len() {
+                        continue;
+                    }
+
+                    let start = if prefix.is_empty() { 0 } else { prefix_len };
+                    let end = if op.is_empty() {
+                        suffix.len()
+                    } else {
+                        suffix.len() - op_len
+                    };
+
+                    if start > end {
+                        continue;
+                    }
+
+                    let mr_link = &suffix[start..end];
+
+                    return Some((
+                        ActionEnum::from(action.as_str()),
+                        mr_link.trim_matches('/').to_string(),
+                    ));
+                }
+            }
+        } else if suffix == pattern_trimmed {
+            return Some((ActionEnum::from(action.as_str()), String::new()));
         }
     }
     None
