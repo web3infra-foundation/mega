@@ -10,7 +10,7 @@ pub mod util;
 pub enum ActionEnum {
     // ** Anyone
     UnprotectedRequest,
-    // ViewRepo,
+    ViewRepo,
     // PullRepo,
     // ForkRepo,
     // PushRepo,
@@ -33,6 +33,7 @@ impl Display for ActionEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             ActionEnum::UnprotectedRequest => "unprotectedRequest",
+            ActionEnum::ViewRepo => "viewRepo",
             ActionEnum::CreateMergeRequest => "createMergeRequest",
             ActionEnum::EditIssue => "editIssue",
             ActionEnum::EditMergeRequest => "editMergeRequest",
@@ -51,6 +52,7 @@ impl Display for ActionEnum {
 impl From<&str> for ActionEnum {
     fn from(s: &str) -> Self {
         match s {
+            "viewRepo" => ActionEnum::ViewRepo,
             "createMergeRequest" => ActionEnum::CreateMergeRequest,
             "editIssue" => ActionEnum::EditIssue,
             "editMergeRequest" => ActionEnum::EditMergeRequest,

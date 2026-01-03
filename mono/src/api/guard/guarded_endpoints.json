@@ -1,5 +1,6 @@
 {
     "/cl": {
+        "/list": "unprotectedRequest",
         "/{link}/reopen": "editMergeRequest",
         "/{link}/close": "editMergeRequest",
         "/{link}/merge": "approveMergeRequest",
@@ -9,6 +10,14 @@
         "/{link}/assignees": "editMergeRequest",
         "/{link}/reviewers": "editMergeRequest",
         "/{link}/approve": "approveMergeRequest",
-        "/{link}/resolve": "editMergeRequest"
+        "/{link}/resolve": "editMergeRequest",
+        "/{link}/detail": "viewRepo",
+        "/{link}/mui-tree": "viewRepo",
+        "/{link}/files-changed": "viewRepo",
+        "/{link}/files-list": "viewRepo",
+        "/{link}/merge-box": "viewRepo",
+        "/{link}/status": "editMergeRequest",
+        "/reviewer/{link}": "viewRepo",
+        "/reviewer": "editMergeRequest"
     }
 }
