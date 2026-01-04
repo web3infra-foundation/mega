@@ -7,7 +7,7 @@ use common::model::DiffItem;
 use git_internal::{
     diff::Diff as GitDiff,
     errors::GitError,
-    hash::SHA1,
+    hash::ObjectHash,
     internal::object::{blob::Blob, tree::TreeItemMode},
 };
 
@@ -21,7 +21,7 @@ pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(
     handler: &T,
     path: &Path,
     refs: Option<&str>,
-) -> Result<Option<SHA1>, GitError> {
+) -> Result<Option<ObjectHash>, GitError> {
     let parent = path.parent().unwrap_or(Path::new("/"));
     if let Some(tree) = tree_ops::search_tree_by_path(handler, parent, refs).await? {
         let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
@@ -42,13 +42,13 @@ pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(
 /// * `refs` - Optional commit hash or ref name
 ///
 /// # Returns
-/// HashMap mapping file paths to their blob IDs (as SHA1)
+/// HashMap mapping file paths to their blob IDs (as ObjectHash)
 /// Files not found will not be in the result (use contains_key to check)
 pub async fn get_files_blob_ids<T: ApiHandler + ?Sized>(
     handler: &T,
     paths: &[PathBuf],
     refs: Option<&str>,
-) -> Result<HashMap<PathBuf, SHA1>, GitError> {
+) -> Result<HashMap<PathBuf, ObjectHash>, GitError> {
     if paths.is_empty() {
         return Ok(HashMap::new());
     }
@@ -62,7 +62,7 @@ async fn batch_query_via_trees<T: ApiHandler + ?Sized>(
     handler: &T,
     paths: &[PathBuf],
     refs: Option<&str>,
-) -> Result<HashMap<PathBuf, SHA1>, GitError> {
+) -> Result<HashMap<PathBuf, ObjectHash>, GitError> {
     // Group paths by parent directory
     let mut paths_by_parent: HashMap<PathBuf, Vec<(PathBuf, String)>> = HashMap::new();
     for path in paths {
@@ -147,14 +147,15 @@ pub async fn preview_file_diff<T: ApiHandler + ?Sized>(
     let new_entry = vec![(path.clone(), new_blob.id)];
 
     // local content reader: use DB for old oid and memory for new
-    let mut cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+    let mut cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
     if let Some(oid) = old_oid_opt {
         let data = handler.get_raw_blob_by_hash(&oid.to_string()).await?;
         cache.insert(oid, data);
     }
     cache.insert(new_blob.id, payload.content.into_bytes());
 
-    let read = |_: &PathBuf, oid: &SHA1| -> Vec<u8> { cache.get(oid).cloned().unwrap_or_default() };
+    let read =
+        |_: &PathBuf, oid: &ObjectHash| -> Vec<u8> { cache.get(oid).cloned().unwrap_or_default() };
     let mut items: Vec<DiffItem> = GitDiff::diff(old_entry, new_entry, Vec::new(), read)
         .into_iter()
         .map(DiffItem::from)

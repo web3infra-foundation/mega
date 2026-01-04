@@ -13,7 +13,7 @@ use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
 use git_internal::internal::pack::entry::Entry;
 use git_internal::{
-    hash::SHA1,
+    hash::ObjectHash,
     internal::object::{
         ObjectTrait, blob::Blob, commit::Commit, signature::Signature, tag::Tag, tree::Tree,
         types::ObjectType,
@@ -29,20 +29,20 @@ fn commit_from_model(
     committer: Option<String>,
     content: Option<String>,
 ) -> Commit {
-    // Parse parents_id JSON array into Vec<SHA1>
-    let parent_commit_ids: Vec<SHA1> =
+    // Parse parents_id JSON array into Vec<ObjectHash>
+    let parent_commit_ids: Vec<ObjectHash> =
         match serde_json::from_value::<Vec<String>>(parents_id.clone()) {
             Ok(parents_array) => parents_array
                 .into_iter()
                 .filter(|s: &String| !s.is_empty())
-                .map(|s: String| SHA1::from_str(&s).unwrap())
+                .map(|s: String| ObjectHash::from_str(&s).unwrap())
                 .collect(),
             Err(_) => Vec::new(),
         };
 
     Commit {
-        id: SHA1::from_str(commit_id).unwrap(),
-        tree_id: SHA1::from_str(tree).unwrap(),
+        id: ObjectHash::from_str(commit_id).unwrap(),
+        tree_id: ObjectHash::from_str(tree).unwrap(),
         parent_commit_ids,
         author: Signature::from_data(author.unwrap().into_bytes()).unwrap(),
         committer: Signature::from_data(committer.unwrap().into_bytes()).unwrap(),
@@ -436,7 +436,9 @@ pub fn generate_git_keep_with_timestamp() -> Blob {
     Blob::from_content(&git_keep_content)
 }
 
-pub fn init_trees(mono_config: &MonoConfig) -> (HashMap<SHA1, Tree>, HashMap<SHA1, Blob>, Tree) {
+pub fn init_trees(
+    mono_config: &MonoConfig,
+) -> (HashMap<ObjectHash, Tree>, HashMap<ObjectHash, Blob>, Tree) {
     let mut root_items = Vec::new();
     let mut trees = Vec::new();
     let mut blobs = Vec::new();
@@ -471,10 +473,10 @@ pub fn init_trees(mono_config: &MonoConfig) -> (HashMap<SHA1, Tree>, HashMap<SHA
 pub struct MegaModelConverter {
     pub commit: Commit,
     pub root_tree: Tree,
-    pub tree_maps: HashMap<SHA1, Tree>,
-    pub blob_maps: HashMap<SHA1, Blob>,
-    pub mega_trees: RefCell<HashMap<SHA1, mega_tree::ActiveModel>>,
-    pub mega_blobs: RefCell<HashMap<SHA1, mega_blob::ActiveModel>>,
+    pub tree_maps: HashMap<ObjectHash, Tree>,
+    pub blob_maps: HashMap<ObjectHash, Blob>,
+    pub mega_trees: RefCell<HashMap<ObjectHash, mega_tree::ActiveModel>>,
+    pub mega_blobs: RefCell<HashMap<ObjectHash, mega_blob::ActiveModel>>,
     pub raw_blobs: RefCell<Vec<Blob>>,
     pub refs: mega_refs::ActiveModel,
 }
@@ -553,7 +555,7 @@ impl FromMegaModel for Tag {
     ///
     /// This function reconstructs a Tag object from a mega_tag::Model retrieved from the database.
     /// It parses the stored strings back into their original types, such as converting
-    /// string IDs back to SHA1 hashes and string data back to a Signature.
+    /// string IDs back to ObjectHash hashes and string data back to a Signature.
     ///
     /// # Arguments
     ///
@@ -566,14 +568,14 @@ impl FromMegaModel for Tag {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tag_id string cannot be parsed into a valid SHA1 hash
-    /// - The object_id string cannot be parsed into a valid SHA1 hash
+    /// - The tag_id string cannot be parsed into a valid ObjectHash hash
+    /// - The object_id string cannot be parsed into a valid ObjectHash hash
     /// - The object_type string is not a recognized ObjectType
     /// - The tagger string cannot be converted into a valid Signature
     fn from_mega_model(model: Self::MegaSource) -> Self {
         Tag {
-            id: SHA1::from_str(&model.tag_id).expect("Invalid tag_id in database"),
-            object_hash: SHA1::from_str(&model.object_id).unwrap(),
+            id: ObjectHash::from_str(&model.tag_id).expect("Invalid tag_id in database"),
+            object_hash: ObjectHash::from_str(&model.object_id).unwrap(),
             object_type: ObjectType::from_string(&model.object_type).unwrap(),
             tag_name: model.tag_name,
             tagger: Signature::from_data(model.tagger.into_bytes()).unwrap(),
@@ -589,7 +591,7 @@ impl FromGitModel for Tag {
     ///
     /// This function reconstructs a Tag object from a git_tag::Model retrieved from the database.
     /// It parses the stored strings back into their original types, such as converting
-    /// string IDs back to SHA1 hashes and string data back to a Signature.
+    /// string IDs back to ObjectHash hashes and string data back to a Signature.
     ///
     /// # Arguments
     ///
@@ -602,14 +604,14 @@ impl FromGitModel for Tag {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tag_id string cannot be parsed into a valid SHA1 hash
-    /// - The object_id string cannot be parsed into a valid SHA1 hash
+    /// - The tag_id string cannot be parsed into a valid ObjectHash hash
+    /// - The object_id string cannot be parsed into a valid ObjectHash hash
     /// - The object_type string is not a recognized ObjectType
     /// - The tagger string cannot be converted into a valid Signature
     fn from_git_model(model: Self::GitSource) -> Self {
         Tag {
-            id: SHA1::from_str(&model.tag_id).unwrap(),
-            object_hash: SHA1::from_str(&model.object_id).unwrap(),
+            id: ObjectHash::from_str(&model.tag_id).unwrap(),
+            object_hash: ObjectHash::from_str(&model.object_id).unwrap(),
             object_type: ObjectType::from_string(&model.object_type).unwrap(),
             tag_name: model.tag_name,
             tagger: Signature::from_data(model.tagger.into_bytes()).unwrap(),
@@ -625,7 +627,7 @@ impl FromMegaModel for Tree {
     ///
     /// This function reconstructs a Tree object from a mega_tree::Model retrieved from the database.
     /// It parses the binary sub_trees data back into a structured Tree object and
-    /// uses the tree_id string to recreate the SHA1 hash identifier.
+    /// uses the tree_id string to recreate the ObjectHash hash identifier.
     ///
     /// # Arguments
     ///
@@ -638,10 +640,14 @@ impl FromMegaModel for Tree {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tree_id string cannot be parsed into a valid SHA1 hash
+    /// - The tree_id string cannot be parsed into a valid ObjectHash hash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_mega_model(model: Self::MegaSource) -> Self {
-        Tree::from_bytes(&model.sub_trees, SHA1::from_str(&model.tree_id).unwrap()).unwrap()
+        Tree::from_bytes(
+            &model.sub_trees,
+            ObjectHash::from_str(&model.tree_id).unwrap(),
+        )
+        .unwrap()
     }
 }
 
@@ -652,7 +658,7 @@ impl FromGitModel for Tree {
     ///
     /// This function reconstructs a Tree object from a git_tree::Model retrieved from the database.
     /// It parses the binary sub_trees data back into a structured Tree object and
-    /// uses the tree_id string to recreate the SHA1 hash identifier.
+    /// uses the tree_id string to recreate the ObjectHash hash identifier.
     ///
     /// # Arguments
     ///
@@ -665,10 +671,14 @@ impl FromGitModel for Tree {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tree_id string cannot be parsed into a valid SHA1 hash
+    /// - The tree_id string cannot be parsed into a valid ObjectHash hash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_git_model(model: Self::GitSource) -> Self {
-        Tree::from_bytes(&model.sub_trees, SHA1::from_str(&model.tree_id).unwrap()).unwrap()
+        Tree::from_bytes(
+            &model.sub_trees,
+            ObjectHash::from_str(&model.tree_id).unwrap(),
+        )
+        .unwrap()
     }
 }
 
@@ -679,7 +689,7 @@ impl FromMegaModel for Commit {
     ///
     /// This function reconstructs a Commit object from a mega_commit::Model retrieved from the database.
     /// It parses the stored strings back into their original types, such as converting
-    /// string IDs back to SHA1 hashes and string data back to Signature objects.
+    /// string IDs back to ObjectHash hashes and string data back to Signature objects.
     ///
     /// # Arguments
     ///
@@ -692,9 +702,9 @@ impl FromMegaModel for Commit {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The commit_id string cannot be parsed into a valid SHA1 hash
-    /// - The tree string cannot be parsed into a valid SHA1 hash
-    /// - Any parent ID in parents_id cannot be parsed into a valid SHA1 hash
+    /// - The commit_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tree string cannot be parsed into a valid ObjectHash hash
+    /// - Any parent ID in parents_id cannot be parsed into a valid ObjectHash hash
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_mega_model(model: Self::MegaSource) -> Self {
         commit_from_model(
@@ -715,7 +725,7 @@ impl FromGitModel for Commit {
     ///
     /// This function reconstructs a Commit object from a git_commit::Model retrieved from the database.
     /// It parses the stored strings back into their original types, such as converting
-    /// string IDs back to SHA1 hashes and string data back to Signature objects.
+    /// string IDs back to ObjectHash hashes and string data back to Signature objects.
     ///
     /// # Arguments
     ///
@@ -728,9 +738,9 @@ impl FromGitModel for Commit {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The commit_id string cannot be parsed into a valid SHA1 hash
-    /// - The tree string cannot be parsed into a valid SHA1 hash
-    /// - Any parent ID in parents_id cannot be parsed into a valid SHA1 hash
+    /// - The commit_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tree string cannot be parsed into a valid ObjectHash hash
+    /// - Any parent ID in parents_id cannot be parsed into a valid ObjectHash hash
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_git_model(model: Self::GitSource) -> Self {
         commit_from_model(
@@ -750,7 +760,7 @@ impl FromMegaModel for Blob {
     /// Converts a raw_blob::Model to a Blob object
     ///
     /// This function extracts the necessary data from a raw_blob::Model
-    /// to create a new Blob object. It parses the SHA1 hash from the string
+    /// to create a new Blob object. It parses the ObjectHash hash from the string
     /// representation and unwraps the binary data.
     ///
     /// # Arguments
@@ -763,11 +773,11 @@ impl FromMegaModel for Blob {
     ///
     /// # Panics
     ///
-    /// This function will panic if the SHA1 string cannot be parsed or if
+    /// This function will panic if the ObjectHash string cannot be parsed or if
     /// the data field is None
     fn from_mega_model(model: Self::MegaSource) -> Self {
         Blob {
-            id: SHA1::from_str(&model.sha1).unwrap(),
+            id: ObjectHash::from_str(&model.sha1).unwrap(),
             data: model.data.unwrap(),
         }
     }
@@ -779,7 +789,7 @@ mod test {
     use std::str::FromStr;
 
     use common::config::MonoConfig;
-    use git_internal::{hash::SHA1, internal::object::commit::Commit};
+    use git_internal::{hash::ObjectHash, internal::object::commit::Commit};
 
     use crate::utils::converter::MegaModelConverter;
 
@@ -797,7 +807,7 @@ mod test {
     #[test]
     pub fn test_init_commit() {
         let commit = Commit::from_tree_id(
-            SHA1::from_str("bd4a28f2d8b2efc371f557c3b80d320466ed83f3").unwrap(),
+            ObjectHash::from_str("bd4a28f2d8b2efc371f557c3b80d320466ed83f3").unwrap(),
             vec![],
             "\nInit Mega Directory",
         );

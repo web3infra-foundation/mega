@@ -24,7 +24,7 @@ use git_internal::{
         pack::entry::Entry,
     },
 };
-use git_internal::{hash::SHA1, internal::pack::encode::PackEncoder};
+use git_internal::{hash::ObjectHash, internal::pack::encode::PackEncoder};
 use jupiter::{
     object_storage::MultiObjectByteStream, service::git_service::GitService,
     storage::git_db_storage::GitDbStorage, utils::converter::FromGitModel,
@@ -156,12 +156,17 @@ impl RepoHandler for ImportRepo {
         }
 
         let want_tree_ids = want_commits.iter().map(|c| c.tree_id.to_string()).collect();
-        let want_trees: HashMap<SHA1, Tree> = storage
+        let want_trees: HashMap<ObjectHash, Tree> = storage
             .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
             .await
             .unwrap()
             .into_iter()
-            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), Tree::from_git_model(m)))
+            .map(|m| {
+                (
+                    ObjectHash::from_str(&m.tree_id).unwrap(),
+                    Tree::from_git_model(m),
+                )
+            })
             .collect();
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
@@ -258,6 +263,7 @@ impl RepoHandler for ImportRepo {
                         pack_offset: Some(blob.pack_offset as usize),
                         file_path: Some(blob.file_path.clone()),
                         is_delta: Some(blob.is_delta_in_pack),
+                        crc32: None,
                     },
                 )
             })
@@ -405,7 +411,7 @@ impl ImportRepo {
                 .back()
                 .ok_or_else(|| MegaError::Other("no tree generated".to_string()))?
                 .id,
-            vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
+            vec![ObjectHash::from_str(&root_ref.ref_commit_hash).unwrap()],
             &format!("\n{commit_msg}"),
         );
 

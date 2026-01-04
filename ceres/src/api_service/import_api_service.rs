@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use callisto::{git_tag, import_refs};
 use common::errors::MegaError;
 use git_internal::errors::GitError;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem};
@@ -422,7 +422,7 @@ impl ApiHandler for ImportApiService {
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?
                 .ok_or(GitError::InvalidCommitObject)?;
-            let parent_id = SHA1::from_str(&current_commit.commit_id).unwrap();
+            let parent_id = ObjectHash::from_str(&current_commit.commit_id).unwrap();
 
             let new_commit =
                 Commit::from_tree_id(new_root_id, vec![parent_id], &payload.commit_message);
@@ -588,7 +588,7 @@ impl ImportApiService {
         let tag_target = target
             .as_ref()
             .ok_or(GitError::InvalidCommitObject)
-            .and_then(|t| SHA1::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
+            .and_then(|t| ObjectHash::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
         let git_internal_tag = git_internal::internal::object::tag::Tag::new(
             tag_target,
             git_internal::internal::object::types::ObjectType::Commit,
@@ -667,7 +667,7 @@ impl ImportApiService {
         &self,
         tree: Arc<Tree>,
         name: &str,
-        target_hash: SHA1,
+        target_hash: ObjectHash,
     ) -> Result<Tree, GitError> {
         let index = tree
             .tree_items
@@ -684,8 +684,8 @@ impl ImportApiService {
         &self,
         mut path: PathBuf,
         mut update_chain: Vec<Arc<Tree>>,
-        mut updated_tree_hash: SHA1,
-    ) -> Result<(Vec<Tree>, SHA1), GitError> {
+        mut updated_tree_hash: ObjectHash,
+    ) -> Result<(Vec<Tree>, ObjectHash), GitError> {
         let mut updated_trees = Vec::new();
         while let Some(tree) = update_chain.pop() {
             let cloned_path = path.clone();

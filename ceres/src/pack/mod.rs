@@ -22,7 +22,7 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::metadata::{EntryMeta, MetaAttached};
 use git_internal::internal::pack::Pack;
 use git_internal::{
@@ -48,7 +48,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     async fn receiver_handler(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
-        _rx_pack_id: UnboundedReceiver<SHA1>,
+        _rx_pack_id: UnboundedReceiver<ObjectHash>,
     ) -> Result<(), MegaError> {
         let mut entry_list = vec![];
         let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
@@ -182,7 +182,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     ) -> Result<
         (
             UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
-            UnboundedReceiver<SHA1>,
+            UnboundedReceiver<ObjectHash>,
         ),
         ProtocolError,
     > {

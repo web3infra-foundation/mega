@@ -10,15 +10,16 @@ use tokio::sync::mpsc;
 use crate::manager::store::{BlobFsStore, TreeStore};
 
 use git_internal::{
-    hash::SHA1,
+    hash::ObjectHash,
     internal::{
+        metadata::{EntryMeta, MetaAttached},
         object::{
             blob::Blob,
             commit::Commit,
             signature::{Signature, SignatureType},
             tree::Tree,
         },
-        pack::encode::PackEncoder,
+        pack::{encode::PackEncoder, entry::Entry},
     },
 };
 
@@ -26,18 +27,39 @@ use git_internal::{
 /// Blobs objects
 pub async fn pack(commit: Commit, trees: Vec<Tree>, blob: Vec<Blob>) -> Vec<u8> {
     let len = trees.len() + blob.len() + 1;
-    // let (tx, rx) = mpsc::channel::<Entry>();
-    let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
+    let (entry_tx, entry_rx) = mpsc::channel::<MetaAttached<Entry, EntryMeta>>(1_000_000);
     let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
 
     let encoder = PackEncoder::new(len, 0, stream_tx);
     encoder.encode_async(entry_rx).await.unwrap();
-    entry_tx.send(commit.into()).await.unwrap();
+    let entry: Entry = commit.into();
+    // packencoder needs MetaAttached<Entry, EntryMeta> type
+    entry_tx
+        .send(MetaAttached {
+            inner: entry,
+            meta: EntryMeta::new(),
+        })
+        .await
+        .unwrap();
     for v in trees {
-        entry_tx.send(v.into()).await.unwrap();
+        let entry: Entry = v.into();
+        entry_tx
+            .send(MetaAttached {
+                inner: entry,
+                meta: EntryMeta::new(),
+            })
+            .await
+            .unwrap();
     }
     for b in blob {
-        entry_tx.send(b.into()).await.unwrap();
+        let entry: Entry = b.into();
+        entry_tx
+            .send(MetaAttached {
+                inner: entry,
+                meta: EntryMeta::new(),
+            })
+            .await
+            .unwrap();
     }
     drop(entry_tx);
 
@@ -49,9 +71,9 @@ pub async fn pack(commit: Commit, trees: Vec<Tree>, blob: Vec<Blob>) -> Vec<u8> 
     pack_data
 }
 
-/// Convert a String to a SHA1 hash
-fn string_to_sha(hash: &str) -> std::io::Result<SHA1> {
-    SHA1::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidData, e))
+/// Convert a String to a ObjectHash hash
+fn string_to_sha(hash: &str) -> std::io::Result<ObjectHash> {
+    ObjectHash::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidData, e))
 }
 
 /// Extract commit information from a commit file

@@ -497,10 +497,10 @@ impl BuckService {
     pub fn parse_hash(&self, hash: &str) -> Result<String, MegaError> {
         let hash_str = hash.strip_prefix("sha1:").unwrap_or(hash);
 
-        // Validate SHA1 format
+        // Validate ObjectHash format
         if hash_str.len() != 40 {
             return Err(BuckError::ValidationError(format!(
-                "Invalid SHA1 hash length: expected 40, got {}",
+                "Invalid ObjectHash hash length: expected 40, got {}",
                 hash_str.len()
             ))
             .into());

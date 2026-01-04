@@ -31,7 +31,7 @@ use git_internal::internal::{
 };
 use git_internal::{
     errors::GitError,
-    hash::SHA1,
+    hash::ObjectHash,
     internal::{
         object::{ObjectTrait, commit::Commit, tree::Tree, types::ObjectType},
         pack::{encode::PackEncoder, entry::Entry},
@@ -262,14 +262,14 @@ impl RepoHandler for MonoRepo {
         }
 
         let want_tree_ids = want_commits.iter().map(|c| c.tree_id.to_string()).collect();
-        let want_trees: HashMap<SHA1, Tree> = storage
+        let want_trees: HashMap<ObjectHash, Tree> = storage
             .get_trees_by_hashes(want_tree_ids)
             .await
             .unwrap()
             .into_iter()
             .map(|m| {
                 (
-                    SHA1::from_str(&m.tree_id).unwrap(),
+                    ObjectHash::from_str(&m.tree_id).unwrap(),
                     Tree::from_mega_model(m),
                 )
             })
@@ -362,6 +362,7 @@ impl RepoHandler for MonoRepo {
                         pack_offset: Some(blob.pack_offset as usize),
                         file_path: Some(blob.file_path.clone()),
                         is_delta: Some(blob.is_delta_in_pack),
+                        crc32: None, //tmp fix
                     },
                 )
             })
@@ -680,7 +681,7 @@ impl MonoRepo {
 
     async fn diff_trees_from_cl(
         &self,
-    ) -> Result<Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>, MegaError> {
+    ) -> Result<Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>, MegaError> {
         let mono_stg = self.storage.mono_storage();
         let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
         let from_tree: Tree =
@@ -988,22 +989,22 @@ impl MonoRepo {
     pub async fn get_commit_blobs(
         &self,
         commit_hash: &str,
-    ) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+    ) -> Result<Vec<(PathBuf, ObjectHash)>, MegaError> {
         let api_service: MonoApiService = self.into();
         api_service.get_commit_blobs(commit_hash).await
     }
 
     pub async fn cl_files_list(
         &self,
-        old_files: Vec<(PathBuf, SHA1)>,
-        new_files: Vec<(PathBuf, SHA1)>,
+        old_files: Vec<(PathBuf, ObjectHash)>,
+        new_files: Vec<(PathBuf, ObjectHash)>,
     ) -> Result<Vec<crate::model::change_list::ClDiffFile>, MegaError> {
         let api_service: MonoApiService = self.into();
         api_service.cl_files_list(old_files, new_files).await
     }
 }
 
-type DiffResult = Vec<(PathBuf, Option<SHA1>, Option<SHA1>)>;
+type DiffResult = Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>;
 
 fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     let their_items: HashMap<_, _> = get_plain_items(theirs).into_iter().collect();
@@ -1022,7 +1023,7 @@ fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     Ok(diffs)
 }
 
-fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, SHA1)> {
+fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, ObjectHash)> {
     let mut items = Vec::new();
     for item in tree.tree_items.iter() {
         if item.is_tree() {

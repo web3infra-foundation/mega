@@ -1,4 +1,4 @@
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ fn sort_tree_items(tree: &mut Tree) {
 
 /// Use `item_data` to update the `tree` and return the tree
 /// ID.
-fn update_treeitem(tree: &mut Tree, item_data: &TreeItem) -> SHA1 {
+fn update_treeitem(tree: &mut Tree, item_data: &TreeItem) -> ObjectHash {
     match tree
         .tree_items
         .iter_mut()
@@ -79,7 +79,7 @@ fn build_new_tree_map(
         // Create the Blob TreeItem.
         let mut sub_item_data = TreeItem {
             mode: TreeItemMode::Blob,
-            id: SHA1::from_str(&hash).expect("Hash parsing error in temporary storage area."),
+            id: ObjectHash::from_str(&hash).expect("Hash parsing error in temporary storage area."),
             name: path_name_to_string(&new_path),
         };
         while new_path.pop() {
@@ -89,7 +89,7 @@ fn build_new_tree_map(
             // println!("old_root_path = {}", old_root_path.display());
             // println!("res = {:?}", old_tree_db.get_bypath(&parent_path));
             // println!("res = {:?}", old_tree_db.get_bypath(&old_root_path));
-            let mut sub_item_id = SHA1::default();
+            let mut sub_item_id = ObjectHash::default();
 
             // Check, add and update the Tree into the HashMap
             res.entry(parent_path.clone())
@@ -135,7 +135,10 @@ fn build_new_tree_map(
 /// Check `sub_item_data` and perform delete and update on
 /// `tree`. If the tree is not empty after the operation,
 /// return `Some(tree.id)`, otherwise return `None`.
-fn del_treeitem(tree: &mut Tree, sub_item_data: (String, Option<SHA1>)) -> Option<SHA1> {
+fn del_treeitem(
+    tree: &mut Tree,
+    sub_item_data: (String, Option<ObjectHash>),
+) -> Option<ObjectHash> {
     let sub_item_name = sub_item_data.0;
     match sub_item_data.1 {
         Some(hash) => match tree.tree_items.iter_mut().find(|i| i.name == sub_item_name) {
@@ -170,7 +173,8 @@ fn build_removed_tree_map(
     //   3. Increased operability and flexibility
     for mut new_path in rm_db.path_list()? {
         // Get the TreeItem name.
-        let mut sub_item_data: (String, Option<SHA1>) = (path_name_to_string(&new_path), None);
+        let mut sub_item_data: (String, Option<ObjectHash>) =
+            (path_name_to_string(&new_path), None);
 
         while new_path.pop() {
             let parent_path = get_real_path(&new_path, old_root_path);
@@ -245,7 +249,7 @@ pub fn commit_core(
     tree_dbs: (&sled::Db, &sled::Db),
     temp_store_area: &TempStoreArea, // The temporary storage area.
     old_root_path: &Path,            // The path of the main Tree in tree.db.
-) -> sled::Result<SHA1> {
+) -> sled::Result<ObjectHash> {
     // To prevent the Remove operation from affecting the
     // Vec<TreeItem> of the main Tree, we now change it to performing
     // the Remove operation first, then extracting the main Tree
