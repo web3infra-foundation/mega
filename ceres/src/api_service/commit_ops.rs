@@ -448,7 +448,7 @@ pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
     Ok(result)
 }
 
-/// Collect all blobs (path -> ObjectHash) under a commit tree
+/// Collect all blobs as (path, ObjectHash) pairs under a commit tree
 async fn collect_commit_blobs<T: ApiHandler + ?Sized>(
     handler: &T,
     commit: &Commit,

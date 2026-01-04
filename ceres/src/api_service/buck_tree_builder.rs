@@ -441,7 +441,7 @@ impl BuckCommitBuilder {
     /// This is only used in memory during tree building.
     /// The actual Git tree object will be created when items are added.
     fn empty_tree() -> Tree {
-        // Create a valid empty tree to get the correct ObjectHash hash
+        // Create a valid empty tree to get the correct ObjectHash
         Tree::from_tree_items(vec![]).unwrap_or(Tree {
             id: ObjectHash::default(),
             tree_items: vec![],
@@ -682,7 +682,7 @@ mod tests {
     #[test]
     fn test_nested_directory_tree_building() {
         // Setup: Create a file change for a/b/c.txt
-        let blob_hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"; // ObjectHash of empty file
+        let blob_hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"; // SHA-1 hash of empty file
         let file = FileChange::new(
             "a/b/c.txt".to_string(),
             format!("sha1:{}", blob_hash),
@@ -1342,7 +1342,7 @@ mod tests {
         }
     }
 
-    /// Test that valid ObjectHash hashes with correct format are accepted.
+    /// Test that valid ObjectHash values with correct format are accepted.
     ///
     /// All hashes are normalized to lowercase per Git convention.
     #[test]

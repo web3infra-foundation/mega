@@ -362,7 +362,10 @@ impl RepoHandler for MonoRepo {
                         pack_offset: Some(blob.pack_offset as usize),
                         file_path: Some(blob.file_path.clone()),
                         is_delta: Some(blob.is_delta_in_pack),
-                        crc32: None, //tmp fix
+                        // TODO: Populate `crc32` once mono blob metadata exposes it.
+                        // For now we set it to `None` because `get_mega_blobs_by_hashes` does
+                        // not provide CRC32 information for monorepo-backed packs.
+                        crc32: None,
                     },
                 )
             })

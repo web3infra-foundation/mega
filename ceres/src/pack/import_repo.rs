@@ -263,6 +263,12 @@ impl RepoHandler for ImportRepo {
                         pack_offset: Some(blob.pack_offset as usize),
                         file_path: Some(blob.file_path.clone()),
                         is_delta: Some(blob.is_delta_in_pack),
+                        // NOTE: We currently do not have CRC32 information available in the
+                        // blob metadata returned from `git_db_storage()`. Downstream callers
+                        // treat `None` as "CRC32 unknown" rather than "CRC32 invalid". Once
+                        // pack index entries (or another source) expose CRC32 for these blobs,
+                        // this should be populated with the actual checksum instead of `None`.
+                        // TODO: Thread CRC32 from the underlying Git storage into `EntryMeta`.
                         crc32: None,
                     },
                 )

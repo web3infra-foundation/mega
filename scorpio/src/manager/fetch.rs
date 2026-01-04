@@ -71,7 +71,7 @@ impl DownloadTask {
 ///
 /// 2. **File Download Phase**:
 ///    - File download tasks are processed by a fixed pool of worker threads
-///    - Each task downloads a file from the server using its ObjectHash hash
+///    - Each task downloads a file from the server using its ObjectHash
 ///    - Workers update the `pending_tasks` counter as they complete downloads
 ///
 /// 3. **Completion Coordination**:

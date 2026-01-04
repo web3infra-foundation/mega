@@ -48,7 +48,7 @@ pub struct ManifestFile {
     pub hash: String,
 }
 
-/// Parse and validate ObjectHash hash in "sha1:HEXSTRING" format
+/// Parse and validate ObjectHash in "sha1:HEXSTRING" format
 ///
 /// This is a shared helper function used by both ManifestFile and FileChange.
 /// It normalizes the hash to lowercase for consistency with Git conventions.
@@ -58,7 +58,7 @@ pub struct ManifestFile {
 /// * `field_name` - The name of the field (for error messages)
 ///
 /// # Returns
-/// The parsed ObjectHash hash or an error if format is invalid
+/// The parsed ObjectHash or an error if format is invalid
 pub fn parse_sha1_hash(
     input: &str,
     field_name: &str,
@@ -82,7 +82,7 @@ pub fn parse_sha1_hash(
     match algorithm.as_str() {
         "sha1" => ObjectHash::from_str(&hash_hex).map_err(|e| {
             MegaError::Other(format!(
-                "Invalid ObjectHash hash in {}: '{}', error: {}",
+                "Invalid ObjectHash in {}: '{}', error: {}",
                 field_name, hash_hex, e
             ))
         }),
@@ -97,7 +97,7 @@ impl ManifestFile {
     /// Parse and validate hash format
     ///
     /// Expects format: "sha1:HEXSTRING" (case-insensitive, normalized to lowercase)
-    /// Returns the parsed ObjectHash hash or an error if format is invalid
+    /// Returns the parsed ObjectHash or an error if format is invalid
     pub fn parse_hash(&self) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
         parse_sha1_hash(&self.hash, "hash field")
     }
@@ -179,7 +179,7 @@ pub struct CompleteResponse {
 pub struct FileChange {
     /// Relative file path within the repository (e.g., "src/main.rs")
     pub path: String,
-    /// ObjectHash hash of the blob in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
+    /// ObjectHash of the blob in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
     /// Already saved in raw_blob table
     /// Example: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709"
     pub blob_id: String,
@@ -199,7 +199,7 @@ impl FileChange {
     /// Parse and validate blob hash format
     ///
     /// Expects format: "sha1:HEXSTRING" (case-insensitive, normalized to lowercase)
-    /// Returns the parsed ObjectHash hash or an error if format is invalid
+    /// Returns the parsed ObjectHash or an error if format is invalid
     pub fn parse_blob_hash(
         &self,
     ) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {

@@ -71,7 +71,7 @@ pub async fn pack(commit: Commit, trees: Vec<Tree>, blob: Vec<Blob>) -> Vec<u8> 
     pack_data
 }
 
-/// Convert a String to a ObjectHash hash
+/// Convert a String to an ObjectHash
 fn string_to_sha(hash: &str) -> std::io::Result<ObjectHash> {
     ObjectHash::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidData, e))
 }

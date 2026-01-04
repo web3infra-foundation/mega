@@ -568,8 +568,8 @@ impl FromMegaModel for Tag {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tag_id string cannot be parsed into a valid ObjectHash hash
-    /// - The object_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tag_id string cannot be parsed into a valid ObjectHash
+    /// - The object_id string cannot be parsed into a valid ObjectHash
     /// - The object_type string is not a recognized ObjectType
     /// - The tagger string cannot be converted into a valid Signature
     fn from_mega_model(model: Self::MegaSource) -> Self {
@@ -604,8 +604,8 @@ impl FromGitModel for Tag {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tag_id string cannot be parsed into a valid ObjectHash hash
-    /// - The object_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tag_id string cannot be parsed into a valid ObjectHash
+    /// - The object_id string cannot be parsed into a valid ObjectHash
     /// - The object_type string is not a recognized ObjectType
     /// - The tagger string cannot be converted into a valid Signature
     fn from_git_model(model: Self::GitSource) -> Self {
@@ -627,7 +627,7 @@ impl FromMegaModel for Tree {
     ///
     /// This function reconstructs a Tree object from a mega_tree::Model retrieved from the database.
     /// It parses the binary sub_trees data back into a structured Tree object and
-    /// uses the tree_id string to recreate the ObjectHash hash identifier.
+    /// uses the tree_id string to recreate the ObjectHash identifier.
     ///
     /// # Arguments
     ///
@@ -640,7 +640,7 @@ impl FromMegaModel for Tree {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tree_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tree_id string cannot be parsed into a valid ObjectHash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_mega_model(model: Self::MegaSource) -> Self {
         Tree::from_bytes(
@@ -671,7 +671,7 @@ impl FromGitModel for Tree {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The tree_id string cannot be parsed into a valid ObjectHash hash
+    /// - The tree_id string cannot be parsed into a valid ObjectHash
     /// - The binary sub_trees data cannot be parsed into a valid Tree structure
     fn from_git_model(model: Self::GitSource) -> Self {
         Tree::from_bytes(
@@ -702,9 +702,9 @@ impl FromMegaModel for Commit {
     /// # Panics
     ///
     /// This function will panic if:
-    /// - The commit_id string cannot be parsed into a valid ObjectHash hash
-    /// - The tree string cannot be parsed into a valid ObjectHash hash
-    /// - Any parent ID in parents_id cannot be parsed into a valid ObjectHash hash
+    /// - The commit_id string cannot be parsed into a valid ObjectHash
+    /// - The tree string cannot be parsed into a valid ObjectHash
+    /// - Any parent ID in parents_id cannot be parsed into a valid ObjectHash
     /// - The author or committer strings cannot be converted into valid Signatures
     fn from_mega_model(model: Self::MegaSource) -> Self {
         commit_from_model(
@@ -760,7 +760,7 @@ impl FromMegaModel for Blob {
     /// Converts a raw_blob::Model to a Blob object
     ///
     /// This function extracts the necessary data from a raw_blob::Model
-    /// to create a new Blob object. It parses the ObjectHash hash from the string
+    /// to create a new Blob object. It parses the ObjectHash from the string
     /// representation and unwraps the binary data.
     ///
     /// # Arguments
@@ -773,8 +773,7 @@ impl FromMegaModel for Blob {
     ///
     /// # Panics
     ///
-    /// This function will panic if the ObjectHash string cannot be parsed or if
-    /// the data field is None
+    /// This function will panic if the hash string cannot be parsed into a valid ObjectHash
     fn from_mega_model(model: Self::MegaSource) -> Self {
         Blob {
             id: ObjectHash::from_str(&model.sha1).unwrap(),

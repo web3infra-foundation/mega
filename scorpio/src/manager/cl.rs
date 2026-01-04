@@ -143,7 +143,7 @@ pub async fn build_cl_layer(
                 if let Some(parent) = file_path.parent() {
                     std::fs::create_dir_all(parent).map_err(ClLayerError::DirectoryError)?;
                 }
-                // Parse ObjectHash from string and add to download queue
+                // Parse hash (ObjectHash type) from string and add to download queue
                 let file_id = file
                     .sha
                     .parse()

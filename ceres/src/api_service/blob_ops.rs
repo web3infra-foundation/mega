@@ -42,7 +42,7 @@ pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(
 /// * `refs` - Optional commit hash or ref name
 ///
 /// # Returns
-/// HashMap mapping file paths to their blob IDs (as ObjectHash)
+/// HashMap mapping file paths to ObjectHash blob IDs
 /// Files not found will not be in the result (use contains_key to check)
 pub async fn get_files_blob_ids<T: ApiHandler + ?Sized>(
     handler: &T,

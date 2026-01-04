@@ -500,7 +500,7 @@ impl BuckService {
         // Validate ObjectHash format
         if hash_str.len() != 40 {
             return Err(BuckError::ValidationError(format!(
-                "Invalid ObjectHash hash length: expected 40, got {}",
+                "Invalid ObjectHash length: expected 40, got {}",
                 hash_str.len()
             ))
             .into());
