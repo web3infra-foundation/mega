@@ -1349,7 +1349,7 @@ mod tests {
     fn test_valid_sha1_hashes() {
         let valid_hashes = vec![
             "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709", // empty file
-            "ObjectHash:da39a3ee5e6b4b0d3255bfef95601890afd80709", // uppercase algorithm (normalized)
+            "SHA1:da39a3ee5e6b4b0d3255bfef95601890afd80709", // uppercase algorithm (normalized)
             "Sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709", // mixed case algorithm (normalized)
             "sha1:356a192b7913b04c54574d18c28d46e6395428ab", // "1"
             "sha1:0000000000000000000000000000000000000000", // all zeros
