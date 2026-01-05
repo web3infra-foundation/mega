@@ -1,0 +1,7 @@
+# 只提交英文文档到 PR
+buck2-log-target.md
+test-multi-target.sh
+PR_DESCRIPTION.md
+FEATURE_VALIDATION.md
+*.log
+
