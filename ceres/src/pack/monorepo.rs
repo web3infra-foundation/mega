@@ -1036,9 +1036,9 @@ impl MonoRepo {
                 })
                 .collect::<Vec<_>>();
 
-            let path_str = cl_base
-                .to_str()
-                .ok_or_else(|| MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base)))?;
+            let path_str = cl_base.to_str().ok_or_else(|| {
+                MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base))
+            })?;
             let counter_changes: Vec<_> = changes
                 .iter()
                 .filter(|&s| PathBuf::from(&s.path).starts_with(&cl_base))
