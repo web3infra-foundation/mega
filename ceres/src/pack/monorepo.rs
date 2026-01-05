@@ -1036,10 +1036,12 @@ impl MonoRepo {
                 })
                 .collect::<Vec<_>>();
 
-            let path_str = cl_base.to_str().expect("path is not valid UTF-8");
+            let path_str = cl_base
+                .to_str()
+                .ok_or_else(|| MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base)))?;
             let counter_changes: Vec<_> = changes
                 .iter()
-                .filter(|&s| PathBuf::from(&s.path).starts_with(cl_base.clone()))
+                .filter(|&s| PathBuf::from(&s.path).starts_with(&cl_base))
                 .map(|s| {
                     let path = ProjectRelativePath::from_abs(&s.path, path_str).unwrap();
                     if s.action == "new" {
@@ -1064,7 +1066,7 @@ impl MonoRepo {
             let req: OrionBuildRequest = OrionBuildRequest {
                 cl_link: link.clone(),
                 repo: path_str.to_string(),
-                cl: cl_info.id.clone(),
+                cl: cl_info.id,
                 builds: vec![BuildInfo {
                     changes: counter_changes,
                 }],

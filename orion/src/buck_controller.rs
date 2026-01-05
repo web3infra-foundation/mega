@@ -2,7 +2,6 @@ use crate::repo::diff;
 use crate::repo::sapling::status::Status;
 use crate::ws::{TaskPhase, WSMessage};
 use once_cell::sync::Lazy;
-use reqwest::Client;
 use serde_json::{Value, json};
 use td_util_buck::types::{ProjectRelativePath, TargetLabel};
 // Import complete Error trait for better error handling

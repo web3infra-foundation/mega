@@ -136,11 +136,11 @@ bucket = "mega"
 # Access key ID for S3 authentication.
 # For AWS: IAM user's access key.
 # For S3-compatible services: service-specific access key.
-access_key_id = "aQBwcC275X18NyuILKjT"
+access_key_id = ""
 
 # Secret access key corresponding to the access_key_id.
 # Keep this value secure and never commit it to version control.
-secret_access_key = "DuJO2gZszQpxwc6hv9mVyU438S5naXbj0LF7oMGH"
+secret_access_key = ""
 
 
 # Custom S3 endpoint URL.
