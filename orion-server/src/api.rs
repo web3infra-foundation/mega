@@ -1,3 +1,4 @@
+use crate::auto_retry::AutoRetryJudger;
 use crate::common::model::{CommonPage, PageParams};
 use crate::log::log_service::{LogEvent, LogService};
 use crate::model::{builds, tasks};
@@ -19,6 +20,7 @@ use axum::{
 };
 use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
+use dashmap::try_result::TryResult;
 use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::{TaskPhase, WSMessage};
@@ -420,6 +422,8 @@ async fn handle_immediate_task_dispatch(
         start_at: chrono::Utc::now(),
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
+        auto_retry_judger: AutoRetryJudger::new(),
+        retry_time: 0,
     };
 
     // Use the model's insert_build method for direct insertion
@@ -695,6 +699,21 @@ async fn process_message(
                     } else {
                         tracing::warn!("Received output for unknown task: {}", id);
                     }
+
+                    // Judge auto retry by output
+                    loop {
+                        match state.scheduler.active_builds.try_get_mut(&id) {
+                            TryResult::Present(mut build_info) => {
+                                build_info.auto_retry_judger.judge_by_output(&output);
+                                break;
+                            }
+                            TryResult::Absent => {
+                                tracing::warn!("Received output for unknown build: {}", id);
+                                break;
+                            }
+                            TryResult::Locked => continue,
+                        }
+                    }
                 }
                 WSMessage::BuildComplete {
                     id,
@@ -707,44 +726,108 @@ async fn process_message(
                         "Build {id} completed by worker {current_worker_id} with exit code: {exit_code:?}"
                     );
 
-                    // Send final log event
+                    // Get build information
                     if let Some(build_info) = state.scheduler.active_builds.get(&id) {
+                        let mut build_info = build_info.clone();
+
+                        // Send final log event
                         let log_event = LogEvent {
                             task_id: build_info.task_id.clone(),
                             repo_name: LogService::last_segment(&build_info.repo.clone())
                                 .to_string(),
                             build_id: build_info.build_id.clone(),
-                            line: String::from(""), // Empty line to signal end
-                            is_end: true,           // This is the end of the log
+                            line: String::from(""),
+                            is_end: true,
                         };
                         state.log_service.publish(log_event);
-                    }
 
-                    // Remove from active builds and update database
-                    state.scheduler.active_builds.remove(&id);
-                    let _ = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
-                            exit_code: Set(exit_code),
-                            end_at: Set(Some(
-                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                            )),
-                            ..Default::default()
-                        })
-                        .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
-                        .exec(&state.conn)
-                        .await;
+                        // Judge auto retry by exit code
+                        build_info
+                            .auto_retry_judger
+                            .judge_by_exit_code(exit_code.unwrap_or(0));
 
-                    // Mark the worker as idle or error depending on whether the task succeeds.
-                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
-                        worker.status = if success {
-                            WorkerStatus::Idle
+                        const RETRY_TIME_MAX: u32 = 3;
+                        let (can_auto_retry, mut retry_time) = (
+                            build_info.auto_retry_judger.get_can_auto_retry(),
+                            build_info.retry_time,
+                        );
+
+                        if can_auto_retry && retry_time < RETRY_TIME_MAX {
+                            // Restart this build for retry and add retry time
+                            retry_time += 1;
+
+                            // Update build information
+                            build_info.retry_time = retry_time;
+                            state
+                                .scheduler
+                                .active_builds
+                                .alter(&id, |_, _| build_info.clone());
+
+                            // Update database
+                            // let _ = builds::Entity::update_many()
+                            //     .set(builds::ActiveModel {
+                            //         retry_time: Set(retry_time),
+                            //         ..Default::default()
+                            //     })
+                            //     .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
+                            //     .exec(&state.conn)
+                            //     .await;
+
+                            // Send Task to the same worker
+                            let msg = WSMessage::Task {
+                                id: build_info.build_id.clone(),
+                                repo: build_info.repo,
+                                changes: build_info.changes,
+                                cl_link: build_info.cl,
+                            };
+                            let worker_id = build_info._worker_id;
+                            if let Some(worker) = state.scheduler.workers.get_mut(&worker_id)
+                                && worker.sender.send(msg).is_ok()
+                            {
+                                tracing::info!(
+                                    "Retry build: {}, worker: {}",
+                                    build_info.build_id,
+                                    worker_id
+                                );
+                            } else {
+                                tracing::error!("Retry build send to worker Failed");
+                            }
                         } else {
-                            WorkerStatus::Error(message)
-                        };
-                    }
+                            // Remove from active builds
+                            state.scheduler.active_builds.remove(&id);
 
-                    // After worker becomes idle, notify to process queued tasks
-                    state.scheduler.notify_task_available();
+                            // Update datebase
+                            let _ = builds::Entity::update_many()
+                                .set(builds::ActiveModel {
+                                    exit_code: Set(exit_code),
+                                    end_at: Set(Some(
+                                        Utc::now()
+                                            .with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                                    )),
+                                    retry_time: Set(retry_time),
+                                    ..Default::default()
+                                })
+                                .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
+                                .exec(&state.conn)
+                                .await;
+
+                            // Mark the worker as idle or error depending on whether the task succeeds.
+                            if let Some(mut worker) =
+                                state.scheduler.workers.get_mut(current_worker_id)
+                            {
+                                worker.status = if success {
+                                    WorkerStatus::Idle
+                                } else {
+                                    WorkerStatus::Error(message)
+                                };
+                            }
+
+                            // After worker becomes idle, notify to process queued tasks
+                            state.scheduler.notify_task_available();
+                        }
+                    } else {
+                        tracing::error!("Not found build: {id}");
+                    }
                 }
                 WSMessage::TaskPhaseUpdate { id, phase } => {
                     tracing::info!(

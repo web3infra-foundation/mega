@@ -21,6 +21,7 @@ pub struct Model {
     pub args: Option<Value>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
+    pub retry_time: u32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -64,6 +65,7 @@ impl Model {
             args: Set(args),
             output_file: Set(format!("./logs/{}", build_id)),
             created_at: Set(now),
+            retry_time: Set(0),
         }
     }
 
