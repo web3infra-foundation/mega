@@ -52,7 +52,6 @@ async-stream = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 regex = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["pkcs8"] }
-lazy_static = { workspace = true }
 ctrlc = { workspace = true }
 oauth2 = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
