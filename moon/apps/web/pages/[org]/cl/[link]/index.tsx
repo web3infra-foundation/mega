@@ -273,11 +273,14 @@ const CLDetailPage: PageWithLayout<any> = () => {
     }
 
     return (
-      <div
-        className={`mt-3 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium leading-none text-white ${bgClass}`}
-      >
-        {Icon && <Icon size={16} className='mr-1 text-white' />}
-        <span>{label}</span>
+      <div className='mt-3 flex items-center gap-3'>
+        <div
+          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium leading-none text-white ${bgClass}`}
+        >
+          {Icon && <Icon size={16} className='mr-1 text-white' />}
+          <span>{label}</span>
+        </div>
+        {(clDetail as any)?.path && <span className='text-sm text-gray-500'>{(clDetail as any).path}</span>}
       </div>
     )
   }

@@ -8,12 +8,12 @@ import {
   GitPullRequestIcon,
   XIcon
 } from '@primer/octicons-react'
-import { formatDistance, fromUnixTime } from 'date-fns'
+import { format, formatDistance, fromUnixTime } from 'date-fns'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 
 import { PostApiClListData } from '@gitmono/types/generated'
-import { SearchIcon } from '@gitmono/ui'
+import { SearchIcon, Tooltip } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
 import {
@@ -285,11 +285,24 @@ export default function CLView() {
   const getDescription = (item: ItemsType[number]) => {
     const normalizedStatus = item.status.toLowerCase()
 
+    const formatFullTime = (timestamp: number) => {
+      const date = fromUnixTime(timestamp)
+      const offset = date.getTimezoneOffset() / -60
+
+      return format(date, 'MMM d, yyyy, h:mm a') + ` GMT${offset >= 0 ? '+' : ''}${offset}`
+    }
+
     switch (normalizedStatus) {
       case 'open':
         return (
           <>
-            opened {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} by{' '}
+            opened{' '}
+            <Tooltip label={formatFullTime(item.open_timestamp)}>
+              <span className='cursor-default'>
+                {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })}
+              </span>
+            </Tooltip>{' '}
+            by{' '}
             <MemberHovercard username={item.author}>
               <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
             </MemberHovercard>
@@ -304,7 +317,11 @@ export default function CLView() {
                 <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
               </MemberHovercard>
               {' was merged '}
-              {formatDistance(fromUnixTime(item.merge_timestamp ?? 0), new Date(), { addSuffix: true })}
+              <Tooltip label={formatFullTime(item.merge_timestamp ?? 0)}>
+                <span className='cursor-default'>
+                  {formatDistance(fromUnixTime(item.merge_timestamp ?? 0), new Date(), { addSuffix: true })}
+                </span>
+              </Tooltip>
             </>
           )
         } else {
@@ -318,7 +335,11 @@ export default function CLView() {
               <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
             </MemberHovercard>
             {' was closed '}
-            {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
+            <Tooltip label={formatFullTime(item.updated_at)}>
+              <span className='cursor-default'>
+                {formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}
+              </span>
+            </Tooltip>
           </>
         )
       default:
