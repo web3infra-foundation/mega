@@ -16,7 +16,6 @@ jupiter = { workspace = true }
 callisto = { workspace = true }
 git-internal = { workspace = true }
 bellatrix = { workspace = true }
-saturn = { workspace = true }
 
 anyhow = { workspace = true }
 # Use 0.16.0 version for GPG Verification

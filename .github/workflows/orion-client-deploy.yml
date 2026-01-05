@@ -1,0 +1,65 @@
+name: Orion client deploy
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/orion-client-deploy.yml"
+      - "orion/**"
+      - "scorpio/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Rust toolchain
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+          cache-on-failure: true
+
+      - name: Build Orion
+        run: cargo build --release -p orion --bin orion
+
+      - name: Build Scorpio
+        run: cargo build --release -p scorpio --bin scorpio
+
+      - name: Verify build artifacts
+        run: |
+          ls -lh target/release || true
+          file target/release/orion || true
+          file target/release/scorpio || true
+
+      - name: Upload binaries via rsync
+        uses: burnett01/rsync-deployments@master
+        with:
+          switches: -avz --progress
+          path: target/release/orion target/release/scorpio
+          remote_path: /root/orion-runner/
+          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
+          remote_user: root
+          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          script: |
+            systemctl daemon-reload
+            systemctl restart orion-runner.service
+            systemctl status orion-runner.service --no-pager

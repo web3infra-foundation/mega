@@ -56,6 +56,7 @@ pub struct CLDetailRes {
     pub conversations: Vec<ConversationItem>,
     pub labels: Vec<LabelItem>,
     pub assignees: Vec<String>,
+    pub path: String,
 }
 
 impl From<CLDetails> for CLDetailRes {
@@ -78,6 +79,7 @@ impl From<CLDetails> for CLDetailRes {
                 .into_iter()
                 .map(|x| x.assignnee_id)
                 .collect(),
+            path: value.cl.path,
         }
     }
 }
