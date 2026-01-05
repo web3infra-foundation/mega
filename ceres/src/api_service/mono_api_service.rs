@@ -69,7 +69,7 @@ use common::model::{DiffItem, Pagination};
 use common::utils::MEGA_BRANCH_NAME;
 use git_internal::diff::Diff as GitDiff;
 use git_internal::errors::GitError;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::object::commit::Commit;
@@ -115,7 +115,7 @@ pub struct TreeUpdateResult {
 
 pub struct RefUpdate {
     path: String,
-    tree_id: SHA1,
+    tree_id: ObjectHash,
 }
 
 /// `MonoServiceLogic` is a helper struct for `MonoApiService` containing stateless logic.
@@ -142,7 +142,7 @@ impl MonoServiceLogic {
     pub fn update_tree_hash(
         tree: Arc<Tree>,
         name: &str,
-        target_hash: SHA1,
+        target_hash: ObjectHash,
     ) -> Result<Tree, GitError> {
         let index = tree
             .tree_items
@@ -161,7 +161,7 @@ impl MonoServiceLogic {
     pub fn build_result_by_chain(
         mut path: PathBuf,
         mut update_chain: Vec<Arc<Tree>>,
-        mut updated_tree_hash: SHA1,
+        mut updated_tree_hash: ObjectHash,
     ) -> Result<TreeUpdateResult, GitError> {
         let mut updated_trees = Vec::new();
         let mut ref_updates = Vec::new();
@@ -218,7 +218,7 @@ impl MonoServiceLogic {
             if let Some(p_ref) = refs.iter().find(|r| r.path == update.path) {
                 let commit = Commit::from_tree_id(
                     update.tree_id,
-                    vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
+                    vec![ObjectHash::from_str(&p_ref.ref_commit_hash).unwrap()],
                     commit_msg,
                 );
                 let commit_id = commit.id.to_string();
@@ -1128,7 +1128,7 @@ impl MonoApiService {
         let tag_target = target
             .as_ref()
             .ok_or(GitError::InvalidCommitObject)
-            .and_then(|t| SHA1::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
+            .and_then(|t| ObjectHash::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
         let tagger_sig = git_internal::internal::object::signature::Signature::new(
             git_internal::internal::object::signature::SignatureType::Tagger,
             tagger_info.clone(),
@@ -1361,10 +1361,10 @@ impl MonoApiService {
 
     async fn get_diff_by_blobs(
         &self,
-        old_blobs: Vec<(PathBuf, SHA1)>,
-        new_blobs: Vec<(PathBuf, SHA1)>,
+        old_blobs: Vec<(PathBuf, ObjectHash)>,
+        new_blobs: Vec<(PathBuf, ObjectHash)>,
     ) -> Result<Vec<DiffItem>, GitError> {
-        let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+        let mut blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
 
         // Collect all unique hashes
         let mut all_hashes = HashSet::new();
@@ -1399,7 +1399,7 @@ impl MonoApiService {
         }
 
         // Enhanced content reader with better error handling
-        let read_content = |file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+        let read_content = |file: &PathBuf, hash: &ObjectHash| -> Vec<u8> {
             match blob_cache.get(hash) {
                 Some(content) => content.clone(),
                 None => {
@@ -1452,11 +1452,11 @@ impl MonoApiService {
 
     pub async fn cl_files_list(
         &self,
-        old_files: Vec<(PathBuf, SHA1)>,
-        new_files: Vec<(PathBuf, SHA1)>,
+        old_files: Vec<(PathBuf, ObjectHash)>,
+        new_files: Vec<(PathBuf, ObjectHash)>,
     ) -> Result<Vec<ClDiffFile>, MegaError> {
-        let old_files: HashMap<PathBuf, SHA1> = old_files.into_iter().collect();
-        let new_files: HashMap<PathBuf, SHA1> = new_files.into_iter().collect();
+        let old_files: HashMap<PathBuf, ObjectHash> = old_files.into_iter().collect();
+        let new_files: HashMap<PathBuf, ObjectHash> = new_files.into_iter().collect();
         let unions: HashSet<PathBuf> = old_files.keys().chain(new_files.keys()).cloned().collect();
         let mut res = vec![];
         for path in unions {
@@ -1488,7 +1488,7 @@ impl MonoApiService {
     pub async fn get_commit_blobs(
         &self,
         commit_hash: &str,
-    ) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+    ) -> Result<Vec<(PathBuf, ObjectHash)>, MegaError> {
         let mut res = vec![];
         let mono_storage = self.storage.mono_storage();
         let commit = mono_storage.get_commit_by_hash(commit_hash).await?;
@@ -1565,7 +1565,10 @@ impl MonoApiService {
         Ok(())
     }
 
-    async fn traverse_tree(&self, root_tree: Tree) -> Result<Vec<(PathBuf, SHA1)>, MegaError> {
+    async fn traverse_tree(
+        &self,
+        root_tree: Tree,
+    ) -> Result<Vec<(PathBuf, ObjectHash)>, MegaError> {
         let mut result = vec![];
         let mut stack = vec![(PathBuf::new(), root_tree)];
 
@@ -2174,8 +2177,8 @@ impl MonoApiService {
 
 fn collect_page_blobs(
     items: &[ClDiffFile],
-    old_out: &mut Vec<(PathBuf, SHA1)>,
-    new_out: &mut Vec<(PathBuf, SHA1)>,
+    old_out: &mut Vec<(PathBuf, ObjectHash)>,
+    new_out: &mut Vec<(PathBuf, ObjectHash)>,
 ) {
     old_out.reserve(items.len());
     new_out.reserve(items.len());
@@ -2199,7 +2202,7 @@ fn collect_page_blobs(
 mod test {
     use super::*;
     use crate::model::change_list::ClDiffFile;
-    use git_internal::hash::{ObjectHash, SHA1};
+    use git_internal::hash::ObjectHash;
     use git_internal::internal::object::signature::{Signature, SignatureType};
     use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
     use std::path::PathBuf;
@@ -2218,14 +2221,14 @@ mod test {
     fn test_update_tree_hash() {
         let item = TreeItem::new(
             TreeItemMode::Blob,
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             "path".to_string(),
         );
 
         let tree = Tree::from_tree_items(vec![item]).expect("tree should build");
         let tree = Arc::new(tree);
 
-        let new_hash = SHA1::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let new_hash = ObjectHash::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
 
         let new_tree = MonoServiceLogic::update_tree_hash(tree, "path", new_hash)
             .expect("update_tree_hash should succeed");
@@ -2238,7 +2241,7 @@ mod test {
     fn test_build_result_by_chain_logic() {
         let item = TreeItem::new(
             TreeItemMode::Blob,
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             "path".to_string(),
         );
 
@@ -2263,7 +2266,7 @@ mod test {
     async fn test_process_ref_updates_logic() {
         let ref_update = RefUpdate {
             path: "/test".to_string(),
-            tree_id: SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            tree_id: ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
         };
 
         let tree_update_result = TreeUpdateResult {
@@ -2384,16 +2387,16 @@ mod test {
         let files: Vec<ClDiffFile> = vec![
             ClDiffFile::New(
                 PathBuf::from("file1.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
             ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
             ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
-                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+                ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
         ];
 
@@ -2422,20 +2425,20 @@ mod test {
         let files: Vec<ClDiffFile> = vec![
             ClDiffFile::New(
                 PathBuf::from("file1.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
             ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
             ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
-                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+                ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
             ClDiffFile::New(
                 PathBuf::from("file4.txt"),
-                SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
+                ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap(),
             ),
         ];
 
@@ -2466,16 +2469,16 @@ mod test {
         let files: Vec<ClDiffFile> = vec![
             ClDiffFile::New(
                 PathBuf::from("file1.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
             ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
             ClDiffFile::Deleted(
                 PathBuf::from("file3.txt"),
-                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+                ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
         ];
 
@@ -2503,7 +2506,7 @@ mod test {
     fn test_paging_calculation_out_of_bounds() {
         let files: Vec<ClDiffFile> = vec![ClDiffFile::New(
             PathBuf::from("file1.txt"),
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
 
         let page_size = 2u32;
@@ -2530,7 +2533,7 @@ mod test {
     fn test_paging_calculation_edge_case_zero_page_size() {
         let files: Vec<ClDiffFile> = vec![ClDiffFile::New(
             PathBuf::from("file1.txt"),
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
 
         let page_size = 0u32;
@@ -2558,12 +2561,12 @@ mod test {
         let files: Vec<ClDiffFile> = vec![
             ClDiffFile::New(
                 PathBuf::from("file1.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
             ),
             ClDiffFile::Modified(
                 PathBuf::from("file2.txt"),
-                SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-                SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+                ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
+                ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
             ),
         ];
 
@@ -2606,7 +2609,7 @@ mod test {
     fn test_collect_page_blobs_new_files() {
         let files = vec![ClDiffFile::New(
             PathBuf::from("new_file.txt"),
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
 
         let mut old_blobs = Vec::new();
@@ -2623,7 +2626,7 @@ mod test {
     fn test_collect_page_blobs_deleted_files() {
         let files = vec![ClDiffFile::Deleted(
             PathBuf::from("deleted_file.txt"),
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
         )];
 
         let mut old_blobs = Vec::new();
@@ -2687,8 +2690,8 @@ mod test {
     fn test_collect_page_blobs_modified_files() {
         let files = vec![ClDiffFile::Modified(
             PathBuf::from("modified_file.txt"),
-            SHA1::from_str("1234567890123456789012345678901234567890").unwrap(),
-            SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
+            ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap(),
+            ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap(),
         )];
 
         let mut old_blobs = Vec::new();
@@ -2707,16 +2710,16 @@ mod test {
         let files = vec![
             ClDiffFile::New(
                 PathBuf::from("new.txt"),
-                SHA1::from_str("1111111111111111111111111111111111111111").unwrap(),
+                ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
             ),
             ClDiffFile::Deleted(
                 PathBuf::from("deleted.txt"),
-                SHA1::from_str("2222222222222222222222222222222222222222").unwrap(),
+                ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap(),
             ),
             ClDiffFile::Modified(
                 PathBuf::from("modified.txt"),
-                SHA1::from_str("3333333333333333333333333333333333333333").unwrap(),
-                SHA1::from_str("4444444444444444444444444444444444444444").unwrap(),
+                ObjectHash::from_str("3333333333333333333333333333333333333333").unwrap(),
+                ObjectHash::from_str("4444444444444444444444444444444444444444").unwrap(),
             ),
         ];
 
@@ -2750,12 +2753,12 @@ mod test {
         let new_blobs = vec![(PathBuf::from("test_file.txt"), new_blob.id)];
 
         // Create a blob cache for the test
-        let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+        let mut blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
         blob_cache.insert(old_blob.id, old_content.as_bytes().to_vec());
         blob_cache.insert(new_blob.id, new_content.as_bytes().to_vec());
 
         // Test the diff engine directly
-        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+        let read_content = |_file: &PathBuf, hash: &ObjectHash| -> Vec<u8> {
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 
@@ -2793,16 +2796,16 @@ mod test {
     #[tokio::test]
     async fn test_get_diff_by_blobs_with_empty_content() {
         // Test diff generation with empty content (simulating missing blobs)
-        let old_hash = SHA1::from_str("1234567890123456789012345678901234567890").unwrap();
-        let new_hash = SHA1::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap();
+        let old_hash = ObjectHash::from_str("1234567890123456789012345678901234567890").unwrap();
+        let new_hash = ObjectHash::from_str("abcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap();
 
         let old_blobs = vec![(PathBuf::from("empty_file.txt"), old_hash)];
         let new_blobs = vec![(PathBuf::from("empty_file.txt"), new_hash)];
 
         // Create empty blob cache to simulate missing blobs
-        let blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+        let blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
 
-        let read_content = |_file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+        let read_content = |_file: &PathBuf, hash: &ObjectHash| -> Vec<u8> {
             blob_cache.get(hash).cloned().unwrap_or_default()
         };
 

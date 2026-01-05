@@ -1,4 +1,4 @@
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::object::blob::Blob;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use git_internal::internal::object::types::ObjectType;
@@ -93,7 +93,7 @@ pub fn diff(
                     // node is a changed ()blob.
                     // just compute the NEW hash first.
                     let content = std::fs::read(&node)?;
-                    item.id = SHA1::from_type_and_data(ObjectType::Blob, &content);
+                    item.id = ObjectHash::from_type_and_data(ObjectType::Blob, &content);
                     blobs.push(Blob::from_content_bytes(content));
                 }
                 break;
@@ -113,7 +113,7 @@ pub fn diff(
                 // is dictionary.
                 t.tree_items.push(TreeItem {
                     mode: TreeItemMode::Tree,
-                    id: SHA1::default(),
+                    id: ObjectHash::default(),
                     name: new_name,
                 });
             } else {

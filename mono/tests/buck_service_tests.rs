@@ -1054,7 +1054,7 @@ async fn test_upload_file_hash_verification_success() {
 // Section 5: BuckService::complete_upload Tests
 // ============================================================================
 
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -1072,7 +1072,7 @@ fn create_test_commit_artifacts(
     // Create a simple tree with one blob
     let tree = Tree::from_tree_items(vec![TreeItem {
         mode: TreeItemMode::Blob,
-        id: SHA1::from_str(tree_hash).unwrap(),
+        id: ObjectHash::from_str(tree_hash).unwrap(),
         name: "test.txt".to_string(),
     }])
     .unwrap();
@@ -1080,7 +1080,11 @@ fn create_test_commit_artifacts(
     let tree_model = tree.into_mega_model(EntryMeta::default());
 
     // Create a commit
-    let commit = Commit::from_tree_id(SHA1::from_str(tree_hash).unwrap(), vec![], "Test commit");
+    let commit = Commit::from_tree_id(
+        ObjectHash::from_str(tree_hash).unwrap(),
+        vec![],
+        "Test commit",
+    );
 
     let commit_model = commit.into_mega_model(EntryMeta::default());
 

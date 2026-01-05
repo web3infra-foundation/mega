@@ -4,18 +4,18 @@ use std::{
 };
 
 use crate::utils::lfs::generate_pointer_file;
-use git_internal::{hash::SHA1, internal::object::blob::Blob};
+use git_internal::{hash::ObjectHash, internal::object::blob::Blob};
 
 use crate::scolfs::lfs::backup_lfs_file;
 #[allow(unused)]
 pub trait BlobExt {
-    fn load(hash: &SHA1) -> Blob;
+    fn load(hash: &ObjectHash) -> Blob;
     fn from_file(path: impl AsRef<Path>) -> Blob;
     fn from_lfs_file(path: impl AsRef<Path>) -> Blob;
-    fn save(&self) -> SHA1;
+    fn save(&self) -> ObjectHash;
 }
 impl BlobExt for Blob {
-    fn load(_hash: &SHA1) -> Blob {
+    fn load(_hash: &ObjectHash) -> Blob {
         todo!()
     }
 
@@ -39,7 +39,7 @@ impl BlobExt for Blob {
         Blob::from_content(&pointer)
     }
 
-    fn save(&self) -> SHA1 {
+    fn save(&self) -> ObjectHash {
         todo!();
     }
 }

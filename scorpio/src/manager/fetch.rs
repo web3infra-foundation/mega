@@ -7,7 +7,7 @@ use async_recursion::async_recursion;
 use ceres::model::git::LatestCommitInfo;
 use crossbeam::queue::SegQueue;
 use futures::future::join_all;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::object::tree::{Tree, TreeItemMode};
 use git_internal::internal::object::{
     commit::Commit,
@@ -32,13 +32,13 @@ use tokio::time::Duration;
 ///Download a file needs it's blob_id and save_path.
 #[derive(Debug, Clone)]
 pub struct DownloadTask {
-    file_id: SHA1,
+    file_id: ObjectHash,
     save_path: PathBuf,
     retry_count: u32,
 }
 
 impl DownloadTask {
-    pub fn new(file_id: SHA1, save_path: PathBuf) -> Self {
+    pub fn new(file_id: ObjectHash, save_path: PathBuf) -> Self {
         Self {
             file_id,
             save_path,
@@ -71,7 +71,7 @@ impl DownloadTask {
 ///
 /// 2. **File Download Phase**:
 ///    - File download tasks are processed by a fixed pool of worker threads
-///    - Each task downloads a file from the server using its SHA1 hash
+///    - Each task downloads a file from the server using its ObjectHash
 ///    - Workers update the `pending_tasks` counter as they complete downloads
 ///
 /// 3. **Completion Coordination**:
@@ -318,7 +318,7 @@ impl DownloadManager {
 }
 
 /// Enqueue a file download task,the common entry point for downloading files.
-pub fn enqueue_file_download(file_id: SHA1, save_path: PathBuf) {
+pub fn enqueue_file_download(file_id: ObjectHash, save_path: PathBuf) {
     let download_manager = DownloadManager::get_global();
     let task = DownloadTask::new(file_id, save_path);
 
@@ -329,7 +329,7 @@ pub fn enqueue_file_download(file_id: SHA1, save_path: PathBuf) {
 
 /// Download multiple files for CL scenarios.
 pub async fn download_cl_files(
-    files: Vec<(SHA1, PathBuf)>,
+    files: Vec<(ObjectHash, PathBuf)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let download_manager = DownloadManager::get_global();
 
@@ -791,7 +791,7 @@ async fn _set_parent_commit(work_path: &Path, repo_path: &str) -> std::io::Resul
 
 /// Network operations, extracting Blobs objects from HTTP byte streams and storing them
 async fn fetch_and_save_file(
-    url: &SHA1,
+    url: &ObjectHash,
     save_path: impl AsRef<Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
@@ -865,7 +865,7 @@ pub async fn fetch_parent_commit(path: &str) -> Result<Commit, Box<dyn std::erro
         Ok(Commit::new(
             author_sign,
             committer_sign,
-            SHA1::from_str(&parent_info.oid)?,
+            ObjectHash::from_str(&parent_info.oid)?,
             Vec::new(),
             &parent_info.short_message,
         ))

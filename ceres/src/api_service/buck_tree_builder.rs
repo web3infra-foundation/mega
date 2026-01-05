@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use common::errors::MegaError;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::metadata::EntryMeta;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -26,7 +26,7 @@ pub struct TreeBuildResult {
     /// All new trees that need to be saved (including intermediate directories)
     pub new_trees: Vec<Tree>,
     /// The final tree hash (same as root_tree.id)
-    pub tree_hash: SHA1,
+    pub tree_hash: ObjectHash,
 }
 
 /// Result of building a complete commit
@@ -178,7 +178,7 @@ impl BuckCommitBuilder {
             .await?;
 
         // Create commit with the new tree
-        let parent_sha = SHA1::from_str(base_commit_hash)
+        let parent_sha = ObjectHash::from_str(base_commit_hash)
             .map_err(|e| MegaError::Other(format!("Invalid parent hash: {}", e)))?;
 
         let commit = Commit::from_tree_id(tree_result.tree_hash, vec![parent_sha], message);
@@ -441,9 +441,9 @@ impl BuckCommitBuilder {
     /// This is only used in memory during tree building.
     /// The actual Git tree object will be created when items are added.
     fn empty_tree() -> Tree {
-        // Create a valid empty tree to get the correct SHA1 hash
+        // Create a valid empty tree to get the correct ObjectHash
         Tree::from_tree_items(vec![]).unwrap_or(Tree {
-            id: SHA1::default(),
+            id: ObjectHash::default(),
             tree_items: vec![],
         })
     }
@@ -682,7 +682,7 @@ mod tests {
     #[test]
     fn test_nested_directory_tree_building() {
         // Setup: Create a file change for a/b/c.txt
-        let blob_hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"; // SHA1 of empty file
+        let blob_hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"; // SHA-1 hash of empty file
         let file = FileChange::new(
             "a/b/c.txt".to_string(),
             format!("sha1:{}", blob_hash),
@@ -855,7 +855,7 @@ mod tests {
         // Create a fake child tree for "src" directory
         let src_tree = Tree::from_tree_items(vec![TreeItem {
             mode: TreeItemMode::Blob,
-            id: SHA1::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap(),
+            id: ObjectHash::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap(),
             name: "main.rs".to_string(),
         }])
         .unwrap();
@@ -1342,7 +1342,7 @@ mod tests {
         }
     }
 
-    /// Test that valid SHA1 hashes with correct format are accepted.
+    /// Test that valid ObjectHash values with correct format are accepted.
     ///
     /// All hashes are normalized to lowercase per Git convention.
     #[test]
@@ -1747,7 +1747,8 @@ mod tests {
         let builder = BuckCommitBuilder::new(storage.mono_storage());
 
         // Create a tree with a subdirectory "config"
-        let config_tree_hash = SHA1::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
+        let config_tree_hash =
+            ObjectHash::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
         let existing_tree = Tree::from_tree_items(vec![TreeItem {
             mode: TreeItemMode::Tree,
             id: config_tree_hash,
@@ -1785,11 +1786,11 @@ mod tests {
     /// Test Git Sorting Rules
     #[test]
     fn test_git_sort_order() {
-        use git_internal::hash::SHA1;
+        use git_internal::hash::ObjectHash;
         use std::str::FromStr;
 
         // Setup items
-        let blob_hash = SHA1::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
+        let blob_hash = ObjectHash::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();
 
         // According to Git rules:
         // "foo" (directory) -> implicitly "foo/"

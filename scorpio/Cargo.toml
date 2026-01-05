@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 ceres = { path = "../ceres" }
-
+git-internal = { workspace = true }
 reqwest =  { version = "0.12.7", features = ["json","blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
@@ -59,7 +59,7 @@ dashmap = "6.1.0"
 chrono = "0.4.24"
 ring = "0.17.8"
 hex = "0.4.3"
-git-internal = "0.1.0"
+
 async-trait.workspace = true
 tracing-subscriber.workspace = true
 

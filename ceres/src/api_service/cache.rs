@@ -4,7 +4,7 @@ use redis::{AsyncCommands, aio::ConnectionManager};
 
 use common::errors::MegaError;
 use git_internal::{
-    hash::SHA1,
+    hash::ObjectHash,
     internal::object::{commit::Commit, tree::Tree},
 };
 
@@ -17,9 +17,13 @@ pub struct GitObjectCache {
 const DEFAULT_EXPIRY_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
 impl GitObjectCache {
-    pub async fn get_tree<F, Fut>(&self, oid: SHA1, fetch_tree: F) -> Result<Arc<Tree>, MegaError>
+    pub async fn get_tree<F, Fut>(
+        &self,
+        oid: ObjectHash,
+        fetch_tree: F,
+    ) -> Result<Arc<Tree>, MegaError>
     where
-        F: Fn(SHA1) -> Fut,
+        F: Fn(ObjectHash) -> Fut,
         Fut: Future<Output = Result<Tree, MegaError>>,
     {
         let key = format!("{}:tree:{}", self.prefix, oid);
@@ -43,11 +47,11 @@ impl GitObjectCache {
 
     pub async fn get_commit<F, Fut>(
         &self,
-        oid: SHA1,
+        oid: ObjectHash,
         fetch_commit: F,
     ) -> Result<Arc<Commit>, MegaError>
     where
-        F: Fn(SHA1) -> Fut,
+        F: Fn(ObjectHash) -> Fut,
         Fut: Future<Output = Result<Commit, MegaError>>,
     {
         let mut conn = self.connection.clone();
