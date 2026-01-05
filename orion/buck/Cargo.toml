@@ -24,6 +24,4 @@ tracing = "0.1.22"
 td_util = { path = "../td_util" }
 audit = { path = "../audit" }
 
-utoipa-axum.workspace = true
 utoipa.workspace = true
-utoipa-swagger-ui = { workspace = true, features = ["axum"] }
