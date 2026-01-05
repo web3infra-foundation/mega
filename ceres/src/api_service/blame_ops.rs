@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use git_internal::diff::{DiffOperation, compute_diff};
 use git_internal::errors::GitError;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::object::commit::Commit;
 use git_internal::internal::object::tree::TreeItemMode;
 
@@ -21,7 +21,7 @@ struct LineAttribution {
     /// Line number in the final file (1-indexed)
     final_line_number: usize,
     /// The commit that introduced this line
-    commit_id: SHA1,
+    commit_id: ObjectHash,
     /// Whether this line's attribution has been finalized
     determined: bool,
 }
@@ -29,7 +29,7 @@ struct LineAttribution {
 /// Context for caching data during a single blame operation.
 struct BlameContext {
     /// Cache for blob hash: commit_id -> blob_hash (None if file doesn't exist)
-    blob_hash_cache: HashMap<SHA1, Option<SHA1>>,
+    blob_hash_cache: HashMap<ObjectHash, Option<ObjectHash>>,
 }
 
 impl BlameContext {
@@ -65,7 +65,7 @@ async fn get_blob_hash_cached<T: ApiHandler + ?Sized>(
     file_path: &Path,
     commit: &Commit,
     ctx: &mut BlameContext,
-) -> Option<SHA1> {
+) -> Option<ObjectHash> {
     // Check cache first
     if let Some(cached) = ctx.blob_hash_cache.get(&commit.id) {
         return *cached;
@@ -82,7 +82,7 @@ async fn get_file_content_and_hash<T: ApiHandler + ?Sized>(
     handler: &T,
     file_path: &Path,
     commit: &Commit,
-) -> Result<(String, SHA1), GitError> {
+) -> Result<(String, ObjectHash), GitError> {
     let root_tree = handler
         .object_cache()
         .get_tree(commit.tree_id, |id| async move {
@@ -322,7 +322,7 @@ async fn navigate_to_blob<T: ApiHandler + ?Sized>(
     handler: &T,
     root_tree: Arc<git_internal::internal::object::tree::Tree>,
     path: &Path,
-) -> Result<Option<SHA1>, GitError> {
+) -> Result<Option<ObjectHash>, GitError> {
     // Skip RootDir component for consistent path handling
     let components: Vec<&str> = path
         .components()
@@ -383,7 +383,7 @@ async fn build_line_attributions<T: ApiHandler + ?Sized>(
     handler: &T,
     file_path: &Path,
     start_commit: &Commit,
-    start_blob_hash: SHA1,
+    start_blob_hash: ObjectHash,
     current_lines: &[String],
     target_range: Option<(usize, usize)>,
     ctx: &mut BlameContext,
@@ -449,7 +449,7 @@ async fn build_line_attributions<T: ApiHandler + ?Sized>(
         }
 
         // Group undetermined lines by their current commit for batch processing
-        let mut commit_groups: HashMap<SHA1, Vec<usize>> = HashMap::new();
+        let mut commit_groups: HashMap<ObjectHash, Vec<usize>> = HashMap::new();
         for (idx, state) in line_states.iter().enumerate() {
             if !attributions[state.attr_index].determined {
                 commit_groups
@@ -626,7 +626,7 @@ struct LineTraversalState {
     /// File content at current commit (shared via Arc)
     content_lines: Arc<Vec<String>>,
     /// Blob hash of the file at current commit (for TREESAME check)
-    blob_hash: Option<SHA1>,
+    blob_hash: Option<ObjectHash>,
 }
 
 /// Data about a parent commit for blame traversal
@@ -634,7 +634,7 @@ struct ParentBlameData {
     /// The parent commit
     commit: Commit,
     /// Blob hash of the file at this parent
-    blob_hash: Option<SHA1>,
+    blob_hash: Option<ObjectHash>,
     /// File content lines at this parent (None if file doesn't exist or identical)
     file_lines: Option<Arc<Vec<String>>>,
     /// Line number mapping: current_line -> parent_line (for unchanged lines)
@@ -801,7 +801,7 @@ async fn get_file_hash_simple<T: ApiHandler + ?Sized>(
     handler: &T,
     file_path: &Path,
     commit: &Commit,
-) -> Option<SHA1> {
+) -> Option<ObjectHash> {
     let root_tree = handler
         .object_cache()
         .get_tree(commit.tree_id, |id| async move {

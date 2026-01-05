@@ -6,7 +6,7 @@ use std::{
 
 use git_internal::{
     errors::GitError,
-    hash::SHA1,
+    hash::ObjectHash,
     internal::object::{
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
@@ -21,7 +21,7 @@ const MAX_ITERATIONS: usize = 10_000;
 struct ParentInfo {
     commit: Arc<Commit>,
     /// Map of item name -> (hash, mode) for quick TREESAME check
-    item_hashes: HashMap<String, (SHA1, TreeItemMode)>,
+    item_hashes: HashMap<String, (ObjectHash, TreeItemMode)>,
 }
 
 /// State for tracking a single item's traversal through commit history.
@@ -29,9 +29,9 @@ struct ItemTraversalState {
     /// The tree item being tracked
     item: TreeItem,
     /// BFS queue: (commit_id, item_hash_at_that_commit)
-    queue: VecDeque<(SHA1, SHA1)>,
+    queue: VecDeque<(ObjectHash, ObjectHash)>,
     /// Set of visited commit IDs to avoid cycles
-    visited: HashSet<SHA1>,
+    visited: HashSet<ObjectHash>,
     /// Whether this item's last modification has been determined
     determined: bool,
     /// The commit where this item was last modified (set when determined)
@@ -85,7 +85,7 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
     }
 
     // Build items list with their current hashes
-    let items: Vec<(TreeItem, SHA1)> = tree_items
+    let items: Vec<(TreeItem, ObjectHash)> = tree_items
         .into_iter()
         .map(|item| {
             let hash = item.id;
@@ -122,7 +122,7 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
     handler: &T,
     path: &Path,
     start_commit: Arc<Commit>,
-    items: Vec<(TreeItem, SHA1)>,
+    items: Vec<(TreeItem, ObjectHash)>,
 ) -> Result<HashMap<TreeItem, Commit>, GitError> {
     let item_count = items.len();
     if item_count == 0 {
@@ -150,14 +150,15 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
     let mut pending_count = item_count;
 
     // Cache for commits we've loaded
-    let mut commit_cache: HashMap<SHA1, Arc<Commit>> = HashMap::new();
+    let mut commit_cache: HashMap<ObjectHash, Arc<Commit>> = HashMap::new();
     commit_cache.insert(start_commit.id, start_commit.clone());
 
     // Cache for tree_id -> item_hashes at the target path
-    let mut tree_items_cache: HashMap<SHA1, HashMap<String, (SHA1, TreeItemMode)>> = HashMap::new();
+    let mut tree_items_cache: HashMap<ObjectHash, HashMap<String, (ObjectHash, TreeItemMode)>> =
+        HashMap::new();
 
     // Cache for intermediate directory trees during path navigation
-    let mut path_tree_cache: HashMap<SHA1, Arc<Tree>> = HashMap::new();
+    let mut path_tree_cache: HashMap<ObjectHash, Arc<Tree>> = HashMap::new();
 
     let mut iteration = 0;
 
@@ -174,7 +175,7 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
         }
 
         // Collect current batch from each undetermined item's queue
-        let mut current_batch: Vec<(usize, SHA1, SHA1)> = Vec::new();
+        let mut current_batch: Vec<(usize, ObjectHash, ObjectHash)> = Vec::new();
         for (idx, state) in item_states.iter_mut().enumerate() {
             if !state.determined
                 && let Some((commit_id, item_hash)) = state.queue.pop_front()
@@ -188,7 +189,7 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
         }
 
         // Group by commit_id to share parent loading
-        let mut commit_groups: HashMap<SHA1, Vec<(usize, SHA1)>> = HashMap::new();
+        let mut commit_groups: HashMap<ObjectHash, Vec<(usize, ObjectHash)>> = HashMap::new();
         for (idx, commit_id, item_hash) in current_batch {
             commit_groups
                 .entry(commit_id)
@@ -261,7 +262,7 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
                         .await?;
 
                         // Build hash map for TREESAME check
-                        let item_hashes: HashMap<String, (SHA1, TreeItemMode)> =
+                        let item_hashes: HashMap<String, (ObjectHash, TreeItemMode)> =
                             if let Some(ref t) = parent_target_tree_opt {
                                 t.tree_items
                                     .iter()
@@ -292,7 +293,7 @@ async fn traverse_items_for_last_modification<T: ApiHandler + ?Sized>(
                 let item_mode = state.item.mode;
 
                 // Collect all TREESAME parents
-                let mut treesame_parents: Vec<(SHA1, SHA1)> = Vec::new();
+                let mut treesame_parents: Vec<(ObjectHash, ObjectHash)> = Vec::new();
                 for parent in &parent_data {
                     if let Some(&(parent_hash, parent_mode)) = parent.item_hashes.get(item_name)
                         && parent_hash == item_hash
@@ -359,7 +360,7 @@ async fn navigate_to_tree_with_cache<T: ApiHandler + ?Sized>(
     handler: &T,
     root_tree: Arc<Tree>,
     path: &Path,
-    tree_cache: &mut HashMap<SHA1, Arc<Tree>>,
+    tree_cache: &mut HashMap<ObjectHash, Arc<Tree>>,
 ) -> Result<Option<Arc<Tree>>, GitError> {
     let relative_path = handler
         .strip_relative(path)

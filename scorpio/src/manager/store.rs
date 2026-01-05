@@ -1,4 +1,4 @@
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use git_internal::internal::object::ObjectTrait;
 use git_internal::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use std::collections::HashMap;
@@ -199,8 +199,8 @@ impl BlobFsStore for PathBuf {
                     "Hash must be 40 characters long",
                 ))?;
                 let hash_path = object_path.join(hash_flag);
-                let sha_hash =
-                    SHA1::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+                let sha_hash = ObjectHash::from_str(hash)
+                    .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
                 let data_path = hash_path.join(&hash[2..]);
                 let data = std::fs::read(&data_path)?;
@@ -589,7 +589,7 @@ impl TempStoreArea {
 #[cfg(test)]
 mod test {
     use git_internal::{
-        hash::SHA1,
+        hash::ObjectHash,
         internal::object::tree::{Tree, TreeItem, TreeItemMode},
     };
     use std::vec;
@@ -603,7 +603,7 @@ mod test {
         let db = sled::open(db_path).unwrap();
         let t = Tree::from_tree_items(vec![TreeItem::new(
             TreeItemMode::Blob,
-            SHA1::new(&[4u8, 4u8, 4u8, 64u8, 84u8, 84u8]),
+            ObjectHash::new(&[4u8, 4u8, 4u8, 64u8, 84u8, 84u8]),
             String::from("test"),
         )])
         .unwrap();

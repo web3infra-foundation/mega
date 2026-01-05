@@ -28,7 +28,7 @@ use super::size_store::SizeStorage;
 use super::tree_store::{StorageItem, TreeStorage};
 use crate::util::{config, GPath};
 
-/// Git SHA1 for an empty blob (0-byte file).
+/// Git hash (ObjectHash type) for an empty blob (0-byte file).
 ///
 /// This lets us distinguish legitimate empty files from failures (e.g., network/HTTP errors)
 /// that must NOT be cached as empty content.

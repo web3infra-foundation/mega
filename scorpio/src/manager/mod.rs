@@ -4,7 +4,7 @@ use add::add_and_del;
 use commit::commit_core;
 use fs_extra::dir::{copy, CopyOptions};
 use git_internal::{
-    hash::SHA1,
+    hash::ObjectHash,
     internal::object::{
         commit::Commit,
         signature::{Signature, SignatureType},
@@ -101,7 +101,7 @@ impl ScorpioManager {
         let parent_commit = fs::read_to_string(&commitpath)?;
         let regex_rule = Regex::new(r#"tree: (?<parent_hash>[0-9a-z]{40})"#).unwrap();
         let parent_hash = match regex_rule.captures(&parent_commit) {
-            Some(parent_info) => vec![SHA1::from_str(&parent_info["parent_hash"])?],
+            Some(parent_info) => vec![ObjectHash::from_str(&parent_info["parent_hash"])?],
             None => return Err(Box::from("Parent hash not found in commit file")),
         };
 

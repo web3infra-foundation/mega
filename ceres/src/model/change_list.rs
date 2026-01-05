@@ -8,7 +8,7 @@ use uuid::Uuid;
 use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
 use common::model::CommonPage;
 use common::model::DiffItem;
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use jupiter::model::cl_dto::CLDetails;
 use jupiter::model::common::ListParams;
 
@@ -299,10 +299,10 @@ pub struct CloneRepoPayload {
 
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum ClDiffFile {
-    New(PathBuf, SHA1),
-    Deleted(PathBuf, SHA1),
+    New(PathBuf, ObjectHash),
+    Deleted(PathBuf, ObjectHash),
     // path, old_hash, new_hash
-    Modified(PathBuf, SHA1, SHA1),
+    Modified(PathBuf, ObjectHash, ObjectHash),
 }
 
 impl ClDiffFile {
@@ -325,7 +325,7 @@ impl ClDiffFile {
 
 #[derive(Serialize)]
 pub struct BuckFile {
-    pub buck: SHA1,
-    pub buck_config: SHA1,
+    pub buck: ObjectHash,
+    pub buck_config: ObjectHash,
     pub path: PathBuf,
 }

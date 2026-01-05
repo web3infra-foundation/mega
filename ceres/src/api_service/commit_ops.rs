@@ -14,7 +14,7 @@ use crate::model::change_list::MuiTreeNode;
 use crate::model::commit::{CommitFilesChangedPage, CommitSummary, GpgStatus};
 use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
 use common::model::{CommonPage, DiffItem, Pagination};
-use git_internal::hash::SHA1;
+use git_internal::hash::ObjectHash;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
@@ -301,7 +301,7 @@ async fn compute_path_hash<T: ApiHandler + ?Sized>(
     handler: &T,
     commit: &Commit,
     path: &PathBuf,
-) -> Result<Option<SHA1>, GitError> {
+) -> Result<Option<ObjectHash>, GitError> {
     let tree = handler
         .object_cache()
         .get_tree(commit.tree_id, |tree_id| async move {
@@ -346,7 +346,7 @@ pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
     let start = resolve_start_commit(handler, start_refs).await?;
 
     // BFS to collect all reachable commits (avoid missing merge histories)
-    let mut visited: HashSet<SHA1> = HashSet::new();
+    let mut visited: HashSet<ObjectHash> = HashSet::new();
     let mut queue: VecDeque<Commit> = VecDeque::new();
     let mut all: Vec<Commit> = Vec::new();
     queue.push_back((*start).clone());
@@ -448,18 +448,18 @@ pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
     Ok(result)
 }
 
-/// Collect all blobs (path -> SHA1) under a commit tree
+/// Collect all blobs as (path, ObjectHash) pairs under a commit tree
 async fn collect_commit_blobs<T: ApiHandler + ?Sized>(
     handler: &T,
     commit: &Commit,
-) -> Result<Vec<(PathBuf, SHA1)>, GitError> {
+) -> Result<Vec<(PathBuf, ObjectHash)>, GitError> {
     // Load the root tree for this commit and traverse it
     let root_tree = handler
         .get_tree_by_hash(&commit.tree_id.to_string())
         .await?;
 
     // Generic DFS traversal using handler.get_tree_by_hash for child trees
-    let mut result: Vec<(PathBuf, SHA1)> = Vec::new();
+    let mut result: Vec<(PathBuf, ObjectHash)> = Vec::new();
     let mut stack: Vec<(PathBuf, git_internal::internal::object::tree::Tree)> =
         vec![(PathBuf::new(), root_tree)];
     while let Some((base, tree)) = stack.pop() {
@@ -615,12 +615,12 @@ async fn compute_changed_paths<T: ApiHandler + ?Sized>(
     commit: &Commit,
 ) -> Result<Vec<String>, GitError> {
     let new_blobs = collect_commit_blobs(handler, commit).await?;
-    let new_map: HashMap<String, SHA1> = new_blobs
+    let new_map: HashMap<String, ObjectHash> = new_blobs
         .into_iter()
         .map(|(path, hash)| (pathbuf_to_string(&path), hash))
         .collect();
 
-    let mut parent_maps: Vec<HashMap<String, SHA1>> = Vec::new();
+    let mut parent_maps: Vec<HashMap<String, ObjectHash>> = Vec::new();
     for &pid in &commit.parent_commit_ids {
         let parent = handler.get_commit_by_hash(&pid.to_string()).await?;
         let blobs = collect_commit_blobs(handler, &parent).await?;
@@ -683,8 +683,8 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
     filter_paths: Option<&[String]>,
 ) -> Result<Vec<DiffItem>, GitError> {
     let new_blobs = collect_commit_blobs(handler, commit).await?;
-    let mut all_hashes: HashSet<SHA1> = new_blobs.iter().map(|(_, hash)| *hash).collect();
-    let mut parent_blobs_set: Vec<Vec<(PathBuf, SHA1)>> = Vec::new();
+    let mut all_hashes: HashSet<ObjectHash> = new_blobs.iter().map(|(_, hash)| *hash).collect();
+    let mut parent_blobs_set: Vec<Vec<(PathBuf, ObjectHash)>> = Vec::new();
 
     for &pid in &commit.parent_commit_ids {
         let parent = handler.get_commit_by_hash(&pid.to_string()).await?;
@@ -696,7 +696,7 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
     }
 
     let ctx = handler.get_context();
-    let mut blob_cache: HashMap<SHA1, Vec<u8>> = HashMap::new();
+    let mut blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
     for hash in &all_hashes {
         match ctx.git_service.get_object_as_bytes(&hash.to_string()).await {
             Ok(blob) => {
@@ -706,7 +706,7 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
         }
     }
 
-    let read_content = |file: &PathBuf, hash: &SHA1| -> Vec<u8> {
+    let read_content = |file: &PathBuf, hash: &ObjectHash| -> Vec<u8> {
         blob_cache.get(hash).cloned().unwrap_or_else(|| {
             tracing::warn!("Missing blob for {:?} {}", file, hash);
             Vec::new()
@@ -719,7 +719,7 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
     };
 
     let diff_results: Vec<git_internal::diff::DiffItem> = if parent_blobs_set.is_empty() {
-        let empty: Vec<(PathBuf, SHA1)> = Vec::new();
+        let empty: Vec<(PathBuf, ObjectHash)> = Vec::new();
         git_internal::diff::Diff::diff(empty, new_blobs, filters, read_content)
     } else {
         let mut combined: HashMap<String, git_internal::diff::DiffItem> = HashMap::new();
