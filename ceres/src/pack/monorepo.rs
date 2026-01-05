@@ -796,6 +796,7 @@ impl MonoRepo {
     }
 
     /// Collect Cedar policy files from directories of all changed files.
+    /// Also collects policies from parent directories up to Monorepo root for inheritance.
     /// Tries from_hash first for security, then falls back to to_hash for new directories.
     /// Returns list of (policy_path, content) tuples, ordered from root to leaf.
     async fn collect_policy_contents(&self, changed_files: &[String]) -> Vec<(PathBuf, String)> {
@@ -837,7 +838,35 @@ impl MonoRepo {
         let mut seen_policies: HashSet<String> = HashSet::new();
 
         let self_path_str = self.path.to_string_lossy().replace('\\', "/");
+        let self_path_normalized = self_path_str.trim_start_matches('/');
 
+        // Step 1: Collect parent policies from Monorepo root down to CL directory
+        // This enables inheritance from e.g. /project/.cedar/policies.cedar
+        let parent_dirs = self.collect_parent_policy_dirs();
+
+        for parent_dir in parent_dirs {
+            // Use absolute path as key to avoid collision with CL-local policies
+            let absolute_policy_path = if parent_dir.is_empty() {
+                "/.cedar/policies.cedar".to_string()
+            } else {
+                format!("/{}/.cedar/policies.cedar", parent_dir)
+            };
+
+            if seen_policies.contains(&absolute_policy_path) {
+                continue;
+            }
+
+            // For parent policies, we use a rooted MonoApiService
+            if let Some(content) = self
+                .get_parent_policy_content(&mono_api_service, &parent_dir)
+                .await
+            {
+                seen_policies.insert(absolute_policy_path.clone());
+                policy_contents.push((PathBuf::from(&absolute_policy_path), content));
+            }
+        }
+
+        // Step 2: Collect policies within the CL directory
         for dir in sorted_dirs {
             let policy_relative_path = if dir.as_os_str().is_empty() {
                 ".cedar/policies.cedar".to_string()
@@ -846,14 +875,21 @@ impl MonoRepo {
                 format!("{}/.cedar/policies.cedar", dir_str)
             };
 
-            if seen_policies.contains(&policy_relative_path) {
+            // Build absolute path for deduplication
+            let absolute_policy_path = if self_path_normalized.is_empty() {
+                format!("/{}", policy_relative_path)
+            } else {
+                format!("/{}/{}", self_path_normalized, policy_relative_path)
+            };
+
+            // Skip if already seen from parent collection
+            if seen_policies.contains(&absolute_policy_path) {
                 continue;
             }
 
             let lookup_path = PathBuf::from(&policy_relative_path);
 
-            // Try from_hash first for security (use existing policy).
-            // If not found, fall back to to_hash for new directories.
+            // Fetch policy content: try from_hash for existing, fall back to to_hash for new
             let content = if self.from_hash != ZERO_ID {
                 if let Ok(Some(content)) = mono_api_service
                     .get_blob_as_string(lookup_path.clone(), Some(&self.from_hash))
@@ -868,7 +904,6 @@ impl MonoRepo {
                         .flatten()
                 }
             } else {
-                // First commit (from_hash is ZERO_ID), use to_hash
                 mono_api_service
                     .get_blob_as_string(lookup_path, Some(&self.to_hash))
                     .await
@@ -877,14 +912,76 @@ impl MonoRepo {
             };
 
             if let Some(content) = content {
-                seen_policies.insert(policy_relative_path.clone());
-                let full_policy_path =
-                    PathBuf::from(format!("{}/{}", self_path_str, policy_relative_path));
-                policy_contents.push((full_policy_path, content));
+                seen_policies.insert(absolute_policy_path.clone());
+                policy_contents.push((PathBuf::from(&absolute_policy_path), content));
             }
         }
 
         policy_contents
+    }
+
+    /// Collect parent directory paths from Monorepo root to CL directory (exclusive).
+    fn collect_parent_policy_dirs(&self) -> Vec<String> {
+        let self_path_str = self.path.to_string_lossy().replace('\\', "/");
+        let self_path_normalized = self_path_str.trim_start_matches('/');
+
+        if self_path_normalized.is_empty() {
+            return vec![];
+        }
+
+        let mut parent_dirs = Vec::new();
+        let components: Vec<&str> = self_path_normalized.split('/').collect();
+
+        // Add root directory
+        parent_dirs.push(String::new());
+
+        // Add each parent level except the CL directory itself
+        let mut current_path = String::new();
+        for (i, component) in components.iter().enumerate() {
+            if i == components.len() - 1 {
+                break;
+            }
+            if current_path.is_empty() {
+                current_path = component.to_string();
+            } else {
+                current_path = format!("{}/{}", current_path, component);
+            }
+            parent_dirs.push(current_path.clone());
+        }
+
+        parent_dirs
+    }
+
+    /// Get policy content from a parent directory using storage directly.
+    async fn get_parent_policy_content(
+        &self,
+        _mono_api_service: &MonoApiService,
+        parent_dir: &str,
+    ) -> Option<String> {
+        let storage = self.storage.mono_storage();
+
+        // Get the main ref for the parent directory
+        let parent_path = if parent_dir.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{}", parent_dir)
+        };
+
+        let refs = storage.get_main_ref(&parent_path).await.ok()??;
+
+        // Create a temporary MonoApiService for the parent path
+        let parent_mono = MonoApiService {
+            storage: self.storage.clone(),
+            git_object_cache: self.git_object_cache.clone(),
+        };
+
+        // Look up .cedar/policies.cedar in the parent directory
+        let policy_path = PathBuf::from(".cedar/policies.cedar");
+        parent_mono
+            .get_blob_as_string(policy_path, Some(&refs.ref_commit_hash))
+            .await
+            .ok()
+            .flatten()
     }
 
     /// Auto-assign system required reviewers based on Cedar policy files.
