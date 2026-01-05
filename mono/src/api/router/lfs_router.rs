@@ -41,24 +41,20 @@
 //!
 //! Ensure proper authentication and authorization mechanisms are implemented
 //! when using these handlers in a web application to prevent unauthorized access.
-use std::collections::HashMap;
-
 use axum::{
     Json,
     body::Body,
     extract::{Path, Query, State},
-    http::{Request, StatusCode},
+    http::StatusCode,
     response::Response,
 };
-use futures::TryStreamExt;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchRequest, BatchResponse, FetchChunkResponse, LockList, LockListQuery, LockRequest,
-        LockResponse, RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList,
-        VerifiableLockRequest,
+        BatchRequest, BatchResponse, LockList, LockListQuery, LockRequest, LockResponse,
+        UnlockRequest, UnlockResponse, VerifiableLockList, VerifiableLockRequest,
     },
 };
 use common::errors::GitLFSError;
@@ -67,14 +63,11 @@ use crate::api::MonoApiServiceState;
 use crate::server::http_server::LFS_TAG;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
+#[allow(dead_code)]
 const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
 
 pub fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
-        .routes(routes!(lfs_upload_object))
-        .routes(routes!(lfs_download_object))
-        .routes(routes!(lfs_download_chunk))
-        .routes(routes!(lfs_fetch_chunk_ids))
         .routes(routes!(list_locks))
         .routes(routes!(create_lock))
         .routes(routes!(list_locks_for_verification))
@@ -339,202 +332,13 @@ pub async fn lfs_process_batch(
     }
 }
 
-/// Fetch chunk IDs for a split object
-///
-/// Returns the list of chunk IDs for a large object that has been split into multiple chunks.
-#[utoipa::path(
-    get,
-    path = "/objects/{object_id}/chunks",
-    params(
-        ("object_id" = String, Path, description = "Object ID (OID) to fetch chunks for"),
-    ),
-    responses(
-        (status = 200, description = "Chunk IDs response", body = FetchChunkResponse, content_type = "application/vnd.git-lfs+json"),
-        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
-        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
-        (status = 500, description = "Internal server error or split mode not enabled")
-    ),
-    tag = LFS_TAG,
-    description = "Fetch chunk IDs for a split object. This handler is also available at `/info/lfs/objects/{object_id}/chunks` for Git LFS client compatibility."
-)]
-pub async fn lfs_fetch_chunk_ids(
-    state: State<MonoApiServiceState>,
-    Path(oid): Path<String>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_fetch_chunk_ids(&state.storage, &oid, &state.listen_addr).await;
-    match result {
-        Ok(response) => {
-            let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
-            let fetch_response = FetchChunkResponse {
-                oid,
-                size,
-                chunks: response,
-            };
-            let body = serde_json::to_string(&fetch_response).unwrap_or_default();
-            Ok(Response::builder()
-                .header("Content-Type", LFS_CONTENT_TYPE)
-                .body(Body::from(body))
-                .unwrap())
-        }
-        Err(err) => {
-            let (code, msg) = map_lfs_error(err);
-            tracing::error!("Error: {}", msg);
-            Ok(lfs_error_response(code, msg))
-        }
-    }
-}
-
-/// Download an LFS object
-///
-/// Downloads an LFS object by its OID. Returns the object data as a stream.
-#[utoipa::path(
-    get,
-    path = "/objects/{object_id}",
-    params(
-        ("object_id" = String, Path, description = "Object ID (OID) to download"),
-    ),
-    responses(
-        (status = 200, description = "Object data stream", content_type = "application/octet-stream"),
-        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
-        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
-        (status = 500, description = "Internal server error or object not found")
-    ),
-    tag = LFS_TAG,
-    description = "Download an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
-)]
-pub async fn lfs_download_object(
-    state: State<MonoApiServiceState>,
-    Path(oid): Path<String>,
-) -> Result<Response, (StatusCode, String)> {
-    let result = handler::lfs_download_object(state.storage.clone(), oid.clone()).await;
-    match result {
-        Ok(byte_stream) => Ok(Response::builder()
-            .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
-            .body(Body::from_stream(byte_stream))
-            .unwrap()),
-        Err(err) => {
-            let (code, msg) = map_lfs_error(err);
-            Ok(lfs_error_response(code, msg))
-        }
-    }
-}
-
-/// Download a chunk of an LFS object
-///
-/// Downloads a specific chunk of a split LFS object.
-/// Requires offset and size query parameters.
-#[utoipa::path(
-    get,
-    path = "/objects/{object_id}/chunks/{chunk_id}",
-    params(
-        ("object_id" = String, Path, description = "Original object ID"),
-        ("chunk_id" = String, Path, description = "Chunk ID to download"),
-        ("offset" = u64, Query, description = "Byte offset of the chunk"),
-        ("size" = u64, Query, description = "Size of the chunk in bytes"),
-    ),
-    responses(
-        (status = 200, description = "Chunk data", content_type = "application/octet-stream"),
-        (status = 400, description = "Bad request - missing or invalid offset/size parameters", content_type = "application/vnd.git-lfs+json"),
-        (status = 404, description = "Chunk not found", content_type = "application/vnd.git-lfs+json"),
-        (status = 500, description = "Internal server error or chunk not found", content_type = "application/vnd.git-lfs+json")
-    ),
-    tag = LFS_TAG,
-    description = "Download a chunk of an LFS object. This handler is also available at `/info/lfs/objects/{object_id}/chunks/{chunk_id}` for Git LFS client compatibility."
-)]
-pub async fn lfs_download_chunk(
-    state: State<MonoApiServiceState>,
-    Path((origin_object_id, chunk_id)): Path<(String, String)>,
-    Query(query_params): Query<HashMap<String, String>>,
-) -> Result<Response, (StatusCode, String)> {
-    let offset = query_params
-        .get("offset")
-        .and_then(|offset| offset.parse::<u64>().ok());
-    let size = query_params
-        .get("size")
-        .and_then(|size| size.parse::<u64>().ok());
-    if offset.is_none() || size.is_none() {
-        return Ok(lfs_error_response(
-            StatusCode::BAD_REQUEST,
-            "Valid offset and size query parameters are required".to_string(),
-        ));
-    }
-    let result = handler::lfs_download_chunk(
-        state.storage.clone(),
-        &origin_object_id,
-        &chunk_id,
-        offset.unwrap(),
-        size.unwrap(),
-    )
-    .await;
-    match result {
-        Ok(bytes) => Ok(Response::builder()
-            .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
-            .body(Body::from(bytes))
-            .unwrap()),
-        Err(err) => {
-            let (code, msg) = map_lfs_error(err);
-            Ok(lfs_error_response(code, msg))
-        }
-    }
-}
-
-/// Upload an LFS object
-///
-/// Uploads an LFS object to the server. The object data should be sent in the request body.
-#[utoipa::path(
-    put,
-    path = "/objects/{object_id}",
-    params(
-        ("object_id" = String, Path, description = "Object ID (OID) to upload"),
-    ),
-    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "Object data"),
-    responses(
-        (status = 200, description = "Object uploaded successfully", content_type = "application/vnd.git-lfs+json"),
-        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
-        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
-        (status = 500, description = "Internal server error")
-    ),
-    tag = LFS_TAG,
-    description = "Upload an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
-)]
-pub async fn lfs_upload_object(
-    state: State<MonoApiServiceState>,
-    Path(oid): Path<String>,
-    req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let req_obj = RequestObject {
-        oid,
-        ..Default::default()
-    };
-
-    // Collect bytes asynchronously from the stream into a Vec<u8>
-    let body_bytes: Vec<u8> = req
-        .into_body()
-        .into_data_stream()
-        .try_fold(Vec::new(), |mut acc, chunk| async move {
-            acc.extend_from_slice(&chunk);
-            Ok(acc)
-        })
-        .await
-        .unwrap();
-
-    let result = handler::lfs_upload_object(&state.storage, &req_obj, body_bytes).await;
-    match result {
-        Ok(_) => Ok(Response::builder()
-            .header("Content-Type", LFS_CONTENT_TYPE)
-            .body(Body::empty())
-            .unwrap()),
-        Err(err) => {
-            let (code, msg) = map_lfs_error(err);
-            Ok(lfs_error_response(code, msg))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use axum::http::StatusCode;
+    use ceres::lfs::lfs_structs::RequestObject;
 
     #[test]
     fn test_map_lfs_error_not_found() {
