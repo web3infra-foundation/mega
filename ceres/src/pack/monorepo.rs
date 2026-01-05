@@ -609,7 +609,7 @@ impl MonoRepo {
         Ok(())
     }
 
-    // TODO: remove search_buck_under_cl after orion support monorepo buck build
+    #[allow(dead_code)]
     async fn search_buck_under_cl(&self, cl_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
         let mut res = vec![];
         let mono_stg = self.storage.mono_storage();
@@ -1098,8 +1098,10 @@ impl MonoRepo {
     }
 }
 
+#[allow(dead_code)]
 type DiffResult = Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>;
 
+#[allow(dead_code)]
 fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     let their_items: HashMap<_, _> = get_plain_items(theirs).into_iter().collect();
     let base_items: HashMap<_, _> = get_plain_items(base).into_iter().collect();
@@ -1117,6 +1119,7 @@ fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     Ok(diffs)
 }
 
+#[allow(dead_code)]
 fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, ObjectHash)> {
     let mut items = Vec::new();
     for item in tree.tree_items.iter() {
