@@ -19,7 +19,6 @@ const PRISM_LANGUAGE_MAP: Record<string, () => Promise<any>> = {
   c: () => import('prismjs/components/prism-c'),
   csharp: () => import('prismjs/components/prism-csharp'),
   java: () => import('prismjs/components/prism-java'),
-  typescript: () => import('prismjs/components/prism-typescript'),
   d: () => import('prismjs/components/prism-d'),
   zig: () => import('prismjs/components/prism-zig'),
   nim: () => import('prismjs/components/prism-nim'),

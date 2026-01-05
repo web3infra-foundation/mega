@@ -162,7 +162,6 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.buckconfig': 'toml',
   '.buckversion': 'text',
 
-  '.snap': 'javascript',
 
   '.vtt': 'text',
   '.srt': 'text',
@@ -206,13 +205,13 @@ export const SPECIAL_FILE_MAP: Record<string, string> = {
   'makefile.win': 'makefile',
   'makefile.mac': 'makefile',
   gnumakefile: 'makefile',
-  justfile: 'makefile',
+  justfile: 'bash',
 
   'cmakelists.txt': 'cmake',
 
-  procfile: 'yaml',
+  procfile: 'text',
   '.gitmodules': 'ini',
-  '.yarnrc': 'yaml',
+  '.yarnrc': 'ini',
 
   '.nvmrc': 'text',
   '.node-version': 'text',
