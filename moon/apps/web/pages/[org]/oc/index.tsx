@@ -10,7 +10,8 @@ import {
   PostOrionClientsInfoData,
   TaskPhase
 } from '@gitmono/types/generated'
-import { UIText } from '@gitmono/ui'
+import { Button, UIText } from '@gitmono/ui'
+import { RefreshIcon } from '@gitmono/ui/Icons'
 
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { ClientsTable, OrionClientStatus } from '@/components/OrionClient'
@@ -67,6 +68,14 @@ const OrionClientPage: PageWithLayout<any> = () => {
     }
   }, [currentPage, debouncedHostname, perPage, statusFilter])
 
+  const handleRefresh = React.useCallback(() => {
+    mutate(requestPayload, {
+      onSuccess: (data) => {
+        setClientsPage(data)
+      }
+    })
+  }, [mutate, requestPayload])
+
   React.useEffect(() => {
     mutate(requestPayload, {
       onSuccess: (data) => {
@@ -115,6 +124,14 @@ const OrionClientPage: PageWithLayout<any> = () => {
                 Total clients {total}
               </UIText>
             </div>
+            <Button
+              variant='plain'
+              iconOnly={<RefreshIcon />}
+              accessibilityLabel='Refresh'
+              onClick={handleRefresh}
+              disabled={isPending}
+              tooltip='Refresh'
+            />
           </div>
 
           <div className='border-b' />
