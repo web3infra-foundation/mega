@@ -70,7 +70,6 @@ pub struct TaskRequest {
     pub repo: String,
     pub cl_link: String,
     pub cl: i64,
-    pub task_name: Option<String>,
     pub builds: Vec<scheduler::BuildRequest>,
 }
 
