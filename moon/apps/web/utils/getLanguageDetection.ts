@@ -162,7 +162,6 @@ export const LANGUAGE_MAP: Record<string, string> = {
   '.buckconfig': 'toml',
   '.buckversion': 'text',
 
-
   '.vtt': 'text',
   '.srt': 'text',
   '.log': 'text'
