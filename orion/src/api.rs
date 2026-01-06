@@ -14,6 +14,8 @@ pub struct BuildRequest {
     pub cl: String,
     /// Commit changes
     pub changes: Vec<Status<ProjectRelativePath>>,
+    /// Optional explicit buck2 target label to build; when absent, worker will resolve targets from changes.
+    pub target: Option<String>,
 }
 
 /// Result of a build operation containing status and metadata.
@@ -57,6 +59,7 @@ pub async fn buck_build(
             id_str.clone(),
             req.repo,
             req.cl,
+            req.target,
             sender.clone(),
             req.changes,
         )

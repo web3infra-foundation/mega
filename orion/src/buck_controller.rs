@@ -508,6 +508,7 @@ pub async fn build(
     id: String,
     repo: String,
     cl: String,
+    target: Option<String>,
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
@@ -515,7 +516,11 @@ pub async fn build(
 
     let (mount_point, mount_id) = mount_antares_fs(&id, &repo, Some(&cl)).await?;
     let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
-    let targets = get_build_targets(&mount_point, changes).await?;
+    // Decide targets: use explicit target if provided, otherwise run change detection on the mount point.
+    let targets = match target {
+        Some(t) => vec![TargetLabel::new(&t)],
+        None => get_build_targets(&mount_point, changes).await?,
+    };
 
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 

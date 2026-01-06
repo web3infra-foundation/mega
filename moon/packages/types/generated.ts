@@ -4652,6 +4652,8 @@ export type BuildDTO = {
   /** @format int32 */
   exit_code?: number | null
   id: string
+  /** Explicit log path for this build (target-scoped) */
+  log_path: string
   output_file: string
   repo: string
   start_at: string
@@ -4664,30 +4666,7 @@ export type BuildDTO = {
 /** Request payload for creating a new build task */
 export type BuildRequest = {
   changes: StatusProjectRelativePath[]
-}
-
-export type CommonPageOrionClientInfo = {
-  items: {
-    client_id: string
-    hostname: string
-    /** @format date-time */
-    last_heartbeat: string
-    orion_version: string
-    /** @format date-time */
-    start_time: string
-  }[]
-  /**
-   * @format int64
-   * @min 0
-   */
-  total: number
-}
-
-export enum CoreWorkerStatus {
-  Idle = 'Idle',
-  Busy = 'Busy',
-  Error = 'Error',
-  Lost = 'Lost'
+  target?: string | null
 }
 
 /** Log segment read result */
@@ -4782,6 +4761,10 @@ export type TaskInfoDTO = {
   /** @format int64 */
   cl_id: number
   created_at: string
+  /** Aggregated CL-level status derived from all builds */
+  status: TaskStatusEnum
+  /** Indicates at least one build succeeded while others are running or failed */
+  partial_success: boolean
   task_id: string
   task_name?: string | null
   template?: any
@@ -4809,6 +4792,7 @@ export enum TaskStatusEnum {
   Pending = 'Pending',
   Building = 'Building',
   Interrupted = 'Interrupted',
+  Canceled = 'Canceled',
   Failed = 'Failed',
   Completed = 'Completed',
   NotFound = 'NotFound'

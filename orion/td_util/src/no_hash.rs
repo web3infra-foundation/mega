@@ -9,8 +9,7 @@
  */
 
 //! A simplified hashing implementation that only supports hashers that write a single u64.
-//! Avoids swizzling the bits. Useful for reducing overhead in cases, particularly when
-//! using `InternString`.
+//! Avoids swizzling the bits. Use only when keys hash via `write_u64`; otherwise it will panic.
 
 use std::hash::BuildHasherDefault;
 use std::hash::Hasher;
