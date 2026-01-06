@@ -13,7 +13,6 @@ pub mod lfs_db_storage;
 pub mod merge_queue_storage;
 pub mod mono_storage;
 pub mod note_storage;
-pub mod relay_storage;
 pub mod stg_common;
 pub mod user_storage;
 pub mod vault_storage;
@@ -40,8 +39,7 @@ use crate::storage::{
     buck_storage::BuckStorage, cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
     git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
     lfs_db_storage::LfsDbStorage, merge_queue_storage::MergeQueueStorage,
-    mono_storage::MonoStorage, relay_storage::RelayStorage, user_storage::UserStorage,
-    vault_storage::VaultStorage,
+    mono_storage::MonoStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -54,7 +52,6 @@ pub struct AppService {
     pub git_db_storage: GitDbStorage,
     pub gpg_storage: GpgStorage,
     pub lfs_db_storage: LfsDbStorage,
-    pub relay_storage: RelayStorage,
     pub user_storage: UserStorage,
     pub vault_storage: VaultStorage,
     pub cl_storage: ClStorage,
@@ -77,7 +74,6 @@ impl AppService {
             git_db_storage: GitDbStorage { base: mock.clone() },
             gpg_storage: GpgStorage { base: mock.clone() },
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
-            relay_storage: RelayStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
             lfs_file_storage: Arc::new(LocalStorage::mock()),
@@ -116,7 +112,6 @@ impl Storage {
         let git_db_storage = GitDbStorage { base: base.clone() };
         let gpg_storage = GpgStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
-        let relay_storage = RelayStorage { base: base.clone() };
         let user_storage = UserStorage { base: base.clone() };
         let cl_storage = ClStorage { base: base.clone() };
         let issue_storage = IssueStorage { base: base.clone() };
@@ -172,7 +167,6 @@ impl Storage {
             git_db_storage,
             gpg_storage,
             lfs_db_storage,
-            relay_storage,
             user_storage,
             vault_storage,
             cl_storage: cl_storage.clone(),
@@ -241,10 +235,6 @@ impl Storage {
 
     pub fn lfs_db_storage(&self) -> LfsDbStorage {
         self.app_service.lfs_db_storage.clone()
-    }
-
-    pub fn relay_storage(&self) -> RelayStorage {
-        self.app_service.relay_storage.clone()
     }
 
     pub fn user_storage(&self) -> UserStorage {
