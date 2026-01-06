@@ -113,6 +113,7 @@ pub async fn buck_build(
     });
 
     // Return immediate acknowledgment of task acceptance
+    // WARN: exit_code and can_auto_retry is invalid data
     BuildResult {
         success: true,
         id: id.to_string(),
