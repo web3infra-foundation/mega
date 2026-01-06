@@ -20,7 +20,6 @@ use axum::{
 };
 use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
-use dashmap::try_result::TryResult;
 use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::{TaskPhase, WSMessage};
@@ -39,6 +38,8 @@ use tokio::sync::{mpsc, watch};
 use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+const RETRY_TIME_MAX: u32 = 3;
 
 #[derive(Debug, Serialize, Default, ToSchema)]
 struct BuildResult {
@@ -72,8 +73,6 @@ pub struct TaskRequest {
     pub repo: String,
     pub cl_link: String,
     pub cl: i64,
-    pub task_name: Option<String>,
-    pub template: Option<Value>,
     pub builds: Vec<scheduler::BuildRequest>,
 }
 
@@ -302,8 +301,8 @@ pub async fn task_handler(
     if let Err(err) = tasks::Model::insert_task(
         task_id,
         req.cl,
-        req.task_name.clone(),
-        req.template.clone(),
+        None,
+        None,
         chrono::Utc::now().into(),
         &state.conn,
     )
@@ -701,19 +700,10 @@ async fn process_message(
                     }
 
                     // Judge auto retry by output
-                    loop {
-                        match state.scheduler.active_builds.try_get_mut(&id) {
-                            TryResult::Present(mut build_info) => {
-                                build_info.auto_retry_judger.judge_by_output(&output);
-                                break;
-                            }
-                            TryResult::Absent => {
-                                tracing::warn!("Received output for unknown build: {}", id);
-                                break;
-                            }
-                            TryResult::Locked => continue,
-                        }
-                    }
+                    state.scheduler.active_builds.alter(&id, |_, mut value| {
+                        value.auto_retry_judger.judge_by_output(&output);
+                        value
+                    });
                 }
                 WSMessage::BuildComplete {
                     id,
@@ -746,11 +736,13 @@ async fn process_message(
                             .auto_retry_judger
                             .judge_by_exit_code(exit_code.unwrap_or(0));
 
-                        const RETRY_TIME_MAX: u32 = 3;
                         let (can_auto_retry, mut retry_time) = (
                             build_info.auto_retry_judger.get_can_auto_retry(),
                             build_info.retry_time,
                         );
+
+                        // Reset auto retry judger
+                        build_info.auto_retry_judger = AutoRetryJudger::new();
 
                         if can_auto_retry && retry_time < RETRY_TIME_MAX {
                             // Restart this build for retry and add retry time
@@ -796,7 +788,7 @@ async fn process_message(
                             // Remove from active builds
                             state.scheduler.active_builds.remove(&id);
 
-                            // Update datebase
+                            // Update database
                             let _ = builds::Entity::update_many()
                                 .set(builds::ActiveModel {
                                     exit_code: Set(exit_code),
