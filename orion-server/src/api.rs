@@ -72,8 +72,6 @@ pub struct TaskRequest {
     pub repo: String,
     pub cl_link: String,
     pub cl: i64,
-    pub task_name: Option<String>,
-    pub template: Option<Value>,
     pub builds: Vec<scheduler::BuildRequest>,
 }
 
@@ -302,8 +300,8 @@ pub async fn task_handler(
     if let Err(err) = tasks::Model::insert_task(
         task_id,
         req.cl,
-        req.task_name.clone(),
-        req.template.clone(),
+        None,
+        None,
         chrono::Utc::now().into(),
         &state.conn,
     )
