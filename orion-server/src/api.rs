@@ -39,7 +39,7 @@ use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-const RETRY_TIME_MAX: u32 = 3;
+const RETRY_COUNT_MAX: u32 = 3;
 
 #[derive(Debug, Serialize, Default, ToSchema)]
 struct BuildResult {
@@ -73,6 +73,8 @@ pub struct TaskRequest {
     pub repo: String,
     pub cl_link: String,
     pub cl: i64,
+    pub task_name: Option<String>,
+    pub template: Option<Value>,
     pub builds: Vec<scheduler::BuildRequest>,
 }
 
@@ -301,8 +303,8 @@ pub async fn task_handler(
     if let Err(err) = tasks::Model::insert_task(
         task_id,
         req.cl,
-        None,
-        None,
+        req.task_name.clone(),
+        req.template.clone(),
         chrono::Utc::now().into(),
         &state.conn,
     )
@@ -422,7 +424,7 @@ async fn handle_immediate_task_dispatch(
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
-        retry_time: 0,
+        retry_count: 0,
     };
 
     // Use the model's insert_build method for direct insertion
@@ -700,10 +702,9 @@ async fn process_message(
                     }
 
                     // Judge auto retry by output
-                    state.scheduler.active_builds.alter(&id, |_, mut value| {
-                        value.auto_retry_judger.judge_by_output(&output);
-                        value
-                    });
+                    if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&id) {
+                        build_info.auto_retry_judger.judge_by_output(&output);
+                    }
                 }
                 WSMessage::BuildComplete {
                     id,
@@ -720,50 +721,39 @@ async fn process_message(
                     if let Some(build_info) = state.scheduler.active_builds.get(&id) {
                         let mut build_info = build_info.clone();
 
-                        // Send final log event
-                        let log_event = LogEvent {
-                            task_id: build_info.task_id.clone(),
-                            repo_name: LogService::last_segment(&build_info.repo.clone())
-                                .to_string(),
-                            build_id: build_info.build_id.clone(),
-                            line: String::from(""),
-                            is_end: true,
-                        };
-                        state.log_service.publish(log_event);
-
                         // Judge auto retry by exit code
                         build_info
                             .auto_retry_judger
                             .judge_by_exit_code(exit_code.unwrap_or(0));
 
-                        let (can_auto_retry, mut retry_time) = (
+                        let (can_auto_retry, mut retry_count) = (
                             build_info.auto_retry_judger.get_can_auto_retry(),
-                            build_info.retry_time,
+                            build_info.retry_count,
                         );
 
                         // Reset auto retry judger
                         build_info.auto_retry_judger = AutoRetryJudger::new();
 
-                        if can_auto_retry && retry_time < RETRY_TIME_MAX {
+                        if can_auto_retry && retry_count < RETRY_COUNT_MAX {
                             // Restart this build for retry and add retry time
-                            retry_time += 1;
+                            retry_count += 1;
 
                             // Update build information
-                            build_info.retry_time = retry_time;
+                            build_info.retry_count = retry_count;
                             state
                                 .scheduler
                                 .active_builds
                                 .alter(&id, |_, _| build_info.clone());
 
                             // Update database
-                            // let _ = builds::Entity::update_many()
-                            //     .set(builds::ActiveModel {
-                            //         retry_time: Set(retry_time),
-                            //         ..Default::default()
-                            //     })
-                            //     .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
-                            //     .exec(&state.conn)
-                            //     .await;
+                            let _ = builds::Entity::update_many()
+                                .set(builds::ActiveModel {
+                                    retry_count: Set(retry_count),
+                                    ..Default::default()
+                                })
+                                .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
+                                .exec(&state.conn)
+                                .await;
 
                             // Send Task to the same worker
                             let msg = WSMessage::Task {
@@ -783,8 +773,43 @@ async fn process_message(
                                 );
                             } else {
                                 tracing::error!("Retry build send to worker Failed");
+
+                                // If retry dispatch fails, treat this build as finished and clean up.
+                                // Remove from active builds
+                                state.scheduler.active_builds.remove(&id);
+
+                                // Update database with final state
+                                let _ = builds::Entity::update_many()
+                                    .set(builds::ActiveModel {
+                                        exit_code: Set(exit_code),
+                                        end_at: Set(Some(
+                                            Utc::now()
+                                                .with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                                        )),
+                                        retry_count: Set(retry_count),
+                                        ..Default::default()
+                                    })
+                                    .filter(
+                                        builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()),
+                                    )
+                                    .exec(&state.conn)
+                                    .await;
+
+                                // Notify scheduler to process queued tasks
+                                state.scheduler.notify_task_available();
                             }
                         } else {
+                            // Send final log event
+                            let log_event = LogEvent {
+                                task_id: build_info.task_id.clone(),
+                                repo_name: LogService::last_segment(&build_info.repo.clone())
+                                    .to_string(),
+                                build_id: build_info.build_id.clone(),
+                                line: String::from(""),
+                                is_end: true,
+                            };
+                            state.log_service.publish(log_event);
+
                             // Remove from active builds
                             state.scheduler.active_builds.remove(&id);
 
@@ -796,7 +821,7 @@ async fn process_message(
                                         Utc::now()
                                             .with_timezone(&FixedOffset::east_opt(0).unwrap()),
                                     )),
-                                    retry_time: Set(retry_time),
+                                    retry_count: Set(retry_count),
                                     ..Default::default()
                                 })
                                 .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))

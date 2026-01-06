@@ -472,101 +472,100 @@ const CodeContent = ({
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ContributionRecord contributors={blameData.data?.contributors} />
-        <Virtuoso
-          style={{
-            flex: 1,
-            backgroundColor: '#fff'
-          }}
-          totalCount={processedBlameBlocks.length}
-          itemContent={(blockIndex) => {
-            const block = processedBlameBlocks[blockIndex]
-            const isFirstBlock = blockIndex === 0
-            const isLastBlock = blockIndex === processedBlameBlocks.length - 1
+        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden' }}>
+          <Virtuoso
+            style={{
+              flex: 1,
+              backgroundColor: '#fff',
+              minWidth: 'fit-content'
+            }}
+            totalCount={processedBlameBlocks.length}
+            itemContent={(blockIndex) => {
+              const block = processedBlameBlocks[blockIndex]
+              const isFirstBlock = blockIndex === 0
+              const isLastBlock = blockIndex === processedBlameBlocks.length - 1
 
-            return (
-              <div
-                key={`block-${blockIndex}`}
-                data-index={blockIndex}
-                className={`border-x border-gray-200 transition-colors duration-150 ${
-                  isFirstBlock ? 'border-t' : ''
-                } ${isLastBlock ? 'rounded-b-lg border-b' : 'border-b'}`}
-              >
-                <div className='flex min-w-0'>
-                  <div className='flex w-1 flex-shrink-0 items-center'>
-                    <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
-                  </div>
+              return (
+                <div
+                  key={`block-${blockIndex}`}
+                  data-index={blockIndex}
+                  className={`border-x border-gray-200 transition-colors duration-150 ${
+                    isFirstBlock ? 'border-t' : ''
+                  } ${isLastBlock ? 'rounded-b-lg border-b' : 'border-b'}`}
+                  style={{ minWidth: 'fit-content' }}
+                >
+                  <div className='flex' style={{ minWidth: 'fit-content' }}>
+                    <div className='flex w-1 flex-shrink-0 items-center'>
+                      <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
+                    </div>
 
-                  <div className='flex-shrink-0 border-r border-gray-200' style={{ width: '350px' }}>
-                    <div className='top-0 z-10 flex items-center px-3 py-2'>
-                      <span className='w-[100px] truncate text-xs text-gray-600'>
-                        {formatRelativeTime(block.blameInfo?.commit_time || 0)}
-                      </span>
-                      <UserAvatar
-                        username={block.blameInfo?.author_username || ''}
-                        zIndex={block.blameInfo?.commit_time || 0}
-                      />
-                      <div className='ml-2 flex w-[200px] items-center'>
-                        <span className='truncate text-xs text-gray-600' title={block.blameInfo?.commit_summary}>
-                          {block.blameInfo?.commit_message || 'No commit message'}
+                    <div className='flex-shrink-0 border-r border-gray-200' style={{ width: '350px' }}>
+                      <div className='top-0 z-10 flex items-center px-3 py-2'>
+                        <span className='w-[100px] truncate text-xs text-gray-600'>
+                          {formatRelativeTime(block.blameInfo?.commit_time || 0)}
                         </span>
+                        <UserAvatar
+                          username={block.blameInfo?.author_username || ''}
+                          zIndex={block.blameInfo?.commit_time || 0}
+                        />
+                        <div className='ml-2 flex w-[200px] items-center'>
+                          <span className='truncate text-xs text-gray-600' title={block.blameInfo?.commit_summary}>
+                            {block.blameInfo?.commit_message || 'No commit message'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className={`min-w-0 flex-1 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
-                    {block.lines.map((line) => {
-                      const isSelected = selectedLine === line.lineNumber - 1
+                    <div className={`flex-shrink-0 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
+                      {block.lines.map((line) => {
+                        const isSelected = selectedLine === line.lineNumber - 1
 
-                      return (
-                        <Highlight
-                          key={`line-${line.lineNumber}`}
-                          theme={themes.github}
-                          code={line.content}
-                          language={detectedLanguage}
-                        >
-                          {({ tokens, getLineProps, getTokenProps }) => (
-                            <div
-                              {...getLineProps({ line: tokens[0] })}
-                              className='flex min-w-0'
-                              onClick={() => handleLineClick(line.lineNumber - 1)}
-                              style={{
-                                backgroundColor: isSelected ? '#f0f7ff' : '#fff',
-                                fontSize: '12px',
-                                height: '20px'
-                              }}
-                            >
+                        return (
+                          <Highlight
+                            key={`line-${line.lineNumber}`}
+                            theme={themes.github}
+                            code={line.content}
+                            language={detectedLanguage}
+                          >
+                            {({ tokens, getLineProps, getTokenProps }) => (
                               <div
-                                className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
-                                style={{ width: '60px' }}
-                              >
-                                {line.lineNumber}
-                              </div>
-
-                              <div
-                                className='flex min-w-0 items-center py-1 pl-3 font-mono text-sm'
+                                {...getLineProps({ line: tokens[0] })}
+                                className='flex'
+                                onClick={() => handleLineClick(line.lineNumber - 1)}
                                 style={{
-                                  minWidth: '0',
-                                  width: 'max-content'
+                                  backgroundColor: isSelected ? '#f0f7ff' : '#fff',
+                                  fontSize: '12px',
+                                  height: '20px'
                                 }}
                               >
-                                <div className='whitespace-pre' style={{ display: 'inline' }}>
+                                <div
+                                  className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
+                                  style={{ width: '60px' }}
+                                >
+                                  {line.lineNumber}
+                                </div>
+
+                                <div
+                                  className='flex items-center py-1 pl-3 pr-4 font-mono text-sm'
+                                  style={{ whiteSpace: 'pre' }}
+                                >
                                   {tokens[0]?.map((token, key) => (
                                     // eslint-disable-next-line react/no-array-index-key
                                     <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
                                   ))}
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </Highlight>
-                      )
-                    })}
+                            )}
+                          </Highlight>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          }}
-        />
+              )
+            }}
+          />
+        </div>
       </div>
     )
   }, [

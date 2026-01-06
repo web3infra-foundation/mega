@@ -1,15 +1,11 @@
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 
-/// Keywords that indicate transient HTTP or network-related failures in command
-/// output. If all of these substrings are observed in the collected output,
-/// the failure is treated as retryable even if the exit code alone would not
-/// trigger an automatic retry.
 const RETRY_KEYWORD: [&str; 3] = ["http", "HTTP", "request"];
 
 pub struct AutoRetryJudger {
     exit_code: i32,
-    can_auto_retry_exit_code: OnceCell<bool>,
+    is_exit_code_retryable: OnceCell<bool>,
     retry_keyword_map: HashMap<String, bool>,
 }
 
@@ -17,15 +13,16 @@ impl AutoRetryJudger {
     pub fn new() -> Self {
         Self {
             exit_code: 0,
-            can_auto_retry_exit_code: OnceCell::new(),
+            is_exit_code_retryable: OnceCell::new(),
             retry_keyword_map: HashMap::from(
                 RETRY_KEYWORD.map(|keyword| (keyword.to_string(), false)),
             ),
         }
     }
 
-    /// it should be true if all output include all RETRY_KEYWORD
-    // WARN: optimize this function
+    /// Updates the internal retry keyword tracking map by marking any
+    /// `RETRY_KEYWORD` substrings found in the given `output` as seen.
+    /// Scan the provided output and mark any retry keywords that are present.
     pub fn judge_by_output(&mut self, output: &str) {
         for (keyword, value) in self.retry_keyword_map.iter_mut() {
             if output.contains(keyword) {
@@ -34,37 +31,39 @@ impl AutoRetryJudger {
         }
     }
 
-    // should be called one time
+    /// Sets the exit code and determines if it indicates a retryable failure
+    /// (signal interruption codes 129-192). This should only be called once;
+    /// subsequent calls will log an error.
     pub fn judge_by_exit_code(&mut self, code: i32) {
         self.exit_code = code;
         if matches!(code, 129..=192) {
-            match self.can_auto_retry_exit_code.set(true) {
-                Ok(()) => (),
-                Err(_) => {
+            self.is_exit_code_retryable
+                .set(true)
+                .map_err(|_| {
                     tracing::error!(
                         "AutoRetryJudger judge if auto retry by exit code more than once."
                     )
-                }
-            };
+                })
+                .ok();
         } else {
-            match self.can_auto_retry_exit_code.set(false) {
-                Ok(()) => (),
-                Err(_) => {
+            self.is_exit_code_retryable
+                .set(false)
+                .map_err(|_| {
                     tracing::error!(
                         "AutoRetryJudger judge if auto retry by exit code more than once."
                     )
-                }
-            };
+                })
+                .ok();
         }
     }
 
-    // can_auto_retry be true, if (can_auto_retry_exit_code) || (all retry_keyword_map.value)
-    // if exit code is 0, which means command is succeed, not can auto retry
+    /// can_auto_retry be true, if (can_auto_retry_exit_code) || (all retry_keyword_map.value)
+    /// if exit code is 0, which means command is succeed, not can auto retry
     pub fn get_can_auto_retry(&self) -> bool {
         if self.exit_code == 0 {
             return false;
         }
-        let can_auto_retry_exit_code = match self.can_auto_retry_exit_code.get() {
+        let can_auto_retry_exit_code = match self.is_exit_code_retryable.get() {
             Some(o) => *o,
             None => {
                 tracing::error!("AutoRetryJudger did not judge exit code.");
@@ -89,7 +88,7 @@ impl Clone for AutoRetryJudger {
     fn clone(&self) -> Self {
         Self {
             exit_code: self.exit_code,
-            can_auto_retry_exit_code: self.can_auto_retry_exit_code.clone(),
+            is_exit_code_retryable: self.is_exit_code_retryable.clone(),
             retry_keyword_map: self.retry_keyword_map.clone(),
         }
     }
