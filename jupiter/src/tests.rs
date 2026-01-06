@@ -24,8 +24,7 @@ use crate::storage::{
     buck_storage::BuckStorage, cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
     commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
     git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, relay_storage::RelayStorage, user_storage::UserStorage,
-    vault_storage::VaultStorage,
+    mono_storage::MonoStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
 pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
@@ -56,7 +55,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         git_db_storage: GitDbStorage { base: base.clone() },
         gpg_storage: GpgStorage { base: base.clone() },
         lfs_db_storage: LfsDbStorage { base: base.clone() },
-        relay_storage: RelayStorage { base: base.clone() },
         user_storage: UserStorage { base: base.clone() },
         cl_storage: ClStorage { base: base.clone() },
         issue_storage: IssueStorage { base: base.clone() },

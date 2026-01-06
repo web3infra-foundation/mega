@@ -4,8 +4,7 @@ use std::str::FromStr;
 
 use callisto::mega_refs;
 use callisto::{
-    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob,
-    sea_orm_active_enums::StorageTypeEnum,
+    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree,
 };
 use common::config::MonoConfig;
 use common::utils::{MEGA_BRANCH_NAME, generate_id};
@@ -256,35 +255,6 @@ impl IntoMegaModel for Tree {
             commit_id: String::new(),
             pack_id: meta.pack_id.unwrap_or_default(),
             pack_offset: meta.pack_offset.unwrap_or(0) as i64,
-            created_at: chrono::Utc::now().naive_utc(),
-        }
-    }
-}
-
-pub trait ToRawBlob {
-    fn to_raw_blob(&self) -> raw_blob::Model;
-}
-
-impl ToRawBlob for Blob {
-    /// Converts a Blob object to a raw_blob::Model
-    ///
-    /// This function creates a new raw_blob::Model from a Blob object.
-    /// The resulting model will include the blob's data and ID.
-    /// Storage type is set to Database by default.
-    ///
-    /// # Returns
-    ///
-    /// A new raw_blob::Model instance populated with data from the blob
-    fn to_raw_blob(&self) -> raw_blob::Model {
-        raw_blob::Model {
-            id: generate_id(),
-            sha1: self.id.to_string(),
-            storage_type: StorageTypeEnum::Database,
-            data: Some(self.data.clone()),
-            content: None,
-            file_type: None,
-            local_path: None,
-            remote_url: None,
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -751,34 +721,6 @@ impl FromGitModel for Commit {
             model.committer,
             model.content,
         )
-    }
-}
-
-impl FromMegaModel for Blob {
-    type MegaSource = raw_blob::Model;
-
-    /// Converts a raw_blob::Model to a Blob object
-    ///
-    /// This function extracts the necessary data from a raw_blob::Model
-    /// to create a new Blob object. It parses the ObjectHash from the string
-    /// representation and unwraps the binary data.
-    ///
-    /// # Arguments
-    ///
-    /// * `model` - The raw_blob::Model to convert
-    ///
-    /// # Returns
-    ///
-    /// A new Blob instance containing the ID and data from the raw_blob model
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the hash string cannot be parsed into a valid ObjectHash
-    fn from_mega_model(model: Self::MegaSource) -> Self {
-        Blob {
-            id: ObjectHash::from_str(&model.sha1).unwrap(),
-            data: model.data.unwrap(),
-        }
     }
 }
 

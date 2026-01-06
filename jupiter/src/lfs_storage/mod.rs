@@ -6,7 +6,7 @@ use bytes::Bytes;
 
 use common::{
     config::{LFSConfig, S3Config, StorageType},
-    errors::{GitLFSError, MegaError},
+    errors::MegaError,
 };
 use sea_orm::DatabaseConnection;
 
@@ -30,14 +30,7 @@ pub trait LfsFileStorage: Sync + Send {
     }
     async fn put_object(&self, object_id: &str, body_content: Vec<u8>) -> Result<(), MegaError>;
 
-    async fn put_object_with_chunk(
-        &self,
-        object_id: &str,
-        body_content: &[u8],
-        split_size: usize,
-    ) -> Result<(), GitLFSError>;
-
-    async fn exist_object(&self, object_id: &str, enable_split: bool) -> bool;
+    async fn exist_object(&self, object_id: &str) -> bool;
 }
 
 fn transform_path(sha1: &str) -> String {
