@@ -1,6 +1,10 @@
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 
+/// Keywords that indicate transient HTTP or network-related failures in command
+/// output. If all of these substrings are observed in the collected output,
+/// the failure is treated as retryable even if the exit code alone would not
+/// trigger an automatic retry.
 const RETRY_KEYWORD: [&str; 3] = ["http", "HTTP", "request"];
 
 #[derive(Clone)]
