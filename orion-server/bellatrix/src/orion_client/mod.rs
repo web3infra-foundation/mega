@@ -35,9 +35,6 @@ impl<Path: Clone> Status<Path> {
 
 #[derive(Serialize, Debug)]
 pub struct BuildInfo {
-    pub buck_hash: String,
-    pub buckconfig_hash: String,
-    pub args: Option<Vec<String>>,
     pub changes: Vec<Status<ProjectRelativePath>>,
 }
 
@@ -46,8 +43,6 @@ pub struct OrionBuildRequest {
     pub cl_link: String,
     pub repo: String,
     pub cl: i64,
-    pub task_name: Option<String>,
-    pub template: Option<String>,
     pub builds: Vec<BuildInfo>,
 }
 

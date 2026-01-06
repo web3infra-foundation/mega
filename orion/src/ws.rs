@@ -209,6 +209,7 @@ async fn process_server_message(
         Message::Text(t) => {
             match serde_json::from_str::<WSMessage>(&t) {
                 Ok(ws_msg) => {
+                    tracing::info!("Received message from server: {:?}", ws_msg);
                     match ws_msg {
                         WSMessage::Task {
                             id,

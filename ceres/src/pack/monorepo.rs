@@ -609,6 +609,7 @@ impl MonoRepo {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn search_buck_under_cl(&self, cl_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
         let mut res = vec![];
         let mono_stg = self.storage.mono_storage();
@@ -1021,64 +1022,59 @@ impl MonoRepo {
             .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
 
         if self.bellatrix.enable_build() {
-            let buck_files = self.search_buck_under_cl(&self.path).await?;
-            if buck_files.is_empty() {
-                tracing::error!(
-                    "Search BUCK file under {:?} failed, please manually check BUCK file exists!!",
-                    self.path
-                );
-            } else {
-                let old_files = self.get_commit_blobs(&cl_info.from_hash).await?;
-                let new_files = self.get_commit_blobs(&cl_info.to_hash).await?;
-                let cl_diff_files = self.cl_files_list(old_files, new_files.clone()).await?;
+            let old_files = self.get_commit_blobs(&cl_info.from_hash).await?;
+            let new_files = self.get_commit_blobs(&cl_info.to_hash).await?;
+            let cl_diff_files = self.cl_files_list(old_files, new_files.clone()).await?;
 
-                let cl_base = PathBuf::from(&cl_info.path);
-                let changes = cl_diff_files
-                    .into_iter()
-                    .map(|m| {
-                        let mut item: crate::model::change_list::ClFilesRes = m.into();
-                        item.path = cl_base.join(item.path).to_string_lossy().to_string();
-                        item
-                    })
-                    .collect::<Vec<_>>();
+            let cl_base = PathBuf::from(&cl_info.path);
+            let changes = cl_diff_files
+                .into_iter()
+                .map(|m| {
+                    let mut item: crate::model::change_list::ClFilesRes = m.into();
+                    item.path = cl_base.join(item.path).to_string_lossy().to_string();
+                    item
+                })
+                .collect::<Vec<_>>();
 
-                for buck_file in buck_files {
-                    let path_str = buck_file.path.to_str().expect("path is not valid UTF-8");
-                    let counter_changes: Vec<_> = changes
-                        .iter()
-                        .filter(|&s| PathBuf::from(&s.path).starts_with(&buck_file.path))
-                        .map(|s| {
-                            let path = ProjectRelativePath::from_abs(&s.path, path_str).unwrap();
-                            if s.action == "new" {
-                                Status::Added(path)
-                            } else if s.action == "deleted" {
-                                Status::Removed(path)
-                            } else if s.action == "modified" {
-                                Status::Modified(path)
-                            } else {
-                                unreachable!()
-                            }
-                        })
-                        .collect();
-                    let req = OrionBuildRequest {
-                        repo: buck_file.path.to_str().unwrap().to_string(),
-                        cl_link: link.to_string(),
-                        cl: cl_info.id,
-                        task_name: None,
-                        template: None,
-                        builds: vec![BuildInfo {
-                            buck_hash: buck_file.buck.to_string(),
-                            buckconfig_hash: buck_file.buck_config.to_string(),
-                            args: Some(vec![]),
-                            changes: counter_changes,
-                        }],
-                    };
-                    let bellatrix = self.bellatrix.clone();
-                    tokio::spawn(async move {
-                        let _ = bellatrix.on_post_receive(req).await;
-                    });
-                }
-            }
+            let path_str = cl_base.to_str().ok_or_else(|| {
+                MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base))
+            })?;
+            let counter_changes: Vec<_> = changes
+                .iter()
+                .filter(|&s| PathBuf::from(&s.path).starts_with(&cl_base))
+                .map(|s| {
+                    let path = ProjectRelativePath::from_abs(&s.path, path_str).unwrap();
+                    if s.action == "new" {
+                        Status::Added(path)
+                    } else if s.action == "deleted" {
+                        Status::Removed(path)
+                    } else if s.action == "modified" {
+                        Status::Modified(path)
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .collect();
+
+            tracing::info!(
+                "Trigger bellatrix build for cl: {}, changes: {:?}, repo: {}",
+                cl_info.id,
+                counter_changes,
+                path_str
+            );
+
+            let req: OrionBuildRequest = OrionBuildRequest {
+                cl_link: link.clone(),
+                repo: path_str.to_string(),
+                cl: cl_info.id,
+                builds: vec![BuildInfo {
+                    changes: counter_changes,
+                }],
+            };
+            let bellatrix = self.bellatrix.clone();
+            tokio::spawn(async move {
+                let _ = bellatrix.on_post_receive(req).await;
+            });
         }
 
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
@@ -1104,8 +1100,10 @@ impl MonoRepo {
     }
 }
 
+#[allow(dead_code)]
 type DiffResult = Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>;
 
+#[allow(dead_code)]
 fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     let their_items: HashMap<_, _> = get_plain_items(theirs).into_iter().collect();
     let base_items: HashMap<_, _> = get_plain_items(base).into_iter().collect();
@@ -1123,6 +1121,7 @@ fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
     Ok(diffs)
 }
 
+#[allow(dead_code)]
 fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, ObjectHash)> {
     let mut items = Vec::new();
     for item in tree.tree_items.iter() {
