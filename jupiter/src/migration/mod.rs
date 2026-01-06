@@ -74,10 +74,7 @@ mod m20251125_135032_add_draft_conv_type;
 mod m20251128_000001_create_buck_session;
 mod m20251203_013745_add_dynamic_sidebar;
 mod m20251210_113942_remove_unique_constraint_from_order_index;
-mod m20260104_084956_remove_relay_tables;
-mod m20260104_085837_remove_mq_storages_table;
-mod m20260104_091441_remove_lfs_split_relations_tabel;
-mod m20260104_092622_remove_raw_blob_table;
+mod m20260106_070515_remove_relay_mq_lfs_raw_table;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -140,10 +137,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251128_000001_create_buck_session::Migration),
             Box::new(m20251203_013745_add_dynamic_sidebar::Migration),
             Box::new(m20251210_113942_remove_unique_constraint_from_order_index::Migration),
-            Box::new(m20260104_084956_remove_relay_tables::Migration),
-            Box::new(m20260104_085837_remove_mq_storages_table::Migration),
-            Box::new(m20260104_091441_remove_lfs_split_relations_tabel::Migration),
-            Box::new(m20260104_092622_remove_raw_blob_table::Migration),
+            Box::new(m20260106_070515_remove_relay_mq_lfs_raw_table::Migration),
         ]
     }
 }

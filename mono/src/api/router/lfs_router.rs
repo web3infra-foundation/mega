@@ -45,16 +45,17 @@ use axum::{
     Json,
     body::Body,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{Request, StatusCode},
     response::Response,
 };
+use futures::TryStreamExt;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use ceres::lfs::{
     handler,
     lfs_structs::{
         BatchRequest, BatchResponse, LockList, LockListQuery, LockRequest, LockResponse,
-        UnlockRequest, UnlockResponse, VerifiableLockList, VerifiableLockRequest,
+        RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList, VerifiableLockRequest,
     },
 };
 use common::errors::GitLFSError;
@@ -63,11 +64,12 @@ use crate::api::MonoApiServiceState;
 use crate::server::http_server::LFS_TAG;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
-#[allow(dead_code)]
 const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
 
 pub fn lfs_routes() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
+        .routes(routes!(lfs_upload_object))
+        .routes(routes!(lfs_download_object))
         .routes(routes!(list_locks))
         .routes(routes!(create_lock))
         .routes(routes!(list_locks_for_verification))
@@ -332,13 +334,100 @@ pub async fn lfs_process_batch(
     }
 }
 
+/// Download an LFS object
+///
+/// Downloads an LFS object by its OID. Returns the object data as a stream.
+#[utoipa::path(
+    get,
+    path = "/objects/{object_id}",
+    params(
+        ("object_id" = String, Path, description = "Object ID (OID) to download"),
+    ),
+    responses(
+        (status = 200, description = "Object data stream", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error or object not found")
+    ),
+    tag = LFS_TAG,
+    description = "Download an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
+)]
+pub async fn lfs_download_object(
+    state: State<MonoApiServiceState>,
+    Path(oid): Path<String>,
+) -> Result<Response, (StatusCode, String)> {
+    let result = handler::lfs_download_object(state.storage.clone(), oid.clone()).await;
+    match result {
+        Ok(byte_stream) => Ok(Response::builder()
+            .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
+            .body(Body::from_stream(byte_stream))
+            .unwrap()),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
+    }
+}
+
+/// Upload an LFS object
+///
+/// Uploads an LFS object to the server. The object data should be sent in the request body.
+#[utoipa::path(
+    put,
+    path = "/objects/{object_id}",
+    params(
+        ("object_id" = String, Path, description = "Object ID (OID) to upload"),
+    ),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "Object data"),
+    responses(
+        (status = 200, description = "Object uploaded successfully", content_type = "application/vnd.git-lfs+json"),
+        (status = 400, description = "Bad request", content_type = "application/vnd.git-lfs+json"),
+        (status = 404, description = "Object not found", content_type = "application/vnd.git-lfs+json"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = LFS_TAG,
+    description = "Upload an LFS object. This handler is also available at `/info/lfs/objects/{object_id}` for Git LFS client compatibility."
+)]
+pub async fn lfs_upload_object(
+    state: State<MonoApiServiceState>,
+    Path(oid): Path<String>,
+    req: Request<Body>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    let req_obj = RequestObject {
+        oid,
+        ..Default::default()
+    };
+
+    // Collect bytes asynchronously from the stream into a Vec<u8>
+    let body_bytes: Vec<u8> = req
+        .into_body()
+        .into_data_stream()
+        .try_fold(Vec::new(), |mut acc, chunk| async move {
+            acc.extend_from_slice(&chunk);
+            Ok(acc)
+        })
+        .await
+        .unwrap();
+
+    let result = handler::lfs_upload_object(&state.storage, &req_obj, body_bytes).await;
+    match result {
+        Ok(_) => Ok(Response::builder()
+            .header("Content-Type", LFS_CONTENT_TYPE)
+            .body(Body::empty())
+            .unwrap()),
+        Err(err) => {
+            let (code, msg) = map_lfs_error(err);
+            Ok(lfs_error_response(code, msg))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::*;
     use axum::http::StatusCode;
-    use ceres::lfs::lfs_structs::RequestObject;
 
     #[test]
     fn test_map_lfs_error_not_found() {

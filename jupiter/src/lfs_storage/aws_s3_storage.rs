@@ -10,7 +10,7 @@ use aws_sdk_s3::presigning::PresigningConfig;
 use bytes::Bytes;
 
 use common::config::S3Config;
-use common::errors::{GitLFSError, MegaError};
+use common::errors::MegaError;
 
 use crate::lfs_storage::{LfsFileStorage, transform_path};
 
@@ -96,11 +96,7 @@ impl LfsFileStorage for AwsS3Storage {
             .map(|_| ())
     }
 
-    async fn put_object_with_chunk(&self, _: &str, _: &[u8], _: usize) -> Result<(), GitLFSError> {
-        unimplemented!("Not Supported Yet")
-    }
-
-    async fn exist_object(&self, _: &str, _: bool) -> bool {
+    async fn exist_object(&self, _: &str) -> bool {
         true
     }
 }

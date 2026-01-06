@@ -1,13 +1,13 @@
 use std::fs::{self};
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 
 use common::config::LFSLocalConfig;
-use common::errors::{GitLFSError, MegaError};
+use common::errors::MegaError;
 use sea_orm::DatabaseConnection;
 
 use crate::lfs_storage::{LfsFileStorage, transform_path};
@@ -70,13 +70,16 @@ impl LfsFileStorage for LocalStorage {
         Ok(())
     }
 
-    async fn put_object_with_chunk(&self, _: &str, _: &[u8], _: usize) -> Result<(), GitLFSError> {
-        unimplemented!("Not Supported Yet")
+    async fn exist_object(&self, object_id: &str) -> bool {
+        exist_object(self.config.lfs_file_path.clone(), object_id)
     }
+}
 
-    async fn exist_object(&self, _: &str, _: bool) -> bool {
-        true
-    }
+fn exist_object(path: PathBuf, object_id: &str) -> bool {
+    let path = Path::new(&path)
+        .join("objects")
+        .join(transform_path(object_id));
+    Path::exists(&path)
 }
 
 #[cfg(test)]
@@ -90,6 +93,6 @@ mod tests {
 
         let local_storage = LocalStorage::mock();
         assert!(local_storage.put_object(&oid, content).await.is_ok());
-        assert!(local_storage.exist_object(&oid, false).await);
+        assert!(local_storage.exist_object(&oid).await);
     }
 }

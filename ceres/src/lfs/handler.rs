@@ -1,8 +1,11 @@
 use std::cmp::min;
 
 use anyhow::Result;
+use bytes::Bytes;
 use chrono::prelude::*;
+use futures::Stream;
 use rand::prelude::*;
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::lfs_locks;
 use common::errors::{GitLFSError, MegaError};
@@ -11,8 +14,8 @@ use jupiter::storage::lfs_db_storage::LfsDbStorage;
 
 use crate::lfs::lfs_structs::{
     BatchRequest, BatchResponse, Lock, LockList, LockListQuery, LockRequest, MetaObject,
-    ObjectError, Operation, ResCondition, ResponseObject, TransferMode, UnlockRequest,
-    VerifiableLockList, VerifiableLockRequest,
+    ObjectError, Operation, RequestObject, ResCondition, ResponseObject, TransferMode,
+    UnlockRequest, VerifiableLockList, VerifiableLockRequest,
 };
 
 pub async fn lfs_retrieve_lock(
@@ -206,8 +209,7 @@ pub async fn lfs_process_batch(
                 }
             }
         };
-        let enable_split = meta.splited && config.local.enable_split;
-        let file_exist = file_storage.exist_object(&meta.oid, enable_split).await;
+        let file_exist = file_storage.exist_object(&meta.oid).await;
         let download_url = file_storage
             .download_url(&meta.oid, listen_addr)
             .await
@@ -234,6 +236,62 @@ pub async fn lfs_process_batch(
         objects: response_objects,
         hash_algo: "sha256".to_string(),
     })
+}
+
+/// Upload object to storage.
+/// if server enable split, split the object and upload each part to storage, save the relationship to database.
+pub async fn lfs_upload_object(
+    storage: &Storage,
+    req_obj: &RequestObject,
+    body_bytes: Vec<u8>,
+) -> Result<(), GitLFSError> {
+    let db_storage = storage.lfs_db_storage();
+    let file_storage = storage.lfs_file_storage();
+
+    let meta = if let Some(meta) = lfs_get_meta(db_storage.clone(), &req_obj.oid).await? {
+        tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
+        meta
+    } else {
+        return Err(GitLFSError::GeneralError(String::from("Not found ")));
+    };
+
+    // normal mode
+    let res = file_storage.put_object(&meta.oid, body_bytes).await;
+    if res.is_err() {
+        lfs_delete_meta(&db_storage, req_obj).await.unwrap();
+        return Err(GitLFSError::GeneralError(String::from(
+            "Header not acceptable!",
+        )));
+    }
+    Ok(())
+}
+
+/// Download object from storage.
+/// when server enable split,  if OID is a complete object, then splice the object and return it.
+pub async fn lfs_download_object(
+    storage: Storage,
+    oid: String,
+) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
+    let db_storage = storage.lfs_db_storage();
+    let file_storage = storage.lfs_file_storage();
+
+    let meta = lfs_get_meta(db_storage.clone(), &oid).await?;
+    match meta {
+        Some(_) => {
+            let meta = lfs_get_meta(db_storage, &oid).await?.unwrap();
+            let bytes = file_storage.get_object(&meta.oid).await.unwrap();
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+            tx.send(Ok(bytes)).await.unwrap();
+            Ok(ReceiverStream::new(rx))
+        }
+        None => {
+            let bytes = file_storage.get_object(&oid).await.unwrap();
+            // because return type must be `ReceiverStream`, so we need to wrap the bytes into a stream.
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+            tx.send(Ok(bytes)).await.unwrap();
+            Ok(ReceiverStream::new(rx))
+        }
+    }
 }
 
 async fn lfs_get_filtered_locks(
@@ -366,6 +424,17 @@ async fn lfs_add_lock(
 
 async fn lfs_get_meta(storage: LfsDbStorage, oid: &str) -> Result<Option<MetaObject>, GitLFSError> {
     Ok(storage.get_lfs_object(oid).await.unwrap().map(|m| m.into()))
+}
+
+async fn lfs_delete_meta(
+    storage: &LfsDbStorage,
+    req_obj: &RequestObject,
+) -> Result<(), GitLFSError> {
+    let res = storage.delete_lfs_object(req_obj.oid.to_owned()).await;
+    match res {
+        Ok(_) => Ok(()),
+        Err(_) => Err(GitLFSError::GeneralError("".to_string())),
+    }
 }
 
 async fn delete_lock(
