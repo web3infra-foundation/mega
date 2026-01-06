@@ -36,6 +36,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 aws-sdk-s3 = { workspace = true }
 aws-config = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

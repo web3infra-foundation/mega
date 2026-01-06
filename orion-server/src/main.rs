@@ -1,4 +1,5 @@
 mod api;
+mod auto_retry;
 mod buck2;
 mod common;
 mod log;
