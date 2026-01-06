@@ -1,4 +1,5 @@
 pub mod api;
+pub mod auto_retry;
 pub mod buck2;
 pub mod common;
 pub mod log;

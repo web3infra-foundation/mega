@@ -1,4 +1,5 @@
 use crate::api::CoreWorkerStatus;
+use crate::auto_retry::AutoRetryJudger;
 use crate::log::log_service::LogService;
 use crate::model::builds;
 use chrono::FixedOffset;
@@ -154,6 +155,8 @@ pub struct BuildInfo {
     pub cl: String,
     pub _worker_id: String,
     pub target: Option<String>,
+    pub auto_retry_judger: AutoRetryJudger,
+    pub retry_count: u32,
 }
 
 /// Status of a worker node
@@ -400,7 +403,13 @@ impl TaskScheduler {
             changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
-            target: Some(pending_task.resolved_target.clone()),
+            target: if pending_task.fallback_used {
+                None
+            } else {
+                Some(pending_task.resolved_target.clone())
+            },
+            auto_retry_judger: AutoRetryJudger::new(),
+            retry_count: 0,
         };
 
         // Insert build record
@@ -424,6 +433,7 @@ impl TaskScheduler {
             created_at: Set(build_info
                 .start_at
                 .with_timezone(&FixedOffset::east_opt(0).unwrap())),
+            retry_count: Set(0),
         }
         .insert(&self.conn)
         .await;
