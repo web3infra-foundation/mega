@@ -123,7 +123,9 @@ const moduleExports = {
     '@gitmono/regex',
     '@gitmono/editor',
     'react-tweet',
-    '@primer/react'
+    '@primer/react',
+    '@pierre/diffs',
+    'lru_map'
   ],
   reactStrictMode: true,
   images: {

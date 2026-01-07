@@ -1,10 +1,9 @@
 'use client'
 
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
+import { parsePatchFiles, type FileDiffMetadata } from '@pierre/diffs'
+import { FileDiff } from '@pierre/diffs/react'
 import toast from 'react-hot-toast'
-
-import '@git-diff-view/react/styles/diff-view.css'
 
 import { Button } from '@gitmono/ui/Button'
 import { Dialog } from '@gitmono/ui/Dialog'
@@ -12,7 +11,7 @@ import { Dialog } from '@gitmono/ui/Dialog'
 import { useDiffPreview } from '@/hooks/useDiffPreview'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useUpdateBlob } from '@/hooks/useUpdateBlob'
-import { getLangFromFileNameToDiff } from '@/utils/getLanguageDetection'
+import { getLanguageForFile } from '@/utils/shikiLanguageFallback'
 
 interface BlobEditorProps {
   fileContent: string
@@ -38,7 +37,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
 
   const [diffResult, setDiffResult] = useState<any>(null)
-  const [diffFile, setDiffFile] = useState<DiffFile | null>(null)
+  const [fileDiffMetadata, setFileDiffMetadata] = useState<FileDiffMetadata | null>(null)
 
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false)
 
@@ -64,7 +63,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     return dir ? `${dir}/${editedFileName}` : editedFileName
   }, [pathSegments, editedFileName])
 
-  const detectedLanguage = useMemo(() => getLangFromFileNameToDiff(editedFileName), [editedFileName])
+  const detectedLanguage = useMemo(() => getLanguageForFile(editedFileName), [editedFileName])
 
   const handlePreviewClick = useCallback(async () => {
     setViewMode('preview')
@@ -83,18 +82,25 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         setDiffResult(result)
 
         if (result?.data?.data) {
-          const diff = new DiffFile('', '', '', '', [result.data.data], detectedLanguage)
+          const patches = parsePatchFiles(result.data.data)
 
-          diff.init()
-          diff.buildSplitDiffLines()
-          diff.buildUnifiedDiffLines()
-          setDiffFile(diff)
+          if (patches.length > 0 && patches[0].files.length > 0) {
+            let metadata = patches[0].files[0]
+
+            // 设置文件名和语言
+            if (!metadata.name) {
+              metadata = { ...metadata, name: editedFileName }
+            }
+            metadata = { ...metadata, lang: detectedLanguage as any }
+
+            setFileDiffMetadata(metadata)
+          }
         }
       } catch (error: any) {
         toast.error(error?.message)
       }
     }
-  }, [content, filePath, hasChanges, diffPreviewMutation, diffResult, detectedLanguage])
+  }, [content, filePath, hasChanges, diffPreviewMutation, diffResult, detectedLanguage, editedFileName])
 
   const handleCommitClick = useCallback(() => {
     if (!hasChanges) {
@@ -129,7 +135,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     setContent(e.target.value)
 
     setDiffResult(null)
-    setDiffFile(null)
+    setFileDiffMetadata(null)
   }
 
   const handleScroll = useCallback(() => {
@@ -192,7 +198,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
       )
     }
 
-    if (!diffFile) {
+    if (!fileDiffMetadata) {
       return (
         <div className='flex h-full items-center justify-center text-gray-500'>
           <div className='text-center'>
@@ -205,28 +211,16 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
 
     return (
       <div className='h-full overflow-auto'>
-        <style>{`
-
-          .diff-line-code-content {
-            min-height: 1.4em;
-            white-space: pre !important;
-          }
-          .diff-line-code-content:empty::before {
-            content: '\\200b';
-            display: inline;
-          }
-
-          .diff-line-old-text,
-          .diff-line-new-text {
-            white-space: pre !important;
-          }
-        `}</style>
-        <DiffView
-          diffFile={diffFile}
-          diffViewFontSize={14}
-          diffViewHighlight
-          diffViewMode={DiffModeEnum.Split}
-          diffViewWrap
+        <FileDiff
+          fileDiff={fileDiffMetadata}
+          options={{
+            theme: { dark: 'github-dark', light: 'pierre-light' },
+            diffStyle: 'split',
+            diffIndicators: 'classic',
+            overflow: 'wrap',
+            disableFileHeader: true
+          }}
+          style={{ '--diffs-font-size': '14px' } as React.CSSProperties}
         />
       </div>
     )

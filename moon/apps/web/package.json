@@ -35,6 +35,7 @@
     "@next/bundle-analyzer": "catalog:",
     "@octokit/auth-app": "catalog:",
     "@octokit/core": "catalog:",
+    "@pierre/diffs": "^1.0.2",
     "@primer/octicons-react": "catalog:",
     "@primer/primitives": "catalog:",
     "@primer/react": "catalog:",
