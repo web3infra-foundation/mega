@@ -513,9 +513,27 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo '{}'", id, repo);
 
-    let (mount_point, mount_id) = mount_antares_fs(&id, &repo, Some(&cl)).await?;
+    // Directly mount the entire repository, starting from the root directory /,
+    // to analyze changes and determine what needs to be built.
+    let (mount_point, mount_id) = mount_antares_fs(&id, "/", Some(&cl)).await?;
     let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
-    let targets = get_build_targets(&mount_point, changes).await?;
+
+    let targets = match get_build_targets(&mount_point, changes).await {
+        Ok(targets) => targets,
+        Err(e) => {
+            let error_msg = format!("Error getting build targets: {}", e);
+            if sender
+                .send(WSMessage::BuildOutput {
+                    id: id.clone(),
+                    output: error_msg.clone(),
+                })
+                .is_err()
+            {
+                tracing::error!("[Task {}] Failed to send BuildOutput for error: {}", id, e);
+            }
+            return Err(e.into());
+        }
+    };
 
     tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 
