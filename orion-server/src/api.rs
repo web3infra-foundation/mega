@@ -774,6 +774,7 @@ async fn process_message(
                                 repo: build_info.repo,
                                 changes: build_info.changes,
                                 cl_link: build_info.cl,
+                                target: build_info.target.clone(),
                             };
                             let worker_id = build_info._worker_id;
                             if let Some(worker) = state.scheduler.workers.get_mut(&worker_id)
@@ -1390,7 +1391,7 @@ mod tests {
         ];
         let (status, partial) = aggregate_task_status(&builds);
         assert!(!partial);
-        assert!(matches!(status, TaskStatusEnum::Pending));
+        assert!(matches!(status, TaskStatusEnum::Building));
     }
 
     #[test]
