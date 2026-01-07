@@ -4712,13 +4712,6 @@ export type OrionClientInfo = {
   start_time: string
 }
 
-export enum CoreWorkerStatus {
-  Idle = 'Idle',
-  Busy = 'Busy',
-  Error = 'Error',
-  Lost = 'Lost'
-}
-
 /**
  * Additional query parameters for querying Orion clients.
  * When no extra conditions are required, this struct can be left empty.
@@ -6231,15 +6224,6 @@ export type GetApiUserTokenListData = CommonResultVecListToken
 export type DeleteApiUserTokenByKeyIdData = CommonResultString
 
 export type GetOrionClientStatusByIdData = OrionClientStatus
-
-export type CommonPageOrionClientInfo = {
-  items: OrionClientInfo[]
-  /**
-   * @format int64
-   * @min 0
-   */
-  total: number
-}
 
 export type PostOrionClientsInfoData = CommonPageOrionClientInfo
 

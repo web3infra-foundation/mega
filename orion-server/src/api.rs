@@ -881,17 +881,16 @@ fn aggregate_task_status(builds: &[BuildDTO]) -> (TaskStatusEnum, bool) {
         )
     });
 
-    let partial_success = has_success && (has_failure || has_running);
-
-    let status = if has_failure {
-        TaskStatusEnum::Failed
-    } else if has_running {
-        TaskStatusEnum::Building
-    } else if has_success {
-        TaskStatusEnum::Completed
-    } else {
-        TaskStatusEnum::Pending
+    // Status priority: failure > running/pending > completed > pending (no data)
+    let status = match (has_failure, has_running, has_success) {
+        (true, _, _) => TaskStatusEnum::Failed,
+        (false, true, _) => TaskStatusEnum::Building,
+        (false, false, true) => TaskStatusEnum::Completed,
+        _ => TaskStatusEnum::Pending,
     };
+
+    // Partial success when at least one succeeded while others are running or failed.
+    let partial_success = has_success && (has_failure || has_running);
 
     (status, partial_success)
 }
