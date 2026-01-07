@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FileDiffMetadata } from '@pierre/diffs/dist'
-import { FileDiff as PierreFileDiff } from '@pierre/diffs/dist/react'
+import { type FileDiffMetadata } from '@pierre/diffs'
+import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
 import { Virtuoso } from 'react-virtuoso'
 
 import { CommonPageDiffItem, CommonResultVecMuiTreeNode } from '@gitmono/types'
