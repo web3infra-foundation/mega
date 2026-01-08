@@ -139,7 +139,7 @@ pub struct BuildInfo {
     pub cl: String,
     pub _worker_id: String,
     pub auto_retry_judger: AutoRetryJudger,
-    pub retry_count: u32,
+    pub retry_count: i32,
 }
 
 /// Status of a worker node
