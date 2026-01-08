@@ -110,13 +110,6 @@ http_url = "http://localhost:8000"
 # set the local path of the lfs storage
 lfs_file_path = "${base_dir}/lfs"
 
-## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
-# Enable or disable splitting large files into smaller chunks
-enable_split = true # Default is disabled. Set to true to enable file splitting.
-
-# Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
-split_size = "20M"
-
 [lfs.aws]
 s3_bucket = "gitmono"
 s3_region = "ap-southeast-2"
@@ -138,4 +131,8 @@ cookie_domain = "localhost"
 campsite_api_domain = "http://api.gitmega.com"
 
 # allowed cors origins
-allowed_cors_origins = ["http://local.gitmega.com", "https://app.gitmega.com", "http://app.gitmono.test"]
+allowed_cors_origins = [
+    "http://local.gitmega.com",
+    "https://app.gitmega.com",
+    "http://app.gitmono.test",
+]

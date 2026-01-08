@@ -1,7 +1,5 @@
 use callisto::lfs_objects;
-use callisto::sea_orm_active_enums::StorageTypeEnum;
 use chrono::{DateTime, Duration, Utc};
-use common::config::LFSConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::ToSchema;
@@ -44,7 +42,6 @@ pub struct MetaObject {
     pub oid: String,
     pub size: i64,
     pub exist: bool,
-    pub splited: bool,
 }
 
 impl From<lfs_objects::Model> for MetaObject {
@@ -53,7 +50,6 @@ impl From<lfs_objects::Model> for MetaObject {
             oid: value.oid,
             size: value.size,
             exist: value.exist,
-            splited: value.splited,
         }
     }
 }
@@ -64,23 +60,16 @@ impl From<MetaObject> for lfs_objects::Model {
             oid: value.oid,
             size: value.size,
             exist: value.exist,
-            splited: value.splited,
         }
     }
 }
 
 impl MetaObject {
-    pub fn new(req_obj: &RequestObject, config: &LFSConfig) -> Self {
-        let splited = config.local.enable_split;
+    pub fn new(req_obj: &RequestObject) -> Self {
         Self {
             oid: req_obj.oid.to_string(),
             size: req_obj.size,
             exist: true,
-            splited: if StorageTypeEnum::AwsS3 == config.storage_type.clone().into() {
-                false
-            } else {
-                splited
-            },
         }
     }
 }

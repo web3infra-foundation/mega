@@ -114,14 +114,6 @@ http_url = "http://localhost:8000"
 # set the local path of the lfs storage
 lfs_file_path = "${base_dir}/lfs"
 
-## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
-# Enable or disable splitting large files into smaller chunks
-enable_split = true # Default is disabled. Set to true to enable file splitting.
-
-# Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
-split_size = "20M"
-
-
 [s3]
 # AWS region name.
 # For AWS S3 this must match the bucket's region.
