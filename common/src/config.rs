@@ -13,8 +13,6 @@ use config::builder::DefaultState;
 use config::{Source, ValueKind};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use callisto::sea_orm_active_enums::StorageTypeEnum;
-
 use crate::utils;
 
 /// Retrieves the base directory path for Mega
@@ -529,26 +527,6 @@ pub enum StorageType {
     Database,
     LocalFs,
     S3,
-}
-
-impl From<StorageTypeEnum> for StorageType {
-    fn from(value: StorageTypeEnum) -> Self {
-        match value {
-            StorageTypeEnum::Database => StorageType::Database,
-            StorageTypeEnum::LocalFs => StorageType::LocalFs,
-            StorageTypeEnum::AwsS3 => StorageType::S3,
-        }
-    }
-}
-
-impl From<StorageType> for StorageTypeEnum {
-    fn from(value: StorageType) -> Self {
-        match value {
-            StorageType::Database => StorageTypeEnum::Database,
-            StorageType::LocalFs => StorageTypeEnum::LocalFs,
-            StorageType::S3 => StorageTypeEnum::AwsS3,
-        }
-    }
 }
 
 impl Default for LFSConfig {
