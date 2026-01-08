@@ -732,7 +732,7 @@ async fn process_message(
                         };
 
                     // Judge auto retry by exit code
-                    auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(1));
+                    auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(0));
 
                     let can_auto_retry = auto_retry_judger.get_can_auto_retry();
 
@@ -742,7 +742,7 @@ async fn process_message(
                         // Add retry count
                         retry_count += 1;
 
-                        // Updata build information
+                        // Update build information
                         if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&id) {
                             build_info.retry_count = retry_count;
                             // New AutoRetryJudger
@@ -766,8 +766,7 @@ async fn process_message(
                             cl_link,
                             changes,
                         };
-                        if let Some(worker) =
-                            state.scheduler.workers.get_mut(&current_worker_id.clone())
+                        if let Some(worker) = state.scheduler.workers.get_mut(current_worker_id)
                             && worker.sender.send(msg).is_ok()
                         {
                             tracing::info!("Retry build: {}, worker: {}", id, current_worker_id);
@@ -788,7 +787,7 @@ async fn process_message(
                     // Remove from active
                     state.scheduler.active_builds.remove(&id);
 
-                    // Updata database with final state
+                    // Update database with final state
                     let _ = builds::Entity::update_many()
                         .set(builds::ActiveModel {
                             exit_code: Set(exit_code),
