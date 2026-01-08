@@ -21,7 +21,7 @@ pub struct Model {
     pub args: Option<Value>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
-    pub retry_count: u32,
+    pub retry_count: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

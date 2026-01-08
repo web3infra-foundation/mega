@@ -18,6 +18,7 @@ pub struct Model {
     pub args: Option<Json>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
+    pub retry_count: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
