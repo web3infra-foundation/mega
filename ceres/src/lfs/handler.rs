@@ -289,7 +289,13 @@ pub async fn lfs_upload_object(
         )
         .await;
     if let Err(_e) = res {
-        lfs_delete_meta(&db_storage, req_obj).await.unwrap();
+        if let Err(delete_err) = lfs_delete_meta(&db_storage, req_obj).await {
+            tracing::error!(
+                "Failed to cleanup LFS metadata for oid {} after upload failure: {}",
+                meta.oid,
+                delete_err
+            );
+        }
         return Err(GitLFSError::GeneralError(String::from(
             "Header not acceptable!",
         )));
