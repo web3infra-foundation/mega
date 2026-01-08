@@ -21,7 +21,6 @@ pub struct Model {
     pub args: Option<Value>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
-    #[sea_orm(column_type = "Integer", default_value = "0")]
     pub retry_count: i32,
 }
 
