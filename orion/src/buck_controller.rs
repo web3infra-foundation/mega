@@ -22,6 +22,10 @@ use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 
+fn scorpio_base_url() -> String {
+    crate::scorpio_api::base_url()
+}
+
 #[allow(dead_code)]
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
@@ -70,7 +74,7 @@ pub async fn mount_fs(
         json!({ "path": repo })
     };
     let mount_res = client
-        .post("http://localhost:2725/api/fs/mount")
+        .post(format!("{}/api/fs/mount", scorpio_base_url()))
         .header("Content-Type", "application/json")
         .body(mount_payload.to_string())
         .send()
@@ -90,7 +94,7 @@ pub async fn mount_fs(
 
             // Then retry the mount operation once
             let retry_mount_res = client
-                .post("http://localhost:2725/api/fs/mount")
+                .post(format!("{}/api/fs/mount", scorpio_base_url()))
                 .header("Content-Type", "application/json")
                 .body(mount_payload.to_string())
                 .send()
@@ -123,7 +127,7 @@ pub async fn mount_fs(
     tracing::debug!("Mount request initiated with request_id: {}", request_id);
 
     // Check task status
-    let select_url = format!("http://localhost:2725/api/fs/select/{request_id}");
+    let select_url = format!("{}/api/fs/select/{request_id}", scorpio_base_url());
     let select_res = client.get(&select_url).send().await?;
     let select_body: Value = select_res.json().await?;
 
@@ -218,8 +222,9 @@ pub async fn mount_antares_fs(
 
     tracing::debug!("Sending mount request with payload: {}", mount_payload);
 
+    let base = scorpio_base_url();
     let mount_res = client
-        .post("http://localhost:2725/antares/mounts")
+        .post(format!("{base}/antares/mounts"))
         .header("Content-Type", "application/json")
         .body(mount_payload.to_string())
         .send()
@@ -305,7 +310,7 @@ pub async fn unmount_antares_fs(mount_id: &str) -> Result<bool, Box<dyn Error + 
         .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
         .build()?;
 
-    let url = format!("http://localhost:2725/antares/mounts/{}", mount_id);
+    let url = format!("{}/antares/mounts/{}", scorpio_base_url(), mount_id);
     tracing::debug!("Constructed DELETE URL: {}", url);
 
     let unmount_res = match client
@@ -380,7 +385,7 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
     };
 
     let unmount_res = client
-        .post("http://localhost:2725/api/fs/unmount")
+        .post(format!("{}/api/fs/unmount", scorpio_base_url()))
         .header("Content-Type", "application/json")
         .body(unmount_payload.to_string())
         .send()
@@ -515,7 +520,9 @@ pub async fn build(
 
     // Directly mount the entire repository, starting from the root directory /,
     // to analyze changes and determine what needs to be built.
-    let (mount_point, mount_id) = mount_antares_fs(&id, "/", Some(&cl)).await?;
+    // Handle empty cl string as None to mount the base repo without a CL layer.
+    let cl_arg = (!cl.trim().is_empty()).then_some(cl.as_str());
+    let (mount_point, mount_id) = mount_antares_fs(&id, "/", cl_arg).await?;
     let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
 
     let targets = match get_build_targets(&mount_point, changes).await {

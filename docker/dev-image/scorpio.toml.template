@@ -1,0 +1,40 @@
+# =============================================================================
+# Scorpio Configuration Template
+# =============================================================================
+# This template uses simple environment variable placeholders like `${VAR_NAME}`.
+# The entrypoint script sets defaults and then substitutes the variables via `envsubst`.
+# =============================================================================
+
+# Mega/Mono service URLs
+base_url = "${SCORPIO_BASE_URL}"
+lfs_url = "${SCORPIO_LFS_URL}"
+
+# Storage paths
+store_path = "${SCORPIO_STORE_PATH}"
+workspace = "${SCORPIO_WORKSPACE}"
+config_file = "config.toml"
+
+# Git author configuration
+git_author = "${SCORPIO_GIT_AUTHOR}"
+git_email = "${SCORPIO_GIT_EMAIL}"
+
+# DicFuse (dictionary-based FUSE) settings
+dicfuse_readable = "${SCORPIO_DICFUSE_READABLE}"
+load_dir_depth = "${SCORPIO_LOAD_DIR_DEPTH}"
+fetch_file_thread = "${SCORPIO_FETCH_FILE_THREAD}"
+dicfuse_import_concurrency = "${SCORPIO_DICFUSE_IMPORT_CONCURRENCY}"
+dicfuse_dir_sync_ttl_secs = "${SCORPIO_DICFUSE_DIR_SYNC_TTL_SECS}"
+dicfuse_stat_mode = "${SCORPIO_DICFUSE_STAT_MODE}"
+dicfuse_open_buff_max_bytes = "${SCORPIO_DICFUSE_OPEN_BUFF_MAX_BYTES}"
+dicfuse_open_buff_max_files = "${SCORPIO_DICFUSE_OPEN_BUFF_MAX_FILES}"
+
+# Antares (overlay filesystem) settings
+antares_load_dir_depth = "${ANTARES_LOAD_DIR_DEPTH}"
+antares_dicfuse_stat_mode = "${ANTARES_DICFUSE_STAT_MODE}"
+antares_dicfuse_open_buff_max_bytes = "${ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES}"
+antares_dicfuse_open_buff_max_files = "${ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES}"
+antares_dicfuse_dir_sync_ttl_secs = "${ANTARES_DICFUSE_DIR_SYNC_TTL_SECS}"
+antares_upper_root = "${ANTARES_UPPER_ROOT}"
+antares_cl_root = "${ANTARES_CL_ROOT}"
+antares_mount_root = "${ANTARES_MOUNT_ROOT}"
+antares_state_file = "${ANTARES_STATE_FILE}"

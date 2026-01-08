@@ -1,0 +1,59 @@
+name: Mega Dev Image deploy
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/mega-dev-image-deploy.yml"
+      - "docker/dev-image/**"
+      - "orion/**"
+      - "scorpio/**"
+      - "ceres/**"
+      - "jupiter/**"
+      - "common/**"
+      - "context/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build, tag, and push dev image to Amazon ECR Public
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: m8q5m4u3
+          REPOSITORY: mega
+          IMAGE_TAG: mega-dev-0.1.0-pre-release
+        run: |
+          set -euo pipefail
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
+
+          docker buildx build \
+            --target runtime \
+            -t "$IMAGE_BASE:$IMAGE_TAG" \
+            -t "$IMAGE_BASE:$IMAGE_TAG-$TIMESTAMP" \
+            -f docker/dev-image/Dockerfile \
+            --push .
+

@@ -16,7 +16,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{self, AppState};
 use crate::log::log_service::LogService;
-use crate::log::store::{LogStore, local_log_store, s3_log_store};
+use crate::log::store::{LogStore, local_log_store, noop_log_store, s3_log_store};
 use crate::model::builds;
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
@@ -58,16 +58,24 @@ pub async fn init_log_service() -> LogService {
         .unwrap_or(4096);
 
     // Read log store type and bucket/build dir
-    let log_store_type = std::env::var("LOGGER_STORAGE_TYPE")
-        .expect("LOGGER_STORAGE_TYPE is not set in the environment");
+    let log_store_type =
+        std::env::var("LOGGER_STORAGE_TYPE").unwrap_or_else(|_| "local".to_string());
     let bucket_name = std::env::var("BUCKET_NAME").unwrap_or_else(|_| "default-bucket".to_string());
     let build_log_dir = std::env::var("BUILD_LOG_DIR").unwrap_or_else(|_| "/tmp/logs".to_string());
 
-    // Initialize local log store
-    let local_log_store = Arc::new(local_log_store::LocalLogStore::new(&build_log_dir));
+    let noop_log_store: Arc<dyn LogStore> = Arc::new(noop_log_store::NoopLogStore::new());
 
-    // Initialize cloud log store based on type
-    let cloud_log_store: Arc<dyn LogStore + Send + Sync> = match log_store_type.as_str() {
+    let (local_log_store, cloud_log_store, cloud_upload_enabled): (
+        Arc<dyn LogStore>,
+        Arc<dyn LogStore>,
+        bool,
+    ) = match log_store_type.as_str() {
+        "none" => (noop_log_store.clone(), noop_log_store.clone(), false),
+        "local" => (
+            Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
+            noop_log_store.clone(),
+            false,
+        ),
         "s3" => {
             let access_key =
                 std::env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID must be set for S3");
@@ -79,16 +87,25 @@ pub async fn init_log_service() -> LogService {
             let store =
                 s3_log_store::S3LogStore::new(&bucket_name, &region, &access_key, &secret_key)
                     .await;
-            Arc::new(store)
+            (
+                Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
+                Arc::new(store),
+                true,
+            )
         }
         other => panic!(
-            "Unsupported LOGGER_STORAGE_TYPE: {}. Supported values: [s3]",
+            "Unsupported LOGGER_STORAGE_TYPE: {}. Supported values: [local, none, s3]",
             other
         ),
     };
 
     // Create the LogService
-    LogService::new(local_log_store, cloud_log_store, buffer)
+    LogService::new(
+        local_log_store,
+        cloud_log_store,
+        buffer,
+        cloud_upload_enabled,
+    )
 }
 
 /// Starts the Orion server with the specified port
