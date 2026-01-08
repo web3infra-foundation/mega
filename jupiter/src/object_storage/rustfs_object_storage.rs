@@ -26,16 +26,12 @@ pub struct RustfsObjectStorage {
 
 fn s3_key(key: &ObjectKey) -> String {
     let id = &key.key;
-    let shard1 = &id[0..2];
-    let shard2 = &id[2..4];
-    let shard3 = &id[4..6];
-
     format!(
         "{}/{}/{}/{}/{}",
         key.namespace,
-        shard1,
-        shard2,
-        shard3,
+        &id[0..2],
+        &id[2..4],
+        &id[4..6],
         &id[6..]
     )
 }
@@ -181,6 +177,18 @@ impl ObjectStorage for RustfsObjectStorage {
             }
         }
     }
+
+    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError> {
+        Ok(self.object_exists(key).await)
+    }
+
+    async fn presign_get(&self, key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        self.get_presigned_url(key).await.map(Some)
+    }
+
+    async fn presign_put(&self, key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        self.put_presigned_url(key).await.map(Some)
+    }
 }
 
 #[cfg(test)]
@@ -190,7 +198,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_s3_key_basic() {
+    fn test_s3_key_lfs() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Lfs,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        let result = s3_key(&key);
+
+        // Unified 3-level sharding for LFS objects.
+        assert_eq!(result, "lfs/ab/cd/ef/1234567890");
+    }
+
+    #[test]
+    fn test_s3_key_git() {
         let key = ObjectKey {
             namespace: ObjectNamespace::Git,
             key: "abcdef1234567890".to_string(),

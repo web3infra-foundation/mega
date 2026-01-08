@@ -3,12 +3,12 @@ use std::cmp::min;
 use anyhow::Result;
 use bytes::Bytes;
 use chrono::prelude::*;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use rand::prelude::*;
-use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::lfs_locks;
 use common::errors::{GitLFSError, MegaError};
+use jupiter::object_storage::{ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage};
 use jupiter::storage::Storage;
 use jupiter::storage::lfs_db_storage::LfsDbStorage;
 
@@ -181,7 +181,7 @@ pub async fn lfs_process_batch(
     let objects = request.objects;
 
     let mut response_objects = Vec::new();
-    let file_storage = storage.lfs_file_storage();
+    let file_storage = storage.lfs_object_storage();
     let db_storage = storage.lfs_db_storage();
     for object in objects {
         let meta_res = lfs_get_meta(db_storage.clone(), &object.oid).await.unwrap();
@@ -208,15 +208,35 @@ pub async fn lfs_process_batch(
                 }
             }
         };
-        let file_exist = file_storage.exist_object(&meta.oid).await;
-        let download_url = file_storage
-            .download_url(&meta.oid, listen_addr)
-            .await
-            .unwrap();
-        let upload_url = file_storage
-            .upload_url(&meta.oid, listen_addr)
-            .await
-            .unwrap();
+        let file_exist = lfs_object_exists(&*file_storage, &meta.oid).await;
+        let download_url = match lfs_download_url(&*file_storage, &meta.oid, listen_addr).await {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::error!("Failed to generate download URL for {}: {}", meta.oid, e);
+                response_objects.push(ResponseObject::failed_with_err(
+                    &object,
+                    ObjectError {
+                        code: 500,
+                        message: format!("Failed to generate download URL: {}", e),
+                    },
+                ));
+                continue;
+            }
+        };
+        let upload_url = match lfs_upload_url(&*file_storage, &meta.oid, listen_addr).await {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::error!("Failed to generate upload URL for {}: {}", meta.oid, e);
+                response_objects.push(ResponseObject::failed_with_err(
+                    &object,
+                    ObjectError {
+                        code: 500,
+                        message: format!("Failed to generate upload URL: {}", e),
+                    },
+                ));
+                continue;
+            }
+        };
 
         response_objects.push(ResponseObject::new(
             &meta,
@@ -245,7 +265,7 @@ pub async fn lfs_upload_object(
     body_bytes: Vec<u8>,
 ) -> Result<(), GitLFSError> {
     let db_storage = storage.lfs_db_storage();
-    let file_storage = storage.lfs_file_storage();
+    let file_storage = storage.lfs_object_storage();
 
     let meta = if let Some(meta) = lfs_get_meta(db_storage.clone(), &req_obj.oid).await? {
         tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
@@ -254,9 +274,21 @@ pub async fn lfs_upload_object(
         return Err(GitLFSError::GeneralError(String::from("Not found ")));
     };
 
-    // normal mode
-    let res = file_storage.put_object(&meta.oid, body_bytes).await;
-    if res.is_err() {
+    let key = lfs_object_key(&meta.oid);
+    let size = meta.size;
+    let data = futures::stream::once(async move { Ok(Bytes::from(body_bytes)) });
+    let stream = Box::pin(data);
+    let res = file_storage
+        .put(
+            &key,
+            stream,
+            ObjectMeta {
+                size,
+                ..Default::default()
+            },
+        )
+        .await;
+    if let Err(e) = res {
         lfs_delete_meta(&db_storage, req_obj).await.unwrap();
         return Err(GitLFSError::GeneralError(String::from(
             "Header not acceptable!",
@@ -272,23 +304,32 @@ pub async fn lfs_download_object(
     oid: String,
 ) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
     let db_storage = storage.lfs_db_storage();
-    let file_storage = storage.lfs_file_storage();
+    let file_storage = storage.lfs_object_storage();
 
     let meta = lfs_get_meta(db_storage.clone(), &oid).await?;
     match meta {
-        Some(_) => {
-            let meta = lfs_get_meta(db_storage, &oid).await?.unwrap();
-            let bytes = file_storage.get_object(&meta.oid).await.unwrap();
-            let (tx, rx) = tokio::sync::mpsc::channel(1);
-            tx.send(Ok(bytes)).await.unwrap();
-            Ok(ReceiverStream::new(rx))
-        }
-        None => {
-            let bytes = file_storage.get_object(&oid).await.unwrap();
-            // because return type must be `ReceiverStream`, so we need to wrap the bytes into a stream.
-            let (tx, rx) = tokio::sync::mpsc::channel(1);
-            tx.send(Ok(bytes)).await.unwrap();
-            Ok(ReceiverStream::new(rx))
+        Some(meta) => {
+            // Fetch object from unified object storage.
+            let key = lfs_object_key(&meta.oid);
+            let (stream, _meta) = match file_storage.get(&key).await {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!("Failed to get LFS object {}: {}", meta.oid, e);
+                    return Err(GitLFSError::GeneralError(format!(
+                        "Failed to retrieve object: {}",
+                        e
+                    )));
+                }
+            };
+            // Map storage's `ObjectByteStream` into the expected `GitLFSError` stream type.
+            let mapped = stream.map(|chunk| match chunk {
+                Ok(bytes) => Ok(bytes),
+                Err(e) => Err(GitLFSError::GeneralError(format!(
+                    "Stream error while reading object: {}",
+                    e
+                ))),
+            });
+            Ok(mapped)
         }
     }
 }
@@ -434,6 +475,53 @@ async fn lfs_delete_meta(
         Ok(_) => Ok(()),
         Err(_) => Err(GitLFSError::GeneralError("".to_string())),
     }
+}
+
+fn lfs_object_key(oid: &str) -> ObjectKey {
+    ObjectKey {
+        namespace: ObjectNamespace::Lfs,
+        key: oid.to_string(),
+    }
+}
+
+async fn lfs_object_exists(storage: &dyn ObjectStorage, oid: &str) -> bool {
+    let key = lfs_object_key(oid);
+
+    match storage.exists(&key).await {
+        Ok(exists) => exists,
+        Err(err) => {
+            tracing::warn!("Failed to check LFS object {} existence: {}", oid, err);
+            false
+        }
+    }
+}
+
+async fn lfs_download_url(
+    storage: &dyn ObjectStorage,
+    oid: &str,
+    hostname: &str,
+) -> Result<String, MegaError> {
+    let key = lfs_object_key(oid);
+
+    if let Some(url) = storage.presign_get(&key).await? {
+        return Ok(url);
+    }
+
+    Ok(format!("{}/info/lfs/objects/{}", hostname, oid))
+}
+
+async fn lfs_upload_url(
+    storage: &dyn ObjectStorage,
+    oid: &str,
+    hostname: &str,
+) -> Result<String, MegaError> {
+    let key = lfs_object_key(oid);
+
+    if let Some(url) = storage.presign_put(&key).await? {
+        return Ok(url);
+    }
+
+    Ok(format!("{}/info/lfs/objects/{}", hostname, oid))
 }
 
 async fn delete_lock(

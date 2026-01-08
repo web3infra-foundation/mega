@@ -23,14 +23,29 @@ impl FsObjectStorage {
         Self { root: root.into() }
     }
 
+    fn shard_path(namespace: &ObjectNamespace, key: &str) -> PathBuf {
+        let namespace_path = match namespace {
+            ObjectNamespace::Git => "git",
+            ObjectNamespace::Lfs => "lfs",
+            ObjectNamespace::Log => "log",
+        };
+
+        Path::new(namespace_path)
+            .join(&key[0..2])
+            .join(&key[2..4])
+            .join(&key[4..6])
+            .join(&key[6..])
+    }
+
     fn object_path(&self, key: &ObjectKey) -> PathBuf {
-        self.root
-            .join(match key.namespace {
-                ObjectNamespace::Git => "git",
-                ObjectNamespace::Lfs => "lfs",
-                ObjectNamespace::Log => "log",
-            })
-            .join(&key.key)
+        self.root.join(Self::shard_path(&key.namespace, &key.key))
+    }
+
+    /// Check if an object exists without opening the file.
+    /// This is more efficient than using `get()` as it only checks metadata.
+    pub async fn object_exists(&self, key: &ObjectKey) -> bool {
+        let path = self.object_path(key);
+        fs::metadata(&path).await.is_ok()
     }
 }
 
@@ -92,5 +107,17 @@ impl ObjectStorage for FsObjectStorage {
                 ..Default::default()
             },
         ))
+    }
+
+    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError> {
+        Ok(self.object_exists(key).await)
+    }
+
+    async fn presign_get(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        Ok(None)
+    }
+
+    async fn presign_put(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        Ok(None)
     }
 }
