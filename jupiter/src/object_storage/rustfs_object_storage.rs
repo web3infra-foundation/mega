@@ -3,7 +3,7 @@ use std::{any::Any, str::FromStr};
 use aws_config::{BehaviorVersion, Region, meta::region::RegionProviderChain};
 use aws_sdk_s3::{
     Client,
-    config::Credentials,
+    config::{Builder as S3ConfigBuilder, Credentials},
     primitives::{ByteStream, SdkBody},
     types::{BucketLocationConstraint, CreateBucketConfiguration},
 };
@@ -67,7 +67,16 @@ impl RustfsObjectStorage {
         }
         let shared_config = builder.load().await;
 
-        let client = Client::new(&shared_config);
+        // For S3-compatible services like MinIO, use path-style addressing
+        let s3_config = if !config.endpoint_url.is_empty() {
+            // Use path-style addressing for MinIO compatibility
+            S3ConfigBuilder::from(&shared_config)
+                .force_path_style(true)
+                .build()
+        } else {
+            S3ConfigBuilder::from(&shared_config).build()
+        };
+        let client = Client::from_conf(s3_config);
 
         Self::create_bucket_if_not_exist(&config, client.clone()).await?;
         Ok(Self {
