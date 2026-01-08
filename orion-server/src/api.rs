@@ -39,7 +39,7 @@ use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-const RETRY_COUNT_MAX: u32 = 3;
+const RETRY_COUNT_MAX: i32 = 3;
 
 #[derive(Debug, Serialize, Default, ToSchema)]
 struct BuildResult {
@@ -716,133 +716,103 @@ async fn process_message(
                     );
 
                     // Get build information
-                    if let Some(build_info) = state.scheduler.active_builds.get(&id) {
-                        let mut build_info = build_info.clone();
-
-                        // Judge auto retry by exit code
-                        build_info
-                            .auto_retry_judger
-                            .judge_by_exit_code(exit_code.unwrap_or(0));
-
-                        let (can_auto_retry, mut retry_count) = (
-                            build_info.auto_retry_judger.get_can_auto_retry(),
-                            build_info.retry_count,
-                        );
-
-                        // Reset auto retry judger
-                        build_info.auto_retry_judger = AutoRetryJudger::new();
-
-                        if can_auto_retry && retry_count < RETRY_COUNT_MAX {
-                            // Restart this build for retry and add retry time
-                            retry_count += 1;
-
-                            // Update build information
-                            build_info.retry_count = retry_count;
-                            state
-                                .scheduler
-                                .active_builds
-                                .alter(&id, |_, _| build_info.clone());
-
-                            // Update database
-                            let _ = builds::Entity::update_many()
-                                .set(builds::ActiveModel {
-                                    retry_count: Set(retry_count),
-                                    ..Default::default()
-                                })
-                                .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
-                                .exec(&state.conn)
-                                .await;
-
-                            // Send Task to the same worker
-                            let msg = WSMessage::Task {
-                                id: build_info.build_id.clone(),
-                                repo: build_info.repo,
-                                changes: build_info.changes,
-                                cl_link: build_info.cl,
-                            };
-                            let worker_id = build_info._worker_id;
-                            if let Some(worker) = state.scheduler.workers.get_mut(&worker_id)
-                                && worker.sender.send(msg).is_ok()
-                            {
-                                tracing::info!(
-                                    "Retry build: {}, worker: {}",
-                                    build_info.build_id,
-                                    worker_id
-                                );
-                            } else {
-                                tracing::error!("Retry build send to worker Failed");
-
-                                // If retry dispatch fails, treat this build as finished and clean up.
-                                // Remove from active builds
-                                state.scheduler.active_builds.remove(&id);
-
-                                // Update database with final state
-                                let _ = builds::Entity::update_many()
-                                    .set(builds::ActiveModel {
-                                        exit_code: Set(exit_code),
-                                        end_at: Set(Some(
-                                            Utc::now()
-                                                .with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                                        )),
-                                        retry_count: Set(retry_count),
-                                        ..Default::default()
-                                    })
-                                    .filter(
-                                        builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()),
-                                    )
-                                    .exec(&state.conn)
-                                    .await;
-
-                                // Notify scheduler to process queued tasks
-                                state.scheduler.notify_task_available();
-                            }
+                    let (mut auto_retry_judger, mut retry_count, repo, changes, cl_link, task_id) =
+                        if let Some(build_info) = state.scheduler.active_builds.get(&id) {
+                            (
+                                build_info.auto_retry_judger.clone(),
+                                build_info.retry_count,
+                                build_info.repo.clone(),
+                                build_info.changes.clone(),
+                                build_info.cl.clone(),
+                                build_info.task_id.clone(),
+                            )
                         } else {
-                            // Send final log event
-                            let log_event = LogEvent {
-                                task_id: build_info.task_id.clone(),
-                                repo_name: LogService::last_segment(&build_info.repo.clone())
-                                    .to_string(),
-                                build_id: build_info.build_id.clone(),
-                                line: String::from(""),
-                                is_end: true,
-                            };
-                            state.log_service.publish(log_event);
+                            tracing::error!("Not found build {id}");
+                            return ControlFlow::Continue(());
+                        };
 
-                            // Remove from active builds
-                            state.scheduler.active_builds.remove(&id);
+                    // Judge auto retry by exit code
+                    auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(1));
 
-                            // Update database
-                            let _ = builds::Entity::update_many()
-                                .set(builds::ActiveModel {
-                                    exit_code: Set(exit_code),
-                                    end_at: Set(Some(
-                                        Utc::now()
-                                            .with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                                    )),
-                                    retry_count: Set(retry_count),
-                                    ..Default::default()
-                                })
-                                .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
-                                .exec(&state.conn)
-                                .await;
+                    let can_auto_retry = auto_retry_judger.get_can_auto_retry();
 
-                            // Mark the worker as idle or error depending on whether the task succeeds.
-                            if let Some(mut worker) =
-                                state.scheduler.workers.get_mut(current_worker_id)
-                            {
-                                worker.status = if success {
-                                    WorkerStatus::Idle
-                                } else {
-                                    WorkerStatus::Error(message)
-                                };
-                            }
+                    if can_auto_retry && retry_count < RETRY_COUNT_MAX {
+                        tracing::info!("Build {id} will retry, current retry count: {retry_count}");
 
-                            // After worker becomes idle, notify to process queued tasks
-                            state.scheduler.notify_task_available();
+                        // Add retry count
+                        retry_count += 1;
+
+                        // Updata build information
+                        if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&id) {
+                            build_info.retry_count = retry_count;
+                            // New AutoRetryJudger
+                            build_info.auto_retry_judger = AutoRetryJudger::new();
                         }
-                    } else {
-                        tracing::error!("Not found build: {id}");
+
+                        // Update database
+                        let _ = builds::Entity::update_many()
+                            .set(builds::ActiveModel {
+                                retry_count: Set(retry_count),
+                                ..Default::default()
+                            })
+                            .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
+                            .exec(&state.conn)
+                            .await;
+
+                        // Send task to this worker
+                        let msg = WSMessage::Task {
+                            id: id.clone(),
+                            repo: repo.clone(),
+                            cl_link,
+                            changes,
+                        };
+                        if let Some(worker) =
+                            state.scheduler.workers.get_mut(&current_worker_id.clone())
+                            && worker.sender.send(msg).is_ok()
+                        {
+                            tracing::info!("Retry build: {}, worker: {}", id, current_worker_id);
+                            return ControlFlow::Continue(());
+                        }
                     }
+
+                    // Send final log event
+                    let log_event = LogEvent {
+                        task_id: task_id.clone(),
+                        repo_name: LogService::last_segment(&repo).to_string(),
+                        build_id: id.clone(),
+                        line: String::from(""),
+                        is_end: true,
+                    };
+                    state.log_service.publish(log_event);
+
+                    // Remove from active
+                    state.scheduler.active_builds.remove(&id);
+
+                    // Updata database with final state
+                    let _ = builds::Entity::update_many()
+                        .set(builds::ActiveModel {
+                            exit_code: Set(exit_code),
+                            end_at: Set(Some(
+                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                            )),
+                            retry_count: Set(retry_count),
+                            ..Default::default()
+                        })
+                        .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
+                        .exec(&state.conn)
+                        .await;
+
+                    // Mark the worker as idle or error depending on whether the task succeeds.
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        worker.status = if success {
+                            WorkerStatus::Idle
+                        } else {
+                            WorkerStatus::Error(message)
+                        };
+                    }
+
+                    // Notify scheduler to process queued tasks
+                    state.scheduler.notify_task_available();
                 }
                 WSMessage::TaskPhaseUpdate { id, phase } => {
                     tracing::info!(
