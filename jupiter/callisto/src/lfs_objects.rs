@@ -10,7 +10,6 @@ pub struct Model {
     pub oid: String,
     pub size: i64,
     pub exist: bool,
-    pub splited: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

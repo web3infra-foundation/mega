@@ -564,17 +564,12 @@ impl Default for LFSConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSLocalConfig {
     pub lfs_file_path: PathBuf,
-    pub enable_split: bool,
-    #[serde(deserialize_with = "string_or_usize")]
-    pub split_size: String,
 }
 
 impl Default for LFSLocalConfig {
     fn default() -> Self {
         Self {
             lfs_file_path: mega_base().join("lfs"),
-            enable_split: true,
-            split_size: "20M".to_string(),
         }
     }
 }
