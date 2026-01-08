@@ -115,6 +115,58 @@ impl RustfsObjectStorage {
         }
         Ok(())
     }
+    // Helper: check if object exists in S3
+    pub async fn object_exists(&self, key: &ObjectKey) -> bool {
+        self.client
+            .head_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key))
+            .send()
+            .await
+            .is_ok()
+    }
+
+    // Helper: generate a pre-signed GET url (1h default)
+    pub async fn get_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use std::time::Duration;
+
+        let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
+            .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
+
+        let req = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key));
+
+        let presigned = req
+            .presigned(cfg)
+            .await
+            .map_err(|e| MegaError::Other(dump_error_chain(&e)))?;
+        Ok(presigned.uri().to_string())
+    }
+
+    // Helper: generate a pre-signed PUT url (1h default)
+    pub async fn put_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use std::time::Duration;
+
+        let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
+            .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
+
+        let req = self
+            .client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key));
+
+        let presigned = req
+            .presigned(cfg)
+            .await
+            .map_err(|e| MegaError::Other(dump_error_chain(&e)))?;
+        Ok(presigned.uri().to_string())
+    }
 }
 
 #[async_trait::async_trait]

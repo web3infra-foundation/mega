@@ -288,7 +288,7 @@ pub async fn lfs_upload_object(
             },
         )
         .await;
-    if let Err(e) = res {
+    if let Err(_e) = res {
         lfs_delete_meta(&db_storage, req_obj).await.unwrap();
         return Err(GitLFSError::GeneralError(String::from(
             "Header not acceptable!",
@@ -331,6 +331,10 @@ pub async fn lfs_download_object(
             });
             Ok(mapped)
         }
+        None => Err(GitLFSError::GeneralError(format!(
+            "LFS object not found: {}",
+            oid
+        ))),
     }
 }
 
