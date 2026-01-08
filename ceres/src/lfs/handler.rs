@@ -183,7 +183,6 @@ pub async fn lfs_process_batch(
     let mut response_objects = Vec::new();
     let file_storage = storage.lfs_file_storage();
     let db_storage = storage.lfs_db_storage();
-    let config = storage.config().lfs.clone();
     for object in objects {
         let meta_res = lfs_get_meta(db_storage.clone(), &object.oid).await.unwrap();
         let meta = match meta_res {
@@ -191,7 +190,7 @@ pub async fn lfs_process_batch(
             None => {
                 if request.operation == Operation::Upload {
                     // Save to database if not exist.
-                    let meta = MetaObject::new(&object, &config);
+                    let meta = MetaObject::new(&object);
                     db_storage
                         .new_lfs_object(meta.clone().into())
                         .await
@@ -519,7 +518,6 @@ mod tests {
             oid: "oid1".into(),
             size: 10,
             exist: true,
-            splited: false,
         };
         let res = ResponseObject::new(
             &meta,
@@ -543,7 +541,6 @@ mod tests {
             oid: "oid2".into(),
             size: 20,
             exist: false,
-            splited: false,
         };
         let res = ResponseObject::new(
             &meta,
@@ -566,7 +563,6 @@ mod tests {
             oid: "oid3".into(),
             size: 30,
             exist: false,
-            splited: false,
         };
         let res = ResponseObject::new(
             &meta,

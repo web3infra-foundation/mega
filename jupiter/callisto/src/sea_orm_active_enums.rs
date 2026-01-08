@@ -123,13 +123,3 @@ pub enum ReferenceTypeEnum {
     #[sea_orm(string_value = "blocks")]
     Blocks,
 }
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "storage_type_enum")]
-pub enum StorageTypeEnum {
-    #[sea_orm(string_value = "database")]
-    Database,
-    #[sea_orm(string_value = "local_fs")]
-    LocalFs,
-    #[sea_orm(string_value = "aws_s3")]
-    AwsS3,
-}
