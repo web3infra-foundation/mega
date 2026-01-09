@@ -5,7 +5,6 @@ use common::config::Config;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
 
-use crate::lfs_storage::local_storage::LocalStorage;
 use crate::migration::apply_migrations;
 use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
@@ -27,10 +26,9 @@ use crate::storage::{
     mono_storage::MonoStorage, user_storage::UserStorage, vault_storage::VaultStorage,
 };
 
-pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnection {
-    let db_url = format!("sqlite://{}/test.db", temp_dir.as_ref().to_string_lossy());
-    std::fs::File::create(temp_dir.as_ref().join("test.db"))
-        .expect("Failed to create test database file");
+pub async fn test_db_connection(temp_dir: &Path) -> DatabaseConnection {
+    let db_url = format!("sqlite://{}/test.db", temp_dir.to_string_lossy());
+    std::fs::File::create(temp_dir.join("test.db")).expect("Failed to create test database file");
 
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(5)
@@ -45,7 +43,7 @@ pub async fn test_db_connection(temp_dir: impl AsRef<Path>) -> DatabaseConnectio
 
 pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
     static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
-    let connection = test_db_connection(temp_dir).await;
+    let connection = test_db_connection(temp_dir.as_ref()).await;
     let connection = Arc::new(connection);
     let config = CONFIG.clone();
     let base = BaseStorage::new(connection.clone());
@@ -60,7 +58,11 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         issue_storage: IssueStorage { base: base.clone() },
         vault_storage: VaultStorage { base: base.clone() },
         conversation_storage: ConversationStorage { base: base.clone() },
-        lfs_file_storage: Arc::new(LocalStorage::mock()), // fix it when you really use it.
+        lfs_object_storage: Arc::new(
+            crate::object_storage::fs_object_storage::FsObjectStorage::new(
+                temp_dir.as_ref().join("lfs_objects"),
+            ),
+        ),
         note_storage: NoteStorage { base: base.clone() },
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: ClReviewerStorage { base: base.clone() },

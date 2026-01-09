@@ -239,7 +239,9 @@ impl SmartProtocol {
         for command in &mut self.command_list {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
-                repo_handler.update_refs(command).await.unwrap();
+                if let Err(e) = repo_handler.update_refs(command).await {
+                    command.failed(e.to_string());
+                }
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.

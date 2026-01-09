@@ -130,6 +130,28 @@ pub trait ObjectStorage: Send + Sync {
     /// - Backend I/O fails
     async fn get(&self, key: &ObjectKey) -> Result<(ObjectByteStream, ObjectMeta), MegaError>;
 
+    /// Check whether an object exists.
+    ///
+    /// Default implementation falls back to `get`; concrete storages should
+    /// override for a cheaper metadata-only call.
+    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError> {
+        Ok(self.get(key).await.is_ok())
+    }
+
+    /// Generate a presigned download URL when supported by the backend.
+    ///
+    /// Returns `Ok(None)` if the storage does not support presigning.
+    async fn presign_get(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        Ok(None)
+    }
+
+    /// Generate a presigned upload URL when supported by the backend.
+    ///
+    /// Returns `Ok(None)` if the storage does not support presigning.
+    async fn presign_put(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        Ok(None)
+    }
+
     /// Upload multiple objects concurrently.
     ///
     /// Objects are provided as a stream, allowing the caller to:
