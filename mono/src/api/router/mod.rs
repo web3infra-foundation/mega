@@ -1,3 +1,4 @@
+pub mod admin_router;
 pub mod buck_router;
 pub mod cl_router;
 pub mod commit_router;

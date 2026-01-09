@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cedar_policy::{Entities, Schema};
 use serde::{Deserialize, Serialize};
@@ -52,9 +52,26 @@ impl EntityStore {
         self.issues.extend(other.issues);
         self.user_groups.extend(other.user_groups);
     }
+
+    pub fn extract_admin_usernames(&self) -> HashSet<String> {
+        const ADMIN_GROUP: &str = "UserGroup::\"admin\"";
+
+        let mut admins = HashSet::new();
+        for user in self.users.values() {
+            let is_admin = user.parents().iter().any(|p| p.to_string() == ADMIN_GROUP);
+            if is_admin {
+                let username: &str = user.euid().id().as_ref();
+                admins.insert(username.to_string());
+            }
+        }
+        admins
+    }
 }
 
-pub fn generate_entity(user: &str, repo: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn generate_entity(
+    admins: &[String],
+    repo: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mut json_data = json!({
         "users": {
         },
@@ -84,18 +101,21 @@ pub fn generate_entity(user: &str, repo: &str) -> Result<String, Box<dyn std::er
         }
     });
 
+    // Add all admin users to the admin group
     if let Some(users) = json_data.get_mut("users")
         && let Some(users_map) = users.as_object_mut()
     {
-        users_map.insert(
-            format!("User::\"{user}\""),
-            json!({
-                    "euid": format!("User::\"{user}\""),
-                    "parents": [
-                        "UserGroup::\"admin\""
-                    ]
-            }),
-        );
+        for user in admins {
+            users_map.insert(
+                format!("User::\"{user}\""),
+                json!({
+                        "euid": format!("User::\"{user}\""),
+                        "parents": [
+                            "UserGroup::\"admin\""
+                        ]
+                }),
+            );
+        }
     }
 
     if let Some(repos) = json_data.get_mut("repos")
