@@ -543,9 +543,6 @@ catalogs:
     prettier-plugin-tailwindcss:
       specifier: ^0.6.8
       version: 0.6.8
-    prism-react-renderer:
-      specifier: ^2.4.1
-      version: 2.4.1
     pusher-js:
       specifier: ^8.3.0
       version: 8.3.0
@@ -926,9 +923,6 @@ importers:
       '@types/d3':
         specifier: 'catalog:'
         version: 7.4.3
-      '@types/prismjs':
-        specifier: ^1.26.5
-        version: 1.26.5
       '@vercel/og':
         specifier: 'catalog:'
         version: 0.6.2
@@ -1070,12 +1064,6 @@ importers:
       pluralize:
         specifier: 'catalog:'
         version: 8.0.0
-      prism-react-renderer:
-        specifier: 'catalog:'
-        version: 2.4.1(react@18.2.0)
-      prismjs:
-        specifier: ^1.30.0
-        version: 1.30.0
       prosemirror-view:
         specifier: ^1.40.0
         version: 1.40.0
@@ -5890,9 +5878,6 @@ packages:
   '@types/prismjs@1.26.3':
     resolution: {integrity: sha512-A0D0aTXvjlqJ5ZILMz3rNfDBOx9hHxLZYv2by47Sm/pqW35zzjusrZTryatjN/Rf8Us2gZrJD+KeHbUSTux1Cw==}
 
-  '@types/prismjs@1.26.5':
-    resolution: {integrity: sha512-AUZTa7hQ2KY5L7AmtSiqxlhWxb4ina0yd8hNbl4TWuqnv/pFP0nDMb3YrfSBf4hJVGLh2YEIBfKaBW/9UEl6IQ==}
-
   '@types/prop-types@15.7.14':
     resolution: {integrity: sha512-gNMvNH49DJ7OJYv+KAKn0Xp45p8PLl6zo2YnvDIbTd4J6MER2BmWN49TG7n9LvkyihINxeKW8+3bfS2yDC9dzQ==}
 
@@ -10270,15 +10255,6 @@ packages:
   pretty-hrtime@1.0.3:
     resolution: {integrity: sha512-66hKPCr+72mlfiSjlEB1+45IjXSqvVAIy6mocupoww4tBFE9R9IhwwUGoI4G++Tc9Aq+2rxOt0RFU6gPcrte0A==}
     engines: {node: '>= 0.8'}
-
-  prism-react-renderer@2.4.1:
-    resolution: {integrity: sha512-ey8Ls/+Di31eqzUxC46h8MksNuGx/n0AAC8uKpwFau4RPDYLuE3EXTp8N8G2vX2N7UC/+IXeNUnlWBGGcAG+Ig==}
-    peerDependencies:
-      react: '>=16.0.0'
-
-  prismjs@1.30.0:
-    resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
-    engines: {node: '>=6'}
 
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
@@ -18036,8 +18012,6 @@ snapshots:
 
   '@types/prismjs@1.26.3': {}
 
-  '@types/prismjs@1.26.5': {}
-
   '@types/prop-types@15.7.14': {}
 
   '@types/prop-types@15.7.5': {}
@@ -23190,14 +23164,6 @@ snapshots:
       react-is: 18.2.0
 
   pretty-hrtime@1.0.3: {}
-
-  prism-react-renderer@2.4.1(react@18.2.0):
-    dependencies:
-      '@types/prismjs': 1.26.5
-      clsx: 2.1.1
-      react: 18.2.0
-
-  prismjs@1.30.0: {}
 
   process-nextick-args@2.0.1: {}
 
