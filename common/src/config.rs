@@ -327,7 +327,7 @@ impl Default for DbConfig {
 pub struct MonoConfig {
     pub storage_type: StorageType,
     pub import_dir: PathBuf,
-    pub admin: String,
+    pub admin: Vec<String>,
     pub root_dirs: Vec<String>,
 }
 
@@ -336,7 +336,7 @@ impl Default for MonoConfig {
         Self {
             storage_type: StorageType::LocalFs,
             import_dir: PathBuf::from("/third-party"),
-            admin: String::from("admin"),
+            admin: vec!["admin".to_string()],
             root_dirs: vec![
                 "third-party".to_string(),
                 "project".to_string(),

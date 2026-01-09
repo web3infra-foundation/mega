@@ -11,6 +11,18 @@ pub struct User {
     parents: HashSet<SaturnEUid>,
 }
 
+impl User {
+    /// Get the entity unique identifier.
+    pub fn euid(&self) -> &SaturnEUid {
+        &self.euid
+    }
+
+    /// Get the parent groups this user belongs to.
+    pub fn parents(&self) -> &HashSet<SaturnEUid> {
+        &self.parents
+    }
+}
+
 impl From<User> for Entity {
     fn from(value: User) -> Entity {
         Entity::new_no_attrs(

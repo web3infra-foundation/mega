@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 
+pub mod admin_resolver;
 pub mod context;
 pub mod entitystore;
 mod objects;
