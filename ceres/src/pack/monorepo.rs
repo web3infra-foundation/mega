@@ -377,14 +377,14 @@ impl RepoHandler for MonoRepo {
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
         let current_commit = self.current_commit.read().await;
-        let cl_link = self.fetch_or_new_cl_link().await.unwrap();
+        let cl_link = self.fetch_or_new_cl_link().await?;
         let ref_name = utils::cl_ref_name(&cl_link);
 
         if let Some(c) = &*current_commit {
-            if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await.unwrap() {
+            if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await? {
                 cl_ref.ref_commit_hash = refs.new_id.clone();
                 cl_ref.ref_tree_hash = c.tree_id.to_string();
-                storage.update_ref(cl_ref, None).await.unwrap();
+                storage.update_ref(cl_ref, None).await?;
             } else {
                 let refs = mega_refs::Model::new(
                     &self.path,
@@ -393,7 +393,7 @@ impl RepoHandler for MonoRepo {
                     c.tree_id.to_string(),
                     true,
                 );
-                storage.save_refs(refs, None).await.unwrap();
+                storage.save_refs(refs, None).await?;
             }
         }
         Ok(())
@@ -553,8 +553,7 @@ impl MonoRepo {
         let path_str = self.path.to_str().unwrap();
         let cl_link = match storage
             .get_open_cl_by_path(path_str, &self.username())
-            .await
-            .unwrap()
+            .await?
         {
             Some(cl) => cl.link.clone(),
             None => {
@@ -712,7 +711,11 @@ impl MonoRepo {
             }
             None => {
                 let link_guard = self.cl_link.read().await;
-                let cl_link = link_guard.as_ref().unwrap();
+                let cl_link = link_guard.as_ref().ok_or_else(|| {
+                    MegaError::Other(
+                        "CL link not available. This may occur if refs update failed.".to_string(),
+                    )
+                })?;
 
                 let commit_guard = self.current_commit.read().await;
                 let title = if let Some(commit) = commit_guard.as_ref() {
@@ -1013,7 +1016,11 @@ impl MonoRepo {
 
     pub async fn post_cl_operation(&self) -> Result<(), MegaError> {
         let link_guard = self.cl_link.read().await;
-        let link = link_guard.as_ref().unwrap();
+        let link = link_guard.as_ref().ok_or_else(|| {
+            MegaError::Other(
+                "CL link not available. This may occur if refs update failed.".to_string(),
+            )
+        })?;
         let cl_info = self
             .storage
             .cl_storage()

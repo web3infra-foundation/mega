@@ -3,7 +3,7 @@ use std::{any::Any, str::FromStr};
 use aws_config::{BehaviorVersion, Region, meta::region::RegionProviderChain};
 use aws_sdk_s3::{
     Client,
-    config::Credentials,
+    config::{Builder as S3ConfigBuilder, Credentials},
     primitives::{ByteStream, SdkBody},
     types::{BucketLocationConstraint, CreateBucketConfiguration},
 };
@@ -26,16 +26,12 @@ pub struct RustfsObjectStorage {
 
 fn s3_key(key: &ObjectKey) -> String {
     let id = &key.key;
-    let shard1 = &id[0..2];
-    let shard2 = &id[2..4];
-    let shard3 = &id[4..6];
-
     format!(
         "{}/{}/{}/{}/{}",
         key.namespace,
-        shard1,
-        shard2,
-        shard3,
+        &id[0..2],
+        &id[2..4],
+        &id[4..6],
         &id[6..]
     )
 }
@@ -71,7 +67,16 @@ impl RustfsObjectStorage {
         }
         let shared_config = builder.load().await;
 
-        let client = Client::new(&shared_config);
+        // For S3-compatible services like MinIO, use path-style addressing
+        let s3_config = if !config.endpoint_url.is_empty() {
+            // Use path-style addressing for MinIO compatibility
+            S3ConfigBuilder::from(&shared_config)
+                .force_path_style(true)
+                .build()
+        } else {
+            S3ConfigBuilder::from(&shared_config).build()
+        };
+        let client = Client::from_conf(s3_config);
 
         Self::create_bucket_if_not_exist(&config, client.clone()).await?;
         Ok(Self {
@@ -118,6 +123,58 @@ impl RustfsObjectStorage {
             }
         }
         Ok(())
+    }
+    // Helper: check if object exists in S3
+    pub async fn object_exists(&self, key: &ObjectKey) -> bool {
+        self.client
+            .head_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key))
+            .send()
+            .await
+            .is_ok()
+    }
+
+    // Helper: generate a pre-signed GET url (1h default)
+    pub async fn get_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use std::time::Duration;
+
+        let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
+            .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
+
+        let req = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key));
+
+        let presigned = req
+            .presigned(cfg)
+            .await
+            .map_err(|e| MegaError::Other(dump_error_chain(&e)))?;
+        Ok(presigned.uri().to_string())
+    }
+
+    // Helper: generate a pre-signed PUT url (1h default)
+    pub async fn put_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use std::time::Duration;
+
+        let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
+            .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
+
+        let req = self
+            .client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(s3_key(key));
+
+        let presigned = req
+            .presigned(cfg)
+            .await
+            .map_err(|e| MegaError::Other(dump_error_chain(&e)))?;
+        Ok(presigned.uri().to_string())
     }
 }
 
@@ -181,6 +238,18 @@ impl ObjectStorage for RustfsObjectStorage {
             }
         }
     }
+
+    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError> {
+        Ok(self.object_exists(key).await)
+    }
+
+    async fn presign_get(&self, key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        self.get_presigned_url(key).await.map(Some)
+    }
+
+    async fn presign_put(&self, key: &ObjectKey) -> Result<Option<String>, MegaError> {
+        self.put_presigned_url(key).await.map(Some)
+    }
 }
 
 #[cfg(test)]
@@ -190,7 +259,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_s3_key_basic() {
+    fn test_s3_key_lfs() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Lfs,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        let result = s3_key(&key);
+
+        // Unified 3-level sharding for LFS objects.
+        assert_eq!(result, "lfs/ab/cd/ef/1234567890");
+    }
+
+    #[test]
+    fn test_s3_key_git() {
         let key = ObjectKey {
             namespace: ObjectNamespace::Git,
             key: "abcdef1234567890".to_string(),

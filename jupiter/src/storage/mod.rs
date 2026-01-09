@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 
 use common::config::Config;
 
-use crate::lfs_storage::{self, LfsFileStorage, local_storage::LocalStorage};
+use crate::object_storage::ObjectStorage;
 use crate::object_storage::factory::{ObjectStorageConfig, ObjectStorageFactory};
 use crate::service::buck_service::BuckService;
 use crate::service::cl_service::CLService;
@@ -57,7 +57,7 @@ pub struct AppService {
     pub cl_storage: ClStorage,
     pub issue_storage: IssueStorage,
     pub conversation_storage: ConversationStorage,
-    pub lfs_file_storage: Arc<dyn LfsFileStorage>,
+    pub lfs_object_storage: Arc<dyn ObjectStorage>,
     pub note_storage: NoteStorage,
     pub commit_binding_storage: CommitBindingStorage,
     pub reviewer_storage: ClReviewerStorage,
@@ -69,6 +69,12 @@ pub struct AppService {
 impl AppService {
     fn mock() -> Arc<Self> {
         let mock = BaseStorage::mock();
+        // For tests and in-memory workflows we don't need a real persistent
+        // object storage. Use a filesystem-backed storage rooted in the system
+        // temp directory to provide a lightweight implementation.
+        let lfs_object_storage: Arc<dyn ObjectStorage> = Arc::new(
+            crate::object_storage::fs_object_storage::FsObjectStorage::new(std::env::temp_dir()),
+        );
         Arc::new(Self {
             mono_storage: MonoStorage { base: mock.clone() },
             git_db_storage: GitDbStorage { base: mock.clone() },
@@ -76,7 +82,7 @@ impl AppService {
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
-            lfs_file_storage: Arc::new(LocalStorage::mock()),
+            lfs_object_storage,
             cl_storage: ClStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
@@ -117,8 +123,11 @@ impl Storage {
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
-        let lfs_file_storage =
-            lfs_storage::init(config.lfs.clone(), config.s3.clone(), connection.clone()).await;
+        // Initialize ObjectStorage for LFS using the same storage type as configured
+        let lfs_object_storage: Arc<dyn ObjectStorage> = ObjectStorageFactory::create(
+            ObjectStorageConfig::from_config(config.lfs.storage_type.clone(), config.clone()),
+        )
+        .await?;
         let note_storage = NoteStorage { base: base.clone() };
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
@@ -172,7 +181,7 @@ impl Storage {
             cl_storage: cl_storage.clone(),
             issue_storage,
             conversation_storage,
-            lfs_file_storage,
+            lfs_object_storage,
             note_storage,
             commit_binding_storage,
             reviewer_storage,
@@ -257,8 +266,8 @@ impl Storage {
         self.app_service.conversation_storage.clone()
     }
 
-    pub fn lfs_file_storage(&self) -> Arc<dyn LfsFileStorage> {
-        self.app_service.lfs_file_storage.clone()
+    pub fn lfs_object_storage(&self) -> Arc<dyn ObjectStorage> {
+        self.app_service.lfs_object_storage.clone()
     }
 
     pub fn note_storage(&self) -> NoteStorage {
