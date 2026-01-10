@@ -1225,6 +1225,7 @@ pub async fn get_orion_client_status_by_id(
         (status = 400, description = "Invalid build ID format", body = serde_json::Value),
         (status = 404, description = "Build Id not found", body = serde_json::Value),
         (status = 500, description = "Internal server error", body = serde_json::Value),
+        (status = 502, description = "Send to worker error", body = serde_json::Value),
         (status = 503, description = "Queue is full", body = serde_json::Value)
     )
 )]
@@ -1239,11 +1240,19 @@ pub async fn build_retry_handler(
         Err(_) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"message:": "Invalid build ID format"})),
+                Json(serde_json::json!({"message": "Invalid build ID format"})),
             )
                 .into_response();
         }
     };
+
+    if state.scheduler.active_builds.contains_key(&req.build_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"message": "The build already exists"})),
+        )
+            .into_response();
+    }
 
     let build = match builds::Entity::find_by_id(build_id).one(db).await {
         Ok(o) => match o {
@@ -1267,18 +1276,37 @@ pub async fn build_retry_handler(
 
     let retry_count = build.retry_count + 1;
 
-    let _ = builds::Entity::update_many()
+    if let Err(err) = builds::Entity::update_many()
         .set(builds::ActiveModel {
             retry_count: Set(retry_count),
             ..Default::default()
         })
         .filter(builds::Column::Id.eq(build_id))
         .exec(db)
-        .await;
+        .await
+    {
+        tracing::error!(
+            "Failed to update retry_count for build {}: {}",
+            build_id,
+            err
+        );
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": "Database update failed"})),
+        )
+            .into_response();
+    }
 
     let idle_workers = state.scheduler.get_idle_workers();
     if idle_workers.is_empty() {
         // No idle workers, add task to queue
+        // WARN: When a build is retried and queued (no idle workers),
+        // the enqueue_task_with_build_id is called with the existing build.id.
+        // Later, when the task is dispatched from the queue via dispatch_task in scheduler.rs,
+        // it attempts to insert a new build record with this ID,
+        // which will fail due to a primary key constraint violation since the build already exists.
+        // The retry logic should either update the existing build record or
+        // handle the insertion differently to avoid this conflict.
         match state
             .scheduler
             .enqueue_task_with_build_id(
@@ -1330,9 +1358,6 @@ pub async fn build_retry_handler(
             retry_count,
         };
 
-        // Update database
-        //
-
         // Send build to worker
         let msg: WSMessage = WSMessage::Task {
             id: build.id.to_string(),
@@ -1357,13 +1382,27 @@ pub async fn build_retry_handler(
                 build.id,
                 chosen_id
             );
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "message": "Build retry dispatched immediately to worker"
+                })),
+            )
+                .into_response()
+        } else {
+            tracing::warn!(
+                "Failed to dispatch build {} retry to worker {}; worker missing or send failed",
+                build.id,
+                chosen_id
+            );
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({
+                    "message": "Failed to dispatch build retry to worker"
+                })),
+            )
+                .into_response()
         }
-
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({"message": "Build retry despatched immediately to worker"})),
-        )
-            .into_response()
     }
 }
 
