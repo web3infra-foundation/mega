@@ -85,6 +85,15 @@ pub struct TaskHistoryQuery {
     pub end: Option<usize>,
 }
 
+/// Request structure for Retry a build
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RetryBuildRequest {
+    pub build_id: String,
+    pub cl_link: String,
+    pub cl: i64,
+    pub build: scheduler::BuildRequest,
+}
+
 /// Shared application state containing worker connections, database, and active builds
 #[derive(Clone)]
 pub struct AppState {
@@ -127,6 +136,7 @@ pub fn routers() -> Router<AppState> {
             "/orion-client-status/{id}",
             get(get_orion_client_status_by_id),
         )
+        .route("/retry-build", post(build_retry_handler))
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -343,6 +353,7 @@ pub async fn task_handler(
                     build.clone(),
                     req.repo.clone(),
                     req.cl,
+                    0,
                 )
                 .await
             {
@@ -875,6 +886,7 @@ pub struct BuildDTO {
     pub args: Option<Value>,
     pub output_file: String,
     pub created_at: String,
+    pub retry_count: i32,
     pub status: TaskStatusEnum,
     pub cause_by: Option<String>,
 }
@@ -893,6 +905,7 @@ impl BuildDTO {
             args: model.args.map(|v| json!(v)),
             output_file: model.output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
+            retry_count: model.retry_count,
             status,
             cause_by: None,
         }
@@ -1200,6 +1213,158 @@ pub async fn get_orion_client_status_by_id(
     let status = OrionClientStatus::from_worker_status(&worker);
 
     Ok(Json(status))
+}
+
+/// Retry the build
+#[utoipa::path(
+    post,
+    path = "/retry-build",
+    request_body = RetryBuildRequest,
+    responses(
+        (status = 200, description = "Retry created", body = serde_json::Value),
+        (status = 400, description = "Invalid build ID format", body = serde_json::Value),
+        (status = 404, description = "Build Id not found", body = serde_json::Value),
+        (status = 500, description = "Internal server error", body = serde_json::Value),
+        (status = 503, description = "Queue is full", body = serde_json::Value)
+    )
+)]
+pub async fn build_retry_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RetryBuildRequest>,
+) -> impl IntoResponse {
+    let db = &state.conn;
+
+    let build_id = match req.build_id.parse::<uuid::Uuid>() {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"message:": "Invalid build ID format"})),
+            )
+                .into_response();
+        }
+    };
+
+    let build = match builds::Entity::find_by_id(build_id).one(db).await {
+        Ok(o) => match o {
+            Some(build) => build,
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({"message": "Build not found"})),
+                )
+                    .into_response();
+            }
+        },
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Database find failed"})),
+            )
+                .into_response();
+        }
+    };
+
+    let retry_count = build.retry_count + 1;
+
+    let _ = builds::Entity::update_many()
+        .set(builds::ActiveModel {
+            retry_count: Set(retry_count),
+            ..Default::default()
+        })
+        .filter(builds::Column::Id.eq(build_id))
+        .exec(db)
+        .await;
+
+    let idle_workers = state.scheduler.get_idle_workers();
+    if idle_workers.is_empty() {
+        // No idle workers, add task to queue
+        match state
+            .scheduler
+            .enqueue_task_with_build_id(
+                build.id,
+                build.task_id,
+                &req.cl_link,
+                req.build,
+                build.repo.clone(),
+                req.cl,
+                retry_count,
+            )
+            .await
+        {
+            Ok(()) => {
+                tracing::info!("Build {} queued for later processing", build.id);
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({"message": "Build queued for later processing"})),
+                )
+                    .into_response()
+            }
+            Err(e) => {
+                tracing::warn!("Failed to queue retry build: {}", e);
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({"message": "No available workers at the moment"})),
+                )
+                    .into_response()
+            }
+        }
+    } else {
+        // Randomly select an idle worker
+        let chosen_index = {
+            let mut rng = rand::rng();
+            rng.random_range(0..idle_workers.len())
+        };
+        let chosen_id = idle_workers[chosen_index].clone();
+
+        // Create build information
+        let build_info = BuildInfo {
+            task_id: build.task_id.to_string(),
+            build_id: build.id.to_string(),
+            repo: build.repo.to_string(),
+            changes: req.build.changes.clone(),
+            start_at: chrono::Utc::now(),
+            cl: req.cl.to_string(),
+            _worker_id: chosen_id.clone(),
+            auto_retry_judger: AutoRetryJudger::new(),
+            retry_count,
+        };
+
+        // Update database
+        //
+
+        // Send build to worker
+        let msg: WSMessage = WSMessage::Task {
+            id: build.id.to_string(),
+            repo: build.repo.to_string(),
+            changes: req.build.changes.clone(),
+            cl_link: req.cl_link.to_string(),
+        };
+        if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
+            && worker.sender.send(msg).is_ok()
+        {
+            worker.status = WorkerStatus::Busy {
+                task_id: build_id.to_string(),
+                phase: None,
+            };
+            // Insert active build
+            state
+                .scheduler
+                .active_builds
+                .insert(build.id.to_string(), build_info);
+            tracing::info!(
+                "Build {} retry dispatched immediately to worker {}",
+                build.id,
+                chosen_id
+            );
+        }
+
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({"message": "Build retry despatched immediately to worker"})),
+        )
+            .into_response()
+    }
 }
 
 #[cfg(test)]
