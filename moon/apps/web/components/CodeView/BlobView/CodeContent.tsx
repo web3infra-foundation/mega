@@ -135,6 +135,7 @@ const CodeContent = ({
 
     if (!fileContent) {
       setShikiTokens([])
+      setIsShikiLoading(false)
       return
     }
 
@@ -397,33 +398,38 @@ const CodeContent = ({
     let cancelled = false
 
     const loadBlameTokens = async () => {
+      const results = await Promise.all(
+        processedBlameBlocks.map(async (block) => {
+          const blockContent = block.lines.map((l) => l.content).join('\n')
+
+          try {
+            const result = await codeToTokens(blockContent, {
+              lang: detectedLanguage as any,
+              theme: 'github-light'
+            })
+
+            return { block, tokens: result.tokens }
+          } catch {
+            return { block, tokens: null }
+          }
+        })
+      )
+
+      if (cancelled) return
+
       const newMap = new Map<number, Array<{ content: string; color?: string }>>()
 
-      for (const block of processedBlameBlocks) {
-        if (cancelled) return
-
-        // Get the full block content (all lines joined)
-        const blockContent = block.lines.map((l) => l.content).join('\n')
-
-        try {
-          const result = await codeToTokens(blockContent, {
-            lang: detectedLanguage as any,
-            theme: 'github-light'
-          })
-
-          block.lines.forEach((line, index) => {
-            newMap.set(line.lineNumber, result.tokens[index] || [])
-          })
-        } catch {
-          block.lines.forEach((line) => {
+      for (const { block, tokens } of results) {
+        block.lines.forEach((line, index) => {
+          if (tokens) {
+            newMap.set(line.lineNumber, tokens[index] || [])
+          } else {
             newMap.set(line.lineNumber, [{ content: line.content, color: '#24292e' }])
-          })
-        }
+          }
+        })
       }
 
-      if (!cancelled) {
-        setBlameTokensMap(newMap)
-      }
+      setBlameTokensMap(newMap)
     }
 
     loadBlameTokens()
