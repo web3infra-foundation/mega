@@ -1,28 +1,7 @@
-use crate::manager::store::TempStoreArea;
-use crate::util::config;
-use add::add_and_del;
-use commit::commit_core;
-use fs_extra::dir::{copy, CopyOptions};
-use git_internal::{
-    hash::ObjectHash,
-    internal::object::{
-        commit::Commit,
-        signature::{Signature, SignatureType},
-    },
-};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::{fs, path::PathBuf, str::FromStr};
+use std::fs;
 
-pub mod add;
-pub mod cl;
-pub mod commit;
-pub mod diff;
 pub mod fetch;
-pub mod push;
-pub mod reset;
-pub mod status;
 pub mod store;
 
 #[derive(Serialize, Deserialize)]
@@ -57,82 +36,7 @@ impl ScorpioManager {
 
     /// Integrate the temporary storage area files, merge
     /// them into a Tree object and output Commit
-    pub async fn mono_commit(
-        &self,
-        mono_path: String,
-        commit_msg: String,
-    ) -> Result<Commit, Box<dyn std::error::Error>> {
-        let store_path = config::store_path();
-        let work_dir = self.select_work(&mono_path)?;
-        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
-        let old_dbpath = work_path.join("tree.db");
-        let new_dbpath = work_path.join("new_tree.db");
-        let objectspath = work_path.join("objects");
-        let commitpath = work_path.join("commit");
-        let modified_path = work_path.join("modifiedstore");
-        let tempstorage_path = modified_path.join("objects");
-
-        println!("old_dbpath = {}", old_dbpath.display());
-        println!("new_dbpath = {}", new_dbpath.display());
-
-        let _ = fs::remove_dir_all(&objectspath);
-        if tempstorage_path.exists() {
-            println!("tempstorage_path = {}, Copy", tempstorage_path.display());
-            let mut options = CopyOptions::new();
-            options.copy_inside = true;
-            copy(&tempstorage_path, &objectspath, &options)?;
-        }
-
-        let old_tree_db = sled::open(old_dbpath)?;
-        let new_tree_db = sled::open(new_dbpath)?;
-        let temp_store_area = TempStoreArea::new(&modified_path)?;
-        let old_root_path = PathBuf::from(mono_path);
-
-        let git_author = config::git_author();
-        let git_email = config::git_email();
-        let sign = Signature::new(
-            SignatureType::Author,
-            git_author.to_string(),
-            git_email.to_string(),
-        );
-
-        // For the sake of logical integrity and emergency response
-        // capabilities, Parent Commit is checked first.
-        let parent_commit = fs::read_to_string(&commitpath)?;
-        let regex_rule = Regex::new(r#"tree: (?<parent_hash>[0-9a-z]{40})"#).unwrap();
-        let parent_hash = match regex_rule.captures(&parent_commit) {
-            Some(parent_info) => vec![ObjectHash::from_str(&parent_info["parent_hash"])?],
-            None => return Err(Box::from("Parent hash not found in commit file")),
-        };
-
-        println!("\x1b[34m[START]\x1b[0m");
-        let main_tree_hash = commit_core(
-            (&old_tree_db, &new_tree_db),
-            &temp_store_area,
-            &old_root_path,
-        )?;
-        println!("\x1b[34m[DONE]\x1b[0m");
-
-        println!("   [\x1b[33mDEBUG\x1b[0m] commit.author = {}", sign.name);
-        println!("   [\x1b[33mDEBUG\x1b[0m] commit.committer = {}", sign.name);
-        println!(
-            "   [\x1b[33mDEBUG\x1b[0m] commit.tree_id = {}",
-            main_tree_hash._to_string()
-        );
-        println!(
-            "   [\x1b[33mDEBUG\x1b[0m] commit.parent_commit_ids = {}",
-            parent_hash[0]
-        );
-        println!("   [\x1b[33mDEBUG\x1b[0m] commit.message = {commit_msg}");
-
-        let commit = Commit::new(sign.clone(), sign, main_tree_hash, parent_hash, &commit_msg);
-
-        let mut commit_file = std::fs::File::create(&commitpath)?;
-        commit_file.write_all(commit.to_string().as_bytes())?;
-
-        Ok(commit)
-    }
-
+    /// (function removed)
     /// Extracts and returns the corresponding workspace for the provided `mono_path`.
     ///
     /// This function iterates over the manager's work directories and selects the one whose path
@@ -157,25 +61,7 @@ impl ScorpioManager {
     }
 
     /// Pushes a commit to the remote mono repository.
-    pub async fn push_commit(
-        &self,
-        mono_path: &str,
-    ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
-        let store_path = config::store_path();
-        let work_dir = self.select_work(mono_path)?;
-        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
-        let modified_path = work_path.join("modifiedstore");
-        let temp_store_area = TempStoreArea::new(&modified_path)?;
-        println!("OK1");
-        let base_url = config::base_url();
-        let url = format!("{base_url}/{mono_path}.git/git-receive-pack");
-
-        println!("START");
-        let res = push::push_core(&work_path, &url, &temp_store_area.index_db).await?;
-        println!("END");
-        Ok(res)
-    }
-
+    /// (function removed)
     pub fn check_before_mount(&self, mono_path: &str) -> Result<(), String> {
         for work in &self.works {
             // check if work.path and mono_path are equal or parent/child
@@ -207,51 +93,7 @@ impl ScorpioManager {
         }
     }
 
-    /// Adds a mono file to the Scorpio manager's workspace.
-    pub async fn mono_add(&self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // The OS path cannot be used, and should be mapped from
-        // the FUSE system to the path under Upper.
-        // For example, work_dir/1.sh corresponds to upper/1.sh
-        //
-        // What is needed here is a path relative to Upper, not a path
-        // relative to the Workdir.
-        let work_dir = self.select_work(mono_path)?;
-        let store_path = config::store_path();
-        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
-        let mono_path = PathBuf::from(mono_path)
-            .strip_prefix(&work_dir.path)?
-            .to_path_buf();
-
-        // Since index.db is the private space of the sled database,
-        // we will combine it with objects to form a new working directory.
-        let modified_path = work_path.join("modifiedstore");
-        let upper_path = work_path.join("upper");
-        let real_path = upper_path.join(mono_path);
-        println!("real_path = {}", real_path.display());
-
-        // In the Upper path, we can safely use the canonicalize function
-        // to standardized path.
-        match real_path.canonicalize() {
-            // Preventing Directory Traversal Vulnerabilities
-            Ok(format_path) => match format_path.starts_with(upper_path) {
-                true => {
-                    let temp_store_area = TempStoreArea::new(&modified_path)?;
-                    println!("\x1b[32m[START]\x1b[0m");
-                    add_and_del(&format_path, &work_path, &temp_store_area).await?;
-                    println!("\x1b[32m[OK]\x1b[0m");
-                    Ok(())
-                }
-                false => {
-                    let e_message = format!("Not allowed path: {}", real_path.display());
-                    Err(Box::from(e_message))
-                }
-            },
-            Err(e) => {
-                let e_message = format!("Failed to canonicalize path: {e}");
-                Err(Box::from(e_message))
-            }
-        }
-    }
+    // Adds a mono file to the Scorpio manager's workspace. (removed)
 }
 
 #[cfg(test)]
