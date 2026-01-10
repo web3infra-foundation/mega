@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 import { codeToTokens } from 'shiki'
 
@@ -131,7 +131,14 @@ const CodeContent = ({
   const detectedLanguage = useMemo(() => getLanguageForFile(filename), [filename])
 
   useEffect(() => {
-    if (!fileContent || isCodeLoading) return
+    if (isCodeLoading) return
+
+    if (!fileContent) {
+      setShikiTokens([])
+      return
+    }
+
+    let cancelled = false
 
     setIsShikiLoading(true)
     codeToTokens(fileContent, {
@@ -139,14 +146,24 @@ const CodeContent = ({
       theme: 'github-light'
     })
       .then((result) => {
-        setShikiTokens(result.tokens)
+        if (!cancelled) {
+          setShikiTokens(result.tokens)
+        }
       })
       .catch(() => {
-        setShikiTokens(fileContent.split('\n').map((line) => [{ content: line, color: '#24292e' }]))
+        if (!cancelled) {
+          setShikiTokens(fileContent.split('\n').map((line) => [{ content: line, color: '#24292e' }]))
+        }
       })
       .finally(() => {
-        setIsShikiLoading(false)
+        if (!cancelled) {
+          setIsShikiLoading(false)
+        }
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [fileContent, detectedLanguage, isCodeLoading])
 
   // const menuItems: MenuProps = {
@@ -171,12 +188,8 @@ const CodeContent = ({
   // }
 
   useEffect(() => {
-    if (isLfsContent(fileContent)) {
-      setLfs(true)
-    }
+    setLfs(isLfsContent(fileContent))
   }, [fileContent])
-
-  const lineRef = useRef<HTMLDivElement[]>([])
 
   const handleLineClick = useCallback(
     (lineNumber: number) => {
@@ -381,10 +394,14 @@ const CodeContent = ({
   useEffect(() => {
     if (!processedBlameBlocks.length) return
 
+    let cancelled = false
+
     const loadBlameTokens = async () => {
       const newMap = new Map<number, Array<{ content: string; color?: string }>>()
 
       for (const block of processedBlameBlocks) {
+        if (cancelled) return
+
         // Get the full block content (all lines joined)
         const blockContent = block.lines.map((l) => l.content).join('\n')
 
@@ -394,22 +411,26 @@ const CodeContent = ({
             theme: 'github-light'
           })
 
-          // Map each line's tokens by line number
           block.lines.forEach((line, index) => {
             newMap.set(line.lineNumber, result.tokens[index] || [])
           })
         } catch {
-          // Fallback: set plain text for each line
           block.lines.forEach((line) => {
             newMap.set(line.lineNumber, [{ content: line.content, color: '#24292e' }])
           })
         }
       }
 
-      setBlameTokensMap(newMap)
+      if (!cancelled) {
+        setBlameTokensMap(newMap)
+      }
     }
 
     loadBlameTokens()
+
+    return () => {
+      cancelled = true
+    }
   }, [processedBlameBlocks, detectedLanguage])
 
   const renderCodeView = useCallback(() => {
@@ -450,9 +471,6 @@ const CodeContent = ({
                 <div
                   // eslint-disable-next-line react/no-array-index-key
                   key={index}
-                  ref={(el) => {
-                    if (el) lineRef.current[index] = el
-                  }}
                   style={{
                     backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
                     padding: '0 16px',
