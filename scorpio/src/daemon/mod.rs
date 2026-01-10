@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
-use crate::manager::{cl, ScorpioManager, WorkDir};
+use crate::manager::{ScorpioManager, WorkDir};
 use crate::util::{config, GPath};
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 pub mod antares;
-mod git;
+//mod git;
 
 const SUCCESS: &str = "Success";
 const FAIL: &str = "Fail";
@@ -118,16 +118,10 @@ pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
         .route("/api/fs/unmount", post(unmount_handler))
         .route("/api/config", get(config_handler))
         .route("/api/config", post(update_config_handler))
-        .route("/api/git/status", get(git::git_status_handler))
-        .route("/api/git/commit", post(git::git_commit_handler))
-        .route("/api/git/push", post(git::git_push_handler))
-        .route("/api/git/add", post(git::git_add_handler))
-        .route("/api/git/reset", post(git::git_reset_handler))
+        // Note: git-related routes have been moved to `src/daemon/git.rs`
+        // and are currently disabled here. To enable them, merge the
+        // router returned by `daemon::git::router()` into this `app`.
         .with_state(inner);
-
-    // LFS route & merge it
-    let lfs_route = crate::scolfs::route::router();
-    let app = app.merge(lfs_route);
 
     // Antares route - create service with new Dicfuse instance
     let antares_service = Arc::new(antares::AntaresServiceImpl::new(None).await);
@@ -286,13 +280,7 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
 
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
 
-    // Handle Change List (CL) layer if provided
-    if let Some(m) = &req.cl {
-        let cl_store_path = PathBuf::from(&store_path).join("cl").join(m);
-        if let Err(e) = cl::build_cl_layer(m, cl_store_path, &req.path).await {
-            return Err(format!("Failed to build cl layer: {e}"));
-        }
-    }
+    // CL layer support removed: skip building CL layer if provided
 
     // Perform the final overlay mount with CL layer if applicable
     state

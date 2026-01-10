@@ -174,11 +174,7 @@ struct ApiResponse {
 }
 
 impl ApiResponse {
-    /// Get all items from tree_items in data
-    #[allow(dead_code)]
-    fn get_items(&self) -> Vec<Item> {
-        self.data.tree_items.clone()
-    }
+    // Get all items from tree_items in data
 }
 
 impl Iterator for ApiResponse {
@@ -188,7 +184,6 @@ impl Iterator for ApiResponse {
     }
 }
 
-#[allow(dead_code)]
 struct ApiResponseExt {
     _req_result: bool,
     data: Vec<ItemExt>,
