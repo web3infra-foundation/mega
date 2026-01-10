@@ -1,0 +1,224 @@
+# the directory where the data files is located, such as logs, database, etc.
+# can be overridden by environment variable `MEGA_BASE_DIR`
+# When using monobean, this option will be ignored, you should set it in monobean preference GUI.
+base_dir = "/tmp/.mono"
+
+# Filling the following environment variables with values you set
+## Logging Configuration
+[log]
+# The path which log file is saved
+log_path = "${base_dir}/logs"
+
+# log level, can be "trace", "debug", "info", "warn", "error"
+level = "debug"
+
+# print std log in console, disable it on production for performance
+print_std = true
+
+
+[database]
+# "sqlite" | "postgres"
+# "sqlite" will use `db_path` and ignore `db_url`
+db_type = "postgres"
+
+# used for sqlite
+db_path = "${base_dir}/mega.db"
+
+# database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
+db_url = "postgres://mono:mono@localhost:5432/mono"
+#db_url = "postgres://mono:mono@127.0.0.1:5432/mono"
+
+# Maximum number of database connections in the pool.
+# A good rule of thumb is to set this to ~2 × CPU cores.
+max_connection = 16
+
+# Minimum number of database connections maintained in the pool.
+# Typically set to ~1 × CPU cores to ensure baseline concurrency.
+min_connection = 8
+
+# Timeout (in seconds) for acquiring a connection from the pool.
+# If exceeded, the request will fail.
+acquire_timeout = 3
+
+# Timeout (in seconds) for establishing a new database connection.
+# If exceeded, the connection attempt will fail.
+connect_timeout = 3
+
+# Whether to enable SQLx logging
+sqlx_logging = false
+
+[authentication]
+# Support http authentication, login in with github and generate token before push
+enable_http_auth = false
+
+# Enable a test user for debugging and development purposes.
+# If set to true, the service allows using a predefined test user for authentication.
+enable_test_user = true
+
+# Specify the name of the test user.
+# This is only relevant if `enable_test_user` is set to true.
+test_user_name = "mega"
+
+# Specify the token for the test user.
+# This is used for authentication when `enable_test_user` is set to true.
+test_user_token = "mega"
+
+[monorepo]
+## Only import directory support multi-branch commit and tag, monorepo only support main branch
+## Mega treats files under this directory as import repo and other directories as monorepo
+import_dir = "/third-party"
+
+# Set System Admin in directory init, replace the admin's github username here
+admin = "admin"
+
+# Set serveral root dirs in directory init
+root_dirs = ["third-party", "project", "doc", "release", "model"]
+
+# git object storage type, support values can be "local_fs" or "s3"
+storage_type = "local_fs"
+
+[build]
+
+# enable build system trigger
+enable_build = false
+
+# build system url
+orion_server = "https://orion.gitmega.com"
+
+
+[pack]
+# The maximum memory used by decode
+# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB, `%` and decimal percentages
+# Capacity units are case-insensitive and can also be spelled as mb or Mb
+# Abbreviated units are treated as binary byte units, for example M is treated as MiB
+pack_decode_mem_size = "4G"
+pack_decode_disk_size = "20%"
+
+# The location where the object stored when the memory used by decode exceeds the limit
+pack_decode_cache_path = "${base_dir}/cache"
+
+clean_cache_after_decode = true
+
+# The maximum message size in channel buffer while decode
+channel_message_size = 1_000_000
+
+[lfs]
+# lfs file storage type, support values can be "local_fs" or "s3"
+storage_type = "local_fs"
+
+[lfs.ssh]
+# The lfs ssh transport protocol still relies on http to send files
+http_url = "http://localhost:8000"
+
+[lfs.local]
+# set the local path of the lfs storage
+lfs_file_path = "${base_dir}/lfs"
+
+## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+# Enable or disable splitting large files into smaller chunks
+enable_split = true # Default is disabled. Set to true to enable file splitting.
+
+# Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
+split_size = "20M"
+
+
+[s3]
+# AWS region name.
+# For AWS S3 this must match the bucket's region.
+# For S3-compatible services (e.g. RustFS), this is usually ignored
+# but still required by the AWS SDK.
+region = "us-east-1"
+
+# Name of the S3 bucket used to store objects.
+# The bucket must already exist, or the application should create it on startup.
+bucket = "mega"
+
+# Access key ID for S3 authentication.
+# For AWS: IAM user's access key.
+# For S3-compatible services: service-specific access key.
+access_key_id = ""
+
+# Secret access key corresponding to the access_key_id.
+# Keep this value secure and never commit it to version control.
+secret_access_key = ""
+
+
+# Custom S3 endpoint URL.
+# Use the default AWS endpoint when empty.
+# For local or self-hosted S3-compatible services (e.g. RustFS),
+# set this to the service endpoint.
+endpoint_url = "http://localhost:9000"
+
+
+[oauth]
+# GitHub OAuth application client id and secret
+github_client_id = ""
+github_client_secret = ""
+
+# Used for redirect to ui after login, for example: http://app.gitmega.com
+ui_domain = "http://local.gitmega.com"
+
+# Set your own domain here, for example: .gitmono.com
+cookie_domain = "localhost"
+
+# Used for call api from campsite server, for example: http://api.gitmono.test:3001
+campsite_api_domain = "http://api.gitmono.test:3001"
+
+# allowed cors origins
+allowed_cors_origins = [
+    "http://local.gitmega.com",
+    "https://app.gitmega.com",
+    "http://app.gitmono.test",
+]
+
+[blame]
+# Configuration for blame functionality and large file handling
+# Maximum number of lines before considering a file as large
+max_lines_threshold = 1000
+
+# Maximum file size in bytes before considering a file as large
+# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB
+max_size_threshold = "1MB"
+
+# Default chunk size for streaming operations when processing large files
+default_chunk_size = 100
+
+# Maximum number of commits to process in memory at once during blame traversal
+max_commits_in_memory = 50
+
+# Enable caching of intermediate blame results for better performance
+enable_caching = true
+
+[redis]
+url = "redis://127.0.0.1:6379"
+
+# Buck upload API configuration (optional)
+# Uncomment the following section to customize upload settings
+[buck]
+# Session timeout in seconds (default: 3600 = 1 hour)
+session_timeout = 3600
+# Maximum file size (default: "100MB")
+max_file_size = "100MB"
+# Maximum number of files per session (default: 1000)
+max_files = 1000
+# Maximum concurrent uploads (default: 5) - returned to client as suggestion
+max_concurrent_uploads = 5
+
+# === Server-side rate limiting ===
+# Global upload concurrency limit (default: 50)
+# Controls total concurrent upload requests being processed
+upload_concurrency_limit = 50
+# Large file concurrency limit (default: 10)
+# Controls concurrent large file uploads to prevent memory exhaustion
+large_file_concurrency_limit = 10
+# Large file threshold (default: "1MB")
+# Files larger than this are subject to additional concurrency limits
+large_file_threshold = "1MB"
+
+# Enable session cleanup task (default: true)
+enable_session_cleanup = true
+# Cleanup task interval in seconds (default: 300 = 5 minutes)
+cleanup_interval = 300
+# Retention days for completed sessions (default: 7)
+# Completed sessions older than this will be deleted along with file records
+completed_retention_days = 7

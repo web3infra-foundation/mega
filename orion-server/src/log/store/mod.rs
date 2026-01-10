@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 pub mod local_log_store;
+pub mod noop_log_store;
 pub mod s3_log_store;
 
 /// Trait representing a generic log storage backend.
