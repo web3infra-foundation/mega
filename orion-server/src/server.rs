@@ -28,7 +28,8 @@ use crate::model::builds;
         api::task_history_output_handler,
         api::tasks_handler,
         api::get_orion_clients_info,
-        api::get_orion_client_status_by_id
+        api::get_orion_client_status_by_id,
+        api::build_retry_handler
     ),
     components(
         schemas(

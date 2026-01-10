@@ -33,6 +33,7 @@ pub struct PendingTask {
     pub repo: String,
     pub cl: i64,
     pub request: BuildRequest,
+    pub retry_count: i32,
     pub created_at: Instant,
 }
 
@@ -253,9 +254,28 @@ impl TaskScheduler {
         request: BuildRequest,
         repo: String,
         cl: i64,
+        retry_count: i32,
     ) -> Result<Uuid, String> {
         let build_id = Uuid::now_v7();
 
+        self.enqueue_task_with_build_id(build_id, task_id, cl_link, request, repo, cl, retry_count)
+            .await?;
+
+        Ok(build_id)
+    }
+
+    /// Add task-bound build to queue
+    #[allow(clippy::too_many_arguments)]
+    pub async fn enqueue_task_with_build_id(
+        &self,
+        build_id: Uuid,
+        task_id: Uuid,
+        cl_link: &str,
+        request: BuildRequest,
+        repo: String,
+        cl: i64,
+        retry_count: i32,
+    ) -> Result<(), String> {
         let pending_task = PendingTask {
             task_id,
             cl_link: cl_link.to_string(),
@@ -264,6 +284,7 @@ impl TaskScheduler {
             created_at: Instant::now(),
             repo,
             cl,
+            retry_count,
         };
 
         {
@@ -273,7 +294,7 @@ impl TaskScheduler {
 
         // Notify that there's a new task to process
         self.task_notifier.notify_one();
-        Ok(build_id)
+        Ok(())
     }
 
     /// Get queue statistics
@@ -373,7 +394,7 @@ impl TaskScheduler {
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
-            retry_count: 0,
+            retry_count: pending_task.retry_count,
         };
 
         // Insert build record
@@ -526,6 +547,7 @@ mod tests {
             repo: "/test/repo".to_string(),
             cl: 123456,
             cl_link: "test".to_string(),
+            retry_count: 0,
         };
 
         let task2 = PendingTask {
@@ -536,6 +558,7 @@ mod tests {
             repo: "/test2/repo".to_string(),
             cl: 123457,
             cl_link: "test".to_string(),
+            retry_count: 0,
         };
 
         // Test FIFO behavior
@@ -569,6 +592,7 @@ mod tests {
             repo: "/test/repo".to_string(),
             cl: 123456,
             cl_link: "test".to_string(),
+            retry_count: 0,
         };
 
         // Fill queue to capacity
