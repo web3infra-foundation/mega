@@ -1,6 +1,5 @@
 use super::{ScorpioManager, WorkDir};
 use crate::manager::store::store_trees;
-use crate::scolfs;
 use crate::util::config;
 use crate::util::GPath;
 use async_recursion::async_recursion;
@@ -718,10 +717,7 @@ async fn fetch_code(path: &GPath, save_path: impl AsRef<Path>) -> std::io::Resul
     // Wait for all downloads to complete
     DownloadManager::get_global().wait_for_completion().await;
 
-    // Get LFS files
-    scolfs::lfs::lfs_restore(&path.to_string(), save_path.as_ref().to_str().unwrap())
-        .await
-        .unwrap();
+    // LFS restore removed — previously fetched LFS objects here.
 
     println!("Finished downloading code for {path}");
     Ok(())

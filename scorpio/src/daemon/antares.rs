@@ -25,7 +25,6 @@ use uuid::Uuid;
 use crate::antares::fuse::AntaresFuse;
 use crate::dicfuse::Dicfuse;
 use crate::dicfuse::DicfuseManager;
-use crate::manager::cl::build_cl_layer;
 
 /// High-level HTTP daemon that exposes Antares orchestration capabilities.
 pub struct AntaresDaemon<S: AntaresService> {
@@ -907,22 +906,7 @@ impl AntaresService for AntaresServiceImpl {
         let upper_dir = PathBuf::from(&upper_dir_str);
         let cl_dir = cl_dir_str.as_ref().map(PathBuf::from);
 
-        // 4. Build CL layer if cl is provided
-        if let Some(ref cl_link) = request.cl {
-            if let Some(ref cl_dir_path) = cl_dir {
-                build_cl_layer(cl_link, cl_dir_path.clone(), &request.path)
-                    .await
-                    .map_err(|e| {
-                        ServiceError::Internal(format!("failed to build CL layer: {}", e))
-                    })?;
-                tracing::info!(
-                    "Built CL layer for {} with link {} at {:?}",
-                    request.path,
-                    cl_link,
-                    cl_dir_path
-                );
-            }
-        }
+        // CL layer support removed: skip building CL layer if provided
 
         // 5. Get or create Dicfuse instance for this mount (uses cache for subdirectory paths)
         // If a specific base path is requested (not root), get from cache or create a dedicated
@@ -1185,15 +1169,12 @@ impl AntaresService for AntaresServiceImpl {
         let cl_dir_path = PathBuf::from(&cl_dir_str);
 
         // Store path for build_cl_layer before releasing lock
-        let repo_path = entry.path.clone();
+        let _repo_path = entry.path.clone();
 
         // Release lock before potentially slow CL layer build
         drop(mounts);
 
-        // Build the CL layer
-        build_cl_layer(&cl_link, cl_dir_path.clone(), &repo_path)
-            .await
-            .map_err(|e| ServiceError::Internal(format!("failed to build CL layer: {}", e)))?;
+        // CL layer building removed - skipping build_cl_layer for this mount
 
         // Reacquire lock to update entry
         let mut mounts = self.mounts.write().await;
