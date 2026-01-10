@@ -25,6 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -51,9 +57,9 @@ jobs:
           IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
 
           docker buildx build \
+            --platform linux/amd64,linux/arm64 \
             --target runtime \
             -t "$IMAGE_BASE:$IMAGE_TAG" \
             -t "$IMAGE_BASE:$IMAGE_TAG-$TIMESTAMP" \
             -f docker/dev-image/Dockerfile \
             --push .
-

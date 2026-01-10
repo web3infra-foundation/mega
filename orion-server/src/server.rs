@@ -99,6 +99,13 @@ pub async fn init_log_service() -> LogService {
         ),
     };
 
+    tracing::info!(
+        storage_type = %log_store_type,
+        cloud_upload_enabled,
+        build_log_dir = %build_log_dir,
+        "Initialized log service storage configuration"
+    );
+
     // Create the LogService
     LogService::new(
         local_log_store,

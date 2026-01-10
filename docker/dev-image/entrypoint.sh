@@ -318,7 +318,7 @@ run_buck2() {
 
 main() {
     local command="${1:-help}"
-    shift 2>/dev/null || true
+    shift 1 2>/dev/null || true
 
     case "$command" in
         orion|orion-worker)

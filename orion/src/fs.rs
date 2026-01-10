@@ -87,7 +87,7 @@ pub async fn mount_fs(repo: &str, mr: &str) -> Result<bool, Box<dyn Error + Send
         sleep(Duration::from_secs(poll_interval)).await;
         poll_interval = std::cmp::min(poll_interval * 2, max_poll_interval_secs);
 
-        let select_url = format!("{}/api/fs/select/{request_id}", scorpio_base_url());
+        let select_url = format!("{base}/api/fs/select/{request_id}");
         let select_res = client.get(&select_url).send().await?;
         let select_body: Value = select_res.json().await?;
 

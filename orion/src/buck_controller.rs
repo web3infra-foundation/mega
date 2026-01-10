@@ -521,7 +521,8 @@ pub async fn build(
     // Directly mount the entire repository, starting from the root directory /,
     // to analyze changes and determine what needs to be built.
     // Handle empty cl string as None to mount the base repo without a CL layer.
-    let cl_arg = (!cl.trim().is_empty()).then_some(cl.as_str());
+    let cl_trimmed = cl.trim();
+    let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
     let (mount_point, mount_id) = mount_antares_fs(&id, "/", cl_arg).await?;
     let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
 
