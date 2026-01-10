@@ -11,7 +11,6 @@ html {
     'Noto Color Emoji';
   font-feature-settings: normal;
   font-variation-settings: normal;
-  -webkit-tap-highlight-color: transparent;
 }
 
 @layer base {
