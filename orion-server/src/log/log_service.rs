@@ -19,6 +19,7 @@ pub struct LogService {
     tx: tokio::sync::broadcast::Sender<LogEvent>,
     local_log_store: Arc<dyn LogStore>,
     cloud_log_store: Arc<dyn LogStore>,
+    cloud_upload_enabled: bool,
 }
 
 impl LogService {
@@ -26,6 +27,7 @@ impl LogService {
         local_log_store: Arc<dyn LogStore>,
         cloud_log_store: Arc<dyn LogStore>,
         buffer: usize,
+        cloud_upload_enabled: bool,
     ) -> Self {
         let (tx, _rx) = tokio::sync::broadcast::channel(buffer);
 
@@ -33,6 +35,7 @@ impl LogService {
             tx,
             local_log_store,
             cloud_log_store,
+            cloud_upload_enabled,
         }
     }
 
@@ -145,7 +148,7 @@ impl LogService {
                         );
                     }
 
-                    if event.is_end {
+                    if event.is_end && self.cloud_upload_enabled {
                         let key = self.cloud_log_store.get_key(
                             &event.task_id,
                             &event.repo_name,
