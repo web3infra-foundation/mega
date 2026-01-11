@@ -1,0 +1,119 @@
+# =============================================================================
+# Mega Dev Image - Docker Compose (Client Toolchain)
+# =============================================================================
+# This compose file provides a lightweight environment for:
+# - Scorpio (FUSE filesystem daemon + HTTP API)
+# - Orion Worker (optional; connects to an external Orion Server)
+# - Buck2 tooling (available in the image; typically run via `docker exec` into scorpio)
+#
+# Notes:
+# - Orion Server is NOT started here. Configure `SERVER_WS` to point to your Orion Server.
+# - Scorpio performs real mounts and therefore requires Linux FUSE support.
+#
+# Profiles:
+#   dev     - Interactive development shell (tooling only)
+#   fuse    - Scorpio daemon (requires privileged mode)
+#   worker  - Orion Worker (requires privileged mode; embeds Scorpio by default)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Scorpio - FUSE Filesystem Service (daemon)
+  # ---------------------------------------------------------------------------
+  scorpio:
+    image: ${MEGA_DEV_IMAGE:-mega-dev:latest}
+    container_name: mega-scorpio
+    command: scorpio
+    profiles:
+      - fuse
+    privileged: true
+    environment:
+      SCORPIO_BASE_URL: ${SCORPIO_BASE_URL:-http://host.docker.internal:8000}
+      SCORPIO_LFS_URL: ${SCORPIO_LFS_URL:-http://host.docker.internal:8000}
+      SCORPIO_STORE_PATH: /data/scorpio/store
+      SCORPIO_WORKSPACE: /workspace/mount
+      SCORPIO_GIT_AUTHOR: ${SCORPIO_GIT_AUTHOR:-MEGA}
+      SCORPIO_GIT_EMAIL: ${SCORPIO_GIT_EMAIL:-admin@mega.org}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "${SCORPIO_PORT:-2725}:2725"
+    volumes:
+      - scorpio-data:/data/scorpio
+      - workspace:/workspace
+    restart: unless-stopped
+    networks:
+      - mega-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Orion Worker - Build Execution Client (optional)
+  # ---------------------------------------------------------------------------
+  # The worker can run without an Orion Server, but it will keep retrying the
+  # WebSocket connection and won't execute builds until tasks are assigned.
+  orion-worker:
+    image: ${MEGA_DEV_IMAGE:-mega-dev:latest}
+    container_name: mega-orion-worker
+    command: orion
+    profiles:
+      - worker
+    privileged: true
+    environment:
+      SERVER_WS: ${SERVER_WS:-ws://host.docker.internal:8004/ws}
+      ORION_WORKER_ID: ${ORION_WORKER_ID:-}
+      BUCK_PROJECT_ROOT: ${BUCK_PROJECT_ROOT:-/workspace}
+      BUILD_TMP: ${BUILD_TMP:-/tmp/orion-builds}
+      SCORPIO_API_BASE_URL: ${SCORPIO_API_BASE_URL:-http://127.0.0.1:2725}
+      ORION_WORKER_START_SCORPIO: ${ORION_WORKER_START_SCORPIO:-true}
+      SCORPIO_BASE_URL: ${SCORPIO_BASE_URL:-http://host.docker.internal:8000}
+      SCORPIO_LFS_URL: ${SCORPIO_LFS_URL:-http://host.docker.internal:8000}
+      SCORPIO_STORE_PATH: /data/scorpio/store
+      SCORPIO_WORKSPACE: /workspace/mount
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - scorpio-data:/data/scorpio
+      - workspace:/workspace
+    restart: unless-stopped
+    networks:
+      - mega-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Development Shell - Tooling Only
+  # ---------------------------------------------------------------------------
+  dev:
+    image: ${MEGA_DEV_IMAGE:-mega-dev:dev}
+    container_name: mega-dev-shell
+    profiles:
+      - dev
+    privileged: true
+    environment:
+      RUST_LOG: ${RUST_LOG:-debug}
+    volumes:
+      - ../..:/workspace
+      - scorpio-data:/data/scorpio
+      - cargo-cache:/root/.cargo/registry
+      - target-cache:/workspace/target
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    networks:
+      - mega-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  scorpio-data:
+    name: mega-scorpio-data
+  workspace:
+    name: mega-workspace
+  cargo-cache:
+    name: mega-cargo-cache
+  target-cache:
+    name: mega-target-cache
+
+networks:
+  mega-network:
+    name: mega-network
+

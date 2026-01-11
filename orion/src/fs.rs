@@ -4,6 +4,10 @@ use serde_json::{Value, json};
 use std::{error::Error, fs, path::{Path, PathBuf}, process::Command, time::{SystemTime, UNIX_EPOCH}};
 use tokio::{time::{sleep, Duration}};
 
+fn scorpio_base_url() -> String {
+    crate::scorpio_api::base_url()
+}
+
 /// The directory this module use to store data, mount repo, build target.
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
@@ -39,8 +43,9 @@ pub async fn mount_fs(repo: &str, mr: &str) -> Result<bool, Box<dyn Error + Send
     let client = reqwest::Client::new();
     let mount_payload = json!({ "path": repo, "mr": mr });
 
+    let base = scorpio_base_url();
     let mount_res = client
-        .post("http://localhost:2725/api/fs/mount")
+        .post(format!("{base}/api/fs/mount"))
         .header("Content-Type", "application/json")
         .body(mount_payload.to_string())
         .send()
@@ -82,7 +87,7 @@ pub async fn mount_fs(repo: &str, mr: &str) -> Result<bool, Box<dyn Error + Send
         sleep(Duration::from_secs(poll_interval)).await;
         poll_interval = std::cmp::min(poll_interval * 2, max_poll_interval_secs);
 
-        let select_url = format!("http://localhost:2725/api/fs/select/{request_id}");
+        let select_url = format!("{base}/api/fs/select/{request_id}");
         let select_res = client.get(&select_url).send().await?;
         let select_body: Value = select_res.json().await?;
 
@@ -129,8 +134,9 @@ pub async fn unmount_fs() -> Result<String, Box<dyn Error + Send + Sync>> {
     let repo = (*MR_DIR).clone();
     let mount_payload = json!({ "path": repo });
 
+    let base = scorpio_base_url();
     let unmount_res = client
-        .post("http://localhost:2725/api/fs/umount")
+        .post(format!("{base}/api/fs/umount"))
         .header("Content-Type", "application/json")
         .body(mount_payload.to_string())
         .send()
