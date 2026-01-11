@@ -1,9 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Highlight, Prism, themes } from 'prism-react-renderer'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
-import { Virtuoso } from 'react-virtuoso'
+import { codeToTokens } from 'shiki'
 
 import 'github-markdown-css/github-markdown-light.css'
 
@@ -13,17 +12,14 @@ import { motion } from 'framer-motion'
 import { useRouter as useNextRouter } from 'next/dist/client/router'
 import toast from 'react-hot-toast'
 
-import { cn, UsersIcon } from '@gitmono/ui'
+import { UsersIcon } from '@gitmono/ui'
 
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
-import { usePrismLanguageLoader } from '@/hooks/usePrismLanguageLoader'
-import { getLangFromFileName } from '@/utils/getLanguageDetection'
+import { getLanguageForFile } from '@/utils/shikiLanguageFallback'
 
 import BlobEditor from './BlobEditor'
 import styles from './CodeContent.module.css'
-
-;(typeof global !== 'undefined' ? global : window).Prism = Prism
 
 type ViewMode = 'code' | 'blame' | 'preview'
 
@@ -97,6 +93,9 @@ const CodeContent = ({
   const [manualViewMode, setManualViewMode] = useState<ViewMode | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
 
+  const [shikiTokens, setShikiTokens] = useState<Array<Array<{ content: string; color?: string }>>>([])
+  const [isShikiLoading, setIsShikiLoading] = useState(false)
+
   const nextRouter = useNextRouter()
 
   const filePath = useMemo(() => path?.join('/') || '', [path])
@@ -129,9 +128,44 @@ const CodeContent = ({
     setIsEditMode(false)
   }, [path])
 
-  const detectedLanguage = useMemo(() => getLangFromFileName(filename), [filename])
+  const detectedLanguage = useMemo(() => getLanguageForFile(filename), [filename])
 
-  usePrismLanguageLoader(detectedLanguage)
+  useEffect(() => {
+    if (isCodeLoading) return
+
+    if (!fileContent) {
+      setShikiTokens([])
+      setIsShikiLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    setIsShikiLoading(true)
+    codeToTokens(fileContent, {
+      lang: detectedLanguage as any,
+      theme: 'github-light'
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setShikiTokens(result.tokens)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShikiTokens(fileContent.split('\n').map((line) => [{ content: line, color: '#24292e' }]))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsShikiLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [fileContent, detectedLanguage, isCodeLoading])
 
   // const menuItems: MenuProps = {
   //   items: [
@@ -155,12 +189,8 @@ const CodeContent = ({
   // }
 
   useEffect(() => {
-    if (isLfsContent(fileContent)) {
-      setLfs(true)
-    }
+    setLfs(isLfsContent(fileContent))
   }, [fileContent])
-
-  const lineRef = useRef<HTMLDivElement[]>([])
 
   const handleLineClick = useCallback(
     (lineNumber: number) => {
@@ -356,8 +386,61 @@ const CodeContent = ({
     })
   }, [blameData, getBlameColorClass])
 
+  // Blame tokens state - map lineNumber to tokens
+  const [blameTokensMap, setBlameTokensMap] = useState<Map<number, Array<{ content: string; color?: string }>>>(
+    new Map()
+  )
+
+  // Load Shiki tokens for blame view - optimized to process per block instead of per line
+  useEffect(() => {
+    if (!processedBlameBlocks.length) return
+
+    let cancelled = false
+
+    const loadBlameTokens = async () => {
+      const results = await Promise.all(
+        processedBlameBlocks.map(async (block) => {
+          const blockContent = block.lines.map((l) => l.content).join('\n')
+
+          try {
+            const result = await codeToTokens(blockContent, {
+              lang: detectedLanguage as any,
+              theme: 'github-light'
+            })
+
+            return { block, tokens: result.tokens }
+          } catch {
+            return { block, tokens: null }
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      const newMap = new Map<number, Array<{ content: string; color?: string }>>()
+
+      for (const { block, tokens } of results) {
+        block.lines.forEach((line, index) => {
+          if (tokens) {
+            newMap.set(line.lineNumber, tokens[index] || [])
+          } else {
+            newMap.set(line.lineNumber, [{ content: line.content, color: '#24292e' }])
+          }
+        })
+      }
+
+      setBlameTokensMap(newMap)
+    }
+
+    loadBlameTokens()
+
+    return () => {
+      cancelled = true
+    }
+  }, [processedBlameBlocks, detectedLanguage])
+
   const renderCodeView = useCallback(() => {
-    if (isCodeLoading) {
+    if (isCodeLoading || isShikiLoading) {
       return (
         <div
           className='animate-pulse'
@@ -384,57 +467,44 @@ const CodeContent = ({
 
     return (
       <div className='flex flex-1 flex-col overflow-hidden'>
-        <Highlight theme={themes.github} code={fileContent} language={detectedLanguage}>
-          {({ style, tokens, getLineProps, getTokenProps }) => (
-            <Virtuoso
-              className='flex'
-              totalCount={tokens.length}
-              itemContent={(index) => {
-                const line = tokens[index]
-                const isLastLine = index === tokens.length - 1
-                const isFirstLine = index === 0
-
-                return (
-                  <div
-                    key={index}
-                    {...getLineProps({ line })}
-                    ref={(el) => {
-                      if (el) lineRef.current[index] = el
-                    }}
-                    className={cn(
-                      'border-x border-gray-200',
-                      isFirstLine && 'border-t',
-                      isLastLine && 'rounded-b-lg border-b'
-                    )}
-                    style={{
-                      ...style,
-                      backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
-                      padding: '0 16px',
-                      fontSize: '14px',
-                      fontFamily: 'monospace',
-                      whiteSpace: 'pre',
-                      display: 'flex',
-                      minWidth: 'fit-content'
-                    }}
-                    onClick={() => handleLineClick(index)}
-                  >
-                    <span className='inline-block w-8'>{selectedLine === index ? <div></div> : null}</span>
-                    <span className={styles.codeLineNumber}>{index + 1}</span>
-                    <span style={{ display: 'inline' }}>
-                      {line.map((token, key) => (
-                        // eslint-disable-next-line react/no-array-index-key
-                        <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
-                      ))}
-                    </span>
-                  </div>
-                )
-              }}
-            />
-          )}
-        </Highlight>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <div
+            className='rounded-b-lg border border-gray-200'
+            style={{ minWidth: 'fit-content', backgroundColor: '#fff' }}
+          >
+            {shikiTokens.map((line, index) => {
+              return (
+                <div
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={index}
+                  style={{
+                    backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
+                    padding: '0 16px',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre',
+                    display: 'flex'
+                  }}
+                  onClick={() => handleLineClick(index)}
+                >
+                  <span className='inline-block w-8'>{selectedLine === index ? <div></div> : null}</span>
+                  <span className={styles.codeLineNumber}>{index + 1}</span>
+                  <span style={{ display: 'inline' }}>
+                    {line.map((token, key) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <span key={key} style={{ color: token.color, display: 'inline' }}>
+                        {token.content}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
     )
-  }, [fileContent, detectedLanguage, lfs, selectedLine, handleLineClick, isCodeLoading])
+  }, [lfs, selectedLine, handleLineClick, isCodeLoading, isShikiLoading, shikiTokens])
 
   const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
@@ -472,29 +542,21 @@ const CodeContent = ({
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ContributionRecord contributors={blameData.data?.contributors} />
-        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden' }}>
-          <Virtuoso
-            style={{
-              flex: 1,
-              backgroundColor: '#fff',
-              minWidth: 'fit-content'
-            }}
-            totalCount={processedBlameBlocks.length}
-            itemContent={(blockIndex) => {
-              const block = processedBlameBlocks[blockIndex]
-              const isFirstBlock = blockIndex === 0
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <div
+            className='rounded-b-lg border border-gray-200'
+            style={{ minWidth: 'fit-content', backgroundColor: '#fff' }}
+          >
+            {processedBlameBlocks.map((block, blockIndex) => {
               const isLastBlock = blockIndex === processedBlameBlocks.length - 1
 
               return (
                 <div
+                  // eslint-disable-next-line react/no-array-index-key
                   key={`block-${blockIndex}`}
-                  data-index={blockIndex}
-                  className={`border-x border-gray-200 transition-colors duration-150 ${
-                    isFirstBlock ? 'border-t' : ''
-                  } ${isLastBlock ? 'rounded-b-lg border-b' : 'border-b'}`}
-                  style={{ minWidth: 'fit-content' }}
+                  className={`transition-colors duration-150 ${isLastBlock ? '' : 'border-b border-gray-200'}`}
                 >
-                  <div className='flex' style={{ minWidth: 'fit-content' }}>
+                  <div className='flex'>
                     <div className='flex w-1 flex-shrink-0 items-center'>
                       <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
                     </div>
@@ -519,52 +581,48 @@ const CodeContent = ({
                     <div className={`flex-shrink-0 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
                       {block.lines.map((line) => {
                         const isSelected = selectedLine === line.lineNumber - 1
+                        const lineTokens = blameTokensMap.get(line.lineNumber) || [
+                          { content: line.content, color: '#24292e' }
+                        ]
 
                         return (
-                          <Highlight
+                          <div
                             key={`line-${line.lineNumber}`}
-                            theme={themes.github}
-                            code={line.content}
-                            language={detectedLanguage}
+                            className='flex'
+                            onClick={() => handleLineClick(line.lineNumber - 1)}
+                            style={{
+                              backgroundColor: isSelected ? '#f0f7ff' : '#fff',
+                              fontSize: '12px',
+                              height: '20px'
+                            }}
                           >
-                            {({ tokens, getLineProps, getTokenProps }) => (
-                              <div
-                                {...getLineProps({ line: tokens[0] })}
-                                className='flex'
-                                onClick={() => handleLineClick(line.lineNumber - 1)}
-                                style={{
-                                  backgroundColor: isSelected ? '#f0f7ff' : '#fff',
-                                  fontSize: '12px',
-                                  height: '20px'
-                                }}
-                              >
-                                <div
-                                  className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
-                                  style={{ width: '60px' }}
-                                >
-                                  {line.lineNumber}
-                                </div>
+                            <div
+                              className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
+                              style={{ width: '60px' }}
+                            >
+                              {line.lineNumber}
+                            </div>
 
-                                <div
-                                  className='flex items-center py-1 pl-3 pr-4 font-mono text-sm'
-                                  style={{ whiteSpace: 'pre' }}
-                                >
-                                  {tokens[0]?.map((token, key) => (
-                                    // eslint-disable-next-line react/no-array-index-key
-                                    <span key={key} {...getTokenProps({ token })} style={{ display: 'inline' }} />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </Highlight>
+                            <div
+                              className='flex items-center py-1 pl-3 pr-4 font-mono text-sm'
+                              style={{ whiteSpace: 'pre' }}
+                            >
+                              {lineTokens.map((token, key) => (
+                                // eslint-disable-next-line react/no-array-index-key
+                                <span key={key} style={{ color: token.color, display: 'inline' }}>
+                                  {token.content}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )
                       })}
                     </div>
                   </div>
                 </div>
               )
-            }}
-          />
+            })}
+          </div>
         </div>
       </div>
     )
@@ -573,7 +631,7 @@ const CodeContent = ({
     blameData,
     processedBlameBlocks,
     selectedLine,
-    detectedLanguage,
+    blameTokensMap,
     handleLineClick,
     formatRelativeTime
   ])

@@ -4,7 +4,6 @@ import 'styles/editor.css'
 import 'styles/global.css' // web only
 import 'styles/prose.css'
 import '@radix-ui/themes/styles.css'
-import '@git-diff-view/react/styles/diff-view.css'
 
 import { useEffect } from 'react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
