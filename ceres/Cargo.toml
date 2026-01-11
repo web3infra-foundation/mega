@@ -9,13 +9,13 @@ edition = "2024"
 name = "ceres"
 path = "src/lib.rs"
 
-
 [dependencies]
 common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 git-internal = { workspace = true }
 bellatrix = { workspace = true }
+saturn = { workspace = true }
 
 anyhow = { workspace = true }
 # Use 0.16.0 version for GPG Verification
@@ -44,7 +44,6 @@ tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 redis = { workspace = true }
 bincode = { workspace = true }
-
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -84,6 +84,8 @@ use jupiter::storage::mono_storage::RefUpdateData;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 
+use crate::api_service::admin_ops::ADMIN_CONFIG_PATH;
+
 #[derive(Clone)]
 pub struct MonoApiService {
     pub storage: Storage,
@@ -1223,6 +1225,22 @@ impl MonoApiService {
             .merge_cl(cl.clone())
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
+
+        // Invalidate admin cache if /project/.mega_cedar.json was modified
+        // Note: Only /project is the source of truth for global admin config
+        match self.get_sorted_changed_file_list(&cl.link, None).await {
+            Ok(files) => {
+                if files.iter().any(|f| f == ADMIN_CONFIG_PATH) {
+                    self.invalidate_admin_cache().await;
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to get changed file list for admin cache invalidation: {}",
+                    e
+                );
+            }
+        }
 
         Ok(())
     }
