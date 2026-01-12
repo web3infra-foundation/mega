@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env_name: [staging, staging-nju, openatom]
+        env_name: [staging, openatom, gitmono]
     timeout-minutes: 10
     steps:
       - name: Checkout repository
@@ -63,12 +63,19 @@ jobs:
   deploy:
       needs: build
       runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          include:
+            - cluster: gitmega-com
+              service: mega-frontend-development-service-6dcihwup
+            - cluster: gitmono-com-mega-app
+              service: mega-ui-service
       steps:
         - name: Force ECS redeploy
           run: |
             aws ecs update-service \
-              --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
-              --service ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }} \
+              --cluster ${{ matrix.cluster }} \
+              --service ${{ matrix.service }} \
               --force-new-deployment
           env:
             AWS_REGION: ap-southeast-2

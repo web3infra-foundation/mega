@@ -4,8 +4,8 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/orion-server-deploy.yml'
-      - 'orion-server/**'
+      - ".github/workflows/orion-server-deploy.yml"
+      - "orion-server/**"
 
 env:
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
@@ -18,6 +18,13 @@ concurrency:
 jobs:
   orion-server-deploy:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: orion-server-dev-service-om0caign
+          - cluster: gitmono-com-mega-app
+            service: orion-server-service
     timeout-minutes: 10
     steps:
       - name: Checkout repository
@@ -51,8 +58,8 @@ jobs:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
-            --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
-            --service orion-server-dev-service-om0caign \
+            --cluster ${{ matrix.cluster }} \
+            --service ${{ matrix.service }} \
             --force-new-deployment
         env:
           AWS_REGION: ap-southeast-2
