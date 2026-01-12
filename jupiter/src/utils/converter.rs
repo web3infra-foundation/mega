@@ -786,7 +786,7 @@ mod test {
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
         assert_eq!(mega_trees.len(), dir_nums + 1);
-        assert_eq!(mega_blobs.len(), dir_nums);
+        assert_eq!(mega_blobs.len(), dir_nums + 2); // 2 = .buckconfig + .buckroot
     }
 
     #[test]
