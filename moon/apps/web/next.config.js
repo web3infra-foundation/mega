@@ -40,6 +40,9 @@ const cspResourcesByDirective = {
     // Crates Pro environments
     'https://*.xuanwu.openatom.cn',
     'wss://*.xuanwu.openatom.cn',
+    // gitmono environments
+    'https://*.gitmono.com',
+    'wss://*.gitmono.com',
     // Local development environments
     'http://*.gitmono.test:3001',
     'http://*.gitmono.test:8000',

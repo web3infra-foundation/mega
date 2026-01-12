@@ -28,6 +28,13 @@ concurrency:
 jobs:
   deploy-mono:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: mono-engine-dev-service-xnmoxhxb
+          - cluster: gitmono-com-mega-app
+            service: mono-engine
     timeout-minutes: 30
     steps:
       - name: Checkout repository
@@ -66,8 +73,8 @@ jobs:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
-            --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
-            --service ${{ secrets.AWS_ECS_MONO_SERVICE_NAME }} \
+            --cluster ${{ matrix.cluster }} \
+            --service ${{ matrix.service }} \
             --force-new-deployment
         env:
           AWS_REGION: ap-southeast-2
