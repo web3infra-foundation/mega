@@ -1276,27 +1276,6 @@ pub async fn build_retry_handler(
 
     let retry_count = build.retry_count + 1;
 
-    if let Err(err) = builds::Entity::update_many()
-        .set(builds::ActiveModel {
-            retry_count: Set(retry_count),
-            ..Default::default()
-        })
-        .filter(builds::Column::Id.eq(build_id))
-        .exec(db)
-        .await
-    {
-        tracing::error!(
-            "Failed to update retry_count for build {}: {}",
-            build_id,
-            err
-        );
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"message": "Database update failed"})),
-        )
-            .into_response();
-    }
-
     let idle_workers = state.scheduler.get_idle_workers();
     if idle_workers.is_empty() {
         // No idle workers, add task to queue
