@@ -471,17 +471,26 @@ fn inject_root_buck_files(
 
 fn generate_buckroot_content() -> String {
     // The .buckroot file is usually empty or contains a simple identifier.
-    "".to_string()
+    String::new()
 }
+
+/// Directories that should be excluded from Buck cell definitions.
+/// Currently only "doc" is excluded to preserve existing behavior.
+const EXCLUDED_BUCK_CELL_DIRS: &[&str] = &["doc"];
 
 fn generate_buckconfig_content(root_dirs: &[String]) -> String {
     let cells = root_dirs
         .iter()
-        .filter(|d| *d != "doc")
-        .map(|d| format!("  {d} = {d}\n"))
-        .collect::<String>();
+        .filter(|d| !EXCLUDED_BUCK_CELL_DIRS.contains(&d.as_str()))
+        .map(|d| format!("  {d} = {d}"))
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    format!("[cells]\n{cells}")
+    if cells.is_empty() {
+        "[cells]\n".to_string()
+    } else {
+        format!("[cells]\n{cells}\n")
+    }
 }
 
 pub struct MegaModelConverter {
