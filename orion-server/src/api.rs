@@ -1337,72 +1337,89 @@ pub async fn build_retry_handler(
                     .into_response()
             }
         }
+    } else if immediate_work(&state, build_id, &idle_workers, &build, &req, retry_count) {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "message": "Build retry dispatched immediately to worker"
+            })),
+        )
+            .into_response()
     } else {
-        // Randomly select an idle worker
-        let chosen_index = {
-            let mut rng = rand::rng();
-            rng.random_range(0..idle_workers.len())
-        };
-        let chosen_id = idle_workers[chosen_index].clone();
+        tracing::warn!(
+            "Failed to dispatch build {} retry to worker; worker missing or send failed",
+            build.id,
+        );
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "message": "Failed to dispatch build retry to worker"
+            })),
+        )
+            .into_response()
+    }
+}
 
-        // Create build information
-        let build_info = BuildInfo {
-            task_id: build.task_id.to_string(),
-            build_id: build.id.to_string(),
-            repo: build.repo.to_string(),
-            changes: req.build.changes.clone(),
-            start_at: chrono::Utc::now(),
-            cl: req.cl.to_string(),
-            _worker_id: chosen_id.clone(),
-            auto_retry_judger: AutoRetryJudger::new(),
-            retry_count,
-        };
+fn immediate_work(
+    state: &AppState,
+    build_id: Uuid,
+    idle_workers: &[String],
+    build: &builds::Model,
+    req: &RetryBuildRequest,
+    retry_count: i32,
+) -> bool {
+    // Randomly select an idle worker
+    let chosen_index = {
+        let mut rng = rand::rng();
+        rng.random_range(0..idle_workers.len())
+    };
+    let chosen_id = idle_workers[chosen_index].clone();
 
-        // Send build to worker
-        let msg: WSMessage = WSMessage::Task {
-            id: build.id.to_string(),
-            repo: build.repo.to_string(),
-            changes: req.build.changes.clone(),
-            cl_link: req.cl_link.to_string(),
+    // Create build information
+    let build_info = BuildInfo {
+        task_id: build.task_id.to_string(),
+        build_id: build.id.to_string(),
+        repo: build.repo.to_string(),
+        changes: req.build.changes.clone(),
+        start_at: chrono::Utc::now(),
+        cl: req.cl.to_string(),
+        _worker_id: chosen_id.clone(),
+        auto_retry_judger: AutoRetryJudger::new(),
+        retry_count,
+    };
+
+    // Send build to worker
+    let msg: WSMessage = WSMessage::Task {
+        id: build.id.to_string(),
+        repo: build.repo.to_string(),
+        changes: req.build.changes.clone(),
+        cl_link: req.cl_link.to_string(),
+    };
+    if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
+        && worker.sender.send(msg).is_ok()
+    {
+        worker.status = WorkerStatus::Busy {
+            task_id: build_id.to_string(),
+            phase: None,
         };
-        if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
-            && worker.sender.send(msg).is_ok()
-        {
-            worker.status = WorkerStatus::Busy {
-                task_id: build_id.to_string(),
-                phase: None,
-            };
-            // Insert active build
-            state
-                .scheduler
-                .active_builds
-                .insert(build.id.to_string(), build_info);
-            tracing::info!(
-                "Build {} retry dispatched immediately to worker {}",
-                build.id,
-                chosen_id
-            );
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "message": "Build retry dispatched immediately to worker"
-                })),
-            )
-                .into_response()
-        } else {
-            tracing::warn!(
-                "Failed to dispatch build {} retry to worker {}; worker missing or send failed",
-                build.id,
-                chosen_id
-            );
-            (
-                StatusCode::BAD_GATEWAY,
-                Json(serde_json::json!({
-                    "message": "Failed to dispatch build retry to worker"
-                })),
-            )
-                .into_response()
-        }
+        // Insert active build
+        state
+            .scheduler
+            .active_builds
+            .insert(build.id.to_string(), build_info);
+        tracing::info!(
+            "Build {} retry dispatched immediately to worker {}",
+            build.id,
+            chosen_id
+        );
+        true
+    } else {
+        tracing::warn!(
+            "Failed to dispatch build {} retry to worker {}; worker missing or send failed",
+            build.id,
+            chosen_id
+        );
+        false
     }
 }
 
