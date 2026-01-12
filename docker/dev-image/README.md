@@ -38,8 +38,8 @@ This image intentionally does **not** start Orion Server or PostgreSQL. It is de
 
 ### Supported Architectures
 
-- `linux/amd64` (x86_64)
-- `linux/arm64` (aarch64)
+- `linux/amd64` (x86_64) — published by CI
+- `linux/arm64` (aarch64) — supported by the Dockerfile; build locally with Buildx
 
 ---
 
@@ -125,6 +125,8 @@ docker logs -f orion-worker
 | `BUILD_DATE` | `unknown` | Build date (ISO 8601 format) |
 
 ### Multi-Architecture Build
+
+Note: CI currently publishes `linux/amd64` only. The multi-arch command below is for local testing and/or pushing to your own registry.
 
 ```bash
 docker buildx create --name mega-builder --use
