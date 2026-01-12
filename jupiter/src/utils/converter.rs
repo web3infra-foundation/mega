@@ -432,12 +432,65 @@ pub fn init_trees(
         blobs.push(blob);
     }
 
+    inject_root_buck_files(&mut root_items, &mut blobs, &mono_config.root_dirs);
+
     let root = Tree::from_tree_items(root_items).unwrap();
     (
         trees.into_iter().map(|x| (x.id, x)).collect(),
         blobs.into_iter().map(|x| (x.id, x)).collect(),
         root,
     )
+}
+
+/// Injects Buck configuration files (.buckroot and .buckconfig) into the root directory.
+fn inject_root_buck_files(
+    root_items: &mut Vec<TreeItem>,
+    blobs: &mut Vec<Blob>,
+    root_dirs: &[String],
+) {
+    // .buckroot
+    let buckroot_content = generate_buckroot_content();
+    let buckroot_blob = Blob::from_content(&buckroot_content);
+    root_items.push(TreeItem {
+        mode: TreeItemMode::Blob,
+        id: buckroot_blob.id,
+        name: String::from(".buckroot"),
+    });
+    blobs.push(buckroot_blob);
+
+    // .buckconfig
+    let buckconfig_content = generate_buckconfig_content(root_dirs);
+    let buckconfig_blob = Blob::from_content(&buckconfig_content);
+    root_items.push(TreeItem {
+        mode: TreeItemMode::Blob,
+        id: buckconfig_blob.id,
+        name: String::from(".buckconfig"),
+    });
+    blobs.push(buckconfig_blob);
+}
+
+fn generate_buckroot_content() -> String {
+    // The .buckroot file is usually empty or contains a simple identifier.
+    String::new()
+}
+
+/// Directories that should be excluded from Buck cell definitions.
+/// Currently only "doc" is excluded to preserve existing behavior.
+const EXCLUDED_BUCK_CELL_DIRS: &[&str] = &["doc"];
+
+fn generate_buckconfig_content(root_dirs: &[String]) -> String {
+    let cells = root_dirs
+        .iter()
+        .filter(|d| !EXCLUDED_BUCK_CELL_DIRS.contains(&d.as_str()))
+        .map(|d| format!("  {d} = {d}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if cells.is_empty() {
+        "[cells]\n".to_string()
+    } else {
+        format!("[cells]\n{cells}\n")
+    }
 }
 
 pub struct MegaModelConverter {
@@ -742,7 +795,7 @@ mod test {
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
         assert_eq!(mega_trees.len(), dir_nums + 1);
-        assert_eq!(mega_blobs.len(), dir_nums);
+        assert_eq!(mega_blobs.len(), dir_nums + 2); // 2 = .buckconfig + .buckroot
     }
 
     #[test]
