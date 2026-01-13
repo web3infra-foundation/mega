@@ -24,24 +24,29 @@ jobs:
 
     if: |
           (
-            github.event_name == 'pull_request_target' ||
+            github.event_name == 'pull_request_target' &&
             (
-              (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-              contains(github.event.comment.body, '@claude') &&
-              (
-                github.event.comment.author_association == 'OWNER' ||
-                github.event.comment.author_association == 'MEMBER' ||
-                github.event.comment.author_association == 'COLLABORATOR'
-              )
-            ) ||
+              github.event.pull_request.author_association == 'OWNER' ||
+              github.event.pull_request.author_association == 'MEMBER' ||
+              github.event.pull_request.author_association == 'COLLABORATOR'
+            )
+          ) ||
+          (
+            (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+            contains(github.event.comment.body, '@claude') &&
             (
-              github.event_name == 'pull_request_review' &&
-              contains(github.event.review.body, '@claude') &&
-              (
-                github.event.review.author_association == 'OWNER' ||
-                github.event.review.author_association == 'MEMBER' ||
-                github.event.review.author_association == 'COLLABORATOR'
-              )
+              github.event.comment.author_association == 'OWNER' ||
+              github.event.comment.author_association == 'MEMBER' ||
+              github.event.comment.author_association == 'COLLABORATOR'
+            )
+          ) ||
+          (
+            github.event_name == 'pull_request_review' &&
+            contains(github.event.review.body, '@claude') &&
+            (
+              github.event.review.author_association == 'OWNER' ||
+              github.event.review.author_association == 'MEMBER' ||
+              github.event.review.author_association == 'COLLABORATOR'
             )
           )
 
@@ -50,7 +55,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout PR Branch (for comments)
+        if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr checkout ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: PR Review with Progress Tracking
         uses: anthropics/claude-code-action@v1
