@@ -68,10 +68,34 @@ pub fn run(args: &InitArgs) -> Result<(), Box<dyn std::error::Error>> {
                     fs::create_dir_all(parent)?;
                 }
 
-                // 初始化带有分离git目录的仓库
-                match Repository::init_ext(workdir, RepositoryInitOptions::new()
-                    .separate_git_dir(git_dir)
-                    .bare(false)) {
+                // 创建标准仓库
+                let repo = match Repository::init(workdir) {
+                    Ok(repo) => repo,
+                    Err(e) => {
+                        return Err(format!("Failed to initialize repository: {}", e).into());
+                    }
+                };
+                
+                // 手动实现--separate-git-dir功能
+                let original_git_dir = workdir.join(".git");
+                
+                // 创建分离的git目录
+                fs::create_dir_all(git_dir)?;
+                
+                // 将原始.git目录的内容移动到分离的git目录
+                for entry in fs::read_dir(&original_git_dir)? {
+                    let entry = entry?;
+                    let src_path = entry.path();
+                    let dest_path = git_dir.join(entry.file_name());
+                    fs::rename(src_path, dest_path)?;
+                }
+                
+                // 删除原始.git目录
+                fs::remove_dir(&original_git_dir)?;
+                
+                // 创建.git文件指向分离的git目录
+                let git_file_content = format!("gitdir: {}", git_dir.display());
+                fs::write(workdir.join(".git"), git_file_content)?;
                     Ok(_repo) => {
                         println!(
                             "[SUCCESS] Initialized libra repository with working directory at: {:?} and separate git directory at: {:?}",

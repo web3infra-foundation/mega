@@ -44,3 +44,6 @@ monobean/resources/lib
 
 ## local python version file
 .python-version
+
+# cargo vendor directory
+vendor/
