@@ -127,6 +127,15 @@ pub async fn update_state(
         ..Default::default()
     };
 
+    // When transitioning back to Building/Pending, clear stale end_at/error_summary
+    match state {
+        TargetState::Building | TargetState::Pending => {
+            active.end_at = Set(None);
+            active.error_summary = Set(None);
+        }
+        _ => {}
+    }
+
     if let Some(start_at) = start_at {
         active.start_at = Set(Some(start_at));
     }
@@ -141,4 +150,3 @@ pub async fn update_state(
 
     active.update(db).await.map(|_| ())
 }
-

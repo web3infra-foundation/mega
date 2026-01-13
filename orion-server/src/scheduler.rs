@@ -1,8 +1,8 @@
 use crate::api::CoreWorkerStatus;
 use crate::auto_retry::AutoRetryJudger;
 use crate::log::log_service::LogService;
-use crate::model::{builds, targets};
 use crate::model::targets::TargetState;
+use crate::model::{builds, targets};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use orion::repo::sapling::status::{ProjectRelativePath, Status};
@@ -587,7 +587,10 @@ mod tests {
             build_id: Uuid::now_v7(),
             target_id: Uuid::now_v7(),
             target_path: "//app:server".to_string(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -600,7 +603,10 @@ mod tests {
             build_id: Uuid::now_v7(),
             target_id: Uuid::now_v7(),
             target_path: "//app:server2".to_string(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -636,7 +642,10 @@ mod tests {
             build_id: Uuid::now_v7(),
             target_id: Uuid::now_v7(),
             target_path: "//app:server".to_string(),
-            request: BuildRequest { changes: vec![] },
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

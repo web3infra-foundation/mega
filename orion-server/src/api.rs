@@ -1,8 +1,8 @@
 use crate::auto_retry::AutoRetryJudger;
 use crate::common::model::{CommonPage, PageParams};
 use crate::log::log_service::{LogEvent, LogService};
-use crate::model::{builds, targets, tasks};
 use crate::model::targets::TargetState;
+use crate::model::{builds, targets, tasks};
 use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
 };
@@ -568,11 +568,7 @@ async fn handle_immediate_task_dispatch(
     let build_id = Uuid::now_v7();
     let target_path = req.target_path();
 
-    let target_model = match state
-        .scheduler
-        .ensure_target(task_id, &target_path)
-        .await
-    {
+    let target_model = match state.scheduler.ensure_target(task_id, &target_path).await {
         Ok(target) => target,
         Err(err) => {
             tracing::error!("Failed to prepare target {}: {}", target_path, err);
@@ -912,22 +908,21 @@ async fn process_message(
                         task_id,
                         target_id,
                         target_path,
-                    ) =
-                        if let Some(build_info) = state.scheduler.active_builds.get(&id) {
-                            (
-                                build_info.auto_retry_judger.clone(),
-                                build_info.retry_count,
-                                build_info.repo.clone(),
-                                build_info.changes.clone(),
-                                build_info.cl.clone(),
-                                build_info.task_id.clone(),
-                                build_info.target_id.clone(),
-                                build_info.target_path.clone(),
-                            )
-                        } else {
-                            tracing::error!("Not found build {id}");
-                            return ControlFlow::Continue(());
-                        };
+                    ) = if let Some(build_info) = state.scheduler.active_builds.get(&id) {
+                        (
+                            build_info.auto_retry_judger.clone(),
+                            build_info.retry_count,
+                            build_info.repo.clone(),
+                            build_info.changes.clone(),
+                            build_info.cl.clone(),
+                            build_info.task_id.clone(),
+                            build_info.target_id.clone(),
+                            build_info.target_path.clone(),
+                        )
+                    } else {
+                        tracing::error!("Not found build {id}");
+                        return ControlFlow::Continue(());
+                    };
 
                     // Judge auto retry by exit code
                     auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(0));
@@ -1010,15 +1005,10 @@ async fn process_message(
                         let repo_segment = LogService::last_segment(&repo);
                         if let Ok(log_content) = state
                             .log_service
-                            .read_full_log(
-                                &task_id,
-                                &repo_segment,
-                                &id.clone(),
-                            )
+                            .read_full_log(&task_id, &repo_segment, &id.clone())
                             .await
                         {
-                            error_summary =
-                                find_caused_by_next_line_in_content(&log_content).await;
+                            error_summary = find_caused_by_next_line_in_content(&log_content).await;
                         }
                     }
                     if let Some(target_uuid) = target_uuid {
@@ -1032,7 +1022,11 @@ async fn process_message(
                         )
                         .await;
                     } else {
-                        tracing::warn!("Unable to parse target id {} for build {}", target_path, id);
+                        tracing::warn!(
+                            "Unable to parse target id {} for build {}",
+                            target_path,
+                            id
+                        );
                     }
 
                     // Mark the worker as idle or error depending on whether the task succeeds.
@@ -1123,9 +1117,7 @@ impl BuildDTO {
         target: Option<&targets::Model>,
         status: TaskStatusEnum,
     ) -> Self {
-        let target_path = target
-            .map(|t| t.target_path.clone())
-            .unwrap_or_else(|| "".to_string());
+        let target_path = target.map(|t| t.target_path.clone()).unwrap_or_default();
         Self {
             id: model.id.to_string(),
             task_id: model.task_id.to_string(),
@@ -1272,11 +1264,8 @@ async fn assemble_task_info(
         .await
         .unwrap_or_else(|_| vec![]);
 
-    let target_map: HashMap<Uuid, targets::Model> = target_models
-        .iter()
-        .cloned()
-        .map(|t| (t.id, t))
-        .collect();
+    let target_map: HashMap<Uuid, targets::Model> =
+        target_models.iter().cloned().map(|t| (t.id, t)).collect();
 
     let mut build_list: Vec<BuildDTO> = Vec::new();
     let mut target_build_map: HashMap<Uuid, Vec<BuildDTO>> = HashMap::new();
@@ -1284,17 +1273,16 @@ async fn assemble_task_info(
         let build_id_str = build_model.id.to_string();
         let is_active = active_builds.contains_key(&build_id_str);
         let status = BuildDTO::determine_status(&build_model, is_active);
-        let mut dto =
-            BuildDTO::from_model(build_model.clone(), target_map.get(&build_model.target_id), status);
+        let mut dto = BuildDTO::from_model(
+            build_model.clone(),
+            target_map.get(&build_model.target_id),
+            status,
+        );
 
         let repo_segment = LogService::last_segment(&dto.repo);
         match state
             .log_service
-            .read_full_log(
-                &task.id.to_string(),
-                &repo_segment,
-                &build_id_str,
-            )
+            .read_full_log(&task.id.to_string(), &repo_segment, &build_id_str)
             .await
         {
             Ok(log_content) => {
@@ -1675,7 +1663,7 @@ pub async fn build_retry_handler(
                     .into_response()
             }
         }
-} else if immediate_work(
+    } else if immediate_work(
         &state,
         build_id,
         &idle_workers,

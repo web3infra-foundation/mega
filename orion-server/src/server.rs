@@ -261,8 +261,9 @@ async fn start_health_check_task(state: AppState) {
                     }
 
                     // Update target state to interrupted if we can locate it
-                    if let Ok(Some(build_model)) =
-                        builds::Entity::find_by_id(build_uuid).one(&state.conn).await
+                    if let Ok(Some(build_model)) = builds::Entity::find_by_id(build_uuid)
+                        .one(&state.conn)
+                        .await
                     {
                         let _ = crate::model::targets::update_state(
                             &state.conn,
