@@ -84,8 +84,6 @@ use jupiter::storage::mono_storage::RefUpdateData;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 
-use crate::api_service::admin_ops::ADMIN_CONFIG_PATH;
-
 #[derive(Clone)]
 pub struct MonoApiService {
     pub storage: Storage,
@@ -1226,19 +1224,19 @@ impl MonoApiService {
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
 
-        // Invalidate admin cache if /project/.mega_cedar.json was modified
-        // Note: Only /project is the source of truth for global admin config
-        match self.get_sorted_changed_file_list(&cl.link, None).await {
-            Ok(files) => {
-                if files.iter().any(|f| f == ADMIN_CONFIG_PATH) {
-                    self.invalidate_admin_cache().await;
+        // Invalidate admin cache when .mega_cedar.json is modified.
+        // File paths from get_sorted_changed_file_list are relative to cl.path.
+        if let Ok(files) = self.get_sorted_changed_file_list(&cl.link, None).await {
+            for file in &files {
+                let normalized_path = file.replace('\\', "/");
+                if normalized_path.ends_with(crate::api_service::admin_ops::ADMIN_FILE) {
+                    let root_dir = if cl.path == "/" {
+                        crate::api_service::admin_ops::extract_root_dir(&normalized_path)
+                    } else {
+                        crate::api_service::admin_ops::extract_root_dir(&cl.path)
+                    };
+                    self.invalidate_admin_cache(&root_dir).await;
                 }
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to get changed file list for admin cache invalidation: {}",
-                    e
-                );
             }
         }
 
