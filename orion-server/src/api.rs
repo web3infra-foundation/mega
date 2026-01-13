@@ -1,7 +1,8 @@
 use crate::auto_retry::AutoRetryJudger;
 use crate::common::model::{CommonPage, PageParams};
 use crate::log::log_service::{LogEvent, LogService};
-use crate::model::{builds, tasks};
+use crate::model::{builds, targets, tasks};
+use crate::model::targets::TargetState;
 use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
 };
@@ -25,9 +26,12 @@ use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
 use sea_orm::prelude::DateTimeUtc;
-use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _};
+use sea_orm::{
+    ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _, QueryOrder,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
@@ -55,7 +59,7 @@ struct TaskResponse {
 }
 
 /// Enumeration of possible task statuses
-#[derive(Debug, Serialize, Default, ToSchema)]
+#[derive(Debug, Serialize, Default, ToSchema, Clone)]
 pub enum TaskStatusEnum {
     /// Task is queued and waiting to be assigned to a worker
     Pending,
@@ -83,6 +87,18 @@ pub struct TaskHistoryQuery {
     pub repo: String,
     pub start: Option<usize>,
     pub end: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct TargetLogQuery {
+    #[serde(default = "default_log_type")]
+    pub r#type: String,
+    pub offset: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+fn default_log_type() -> String {
+    "full".to_string()
 }
 
 /// Request structure for Retry a build
@@ -129,7 +145,9 @@ pub fn routers() -> Router<AppState> {
         .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/task-history-output", get(task_history_output_handler))
+        .route("/targets/{target_id}/logs", get(target_logs_handler))
         .route("/tasks/{cl}", get(tasks_handler))
+        .route("/tasks/{task_id}/targets", get(task_targets_handler))
         .route("/queue-stats", get(queue_stats_handler))
         .route("/orion-clients-info", post(get_orion_clients_info))
         .route(
@@ -288,6 +306,138 @@ pub async fn task_history_output_handler(
     )
 }
 
+#[utoipa::path(
+    get,
+    path = "/targets/{target_id}/logs",
+    params(
+        ("target_id" = String, Path, description = "Target ID whose logs to read"),
+        ("type" = String, Query, description = "full | segment"),
+        ("offset" = Option<usize>, Query, description = "Start line number for segment mode"),
+        ("limit" = Option<usize>, Query, description = "Max lines for segment mode"),
+    ),
+    responses(
+        (status = 200, description = "Target log content"),
+        (status = 404, description = "Target or log not found", body = serde_json::Value),
+        (status = 500, description = "Failed to read log", body = serde_json::Value)
+    )
+)]
+pub async fn target_logs_handler(
+    State(state): State<AppState>,
+    Path(target_id): Path<String>,
+    Query(params): Query<TargetLogQuery>,
+) -> impl IntoResponse {
+    let target_uuid = match target_id.parse::<Uuid>() {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"message": "Invalid target id"})),
+            )
+                .into_response();
+        }
+    };
+
+    let target_model = match targets::Entity::find_by_id(target_uuid)
+        .one(&state.conn)
+        .await
+    {
+        Ok(Some(target)) => target,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"message": "Target not found"})),
+            )
+                .into_response();
+        }
+        Err(err) => {
+            tracing::error!("Failed to load target {}: {}", target_id, err);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to read target"})),
+            )
+                .into_response();
+        }
+    };
+
+    let build_model = match builds::Entity::find()
+        .filter(builds::Column::TargetId.eq(target_uuid))
+        .order_by_desc(builds::Column::CreatedAt)
+        .one(&state.conn)
+        .await
+    {
+        Ok(Some(build)) => build,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"message": "No builds for target"})),
+            )
+                .into_response();
+        }
+        Err(err) => {
+            tracing::error!("Failed to load build for target {}: {}", target_uuid, err);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to load build"})),
+            )
+                .into_response();
+        }
+    };
+
+    let repo_segment = LogService::last_segment(&build_model.repo);
+    let log_result = if params.r#type == "segment" {
+        let offset = params.offset.unwrap_or(0);
+        let limit = params.limit.unwrap_or(200);
+        state
+            .log_service
+            .read_log_range(
+                &target_model.task_id.to_string(),
+                &repo_segment,
+                &build_model.id.to_string(),
+                offset,
+                offset + limit,
+            )
+            .await
+    } else {
+        state
+            .log_service
+            .read_full_log(
+                &target_model.task_id.to_string(),
+                &repo_segment,
+                &build_model.id.to_string(),
+            )
+            .await
+    };
+
+    match log_result {
+        Ok(content) => {
+            let lines: Vec<&str> = content.lines().collect();
+            let len = lines.len();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "data": lines,
+                    "len": len,
+                    "build_id": build_model.id
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to read logs for target {} build {}: {}",
+                target_uuid,
+                build_model.id,
+                e
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to read log"})),
+            )
+                .into_response()
+        }
+    }
+}
+
 /// Creates build tasks and returns the task ID and status (immediate or queued)
 #[utoipa::path(
     post,
@@ -339,7 +489,6 @@ pub async fn task_handler(
                 &req.repo,
                 req.cl,
                 build.clone(),
-                String::new(),
             )
             .await;
             results.push(result);
@@ -390,10 +539,6 @@ pub async fn task_handler(
         .into_response()
 }
 
-/// Handle immediate task dispatch logic (original task_handler logic)
-///
-/// # Note
-/// The `target` field is deprecated, only remain for compatibility reasons.
 async fn handle_immediate_task_dispatch(
     state: AppState,
     task_id: Uuid,
@@ -401,7 +546,6 @@ async fn handle_immediate_task_dispatch(
     repo: &str,
     cl: i64,
     req: BuildRequest,
-    target: String,
 ) -> BuildResult {
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
@@ -422,14 +566,46 @@ async fn handle_immediate_task_dispatch(
     };
     let chosen_id = idle_workers[chosen_index].clone();
     let build_id = Uuid::now_v7();
+    let target_path = req.target_path();
+
+    let target_model = match state
+        .scheduler
+        .ensure_target(task_id, &target_path)
+        .await
+    {
+        Ok(target) => target,
+        Err(err) => {
+            tracing::error!("Failed to prepare target {}: {}", target_path, err);
+            return BuildResult {
+                build_id: "".to_string(),
+                status: "error".to_string(),
+                message: format!("Failed to prepare target {}", target_path),
+            };
+        }
+    };
+    let start_at = chrono::Utc::now();
+    let start_at_tz = start_at.with_timezone(&FixedOffset::east_opt(0).unwrap());
+
+    // Mark target as building
+    let _ = targets::update_state(
+        &state.conn,
+        target_model.id,
+        TargetState::Building,
+        Some(start_at_tz),
+        None,
+        None,
+    )
+    .await;
 
     // Create build information structure
     let build_info = BuildInfo {
         task_id: task_id.to_string(),
         build_id: build_id.to_string(),
+        target_id: target_model.id.to_string(),
+        target_path: target_path.clone(),
         repo: repo.to_string(),
         changes: req.changes.clone(),
-        start_at: chrono::Utc::now(),
+        start_at,
         cl: cl.to_string(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
@@ -440,8 +616,8 @@ async fn handle_immediate_task_dispatch(
     if let Err(err) = builds::Model::insert_build(
         build_id,
         task_id,
+        target_model.id,
         repo.to_string(),
-        target.clone(),
         &state.conn,
     )
     .await
@@ -727,7 +903,16 @@ async fn process_message(
                     );
 
                     // Get build information
-                    let (mut auto_retry_judger, mut retry_count, repo, changes, cl_link, task_id) =
+                    let (
+                        mut auto_retry_judger,
+                        mut retry_count,
+                        repo,
+                        changes,
+                        cl_link,
+                        task_id,
+                        target_id,
+                        target_path,
+                    ) =
                         if let Some(build_info) = state.scheduler.active_builds.get(&id) {
                             (
                                 build_info.auto_retry_judger.clone(),
@@ -736,6 +921,8 @@ async fn process_message(
                                 build_info.changes.clone(),
                                 build_info.cl.clone(),
                                 build_info.task_id.clone(),
+                                build_info.target_id.clone(),
+                                build_info.target_path.clone(),
                             )
                         } else {
                             tracing::error!("Not found build {id}");
@@ -799,18 +986,54 @@ async fn process_message(
                     state.scheduler.active_builds.remove(&id);
 
                     // Update database with final state
+                    let end_at = Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
                     let _ = builds::Entity::update_many()
                         .set(builds::ActiveModel {
                             exit_code: Set(exit_code),
-                            end_at: Set(Some(
-                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                            )),
+                            end_at: Set(Some(end_at)),
                             retry_count: Set(retry_count),
                             ..Default::default()
                         })
                         .filter(builds::Column::Id.eq(id.parse::<uuid::Uuid>().unwrap()))
                         .exec(&state.conn)
                         .await;
+
+                    // Update target state
+                    let target_uuid = target_id.parse::<Uuid>().ok();
+                    let target_state = match (success, exit_code) {
+                        (true, Some(0)) => TargetState::Completed,
+                        (_, None) => TargetState::Interrupted,
+                        _ => TargetState::Failed,
+                    };
+                    let mut error_summary = None;
+                    if matches!(target_state, TargetState::Failed) {
+                        let repo_segment = LogService::last_segment(&repo);
+                        if let Ok(log_content) = state
+                            .log_service
+                            .read_full_log(
+                                &task_id,
+                                &repo_segment,
+                                &id.clone(),
+                            )
+                            .await
+                        {
+                            error_summary =
+                                find_caused_by_next_line_in_content(&log_content).await;
+                        }
+                    }
+                    if let Some(target_uuid) = target_uuid {
+                        let _ = targets::update_state(
+                            &state.conn,
+                            target_uuid,
+                            target_state,
+                            None,
+                            Some(end_at),
+                            error_summary,
+                        )
+                        .await;
+                    } else {
+                        tracing::warn!("Unable to parse target id {} for build {}", target_path, id);
+                    }
 
                     // Mark the worker as idle or error depending on whether the task succeeds.
                     if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
@@ -874,10 +1097,12 @@ async fn process_message(
 }
 
 /// Data transfer object for build information in API responses
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct BuildDTO {
     pub id: String,
     pub task_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_id: Option<String>,
     pub exit_code: Option<i32>,
     pub start_at: String,
     pub end_at: Option<String>,
@@ -893,15 +1118,23 @@ pub struct BuildDTO {
 
 impl BuildDTO {
     /// Converts a database model to a DTO for API responses
-    pub fn from_model(model: builds::Model, status: TaskStatusEnum) -> Self {
+    pub fn from_model(
+        model: builds::Model,
+        target: Option<&targets::Model>,
+        status: TaskStatusEnum,
+    ) -> Self {
+        let target_path = target
+            .map(|t| t.target_path.clone())
+            .unwrap_or_else(|| "".to_string());
         Self {
             id: model.id.to_string(),
             task_id: model.task_id.to_string(),
+            target_id: target.map(|t| t.id.to_string()),
             exit_code: model.exit_code,
             start_at: model.start_at.with_timezone(&Utc).to_rfc3339(),
             end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
             repo: model.repo,
-            target: model.target,
+            target: target_path,
             args: model.args.map(|v| json!(v)),
             output_file: model.output_file,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
@@ -928,6 +1161,31 @@ impl BuildDTO {
     }
 }
 
+#[derive(Debug, Serialize, ToSchema, Clone)]
+pub struct TargetDTO {
+    pub id: String,
+    pub target_path: String,
+    pub state: TargetState,
+    pub start_at: Option<String>,
+    pub end_at: Option<String>,
+    pub error_summary: Option<String>,
+    pub builds: Vec<BuildDTO>,
+}
+
+impl TargetDTO {
+    pub fn from_model(model: targets::Model, builds: Vec<BuildDTO>) -> Self {
+        Self {
+            id: model.id.to_string(),
+            target_path: model.target_path,
+            state: model.state,
+            start_at: model.start_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
+            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
+            error_summary: model.error_summary,
+            builds,
+        }
+    }
+}
+
 /// Task information including current status
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TaskInfoDTO {
@@ -937,10 +1195,11 @@ pub struct TaskInfoDTO {
     pub template: Option<serde_json::Value>,
     pub created_at: String,
     pub build_list: Vec<BuildDTO>,
+    pub targets: Vec<TargetDTO>,
 }
 
 impl TaskInfoDTO {
-    fn from_model(model: tasks::Model, build_list: Vec<BuildDTO>) -> Self {
+    fn from_model(model: tasks::Model, build_list: Vec<BuildDTO>, targets: Vec<TargetDTO>) -> Self {
         Self {
             task_id: model.id.to_string(),
             cl_id: model.cl_id,
@@ -948,6 +1207,7 @@ impl TaskInfoDTO {
             template: model.template,
             created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
             build_list,
+            targets,
         }
     }
 }
@@ -980,43 +1240,7 @@ pub async fn tasks_handler(
             let mut tasks: Vec<TaskInfoDTO> = Vec::new();
 
             for m in task_models {
-                // Query builds associated with this task
-                let build_models = builds::Entity::find()
-                    .filter(builds::Column::TaskId.eq(m.id))
-                    .all(db)
-                    .await
-                    .unwrap_or_else(|_| vec![]);
-
-                let mut build_list: Vec<BuildDTO> = Vec::new();
-                for build_model in build_models {
-                    let build_id_str = build_model.id.to_string();
-                    let is_active = active_builds.contains_key(&build_id_str);
-                    let status = BuildDTO::determine_status(&build_model, is_active);
-                    let mut dto = BuildDTO::from_model(build_model, status);
-
-                    // Read log from LogService instead of file system
-                    match state
-                        .log_service
-                        .read_full_log(
-                            &m.id.to_string(),
-                            &LogService::last_segment(&dto.repo).to_string(),
-                            &build_id_str,
-                        )
-                        .await
-                    {
-                        Ok(log_content) => {
-                            dto.cause_by = find_caused_by_next_line_in_content(&log_content).await;
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to read log for build {}: {}", build_id_str, e);
-                            dto.cause_by = None;
-                        }
-                    }
-
-                    build_list.push(dto);
-                }
-
-                tasks.push(TaskInfoDTO::from_model(m, build_list));
+                tasks.push(assemble_task_info(m, &state, &active_builds).await);
             }
 
             Ok(Json(tasks))
@@ -1029,6 +1253,73 @@ pub async fn tasks_handler(
             ))
         }
     }
+}
+
+async fn assemble_task_info(
+    task: tasks::Model,
+    state: &AppState,
+    active_builds: &Arc<DashMap<String, BuildInfo>>,
+) -> TaskInfoDTO {
+    let target_models = targets::Entity::find()
+        .filter(targets::Column::TaskId.eq(task.id))
+        .all(&state.conn)
+        .await
+        .unwrap_or_else(|_| vec![]);
+
+    let build_models = builds::Entity::find()
+        .filter(builds::Column::TaskId.eq(task.id))
+        .all(&state.conn)
+        .await
+        .unwrap_or_else(|_| vec![]);
+
+    let target_map: HashMap<Uuid, targets::Model> = target_models
+        .iter()
+        .cloned()
+        .map(|t| (t.id, t))
+        .collect();
+
+    let mut build_list: Vec<BuildDTO> = Vec::new();
+    let mut target_build_map: HashMap<Uuid, Vec<BuildDTO>> = HashMap::new();
+    for build_model in build_models {
+        let build_id_str = build_model.id.to_string();
+        let is_active = active_builds.contains_key(&build_id_str);
+        let status = BuildDTO::determine_status(&build_model, is_active);
+        let mut dto =
+            BuildDTO::from_model(build_model.clone(), target_map.get(&build_model.target_id), status);
+
+        let repo_segment = LogService::last_segment(&dto.repo);
+        match state
+            .log_service
+            .read_full_log(
+                &task.id.to_string(),
+                &repo_segment,
+                &build_id_str,
+            )
+            .await
+        {
+            Ok(log_content) => {
+                dto.cause_by = find_caused_by_next_line_in_content(&log_content).await;
+            }
+            Err(e) => {
+                tracing::error!("Failed to read log for build {}: {}", build_id_str, e);
+                dto.cause_by = None;
+            }
+        }
+
+        target_build_map
+            .entry(build_model.target_id)
+            .or_default()
+            .push(dto.clone());
+        build_list.push(dto);
+    }
+
+    let mut target_list: Vec<TargetDTO> = Vec::new();
+    for target in target_models {
+        let builds = target_build_map.remove(&target.id).unwrap_or_default();
+        target_list.push(TargetDTO::from_model(target, builds));
+    }
+
+    TaskInfoDTO::from_model(task, build_list, target_list)
 }
 
 async fn find_caused_by_next_line_in_content(content: &str) -> Option<String> {
@@ -1045,6 +1336,51 @@ async fn find_caused_by_next_line_in_content(content: &str) -> Option<String> {
     }
 
     None
+}
+
+#[utoipa::path(
+    get,
+    path = "/tasks/{task_id}/targets",
+    params(
+        ("task_id" = String, Path, description = "Task ID to query targets for")
+    ),
+    responses(
+        (status = 200, description = "Task with targets", body = TaskInfoDTO),
+        (status = 400, description = "Invalid task ID", body = serde_json::Value),
+        (status = 404, description = "Task not found", body = serde_json::Value),
+        (status = 500, description = "Internal error", body = serde_json::Value)
+    )
+)]
+pub async fn task_targets_handler(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<TaskInfoDTO>, (StatusCode, Json<serde_json::Value>)> {
+    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"message": "Invalid task ID"})),
+        )
+    })?;
+
+    let task_model = tasks::Entity::find_by_id(task_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch task {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Failed to fetch task"})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"message": "Task not found"})),
+            )
+        })?;
+
+    let info = assemble_task_info(task_model, &state, &state.scheduler.active_builds).await;
+    Ok(Json(info))
 }
 
 // Orion client information
@@ -1275,9 +1611,32 @@ pub async fn build_retry_handler(
     };
 
     let retry_count = build.retry_count + 1;
+    let target_model = match targets::Entity::find_by_id(build.target_id).one(db).await {
+        Ok(Some(target)) => target,
+        Ok(None) => {
+            tracing::error!("Target not found for build {}", build.id);
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"message": "Target not found for build"})),
+            )
+                .into_response();
+        }
+        Err(err) => {
+            tracing::error!("Failed to load target for build {}: {}", build.id, err);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Database find failed"})),
+            )
+                .into_response();
+        }
+    };
 
     let idle_workers = state.scheduler.get_idle_workers();
     if idle_workers.is_empty() {
+        let mut build_req = req.build.clone();
+        if build_req.target.is_none() {
+            build_req.target = Some(target_model.target_path.clone());
+        }
         // No idle workers, add task to queue
         // WARN: When a build is retried and queued (no idle workers),
         // the enqueue_task_with_build_id is called with the existing build.id.
@@ -1292,7 +1651,7 @@ pub async fn build_retry_handler(
                 build.id,
                 build.task_id,
                 &req.cl_link,
-                req.build,
+                build_req,
                 build.repo.clone(),
                 req.cl,
                 retry_count,
@@ -1316,7 +1675,17 @@ pub async fn build_retry_handler(
                     .into_response()
             }
         }
-    } else if immediate_work(&state, build_id, &idle_workers, &build, &req, retry_count) {
+} else if immediate_work(
+        &state,
+        build_id,
+        &idle_workers,
+        &build,
+        &target_model,
+        &req,
+        retry_count,
+    )
+    .await
+    {
         (
             StatusCode::OK,
             Json(serde_json::json!({
@@ -1339,11 +1708,12 @@ pub async fn build_retry_handler(
     }
 }
 
-fn immediate_work(
+async fn immediate_work(
     state: &AppState,
     build_id: Uuid,
     idle_workers: &[String],
     build: &builds::Model,
+    target: &targets::Model,
     req: &RetryBuildRequest,
     retry_count: i32,
 ) -> bool {
@@ -1354,13 +1724,16 @@ fn immediate_work(
     };
     let chosen_id = idle_workers[chosen_index].clone();
 
+    let start_at = chrono::Utc::now();
     // Create build information
     let build_info = BuildInfo {
         task_id: build.task_id.to_string(),
         build_id: build.id.to_string(),
+        target_id: target.id.to_string(),
+        target_path: target.target_path.clone(),
         repo: build.repo.to_string(),
         changes: req.build.changes.clone(),
-        start_at: chrono::Utc::now(),
+        start_at,
         cl: req.cl.to_string(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
@@ -1381,6 +1754,15 @@ fn immediate_work(
             task_id: build_id.to_string(),
             phase: None,
         };
+        let _ = targets::update_state(
+            &state.conn,
+            target.id,
+            TargetState::Building,
+            Some(start_at.with_timezone(&FixedOffset::east_opt(0).unwrap())),
+            None,
+            None,
+        )
+        .await;
         // Insert active build
         state
             .scheduler

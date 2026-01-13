@@ -1,0 +1,189 @@
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 1. create targets table
+        manager
+            .create_table(
+                Table::create()
+                    .table(Targets::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(Targets::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(Targets::TaskId).uuid().not_null())
+                    .col(
+                        ColumnDef::new(Targets::TargetPath)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(Targets::State).string().not_null())
+                    .col(ColumnDef::new(Targets::StartAt).timestamp_with_time_zone())
+                    .col(ColumnDef::new(Targets::EndAt).timestamp_with_time_zone())
+                    .col(ColumnDef::new(Targets::ErrorSummary).text())
+                    .col(
+                        ColumnDef::new(Targets::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Targets::Table, Targets::TaskId)
+                            .to(Tasks::Table, Tasks::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_targets_task_id")
+                    .table(Targets::Table)
+                    .col(Targets::TaskId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_targets_state")
+                    .table(Targets::Table)
+                    .col(Targets::State)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_targets_created_at")
+                    .table(Targets::Table)
+                    .col(Targets::CreatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 2. add target_id to builds (nullable during migration)
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Builds::Table)
+                    .add_column(ColumnDef::new(Builds::TargetId).uuid())
+                    .to_owned(),
+            )
+            .await?;
+
+        // 3. backfill targets from existing build targets (best-effort)
+        manager
+            .exec_stmt(Statement::from_string(
+                manager.get_database_backend(),
+                r#"
+                INSERT INTO targets (id, task_id, target_path, state, start_at, end_at, error_summary, created_at)
+                SELECT DISTINCT ON (task_id, COALESCE(target, '//...'))
+                       gen_random_uuid(), task_id, COALESCE(target, '//...'), 'Pending', NULL, NULL, NULL, created_at
+                FROM builds
+                WHERE target_id IS NULL
+                "#.to_string(),
+            ))
+            .await?;
+
+        // 4. wire builds to targets
+        manager
+            .exec_stmt(Statement::from_string(
+                manager.get_database_backend(),
+                r#"
+                UPDATE builds b
+                SET target_id = t.id
+                FROM targets t
+                WHERE b.task_id = t.task_id
+                  AND COALESCE(b.target, '//...') = t.target_path
+                  AND b.target_id IS NULL
+                "#.to_string(),
+            ))
+            .await?;
+
+        // 5. enforce not null + fk
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Builds::Table)
+                    .modify_column(ColumnDef::new(Builds::TargetId).uuid().not_null())
+                    .drop_column(Builds::Target)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_foreign_key(
+                ForeignKey::create()
+                    .name("fk_builds_target_id")
+                    .from(Builds::Table, Builds::TargetId)
+                    .to(Targets::Table, Targets::Id)
+                    .on_delete(ForeignKeyAction::Cascade)
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let _ = manager
+            .drop_foreign_key(
+                ForeignKey::drop()
+                    .name("fk_builds_target_id")
+                    .table(Builds::Table)
+                    .to_owned(),
+            )
+            .await;
+        // restore target column, drop fk and target_id
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Builds::Table)
+                    .add_column(ColumnDef::new(Builds::Target).string())
+                    .drop_column(Builds::TargetId)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(Targets::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(DeriveIden)]
+enum Targets {
+    Table,
+    Id,
+    TaskId,
+    TargetPath,
+    State,
+    StartAt,
+    EndAt,
+    ErrorSummary,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Builds {
+    Table,
+    Id,
+    TaskId,
+    Target,
+    TargetId,
+}
+
+#[derive(DeriveIden)]
+enum Tasks {
+    Table,
+    Id,
+}
+
