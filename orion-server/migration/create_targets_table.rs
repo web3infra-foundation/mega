@@ -51,6 +51,19 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Unique constraint to prevent duplicate targets per task
+        manager
+            .create_index(
+                Index::create()
+                    .name("uq_targets_task_path")
+                    .table(Targets::Table)
+                    .col(Targets::TaskId)
+                    .col(Targets::TargetPath)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .create_index(
                 Index::create()

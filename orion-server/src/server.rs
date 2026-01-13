@@ -244,27 +244,30 @@ async fn start_health_check_task(state: AppState) {
                         }
                     };
 
-                    let update_res = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
-                            end_at: Set(Some(
-                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                            )),
-                            exit_code: Set(None),
-                            ..Default::default()
-                        })
-                        .filter(builds::Column::Id.eq(build_uuid))
-                        .exec(&state.conn)
-                        .await;
-
-                    if let Err(e) = update_res {
-                        tracing::error!("Failed to update orphaned task {} in DB: {}", task_id, e);
-                    }
-
-                    // Update target state to interrupted if we can locate it
                     if let Ok(Some(build_model)) = builds::Entity::find_by_id(build_uuid)
                         .one(&state.conn)
                         .await
                     {
+                        let update_res = builds::Entity::update_many()
+                            .set(builds::ActiveModel {
+                                end_at: Set(Some(
+                                    Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                                )),
+                                exit_code: Set(None),
+                                ..Default::default()
+                            })
+                            .filter(builds::Column::Id.eq(build_uuid))
+                            .exec(&state.conn)
+                            .await;
+
+                        if let Err(e) = update_res {
+                            tracing::error!(
+                                "Failed to update orphaned task {} in DB: {}",
+                                task_id,
+                                e
+                            );
+                        }
+
                         let _ = crate::model::targets::update_state(
                             &state.conn,
                             build_model.target_id,
@@ -273,7 +276,8 @@ async fn start_health_check_task(state: AppState) {
                             Some(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
                             None,
                         )
-                        .await;
+                        .await
+                        .map_err(|e| tracing::warn!("update target state failed: {e}"));
                     }
                 }
             }

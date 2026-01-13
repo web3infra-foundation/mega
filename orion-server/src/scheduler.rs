@@ -29,6 +29,7 @@ pub struct BuildRequest {
 }
 
 impl BuildRequest {
+    /// Return requested target path; fallback to "//..." for backward compatibility.
     pub fn target_path(&self) -> String {
         self.target
             .as_ref()
@@ -268,6 +269,7 @@ impl TaskScheduler {
         task_id: Uuid,
         target_path: &str,
     ) -> Result<targets::Model, sea_orm::DbErr> {
+        // Find-or-create target for (task_id, target_path)
         targets::Entity::find_or_create(&self.conn, task_id, target_path.to_string()).await
     }
 
@@ -442,7 +444,9 @@ impl TaskScheduler {
             None,
             None,
         )
-        .await;
+        .await
+        .map_err(|e| tracing::warn!("update target state failed: {e}"))
+        .ok();
 
         // Insert build record
         let _ = builds::ActiveModel {

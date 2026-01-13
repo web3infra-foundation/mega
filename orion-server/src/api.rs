@@ -361,7 +361,7 @@ pub async fn target_logs_handler(
 
     let build_model = match builds::Entity::find()
         .filter(builds::Column::TargetId.eq(target_uuid))
-        .order_by_desc(builds::Column::CreatedAt)
+        .order_by_desc(builds::Column::EndAt)
         .one(&state.conn)
         .await
     {
@@ -591,7 +591,8 @@ async fn handle_immediate_task_dispatch(
         None,
         None,
     )
-    .await;
+    .await
+    .map_err(|e| tracing::warn!("update target state failed: {e}"));
 
     // Create build information structure
     let build_info = BuildInfo {
@@ -1020,7 +1021,8 @@ async fn process_message(
                             Some(end_at),
                             error_summary,
                         )
-                        .await;
+                        .await
+                        .map_err(|e| tracing::warn!("update target state failed: {e}"));
                     } else {
                         tracing::warn!(
                             "Unable to parse target id {} for build {}",
@@ -1111,7 +1113,8 @@ pub struct BuildDTO {
 }
 
 impl BuildDTO {
-    /// Converts a database model to a DTO for API responses
+    /// Converts a database model to a DTO for API responses.
+    /// `target` is optional; empty string means target path missing (for compat).
     pub fn from_model(
         model: builds::Model,
         target: Option<&targets::Model>,
@@ -1276,21 +1279,15 @@ async fn assemble_task_info(
         let mut dto = BuildDTO::from_model(
             build_model.clone(),
             target_map.get(&build_model.target_id),
-            status,
+            status.clone(),
         );
 
-        let repo_segment = LogService::last_segment(&dto.repo);
-        match state
-            .log_service
-            .read_full_log(&task.id.to_string(), &repo_segment, &build_id_str)
-            .await
-        {
-            Ok(log_content) => {
-                dto.cause_by = find_caused_by_next_line_in_content(&log_content).await;
-            }
-            Err(e) => {
-                tracing::error!("Failed to read log for build {}: {}", build_id_str, e);
-                dto.cause_by = None;
+        // Prefer persisted error summary; avoid reading full logs in the task summary path.
+        if matches!(status, TaskStatusEnum::Failed) {
+            if let Some(t) = target_map.get(&build_model.target_id) {
+                if let Some(summary) = &t.error_summary {
+                    dto.cause_by = Some(summary.clone());
+                }
             }
         }
 

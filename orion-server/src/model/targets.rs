@@ -105,9 +105,22 @@ impl Entity {
             .one(db)
             .await?
         {
-            Ok(target)
-        } else {
-            Model::insert_target(task_id, target_path_owned, db).await
+            return Ok(target);
+        }
+
+        // Handle potential race: unique(task_id, target_path) enforced in migration
+        match Model::insert_target(task_id, target_path_owned.clone(), db).await {
+            Ok(model) => Ok(model),
+            Err(DbErr::Exec(_)) => {
+                // Unique violation, fetch again
+                Entity::find()
+                    .filter(Column::TaskId.eq(task_id))
+                    .filter(Column::TargetPath.eq(target_path_owned))
+                    .one(db)
+                    .await?
+                    .ok_or_else(|| DbErr::RecordNotFound("target".into()))
+            }
+            Err(e) => Err(e),
         }
     }
 }
