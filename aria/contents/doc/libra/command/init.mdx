@@ -1,0 +1,67 @@
+---
+title: init
+---
+
+# libra init
+
+初始化一个新的 libra 仓库。
+
+## 语法
+
+```bash
+libra init [--bare] [--separate-git-dir=<path>] [--workdir=<path>]
+```
+
+## 参数
+
+### `--bare`
+
+创建裸仓库（默认值：`true`）。裸仓库没有工作目录，只包含版本控制数据。
+
+### `--separate-git-dir=<path>`
+
+将版本控制数据存储在指定路径，而不是工作目录下的 `.libra` 目录。
+
+**示例：**
+```bash
+libra init --bare --separate-git-dir=./my-bare-repo.git
+```
+
+### `--workdir=<path>`
+
+指定工作目录路径（仅在非裸仓库模式下使用）。
+
+**示例：**
+```bash
+libra init --bare=false --workdir=./my-workdir --separate-git-dir=./my-git-dir
+```
+
+## 示例
+
+### 初始化裸仓库
+
+```bash
+libra init --bare --separate-git-dir=./my-project.git
+```
+
+### 初始化带有分离 git 目录的非裸仓库
+
+```bash
+libra init --bare=false --workdir=./my-workspace --separate-git-dir=./my-repo.git
+```
+
+### 初始化标准非裸仓库
+
+```bash
+libra init --bare=false --workdir=./my-project
+```
+
+## 注意事项
+
+1. 当使用 `--bare` 模式时，必须同时指定 `--separate-git-dir` 参数。
+
+2. 当不使用 `--bare` 模式时，必须指定 `--workdir` 参数。
+
+3. 如果指定的目录不存在，系统会自动创建必要的父目录。
+
+4. 分离的 git 目录必须是绝对路径或相对于当前工作目录的路径。

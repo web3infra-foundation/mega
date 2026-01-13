@@ -13,6 +13,7 @@ members = [
   "extensions/observatory",
   "context",
   "scorpio",
+  "libra",
 ]
 default-members = ["mono", "orion", "orion-server"]
 resolver = "1"

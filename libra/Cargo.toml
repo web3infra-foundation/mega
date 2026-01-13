@@ -1,0 +1,11 @@
+[package]
+name = "libra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.53", features = ["derive", "cargo"] }
+git2 = "0.18.3"
+
+[dev-dependencies]
+tempfile = "3.24.0"

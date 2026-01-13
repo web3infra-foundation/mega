@@ -1,0 +1,607 @@
+cargo:rerun-if-env-changed=LIBGIT2_NO_VENDOR
+cargo:rerun-if-env-changed=LIBGIT2_NO_PKG_CONFIG
+cargo:rerun-if-env-changed=PKG_CONFIG_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG
+cargo:rerun-if-env-changed=PKG_CONFIG
+cargo:rerun-if-env-changed=LIBGIT2_STATIC
+cargo:rerun-if-env-changed=LIBGIT2_DYNAMIC
+cargo:rerun-if-env-changed=PKG_CONFIG_ALL_STATIC
+cargo:rerun-if-env-changed=PKG_CONFIG_ALL_DYNAMIC
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_PATH
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_LIBDIR
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
+cargo:rerun-if-env-changed=LIBGIT2_STATIC
+cargo:rerun-if-env-changed=LIBGIT2_DYNAMIC
+cargo:rerun-if-env-changed=PKG_CONFIG_ALL_STATIC
+cargo:rerun-if-env-changed=PKG_CONFIG_ALL_DYNAMIC
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_PATH
+cargo:rerun-if-env-changed=PKG_CONFIG_PATH
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_LIBDIR
+cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-pc-windows-msvc
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_pc_windows_msvc
+cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
+cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
+cargo:warning=failed to probe system libgit2: Could not run `PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 pkg-config --libs --cflags libgit2 'libgit2 >= 1.7.2' 'libgit2 < 1.8.0'`
+The pkg-config command could not be found.
+
+Most likely, you need to install a pkg-config package for your OS.
+
+If you've already installed it, ensure the pkg-config command is one of the
+directories in the PATH environment variable.
+
+If you did not expect this build to link to a pre-installed system library,
+then check documentation of the libgit2-sys crate for an option to
+build the library from source, or disable features or dependencies
+that require pkg-config.
+cargo:rustc-cfg=libgit2_vendored
+libgit2/include\git2\annotated_commit.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\annotated_commit.h
+libgit2/include\git2\apply.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\apply.h
+libgit2/include\git2\attr.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\attr.h
+libgit2/include\git2\blame.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\blame.h
+libgit2/include\git2\blob.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\blob.h
+libgit2/include\git2\branch.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\branch.h
+libgit2/include\git2\buffer.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\buffer.h
+libgit2/include\git2\cert.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\cert.h
+libgit2/include\git2\checkout.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\checkout.h
+libgit2/include\git2\cherrypick.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\cherrypick.h
+libgit2/include\git2\clone.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\clone.h
+libgit2/include\git2\commit.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\commit.h
+libgit2/include\git2\common.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\common.h
+libgit2/include\git2\config.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\config.h
+libgit2/include\git2\credential.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\credential.h
+libgit2/include\git2\credential_helpers.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\credential_helpers.h
+libgit2/include\git2\cred_helpers.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\cred_helpers.h
+libgit2/include\git2\deprecated.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\deprecated.h
+libgit2/include\git2\describe.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\describe.h
+libgit2/include\git2\diff.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\diff.h
+libgit2/include\git2\email.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\email.h
+libgit2/include\git2\errors.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\errors.h
+libgit2/include\git2\experimental.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\experimental.h
+libgit2/include\git2\filter.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\filter.h
+libgit2/include\git2\global.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\global.h
+libgit2/include\git2\graph.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\graph.h
+libgit2/include\git2\ignore.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\ignore.h
+libgit2/include\git2\index.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\index.h
+libgit2/include\git2\indexer.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\indexer.h
+libgit2/include\git2\mailmap.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\mailmap.h
+libgit2/include\git2\merge.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\merge.h
+libgit2/include\git2\message.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\message.h
+libgit2/include\git2\net.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\net.h
+libgit2/include\git2\notes.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\notes.h
+libgit2/include\git2\object.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\object.h
+libgit2/include\git2\odb.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\odb.h
+libgit2/include\git2\odb_backend.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\odb_backend.h
+libgit2/include\git2\oid.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\oid.h
+libgit2/include\git2\oidarray.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\oidarray.h
+libgit2/include\git2\pack.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\pack.h
+libgit2/include\git2\patch.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\patch.h
+libgit2/include\git2\pathspec.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\pathspec.h
+libgit2/include\git2\proxy.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\proxy.h
+libgit2/include\git2\rebase.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\rebase.h
+libgit2/include\git2\refdb.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\refdb.h
+libgit2/include\git2\reflog.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\reflog.h
+libgit2/include\git2\refs.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\refs.h
+libgit2/include\git2\refspec.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\refspec.h
+libgit2/include\git2\remote.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\remote.h
+libgit2/include\git2\repository.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\repository.h
+libgit2/include\git2\reset.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\reset.h
+libgit2/include\git2\revert.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\revert.h
+libgit2/include\git2\revparse.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\revparse.h
+libgit2/include\git2\revwalk.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\revwalk.h
+libgit2/include\git2\signature.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\signature.h
+libgit2/include\git2\stash.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\stash.h
+libgit2/include\git2\status.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\status.h
+libgit2/include\git2\stdint.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\stdint.h
+libgit2/include\git2\strarray.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\strarray.h
+libgit2/include\git2\submodule.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\submodule.h
+libgit2/include\git2\sys\alloc.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\alloc.h
+libgit2/include\git2\sys\commit.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\commit.h
+libgit2/include\git2\sys\commit_graph.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\commit_graph.h
+libgit2/include\git2\sys\config.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\config.h
+libgit2/include\git2\sys\cred.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\cred.h
+libgit2/include\git2\sys\credential.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\credential.h
+libgit2/include\git2\sys\diff.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\diff.h
+libgit2/include\git2\sys\email.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\email.h
+libgit2/include\git2\sys\filter.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\filter.h
+libgit2/include\git2\sys\hashsig.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\hashsig.h
+libgit2/include\git2\sys\index.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\index.h
+libgit2/include\git2\sys\mempack.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\mempack.h
+libgit2/include\git2\sys\merge.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\merge.h
+libgit2/include\git2\sys\midx.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\midx.h
+libgit2/include\git2\sys\odb_backend.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\odb_backend.h
+libgit2/include\git2\sys\openssl.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\openssl.h
+libgit2/include\git2\sys\path.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\path.h
+libgit2/include\git2\sys\refdb_backend.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\refdb_backend.h
+libgit2/include\git2\sys\reflog.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\reflog.h
+libgit2/include\git2\sys\refs.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\refs.h
+libgit2/include\git2\sys\remote.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\remote.h
+libgit2/include\git2\sys\repository.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\repository.h
+libgit2/include\git2\sys\stream.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\stream.h
+libgit2/include\git2\sys\transport.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\sys\transport.h
+libgit2/include\git2\tag.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\tag.h
+libgit2/include\git2\trace.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\trace.h
+libgit2/include\git2\transaction.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\transaction.h
+libgit2/include\git2\transport.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\transport.h
+libgit2/include\git2\tree.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\tree.h
+libgit2/include\git2\types.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\types.h
+libgit2/include\git2\version.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\version.h
+libgit2/include\git2\worktree.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2\worktree.h
+libgit2/include\git2.h => C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\include\git2.h
+OPT_LEVEL = Some(0)
+TARGET = Some(x86_64-pc-windows-msvc)
+CARGO_ENCODED_RUSTFLAGS = Some()
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = Some(D:\vs2022\VC\)
+cargo:rerun-if-env-changed=VSCMD_ARG_TGT_ARCH
+VSCMD_ARG_TGT_ARCH = Some(x64)
+PATH = Some(C:\Users\30717\Desktop\mega\libra\target\debug\deps;C:\Users\30717\Desktop\mega\libra\target\debug;C:\Users\30717\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;D:\vs2022\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64;D:\vs2022\Common7\IDE\VC\VCPackages;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\TestWindow;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;D:\vs2022\MSBuild\Current\bin\Roslyn;D:\vs2022\Team Tools\DiagnosticsHub\Collector;D:\Windows Kits\10\bin\10.0.26100.0\\x64;D:\Windows Kits\10\bin\\x64;D:\vs2022\\MSBuild\Current\Bin\amd64;C:\Windows\Microsoft.NET\Framework64\v4.0.30319;D:\vs2022\Common7\IDE\;D:\vs2022\Common7\Tools\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\windows\system32;C:\windows;C:\windows\System32\Wbem;C:\windows\System32\WindowsPowerShell\v1.0\;C:\windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Users\Administrator\AppData\Local\Microsoft\WindowsApps;C:\Program Files\HP\OMEN-Broadcast\Common;C:\Program Files\Java\jdk1.8.0_131;C:\Program Files\Java\jre1.8.0_131;C:\Program Files\Java\jdk1.8.0_131\bin;C:\Program Files\Java\jre1.8.0_131\bin;C:\Program Files\MariaDB 11.7\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;D:\Git\cmd;D:\Windows Kits\10\Windows Performance Toolkit\;C:\Users\30717\.cargo\bin;C:\Users\30717\AppData\Local\Microsoft\WindowsApps;"C:\Program Files\Java\bin;C:\Program Files\Java\jre\bin";D:\Microsoft VS Code\bin;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;D:\vs2022\Common7\IDE\VC\Linux\bin\ConnectionManagerExe;D:\vs2022\VC\vcpkg;C:\Users\30717\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+HOST = Some(x86_64-pc-windows-msvc)
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+CARGO_CFG_TARGET_FEATURE = Some(cmpxchg16b,fxsr,sse,sse2,sse3)
+DEBUG = Some(true)
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+annotated_commit.c
+apply.c
+attr.c
+attr_file.c
+attrcache.c
+blame.c
+blame_git.c
+blob.c
+branch.c
+cache.c
+buf.c
+checkout.c
+cherrypick.c
+clone.c
+commit.c
+commit_graph.c
+config.c
+commit_list.c
+config_cache.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+config_entries.c
+config_file.c
+config_mem.c
+config_parse.c
+config_snapshot.c
+crlf.c
+delta.c
+describe.c
+diff.c
+diff_driver.c
+diff_file.c
+diff_generate.c
+diff_parse.c
+diff_stats.c
+diff_print.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+diff_xdiff.c
+diff_tform.c
+email.c
+errors.c
+fetch.c
+fetchhead.c
+filter.c
+grafts.c
+graph.c
+hashsig.c
+ident.c
+idxmap.c
+index.c
+indexer.c
+ignore.c
+iterator.c
+libgit2.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+mailmap.c
+merge.c
+merge_driver.c
+merge_file.c
+message.c
+midx.c
+mwindow.c
+object.c
+notes.c
+object_api.c
+odb.c
+odb_loose.c
+odb_pack.c
+odb_mempack.c
+offmap.c
+oid.c
+oidarray.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+oidmap.c
+pack-objects.c
+pack.c
+parse.c
+patch.c
+patch_generate.c
+patch_parse.c
+path.c
+pathspec.c
+push.c
+proxy.c
+reader.c
+refdb.c
+rebase.c
+refdb_fs.c
+reflog.c
+refs.c
+refspec.c
+remote.c
+repository.c
+reset.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+revert.c
+revparse.c
+revwalk.c
+signature.c
+stash.c
+status.c
+submodule.c
+tag.c
+strarray.c
+sysdir.c
+threadstate.c
+trace.c
+trailer.c
+transaction.c
+transport.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+tree-cache.c
+tree.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+worktree.c
+alloc.c
+date.c
+filebuf.c
+fs_path.c
+futils.c
+hash.c
+net.c
+pool.c
+posix.c
+pqueue.c
+rand.c
+regexp.c
+runtime.c
+sortedcache.c
+str.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+strmap.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+thread.c
+tsort.c
+utf8.c
+util.c
+varint.c
+vector.c
+auth.c
+wildmatch.c
+zstream.c
+auth_sspi.c
+credential.c
+auth_ntlmclient.c
+credential_helpers.c
+auth_gssapi.c
+git.c
+http.c
+httpclient.c
+local.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+smart.c
+smart_protocol.c
+smart_pkt.c
+winhttp.c
+ssh.c
+openssl.c
+mbedtls.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+openssl_dynamic.c
+openssl_legacy.c
+registry.c
+socket.c
+schannel.c
+tls.c
+stransport.c
+http_parser.c
+xdiffi.c
+xemit.c
+xhistogram.c
+xmerge.c
+xpatience.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+xprepare.c
+xutils.c
+pcre_byte_order.c
+pcre_chartables.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+pcre_compile.c
+pcre_config.c
+pcre_dfa_exec.c
+pcre_exec.c
+pcre_fullinfo.c
+pcre_get.c
+pcre_globals.c
+pcre_jit_compile.c
+pcre_maketables.c
+pcre_newline.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+pcre_ord2utf8.c
+pcre_printint.c
+pcre_refcount.c
+pcre_string_utils.c
+pcre_study.c
+pcre_tables.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+pcre_ucd.c
+pcre_valid_utf8.c
+pcre_version.c
+pcre_xclass.c
+pcreposix.c
+failalloc.c
+stdalloc.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+dir.c
+error.c
+map.c
+path_w32.c
+posix_w32.c
+precompiled.c
+thread.c
+utf-conv.c
+w32_buffer.c
+w32_leakcheck.c
+w32_util.c
+sha1.c
+collisiondetect.c
+ubc_check.c
+win32.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rustc-link-lib=static=git2
+cargo:rustc-link-search=native=C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out\build
+cargo:root=C:\Users\30717\Desktop\mega\libra\target\debug\build\libgit2-sys-bc8cd6de88452699\out
+cargo:rustc-link-lib=winhttp
+cargo:rustc-link-lib=rpcrt4
+cargo:rustc-link-lib=ole32
+cargo:rustc-link-lib=crypt32
+cargo:rustc-link-lib=secur32
+cargo:rerun-if-changed=libgit2/include
+cargo:rerun-if-changed=libgit2/src
+cargo:rerun-if-changed=libgit2/deps

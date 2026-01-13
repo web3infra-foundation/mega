@@ -1,0 +1,111 @@
+cargo:rerun-if-env-changed=LIBSSH2_SYS_USE_PKG_CONFIG
+cargo:include=C:\Users\30717\Desktop\mega\libra\target\debug\build\libssh2-sys-6479348199db676f\out\include
+cargo:root=C:\Users\30717\Desktop\mega\libra\target\debug\build\libssh2-sys-6479348199db676f\out
+cargo:rerun-if-env-changed=DEP_Z_INCLUDE
+cargo:rerun-if-env-changed=DEP_OPENSSL_INCLUDE
+OPT_LEVEL = Some(0)
+TARGET = Some(x86_64-pc-windows-msvc)
+CARGO_ENCODED_RUSTFLAGS = Some()
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = Some(D:\vs2022\VC\)
+cargo:rerun-if-env-changed=VSCMD_ARG_TGT_ARCH
+VSCMD_ARG_TGT_ARCH = Some(x64)
+PATH = Some(C:\Users\30717\Desktop\mega\libra\target\debug\deps;C:\Users\30717\Desktop\mega\libra\target\debug;C:\Users\30717\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;D:\vs2022\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64;D:\vs2022\Common7\IDE\VC\VCPackages;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\TestWindow;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;D:\vs2022\MSBuild\Current\bin\Roslyn;D:\vs2022\Team Tools\DiagnosticsHub\Collector;D:\Windows Kits\10\bin\10.0.26100.0\\x64;D:\Windows Kits\10\bin\\x64;D:\vs2022\\MSBuild\Current\Bin\amd64;C:\Windows\Microsoft.NET\Framework64\v4.0.30319;D:\vs2022\Common7\IDE\;D:\vs2022\Common7\Tools\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\windows\system32;C:\windows;C:\windows\System32\Wbem;C:\windows\System32\WindowsPowerShell\v1.0\;C:\windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Users\Administrator\AppData\Local\Microsoft\WindowsApps;C:\Program Files\HP\OMEN-Broadcast\Common;C:\Program Files\Java\jdk1.8.0_131;C:\Program Files\Java\jre1.8.0_131;C:\Program Files\Java\jdk1.8.0_131\bin;C:\Program Files\Java\jre1.8.0_131\bin;C:\Program Files\MariaDB 11.7\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;D:\Git\cmd;D:\Windows Kits\10\Windows Performance Toolkit\;C:\Users\30717\.cargo\bin;C:\Users\30717\AppData\Local\Microsoft\WindowsApps;"C:\Program Files\Java\bin;C:\Program Files\Java\jre\bin";D:\Microsoft VS Code\bin;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;D:\vs2022\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;D:\vs2022\Common7\IDE\VC\Linux\bin\ConnectionManagerExe;D:\vs2022\VC\vcpkg;C:\Users\30717\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+HOST = Some(x86_64-pc-windows-msvc)
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+CARGO_CFG_TARGET_FEATURE = Some(cmpxchg16b,fxsr,sse,sse2,sse3)
+DEBUG = Some(true)
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+agent.c
+bcrypt_pbkdf.c
+blowfish.c
+chacha.c
+channel.c
+cipher-chachapoly.c
+comp.c
+crypt.c
+crypto.c
+global.c
+hostkey.c
+keepalive.c
+kex.c
+knownhost.c
+mac.c
+misc.c
+packet.c
+pem.c
+poly1305.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+publickey.c
+scp.c
+session.c
+sftp.c
+transport.c
+userauth.c
+userauth_kbd_packet.c
+agent_win.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rustc-link-lib=static=ssh2
+cargo:rustc-link-search=native=C:\Users\30717\Desktop\mega\libra\target\debug\build\libssh2-sys-6479348199db676f\out\build
+cargo:rustc-link-lib=bcrypt
+cargo:rustc-link-lib=crypt32
+cargo:rustc-link-lib=user32
+cargo:rustc-link-lib=ntdll
