@@ -18,7 +18,7 @@ bellatrix = { workspace = true }
 saturn = { workspace = true }
 
 anyhow = { workspace = true }
-# Use 0.16.0 version for GPG Verification
+# TODO: Use 0.16.0 version for GPG Verification, consider to adapt the latest version in the future 
 pgp = { version = "0.16.0" }
 tokio = { workspace = true, features = ["net", "process"] }
 tokio-stream = { workspace = true }
