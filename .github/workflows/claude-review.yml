@@ -19,6 +19,7 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
+  actions: read
 
 jobs:
   claude-review-with-tracking:
@@ -52,7 +53,6 @@ jobs:
           # Your custom review instructions
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.issue.number }}
 
             Perform a comprehensive code review with the following focus areas:
 
