@@ -57,13 +57,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
-      - name: Checkout PR Branch (for comments)
-        if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr checkout ${{ github.event.issue.number || github.event.pull_request.number }}
-
       - name: PR Review with Progress Tracking
         uses: anthropics/claude-code-action@v1
         with:
