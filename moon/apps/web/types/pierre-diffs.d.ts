@@ -1,4 +1,6 @@
 declare module '@pierre/diffs' {
+  export type ChangeTypes = 'change' | 'rename-pure' | 'rename-changed' | 'new' | 'deleted'
+
   export interface FileDiffHunk {
     header: string
     additionCount: number
@@ -15,6 +17,7 @@ declare module '@pierre/diffs' {
     name: string
     oldName?: string
     lang?: string
+    type?: ChangeTypes
     hunks: FileDiffHunk[]
   }
 

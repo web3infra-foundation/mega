@@ -469,8 +469,8 @@ const CodeContent = ({
       <div className='flex flex-1 flex-col overflow-hidden'>
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div
-            className='rounded-b-lg border border-gray-200'
-            style={{ minWidth: 'fit-content', backgroundColor: '#fff' }}
+            className={`rounded-b-lg border border-gray-200 ${styles.codeContainer}`}
+            style={{ minWidth: 'fit-content', backgroundColor: '#fff', userSelect: 'text' }}
           >
             {shikiTokens.map((line, index) => {
               return (
@@ -544,8 +544,8 @@ const CodeContent = ({
         <ContributionRecord contributors={blameData.data?.contributors} />
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div
-            className='rounded-b-lg border border-gray-200'
-            style={{ minWidth: 'fit-content', backgroundColor: '#fff' }}
+            className={`rounded-b-lg border border-gray-200 ${styles.blameContainer}`}
+            style={{ minWidth: 'fit-content', backgroundColor: '#fff', userSelect: 'text' }}
           >
             {processedBlameBlocks.map((block, blockIndex) => {
               const isLastBlock = blockIndex === processedBlameBlocks.length - 1
@@ -654,7 +654,10 @@ const CodeContent = ({
     }
 
     return (
-      <div className='markdown-body overflow-auto rounded-b-lg border border-gray-200 p-8'>
+      <div
+        className={`markdown-body overflow-auto rounded-b-lg border border-gray-200 p-8 ${styles.previewContainer}`}
+        style={{ userSelect: 'text' }}
+      >
         <Markdown>{fileContent}</Markdown>
       </div>
     )
