@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use api_model::git::commit::LatestCommitInfo;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
@@ -57,32 +58,24 @@ pub struct BlobContentQuery {
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct LatestCommitInfo {
-    pub oid: String,
-    pub date: String,
-    pub short_message: String,
-    pub author: String,
-    pub committer: String,
-    pub status: String,
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
 pub struct CommitBindingInfo {
     pub matched_username: Option<String>,
     pub is_anonymous: bool,
 }
 
-impl From<Commit> for LatestCommitInfo {
+pub struct LatestCommitInfoWrapper(pub LatestCommitInfo);
+
+impl From<Commit> for LatestCommitInfoWrapper {
     fn from(commit: Commit) -> Self {
         let message = commit.format_message();
-        Self {
+        Self(LatestCommitInfo {
             oid: commit.id.to_string(),
             date: commit.committer.timestamp.to_string(),
             short_message: message,
             author: commit.author.name,
             committer: commit.committer.name,
             status: "success".to_string(),
-        }
+        })
     }
 }
 
