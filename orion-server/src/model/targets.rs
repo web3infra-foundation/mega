@@ -23,6 +23,32 @@ pub enum TargetState {
     Interrupted,
 }
 
+/// Target DTO with a generic builds payload.
+#[derive(Debug, Serialize, ToSchema, Clone)]
+pub struct TargetWithBuilds<T> {
+    pub id: String,
+    pub target_path: String,
+    pub state: TargetState,
+    pub start_at: Option<String>,
+    pub end_at: Option<String>,
+    pub error_summary: Option<String>,
+    pub builds: Vec<T>,
+}
+
+impl<T> TargetWithBuilds<T> {
+    pub fn from_model(model: Model, builds: Vec<T>) -> Self {
+        Self {
+            id: model.id.to_string(),
+            target_path: model.target_path,
+            state: model.state,
+            start_at: model.start_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
+            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
+            error_summary: model.error_summary,
+            builds,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "targets")]
 pub struct Model {

@@ -102,21 +102,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 3. backfill targets from existing build targets (best-effort)
-        manager
-            .exec_stmt(Statement::from_string(
-                manager.get_database_backend(),
-                r#"
-                INSERT INTO targets (id, task_id, target_path, state, start_at, end_at, error_summary, created_at)
-                SELECT DISTINCT ON (task_id, COALESCE(target, '//...'))
-                       gen_random_uuid(), task_id, COALESCE(target, '//...'), 'Pending', NULL, NULL, NULL, created_at
-                FROM builds
-                WHERE target_id IS NULL
-                "#.to_string(),
-            ))
-            .await?;
-
-        // 4. wire builds to targets
+        // 3. wire builds to targets (skip backfill)
         manager
             .exec_stmt(Statement::from_string(
                 manager.get_database_backend(),
@@ -131,7 +117,7 @@ impl MigrationTrait for Migration {
             ))
             .await?;
 
-        // 5. enforce not null + fk
+        // 4. enforce not null + fk
         manager
             .alter_table(
                 Table::alter()

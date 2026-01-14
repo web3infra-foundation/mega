@@ -1,7 +1,7 @@
 use crate::auto_retry::AutoRetryJudger;
 use crate::common::model::{CommonPage, PageParams};
 use crate::log::log_service::{LogEvent, LogService};
-use crate::model::targets::TargetState;
+use crate::model::targets::{TargetState, TargetWithBuilds};
 use crate::model::{builds, targets, tasks};
 use crate::scheduler::{
     self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
@@ -1161,30 +1161,7 @@ impl BuildDTO {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema, Clone)]
-pub struct TargetDTO {
-    pub id: String,
-    pub target_path: String,
-    pub state: TargetState,
-    pub start_at: Option<String>,
-    pub end_at: Option<String>,
-    pub error_summary: Option<String>,
-    pub builds: Vec<BuildDTO>,
-}
-
-impl TargetDTO {
-    pub fn from_model(model: targets::Model, builds: Vec<BuildDTO>) -> Self {
-        Self {
-            id: model.id.to_string(),
-            target_path: model.target_path,
-            state: model.state,
-            start_at: model.start_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
-            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
-            error_summary: model.error_summary,
-            builds,
-        }
-    }
-}
+pub type TargetDTO = targets::TargetWithBuilds<BuildDTO>;
 
 /// Task information including current status
 #[derive(Debug, Serialize, ToSchema)]
@@ -1305,7 +1282,7 @@ async fn assemble_task_info(
     let mut target_list: Vec<TargetDTO> = Vec::new();
     for target in target_models {
         let builds = target_build_map.remove(&target.id).unwrap_or_default();
-        target_list.push(TargetDTO::from_model(target, builds));
+        target_list.push(TargetWithBuilds::from_model(target, builds));
     }
 
     TaskInfoDTO::from_model(task, build_list, target_list)
