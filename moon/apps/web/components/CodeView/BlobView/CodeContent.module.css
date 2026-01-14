@@ -67,11 +67,9 @@
   background-color: rgb(61, 19, 0);
 }
 
-:global {
-  .codeContainer *::selection,
-  .blameContainer *::selection,
-  .previewContainer *::selection {
-    background-color: #0969da;
-    color: #fff;
-  }
+.codeContainer :global(*::selection),
+.blameContainer :global(*::selection),
+.previewContainer :global(*::selection) {
+  background-color: #0969da;
+  color: #fff;
 }
