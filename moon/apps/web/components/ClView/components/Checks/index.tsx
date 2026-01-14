@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
 import { useAtom } from 'jotai'
 
@@ -14,12 +14,66 @@ import { Task } from './cpns/Task'
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
+const MIN_LEFT_WIDTH = 200
+const MAX_LEFT_WIDTH_PERCENT = 0.7
+const DEFAULT_LEFT_WIDTH_PERCENT = 0.4
+
 const Checks = ({ cl }: { cl: number }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
   const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
+
+  // Resizable panel state
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [leftWidth, setLeftWidth] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Initialize left width based on container width
+  useEffect(() => {
+    if (containerRef.current && leftWidth === null) {
+      setLeftWidth(containerRef.current.offsetWidth * DEFAULT_LEFT_WIDTH_PERCENT)
+    }
+  }, [leftWidth])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging || !containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newLeftWidth = e.clientX - containerRect.left
+      const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
+
+      setLeftWidth(Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxWidth)))
+    },
+    [isDragging]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp])
 
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
@@ -232,12 +286,18 @@ const Checks = ({ cl }: { cl: number }) => {
             <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
           </span>
         </div>
-        <div className='flex justify-between' style={{ height: `calc(100vh - 164px)` }}>
-          <div className='h-full w-[40%] overflow-y-auto border-r'>
+        <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
+          <div className='h-full overflow-y-auto border-r' style={{ width: leftWidth ?? '40%', flexShrink: 0 }}>
             {validTasks.map((t) => (
               <Task key={t.task_id} list={t} logStatus={logStatus} />
             ))}
           </div>
+          {/* Resizer handle */}
+          <div
+            onMouseDown={handleMouseDown}
+            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
+          />
           <div className='flex-1'>{renderLogContent()}</div>
         </div>
       </div>
