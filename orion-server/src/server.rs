@@ -268,7 +268,7 @@ async fn start_health_check_task(state: AppState) {
                             );
                         }
 
-                        let _ = crate::model::targets::update_state(
+                        if let Err(e) = crate::model::targets::update_state(
                             &state.conn,
                             build_model.target_id,
                             crate::model::targets::TargetState::Interrupted,
@@ -277,7 +277,13 @@ async fn start_health_check_task(state: AppState) {
                             None,
                         )
                         .await
-                        .map_err(|e| tracing::warn!("update target state failed: {e}"));
+                        {
+                            tracing::error!(
+                                "Failed to update target {} to Interrupted: {}",
+                                build_model.target_id,
+                                e
+                            );
+                        }
                     }
                 }
             }

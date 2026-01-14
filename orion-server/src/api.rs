@@ -362,6 +362,7 @@ pub async fn target_logs_handler(
     let build_model = match builds::Entity::find()
         .filter(builds::Column::TargetId.eq(target_uuid))
         .order_by_desc(builds::Column::EndAt)
+        .order_by_desc(builds::Column::CreatedAt)
         .one(&state.conn)
         .await
     {
@@ -583,7 +584,7 @@ async fn handle_immediate_task_dispatch(
     let start_at_tz = start_at.with_timezone(&FixedOffset::east_opt(0).unwrap());
 
     // Mark target as building
-    let _ = targets::update_state(
+    if let Err(e) = targets::update_state(
         &state.conn,
         target_model.id,
         TargetState::Building,
@@ -592,7 +593,9 @@ async fn handle_immediate_task_dispatch(
         None,
     )
     .await
-    .map_err(|e| tracing::warn!("update target state failed: {e}"));
+    {
+        tracing::error!("Failed to update target state to Building: {}", e);
+    }
 
     // Create build information structure
     let build_info = BuildInfo {
@@ -908,7 +911,7 @@ async fn process_message(
                         cl_link,
                         task_id,
                         target_id,
-                        target_path,
+                        _target_path,
                     ) = if let Some(build_info) = state.scheduler.active_builds.get(&id) {
                         (
                             build_info.auto_retry_judger.clone(),
@@ -1013,7 +1016,7 @@ async fn process_message(
                         }
                     }
                     if let Some(target_uuid) = target_uuid {
-                        let _ = targets::update_state(
+                        if let Err(e) = targets::update_state(
                             &state.conn,
                             target_uuid,
                             target_state,
@@ -1022,13 +1025,15 @@ async fn process_message(
                             error_summary,
                         )
                         .await
-                        .map_err(|e| tracing::warn!("update target state failed: {e}"));
+                        {
+                            tracing::error!(
+                                "Failed to update target state for build {}: {}",
+                                id,
+                                e
+                            );
+                        }
                     } else {
-                        tracing::warn!(
-                            "Unable to parse target id {} for build {}",
-                            target_path,
-                            id
-                        );
+                        tracing::warn!("Unable to parse target id {} for build {}", target_id, id);
                     }
 
                     // Mark the worker as idle or error depending on whether the task succeeds.
@@ -1283,12 +1288,11 @@ async fn assemble_task_info(
         );
 
         // Prefer persisted error summary; avoid reading full logs in the task summary path.
-        if matches!(status, TaskStatusEnum::Failed) {
-            if let Some(t) = target_map.get(&build_model.target_id) {
-                if let Some(summary) = &t.error_summary {
-                    dto.cause_by = Some(summary.clone());
-                }
-            }
+        if matches!(status, TaskStatusEnum::Failed)
+            && let Some(t) = target_map.get(&build_model.target_id)
+            && let Some(summary) = &t.error_summary
+        {
+            dto.cause_by = Some(summary.clone());
         }
 
         target_build_map
@@ -1622,18 +1626,13 @@ pub async fn build_retry_handler(
         if build_req.target.is_none() {
             build_req.target = Some(target_model.target_path.clone());
         }
+        // Generate a new build id for queued retry to avoid PK conflict with existing build.
+        let new_build_id = Uuid::now_v7();
         // No idle workers, add task to queue
-        // WARN: When a build is retried and queued (no idle workers),
-        // the enqueue_task_with_build_id is called with the existing build.id.
-        // Later, when the task is dispatched from the queue via dispatch_task in scheduler.rs,
-        // it attempts to insert a new build record with this ID,
-        // which will fail due to a primary key constraint violation since the build already exists.
-        // The retry logic should either update the existing build record or
-        // handle the insertion differently to avoid this conflict.
         match state
             .scheduler
             .enqueue_task_with_build_id(
-                build.id,
+                new_build_id,
                 build.task_id,
                 &req.cl_link,
                 build_req,
@@ -1739,7 +1738,7 @@ async fn immediate_work(
             task_id: build_id.to_string(),
             phase: None,
         };
-        let _ = targets::update_state(
+        if let Err(e) = targets::update_state(
             &state.conn,
             target.id,
             TargetState::Building,
@@ -1747,7 +1746,10 @@ async fn immediate_work(
             None,
             None,
         )
-        .await;
+        .await
+        {
+            tracing::error!("Failed to update target state to Building: {}", e);
+        }
         // Insert active build
         state
             .scheduler

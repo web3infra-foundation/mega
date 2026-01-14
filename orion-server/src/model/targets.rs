@@ -1,7 +1,8 @@
 use chrono::Utc;
 use sea_orm::entity::prelude::*;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr, RuntimeErr, sqlx};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -111,14 +112,20 @@ impl Entity {
         // Handle potential race: unique(task_id, target_path) enforced in migration
         match Model::insert_target(task_id, target_path_owned.clone(), db).await {
             Ok(model) => Ok(model),
-            Err(DbErr::Exec(_)) => {
-                // Unique violation, fetch again
-                Entity::find()
-                    .filter(Column::TaskId.eq(task_id))
-                    .filter(Column::TargetPath.eq(target_path_owned))
-                    .one(db)
-                    .await?
-                    .ok_or_else(|| DbErr::RecordNotFound("target".into()))
+            Err(DbErr::Exec(RuntimeErr::SqlxError(sqlx::Error::Database(db_err)))) => {
+                if let Some(code) = db_err.code() {
+                    if code == Cow::from("23505") {
+                        return Entity::find()
+                            .filter(Column::TaskId.eq(task_id))
+                            .filter(Column::TargetPath.eq(target_path_owned))
+                            .one(db)
+                            .await?
+                            .ok_or_else(|| DbErr::RecordNotFound("target".into()));
+                    }
+                }
+                Err(DbErr::Exec(RuntimeErr::SqlxError(sqlx::Error::Database(
+                    db_err,
+                ))))
             }
             Err(e) => Err(e),
         }

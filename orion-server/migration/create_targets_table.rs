@@ -163,12 +163,41 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await;
-        // restore target column, drop fk and target_id
+        let _ = manager
+            .drop_index(
+                Index::drop()
+                    .name("uq_targets_task_path")
+                    .table(Targets::Table)
+                    .to_owned(),
+            )
+            .await;
+        // restore target column, backfill, drop fk and target_id
         manager
             .alter_table(
                 Table::alter()
                     .table(Builds::Table)
                     .add_column(ColumnDef::new(Builds::Target).string())
+                    .to_owned(),
+            )
+            .await?;
+
+        // Backfill builds.target from targets before dropping target_id
+        manager
+            .exec_stmt(Statement::from_string(
+                manager.get_database_backend(),
+                r#"
+                UPDATE builds b
+                SET target = t.target_path
+                FROM targets t
+                WHERE b.target_id = t.id
+                "#.to_string(),
+            ))
+            .await?;
+
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Builds::Table)
                     .drop_column(Builds::TargetId)
                     .to_owned(),
             )

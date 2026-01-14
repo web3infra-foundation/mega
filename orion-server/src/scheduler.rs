@@ -436,20 +436,8 @@ impl TaskScheduler {
             retry_count: pending_task.retry_count,
         };
 
-        let _ = targets::update_state(
-            &self.conn,
-            pending_task.target_id,
-            TargetState::Building,
-            Some(start_at_tz),
-            None,
-            None,
-        )
-        .await
-        .map_err(|e| tracing::warn!("update target state failed: {e}"))
-        .ok();
-
-        // Insert build record
-        let _ = builds::ActiveModel {
+        // Insert build record (fail fast if insertion fails)
+        if let Err(e) = (builds::ActiveModel {
             id: Set(pending_task.build_id),
             task_id: Set(pending_task.task_id),
             target_id: Set(pending_task.target_id),
@@ -466,9 +454,18 @@ impl TaskScheduler {
             )),
             created_at: Set(start_at_tz),
             retry_count: Set(0),
-        }
+        })
         .insert(&self.conn)
-        .await;
+        .await
+        {
+            tracing::error!(
+                "Failed to insert build {} for task {}: {}",
+                pending_task.build_id,
+                pending_task.task_id,
+                e
+            );
+            return Err(format!("Failed to insert build {}", pending_task.build_id));
+        }
 
         println!("insert build");
 
@@ -483,6 +480,20 @@ impl TaskScheduler {
         // Send task to worker
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
+                // Only mark Building after send succeeds
+                if let Err(e) = targets::update_state(
+                    &self.conn,
+                    pending_task.target_id,
+                    TargetState::Building,
+                    Some(start_at_tz),
+                    None,
+                    None,
+                )
+                .await
+                {
+                    tracing::warn!("update target state failed: {e}");
+                }
+
                 worker.status = WorkerStatus::Busy {
                     task_id: pending_task.build_id.to_string(),
                     phase: None,
@@ -497,6 +508,17 @@ impl TaskScheduler {
                 );
                 Ok(())
             } else {
+                // Send failed: best-effort mark target back to Pending
+                let _ = targets::update_state(
+                    &self.conn,
+                    pending_task.target_id,
+                    TargetState::Pending,
+                    Some(start_at_tz),
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e| tracing::warn!("update target rollback failed: {e}"));
                 Err(format!("Failed to send task to worker {chosen_id}"))
             }
         } else {
