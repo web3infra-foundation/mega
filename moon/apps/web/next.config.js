@@ -230,7 +230,7 @@ const moduleExports = {
       },
       {
         source: '/sse/:path*',
-        destination: `https://orion.gitmega.com/:path*`
+        destination: `${process.env.NEXT_PUBLIC_ORION_API_URL || 'https://orion.gitmega.com'}/:path*`
       }
     ]
   },
