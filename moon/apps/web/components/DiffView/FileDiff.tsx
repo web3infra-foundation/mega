@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FileDiffMetadata } from '@pierre/diffs'
+import { type ChangeTypes, type FileDiffMetadata } from '@pierre/diffs'
 import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
 import { Virtuoso } from 'react-virtuoso'
 
@@ -100,14 +100,35 @@ export default function FileDiff({
     setExpandedMap(Object.fromEntries(diffFiles.map((f) => [f.path, false])))
   }, [diffFiles])
 
+  const getChangeTypeMessage = (changeType: ChangeTypes | null): string | null => {
+    switch (changeType) {
+      case 'new':
+        return 'This file was added.'
+      case 'deleted':
+        return 'This file was deleted.'
+      case 'rename-pure':
+        return 'This file was renamed.'
+      case 'rename-changed':
+        return 'This file was renamed and modified.'
+      default:
+        return null
+    }
+  }
+
   const RenderDiffView = ({
-    file,
-    fileDiffMetadata
+    fileDiffMetadata,
+    changeType,
+    isBinary,
+    hasContent
   }: {
-    file: { path: string; lang: string; diff: string }
     fileDiffMetadata: FileDiffMetadata | null
+    changeType: ChangeTypes | null
+    isBinary: boolean
+    hasContent: boolean
   }) => {
-    if (fileDiffMetadata) {
+    const message = getChangeTypeMessage(changeType)
+
+    if (fileDiffMetadata && hasContent) {
       return (
         <PierreFileDiff
           fileDiff={fileDiffMetadata}
@@ -118,25 +139,44 @@ export default function FileDiff({
             overflow: 'wrap',
             disableFileHeader: true,
             unsafeCSS: `
-              :host { overflow-x: hidden !important; }
-              * { overflow-x: hidden !important; }
-              ::-webkit-scrollbar { display: none !important; }
-            `
+                :host { overflow-x: hidden !important; }
+                * { overflow-x: hidden !important; }
+                ::-webkit-scrollbar { display: none !important; }
+                code { padding: 0 !important; }
+              `
           }}
           style={{ '--diffs-font-size': '14px' } as React.CSSProperties}
         />
       )
-    } else if (file.lang === 'binary') {
-      return <div className='p-2 text-center'>Binary file</div>
-    } else if (file.diff === 'EMPTY_DIFF_MARKER\n') {
-      return <div className='p-2 text-center'>No change</div>
+    }
+
+    if (isBinary) {
+      return (
+        <div className='p-4 text-center'>
+          <div>Binary file</div>
+          {message && <div className='mt-1 text-sm text-gray-600'>{message}</div>}
+        </div>
+      )
+    }
+
+    if (message) {
+      return (
+        <div className='p-4 text-center'>
+          <div>Load Diff</div>
+          <div className='mt-1 text-sm text-gray-600'>{message}</div>
+        </div>
+      )
+    }
+
+    if (!hasContent) {
+      return <div className='p-4 text-center text-gray-500'>No content change</div>
     }
 
     return null
   }
 
   const DiffItemComponent = (index: number) => {
-    const { file, fileDiffMetadata, stats } = parsedFiles[index]
+    const { file, fileDiffMetadata, stats, changeType, isBinary, hasContent } = parsedFiles[index]
     const isExpanded = expandedMap[file.path]
 
     return (
@@ -168,7 +208,14 @@ export default function FileDiff({
         </div>
 
         <div className='copyable-text'>
-          {isExpanded && <RenderDiffView file={file} fileDiffMetadata={fileDiffMetadata} />}
+          {isExpanded && (
+            <RenderDiffView
+              fileDiffMetadata={fileDiffMetadata}
+              changeType={changeType}
+              isBinary={isBinary}
+              hasContent={hasContent}
+            />
+          )}
         </div>
       </div>
     )
