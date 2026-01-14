@@ -16,6 +16,7 @@ name = "mono"
 path = "src/main.rs"
 
 [dependencies]
+api-model = { workspace = true }
 common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
@@ -50,7 +51,11 @@ tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 async-stream = { workspace = true }
 # TODO: temporary using 0.12.28, wait for oauth2 to be compatible
-reqwest = {version = "0.12.28", features = ["rustls-tls-webpki-roots", "json", "stream"] }
+reqwest = { version = "0.12.28", features = [
+    "rustls-tls-webpki-roots",
+    "json",
+    "stream",
+] }
 regex = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 ctrlc = { workspace = true }
@@ -75,5 +80,4 @@ mimalloc = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-http-body-util = "0.1"
-serial_test = "3.2.0"
+serial_test = { workspace = true }
