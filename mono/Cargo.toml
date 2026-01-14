@@ -49,7 +49,8 @@ tokio = { workspace = true, features = ["net", "macros", "signal"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 async-stream = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
+# TODO: temporary using 0.12.28, wait for oauth2 to be compatible
+reqwest = {version = "0.12.28", features = ["rustls-tls-webpki-roots", "json", "stream"] }
 regex = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 ctrlc = { workspace = true }
