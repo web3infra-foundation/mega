@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -11,7 +12,7 @@ use axum::Router;
 use dashmap::DashMap;
 use git_internal::hash::ObjectHash;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 pub mod antares;
 //mod git;
@@ -105,7 +106,12 @@ struct ScoState {
     tasks: Arc<DashMap<String, MountStatus>>, // Thread-safe storage for async mount tasks
 }
 #[allow(unused)]
-pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
+pub async fn daemon_main(
+    fuse: Arc<MegaFuse>,
+    manager: ScorpioManager,
+    shutdown_rx: oneshot::Receiver<()>,
+    bind_addr: SocketAddr,
+) {
     let inner = ScoState {
         fuse,
         manager: Arc::new(Mutex::new(manager)),
@@ -125,12 +131,29 @@ pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
 
     // Antares route - create service with new Dicfuse instance
     let antares_service = Arc::new(antares::AntaresServiceImpl::new(None).await);
+    let antares_service_for_shutdown = antares_service.clone();
     let antares_daemon = antares::AntaresDaemon::new(antares_service);
     let antares_router = antares_daemon.router();
     let app = app.nest("/antares", antares_router);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:2725").await.unwrap();
-    axum::serve(listener, app).await.unwrap()
+    let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.await;
+            tracing::info!("HTTP server shutdown requested; running Antares shutdown cleanup");
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(15),
+                antares_service_for_shutdown.shutdown_cleanup_impl(),
+            )
+            .await
+            {
+                Ok(Ok(())) => tracing::info!("Antares shutdown cleanup completed"),
+                Ok(Err(e)) => tracing::warn!("Antares shutdown cleanup failed: {:?}", e),
+                Err(_) => tracing::warn!("Antares shutdown cleanup timed out"),
+            }
+        })
+        .await
+        .unwrap()
 }
 
 /// Asynchronous mount handler for clients.
