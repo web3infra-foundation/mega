@@ -68,7 +68,9 @@ jobs:
           
           # Fetch the base branch if it exists
           if git ls-remote --exit-code origin "refs/heads/$BASE_BRANCH" > /dev/null 2>&1; then
-            git fetch origin "$BASE_BRANCH"
+            if ! git fetch origin "$BASE_BRANCH"; then
+              echo "Warning: Failed to fetch base branch '$BASE_BRANCH'"
+            fi
           else
             echo "Warning: Base branch '$BASE_BRANCH' not found, PR may need to be retargeted"
           fi
