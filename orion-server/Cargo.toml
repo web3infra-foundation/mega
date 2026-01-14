@@ -10,7 +10,7 @@ http = { workspace = true }
 axum = { workspace = true, features = ["macros", "ws"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "process"] }
 tokio-retry = "0.3"
-tokio-stream = { version = "0.1.17", features = ["sync"] }
+tokio-stream = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -30,7 +30,7 @@ rand = { workspace = true }
 dashmap = { workspace = true }
 utoipa.workspace = true
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true, features = ["serde"] }
 reqwest.workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }

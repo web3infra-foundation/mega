@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use api_model::git::commit::LatestCommitInfo;
 use axum::{
     Json,
     extract::{Query, State},
@@ -11,7 +12,7 @@ use ceres::{
     model::blame::{BlameQuery, BlameRequest, BlameResult},
     model::git::{
         BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
-        EditFileResult, FileTreeItem, LatestCommitInfo, TreeCommitItem, TreeHashItem, TreeResponse,
+        EditFileResult, FileTreeItem, TreeCommitItem, TreeHashItem, TreeResponse,
     },
 };
 use common::model::{CommonResult, DiffItem};
