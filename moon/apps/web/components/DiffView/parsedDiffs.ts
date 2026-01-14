@@ -21,11 +21,12 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
 
   return diffText.map((block) => {
     const isBinary = /Binary files.*differ/.test(block.data)
+    const diff = block.data.endsWith('\n') ? block.data : block.data + '\n'
 
     return {
       path: block.path,
       lang: isBinary ? 'binary' : 'auto',
-      diff: block.data
+      diff
     }
   })
 }
