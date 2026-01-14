@@ -62,7 +62,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr checkout ${{ github.event.issue.number || github.event.pull_request.number }}
+          # Get PR info first
+          PR_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          BASE_BRANCH=$(gh pr view $PR_NUMBER --json baseRefName -q '.baseRefName')
+          
+          # Fetch the base branch if it exists
+          if git ls-remote --exit-code origin "refs/heads/$BASE_BRANCH" > /dev/null 2>&1; then
+            if ! git fetch origin "$BASE_BRANCH"; then
+              echo "Warning: Failed to fetch base branch '$BASE_BRANCH'"
+            fi
+          else
+            echo "Warning: Base branch '$BASE_BRANCH' not found, PR may need to be retargeted"
+          fi
+          
+          gh pr checkout $PR_NUMBER
 
       - name: PR Review with Progress Tracking
         uses: anthropics/claude-code-action@v1
