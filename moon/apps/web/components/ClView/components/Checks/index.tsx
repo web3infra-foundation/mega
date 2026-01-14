@@ -209,7 +209,11 @@ const Checks = ({ cl }: { cl: number }) => {
     }
 
     if (status === 'success' && logsMap[buildid] && eventSourcesRef.current[buildid]) {
-      return <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+      return (
+        <div className='h-full select-text [&_*]:select-text'>
+          <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+        </div>
+      )
     }
 
     // Fallback: show select prompt

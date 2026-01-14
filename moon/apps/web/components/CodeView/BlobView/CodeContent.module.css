@@ -66,3 +66,10 @@
 .bg-blame-10 {
   background-color: rgb(61, 19, 0);
 }
+
+.codeContainer ::selection,
+.blameContainer ::selection,
+.previewContainer ::selection {
+  background-color: #0969da;
+  color: #fff;
+}

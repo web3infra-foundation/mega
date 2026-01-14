@@ -1,4 +1,4 @@
-import { parsePatchFiles, type FileDiffMetadata } from '@pierre/diffs'
+import { parsePatchFiles, type ChangeTypes, type FileDiffMetadata } from '@pierre/diffs'
 
 import { getLanguageForFile } from '@/utils/shikiLanguageFallback'
 
@@ -11,6 +11,9 @@ export interface ParsedFile {
   file: { path: string; lang: string; diff: string }
   fileDiffMetadata: FileDiffMetadata | null
   stats: { additions: number; deletions: number }
+  changeType: ChangeTypes | null
+  isBinary: boolean
+  hasContent: boolean
 }
 
 export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string; diff: string }[] {
@@ -19,57 +22,39 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
   return diffText.map((block) => {
     const isBinary = /Binary files.*differ/.test(block.data)
 
-    let diff = block.data
-
-    if (isBinary) {
-      /* empty */
-    } else {
-      const isEmptyDiff = !block.data.includes('@@')
-
-      if (isEmptyDiff) {
-        diff = 'EMPTY_DIFF_MARKER'
-      }
-    }
-
-    if (!diff.endsWith('\n')) {
-      diff += '\n'
-    }
-
     return {
       path: block.path,
       lang: isBinary ? 'binary' : 'auto',
-      diff
+      diff: block.data
     }
   })
 }
 
 export function generateParsedFiles(diffFiles: { path: string; lang: string; diff: string }[]): ParsedFile[] {
   return diffFiles.map((file) => {
-    if (file.lang === 'binary' || file.diff === 'EMPTY_DIFF_MARKER\n') {
-      return {
-        file,
-        fileDiffMetadata: null,
-        stats: { additions: 0, deletions: 0 }
-      }
-    }
-
     let fileDiffMetadata: FileDiffMetadata | null = null
     let additions = 0
     let deletions = 0
+    let changeType: ChangeTypes | null = null
+    const isBinary = file.lang === 'binary'
+    let hasContent = false
 
     try {
       const patches = parsePatchFiles(file.diff)
 
       if (patches.length > 0 && patches[0].files.length > 0) {
-        fileDiffMetadata = patches[0].files[0]
+        const parsed = patches[0].files[0]
 
-        if (!fileDiffMetadata.name && file.path) {
-          fileDiffMetadata = { ...fileDiffMetadata, name: file.path }
-        }
+        changeType = parsed.type || null
+        hasContent = parsed.hunks.length > 0
 
         const safeLang = getLanguageForFile(file.path)
 
-        fileDiffMetadata = { ...fileDiffMetadata, lang: safeLang as any }
+        fileDiffMetadata = {
+          ...parsed,
+          name: parsed.name || file.path,
+          lang: safeLang as any
+        }
       }
 
       if (fileDiffMetadata) {
@@ -83,6 +68,6 @@ export function generateParsedFiles(diffFiles: { path: string; lang: string; dif
       console.error('error parsing diff:', e)
     }
 
-    return { file, fileDiffMetadata, stats: { additions, deletions } }
+    return { file, fileDiffMetadata, stats: { additions, deletions }, changeType, isBinary, hasContent }
   })
 }
