@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use api_model::git::commit::LatestCommitInfo;
 use git_internal::{
     errors::GitError,
     internal::object::{
@@ -12,7 +13,7 @@ use git_internal::{
 use crate::api_service::{ApiHandler, history, tree_ops};
 use crate::model::change_list::MuiTreeNode;
 use crate::model::commit::{CommitFilesChangedPage, CommitSummary, GpgStatus};
-use crate::model::git::{CommitBindingInfo, LatestCommitInfo};
+use crate::model::git::{CommitBindingInfo, LatestCommitInfoWrapper};
 use common::model::{CommonPage, DiffItem, Pagination};
 use git_internal::hash::ObjectHash;
 use redis::AsyncCommands;
@@ -127,12 +128,12 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
             || path == std::path::Path::new("/")
         {
             // For root directory, the start_commit itself is the last modification
-            let mut commit_info: LatestCommitInfo = (*start_commit).clone().into();
+            let mut wrapper: LatestCommitInfoWrapper = (*start_commit).clone().into();
 
             // Apply username binding if available
-            apply_username_binding(handler, &start_commit.id.to_string(), &mut commit_info).await;
+            apply_username_binding(handler, &start_commit.id.to_string(), &mut wrapper).await;
 
-            return Ok(commit_info);
+            return Ok(wrapper.0);
         }
 
         // For non-root directories, extract name and parent normally
@@ -155,24 +156,24 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
         )
         .await?;
 
-        let mut commit_info: LatestCommitInfo = commit.clone().into();
+        let mut wrapper: LatestCommitInfoWrapper = commit.clone().into();
 
         // Apply username binding if available
-        apply_username_binding(handler, &commit.id.to_string(), &mut commit_info).await;
+        apply_username_binding(handler, &commit.id.to_string(), &mut wrapper).await;
 
-        return Ok(commit_info);
+        return Ok(wrapper.0);
     }
 
     // 2) If not a directory, try as file path
     // Use unified last-modification logic
     match history::resolve_last_modification_by_path(handler, &path, start_commit).await {
         Ok(commit) => {
-            let mut commit_info: LatestCommitInfo = commit.clone().into();
+            let mut wrapper: LatestCommitInfoWrapper = commit.clone().into();
 
             // Apply username binding if available
-            apply_username_binding(handler, &commit.id.to_string(), &mut commit_info).await;
+            apply_username_binding(handler, &commit.id.to_string(), &mut wrapper).await;
 
-            Ok(commit_info)
+            Ok(wrapper.0)
         }
         Err(e) => {
             // Preserve the original error message for better debugging
@@ -195,14 +196,14 @@ pub async fn get_latest_commit<T: ApiHandler + ?Sized>(
 async fn apply_username_binding<T: ApiHandler + ?Sized>(
     handler: &T,
     commit_id: &str,
-    commit_info: &mut LatestCommitInfo,
+    commit_info: &mut LatestCommitInfoWrapper,
 ) {
     if let Ok(Some(binding)) = handler.build_commit_binding_info(commit_id).await
         && !binding.is_anonymous
         && let Some(username) = binding.matched_username
     {
-        commit_info.author = username.clone();
-        commit_info.committer = username;
+        commit_info.0.author = username.clone();
+        commit_info.0.committer = username;
     }
 }
 
@@ -516,8 +517,9 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
         let mut res = Vec::with_capacity((end - start) as usize);
         for sha in &index[start as usize..end as usize] {
             let c = handler.get_commit_by_hash(sha).await?;
-            let mut info: LatestCommitInfo = c.clone().into();
-            apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+            let mut wrapper: LatestCommitInfoWrapper = c.clone().into();
+            apply_username_binding(handler, &c.id.to_string(), &mut wrapper).await;
+            let info = wrapper.0;
             let gpg_status = compute_gpg_status_for_commit(handler, &c, &info.committer).await;
             res.push(CommitSummary {
                 sha: c.id.to_string(),
@@ -560,8 +562,9 @@ pub async fn list_commit_history<T: ApiHandler + ?Sized>(
 
     let mut res = Vec::with_capacity(slice.len());
     for c in slice {
-        let mut info: LatestCommitInfo = c.clone().into();
-        apply_username_binding(handler, &c.id.to_string(), &mut info).await;
+        let mut wrapper: LatestCommitInfoWrapper = c.clone().into();
+        apply_username_binding(handler, &c.id.to_string(), &mut wrapper).await;
+        let info = wrapper.0;
         let gpg_status = compute_gpg_status_for_commit(handler, c, &info.committer).await;
         res.push(CommitSummary {
             sha: c.id.to_string(),
@@ -659,8 +662,9 @@ async fn assemble_commit_summary<T: ApiHandler + ?Sized>(
     handler: &T,
     commit: &Commit,
 ) -> CommitSummary {
-    let mut info: LatestCommitInfo = commit.clone().into();
-    apply_username_binding(handler, &commit.id.to_string(), &mut info).await;
+    let mut wrapper: LatestCommitInfoWrapper = commit.clone().into();
+    apply_username_binding(handler, &commit.id.to_string(), &mut wrapper).await;
+    let info = wrapper.0;
     let gpg_status = compute_gpg_status_for_commit(handler, commit, &info.committer).await;
     CommitSummary {
         sha: commit.id.to_string(),

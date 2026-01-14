@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use api_model::git::commit::LatestCommitInfo;
 use async_trait::async_trait;
 
 use common::config::BlameConfig;
@@ -27,7 +28,7 @@ use crate::{
     api_service::cache::GitObjectCache,
     model::git::{
         CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload, EditFileResult,
-        LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem,
+        TreeBriefItem, TreeCommitItem, TreeHashItem,
     },
 };
 

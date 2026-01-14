@@ -13,12 +13,14 @@ members = [
   "extensions/observatory",
   "context",
   "scorpio",
+  "api-model",
 ]
 default-members = ["mono", "orion", "orion-server"]
 resolver = "1"
 
 
 [workspace.dependencies]
+api-model = { path = "api-model" }
 mono = { path = "mono" }
 common = { path = "common" }
 jupiter = { path = "jupiter" }
@@ -29,6 +31,7 @@ saturn = { path = "saturn" }
 observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
+
 context = { path = "context" }
 
 git-internal = "0.4.0"
@@ -55,7 +58,7 @@ async-recursion = "1.1.1"
 futures = "0.3.31"
 futures-util = "0.3.31"
 axum = { version = "0.8.8", features = ["macros", "json"] }
-axum-extra = "0.12.3"
+axum-extra = "0.12.5"
 russh = "0.56.0"
 tower-http = "0.6.8"
 tower = "0.5.3"
@@ -68,12 +71,10 @@ sea-orm-migration = "1.1.19"
 
 #====
 rand = "0.9.2"
-rand_chacha = "0.9.0"
 flate2 = "1.1.8"
 smallvec = "1.15.1"
 bytes = "1.11"
 chrono = { version = "0.4.42", features = ["serde"] }
-sha1 = "0.10.6"
 hex = "0.4.3"
 
 idgenerator = "2.0.0"
@@ -84,7 +85,6 @@ uuid = "1.19.0"
 regex = "1.12.2"
 ed25519-dalek = "2.2.0"
 ctrlc = "3.5.1"
-ring = "0.17.14"
 cedar-policy = "4.8.2"
 secp256k1 = "0.30.0"
 pgp = "0.15.0"

@@ -11,18 +11,18 @@ serde = { workspace = true, features = ["derive", "rc"] }
 futures-util = { workspace = true }
 once_cell = { workspace = true }
 dotenvy = { workspace = true }
-tokio-tungstenite = { workspace = true , features = ["native-tls"]}
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 tungstenite = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls"] }
 uuid = { workspace = true, features = ["v4"] }
-anyhow = "1.0"
-itertools = "0.13.0"
+anyhow = { workspace = true }
+itertools = { workspace = true }
 parse-display = "0.8.2"
 audit = { path = "./audit" }
 td_util = { path = "./td_util" }
 td_util_buck = { path = "./buck" }
-thiserror = "1.0.36"
+thiserror = { workspace = true }
 utoipa.workspace = true
 wiremock = "0.6.5"
-serial_test = "3.2.0"
+serial_test = { workspace = true }
