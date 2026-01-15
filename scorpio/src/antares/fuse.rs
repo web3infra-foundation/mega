@@ -43,8 +43,13 @@ impl AntaresFuse {
 
     /// Compose the union filesystem instance.
     pub async fn build_overlay(&self) -> std::io::Result<OverlayFs> {
-        // Build lower layers: optional CL, then a passthrough over the upper dir as a fallback lower.
+        // Build lower layers:
+        // - Prefer Dicfuse as the primary lower layer (read-only monorepo view).
+        // - Optional CL dir is best-effort and may be empty; keep it as an additional
+        //   layer so it never masks the Dicfuse view.
         let mut lower_layers: Vec<Arc<dyn Layer>> = Vec::new();
+        lower_layers.push(self.dic.clone() as Arc<dyn Layer>);
+
         if let Some(cl_dir) = &self.cl_dir {
             let cl_layer = new_passthroughfs_layer(PassthroughArgs {
                 root_dir: cl_dir,
@@ -53,8 +58,6 @@ impl AntaresFuse {
             .await?;
             lower_layers.push(Arc::new(cl_layer) as Arc<dyn Layer>);
         }
-
-        lower_layers.push(self.dic.clone() as Arc<dyn Layer>);
 
         // Upper layer mirrors upper_dir to keep writes separated from lower layers.
         let upper_layer: Arc<dyn Layer> = Arc::new(

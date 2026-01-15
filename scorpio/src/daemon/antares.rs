@@ -542,8 +542,35 @@ impl AntaresServiceImpl {
     /// - Add progress callback for long-running initialization
     /// - Consider lazy loading for very large subdirectory mounts
     async fn get_or_create_dicfuse(&self, path: &str) -> Result<Arc<Dicfuse>, ServiceError> {
-        // For root path, use the shared global instance
+        const INIT_TIMEOUT_SECS: u64 = 120;
+
+        // For root path, use the shared global instance (but ensure it's initialized first).
         if path.is_empty() || path == "/" {
+            tracing::info!(
+                "Waiting for shared Dicfuse instance to initialize for path: / (timeout: {}s)",
+                INIT_TIMEOUT_SECS
+            );
+            match tokio::time::timeout(
+                Duration::from_secs(INIT_TIMEOUT_SECS),
+                self.dicfuse.store.wait_for_ready(),
+            )
+            .await
+            {
+                Ok(_) => {
+                    tracing::info!("Shared Dicfuse initialized successfully for path: /");
+                }
+                Err(_) => {
+                    tracing::error!(
+                        "Shared Dicfuse initialization timed out for path: / after {}s",
+                        INIT_TIMEOUT_SECS
+                    );
+                    return Err(ServiceError::FuseFailure(format!(
+                        "Dicfuse initialization timed out for path '/' after {}s. \
+                         Check network connectivity to the monorepo server.",
+                        INIT_TIMEOUT_SECS
+                    )));
+                }
+            }
             return Ok(self.dicfuse.clone());
         }
 
@@ -568,7 +595,6 @@ impl AntaresServiceImpl {
         // CRITICAL: Wait for the Dicfuse directory tree to be fully loaded before
         // returning. Without this, FUSE mount may fail because the root inode
         // is not set up yet when import_arc hasn't completed.
-        const INIT_TIMEOUT_SECS: u64 = 120;
         // TODO(dicfuse-antares-integration): If many concurrent requests initialize DIFFERENT
         // base paths, we may enqueue a large number of concurrent warmups (network + memory).
         // Consider adding a global semaphore/queue to cap concurrent initializations.

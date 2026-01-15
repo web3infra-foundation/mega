@@ -4,19 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ceres = { path = "../ceres" }
+api-model = { path = "../api-model" }
 git-internal = { workspace = true }
-reqwest =  { version = "0.12.7", features = ["json","blocking"] }
+reqwest = { version = "0.12.7", features = ["json", "blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
-axum = { version =  "0.8.4",features=["macros"]}
+axum = { version = "0.8.4", features = ["macros"] }
 # rfuse3 version 0.0.5 provides bugfixes and API improvements,
 # including better async mount handling and error reporting.
 # This is required for Antares to improve FUSE readiness/polling and avoid
 # mount/unmount race issues observed with 0.0.4.
 # NOTE: Verify version exists at https://github.com/cberner/rfuse3/releases
 # If 0.0.5 doesn't exist, use the latest available version and update this comment.
-rfuse3 = { version = "0.0.5" ,features = ["tokio-runtime","unprivileged"]}
+rfuse3 = { version = "0.0.5", features = ["tokio-runtime", "unprivileged"] }
 clap = { version = "4.0", features = ["derive"] }
 
 toml = "0.9.0"
@@ -58,7 +58,7 @@ async-trait.workspace = true
 tracing-subscriber.workspace = true
 
 
-[features] 
+[features]
 async-io = []
 
 [dev-dependencies]
@@ -67,13 +67,14 @@ serial_test = { workspace = true }
 lazy_static = { workspace = true }
 assert_cmd = { workspace = true }
 scopeguard = { workspace = true }
-testcontainers = { workspace = true, features = ["http_wait","reusable-containers"] }
+testcontainers = { workspace = true, features = [
+    "http_wait",
+    "reusable-containers",
+] }
 reqwest = { version = "0.12.12", features = ["blocking"] }
 http = { workspace = true }
 tower = "0.5"
 
 [package.metadata.docs.rs]
 all-features = true
-targets = [
-    "x86_64-unknown-linux-gnu",
-]
+targets = ["x86_64-unknown-linux-gnu"]
