@@ -24,7 +24,7 @@ impl S3LogStore {
     ) -> Self {
         let region = Region::new(region_name.to_string());
 
-        let shared_config = aws_config::defaults(BehaviorVersion::v2025_08_07())
+        let shared_config = aws_config::defaults(BehaviorVersion::latest())
             .region(region.clone())
             .credentials_provider(Credentials::new(
                 access_key_id,

@@ -1068,6 +1068,14 @@ impl DictionaryStore {
         };
 
         if let Some(inode) = existing {
+            // Ensure parent.children contains this inode (fix inconsistent state from DB recovery).
+            // This handles cases where radix_trie has the path->inode mapping but parent.children
+            // list is missing the inode entry.
+            if let Ok(parent_item) = self.persistent_path_store.get_item(parent) {
+                if !parent_item.get_children().contains(&inode) {
+                    let _ = self.persistent_path_store.append_child(parent, inode);
+                }
+            }
             return Ok(inode);
         }
 
