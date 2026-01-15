@@ -44,3 +44,8 @@ monobean/resources/lib
 
 ## local python version file
 .python-version
+
+# orion server test
+orion-server/test_targets.sh
+orion-server/test-artifacts/
+orion-server/docker-compose.override.yml

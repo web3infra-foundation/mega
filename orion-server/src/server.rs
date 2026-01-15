@@ -26,7 +26,9 @@ use crate::model::builds;
         api::task_build_list_handler,
         api::task_output_handler,
         api::task_history_output_handler,
+        api::target_logs_handler,
         api::tasks_handler,
+        api::task_targets_handler,
         api::get_orion_clients_info,
         api::get_orion_client_status_by_id,
         api::build_retry_handler
@@ -37,11 +39,14 @@ use crate::model::builds;
             crate::scheduler::LogSegment,
             api::TaskStatusEnum,
             api::BuildDTO,
+            api::TargetDTO,
+            api::TargetLogQuery,
             api::TaskInfoDTO,
             api::OrionClientInfo,
             api::OrionClientStatus,
             api::CoreWorkerStatus,
             api::OrionClientQuery,
+            crate::model::targets::TargetState,
             TaskPhase,
         )
     ),
@@ -231,19 +236,54 @@ async fn start_health_check_task(state: AppState) {
                     );
                     state.scheduler.active_builds.remove(&task_id);
 
-                    let update_res = builds::Entity::update_many()
-                        .set(builds::ActiveModel {
-                            end_at: Set(Some(
-                                Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                            )),
-                            ..Default::default()
-                        })
-                        .filter(builds::Column::TaskId.eq(task_id.parse::<uuid::Uuid>().unwrap()))
-                        .exec(&state.conn)
-                        .await;
+                    let build_uuid = match task_id.parse::<uuid::Uuid>() {
+                        Ok(uuid) => uuid,
+                        Err(_) => {
+                            tracing::warn!("Invalid build id {} when marking interrupted", task_id);
+                            continue;
+                        }
+                    };
 
-                    if let Err(e) = update_res {
-                        tracing::error!("Failed to update orphaned task {} in DB: {}", task_id, e);
+                    if let Ok(Some(build_model)) = builds::Entity::find_by_id(build_uuid)
+                        .one(&state.conn)
+                        .await
+                    {
+                        let update_res = builds::Entity::update_many()
+                            .set(builds::ActiveModel {
+                                end_at: Set(Some(
+                                    Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
+                                )),
+                                exit_code: Set(None),
+                                ..Default::default()
+                            })
+                            .filter(builds::Column::Id.eq(build_uuid))
+                            .exec(&state.conn)
+                            .await;
+
+                        if let Err(e) = update_res {
+                            tracing::error!(
+                                "Failed to update orphaned task {} in DB: {}",
+                                task_id,
+                                e
+                            );
+                        }
+
+                        if let Err(e) = crate::model::targets::update_state(
+                            &state.conn,
+                            build_model.target_id,
+                            crate::model::targets::TargetState::Interrupted,
+                            None,
+                            Some(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
+                            None,
+                        )
+                        .await
+                        {
+                            tracing::error!(
+                                "Failed to update target {} to Interrupted: {}",
+                                build_model.target_id,
+                                e
+                            );
+                        }
                     }
                 }
             }

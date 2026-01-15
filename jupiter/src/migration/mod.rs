@@ -78,6 +78,7 @@ mod m20260106_070511_add_retry_time;
 mod m20260106_070515_remove_relay_mq_lfs_raw_table;
 mod m20260108_085945_remove_splited_in_lfs_objects;
 mod m20260108_105158_remove_storage_type_enum;
+mod m20260115_000000_create_targets_table;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -144,6 +145,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260106_070515_remove_relay_mq_lfs_raw_table::Migration),
             Box::new(m20260108_085945_remove_splited_in_lfs_objects::Migration),
             Box::new(m20260108_105158_remove_storage_type_enum::Migration),
+            Box::new(m20260115_000000_create_targets_table::Migration),
         ]
     }
 }
