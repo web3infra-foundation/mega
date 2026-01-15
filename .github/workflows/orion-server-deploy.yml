@@ -16,21 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  orion-server-deploy:
+  build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - cluster: gitmega-com
-            service: orion-server-dev-service-om0caign
-          - cluster: gitmono-com-mega-app
-            service: orion-server-service
     timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -52,9 +46,22 @@ jobs:
           REPOSITORY: mega
           IMAGE_TAG: orion-server-0.1.0-pre-release
         run: |
-          docker buildx build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f orion-server/Dockerfile .
-          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+          docker buildx build \
+          -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG \
+          -f orion-server/Dockerfile \
+          --push .
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: orion-server-dev-service-om0caign
+          - cluster: gitmono-com-mega-app
+            service: orion-server-service
+    steps:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
