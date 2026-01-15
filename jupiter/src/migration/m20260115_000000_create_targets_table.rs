@@ -6,14 +6,6 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Ensure pgcrypto for gen_random_uuid used in backfill
-        manager
-            .exec_stmt(Statement::from_string(
-                manager.get_database_backend(),
-                "CREATE EXTENSION IF NOT EXISTS pgcrypto",
-            ))
-            .await?;
-
         // 1. create targets table
         manager
             .create_table(
@@ -102,22 +94,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 3. wire builds to targets (skip backfill)
-        manager
-            .exec_stmt(Statement::from_string(
-                manager.get_database_backend(),
-                r#"
-                UPDATE builds b
-                SET target_id = t.id
-                FROM targets t
-                WHERE b.task_id = t.task_id
-                  AND COALESCE(b.target, '//...') = t.target_path
-                  AND b.target_id IS NULL
-                "#.to_string(),
-            ))
-            .await?;
-
-        // 4. enforce not null + fk
+        // 3. enforce not null + fk
         manager
             .alter_table(
                 Table::alter()
