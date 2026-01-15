@@ -1,7 +1,8 @@
 use crate::api::CoreWorkerStatus;
 use crate::auto_retry::AutoRetryJudger;
 use crate::log::log_service::LogService;
-use crate::model::builds;
+use crate::model::targets::TargetState;
+use crate::model::{builds, targets};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use orion::repo::sapling::status::{ProjectRelativePath, Status};
@@ -22,6 +23,19 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
     pub changes: Vec<Status<ProjectRelativePath>>,
+    /// Buck2 target path (e.g. //app:server). Optional for backward compatibility.
+    #[serde(default, alias = "target_path")]
+    pub target: Option<String>,
+}
+
+impl BuildRequest {
+    /// Return requested target path; fallback to "//..." for backward compatibility.
+    pub fn target_path(&self) -> String {
+        self.target
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| "//...".to_string())
+    }
 }
 
 /// Pending task waiting for dispatch
@@ -31,6 +45,8 @@ pub struct PendingTask {
     pub cl_link: String,
     pub build_id: Uuid,
     pub repo: String,
+    pub target_id: Uuid,
+    pub target_path: String,
     pub cl: i64,
     pub request: BuildRequest,
     pub retry_count: i32,
@@ -134,6 +150,8 @@ pub struct TaskQueueStats {
 pub struct BuildInfo {
     pub task_id: String,
     pub build_id: String,
+    pub target_id: String,
+    pub target_path: String,
     pub repo: String,
     pub start_at: DateTimeUtc,
     pub changes: Vec<Status<ProjectRelativePath>>,
@@ -246,6 +264,15 @@ impl TaskScheduler {
         }
     }
 
+    pub async fn ensure_target(
+        &self,
+        task_id: Uuid,
+        target_path: &str,
+    ) -> Result<targets::Model, sea_orm::DbErr> {
+        // Find-or-create target for (task_id, target_path)
+        targets::Entity::find_or_create(&self.conn, task_id, target_path.to_string()).await
+    }
+
     /// Add task-bound build to queue
     pub async fn enqueue_task(
         &self,
@@ -276,10 +303,18 @@ impl TaskScheduler {
         cl: i64,
         retry_count: i32,
     ) -> Result<(), String> {
+        let target_path = request.target_path();
+        let target_model = self
+            .ensure_target(task_id, &target_path)
+            .await
+            .map_err(|e| e.to_string())?;
+
         let pending_task = PendingTask {
             task_id,
             cl_link: cl_link.to_string(),
             build_id,
+            target_id: target_model.id,
+            target_path,
             request,
             created_at: Instant::now(),
             repo,
@@ -383,13 +418,17 @@ impl TaskScheduler {
             rng.random_range(0..idle_workers.len())
         };
         let chosen_id = idle_workers[chosen_index].clone();
+        let start_at = chrono::Utc::now();
+        let start_at_tz = start_at.with_timezone(&FixedOffset::east_opt(0).unwrap());
 
         // Create build information
         let build_info = BuildInfo {
             task_id: pending_task.task_id.to_string(),
             build_id: pending_task.build_id.to_string(),
+            target_id: pending_task.target_id.to_string(),
+            target_path: pending_task.target_path.clone(),
             repo: pending_task.repo.clone(),
-            start_at: chrono::Utc::now(),
+            start_at,
             changes: pending_task.request.changes.clone(),
             cl: pending_task.cl.to_string(),
             _worker_id: chosen_id.clone(),
@@ -397,17 +436,15 @@ impl TaskScheduler {
             retry_count: pending_task.retry_count,
         };
 
-        // Insert build record
-        let _ = builds::ActiveModel {
+        // Insert build record (fail fast if insertion fails)
+        if let Err(e) = (builds::ActiveModel {
             id: Set(pending_task.build_id),
             task_id: Set(pending_task.task_id),
+            target_id: Set(pending_task.target_id),
             exit_code: Set(None),
-            start_at: Set(build_info
-                .start_at
-                .with_timezone(&FixedOffset::east_opt(0).unwrap())),
+            start_at: Set(start_at_tz),
             end_at: Set(None),
             repo: Set(build_info.repo.clone()),
-            target: Set("//...".to_string()),
             args: Set(None),
             output_file: Set(format!(
                 "{}/{}/{}.log",
@@ -415,13 +452,20 @@ impl TaskScheduler {
                 LogService::last_segment(&pending_task.repo),
                 pending_task.build_id
             )),
-            created_at: Set(build_info
-                .start_at
-                .with_timezone(&FixedOffset::east_opt(0).unwrap())),
+            created_at: Set(start_at_tz),
             retry_count: Set(0),
-        }
+        })
         .insert(&self.conn)
-        .await;
+        .await
+        {
+            tracing::error!(
+                "Failed to insert build {} for task {}: {}",
+                pending_task.build_id,
+                pending_task.task_id,
+                e
+            );
+            return Err(format!("Failed to insert build {}", pending_task.build_id));
+        }
 
         println!("insert build");
 
@@ -436,6 +480,20 @@ impl TaskScheduler {
         // Send task to worker
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
+                // Only mark Building after send succeeds
+                if let Err(e) = targets::update_state(
+                    &self.conn,
+                    pending_task.target_id,
+                    TargetState::Building,
+                    Some(start_at_tz),
+                    None,
+                    None,
+                )
+                .await
+                {
+                    tracing::warn!("update target state failed: {e}");
+                }
+
                 worker.status = WorkerStatus::Busy {
                     task_id: pending_task.build_id.to_string(),
                     phase: None,
@@ -450,6 +508,17 @@ impl TaskScheduler {
                 );
                 Ok(())
             } else {
+                // Send failed: best-effort mark target back to Pending
+                let _ = targets::update_state(
+                    &self.conn,
+                    pending_task.target_id,
+                    TargetState::Pending,
+                    Some(start_at_tz),
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e| tracing::warn!("update target rollback failed: {e}"));
                 Err(format!("Failed to send task to worker {chosen_id}"))
             }
         } else {
@@ -542,7 +611,12 @@ mod tests {
         let task1 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            target_id: Uuid::now_v7(),
+            target_path: "//app:server".to_string(),
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,
@@ -553,7 +627,12 @@ mod tests {
         let task2 = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            target_id: Uuid::now_v7(),
+            target_path: "//app:server2".to_string(),
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
             cl: 123457,
@@ -587,7 +666,12 @@ mod tests {
         let task = PendingTask {
             task_id: Uuid::now_v7(),
             build_id: Uuid::now_v7(),
-            request: BuildRequest { changes: vec![] },
+            target_id: Uuid::now_v7(),
+            target_path: "//app:server".to_string(),
+            request: BuildRequest {
+                changes: vec![],
+                target: None,
+            },
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
             cl: 123456,

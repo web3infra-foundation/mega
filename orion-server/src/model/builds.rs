@@ -12,11 +12,11 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub task_id: Uuid,
+    pub target_id: Uuid,
     pub exit_code: Option<i32>,
     pub start_at: DateTimeWithTimeZone,
     pub end_at: Option<DateTimeWithTimeZone>,
     pub repo: String,
-    pub target: String,
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub args: Option<Value>,
     pub output_file: String,
@@ -34,11 +34,25 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Tasks,
+    #[sea_orm(
+        belongs_to = "super::targets::Entity",
+        from = "Column::TargetId",
+        to = "super::targets::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    Targets,
 }
 
 impl Related<super::tasks::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Tasks.def()
+    }
+}
+
+impl Related<super::targets::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Targets.def()
     }
 }
 
@@ -49,21 +63,27 @@ impl Model {
     pub fn create_build(
         build_id: Uuid,
         task_id: Uuid,
+        target_id: Uuid,
         repo: String,
-        target: String,
         args: Option<Value>,
     ) -> ActiveModel {
         let now = Utc::now().into();
+        let repo_leaf = repo
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(&repo)
+            .to_string();
         ActiveModel {
             id: Set(build_id),
             task_id: Set(task_id),
+            target_id: Set(target_id),
             exit_code: Set(None),
             start_at: Set(now),
             end_at: Set(None),
             repo: Set(repo),
-            target: Set(target),
             args: Set(args),
-            output_file: Set(format!("./logs/{}", build_id)),
+            output_file: Set(format!("{}/{}/{}.log", task_id, repo_leaf, build_id)),
             created_at: Set(now),
             retry_count: Set(0),
         }
@@ -73,11 +93,11 @@ impl Model {
     pub async fn insert_build(
         build_id: Uuid,
         task_id: Uuid,
+        target_id: Uuid,
         repo: String,
-        target: String,
         db: &impl ConnectionTrait,
     ) -> Result<Model, DbErr> {
-        let build_model = Self::create_build(build_id, task_id, repo, target, None);
+        let build_model = Self::create_build(build_id, task_id, target_id, repo, None);
         build_model.insert(db).await
     }
 }

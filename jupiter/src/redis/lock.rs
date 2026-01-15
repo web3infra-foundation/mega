@@ -145,6 +145,7 @@ impl Drop for RedLockGuard {
 #[cfg(test)]
 mod test {
 
+    use std::process::Command;
     use std::sync::Arc;
 
     use futures::future::join_all;
@@ -154,18 +155,31 @@ mod test {
 
     use crate::redis::lock::RedLock;
 
-    async fn init_server() -> (RedisServer, ConnectionManager) {
+    fn redis_server_available() -> bool {
+        Command::new("redis-server")
+            .arg("--version")
+            .output()
+            .is_ok()
+    }
+
+    async fn init_server() -> Option<(RedisServer, ConnectionManager)> {
+        if !redis_server_available() {
+            eprintln!("redis-server not found; skipping redis lock tests");
+            return None;
+        }
         let server = RedisServer::new();
         let url = server.client_addr().to_owned();
         println!("starting redis mock server at: {}", url);
         let client = redis::Client::open(url).unwrap();
         let conn = ConnectionManager::new(client).await.unwrap();
-        (server, conn)
+        Some((server, conn))
     }
 
     #[tokio::test]
     async fn test_basic() {
-        let (_server, mut conn) = init_server().await;
+        let Some((_server, mut conn)) = init_server().await else {
+            return;
+        };
         conn.set::<&str, _, String>("foo", "bar").await.unwrap();
         let v: String = conn.get("foo").await.unwrap();
         assert_eq!(v, "bar");
@@ -173,7 +187,9 @@ mod test {
 
     #[tokio::test]
     async fn test_try_lock() {
-        let (_server, conn) = init_server().await;
+        let Some((_server, conn)) = init_server().await else {
+            return;
+        };
         let lock = Arc::new(RedLock::new(conn, "try_lock".to_string(), 3000));
         assert!(lock.try_lock().await.unwrap());
         assert!(!lock.try_lock().await.unwrap());
@@ -181,7 +197,9 @@ mod test {
 
     #[tokio::test]
     async fn test_unlock_script() {
-        let (_server, conn) = init_server().await;
+        let Some((_server, conn)) = init_server().await else {
+            return;
+        };
         let lock = Arc::new(RedLock::new(conn, "unlock_script".to_string(), 3000));
         lock.try_lock().await.unwrap();
         assert!(lock.unlock().await.unwrap());
@@ -189,7 +207,9 @@ mod test {
 
     #[tokio::test]
     async fn test_auto_renew() {
-        let (_server, mut conn) = init_server().await;
+        let Some((_server, mut conn)) = init_server().await else {
+            return;
+        };
 
         let lock = Arc::new(RedLock::new(conn.clone(), "renew".to_string(), 1000));
 
@@ -208,7 +228,9 @@ mod test {
 
     #[tokio::test]
     async fn test_concurrent_locks() {
-        let (_server, conn) = init_server().await;
+        let Some((_server, conn)) = init_server().await else {
+            return;
+        };
 
         let mut tasks = vec![];
 
@@ -229,7 +251,9 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
     async fn test_multi_pod_lock_sequential_acquisition() {
-        let (_server, conn) = init_server().await;
+        let Some((_server, conn)) = init_server().await else {
+            return;
+        };
 
         let mut tasks = vec![];
 
@@ -261,7 +285,9 @@ mod test {
 
     #[tokio::test]
     async fn test_single_pod_lock_starvation() {
-        let (_server, conn) = init_server().await;
+        let Some((_server, conn)) = init_server().await else {
+            return;
+        };
         let lock = Arc::new(RedLock::new(conn, "test_lock", 1000));
         let guard = lock.clone().lock().await.unwrap();
         drop(guard);
