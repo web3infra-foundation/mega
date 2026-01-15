@@ -1,4 +1,5 @@
 use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_orm::Statement;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -12,18 +13,9 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Targets::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(Targets::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(ColumnDef::new(Targets::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(Targets::TaskId).uuid().not_null())
-                    .col(
-                        ColumnDef::new(Targets::TargetPath)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Targets::TargetPath).string().not_null())
                     .col(ColumnDef::new(Targets::State).string().not_null())
                     .col(ColumnDef::new(Targets::StartAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(Targets::EndAt).timestamp_with_time_zone())
@@ -145,17 +137,17 @@ impl MigrationTrait for Migration {
             .await?;
 
         // Backfill builds.target from targets before dropping target_id
-        manager
-            .exec_stmt(Statement::from_string(
-                manager.get_database_backend(),
-                r#"
+        let backfill_stmt = Statement::from_string(
+            manager.get_database_backend(),
+            r#"
                 UPDATE builds b
                 SET target = t.target_path
                 FROM targets t
                 WHERE b.target_id = t.id
-                "#.to_string(),
-            ))
-            .await?;
+                "#
+            .to_string(),
+        );
+        manager.get_connection().execute(backfill_stmt).await?;
 
         manager
             .alter_table(
@@ -188,8 +180,6 @@ enum Targets {
 #[derive(DeriveIden)]
 enum Builds {
     Table,
-    Id,
-    TaskId,
     Target,
     TargetId,
 }
@@ -199,4 +189,3 @@ enum Tasks {
     Table,
     Id,
 }
-
