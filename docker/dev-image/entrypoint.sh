@@ -249,7 +249,16 @@ start_scorpio() {
     echo ""
 
     log_info "Starting scorpio..."
-    exec scorpio -c "$SCORPIO_CONFIG" "$@"
+    local extra_args=()
+    # Optional: bind HTTP server to a custom address/port (supported by newer scorpio binaries).
+    # If user already passed --http-addr in args, do not add a duplicate flag.
+    if [ -n "${SCORPIO_HTTP_ADDR:-}" ]; then
+        case " $* " in
+            *" --http-addr "*|*" --http-addr="*) ;;
+            *) extra_args+=(--http-addr "${SCORPIO_HTTP_ADDR}") ;;
+        esac
+    fi
+    exec scorpio -c "$SCORPIO_CONFIG" "${extra_args[@]}" "$@"
 }
 
 start_orion_worker() {
@@ -274,10 +283,28 @@ start_orion_worker() {
         check_fuse
         generate_scorpio_config
 
-        # Ensure the worker talks to the embedded Scorpio by default.
-        export SCORPIO_API_BASE_URL="http://127.0.0.1:2725"
+        local extra_args=()
+        local http_addr="${SCORPIO_HTTP_ADDR:-0.0.0.0:2725}"
+        # NOTE: Simple IPv4-style parsing. For IPv6 bind addresses, set SCORPIO_API_BASE_URL manually.
+        local http_port="${http_addr##*:}"
+        case "$http_port" in
+            ''|*[!0-9]*)
+                http_port="2725"
+                ;;
+        esac
 
-        scorpio -c "$SCORPIO_CONFIG" &
+        # Ensure the worker talks to the embedded Scorpio by default (respecting http port override).
+        export SCORPIO_API_BASE_URL="http://127.0.0.1:${http_port}"
+
+        # Optional: pass through --http-addr if provided (and not already present in args).
+        if [ -n "${SCORPIO_HTTP_ADDR:-}" ]; then
+            case " $* " in
+                *" --http-addr "*|*" --http-addr="*) ;;
+                *) extra_args+=(--http-addr "${SCORPIO_HTTP_ADDR}") ;;
+            esac
+        fi
+
+        scorpio -c "$SCORPIO_CONFIG" "${extra_args[@]}" &
         local scorpio_pid=$!
 
         cleanup() {
@@ -289,7 +316,7 @@ start_orion_worker() {
 
         trap cleanup EXIT INT TERM
 
-        wait_for_service "127.0.0.1" "2725" 60 || exit 1
+        wait_for_service "127.0.0.1" "${http_port}" 60 || exit 1
     else
         log_warn "ORION_WORKER_START_SCORPIO disabled; ensure Scorpio mountpoints are accessible to this container."
     fi
