@@ -1,12 +1,12 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use clap::{Parser, Subcommand};
 use reqwest::blocking::Client;
-use scorpio::antares::{AntaresManager, AntaresPaths};
-use scorpio::daemon::antares::{AntaresDaemon, AntaresServiceImpl};
-use scorpio::util::config;
+use scorpio::{
+    antares::{AntaresManager, AntaresPaths},
+    daemon::antares::{AntaresDaemon, AntaresServiceImpl},
+    util::config,
+};
 
 /// Antares build overlay manager (skeleton).
 #[derive(Parser, Debug)]

@@ -1,5 +1,8 @@
-use std::sync::atomic::AtomicU64;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicU64, Arc},
+};
+
 use tokio::sync::Mutex;
 
 // Alloc inode numbers at one batch

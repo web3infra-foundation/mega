@@ -20,16 +20,16 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use ceres::api_service::admin_ops;
+use common::model::CommonResult;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::MonoApiServiceState;
-use crate::api::error::ApiError;
-use crate::api::oauth::model::LoginUser;
-use crate::server::http_server::USER_TAG;
-use ceres::api_service::admin_ops;
-use common::model::CommonResult;
+use crate::{
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    server::http_server::USER_TAG,
+};
 
 /// Default path when not specified in query params.
 const DEFAULT_PATH: &str = "/project";

@@ -52,9 +52,12 @@
 //     }
 // }
 
-use rfuse3::raw::{Filesystem, MountHandle};
-use rfuse3::{raw::Session, MountOptions};
 use std::ffi::{OsStr, OsString};
+
+use rfuse3::{
+    raw::{Filesystem, MountHandle, Session},
+    MountOptions,
+};
 
 #[allow(unused)]
 pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static>(

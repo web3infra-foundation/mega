@@ -1,9 +1,10 @@
-use common::errors::MegaError;
-use redis::{Script, aio::ConnectionManager};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+
+use common::errors::MegaError;
+use redis::{Script, aio::ConnectionManager};
 use tokio::{
     sync::Notify,
     time::{Duration, sleep},
@@ -145,8 +146,7 @@ impl Drop for RedLockGuard {
 #[cfg(test)]
 mod test {
 
-    use std::process::Command;
-    use std::sync::Arc;
+    use std::{process::Command, sync::Arc};
 
     use futures::future::join_all;
     use redis::{AsyncCommands, aio::ConnectionManager};

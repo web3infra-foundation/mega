@@ -1,7 +1,9 @@
 use sea_orm::entity::prelude::*;
 
-use crate::entity_ext::{generate_id, generate_public_id};
-use crate::reactions::{self, Entity};
+use crate::{
+    entity_ext::{generate_id, generate_public_id},
+    reactions::{self, Entity},
+};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {

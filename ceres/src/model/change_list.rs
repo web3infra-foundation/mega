@@ -1,19 +1,17 @@
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
+use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
+use common::model::{CommonPage, DiffItem};
+use git_internal::hash::ObjectHash;
+use jupiter::model::{cl_dto::CLDetails, common::ListParams};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
-use common::model::CommonPage;
-use common::model::DiffItem;
-use git_internal::hash::ObjectHash;
-use jupiter::model::cl_dto::CLDetails;
-use jupiter::model::common::ListParams;
-
-use crate::merge_checker::{CheckType, ConditionResult};
-use crate::model::{conversation::ConversationItem, label::LabelItem};
+use crate::{
+    merge_checker::{CheckType, ConditionResult},
+    model::{conversation::ConversationItem, label::LabelItem},
+};
 
 #[derive(Deserialize, ToSchema)]
 pub struct AssigneeUpdatePayload {

@@ -1,17 +1,21 @@
-use crate::api::{MonoApiServiceState, error::ApiError};
-use crate::server::http_server::CODE_PREVIEW;
+use std::path::PathBuf;
+
 use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::model::change_list::MuiTreeNode;
-use ceres::model::commit::CommitBindingResponse;
-use ceres::model::commit::{CommitFilesChangedPage, CommitHistoryParams, CommitSummary};
-use common::model::CommonResult;
-use common::model::{CommonPage, PageParams, Pagination};
+use ceres::model::{
+    change_list::MuiTreeNode,
+    commit::{CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary},
+};
+use common::model::{CommonPage, CommonResult, PageParams, Pagination};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use utoipa_axum::{router::OpenApiRouter, routes};
+
+use crate::{
+    api::{MonoApiServiceState, error::ApiError},
+    server::http_server::CODE_PREVIEW,
+};
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateCommitBindingRequest {

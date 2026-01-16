@@ -1,18 +1,19 @@
-use std::collections::HashSet;
-use std::pin::Pin;
+use std::{collections::HashSet, pin::Pin};
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use callisto::sea_orm_active_enums::RefTypeEnum;
+use common::errors::ProtocolError;
 use futures::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::sea_orm_active_enums::RefTypeEnum;
-use common::errors::ProtocolError;
-
-use crate::api_service::state::ProtocolApiState;
-use crate::protocol::ZERO_ID;
-use crate::protocol::import_refs::RefCommand;
-use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
+use crate::{
+    api_service::state::ProtocolApiState,
+    protocol::{
+        Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol, ZERO_ID,
+        import_refs::RefCommand,
+    },
+};
 
 const LF: char = '\n';
 
@@ -463,18 +464,19 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 
 #[cfg(test)]
 pub mod test {
+    use std::{process::Command, time::Duration};
+
     use bytes::{Bytes, BytesMut};
     use callisto::sea_orm_active_enums::RefTypeEnum;
     use futures::future;
-    use std::process::Command;
-    use std::time::Duration;
     use tempfile::TempDir;
-    use tokio::task;
-    use tokio::time::sleep;
+    use tokio::{task, time::sleep};
 
-    use crate::protocol::import_refs::{CommandType, RefCommand};
-    use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
-    use crate::protocol::{Capability, SmartProtocol};
+    use crate::protocol::{
+        Capability, SmartProtocol,
+        import_refs::{CommandType, RefCommand},
+        smart::{add_pkt_line_string, read_pkt_line, read_until_white_space},
+    };
 
     #[test]
     pub fn test_read_pkt_line() {

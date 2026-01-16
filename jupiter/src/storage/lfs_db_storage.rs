@@ -1,9 +1,8 @@
 use std::ops::Deref;
 
-use sea_orm::{EntityTrait, InsertResult, IntoActiveModel, Set};
-
 use callisto::{lfs_locks, lfs_objects};
 use common::errors::MegaError;
+use sea_orm::{EntityTrait, InsertResult, IntoActiveModel, Set};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 

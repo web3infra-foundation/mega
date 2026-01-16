@@ -63,9 +63,10 @@ pub fn parse_sha1_hash(
     input: &str,
     field_name: &str,
 ) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
+    use std::str::FromStr;
+
     use common::errors::MegaError;
     use git_internal::hash::ObjectHash;
-    use std::str::FromStr;
 
     let parts: Vec<&str> = input.splitn(2, ':').collect();
 

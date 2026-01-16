@@ -1,15 +1,16 @@
 use std::{collections::HashSet, ops::Deref};
 
-use crate::{
-    model::sidebar_dto::SidebarSyncDto,
-    storage::base_storage::{BaseStorage, StorageConnector},
-};
 use callisto::dynamic_sidebar;
 use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::{NotSet, Set},
     EntityTrait, QueryOrder, TransactionTrait,
+};
+
+use crate::{
+    model::sidebar_dto::SidebarSyncDto,
+    storage::base_storage::{BaseStorage, StorageConnector},
 };
 
 #[derive(Clone)]

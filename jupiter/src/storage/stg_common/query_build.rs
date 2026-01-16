@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use callisto::{item_assignees, item_labels};
-
 use sea_orm::{ColumnTrait, Condition, Order, QueryOrder};
 
 pub fn filter_by_labels(cond: Condition, labels: Option<Vec<i64>>) -> Condition {

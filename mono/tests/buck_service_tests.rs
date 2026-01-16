@@ -7,19 +7,22 @@
 //!
 //! This file contains tests for BuckService
 
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
 use bytes::Bytes;
 use chrono::{Duration, Utc};
 use common::config::BuckConfig;
 use git_internal::internal::object::blob::Blob;
-use jupiter::service::buck_service::{BuckService, ManifestPayload};
-use jupiter::service::cl_service::CLService;
-use jupiter::service::git_service::GitService;
-use jupiter::storage::buck_storage::{session_status, upload_reason, upload_status};
-use jupiter::tests::test_storage;
+use jupiter::{
+    service::{
+        buck_service::{BuckService, ManifestPayload},
+        cl_service::CLService,
+        git_service::GitService,
+    },
+    storage::buck_storage::{session_status, upload_reason, upload_status},
+    tests::test_storage,
+};
 use serial_test::serial;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
 use tempfile::tempdir;
 use tokio::sync::Semaphore;
 
@@ -1054,14 +1057,23 @@ async fn test_upload_file_hash_verification_success() {
 // Section 5: BuckService::complete_upload Tests
 // ============================================================================
 
-use git_internal::hash::ObjectHash;
-use git_internal::internal::metadata::EntryMeta;
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use jupiter::service::buck_service::{CommitArtifacts, CompletePayload};
-use jupiter::utils::converter::IntoMegaModel;
-use sea_orm::IntoActiveModel;
 use std::str::FromStr;
+
+use git_internal::{
+    hash::ObjectHash,
+    internal::{
+        metadata::EntryMeta,
+        object::{
+            commit::Commit,
+            tree::{Tree, TreeItem, TreeItemMode},
+        },
+    },
+};
+use jupiter::{
+    service::buck_service::{CommitArtifacts, CompletePayload},
+    utils::converter::IntoMegaModel,
+};
+use sea_orm::IntoActiveModel;
 
 /// Helper: Create a simple commit artifact for testing
 fn create_test_commit_artifacts(

@@ -1,11 +1,10 @@
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use callisto::entity_ext::generate_id;
-use callisto::mega_cl_reviewer;
-use common::errors::MegaError;
-use sea_orm::QueryFilter;
-use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
-use sea_orm::{ColumnTrait, Set};
 use std::ops::Deref;
+
+use callisto::{entity_ext::generate_id, mega_cl_reviewer};
+use common::errors::MegaError;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
 pub struct ClReviewerStorage {

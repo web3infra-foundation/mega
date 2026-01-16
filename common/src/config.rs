@@ -1,16 +1,11 @@
 //! Configuration management for the Mono and Mega application
 //! This module provides functionality to load, parse, and manage configuration settings
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc};
 
 use c::{ConfigError, FileFormat};
 pub use config as c;
-
-use config::builder::DefaultState;
-use config::{Source, ValueKind};
+use config::{Source, ValueKind, builder::DefaultState};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::utils;
@@ -808,8 +803,9 @@ impl Default for BuckConfig {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::path::Path;
+
+    use super::*;
 
     fn check_file_permission(path: &Path) {
         let metadata = std::fs::metadata(path).expect("Failed to read metadata");

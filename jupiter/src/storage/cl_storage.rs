@@ -1,25 +1,27 @@
-use std::collections::HashMap;
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
-use callisto::sea_orm_active_enums::MergeStatusEnum;
 use callisto::{
     check_result, item_assignees, label, mega_cl, mega_conversation, path_check_configs,
+    sea_orm_active_enums::MergeStatusEnum,
 };
-use common::errors::MegaError;
-use common::model::Pagination;
+use common::{errors::MegaError, model::Pagination};
 use git_internal::internal::object::commit::Commit;
-use sea_orm::prelude::Expr;
-use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
-    PaginatorTrait, QueryFilter, QuerySelect, QueryTrait, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationTrait, Set,
+    prelude::Expr, sea_query::OnConflict,
 };
-use sea_orm::{QueryOrder, RelationTrait};
 
-use crate::model::common::{ItemDetails, ListParams};
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::stg_common::combine_item_list;
-use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
+use crate::{
+    model::common::{ItemDetails, ListParams},
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        stg_common::{
+            combine_item_list,
+            query_build::{apply_sort, filter_by_assignees, filter_by_labels},
+        },
+    },
+};
 
 #[derive(Clone)]
 pub struct ClStorage {

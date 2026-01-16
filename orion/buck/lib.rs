@@ -11,8 +11,7 @@
 // #![feature(exit_status_error)]
 #![forbid(unsafe_code)]
 
-use std::io;
-use std::process::ExitStatus;
+use std::{io, process::ExitStatus};
 
 // defining own ExitStatus to avoid building under nightly version
 pub trait ExitStatusExt {

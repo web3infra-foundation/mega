@@ -1,23 +1,23 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use axum::Router;
-use axum::routing::get;
+use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
 use http::{HeaderValue, Method};
 use orion::ws::TaskPhase;
 use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
 use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::{self, AppState};
-use crate::log::log_service::LogService;
-use crate::log::store::{LogStore, local_log_store, noop_log_store, s3_log_store};
-use crate::model::builds;
+use crate::{
+    api::{self, AppState},
+    log::{
+        log_service::LogService,
+        store::{LogStore, local_log_store, noop_log_store, s3_log_store},
+    },
+    model::builds,
+};
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(

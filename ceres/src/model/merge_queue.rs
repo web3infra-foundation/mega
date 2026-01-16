@@ -1,5 +1,7 @@
-use callisto::merge_queue::Model;
-use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
+use callisto::{
+    merge_queue::Model,
+    sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum},
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

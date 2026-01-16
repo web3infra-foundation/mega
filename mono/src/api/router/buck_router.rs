@@ -8,13 +8,14 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, Request, StatusCode},
 };
+use ceres::model::buck::*;
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use ceres::model::buck::*;
-
-use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
-use crate::server::http_server::BUCK_TAG;
+use crate::{
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    server::http_server::BUCK_TAG,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

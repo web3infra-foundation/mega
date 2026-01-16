@@ -3,10 +3,11 @@
 //! These tests cover the LoginUser extractor's ability to extract user information from requests.
 //! Since the extractor relies on CampsiteApiStore, we focus on testing the underlying functionality.
 
+use std::net::SocketAddr;
+
 use jupiter::storage::user_storage::UserStorage;
 use mono::api::oauth::campsite_store::CampsiteApiStore;
 use serde_json::json;
-use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 // Mock server to simulate the campsite API

@@ -1,6 +1,6 @@
-use crate::entity_ext::generate_id;
-use crate::mega_refs;
 use std::path::Path;
+
+use crate::{entity_ext::generate_id, mega_refs};
 
 impl mega_refs::Model {
     pub fn new<P: AsRef<Path>>(

@@ -11,8 +11,7 @@
 //! Helper functions for the supertd CLIs, so they are all consistent.
 //! Supports things like args files.
 
-use std::env::args_os;
-use std::ffi::OsString;
+use std::{env::args_os, ffi::OsString};
 
 use anyhow::Context as _;
 use argfile::Argument;

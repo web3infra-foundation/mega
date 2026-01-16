@@ -10,10 +10,10 @@ use ceres::model::change_list::{
 use common::{errors::MegaError, model::CommonResult};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::MonoApiServiceState;
-use crate::api::error::ApiError;
-use crate::api::oauth::model::LoginUser;
-use crate::server::http_server::CL_TAG;
+use crate::{
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    server::http_server::CL_TAG,
+};
 
 const ERR_CL_NOT_READY_FOR_REVIEW: &str = "CL is not ready for review";
 

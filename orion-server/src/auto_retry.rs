@@ -1,5 +1,6 @@
-use once_cell::sync::OnceCell;
 use std::collections::HashMap;
+
+use once_cell::sync::OnceCell;
 
 const RETRY_KEYWORD: [&str; 3] = ["http", "HTTP", "request"];
 
@@ -96,8 +97,7 @@ impl Clone for AutoRetryJudger {
 
 #[cfg(test)]
 mod tests {
-    use super::AutoRetryJudger;
-    use super::RETRY_KEYWORD;
+    use super::{AutoRetryJudger, RETRY_KEYWORD};
 
     macro_rules! not_auto_retry {
         ($exit_code:expr, $output:expr) => {

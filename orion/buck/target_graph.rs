@@ -8,18 +8,13 @@
  * above-listed licenses.
  */
 
-use std::hash::Hasher;
-use std::str::FromStr;
+use std::{hash::Hasher, str::FromStr};
 
-use dashmap::DashMap;
-use dashmap::DashSet;
+use dashmap::{DashMap, DashSet};
 use fnv::FnvHasher;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::types::Package;
-use crate::types::PatternType;
-use crate::types::TargetPattern;
+use crate::types::{Package, PatternType, TargetPattern};
 
 macro_rules! impl_string_storage {
     ($id_type:ident, $store_method:ident, $get_string_method:ident, $len_method:ident, $iter_method:ident, $map_field:ident) => {

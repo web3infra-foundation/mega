@@ -1,19 +1,21 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
-use crate::fuse::MegaFuse;
-use crate::manager::fetch::fetch;
-use crate::manager::{ScorpioManager, WorkDir};
-use crate::util::{config, GPath};
-use axum::extract::{Path, State};
-use axum::routing::{get, post};
-use axum::Router;
+use axum::{
+    extract::{Path, State},
+    routing::{get, post},
+    Router,
+};
 use dashmap::DashMap;
 use git_internal::hash::ObjectHash;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
+
+use crate::{
+    fuse::MegaFuse,
+    manager::{fetch::fetch, ScorpioManager, WorkDir},
+    util::{config, GPath},
+};
 pub mod antares;
 //mod git;
 

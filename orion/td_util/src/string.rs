@@ -8,16 +8,12 @@
  * above-listed licenses.
  */
 
-use std::fmt;
-use std::ops::Deref;
+use std::{fmt, ops::Deref};
 
 // use `internment` instead of original crate to avoid building under nightly
 use internment::Intern;
 use parse_display::Display;
-use serde::de::Visitor;
-use serde::Deserialize;
-use serde::Deserializer;
-use serde::Serialize;
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Display)]
 #[display("{0}")]

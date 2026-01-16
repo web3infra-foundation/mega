@@ -1,6 +1,8 @@
 use chrono::Utc;
-use sea_orm::entity::prelude::*;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr, RuntimeErr, sqlx};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr, RuntimeErr, entity::prelude::*,
+    sqlx,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;

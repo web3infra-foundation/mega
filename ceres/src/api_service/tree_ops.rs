@@ -14,8 +14,10 @@ use git_internal::{
 };
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
 
-use crate::api_service::ApiHandler;
-use crate::model::git::{TreeBriefItem, TreeCommitItem, TreeHashItem};
+use crate::{
+    api_service::ApiHandler,
+    model::git::{TreeBriefItem, TreeCommitItem, TreeHashItem},
+};
 
 pub async fn get_tree_commit_info<T: ApiHandler + ?Sized>(
     handler: &T,

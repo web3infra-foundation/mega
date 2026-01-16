@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   rag-server-deploy:
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:

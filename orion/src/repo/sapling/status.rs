@@ -8,8 +8,7 @@
  * above-listed licenses.
  */
 
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 use anyhow::Context as _;
 pub use td_util_buck::types::ProjectRelativePath;

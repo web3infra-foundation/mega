@@ -1,18 +1,21 @@
 pub mod fuse;
 
-use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::dicfuse::Dicfuse;
-use crate::dicfuse::DicfuseManager;
-use crate::util::config;
+use crate::{
+    dicfuse::{Dicfuse, DicfuseManager},
+    util::config,
+};
 
 /// Global paths used by Antares to place layers and state.
 #[derive(Debug, Clone)]
@@ -241,8 +244,9 @@ impl AntaresManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::tempdir;
+
+    use super::*;
 
     #[tokio::test]
     async fn mount_and_list_registers_instance() {

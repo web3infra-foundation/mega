@@ -1,11 +1,12 @@
-use crate::{vectorization, GENERATION_NODE};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use log::debug;
-use qdrant_client::qdrant::SearchPointsBuilder;
-use qdrant_client::Qdrant;
-use std::sync::Arc;
+use qdrant_client::{qdrant::SearchPointsBuilder, Qdrant};
 use vectorization::VectClient;
+
+use crate::{vectorization, GENERATION_NODE};
 
 pub struct SearchNode {
     client: Qdrant,

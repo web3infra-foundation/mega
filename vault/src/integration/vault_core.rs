@@ -1,13 +1,14 @@
-use crate::integration::jupiter_backend::JupiterBackend;
-use common::errors::MegaError;
-use jupiter::storage::Storage;
 use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
+use common::errors::MegaError;
+use jupiter::storage::Storage;
 use libvault_core::{RustyVault, logical::Response, storage::Backend};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tracing::log;
+
+use crate::integration::jupiter_backend::JupiterBackend;
 
 const CORE_KEY_FILE: &str = "core_key.json"; // where the core key is stored, like `root_token`
 
@@ -181,10 +182,11 @@ impl VaultCoreInterface for VaultCore {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use jupiter::tests::test_storage;
 
     use super::*;
-    use std::collections::HashMap;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_vault_core_initialization() {

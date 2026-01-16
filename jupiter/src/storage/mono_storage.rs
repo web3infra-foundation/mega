@@ -1,32 +1,31 @@
-use std::collections::HashMap;
-use std::ops::Deref;
-
-use futures::StreamExt;
-use futures::stream::FuturesUnordered;
-use git_internal::hash::ObjectHash;
-use sea_orm::ActiveValue::Set;
-use sea_orm::sea_query::{Expr, OnConflict};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbErr,
-    EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait,
-};
+use std::{collections::HashMap, ops::Deref};
 
 use callisto::{mega_blob, mega_cl, mega_commit, mega_refs, mega_tag, mega_tree};
-use common::config::MonoConfig;
-use common::errors::MegaError;
-use common::model::Pagination;
-use common::utils::MEGA_BRANCH_NAME;
-use git_internal::internal::metadata::EntryMeta;
-use git_internal::internal::object::blob::Blob;
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::Tree;
+use common::{config::MonoConfig, errors::MegaError, model::Pagination, utils::MEGA_BRANCH_NAME};
+use futures::{StreamExt, stream::FuturesUnordered};
+use git_internal::{
+    hash::ObjectHash,
+    internal::{
+        metadata::EntryMeta,
+        object::{blob::Blob, commit::Commit, tree::Tree},
+    },
+};
+use sea_orm::{
+    ActiveModelTrait,
+    ActiveValue::Set,
+    ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbErr, EntityTrait,
+    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    sea_query::{Expr, OnConflict},
+};
 
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::commit_binding_storage::CommitBindingStorage;
-use crate::storage::user_storage::UserStorage;
-use crate::utils::converter::IntoMegaModel;
-use crate::utils::converter::MegaModelConverter;
+use crate::{
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        commit_binding_storage::CommitBindingStorage,
+        user_storage::UserStorage,
+    },
+    utils::converter::{IntoMegaModel, MegaModelConverter},
+};
 #[derive(Clone)]
 pub struct MonoStorage {
     pub base: BaseStorage,

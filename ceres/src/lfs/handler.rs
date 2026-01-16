@@ -2,15 +2,15 @@ use std::cmp::min;
 
 use anyhow::Result;
 use bytes::Bytes;
-use chrono::prelude::*;
-use futures::{Stream, StreamExt};
-use rand::prelude::*;
-
 use callisto::lfs_locks;
+use chrono::prelude::*;
 use common::errors::{GitLFSError, MegaError};
-use jupiter::object_storage::{ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage};
-use jupiter::storage::Storage;
-use jupiter::storage::lfs_db_storage::LfsDbStorage;
+use futures::{Stream, StreamExt};
+use jupiter::{
+    object_storage::{ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage},
+    storage::{Storage, lfs_db_storage::LfsDbStorage},
+};
+use rand::prelude::*;
 
 use crate::lfs::lfs_structs::{
     BatchRequest, BatchResponse, Lock, LockList, LockListQuery, LockRequest, MetaObject,

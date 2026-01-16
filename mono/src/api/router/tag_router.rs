@@ -6,9 +6,8 @@ use axum::{
     extract::{Path, State},
 };
 use ceres::model::tag::{CreateTagRequest, DeleteTagResponse, TagListResponse, TagResponse};
-use utoipa_axum::{router::OpenApiRouter, routes};
-
 use common::model::{CommonResult, PageParams};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     api::{

@@ -1,7 +1,6 @@
 //! Service for managing system required reviewers based on Cedar policy files.
 
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use common::errors::MegaError;
 use saturn::reviewer_parser::aggregate_reviewers;
@@ -162,9 +161,10 @@ impl ReviewerService {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
     use super::*;
     use crate::tests::test_storage;
-    use tempfile::tempdir;
 
     // --- Helpers ---
 

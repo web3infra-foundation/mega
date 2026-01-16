@@ -1,6 +1,6 @@
 use sea_orm::entity::prelude::*;
 
-use crate::{item_labels::Column, item_labels::Entity};
+use crate::item_labels::{Column, Entity};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {

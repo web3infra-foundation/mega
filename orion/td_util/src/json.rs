@@ -10,20 +10,18 @@
 
 //! Utilities for working with JSON and JSON-lines files.
 
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Read;
-use std::io::Write;
-use std::io::{self};
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{
+        BufRead, BufReader, BufWriter, Read, Write, {self},
+    },
+    path::Path,
+};
 
 use anyhow::Context;
 use itertools::Itertools;
 use rayon::prelude::*;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::zstd::is_zstd;
 
@@ -155,11 +153,10 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use crate::json::read_file_lines;
-    use crate::json::read_file_lines_parallel;
-    use crate::json::read_file_lines_parallel_ordered;
-    use crate::json::write_json_lines;
-    use crate::json::write_json_per_line;
+    use crate::json::{
+        read_file_lines, read_file_lines_parallel, read_file_lines_parallel_ordered,
+        write_json_lines, write_json_per_line,
+    };
 
     #[test]
     fn test_json_lines() {

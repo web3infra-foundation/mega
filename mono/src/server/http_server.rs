@@ -1,44 +1,43 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Result;
-use axum::body::Body;
-use axum::extract::FromRef;
-use axum::http::{self, Request, Uri};
-use axum::response::Response;
-use axum::routing::any;
-use axum::{Router, ServiceExt, middleware};
-use ceres::api_service::cache::GitObjectCache;
-use ceres::api_service::state::ProtocolApiState;
+use axum::{
+    Router, ServiceExt,
+    body::Body,
+    extract::FromRef,
+    http::{self, Request, Uri},
+    middleware,
+    response::Response,
+    routing::any,
+};
+use ceres::{
+    api_service::{cache::GitObjectCache, state::ProtocolApiState},
+    protocol::{ServiceType, SmartProtocol, TransportProtocol},
+};
+use common::{
+    errors::ProtocolError,
+    model::{CommonHttpOptions, InfoRefsParams},
+};
+use context::AppContext;
 use http::{HeaderValue, Method};
-
 use saturn::entitystore::EntityStore;
 use time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tower::Layer;
-use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
-use tower_http::decompression::RequestDecompressionLayer;
-use tower_http::trace::TraceLayer;
+use tower::{Layer, ServiceBuilder};
+use tower_http::{cors::CorsLayer, decompression::RequestDecompressionLayer, trace::TraceLayer};
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
-
-use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
-use common::errors::ProtocolError;
-use common::model::{CommonHttpOptions, InfoRefsParams};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::MonoApiServiceState;
-use crate::api::api_router::{self};
-use crate::api::guard::cedar_guard::cedar_guard;
-use crate::api::oauth::campsite_store::CampsiteApiStore;
-use crate::api::oauth::oauth_client;
-use crate::api::router::lfs_router;
-use context::AppContext;
+use crate::api::{
+    MonoApiServiceState,
+    api_router::{self},
+    guard::cedar_guard::cedar_guard,
+    oauth::{campsite_store::CampsiteApiStore, oauth_client},
+    router::lfs_router,
+};
 
 pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {
     PathBuf::from(full_path.replace(".git", "").replace(git_suffix, ""))
@@ -417,8 +416,9 @@ struct ApiDoc;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use http::Request;
+
+    use super::*;
 
     #[test]
     fn test_rewrite_lfs_uri_basic() {

@@ -1,24 +1,30 @@
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use api_model::git::commit::LatestCommitInfo;
+use common::model::{CommonPage, DiffItem, Pagination};
 use git_internal::{
     errors::GitError,
+    hash::ObjectHash,
     internal::object::{
         commit::Commit,
         tree::{TreeItem, TreeItemMode},
     },
 };
-
-use crate::api_service::{ApiHandler, history, tree_ops};
-use crate::model::change_list::MuiTreeNode;
-use crate::model::commit::{CommitFilesChangedPage, CommitSummary, GpgStatus};
-use crate::model::git::{CommitBindingInfo, LatestCommitInfoWrapper};
-use common::model::{CommonPage, DiffItem, Pagination};
-use git_internal::hash::ObjectHash;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+
+use crate::{
+    api_service::{ApiHandler, history, tree_ops},
+    model::{
+        change_list::MuiTreeNode,
+        commit::{CommitFilesChangedPage, CommitSummary, GpgStatus},
+        git::{CommitBindingInfo, LatestCommitInfoWrapper},
+    },
+};
 
 /// Compute GPG signature verification status for a commit.
 ///

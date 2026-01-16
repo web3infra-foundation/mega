@@ -1,16 +1,14 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use anyhow::Result;
 use api_model::git::commit::LatestCommitInfo;
 use axum::{
     Json,
     extract::{Query, State},
 };
-
-use anyhow::Result;
-
-use ceres::{
-    model::blame::{BlameQuery, BlameRequest, BlameResult},
-    model::git::{
+use ceres::model::{
+    blame::{BlameQuery, BlameRequest, BlameResult},
+    git::{
         BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
         EditFileResult, FileTreeItem, TreeCommitItem, TreeHashItem, TreeResponse,
     },
@@ -18,8 +16,10 @@ use ceres::{
 use common::model::{CommonResult, DiffItem};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::{MonoApiServiceState, error::ApiError};
-use crate::server::http_server::CODE_PREVIEW;
+use crate::{
+    api::{MonoApiServiceState, error::ApiError},
+    server::http_server::CODE_PREVIEW,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()

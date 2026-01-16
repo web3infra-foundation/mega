@@ -1,13 +1,19 @@
-use crate::model::merge_queue_dto::QueueStats;
-use crate::storage::{
-    base_storage::{BaseStorage, StorageConnector},
-    cl_storage::ClStorage,
-    merge_queue_storage::MergeQueueStorage,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
+
 use callisto::sea_orm_active_enums::{MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum};
 use common::errors::MegaError;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::{
+    model::merge_queue_dto::QueueStats,
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        cl_storage::ClStorage,
+        merge_queue_storage::MergeQueueStorage,
+    },
+};
 
 /// Merge queue service for CL processing
 #[derive(Clone)]

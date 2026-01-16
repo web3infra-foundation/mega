@@ -8,12 +8,12 @@
  * above-listed licenses.
  */
 
-use std::ffi::OsString;
-use std::io::Write;
-use std::process::ChildStdout;
-use std::process::Command;
-use std::process::Stdio;
-use std::time::Instant;
+use std::{
+    ffi::OsString,
+    io::Write,
+    process::{ChildStdout, Command, Stdio},
+    time::Instant,
+};
 
 use anyhow::anyhow;
 use itertools::Itertools;

@@ -3,18 +3,23 @@
 //! This module provides a unified blame implementation that works with both
 //! MonoApiService and ImportApiService through the ApiHandler trait.
 
-use std::collections::HashMap;
-use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Component, Path, PathBuf},
+    sync::Arc,
+};
 
-use git_internal::diff::{DiffOperation, compute_diff};
-use git_internal::errors::GitError;
-use git_internal::hash::ObjectHash;
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::TreeItemMode;
+use git_internal::{
+    diff::{DiffOperation, compute_diff},
+    errors::GitError,
+    hash::ObjectHash,
+    internal::object::{commit::Commit, tree::TreeItemMode},
+};
 
-use crate::api_service::ApiHandler;
-use crate::model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameResult, Contributor};
+use crate::{
+    api_service::ApiHandler,
+    model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameResult, Contributor},
+};
 
 /// Internal structure to track line attribution during history traversal
 struct LineAttribution {

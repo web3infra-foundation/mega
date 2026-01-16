@@ -1,16 +1,18 @@
-use crate::api::MonoApiServiceState;
-use crate::api::error::ApiError;
-use crate::server::http_server::SYNC_NOTES_STATE_TAG;
-
-use crate::api::notes::model::{ShowResponse, UpdateRequest};
-
 use axum::{
     Json,
     extract::{Path, State},
 };
 use serde_json::Value;
-use utoipa_axum::router::OpenApiRouter;
-use utoipa_axum::routes;
+use utoipa_axum::{router::OpenApiRouter, routes};
+
+use crate::{
+    api::{
+        MonoApiServiceState,
+        error::ApiError,
+        notes::model::{ShowResponse, UpdateRequest},
+    },
+    server::http_server::SYNC_NOTES_STATE_TAG,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

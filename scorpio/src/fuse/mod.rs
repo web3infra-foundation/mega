@@ -1,3 +1,10 @@
+use std::{
+    collections::HashMap,
+    io::Error,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
 use inode_alloc::InodeAlloc;
 use libfuse_fs::{
     overlayfs::{config, OverlayFs},
@@ -6,16 +13,10 @@ use libfuse_fs::{
 use rfuse3::raw::{Filesystem, Request};
 use tokio::sync::Mutex;
 
-use crate::util::config as sconfig;
 use crate::{
     dicfuse::{Dicfuse, DicfuseManager},
     manager::ScorpioManager,
-};
-use std::{
-    collections::HashMap,
-    io::Error,
-    path::{Path, PathBuf},
-    sync::Arc,
+    util::config as sconfig,
 };
 
 mod async_io;

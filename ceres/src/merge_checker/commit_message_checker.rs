@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use common::{errors::MegaError, utils::check_conventional_commits_message};
 use jupiter::model::cl_dto::ClInfoDto;
 use serde_json::{Value, json};
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
-use common::{errors::MegaError, utils::check_conventional_commits_message};
 
 pub struct CommitMessageChecker;
 

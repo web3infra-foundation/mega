@@ -1,8 +1,8 @@
 use callisto::{mega_cl, mega_issue, sea_orm_active_enums::MergeStatusEnum};
 use chrono::NaiveDateTime;
-use jupiter::{
-    model::common::{ItemDetails, ItemKind},
-    model::issue_dto::IssueDetails,
+use jupiter::model::{
+    common::{ItemDetails, ItemKind},
+    issue_dto::IssueDetails,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};

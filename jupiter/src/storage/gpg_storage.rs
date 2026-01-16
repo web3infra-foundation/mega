@@ -1,19 +1,17 @@
-use crate::storage::base_storage::BaseStorage;
-use crate::storage::base_storage::StorageConnector;
-use callisto::entity_ext::generate_id;
-use callisto::gpg_key;
+use std::ops::Deref;
+
+use callisto::{entity_ext::generate_id, gpg_key};
 use chrono::Utc;
 use common::errors::MegaError;
-use pgp::composed::Deserializable;
-use pgp::composed::SignedPublicKey;
-use pgp::types::PublicKeyTrait;
-use sea_orm::ActiveModelTrait;
-use sea_orm::ColumnTrait;
-use sea_orm::EntityTrait;
-use sea_orm::IntoActiveModel;
-use sea_orm::QueryFilter;
-use sea_orm::prelude::Expr;
-use std::ops::Deref;
+use pgp::{
+    composed::{Deserializable, SignedPublicKey},
+    types::PublicKeyTrait,
+};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, prelude::Expr,
+};
+
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
 pub struct GpgStorage {

@@ -8,16 +8,12 @@
  * above-listed licenses.
  */
 
-use std::borrow::Cow;
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops::Deref;
+use std::{borrow::Cow, fmt, marker::PhantomData, ops::Deref};
 
-use serde::de::Error;
-use serde::de::MapAccess;
-use serde::de::Visitor;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{
+    de::{Error, MapAccess, Visitor},
+    Deserialize, Serialize,
+};
 use td_util::string::InternString;
 
 /// A set of labels
