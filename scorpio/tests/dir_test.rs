@@ -1,24 +1,27 @@
 use core::panic;
+use std::{
+    collections::{BTreeSet, HashMap},
+    env,
+    ffi::OsStr,
+    fs, io,
+    net::TcpStream,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 // use http::Method;
 use lazy_static::lazy_static;
 use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
-use scorpio::dicfuse::store;
-use scorpio::fuse::MegaFuse;
-use scorpio::manager::fetch::CheckHash;
-use scorpio::manager::ScorpioManager;
-use scorpio::server::mount_filesystem;
-use scorpio::util::config;
+use scorpio::{
+    dicfuse::store,
+    fuse::MegaFuse,
+    manager::{fetch::CheckHash, ScorpioManager},
+    server::mount_filesystem,
+    util::config,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::net::TcpStream;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::Duration;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
-use std::{env, fs, io};
-use std::{ffi::OsStr, sync::Arc};
 // use testcontainers::core::wait::HttpWaitStrategy;
 use testcontainers::core::wait::LogWaitStrategy;
 use testcontainers::{

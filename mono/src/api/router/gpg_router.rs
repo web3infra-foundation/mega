@@ -4,9 +4,8 @@ use ceres::model::gpg::{GpgKey, NewGpgRequest, RemoveGpgRequest};
 use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::oauth::model::LoginUser;
 use crate::{
-    api::{MonoApiServiceState, error::ApiError},
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
     server::http_server::GPG_TAG,
 };
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

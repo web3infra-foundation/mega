@@ -1,24 +1,27 @@
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use bytes::Bytes;
-use callisto::buck_session;
-use callisto::entity_ext::generate_link;
-use callisto::{mega_commit, mega_tree};
+use callisto::{buck_session, entity_ext::generate_link, mega_commit, mega_tree};
 use chrono::{Duration, Utc};
-use common::config::BuckConfig;
-use common::errors::{BuckError, MegaError};
+use common::{
+    config::BuckConfig,
+    errors::{BuckError, MegaError},
+};
 use sea_orm::TransactionTrait;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::service::cl_service::CLService;
-use crate::service::git_service::GitService;
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::buck_storage::{
-    BuckStorage, FileRecord, session_status, upload_reason, upload_status,
+use crate::{
+    service::{cl_service::CLService, git_service::GitService},
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        buck_storage::{BuckStorage, FileRecord, session_status, upload_reason, upload_status},
+        mono_storage::MonoStorage,
+    },
 };
-use crate::storage::mono_storage::MonoStorage;
 
 /// Buck upload service.
 ///
@@ -934,10 +937,12 @@ impl BuckService {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use tokio::sync::Semaphore;
+
     use super::*;
     use crate::storage::base_storage::{BaseStorage, StorageConnector};
-    use std::sync::Arc;
-    use tokio::sync::Semaphore;
 
     fn create_test_service() -> BuckService {
         let base = BaseStorage::mock();

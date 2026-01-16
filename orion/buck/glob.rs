@@ -10,14 +10,10 @@
 
 //! Equivalent to the Buck2 `glob` to the greatest extent possible.
 
-use glob::MatchOptions;
-use glob::Pattern;
-use itertools::Either;
-use itertools::Itertools;
+use glob::{MatchOptions, Pattern};
+use itertools::{Either, Itertools};
 
-use crate::types::Glob;
-use crate::types::GlobInclusion;
-use crate::types::ProjectRelativePath;
+use crate::types::{Glob, GlobInclusion, ProjectRelativePath};
 
 pub struct GlobSpec {
     include: GlobSet,

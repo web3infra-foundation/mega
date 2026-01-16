@@ -1,13 +1,14 @@
-use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use common::errors::MegaError;
-use jupiter::model::cl_dto::ClInfoDto;
-use jupiter::storage::Storage;
+use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 use pgp::composed::{Deserializable, SignedPublicKey, StandaloneSignature};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
-use std::sync::Arc;
+
+use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 
 pub struct GpgSignatureChecker {
     pub storage: Arc<Storage>,

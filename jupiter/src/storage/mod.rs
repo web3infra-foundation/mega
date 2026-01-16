@@ -17,34 +17,41 @@ pub mod stg_common;
 pub mod user_storage;
 pub mod vault_storage;
 
-use common::errors::MegaError;
 use std::sync::{Arc, LazyLock, Weak};
+
+use common::{config::Config, errors::MegaError};
 use tokio::sync::Semaphore;
 
-use common::config::Config;
-
-use crate::object_storage::ObjectStorage;
-use crate::object_storage::factory::{ObjectStorageConfig, ObjectStorageFactory};
-use crate::service::buck_service::BuckService;
-use crate::service::cl_service::CLService;
-use crate::service::git_service::GitService;
-use crate::service::import_service::ImportService;
-use crate::service::issue_service::IssueService;
-use crate::service::merge_queue_service::MergeQueueService;
-use crate::service::mono_service::MonoService;
-use crate::storage::conversation_storage::ConversationStorage;
-use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
-use crate::storage::init::database_connection;
-use crate::storage::{
-    buck_storage::BuckStorage, cl_storage::ClStorage, commit_binding_storage::CommitBindingStorage,
-    git_db_storage::GitDbStorage, gpg_storage::GpgStorage, issue_storage::IssueStorage,
-    lfs_db_storage::LfsDbStorage, merge_queue_storage::MergeQueueStorage,
-    mono_storage::MonoStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+use crate::{
+    object_storage::{
+        ObjectStorage,
+        factory::{ObjectStorageConfig, ObjectStorageFactory},
+    },
+    service::{
+        buck_service::BuckService, cl_service::CLService, git_service::GitService,
+        import_service::ImportService, issue_service::IssueService,
+        merge_queue_service::MergeQueueService, mono_service::MonoService,
+    },
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        buck_storage::BuckStorage,
+        cl_reviewer_storage::ClReviewerStorage,
+        cl_storage::ClStorage,
+        commit_binding_storage::CommitBindingStorage,
+        conversation_storage::ConversationStorage,
+        dynamic_sidebar_storage::DynamicSidebarStorage,
+        git_db_storage::GitDbStorage,
+        gpg_storage::GpgStorage,
+        init::database_connection,
+        issue_storage::IssueStorage,
+        lfs_db_storage::LfsDbStorage,
+        merge_queue_storage::MergeQueueStorage,
+        mono_storage::MonoStorage,
+        note_storage::NoteStorage,
+        user_storage::UserStorage,
+        vault_storage::VaultStorage,
+    },
 };
-
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::cl_reviewer_storage::ClReviewerStorage;
-use crate::storage::note_storage::NoteStorage;
 
 #[derive(Clone)]
 pub struct AppService {

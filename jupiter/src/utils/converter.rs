@@ -1,21 +1,26 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{cell::RefCell, collections::HashMap, str::FromStr};
 
-use callisto::mega_refs;
 use callisto::{
-    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree,
+    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_refs, mega_tag, mega_tree,
 };
-use common::config::MonoConfig;
-use common::utils::{MEGA_BRANCH_NAME, generate_id};
-use git_internal::internal::metadata::EntryMeta;
-use git_internal::internal::object::tree::{TreeItem, TreeItemMode};
-use git_internal::internal::pack::entry::Entry;
+use common::{
+    config::MonoConfig,
+    utils::{MEGA_BRANCH_NAME, generate_id},
+};
 use git_internal::{
     hash::ObjectHash,
-    internal::object::{
-        ObjectTrait, blob::Blob, commit::Commit, signature::Signature, tag::Tag, tree::Tree,
-        types::ObjectType,
+    internal::{
+        metadata::EntryMeta,
+        object::{
+            ObjectTrait,
+            blob::Blob,
+            commit::Commit,
+            signature::Signature,
+            tag::Tag,
+            tree::{Tree, TreeItem, TreeItemMode},
+            types::ObjectType,
+        },
+        pack::entry::Entry,
     },
 };
 

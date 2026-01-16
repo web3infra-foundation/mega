@@ -173,27 +173,36 @@ impl AntaresFuse {
 
 #[cfg(test)]
 mod tests {
-    use super::AntaresFuse;
-    use crate::dicfuse::Dicfuse;
-    use crate::util::config;
+    use std::{
+        collections::HashMap,
+        ffi::{OsStr, OsString},
+        num::NonZeroU32,
+        path::PathBuf,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
     use async_trait::async_trait;
     use bytes::Bytes;
-    use libfuse_fs::context::OperationContext;
-    use libfuse_fs::unionfs::{config::Config as UnionConfig, layer::Layer, OverlayFs};
-    use rfuse3::raw::reply::{
-        DirectoryEntry, FileAttr, ReplyAttr, ReplyCreated, ReplyData, ReplyDirectory, ReplyEntry,
-        ReplyInit, ReplyOpen, ReplyWrite, ReplyXAttr,
+    use libfuse_fs::{
+        context::OperationContext,
+        unionfs::{config::Config as UnionConfig, layer::Layer, OverlayFs},
     };
-    use rfuse3::raw::{Filesystem, Request};
-    use rfuse3::{FileType, Inode, Result as FuseResult, Timestamp};
+    use rfuse3::{
+        raw::{
+            reply::{
+                DirectoryEntry, FileAttr, ReplyAttr, ReplyCreated, ReplyData, ReplyDirectory,
+                ReplyEntry, ReplyInit, ReplyOpen, ReplyWrite, ReplyXAttr,
+            },
+            Filesystem, Request,
+        },
+        FileType, Inode, Result as FuseResult, Timestamp,
+    };
     use serial_test::serial;
-    use std::collections::HashMap;
-    use std::ffi::{OsStr, OsString};
-    use std::num::NonZeroU32;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU64, Ordering};
     use tokio::time::{sleep, Duration};
     use uuid::Uuid;
+
+    use super::AntaresFuse;
+    use crate::{dicfuse::Dicfuse, util::config};
 
     #[derive(Debug, Clone)]
     struct MemNode {
@@ -1051,11 +1060,12 @@ mod tests {
     #[serial] // Serialize to avoid config initialization conflicts
     async fn test_simple_passthrough_mount() {
         // Simplified test using only passthrough layers (no Dicfuse)
+        use std::sync::Arc;
+
         use libfuse_fs::{
             passthrough::{new_passthroughfs_layer, PassthroughArgs},
             unionfs::{config::Config, OverlayFs},
         };
-        use std::sync::Arc;
 
         let uid = unsafe { libc::geteuid() };
         if uid != 0 {
@@ -1724,11 +1734,12 @@ mod tests {
     // For LLDB-based debugging, follow the steps in `doc/test.md`.
     #[serial] // Serialize to avoid config initialization conflicts
     async fn deep_write_goes_to_upper() {
+        use std::sync::Arc;
+
         use libfuse_fs::{
             passthrough::{new_passthroughfs_layer, newlogfs::LoggingFileSystem, PassthroughArgs},
             unionfs::{config::Config, OverlayFs},
         };
-        use std::sync::Arc;
         // Only  LoggingFileSystem DEBUG
         use tracing_subscriber::EnvFilter;
         let _ = tracing_subscriber::fmt()

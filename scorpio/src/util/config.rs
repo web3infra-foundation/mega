@@ -1,8 +1,6 @@
+use std::{collections::HashMap, fs, path::Path, sync::OnceLock};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use std::sync::OnceLock;
 
 // Configuration error type (using simple String for error messages)
 pub type ConfigError = String;

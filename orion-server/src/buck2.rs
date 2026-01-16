@@ -1,7 +1,5 @@
-use std::fs;
-use std::path::Path;
-use std::process::Command;
-use std::time::Duration;
+use std::{fs, path::Path, process::Command, time::Duration};
+
 use tokio_retry::{Retry, strategy::ExponentialBackoff};
 use uuid::Uuid;
 
@@ -119,9 +117,9 @@ pub async fn download_and_get_buck2_targets(
 
 #[cfg(test)]
 mod tests {
+    use std::{fs, path::Path};
+
     use super::*;
-    use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_get_buck2_targets_last_line() {

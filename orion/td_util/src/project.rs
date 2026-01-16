@@ -11,15 +11,11 @@
 //! The projects where a verifiable has come from.
 //! We should seek to minimize (eventually remove) any project differences.
 
-use std::cmp::Eq;
 #[cfg(unix)]
 use std::ffi::OsString;
-use std::hash::Hash;
-use std::io;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStringExt as _;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{cmp::Eq, hash::Hash, io, path::PathBuf, process::Command};
 
 use clap::ValueEnum;
 use parse_display::Display;

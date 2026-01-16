@@ -7,9 +7,10 @@
 //!     to ["alice", "bob"];
 //! ```
 
+use std::collections::{HashMap, HashSet};
+
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
 
 lazy_static! {
     static ref RULE_PATTERN: Regex = Regex::new(

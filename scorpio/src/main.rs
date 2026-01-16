@@ -1,12 +1,14 @@
+use std::{ffi::OsStr, net::SocketAddr, sync::Arc};
+
 use clap::Parser;
 use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
-use scorpio::daemon::daemon_main;
-use scorpio::fuse::MegaFuse;
-use scorpio::manager::{fetch::CheckHash, ScorpioManager};
-use scorpio::server::mount_filesystem;
-use scorpio::util::config;
-use std::net::SocketAddr;
-use std::{ffi::OsStr, sync::Arc};
+use scorpio::{
+    daemon::daemon_main,
+    fuse::MegaFuse,
+    manager::{fetch::CheckHash, ScorpioManager},
+    server::mount_filesystem,
+    util::config,
+};
 #[cfg(not(unix))]
 use tokio::signal;
 use tokio::sync::oneshot;

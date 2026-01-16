@@ -1,11 +1,12 @@
-use crate::merge_checker::{CheckResult, Checker};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use common::errors::MegaError;
-use jupiter::model::cl_dto::ClInfoDto;
-use jupiter::storage::Storage;
+use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 use serde::Deserialize;
 use serde_json::Value;
-use std::sync::Arc;
+
+use crate::merge_checker::{CheckResult, Checker};
 
 pub struct CodeReviewChecker {
     pub storage: Arc<Storage>,

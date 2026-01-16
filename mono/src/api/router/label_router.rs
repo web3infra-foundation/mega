@@ -1,13 +1,15 @@
-use axum::extract::Path;
-use axum::{Json, extract::State};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use ceres::model::label::{LabelItem, NewLabel};
+use common::model::{CommonPage, CommonResult, PageParams};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use common::model::{CommonPage, CommonResult, PageParams};
-
-use crate::api::MonoApiServiceState;
-use crate::api::oauth::model::LoginUser;
-use crate::{api::error::ApiError, server::http_server::LABEL_TAG};
+use crate::{
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    server::http_server::LABEL_TAG,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
+use callisto::{mega_conversation, reactions, sea_orm_active_enums::ConvTypeEnum};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-
-use callisto::{mega_conversation, reactions, sea_orm_active_enums::ConvTypeEnum};
 
 #[derive(Serialize, ToSchema)]
 pub struct ConversationItem {

@@ -1,26 +1,35 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
-
 use callisto::{git_tag, import_refs};
 use common::errors::MegaError;
-use git_internal::errors::GitError;
-use git_internal::hash::ObjectHash;
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::{Tree, TreeItem};
-use git_internal::internal::pack::entry::Entry;
-use jupiter::storage::Storage;
-use jupiter::utils::converter::FromGitModel;
+use git_internal::{
+    errors::GitError,
+    hash::ObjectHash,
+    internal::{
+        metadata::{EntryMeta, MetaAttached},
+        object::{
+            commit::Commit,
+            tree::{Tree, TreeItem},
+        },
+        pack::entry::Entry,
+    },
+};
+use jupiter::{storage::Storage, utils::converter::FromGitModel};
 
-use crate::api_service::cache::GitObjectCache;
-use crate::api_service::{ApiHandler, history};
-use crate::model::git::{CreateEntryInfo, EditFilePayload, EditFileResult};
-use crate::model::tag::TagInfo;
-use crate::protocol::repo::Repo;
+use crate::{
+    api_service::{ApiHandler, cache::GitObjectCache, history},
+    model::{
+        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        tag::TagInfo,
+    },
+    protocol::repo::Repo,
+};
 
 #[derive(Clone)]
 pub struct ImportApiService {
@@ -378,8 +387,7 @@ impl ApiHandler for ImportApiService {
 
     /// Save file edit for import repo path
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
-        use git_internal::internal::object::blob::Blob;
-        use git_internal::internal::object::tree::TreeItemMode;
+        use git_internal::internal::object::{blob::Blob, tree::TreeItemMode};
 
         let path = PathBuf::from(&payload.path);
         let parent = path

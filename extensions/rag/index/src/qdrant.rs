@@ -1,13 +1,16 @@
+use std::{
+    fs,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
+
 use async_trait::async_trait;
 use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use qdrant_client::Qdrant;
-use std::fs;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
-use crate::utils::CodeItem;
-
-use crate::VECT_CLIENT_NODE;
+use crate::{utils::CodeItem, VECT_CLIENT_NODE};
 
 pub struct QdrantNode {
     client: Qdrant,

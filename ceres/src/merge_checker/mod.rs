@@ -1,15 +1,16 @@
 use std::{collections::HashMap, fmt, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
-use serde::Serialize;
-use utoipa::ToSchema;
-
-use crate::merge_checker::cl_sync_checker::ClSyncChecker;
-use crate::merge_checker::commit_message_checker::CommitMessageChecker;
-use crate::merge_checker::gpg_signature_checker::GpgSignatureChecker;
 use callisto::{check_result, sea_orm_active_enums::CheckTypeEnum};
 use common::errors::MegaError;
 use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
+use serde::Serialize;
+use utoipa::ToSchema;
+
+use crate::merge_checker::{
+    cl_sync_checker::ClSyncChecker, commit_message_checker::CommitMessageChecker,
+    gpg_signature_checker::GpgSignatureChecker,
+};
 
 pub mod cl_sync_checker;
 mod code_review_checker;

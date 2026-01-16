@@ -10,19 +10,14 @@
 
 //! All these types mirror their equivalent in the Buck2 codebase
 
-use std::ffi::OsStr;
-use std::fmt;
-use std::hash::Hash;
-use std::str::FromStr;
+use std::{ffi::OsStr, fmt, hash::Hash, str::FromStr};
 
 use parse_display::Display;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use td_util::string::InternString;
-
-use crate::cells::CellInfo;
-use crate::labels::Labels;
 use utoipa::ToSchema;
+
+use crate::{cells::CellInfo, labels::Labels};
 
 /// Example: `fbcode//buck2:buck2`
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Display, Deserialize, Serialize, PartialOrd, Ord)]

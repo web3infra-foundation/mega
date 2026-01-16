@@ -1,26 +1,28 @@
-use crate::repo::diff;
-use crate::repo::sapling::status::Status;
-use crate::ws::{TaskPhase, WSMessage};
+use std::{
+    error::Error,
+    io::BufReader,
+    path::{Path, PathBuf},
+    process::{ExitStatus, Stdio},
+};
+
+use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
-use td_util_buck::types::{ProjectRelativePath, TargetLabel};
-// Import complete Error trait for better error handling
-use crate::repo::changes::Changes;
-use anyhow::anyhow;
-use std::error::Error;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use std::process::{ExitStatus, Stdio};
 use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
     run::{Buck2, targets_arguments},
     targets::Targets,
+    types::{ProjectRelativePath, TargetLabel},
 };
-use tokio::io::AsyncBufReadExt;
-use tokio::process::Command;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::time::Duration;
+use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
+
+// Import complete Error trait for better error handling
+use crate::repo::changes::Changes;
+use crate::{
+    repo::{diff, sapling::status::Status},
+    ws::{TaskPhase, WSMessage},
+};
 
 fn scorpio_base_url() -> String {
     crate::scorpio_api::base_url()
@@ -620,11 +622,14 @@ pub async fn build(
 mod tests {
     use std::net::TcpListener;
 
-    use super::*;
     use serde_json::json;
     use serial_test::serial;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    use super::*;
 
     #[tokio::test]
     #[serial]

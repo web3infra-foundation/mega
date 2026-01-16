@@ -1,13 +1,14 @@
+pub use pgp::{
+    KeyType,
+    composed::{Deserializable, SignedPublicKey, SignedSecretKey},
+};
+use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder, types::SecretKeyTrait};
+
 /// This module provides functions for generating, loading, saving, and deleting PGP key pairs.
 ///
 /// It uses the `pgp` crate for key generation and management, and stores the keys in a vault
 /// using asynchronous operations.
 use smallvec::smallvec;
-
-pub use pgp::KeyType;
-pub use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
-use pgp::types::SecretKeyTrait;
-use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
 

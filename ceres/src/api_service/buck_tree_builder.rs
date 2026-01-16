@@ -4,17 +4,27 @@
 //! a batch of file changes. It's designed for the Buck upload API to
 //! create a single atomic commit containing multiple file changes
 
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use common::errors::MegaError;
-use git_internal::hash::ObjectHash;
-use git_internal::internal::metadata::EntryMeta;
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use jupiter::storage::mono_storage::MonoStorage;
-use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
+use git_internal::{
+    hash::ObjectHash,
+    internal::{
+        metadata::EntryMeta,
+        object::{
+            commit::Commit,
+            tree::{Tree, TreeItem, TreeItemMode},
+        },
+    },
+};
+use jupiter::{
+    storage::mono_storage::MonoStorage,
+    utils::converter::{FromMegaModel, IntoMegaModel},
+};
 
 use crate::model::buck::FileChange;
 
@@ -1786,8 +1796,9 @@ mod tests {
     /// Test Git Sorting Rules
     #[test]
     fn test_git_sort_order() {
-        use git_internal::hash::ObjectHash;
         use std::str::FromStr;
+
+        use git_internal::hash::ObjectHash;
 
         // Setup items
         let blob_hash = ObjectHash::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709").unwrap();

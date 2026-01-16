@@ -5,9 +5,7 @@
 //!
 
 use clap::{ArgMatches, Command};
-
 use common::{config::Config, errors::MegaResult};
-
 use context::AppContext;
 
 pub mod http;

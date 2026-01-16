@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 use bytes::BytesMut;
 use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use clap::Args;
+use common::model::CommonHttpOptions;
 use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
@@ -13,8 +11,6 @@ use russh::{
     keys::{Algorithm, PrivateKey, ssh_key::rand_core::OsRng},
     server::Server,
 };
-
-use common::model::CommonHttpOptions;
 use tokio::sync::Mutex;
 use vault::integration::vault_core::VaultCoreInterface;
 

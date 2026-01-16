@@ -1,12 +1,13 @@
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use callisto::commit_auths::Column::CommitSha;
-use callisto::commit_auths::{ActiveModel, Entity};
+use std::ops::Deref;
+
+use callisto::commit_auths::{ActiveModel, Column::CommitSha, Entity};
 use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
 };
-use std::ops::Deref;
 use uuid::Uuid;
+
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 #[derive(Clone)]
 pub struct CommitBindingStorage {
     pub base: BaseStorage,

@@ -8,22 +8,21 @@
  * above-listed licenses.
  */
 
-use crate::ExitStatusExt;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use anyhow::Context as _;
-use audit::audit_cell_arguments;
-use audit::audit_config_arguments;
-use td_util::command::create_at_file_arg;
-use td_util::command::with_command;
+use audit::{audit_cell_arguments, audit_config_arguments};
+use td_util::command::{create_at_file_arg, with_command};
 use tracing::info;
 
-use crate::cells::CellInfo;
-use crate::types::Package;
-use crate::types::ProjectRelativePath;
-use crate::types::TargetPattern;
+use crate::{
+    cells::CellInfo,
+    types::{Package, ProjectRelativePath, TargetPattern},
+    ExitStatusExt,
+};
 
 /// A struct to represent running Buck2 commands.
 /// All methods are `&mut` to avoid simultaneous Buck2 commands.

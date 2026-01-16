@@ -28,12 +28,10 @@
 //! // Refresh all migrations (development only)
 //! apply_migrations(&db, true).await?;
 //! ```
-use sea_orm::DatabaseConnection;
-use sea_orm_migration::prelude::*;
-use sea_orm_migration::schema::big_integer;
-use tracing::log;
-
 use common::errors::MegaError;
+use sea_orm::DatabaseConnection;
+use sea_orm_migration::{prelude::*, schema::big_integer};
+use tracing::log;
 
 mod m20250314_025943_init;
 mod m20250427_031332_add_mr_refs_tag;
@@ -180,9 +178,8 @@ pub async fn apply_migrations(db: &DatabaseConnection, refresh: bool) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::test_db_connection;
-
     use super::*;
+    use crate::tests::test_db_connection;
 
     #[tokio::test]
     async fn test_apply_migrations() {

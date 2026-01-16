@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::StreamExt;
-
 use common::errors::MegaError;
+use futures::StreamExt;
 use git_internal::internal::object::blob::Blob;
 
-use crate::object_storage::fs_object_storage::FsObjectStorage;
-use crate::object_storage::object_stream::IntoObjectStream;
 use crate::object_storage::{
     MultiObjectByteStream, ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage,
+    fs_object_storage::FsObjectStorage, object_stream::IntoObjectStream,
 };
 
 #[derive(Clone)]

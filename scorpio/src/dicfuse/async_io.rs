@@ -1,16 +1,18 @@
-use std::ffi::OsStr;
-use std::num::NonZeroU32;
+use std::{ffi::OsStr, num::NonZeroU32};
 
 use bytes::Bytes;
-use rfuse3::notify::Notify;
-use rfuse3::raw::prelude::*;
-use rfuse3::raw::reply::DirectoryEntry;
-use rfuse3::{Errno, Inode, Result};
+use futures::stream::iter;
+use rfuse3::{
+    notify::Notify,
+    raw::{prelude::*, reply::DirectoryEntry},
+    Errno, Inode, Result,
+};
 
 use super::Dicfuse;
-use crate::dicfuse::abi::{default_dic_entry, default_file_entry};
-use crate::dicfuse::store::EMPTY_BLOB_OID;
-use futures::stream::iter;
+use crate::dicfuse::{
+    abi::{default_dic_entry, default_file_entry},
+    store::EMPTY_BLOB_OID,
+};
 impl Filesystem for Dicfuse {
     /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit> {

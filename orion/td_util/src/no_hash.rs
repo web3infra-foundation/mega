@@ -12,8 +12,7 @@
 //! Avoids swizzling the bits. Useful for reducing overhead in cases, particularly when
 //! using `InternString`.
 
-use std::hash::BuildHasherDefault;
-use std::hash::Hasher;
+use std::hash::{BuildHasherDefault, Hasher};
 
 pub type BuildNoHash = BuildHasherDefault<NoHash>;
 

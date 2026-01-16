@@ -1,3 +1,4 @@
+use anyhow::Result;
 use axum::{
     Json,
     body::Body,
@@ -5,24 +6,23 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use http::StatusCode;
-
-use anyhow::Result;
-
 use ceres::{api_service::ApiHandler, model::git::TreeQuery};
+use http::StatusCode;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::{
-    MonoApiServiceState,
-    error::ApiError,
-    notes::note_router,
-    router::{
-        admin_router, buck_router, cl_router, commit_router, conv_router, dynamic_sidebar_router,
-        gpg_router, issue_router, label_router, merge_queue_router, preview_router, repo_router,
-        reviewer_router, tag_router, user_router,
+use crate::{
+    api::{
+        MonoApiServiceState,
+        error::ApiError,
+        notes::note_router,
+        router::{
+            admin_router, buck_router, cl_router, commit_router, conv_router,
+            dynamic_sidebar_router, gpg_router, issue_router, label_router, merge_queue_router,
+            preview_router, repo_router, reviewer_router, tag_router, user_router,
+        },
     },
+    server::http_server::SYSTEM_COMMON,
 };
-use crate::server::http_server::SYSTEM_COMMON;
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()

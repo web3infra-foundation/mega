@@ -4,6 +4,7 @@
 //! We focus on testing the underlying tower_sessions functionality.
 
 use std::sync::Arc;
+
 use time::Duration;
 use tower_sessions::{Expiry, MemoryStore, Session};
 

@@ -3,6 +3,7 @@
 //! These tests cover the basic session management using tower-sessions.
 
 use std::sync::Arc;
+
 use tower_sessions::{MemoryStore, Session};
 
 #[tokio::test]

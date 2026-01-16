@@ -5,9 +5,14 @@ use axum::{
     extract::{Path, State},
 };
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
-use ceres::model::change_list::{
-    CLDetailRes, ClFilesRes, Condition, FilesChangedPage, MergeBoxRes, MuiTreeNode,
-    UpdateClStatusPayload,
+use ceres::model::{
+    change_list::{
+        AssigneeUpdatePayload, CLDetailRes, ClFilesRes, Condition, FilesChangedPage, ListPayload,
+        MergeBoxRes, MuiTreeNode, UpdateClStatusPayload,
+    },
+    conversation::ContentPayload,
+    issue::ItemRes,
+    label::LabelUpdatePayload,
 };
 use common::{
     errors::MegaError,
@@ -16,20 +21,15 @@ use common::{
 use jupiter::service::cl_service::CLService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use ceres::model::{
-    change_list::{AssigneeUpdatePayload, ListPayload},
-    conversation::ContentPayload,
-    issue::ItemRes,
-    label::LabelUpdatePayload,
+use crate::{
+    api::{
+        MonoApiServiceState,
+        api_common::{self},
+        error::ApiError,
+        oauth::model::LoginUser,
+    },
+    server::http_server::CL_TAG,
 };
-
-use crate::api::MonoApiServiceState;
-use crate::api::{
-    api_common::{self},
-    oauth::model::LoginUser,
-};
-
-use crate::{api::error::ApiError, server::http_server::CL_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -571,9 +571,11 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 
 #[cfg(test)]
 mod test {
-    use crate::api::router::cl_router::build_forest;
-    use common::model::DiffItem;
     use std::collections::HashMap;
+
+    use common::model::DiffItem;
+
+    use crate::api::router::cl_router::build_forest;
 
     fn extract_files_with_status(diff_output: &str) -> HashMap<String, String> {
         let mut files = HashMap::new();

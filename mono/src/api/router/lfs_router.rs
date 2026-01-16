@@ -48,9 +48,6 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
-use futures::TryStreamExt;
-use utoipa_axum::{router::OpenApiRouter, routes};
-
 use ceres::lfs::{
     handler,
     lfs_structs::{
@@ -59,9 +56,10 @@ use ceres::lfs::{
     },
 };
 use common::errors::GitLFSError;
+use futures::TryStreamExt;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::MonoApiServiceState;
-use crate::server::http_server::LFS_TAG;
+use crate::{api::MonoApiServiceState, server::http_server::LFS_TAG};
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
@@ -426,8 +424,9 @@ pub async fn lfs_upload_object(
 mod tests {
     use std::collections::HashMap;
 
-    use super::*;
     use axum::http::StatusCode;
+
+    use super::*;
 
     #[test]
     fn test_map_lfs_error_not_found() {

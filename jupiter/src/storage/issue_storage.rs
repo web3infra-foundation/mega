@@ -1,24 +1,26 @@
-use std::collections::HashMap;
-use std::ops::Deref;
-
-use callisto::sea_orm_active_enums::ReferenceTypeEnum;
-use sea_orm::prelude::Expr;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationTrait, Set,
-    TransactionTrait,
-};
+use std::{collections::HashMap, ops::Deref};
 
 use callisto::{
     issue_cl_references, item_assignees, item_labels, label, mega_conversation, mega_issue,
+    sea_orm_active_enums::ReferenceTypeEnum,
 };
-use common::errors::MegaError;
-use common::model::Pagination;
+use common::{errors::MegaError, model::Pagination};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationTrait, Set,
+    TransactionTrait, prelude::Expr,
+};
 
-use crate::model::common::{ItemDetails, LabelAssigneeParams, ListParams};
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::stg_common::combine_item_list;
-use crate::storage::stg_common::query_build::{apply_sort, filter_by_assignees, filter_by_labels};
+use crate::{
+    model::common::{ItemDetails, LabelAssigneeParams, ListParams},
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        stg_common::{
+            combine_item_list,
+            query_build::{apply_sort, filter_by_assignees, filter_by_labels},
+        },
+    },
+};
 
 #[derive(Clone)]
 pub struct IssueStorage {

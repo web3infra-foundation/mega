@@ -8,18 +8,15 @@
  * above-listed licenses.
  */
 
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Write;
-use std::path::Path;
+use std::{
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, BufWriter, Write},
+    path::Path,
+};
 
 use anyhow::Context;
 
-use crate::json::BUFFER_SIZE;
-use crate::zstd::is_zstd;
+use crate::{json::BUFFER_SIZE, zstd::is_zstd};
 
 pub fn file_writer(file_path: &Path) -> anyhow::Result<Box<dyn Write>> {
     let file = OpenOptions::new()

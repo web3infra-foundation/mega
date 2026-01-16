@@ -1,23 +1,18 @@
-use crate::auto_retry::AutoRetryJudger;
-use crate::common::model::{CommonPage, PageParams};
-use crate::log::log_service::{LogEvent, LogService};
-use crate::model::targets::{TargetState, TargetWithBuilds};
-use crate::model::{builds, targets, tasks};
-use crate::scheduler::{
-    self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+use std::{
+    collections::HashMap, convert::Infallible, net::SocketAddr, ops::ControlFlow, sync::Arc,
+    time::Duration,
 };
+
 use anyhow::Result;
-use axum::extract::Query;
-use axum::routing::post;
 use axum::{
     Json, Router,
     extract::{
-        ConnectInfo, Path, State, WebSocketUpgrade,
+        ConnectInfo, Path, Query, State, WebSocketUpgrade,
         ws::{Message, Utf8Bytes, WebSocket},
     },
     http::StatusCode,
     response::{IntoResponse, Sse, sse::Event},
-    routing::{any, get},
+    routing::{any, get, post},
 };
 use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
@@ -25,23 +20,30 @@ use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
 use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
-use sea_orm::prelude::DateTimeUtc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _, QueryOrder,
+    prelude::DateTimeUtc,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
-use std::convert::Infallible;
-use std::net::SocketAddr;
-use std::ops::ControlFlow;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, mpsc::UnboundedSender, watch};
 use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+use crate::{
+    auto_retry::AutoRetryJudger,
+    common::model::{CommonPage, PageParams},
+    log::log_service::{LogEvent, LogService},
+    model::{
+        builds, targets,
+        targets::{TargetState, TargetWithBuilds},
+        tasks,
+    },
+    scheduler::{
+        self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+    },
+};
 
 const RETRY_COUNT_MAX: i32 = 3;
 

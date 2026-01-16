@@ -6,14 +6,14 @@ mod size_store;
 pub mod store;
 mod tree_store;
 
-pub use manager::DicfuseManager;
-
-use crate::manager::fetch::fetch_tree;
-use crate::util::config;
 use std::{
     ffi::{OsStr, OsString},
     sync::Arc,
 };
+
+pub use manager::DicfuseManager;
+
+use crate::{manager::fetch::fetch_tree, util::config};
 
 /// Compute the backing store directory for a given base path.
 ///
@@ -40,11 +40,15 @@ pub(crate) fn compute_store_dir_for_base_path_with_store_root(
 
 use async_trait::async_trait;
 use git_internal::internal::object::tree::TreeItemMode;
-use libfuse_fs::unionfs::Inode;
-use libfuse_fs::{context::OperationContext, unionfs::layer::Layer};
+use libfuse_fs::{
+    context::OperationContext,
+    unionfs::{layer::Layer, Inode},
+};
 use reqwest::Client;
-use rfuse3::raw::reply::{ReplyCreated, ReplyEntry};
-use rfuse3::Result;
+use rfuse3::{
+    raw::reply::{ReplyCreated, ReplyEntry},
+    Result,
+};
 use store::DictionaryStore;
 use tree_store::StorageItem;
 
@@ -425,13 +429,12 @@ impl Dicfuse {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsStr;
-    use std::path::PathBuf;
+    use std::{ffi::OsStr, path::PathBuf};
 
+    use libfuse_fs::unionfs::layer::Layer;
     use tokio::signal;
 
     use crate::dicfuse::Dicfuse;
-    use libfuse_fs::unionfs::layer::Layer;
 
     #[tokio::test]
     #[ignore = "manual test requiring root privileges for FUSE mount"]

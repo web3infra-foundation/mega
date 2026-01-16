@@ -36,6 +36,55 @@ Mega intergrates Buck2 as default, which is a build system developed by Meta wit
 
 The mega project relies on community contributions and aims to simplify getting started. To develop Mega, clone the repository, then install all dependencies and initialize the database schema, run the test suite and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
 
+### Pre-submission Checks
+Before submitting a Pull Request, please ensure your code passes the following checks:
+
+```bash
+# Run clippy with all warnings treated as errors (warnings will be treated as errors)
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Check code formatting (requires nightly toolchain)
+cargo +nightly fmt --all --check
+```
+
+Both commands must complete without any warnings. The clippy check treats all warnings as errors, and the formatter check ensures code follows the project style guide. Only PRs that pass these checks will be accepted for merge.
+
+
+If the formatting check fails, you can automatically fix formatting issues by running:
+
+```bash
+cargo +nightly fmt --all
+```
+
+### Buck2 Build Requirements
+
+This project builds with Buck2. Please install both Buck2 and cargo-buckal before development:
+
+```bash
+# Install buck2: download the latest release tarball from
+# https://github.com/facebook/buck2/releases, extract the binary,
+# and place it in ~/.cargo/bin (ensure ~/.cargo/bin is on PATH).
+# Example (replace <tag> and <platform> with the latest for your OS):
+wget https://github.com/facebook/buck2/releases/download/<tag>/buck2-<platform>.tar.gz
+tar -xzf buck2-<platform>.tar.gz
+mv buck2 ~/.cargo/bin/
+
+# Install cargo-buckal (requires Rust toolchain)
+cargo install --git https://github.com/buck2hub/cargo-buckal.git
+```
+
+Pull Requests must also pass the Buck2 build:
+
+```bash
+cargo buckal build
+```
+
+When you update dependencies in Cargo.toml, regenerate Buck metadata and third-party lockfiles:
+
+```bash
+cargo buckal migrate
+```
+
 More information on contributing to Mega is available in the [Contributing Guide](docs/contributing.md).
 
 ## Chat with us

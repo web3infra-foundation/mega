@@ -1,12 +1,11 @@
 use std::ops::Deref;
 
+use callisto::{access_token, ssh_keys};
+use common::{errors::MegaError, utils::generate_id};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, ModelTrait, QueryFilter,
 };
 use uuid::Uuid;
-
-use callisto::{access_token, ssh_keys};
-use common::{errors::MegaError, utils::generate_id};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 

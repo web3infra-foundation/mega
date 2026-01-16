@@ -15,8 +15,7 @@
 
 use anyhow::anyhow;
 use clap::Parser;
-use td_util::command::display_command;
-use td_util::workflow_error::WorkflowError;
+use td_util::{command::display_command, workflow_error::WorkflowError};
 
 /// Run `buck2 audit` with all the arguments required for BTD/Citadel.
 #[derive(Parser, Debug)]

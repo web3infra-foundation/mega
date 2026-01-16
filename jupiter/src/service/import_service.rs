@@ -1,20 +1,23 @@
 use std::sync::Arc;
 
+use callisto::{git_blob, git_commit, git_tag, git_tree};
+use common::errors::MegaError;
 use futures::{StreamExt, stream};
-
+use git_internal::internal::{
+    metadata::{EntryMeta, MetaAttached},
+    pack::entry::Entry,
+};
 use sea_orm::IntoActiveModel;
 use tokio::sync::Mutex;
 
-use callisto::{git_blob, git_commit, git_tag, git_tree};
-use common::errors::MegaError;
-use git_internal::internal::metadata::{EntryMeta, MetaAttached};
-
-use git_internal::internal::pack::entry::Entry;
-
-use crate::service::git_service::GitService;
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::git_db_storage::GitDbStorage;
-use crate::utils::converter::{GitObjectModel, process_entry};
+use crate::{
+    service::git_service::GitService,
+    storage::{
+        base_storage::{BaseStorage, StorageConnector},
+        git_db_storage::GitDbStorage,
+    },
+    utils::converter::{GitObjectModel, process_entry},
+};
 
 #[derive(Clone)]
 pub struct ImportService {

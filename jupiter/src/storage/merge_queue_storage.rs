@@ -1,11 +1,15 @@
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use callisto::merge_queue::{ActiveModel, Column, Entity, Model};
-use callisto::sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum};
+use std::ops::Deref;
+
+use callisto::{
+    merge_queue::{ActiveModel, Column, Entity, Model},
+    sea_orm_active_enums::{QueueFailureTypeEnum, QueueStatusEnum},
+};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
 };
-use std::ops::Deref;
+
+use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 /// Maximum number of retry attempts for failed items
 const MAX_RETRY_ATTEMPTS: i32 = 3;

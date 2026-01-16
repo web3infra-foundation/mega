@@ -5,8 +5,7 @@ use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
 use reqwest::{Client, Error};
 use serde_json::json;
 
-use crate::utils::CodeItem;
-use crate::{PROCESS_ITEMS_NODE, QDRANT_NODE};
+use crate::{utils::CodeItem, PROCESS_ITEMS_NODE, QDRANT_NODE};
 pub struct VectClient {
     url: String,
     client: Client,

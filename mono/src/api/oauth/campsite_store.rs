@@ -4,17 +4,17 @@ use anyhow::Context;
 use async_trait::async_trait;
 use http::header::COOKIE;
 use jupiter::storage::user_storage::UserStorage;
-use reqwest::Client;
-use reqwest::Url;
+use reqwest::{Client, Url};
 use tower_sessions::{
     SessionStore,
     session::{Id, Record},
     session_store::Result,
 };
 
-use crate::api::oauth::CAMPSITE_API_COOKIE;
-use crate::api::oauth::model::CampsiteUserJson;
-use crate::api::oauth::model::LoginUser;
+use crate::api::oauth::{
+    CAMPSITE_API_COOKIE,
+    model::{CampsiteUserJson, LoginUser},
+};
 
 #[derive(Debug, Clone)]
 pub struct CampsiteApiStore {
