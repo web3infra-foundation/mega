@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   format:
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     name: Rustfmt Check
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +45,7 @@ jobs:
 
   #
   clippy:
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     name: Clippy Check
     runs-on: ubuntu-latest
     env:
@@ -67,6 +69,7 @@ jobs:
 
   test:
     name: Full Test
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +119,7 @@ jobs:
 
   fuse:
     name: Fuse Clippy Check
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
