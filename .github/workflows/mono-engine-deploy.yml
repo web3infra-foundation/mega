@@ -26,19 +26,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-mono:
+  build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - cluster: gitmega-com
-            service: mono-engine-dev-service-xnmoxhxb
-          - cluster: gitmono-com-mega-app
-            service: mono-engine
     timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -59,7 +55,7 @@ jobs:
           REGISTRY_ALIAS: m8q5m4u3
           REPOSITORY: mega
           IMAGE_TAG: mono-0.1.0-pre-release
-        run: |          
+        run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
           IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
@@ -70,6 +66,17 @@ jobs:
           -f ./docker/mono-engine-dockerfile \
           --push .
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: mono-engine-dev-service-xnmoxhxb
+          - cluster: gitmono-com-mega-app
+            service: mono-engine
+    steps:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
