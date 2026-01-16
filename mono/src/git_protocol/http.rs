@@ -1,17 +1,19 @@
 use std::convert::Infallible;
 
 use anyhow::Result;
-use axum::body::Body;
-use axum::http::{HeaderValue, Request, Response};
+use axum::{
+    body::Body,
+    http::{HeaderValue, Request, Response},
+};
 use bytes::{Bytes, BytesMut};
-use ceres::api_service::state::ProtocolApiState;
+use ceres::{
+    api_service::state::ProtocolApiState,
+    protocol::{ServiceType, SmartProtocol, smart},
+};
+use common::{errors::ProtocolError, model::InfoRefsParams};
 use futures::{TryStreamExt, stream};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
-
-use ceres::protocol::{ServiceType, SmartProtocol, smart};
-use common::errors::ProtocolError;
-use common::model::InfoRefsParams;
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST

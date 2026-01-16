@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use indexmap::IndexMap;
-
 use callisto::{item_assignees, label, mega_conversation, sea_orm_active_enums::ConvTypeEnum};
+use indexmap::IndexMap;
 
 use crate::{model::common::ItemDetails, storage::stg_common::item::ItemEntity};
 
@@ -88,10 +87,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use callisto::{
         item_assignees, label, mega_conversation, mega_issue, sea_orm_active_enums::ConvTypeEnum,
     };
+
+    use super::*;
 
     #[test]
     fn test_combine_item_list() {

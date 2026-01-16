@@ -7,12 +7,11 @@ use aws_sdk_s3::{
     primitives::{ByteStream, SdkBody},
     types::{BucketLocationConstraint, CreateBucketConfiguration},
 };
+use common::{config::S3Config, errors::MegaError};
 use futures::StreamExt;
 use http_body::Frame;
 use http_body_util::StreamBody;
 use tokio_util::io::ReaderStream;
-
-use common::{config::S3Config, errors::MegaError};
 
 use crate::object_storage::{
     ObjectByteStream, ObjectKey, ObjectMeta, ObjectStorage, dump_error_chain,
@@ -137,8 +136,9 @@ impl RustfsObjectStorage {
 
     // Helper: generate a pre-signed GET url (1h default)
     pub async fn get_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
-        use aws_sdk_s3::presigning::PresigningConfig;
         use std::time::Duration;
+
+        use aws_sdk_s3::presigning::PresigningConfig;
 
         let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
             .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
@@ -158,8 +158,9 @@ impl RustfsObjectStorage {
 
     // Helper: generate a pre-signed PUT url (1h default)
     pub async fn put_presigned_url(&self, key: &ObjectKey) -> Result<String, MegaError> {
-        use aws_sdk_s3::presigning::PresigningConfig;
         use std::time::Duration;
+
+        use aws_sdk_s3::presigning::PresigningConfig;
 
         let cfg = PresigningConfig::expires_in(Duration::from_secs(3600))
             .map_err(|e| MegaError::Other(format!("Failed to create presigning config: {}", e)))?;
@@ -254,9 +255,8 @@ impl ObjectStorage for RustfsObjectStorage {
 
 #[cfg(test)]
 mod tests {
-    use crate::object_storage::ObjectNamespace;
-
     use super::*;
+    use crate::object_storage::ObjectNamespace;
 
     #[test]
     fn test_s3_key_lfs() {

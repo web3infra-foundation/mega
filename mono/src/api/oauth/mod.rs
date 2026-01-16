@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use axum::{
     RequestPartsExt,
@@ -12,23 +14,18 @@ use axum_extra::{
     typed_header::TypedHeaderRejectionReason,
 };
 use chrono::{Duration, Utc};
+use common::config::OauthConfig;
 use http::request::Parts;
+use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl,
 };
-use std::sync::Arc;
-use tower_sessions::session::Id;
-use tower_sessions::{MemoryStore, Session, SessionStore};
-
-use common::config::OauthConfig;
-use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
+use tower_sessions::{MemoryStore, Session, SessionStore, session::Id};
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::MonoApiServiceState;
-use crate::api::{error::ApiError, oauth::campsite_store::CampsiteApiStore};
-
 use super::GithubClient;
+use crate::api::{MonoApiServiceState, error::ApiError, oauth::campsite_store::CampsiteApiStore};
 
 pub mod campsite_store;
 pub mod model;

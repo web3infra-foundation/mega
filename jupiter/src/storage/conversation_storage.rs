@@ -1,13 +1,15 @@
 use std::ops::Deref;
 
-use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_conversation, reactions};
+use callisto::{mega_conversation, reactions, sea_orm_active_enums::ConvTypeEnum};
 use common::errors::MegaError;
-use sea_orm::prelude::Expr;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set, prelude::Expr,
+};
 
-use crate::model::conv_dto::ConvWithReactions;
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
+use crate::{
+    model::conv_dto::ConvWithReactions,
+    storage::base_storage::{BaseStorage, StorageConnector},
+};
 
 #[derive(Clone)]
 pub struct ConversationStorage {

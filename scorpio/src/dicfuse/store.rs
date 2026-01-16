@@ -1,32 +1,37 @@
-use crate::READONLY_INODE;
-use async_recursion::async_recursion;
 /// Read only file system for obtaining and displaying monorepo directory information
 use core::panic;
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    io,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        Arc, OnceLock,
+    },
+    time::{Duration, Instant},
+};
+
+use async_recursion::async_recursion;
 use crossbeam::queue::SegQueue;
-use dashmap::mapref::one::Ref;
-use dashmap::DashMap;
+use dashmap::{mapref::one::Ref, DashMap};
 use futures::future::join_all;
 use once_cell::sync::Lazy;
 use reqwest::Client;
-use rfuse3::raw::reply::ReplyEntry;
-use rfuse3::FileType;
+use rfuse3::{raw::reply::ReplyEntry, FileType};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::io;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
-use tokio::sync::Notify;
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Notify, Semaphore};
 use tracing::{debug, info, warn};
 
-use super::abi::{default_dic_entry, default_file_entry};
-use super::content_store::ContentStorage;
-use super::size_store::SizeStorage;
-use super::tree_store::{StorageItem, TreeStorage};
-use crate::util::{config, GPath};
+use super::{
+    abi::{default_dic_entry, default_file_entry},
+    content_store::ContentStorage,
+    size_store::SizeStorage,
+    tree_store::{StorageItem, TreeStorage},
+};
+use crate::{
+    util::{config, GPath},
+    READONLY_INODE,
+};
 
 /// Git hash (ObjectHash type) for an empty blob (0-byte file).
 ///

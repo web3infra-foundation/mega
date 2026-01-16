@@ -1,32 +1,38 @@
-use super::{ScorpioManager, WorkDir};
-use crate::manager::store::store_trees;
-use crate::util::config;
-use crate::util::GPath;
+use std::{
+    collections::VecDeque,
+    io::Write,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, OnceLock,
+    },
+};
+
 use api_model::git::commit::LatestCommitInfo;
 use async_recursion::async_recursion;
 use crossbeam::queue::SegQueue;
 use futures::future::join_all;
-use git_internal::hash::ObjectHash;
-use git_internal::internal::object::tree::{Tree, TreeItemMode};
-use git_internal::internal::object::{
-    commit::Commit,
-    signature::{Signature, SignatureType},
+use git_internal::{
+    hash::ObjectHash,
+    internal::object::{
+        commit::Commit,
+        signature::{Signature, SignatureType},
+        tree::{Tree, TreeItemMode},
+    },
 };
 use reqwest::Client;
-use std::collections::VecDeque;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::sync::OnceLock;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::watch;
-use tokio::sync::Mutex;
-use tokio::sync::Notify;
-use tokio::time;
-use tokio::time::Duration;
+use tokio::{
+    sync::{mpsc, mpsc::Sender, watch, Mutex, Notify},
+    time,
+    time::Duration,
+};
+
+use super::{ScorpioManager, WorkDir};
+use crate::{
+    manager::store::store_trees,
+    util::{config, GPath},
+};
 
 ///Download a file needs it's blob_id and save_path.
 #[derive(Debug, Clone)]
@@ -872,10 +878,10 @@ pub async fn fetch_parent_commit(path: &str) -> Result<Commit, Box<dyn std::erro
 
 #[cfg(test)]
 mod tests {
+    use std::{error::Error, fs::File};
+
     use git_internal::internal::object::tree::Tree;
     use reqwest::Client;
-    use std::error::Error;
-    use std::fs::File;
     #[tokio::test]
     #[ignore = "requires running Mega server (uses base_url from config)"]
     async fn test_fetch_octet_stream() -> Result<(), Box<dyn Error>> {

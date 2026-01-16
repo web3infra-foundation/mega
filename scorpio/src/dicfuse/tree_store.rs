@@ -1,14 +1,18 @@
-use crate::util::{config, GPath};
+use std::{
+    io,
+    io::{Error, ErrorKind},
+};
+
 use bincode::{Decode, Encode};
-use rfuse3::raw::reply::ReplyEntry;
-use rfuse3::FileType;
+use rfuse3::{raw::reply::ReplyEntry, FileType};
 use serde::{Deserialize, Serialize};
 use sled::Db;
-use std::io;
-use std::io::{Error, ErrorKind};
 
-use super::abi::{default_dic_entry, default_file_entry};
-use super::store::ItemExt;
+use super::{
+    abi::{default_dic_entry, default_file_entry},
+    store::ItemExt,
+};
+use crate::util::{config, GPath};
 
 /// inode -> StorageItem{ inode, parent, name, is_dir, children }
 pub struct TreeStorage {
@@ -214,9 +218,10 @@ impl TreeStorage {
 }
 #[cfg(test)]
 mod tests {
+    use core::panic;
+
     use super::*;
     use crate::dicfuse::store::Item;
-    use core::panic;
 
     fn setup(path: &str) -> io::Result<TreeStorage> {
         if std::path::Path::new(path).exists() {

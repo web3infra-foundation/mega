@@ -1,10 +1,9 @@
-use std::ffi::OsStr;
-use std::num::NonZeroU32;
+use std::{ffi::OsStr, num::NonZeroU32};
+
+use rfuse3::{raw::prelude::*, Inode, Result};
 
 use super::MegaFuse;
 use crate::READONLY_INODE;
-use rfuse3::raw::prelude::*;
-use rfuse3::{Inode, Result};
 /// select the right fs by inodes .
 /// 1. in inodes < READONLY_INODE , it from the readonly fuse.
 /// 2. if inodes is a overlay fs root ,find it from the hashmap

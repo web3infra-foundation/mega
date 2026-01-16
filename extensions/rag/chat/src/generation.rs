@@ -1,17 +1,17 @@
-use async_trait::async_trait;
-use dagrs::{Action, EnvVar, InChannels, OutChannels, Output};
-use reqwest::Client;
-use serde_json::{json, Value};
 use std::{
     fs::File,
     sync::{Arc, Mutex},
 };
 
-use crate::{RAG_OUTPUT, SEARCH_NODE};
-
+use async_trait::async_trait;
+use dagrs::{Action, EnvVar, InChannels, OutChannels, Output};
+use reqwest::Client;
 use serde::de::Error;
+use serde_json::{json, Value};
 use thiserror::Error;
 use tokio::sync::oneshot;
+
+use crate::{RAG_OUTPUT, SEARCH_NODE};
 
 #[derive(Debug, Error)]
 pub enum GenError {

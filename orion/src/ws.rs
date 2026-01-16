@@ -1,18 +1,25 @@
-use crate::api::{BuildRequest, buck_build};
-use crate::repo::sapling::status::Status;
+use std::{ops::ControlFlow, time::Duration};
+
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::ops::ControlFlow;
-use std::time::Duration;
 use td_util_buck::types::ProjectRelativePath;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::{
+    net::TcpStream,
+    sync::{
+        mpsc,
+        mpsc::{UnboundedReceiver, UnboundedSender},
+    },
+};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+use crate::{
+    api::{BuildRequest, buck_build},
+    repo::sapling::status::Status,
+};
 
 /// Task phase when in buck2 build
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]

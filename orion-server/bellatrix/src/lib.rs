@@ -2,8 +2,7 @@ pub mod orion_client;
 
 use common::config::BuildConfig;
 
-use crate::orion_client::OrionBuildRequest;
-use crate::orion_client::OrionClient;
+use crate::orion_client::{OrionBuildRequest, OrionClient};
 
 #[derive(Clone)]
 pub struct Bellatrix {

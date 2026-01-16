@@ -1,5 +1,6 @@
-use crate::{buck_session, entity_ext::generate_id};
 use sea_orm::entity::prelude::*;
+
+use crate::{buck_session, entity_ext::generate_id};
 
 impl buck_session::Model {
     /// Create a new session model

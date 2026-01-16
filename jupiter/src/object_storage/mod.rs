@@ -1,11 +1,8 @@
-use std::fmt;
-use std::pin::Pin;
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, fmt, pin::Pin};
 
 use bytes::Bytes;
-use futures::{Stream, StreamExt, TryStreamExt};
-
 use common::errors::MegaError;
+use futures::{Stream, StreamExt, TryStreamExt};
 
 pub mod factory;
 pub mod fs_object_storage;

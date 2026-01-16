@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use serde::Deserialize;
-
 use common::errors::MegaError;
 use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
+use serde::Deserialize;
 
 use crate::merge_checker::{CheckResult, CheckType, Checker, ConditionResult};
 

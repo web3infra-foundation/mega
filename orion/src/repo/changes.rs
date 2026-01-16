@@ -11,10 +11,10 @@
 use std::collections::HashSet;
 
 use td_util::prelude::*;
-use td_util_buck::cells::CellInfo;
-use td_util_buck::types::CellPath;
-use td_util_buck::types::Package;
-use td_util_buck::types::ProjectRelativePath;
+use td_util_buck::{
+    cells::CellInfo,
+    types::{CellPath, Package, ProjectRelativePath},
+};
 
 use crate::repo::sapling::status::Status;
 
@@ -92,8 +92,7 @@ impl Changes {
 }
 #[cfg(test)]
 mod tests {
-    use td_util_buck::types::CellPath;
-    use td_util_buck::types::ProjectRelativePath;
+    use td_util_buck::types::{CellPath, ProjectRelativePath};
 
     use super::*;
     use crate::repo::sapling::status::Status;

@@ -1,10 +1,9 @@
+use std::env;
+
 use axum::{routing::post, Json, Router};
-use chat::generation::GenerationNode;
-use chat::search::SearchNode;
-use chat::{llm_url, qdrant_url, vect_url};
+use chat::{generation::GenerationNode, llm_url, qdrant_url, search::SearchNode, vect_url};
 use log::{error, info};
 use serde::Deserialize;
-use std::env;
 
 #[derive(Deserialize)]
 struct ChatRequest {

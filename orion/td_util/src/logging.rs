@@ -8,9 +8,10 @@
  * above-listed licenses.
  */
 
-use std::sync::OnceLock;
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    sync::OnceLock,
+    time::{Duration, Instant},
+};
 
 use tracing::info;
 

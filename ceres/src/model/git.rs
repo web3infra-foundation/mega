@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use api_model::git::commit::LatestCommitInfo;
-use serde::{Deserialize, Serialize};
-use utoipa::{IntoParams, ToSchema};
-
 use git_internal::internal::object::{
     commit::Commit,
     tree::{TreeItem, TreeItemMode},
 };
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 #[derive(PartialEq, Eq, Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateEntryInfo {

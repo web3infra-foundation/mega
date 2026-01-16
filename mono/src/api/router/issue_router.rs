@@ -2,8 +2,6 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use utoipa_axum::{router::OpenApiRouter, routes};
-
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use ceres::model::{
     change_list::{AssigneeUpdatePayload, ListPayload},
@@ -13,9 +11,12 @@ use ceres::model::{
 };
 use common::model::{CommonPage, CommonResult, PageParams};
 use jupiter::service::issue_service::IssueService;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::{MonoApiServiceState, api_common, oauth::model::LoginUser};
-use crate::{api::error::ApiError, server::http_server::ISSUE_TAG};
+use crate::{
+    api::{MonoApiServiceState, api_common, error::ApiError, oauth::model::LoginUser},
+    server::http_server::ISSUE_TAG,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

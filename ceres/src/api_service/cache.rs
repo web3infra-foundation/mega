@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use redis::{AsyncCommands, aio::ConnectionManager};
-
 use common::errors::MegaError;
 use git_internal::{
     hash::ObjectHash,
     internal::object::{commit::Commit, tree::Tree},
 };
+use redis::{AsyncCommands, aio::ConnectionManager};
 
 #[derive(Clone)]
 pub struct GitObjectCache {

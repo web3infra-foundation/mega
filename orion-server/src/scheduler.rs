@@ -1,22 +1,28 @@
-use crate::api::CoreWorkerStatus;
-use crate::auto_retry::AutoRetryJudger;
-use crate::log::log_service::LogService;
-use crate::model::targets::TargetState;
-use crate::model::{builds, targets};
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use chrono::FixedOffset;
 use dashmap::DashMap;
-use orion::repo::sapling::status::{ProjectRelativePath, Status};
-use orion::ws::{TaskPhase, WSMessage};
+use orion::{
+    repo::sapling::status::{ProjectRelativePath, Status},
+    ws::{TaskPhase, WSMessage},
+};
 use rand::Rng;
-use sea_orm::ActiveModelTrait;
-use sea_orm::{ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+use crate::{
+    api::CoreWorkerStatus,
+    auto_retry::AutoRetryJudger,
+    log::log_service::LogService,
+    model::{builds, targets, targets::TargetState},
+};
 
 /// Request payload for creating a new build task
 #[allow(dead_code)]

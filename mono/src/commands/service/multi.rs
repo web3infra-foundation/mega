@@ -1,11 +1,11 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
+use common::{errors::MegaResult, model::CommonHttpOptions};
+use context::AppContext;
 
 use crate::server::{
     http_server::{self},
     ssh_server::{self, SshCustom, SshOptions},
 };
-use common::{errors::MegaResult, model::CommonHttpOptions};
-use context::AppContext;
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {

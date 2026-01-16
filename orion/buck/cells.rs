@@ -8,20 +8,17 @@
  * above-listed licenses.
  */
 
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::Context as _;
 use itertools::Itertools;
 use td_util::prelude::*;
 use thiserror::Error;
 
-use crate::ignore_set::IgnoreSet;
-use crate::types::CellName;
-use crate::types::CellPath;
-use crate::types::CellRelativePath;
-use crate::types::ProjectRelativePath;
+use crate::{
+    ignore_set::IgnoreSet,
+    types::{CellName, CellPath, CellRelativePath, ProjectRelativePath},
+};
 
 /// The value of `buildfile.name` if omitted.
 const DEFAULT_BUILD_FILES: &[&str] = &["BUCK.v2", "BUCK"];

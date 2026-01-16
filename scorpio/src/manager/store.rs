@@ -1,10 +1,14 @@
-use git_internal::hash::ObjectHash;
-use git_internal::internal::object::ObjectTrait;
-use git_internal::internal::object::{blob::Blob, commit::Commit, tree::Tree};
-use std::collections::HashMap;
-use std::io::{Error, ErrorKind, Result};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    collections::HashMap,
+    io::{Error, ErrorKind, Result},
+    path::{Path, PathBuf},
+    str::FromStr,
+};
+
+use git_internal::{
+    hash::ObjectHash,
+    internal::object::{blob::Blob, commit::Commit, tree::Tree, ObjectTrait},
+};
 use tokio::sync::mpsc::Receiver;
 
 use crate::util::GPath;
@@ -588,11 +592,12 @@ impl TempStoreArea {
 
 #[cfg(test)]
 mod test {
+    use std::vec;
+
     use git_internal::{
         hash::ObjectHash,
         internal::object::tree::{Tree, TreeItem, TreeItemMode},
     };
-    use std::vec;
 
     #[test]
     fn init_test_d() {

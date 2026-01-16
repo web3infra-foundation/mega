@@ -2,16 +2,18 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use serde_json::{Value, json};
-use utoipa_axum::{router::OpenApiRouter, routes};
-
-use crate::api::{MonoApiServiceState, error::ApiError};
-use crate::server::http_server::MERGE_QUEUE_TAG;
 use ceres::model::merge_queue::{
     AddToQueueRequest, AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse,
     QueueStatus, QueueStatusResponse,
 };
 use common::model::CommonResult;
+use serde_json::{Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
+
+use crate::{
+    api::{MonoApiServiceState, error::ApiError},
+    server::http_server::MERGE_QUEUE_TAG,
+};
 
 /// Creates the merge queue router with all endpoints
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

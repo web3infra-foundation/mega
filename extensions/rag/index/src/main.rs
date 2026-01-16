@@ -1,21 +1,20 @@
-use dagrs::utils::env::EnvVar;
-use dagrs::{DefaultNode, Graph, Node, NodeTable};
-use index::indexer::CodeIndexer;
-use index::indexer::ProcessItemsAction;
-use index::indexer::WalkDirAction;
-use index::qdrant::QdrantNode;
-use index::vectorization::VectClient;
-use index::{broker, consumer_group, crates_path, topic};
-use index::{qdrant_url, vect_url, PROCESS_ITEMS_NODE, QDRANT_NODE, VECT_CLIENT_NODE};
-use observatory::facilities::Telescope;
-use observatory::model::crates::CrateMessage;
-use std::env;
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::thread;
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    sync::{atomic::AtomicU64, Arc},
+    thread,
+};
+
+use dagrs::{utils::env::EnvVar, DefaultNode, Graph, Node, NodeTable};
+use index::{
+    broker, consumer_group, crates_path,
+    indexer::{CodeIndexer, ProcessItemsAction, WalkDirAction},
+    qdrant::QdrantNode,
+    qdrant_url, topic, vect_url,
+    vectorization::VectClient,
+    PROCESS_ITEMS_NODE, QDRANT_NODE, VECT_CLIENT_NODE,
+};
+use observatory::{facilities::Telescope, model::crates::CrateMessage};
 use tokio::runtime::Runtime;
 
 fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
@@ -142,8 +141,7 @@ fn update_knowledge_base(file_path: &PathBuf, id_counter: Arc<AtomicU64>) {
 mod test {
     use std::path::{Path, PathBuf};
 
-    use observatory::facilities::Telescope;
-    use observatory::model::crates::CrateMessage;
+    use observatory::{facilities::Telescope, model::crates::CrateMessage};
     use tokio::time::Duration;
 
     const BROKER: &str = "127.0.0.1:30092";

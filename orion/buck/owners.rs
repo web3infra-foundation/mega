@@ -10,11 +10,9 @@
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::types::ProjectRelativePath;
-use crate::types::TargetLabel;
+use crate::types::{ProjectRelativePath, TargetLabel};
 
 /// The output of running `buck2 uquery --json owner(...)`.
 /// Maps file paths to the targets that own them.

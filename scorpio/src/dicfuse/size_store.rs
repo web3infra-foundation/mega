@@ -1,7 +1,8 @@
-use crate::util::config;
+use std::{io, io::Error};
+
 use sled::Db;
-use std::io;
-use std::io::Error;
+
+use crate::util::config;
 
 /// Persistent file-size store (inode -> size in bytes).
 ///

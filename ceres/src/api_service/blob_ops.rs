@@ -4,6 +4,7 @@ use std::{
 };
 
 use common::model::DiffItem;
+use futures::{StreamExt, stream};
 use git_internal::{
     diff::Diff as GitDiff,
     errors::GitError,
@@ -11,10 +12,10 @@ use git_internal::{
     internal::object::{blob::Blob, tree::TreeItemMode},
 };
 
-use crate::api_service::ApiHandler;
-use crate::api_service::tree_ops;
-use crate::model::git::DiffPreviewPayload;
-use futures::{StreamExt, stream};
+use crate::{
+    api_service::{ApiHandler, tree_ops},
+    model::git::DiffPreviewPayload,
+};
 
 /// Convenience: get file blob oid at HEAD (or provided refs) by path
 pub async fn get_file_blob_id<T: ApiHandler + ?Sized>(

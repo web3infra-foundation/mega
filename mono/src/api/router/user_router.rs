@@ -3,15 +3,15 @@ use axum::{
     extract::{Path, State},
     routing::get,
 };
+use ceres::model::user::{AddSSHKey, ListSSHKey, ListToken};
+use common::{errors::MegaError, model::CommonResult};
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use ceres::model::user::{AddSSHKey, ListSSHKey, ListToken};
-use common::{errors::MegaError, model::CommonResult};
-
-use crate::api::MonoApiServiceState;
-use crate::api::{error::ApiError, oauth::model::LoginUser};
-use crate::server::http_server::USER_TAG;
+use crate::{
+    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    server::http_server::USER_TAG,
+};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

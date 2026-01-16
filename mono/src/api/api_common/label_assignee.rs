@@ -1,16 +1,12 @@
 use std::collections::HashSet;
 
 use axum::{Json, extract::State};
-
 use callisto::sea_orm_active_enums::ConvTypeEnum;
+use ceres::model::{change_list::AssigneeUpdatePayload, label::LabelUpdatePayload};
 use common::model::CommonResult;
 use jupiter::model::common::LabelAssigneeParams;
 
-use crate::api::MonoApiServiceState;
-use crate::api::error::ApiError;
-use crate::api::oauth::model::LoginUser;
-use ceres::model::change_list::AssigneeUpdatePayload;
-use ceres::model::label::LabelUpdatePayload;
+use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
 
 pub async fn label_update(
     user: LoginUser,

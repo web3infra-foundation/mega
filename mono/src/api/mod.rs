@@ -1,19 +1,9 @@
-use axum::extract::FromRef;
-use oauth2::{
-    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
-    basic::{
-        BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
-        BasicTokenResponse,
-    },
-};
-use saturn::entitystore::EntityStore;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tower_sessions::MemoryStore;
 
-use crate::api::oauth::campsite_store::CampsiteApiStore;
+use axum::extract::FromRef;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
@@ -24,10 +14,20 @@ use ceres::{
 use common::errors::ProtocolError;
 use jupiter::storage::{
     Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-    dynamic_sidebar_storage::DynamicSidebarStorage, issue_storage::IssueStorage,
-    user_storage::UserStorage,
+    dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
+    issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
 };
-use jupiter::storage::{gpg_storage::GpgStorage, note_storage::NoteStorage};
+use oauth2::{
+    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
+    basic::{
+        BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
+        BasicTokenResponse,
+    },
+};
+use saturn::entitystore::EntityStore;
+use tower_sessions::MemoryStore;
+
+use crate::api::oauth::campsite_store::CampsiteApiStore;
 pub mod api_common;
 pub mod api_router;
 pub mod error;

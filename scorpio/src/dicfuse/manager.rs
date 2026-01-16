@@ -1,9 +1,11 @@
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
-use std::time::SystemTime;
-use tokio::sync::OnceCell;
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::SystemTime,
+};
 
 use dashmap::DashMap;
+use tokio::sync::OnceCell;
 
 use super::Dicfuse;
 use crate::util::config;
@@ -234,8 +236,9 @@ impl DicfuseManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serial_test::serial;
+
+    use super::*;
 
     #[tokio::test]
     #[serial] // Serialize test execution to avoid database lock conflicts

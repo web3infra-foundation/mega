@@ -73,8 +73,9 @@ impl VaultCore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use secp256k1::Message;
+
+    use super::*;
 
     // TODO use mock vault core for testing
     // #[tokio::test]

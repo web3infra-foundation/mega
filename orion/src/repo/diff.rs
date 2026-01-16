@@ -8,28 +8,21 @@
  * above-listed licenses.
  */
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::collections::hash_map::Entry;
-use std::mem;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet, hash_map::Entry},
+    mem,
+    sync::Arc,
+};
 
-use td_util_buck::config::is_buckconfig_change;
-use td_util_buck::config::should_exclude_bzl_file_from_transitive_impact_tracing;
-use td_util_buck::glob::GlobSpec;
-use td_util_buck::labels::Labels;
-use td_util_buck::target_map::TargetMap;
-use td_util_buck::targets::BuckTarget;
-use td_util_buck::targets::Targets;
-use td_util_buck::types::CellPath;
-use td_util_buck::types::Glob;
-use td_util_buck::types::Package;
-use td_util_buck::types::RuleType;
-use td_util_buck::types::TargetLabel;
-use td_util_buck::types::TargetLabelKeyRef;
-use td_util_buck::types::TargetName;
-use tracing::info;
-use tracing::warn;
+use td_util_buck::{
+    config::{is_buckconfig_change, should_exclude_bzl_file_from_transitive_impact_tracing},
+    glob::GlobSpec,
+    labels::Labels,
+    target_map::TargetMap,
+    targets::{BuckTarget, Targets},
+    types::{CellPath, Glob, Package, RuleType, TargetLabel, TargetLabelKeyRef, TargetName},
+};
+use tracing::{info, warn};
 
 use crate::repo::changes::Changes;
 
@@ -678,14 +671,12 @@ mod tests {
 
     use itertools::Itertools;
     use td_util::prelude::*;
-    use td_util_buck::cells::CellInfo;
-    use td_util_buck::labels::Labels;
-    use td_util_buck::targets::BuckImport;
-    use td_util_buck::targets::TargetsEntry;
-    use td_util_buck::types::PackageValues;
-    use td_util_buck::types::ProjectRelativePath;
-    use td_util_buck::types::TargetHash;
-    use td_util_buck::types::TargetPattern;
+    use td_util_buck::{
+        cells::CellInfo,
+        labels::Labels,
+        targets::{BuckImport, TargetsEntry},
+        types::{PackageValues, ProjectRelativePath, TargetHash, TargetPattern},
+    };
 
     use super::*;
     use crate::repo::sapling::status::Status;

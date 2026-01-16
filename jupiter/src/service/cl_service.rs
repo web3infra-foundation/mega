@@ -1,3 +1,5 @@
+use common::errors::MegaError;
+
 use crate::{
     model::cl_dto::CLDetails,
     storage::{
@@ -6,8 +8,6 @@ use crate::{
         conversation_storage::ConversationStorage,
     },
 };
-
-use common::errors::MegaError;
 
 #[derive(Clone)]
 pub struct CLService {

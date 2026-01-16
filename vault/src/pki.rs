@@ -1,8 +1,9 @@
-use std::cmp::Ordering;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    cmp::Ordering,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-use openssl::asn1::Asn1Time;
-use openssl::x509::X509;
+use openssl::{asn1::Asn1Time, x509::X509};
 use serde_json::{Value, json};
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
@@ -173,22 +174,19 @@ impl VaultCore {
 #[allow(clippy::await_holding_lock)]
 #[cfg(test)]
 mod tests_raw {
-    use std::io::Write;
     use std::{
         fs,
+        io::Write,
         time::{SystemTime, UNIX_EPOCH},
     };
 
     use common::errors::MegaError;
     use jupiter::tests::test_storage;
-    use openssl::{asn1::Asn1Time, ec::EcKey, nid::Nid, pkey::PKey, rsa::Rsa, x509::X509};
-
     use libvault_core::logical::Response;
-
+    use openssl::{asn1::Asn1Time, ec::EcKey, nid::Nid, pkey::PKey, rsa::Rsa, x509::X509};
     use serde_json::{Map, Value, json};
 
-    use crate::integration::VaultCore;
-    use crate::integration::vault_core::VaultCoreInterface;
+    use crate::integration::{VaultCore, vault_core::VaultCoreInterface};
 
     async fn test_read_api(
         core: &VaultCore,

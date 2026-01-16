@@ -3,10 +3,13 @@
 //! Provides Axum routes to create, list, query, and delete FUSE mounts backed by
 //! AntaresService implementations. Includes graceful shutdown with cleanup.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
 use async_trait::async_trait;
 use axum::{
@@ -18,13 +21,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::RwLock;
-use tokio::time::timeout;
+use tokio::{sync::RwLock, time::timeout};
 use uuid::Uuid;
 
-use crate::antares::fuse::AntaresFuse;
-use crate::dicfuse::Dicfuse;
-use crate::dicfuse::DicfuseManager;
+use crate::{
+    antares::fuse::AntaresFuse,
+    dicfuse::{Dicfuse, DicfuseManager},
+};
 
 /// High-level HTTP daemon that exposes Antares orchestration capabilities.
 pub struct AntaresDaemon<S: AntaresService> {
@@ -1323,11 +1326,14 @@ impl AntaresService for AntaresServiceImpl {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use futures::future::join_all;
     use tower::ServiceExt;
+
+    use super::*;
 
     /// Mock service for testing HTTP layer without actual FUSE operations
     struct MockAntaresService {

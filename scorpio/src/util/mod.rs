@@ -1,8 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     path::{Path, PathBuf},
 };
+
+use serde::{Deserialize, Serialize};
 pub mod config;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]

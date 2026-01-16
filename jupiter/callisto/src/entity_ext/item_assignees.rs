@@ -1,6 +1,6 @@
 use sea_orm::entity::prelude::*;
 
-use crate::{item_assignees::Column, item_assignees::Entity};
+use crate::item_assignees::{Column, Entity};
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {

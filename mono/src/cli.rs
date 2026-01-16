@@ -1,14 +1,13 @@
 //! Cli module is responsible for parsing command line arguments and executing the appropriate.
 
-use clap::{Arg, ArgMatches, Command};
-use std::env;
-use std::path::PathBuf;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
+use std::{env, path::PathBuf};
 
+use clap::{Arg, ArgMatches, Command};
 use common::{
     config::{Config, LogConfig},
     errors::{MegaError, MegaResult},
 };
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 use crate::commands::{builtin, builtin_exec};
 

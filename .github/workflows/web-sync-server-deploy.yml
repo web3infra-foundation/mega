@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   web-sync-server-deploy:
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

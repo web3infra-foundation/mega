@@ -35,54 +35,71 @@
 //! API requests for monorepo operations. All operations are asynchronous and return
 //! appropriate error types for robust error handling.
 
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-
-use crate::api_service::buck_tree_builder::BuckCommitBuilder;
-use crate::api_service::cache::GitObjectCache;
-use crate::api_service::state::ProtocolApiState;
-use crate::api_service::{ApiHandler, tree_ops};
-use crate::model::buck::{CompletePayload, CompleteResponse, ManifestPayload, ManifestResponse};
-use crate::model::buck::{DEFAULT_MODE, FileChange, FileToUpload as ApiFileToUpload};
-use crate::model::change_list::ClDiffFile;
-use crate::model::git::CreateEntryInfo;
-use crate::model::git::{EditFilePayload, EditFileResult};
-use crate::model::tag::TagInfo;
-use crate::model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait};
-use crate::pack::import_repo::ImportRepo;
-use crate::pack::monorepo::MonoRepo;
-use crate::protocol::{SmartProtocol, TransportProtocol};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use callisto::{
+    mega_cl, mega_refs, mega_tag, mega_tree,
+    sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum},
+};
+use common::{
+    errors::{BuckError, MegaError},
+    model::{DiffItem, Pagination},
+    utils::MEGA_BRANCH_NAME,
+};
+use git_internal::{
+    diff::Diff as GitDiff,
+    errors::GitError,
+    hash::ObjectHash,
+    internal::{
+        metadata::EntryMeta,
+        object::{
+            blob::Blob,
+            commit::Commit,
+            tree::{Tree, TreeItem, TreeItemMode},
+        },
+    },
+};
+use jupiter::{
+    service::buck_service::{
+        CommitArtifacts, CompletePayload as SvcCompletePayload,
+        CompleteResponse as SvcCompleteResponse,
+    },
+    storage::{
+        Storage,
+        base_storage::StorageConnector,
+        buck_storage::{session_status, upload_status},
+        mono_storage::RefUpdateData,
+    },
+    utils::converter::{FromMegaModel, IntoMegaModel, generate_git_keep_with_timestamp},
+};
 use regex::Regex;
 
-use callisto::sea_orm_active_enums::{
-    ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum,
+use crate::{
+    api_service::{
+        ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache,
+        state::ProtocolApiState, tree_ops,
+    },
+    model::{
+        buck::{
+            CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
+            FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
+        },
+        change_list::ClDiffFile,
+        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        tag::TagInfo,
+        third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
+    },
+    pack::{import_repo::ImportRepo, monorepo::MonoRepo},
+    protocol::{SmartProtocol, TransportProtocol},
 };
-use callisto::{mega_cl, mega_refs, mega_tag, mega_tree};
-use common::errors::{BuckError, MegaError};
-use common::model::{DiffItem, Pagination};
-use common::utils::MEGA_BRANCH_NAME;
-use git_internal::diff::Diff as GitDiff;
-use git_internal::errors::GitError;
-use git_internal::hash::ObjectHash;
-use git_internal::internal::metadata::EntryMeta;
-use git_internal::internal::object::blob::Blob;
-use git_internal::internal::object::commit::Commit;
-use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use jupiter::service::buck_service::{
-    CommitArtifacts, CompletePayload as SvcCompletePayload, CompleteResponse as SvcCompleteResponse,
-};
-use jupiter::storage::Storage;
-use jupiter::storage::base_storage::StorageConnector;
-use jupiter::storage::buck_storage::{session_status, upload_status};
-use jupiter::storage::mono_storage::RefUpdateData;
-use jupiter::utils::converter::generate_git_keep_with_timestamp;
-use jupiter::utils::converter::{FromMegaModel, IntoMegaModel};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -2216,14 +2233,18 @@ fn collect_page_blobs(
 }
 #[cfg(test)]
 mod test {
+    use std::{path::PathBuf, str::FromStr, sync::Arc};
+
+    use git_internal::{
+        hash::ObjectHash,
+        internal::object::{
+            signature::{Signature, SignatureType},
+            tree::{Tree, TreeItem, TreeItemMode},
+        },
+    };
+
     use super::*;
     use crate::model::change_list::ClDiffFile;
-    use git_internal::hash::ObjectHash;
-    use git_internal::internal::object::signature::{Signature, SignatureType};
-    use git_internal::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::sync::Arc;
 
     #[test]
     fn test_clean_path_str_edges() {
@@ -2755,8 +2776,9 @@ mod test {
 
     #[tokio::test]
     async fn test_content_diff_functionality() {
-        use git_internal::internal::object::blob::Blob;
         use std::collections::HashMap;
+
+        use git_internal::internal::object::blob::Blob;
 
         // Test basic diff generation with sample data
         let old_content = "Hello World\nLine 2\nLine 3";

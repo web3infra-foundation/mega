@@ -1,3 +1,6 @@
+use callisto::{mega_cl, mega_issue};
+use common::errors::MegaError;
+
 use crate::{
     model::issue_dto::IssueDetails,
     storage::{
@@ -7,9 +10,6 @@ use crate::{
         issue_storage::IssueStorage,
     },
 };
-
-use callisto::{mega_cl, mega_issue};
-use common::errors::MegaError;
 
 #[derive(Clone)]
 pub struct IssueService {

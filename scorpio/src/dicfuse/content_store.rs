@@ -1,7 +1,11 @@
-use crate::util::config;
+use std::{
+    io,
+    io::{Error, ErrorKind},
+};
+
 use sled::Db;
-use std::io;
-use std::io::{Error, ErrorKind};
+
+use crate::util::config;
 
 pub struct ContentStorage {
     db: Db,

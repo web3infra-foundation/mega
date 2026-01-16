@@ -2,11 +2,12 @@
 //!
 //! These tests cover the CampsiteApiStore's ability to load user information from an external API.
 
+use std::net::SocketAddr;
+
 use axum::Router;
 use jupiter::storage::user_storage::UserStorage;
 use mono::api::oauth::campsite_store::CampsiteApiStore;
 use serde_json::json;
-use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 // Mock server to simulate the campsite API

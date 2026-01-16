@@ -1,7 +1,6 @@
 pub mod service;
 
 use clap::{ArgMatches, Command};
-
 use common::{config::Config, errors::MegaResult};
 
 pub fn builtin() -> Vec<Command> {

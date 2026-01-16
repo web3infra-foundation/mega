@@ -1,29 +1,38 @@
+use std::{
+    path::Path,
+    sync::{Arc, LazyLock},
+};
+
+use common::config::Config;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 
-use common::config::Config;
-use std::path::Path;
-use std::sync::{Arc, LazyLock};
-
-use crate::migration::apply_migrations;
-use crate::service::buck_service::BuckService;
-use crate::service::cl_service::CLService;
-use crate::service::git_service::GitService;
-use crate::service::import_service::ImportService;
-use crate::service::issue_service::IssueService;
-use crate::service::merge_queue_service::MergeQueueService;
-use crate::service::mono_service::MonoService;
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
-use crate::storage::dynamic_sidebar_storage::DynamicSidebarStorage;
-use crate::storage::gpg_storage::GpgStorage;
-use crate::storage::merge_queue_storage::MergeQueueStorage;
-use crate::storage::note_storage::NoteStorage;
-use crate::storage::{AppService, Storage};
-use crate::storage::{
-    buck_storage::BuckStorage, cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
-    commit_binding_storage::CommitBindingStorage, conversation_storage::ConversationStorage,
-    git_db_storage::GitDbStorage, issue_storage::IssueStorage, lfs_db_storage::LfsDbStorage,
-    mono_storage::MonoStorage, user_storage::UserStorage, vault_storage::VaultStorage,
+use crate::{
+    migration::apply_migrations,
+    service::{
+        buck_service::BuckService, cl_service::CLService, git_service::GitService,
+        import_service::ImportService, issue_service::IssueService,
+        merge_queue_service::MergeQueueService, mono_service::MonoService,
+    },
+    storage::{
+        AppService, Storage,
+        base_storage::{BaseStorage, StorageConnector},
+        buck_storage::BuckStorage,
+        cl_reviewer_storage::ClReviewerStorage,
+        cl_storage::ClStorage,
+        commit_binding_storage::CommitBindingStorage,
+        conversation_storage::ConversationStorage,
+        dynamic_sidebar_storage::DynamicSidebarStorage,
+        git_db_storage::GitDbStorage,
+        gpg_storage::GpgStorage,
+        issue_storage::IssueStorage,
+        lfs_db_storage::LfsDbStorage,
+        merge_queue_storage::MergeQueueStorage,
+        mono_storage::MonoStorage,
+        note_storage::NoteStorage,
+        user_storage::UserStorage,
+        vault_storage::VaultStorage,
+    },
 };
 
 pub async fn test_db_connection(temp_dir: &Path) -> DatabaseConnection {

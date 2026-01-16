@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use jupiter::storage::Storage;
-
 use libvault_core::storage::Backend;
 
 pub struct JupiterBackend {

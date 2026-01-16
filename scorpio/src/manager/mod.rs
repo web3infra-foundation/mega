@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::fs;
+
+use serde::{Deserialize, Serialize};
 
 pub mod fetch;
 pub mod store;
@@ -98,9 +99,9 @@ impl ScorpioManager {
 
 #[cfg(test)]
 mod tests {
+    use std::{env, fs};
+
     use super::*;
-    use std::env;
-    use std::fs;
 
     #[test]
     fn test_from_toml() {

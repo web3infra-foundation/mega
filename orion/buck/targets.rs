@@ -8,26 +8,21 @@
  * above-listed licenses.
  */
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::Path;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use td_util::json;
 
-use crate::labels::Labels;
-use crate::types::CellPath;
-use crate::types::Glob;
-use crate::types::Oncall;
-use crate::types::Package;
-use crate::types::PackageValues;
-use crate::types::RuleType;
-use crate::types::TargetHash;
-use crate::types::TargetLabel;
-use crate::types::TargetLabelKeyRef;
-use crate::types::TargetName;
-use crate::types::TargetPattern;
+use crate::{
+    labels::Labels,
+    types::{
+        CellPath, Glob, Oncall, Package, PackageValues, RuleType, TargetHash, TargetLabel,
+        TargetLabelKeyRef, TargetName, TargetPattern,
+    },
+};
 
 /// The output of running `buck2 targets`.
 #[derive(Clone)]

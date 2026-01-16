@@ -6,10 +6,11 @@ use std::{
 
 use api_model::git::commit::LatestCommitInfo;
 use async_trait::async_trait;
-
-use common::config::BlameConfig;
-use common::errors::MegaError;
-use common::model::{DiffItem, Pagination};
+use common::{
+    config::BlameConfig,
+    errors::MegaError,
+    model::{DiffItem, Pagination},
+};
 use git_internal::{
     errors::GitError,
     internal::object::{
@@ -19,16 +20,16 @@ use git_internal::{
 };
 use jupiter::storage::Storage;
 
-use crate::model::{
-    blame::{BlameQuery, BlameResult},
-    change_list::MuiTreeNode,
-    tag::TagInfo,
-};
 use crate::{
     api_service::cache::GitObjectCache,
-    model::git::{
-        CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload, EditFileResult,
-        TreeBriefItem, TreeCommitItem, TreeHashItem,
+    model::{
+        blame::{BlameQuery, BlameResult},
+        change_list::MuiTreeNode,
+        git::{
+            CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
+            EditFileResult, TreeBriefItem, TreeCommitItem, TreeHashItem,
+        },
+        tag::TagInfo,
     },
 };
 
