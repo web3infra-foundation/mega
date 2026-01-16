@@ -549,6 +549,8 @@ pub async fn build(
     let cmd = cmd
         .arg("build")
         .args(&targets)
+        .arg("--target-platforms")
+        .arg("prelude//platforms:default")
         .arg("--verbose=2")
         .current_dir(mount_point)
         .stdout(Stdio::piped())
