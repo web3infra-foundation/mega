@@ -25,6 +25,15 @@ html {
     scrollbar-color: var(--scrollbar-color) transparent;
   }
 
+  /* Global text selection color */
+  *::selection {
+    background-color: rgb(191 219 254 / 0.8);
+  }
+
+  *::-moz-selection {
+    background-color: rgb(191 219 254 / 0.8);
+  }
+
   #__next {
     /* @apply isolate flex h-full min-h-[100svh] flex-1 flex-col overflow-auto; */
     /*@apply isolate flex min-h-[100svh] flex-1 flex-col overflow-auto;*/
