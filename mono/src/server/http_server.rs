@@ -43,6 +43,13 @@ pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {
     PathBuf::from(full_path.replace(".git", "").replace(git_suffix, ""))
 }
 
+fn is_disallowed_root_repo_path(full_path: &str) -> bool {
+    matches!(
+        full_path.trim_start_matches('/').split('/').next(),
+        Some("third-party.git")
+    )
+}
+
 /// Spawns a background task to clean up expired Buck upload sessions.
 ///
 /// Returns `None` if cleanup is disabled in configuration.
@@ -363,6 +370,11 @@ async fn handle_smart_protocol(
     state: Arc<ProtocolApiState>,
 ) -> Result<Response, ProtocolError> {
     let full_path = req.uri().path();
+    if is_disallowed_root_repo_path(full_path) {
+        return Err(ProtocolError::InvalidInput(
+            "Repository third-party.git is not supported".to_string(),
+        ));
+    }
     if full_path.ends_with("/info/refs") && req.method().eq(&Method::GET) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(full_path, "/info/refs"),
@@ -419,6 +431,18 @@ mod tests {
     use http::Request;
 
     use super::*;
+
+    #[test]
+    fn test_disallow_third_party_git_root_repo() {
+        assert!(is_disallowed_root_repo_path("/third-party.git/info/refs"));
+        assert!(is_disallowed_root_repo_path(
+            "/third-party.git/git-receive-pack"
+        ));
+        assert!(!is_disallowed_root_repo_path(
+            "/third-party/test.git/info/refs"
+        ));
+        assert!(!is_disallowed_root_repo_path("/project.git/info/refs"));
+    }
 
     #[test]
     fn test_rewrite_lfs_uri_basic() {
