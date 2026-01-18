@@ -144,7 +144,7 @@ const CodeContent = ({
     setIsShikiLoading(true)
     codeToTokens(fileContent, {
       lang: detectedLanguage as any,
-      theme: 'github-light'
+      theme: 'min-light'
     })
       .then((result) => {
         if (!cancelled) {
@@ -405,7 +405,7 @@ const CodeContent = ({
           try {
             const result = await codeToTokens(blockContent, {
               lang: detectedLanguage as any,
-              theme: 'github-light'
+              theme: 'min-light'
             })
 
             return { block, tokens: result.tokens }
@@ -603,16 +603,15 @@ const CodeContent = ({
                               {line.lineNumber}
                             </div>
 
-                            <div
-                              className='flex items-center py-1 pl-3 pr-4 font-mono text-sm'
-                              style={{ whiteSpace: 'pre' }}
-                            >
-                              {lineTokens.map((token, key) => (
-                                // eslint-disable-next-line react/no-array-index-key
-                                <span key={key} style={{ color: token.color, display: 'inline' }}>
-                                  {token.content}
-                                </span>
-                              ))}
+                            <div className='py-1 pl-3 pr-4 font-mono text-sm' style={{ whiteSpace: 'pre' }}>
+                              <span style={{ display: 'inline' }}>
+                                {lineTokens.map((token, key) => (
+                                  // eslint-disable-next-line react/no-array-index-key
+                                  <span key={key} style={{ color: token.color, display: 'inline' }}>
+                                    {token.content}
+                                  </span>
+                                ))}
+                              </span>
                             </div>
                           </div>
                         )

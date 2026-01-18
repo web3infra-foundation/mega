@@ -133,7 +133,7 @@ export default function FileDiff({
         <PierreFileDiff
           fileDiff={fileDiffMetadata}
           options={{
-            theme: { dark: 'github-dark', light: 'github-light' },
+            theme: { dark: 'min-dark', light: 'min-light' },
             diffStyle: 'unified',
             diffIndicators: 'classic',
             overflow: 'wrap',

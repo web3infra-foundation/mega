@@ -214,7 +214,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         <FileDiff
           fileDiff={fileDiffMetadata}
           options={{
-            theme: { dark: 'github-dark', light: 'github-light' },
+            theme: { dark: 'min-dark', light: 'min-light' },
             diffStyle: 'split',
             diffIndicators: 'classic',
             overflow: 'wrap',
