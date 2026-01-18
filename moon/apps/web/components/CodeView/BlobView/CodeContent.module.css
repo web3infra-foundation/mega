@@ -67,9 +67,12 @@
   background-color: rgb(61, 19, 0);
 }
 
-.codeContainer :global(*::selection),
-.blameContainer :global(*::selection),
-.previewContainer :global(*::selection) {
-  background-color: #0969da;
-  color: #fff;
+.blameContainer span::selection,
+.codeContainer span::selection {
+  color: inherit;
+}
+
+.blameContainer span::-moz-selection,
+.codeContainer span::-moz-selection {
+  color: inherit;
 }
