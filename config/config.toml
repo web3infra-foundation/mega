@@ -73,7 +73,7 @@ import_dir = "/third-party"
 admin = ["benjamin.747"]
 
 # Set serveral root dirs in directory init
-root_dirs = ["third-party", "project", "doc", "release", "model"]
+root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
 
 # git object storage type, support values can be "local_fs" or "s3"
 storage_type = "s3"

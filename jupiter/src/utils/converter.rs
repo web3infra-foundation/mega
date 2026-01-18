@@ -439,6 +439,26 @@ pub fn init_trees(
 
     inject_root_buck_files(&mut root_items, &mut blobs, &mono_config.root_dirs);
 
+    // Ensure the `toolchains` cell has a BUCK file at repo initialization time.
+    if let Some(toolchains_root_idx) = root_items.iter().position(|item| {
+        item.mode == TreeItemMode::Tree
+            && item
+                .name
+                .trim_start_matches('/')
+                .trim_start_matches("./")
+                .trim_end_matches('/')
+                == "toolchains"
+    }) {
+        let toolchains_tree_id = root_items[toolchains_root_idx].id;
+        if let Some(toolchains_tree_idx) = trees.iter().position(|t| t.id == toolchains_tree_id) {
+            let mut toolchains_items = trees[toolchains_tree_idx].tree_items.clone();
+            inject_toolchains_buck_file(&mut toolchains_items, &mut blobs);
+            let toolchains_tree = Tree::from_tree_items(toolchains_items).unwrap();
+            trees[toolchains_tree_idx] = toolchains_tree.clone();
+            root_items[toolchains_root_idx].id = toolchains_tree.id;
+        }
+    }
+
     let root = Tree::from_tree_items(root_items).unwrap();
     (
         trees.into_iter().map(|x| (x.id, x)).collect(),
@@ -474,6 +494,28 @@ fn inject_root_buck_files(
     blobs.push(buckconfig_blob);
 }
 
+/// Injects a BUCK file into the toolchains directory.
+fn inject_toolchains_buck_file(toolchains_items: &mut Vec<TreeItem>, blobs: &mut Vec<Blob>) {
+    let toolchains_content = generate_toolchains_buck_content();
+    let toolchains_blob = Blob::from_content(&toolchains_content);
+    toolchains_items.push(TreeItem {
+        mode: TreeItemMode::Blob,
+        id: toolchains_blob.id,
+        name: String::from("BUCK"),
+    });
+    blobs.push(toolchains_blob);
+}
+
+fn generate_toolchains_buck_content() -> String {
+    r#"load("@prelude//toolchains:demo.bzl", "system_demo_toolchains")
+
+# All the default toolchains, suitable for a quick demo or early prototyping.
+# Most real projects should copy/paste the implementation to configure them.
+system_demo_toolchains()
+"#
+    .to_string()
+}
+
 fn generate_buckroot_content() -> String {
     // The .buckroot file is usually empty or contains a simple identifier.
     String::new()
@@ -484,18 +526,57 @@ fn generate_buckroot_content() -> String {
 const EXCLUDED_BUCK_CELL_DIRS: &[&str] = &["doc"];
 
 fn generate_buckconfig_content(root_dirs: &[String]) -> String {
-    let cells = root_dirs
+    let normalized_root_dirs = root_dirs
         .iter()
+        .map(|d| {
+            d.trim_start_matches('/')
+                .trim_start_matches("./")
+                .trim_end_matches('/')
+                .to_string()
+        })
         .filter(|d| !EXCLUDED_BUCK_CELL_DIRS.contains(&d.as_str()))
-        .map(|d| format!("  {d} = {d}"))
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect::<std::collections::HashSet<_>>();
 
-    if cells.is_empty() {
-        "[cells]\n".to_string()
-    } else {
-        format!("[cells]\n{cells}\n")
+    let mut cells_lines = vec!["  root = .".to_string(), "  prelude = prelude".to_string()];
+
+    for dir in ["toolchains", "project", "release", "third-party"] {
+        if normalized_root_dirs.contains(dir) {
+            cells_lines.push(format!("  {dir} = {dir}"));
+        }
     }
+
+    cells_lines.push("  buckal = toolchains/buckal-bundles".to_string());
+    cells_lines.push("  none = none".to_string());
+
+    let cells = cells_lines.join("\n");
+
+    format!(
+        r#"[cells]
+{cells}
+
+[cell_aliases]
+  config = prelude
+  ovr_config = prelude
+  fbcode = none
+  fbsource = none
+  fbcode_macros = none
+  buck = none
+
+# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this
+# section and vendor a copy of the prelude to the `prelude` directory of your project.
+[external_cells]
+  prelude = bundled
+
+[parser]
+  target_platform_detector_spec = target:root//...->prelude//platforms:default \
+    target:prelude//...->prelude//platforms:default \
+    target:toolchains//...->prelude//platforms:default
+
+[build]
+  execution_platforms = prelude//platforms:default
+  default_target_platforms = prelude//platforms:default
+"#
+    )
 }
 
 pub struct MegaModelConverter {
@@ -794,13 +875,16 @@ mod test {
 
     #[test]
     pub fn test_init_mega_dir() {
-        let mono_config = MonoConfig::default();
+        let mut mono_config = MonoConfig::default();
+        if !mono_config.root_dirs.iter().any(|d| d == "toolchains") {
+            mono_config.root_dirs.push("toolchains".to_string());
+        }
         let converter = MegaModelConverter::init(&mono_config);
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
         assert_eq!(mega_trees.len(), dir_nums + 1);
-        assert_eq!(mega_blobs.len(), dir_nums + 2); // 2 = .buckconfig + .buckroot
+        assert_eq!(mega_blobs.len(), dir_nums + 3);
     }
 
     #[test]
