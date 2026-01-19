@@ -1242,18 +1242,13 @@ impl MonoApiService {
             .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
 
         // Invalidate admin cache when .mega_cedar.json is modified.
-        // File paths from get_sorted_changed_file_list are relative to cl.path.
         if let Ok(files) = self.get_sorted_changed_file_list(&cl.link, None).await {
-            for file in &files {
-                let normalized_path = file.replace('\\', "/");
-                if normalized_path.ends_with(crate::api_service::admin_ops::ADMIN_FILE) {
-                    let root_dir = if cl.path == "/" {
-                        crate::api_service::admin_ops::extract_root_dir(&normalized_path)
-                    } else {
-                        crate::api_service::admin_ops::extract_root_dir(&cl.path)
-                    };
-                    self.invalidate_admin_cache(&root_dir).await;
-                }
+            let admin_file_modified = files.iter().any(|file| {
+                let normalized = file.replace('\\', "/");
+                normalized.ends_with(crate::api_service::admin_ops::ADMIN_FILE)
+            });
+            if admin_file_modified {
+                self.invalidate_admin_cache().await;
             }
         }
 
