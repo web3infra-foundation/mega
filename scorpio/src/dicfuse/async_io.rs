@@ -67,6 +67,13 @@ impl Filesystem for Dicfuse {
     /// look up a directory entry by name and get its attributes.
     async fn lookup(&self, _req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         let store = self.store.clone();
+        if let Err(e) = store.ensure_dir_loaded(parent).await {
+            tracing::warn!(
+                "dicfuse: refresh parent inode {} before lookup failed: {}",
+                parent,
+                e
+            );
+        }
         let mut ppath = store
             .find_path(parent)
             .await
@@ -75,11 +82,7 @@ impl Filesystem for Dicfuse {
         ppath.push(name.to_string_lossy().into_owned());
         let child = match store.get_by_path(&ppath.to_string()).await {
             Ok(v) => v,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                // Lazy directory loading: populate the parent directory once and retry.
-                store.ensure_dir_loaded(parent).await?;
-                store.get_by_path(&ppath.to_string()).await?
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(e.into()),
             Err(e) => return Err(e.into()),
         };
         let re = self.get_stat(child).await;

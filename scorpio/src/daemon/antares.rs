@@ -5,23 +5,26 @@
 
 use std::{
     collections::HashMap,
+    ffi::CString,
     net::SocketAddr,
-    path::PathBuf,
+    os::unix::ffi::OsStrExt,
+    path::{Component, Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
 use axum::{
-    extract::{Path, State},
+    extract::{Path as AxumPath, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
 };
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::{sync::RwLock, time::timeout};
+use tokio::{io::AsyncWriteExt, sync::RwLock, time::timeout};
 use uuid::Uuid;
 
 use crate::{
@@ -126,7 +129,7 @@ where
 
     async fn describe_mount_by_job(
         State(service): State<Arc<S>>,
-        Path(job_id): Path<String>,
+        AxumPath(job_id): AxumPath<String>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.describe_mount_by_job(job_id).await?;
         Ok(Json(status))
@@ -134,7 +137,7 @@ where
 
     async fn delete_mount_by_job(
         State(service): State<Arc<S>>,
-        Path(job_id): Path<String>,
+        AxumPath(job_id): AxumPath<String>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.delete_mount_by_job(job_id).await?;
         Ok(Json(status))
@@ -142,7 +145,7 @@ where
 
     async fn describe_mount(
         State(service): State<Arc<S>>,
-        Path(mount_id): Path<Uuid>,
+        AxumPath(mount_id): AxumPath<Uuid>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.describe_mount(mount_id).await?;
         Ok(Json(status))
@@ -150,7 +153,7 @@ where
 
     async fn delete_mount(
         State(service): State<Arc<S>>,
-        Path(mount_id): Path<Uuid>,
+        AxumPath(mount_id): AxumPath<Uuid>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.delete_mount(mount_id).await?;
         Ok(Json(status))
@@ -158,7 +161,7 @@ where
 
     async fn build_cl(
         State(service): State<Arc<S>>,
-        Path(mount_id): Path<Uuid>,
+        AxumPath(mount_id): AxumPath<Uuid>,
         Json(request): Json<BuildClRequest>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.build_cl(mount_id, request.cl).await?;
@@ -167,7 +170,7 @@ where
 
     async fn clear_cl(
         State(service): State<Arc<S>>,
-        Path(mount_id): Path<Uuid>,
+        AxumPath(mount_id): AxumPath<Uuid>,
     ) -> Result<Json<MountStatus>, ApiError> {
         let status = service.clear_cl(mount_id).await?;
         Ok(Json(status))
@@ -413,6 +416,20 @@ struct MountEntry {
     last_seen_epoch_ms: u64,
 }
 
+#[derive(Debug, Deserialize)]
+struct CommonResult<T> {
+    req_result: bool,
+    data: Option<T>,
+    err_message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClFileEntry {
+    path: String,
+    sha: String,
+    action: String,
+}
+
 impl MountEntry {
     /// Convert to public MountStatus for API responses.
     fn to_status(&self) -> MountStatus {
@@ -527,6 +544,248 @@ impl AntaresServiceImpl {
         let instance = Self::new(dicfuse).await;
         instance.recover_mounts().await;
         instance
+    }
+
+    fn normalize_mount_path(path: &str) -> String {
+        let trimmed = path.trim();
+        if trimmed.is_empty() {
+            return String::new();
+        }
+        if trimmed == "/" {
+            return "/".to_string();
+        }
+        let mut normalized = if trimmed.starts_with('/') {
+            trimmed.to_string()
+        } else {
+            format!("/{trimmed}")
+        };
+        normalized = normalized.trim_end_matches('/').to_string();
+        if normalized.is_empty() {
+            "/".to_string()
+        } else {
+            normalized
+        }
+    }
+
+    fn normalize_abs_path(path: &str) -> String {
+        let trimmed = path.trim();
+        if trimmed.is_empty() {
+            return "/".to_string();
+        }
+        if trimmed == "/" {
+            return "/".to_string();
+        }
+        let mut normalized = if trimmed.starts_with('/') {
+            trimmed.to_string()
+        } else {
+            format!("/{trimmed}")
+        };
+        normalized = normalized.trim_end_matches('/').to_string();
+        if normalized.is_empty() {
+            "/".to_string()
+        } else {
+            normalized
+        }
+    }
+
+    fn relative_path_for_mount(entry_path: &str, mount_path: &str) -> Option<PathBuf> {
+        let entry = Self::normalize_abs_path(entry_path);
+        let mount = Self::normalize_abs_path(mount_path);
+        if mount == "/" {
+            let rel = entry.trim_start_matches('/');
+            if rel.is_empty() {
+                return None;
+            }
+            return Self::validated_relative_path(rel);
+        }
+
+        let prefix = format!("{}/", mount);
+        if !entry.starts_with(&prefix) {
+            return None;
+        }
+        let rel = entry[prefix.len()..].trim_start_matches('/');
+        if rel.is_empty() {
+            return None;
+        }
+        Self::validated_relative_path(rel)
+    }
+
+    fn validated_relative_path(rel: &str) -> Option<PathBuf> {
+        let rel_path = Path::new(rel);
+        let components = rel_path.components();
+        for component in components {
+            match component {
+                Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                    return None;
+                }
+                Component::CurDir | Component::Normal(_) => {}
+            }
+        }
+        Some(rel_path.to_path_buf())
+    }
+
+    fn http_client() -> Result<Client, ServiceError> {
+        Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| ServiceError::Internal(format!("failed to build http client: {}", e)))
+    }
+
+    async fn fetch_cl_files(&self, cl_link: &str) -> Result<Vec<ClFileEntry>, ServiceError> {
+        let base_url = crate::util::config::base_url();
+        let url = format!("{base_url}/api/v1/cl/{cl_link}/files-list");
+        let client = Self::http_client()?;
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| ServiceError::Internal(format!("failed to fetch CL files: {}", e)))?;
+        if !resp.status().is_success() {
+            return Err(ServiceError::Internal(format!(
+                "failed to fetch CL files: HTTP {}",
+                resp.status()
+            )));
+        }
+        let body: CommonResult<Vec<ClFileEntry>> = resp.json().await.map_err(|e| {
+            ServiceError::Internal(format!("failed to parse CL files response: {}", e))
+        })?;
+        if !body.req_result {
+            return Err(ServiceError::Internal(format!(
+                "CL files response error: {}",
+                body.err_message
+            )));
+        }
+        Ok(body.data.unwrap_or_default())
+    }
+
+    async fn download_blob_to_path(
+        &self,
+        client: &Client,
+        oid: &str,
+        dest: &Path,
+    ) -> Result<(), ServiceError> {
+        let base_url = crate::util::config::base_url();
+        let clean_oid = oid.trim_start_matches("sha1:");
+        let url = format!("{base_url}/api/v1/file/blob/{clean_oid}");
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| ServiceError::Internal(format!("failed to download blob: {}", e)))?;
+        if !resp.status().is_success() {
+            return Err(ServiceError::Internal(format!(
+                "failed to download blob {}: HTTP {}",
+                clean_oid,
+                resp.status()
+            )));
+        }
+
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                ServiceError::Internal(format!(
+                    "failed to create CL parent dir {:?}: {}",
+                    parent, e
+                ))
+            })?;
+        }
+
+        let mut file = tokio::fs::File::create(dest).await.map_err(|e| {
+            ServiceError::Internal(format!("failed to create file {:?}: {}", dest, e))
+        })?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| ServiceError::Internal(format!("failed to read blob data: {}", e)))?;
+        file.write_all(&bytes).await.map_err(|e| {
+            ServiceError::Internal(format!("failed to write file {:?}: {}", dest, e))
+        })?;
+        Ok(())
+    }
+
+    fn create_whiteout(path: &Path) -> Result<(), ServiceError> {
+        if let Some(parent) = path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                return Err(ServiceError::Internal(format!(
+                    "failed to create whiteout parent {:?}: {}",
+                    parent, e
+                )));
+            }
+        }
+
+        if path.exists() {
+            let _ = std::fs::remove_file(path);
+            let _ = std::fs::remove_dir_all(path);
+        }
+
+        let c_path = CString::new(path.as_os_str().as_bytes()).map_err(|e| {
+            ServiceError::Internal(format!("invalid whiteout path {:?}: {}", path, e))
+        })?;
+
+        let mode = libc::S_IFCHR;
+        let dev = 0;
+        let res = unsafe { libc::mknod(c_path.as_ptr(), mode, dev) };
+        if res != 0 {
+            return Err(ServiceError::Internal(format!(
+                "failed to create whiteout {:?}: {}",
+                path,
+                std::io::Error::last_os_error()
+            )));
+        }
+        Ok(())
+    }
+
+    async fn build_cl_layer(
+        &self,
+        mount_path: &str,
+        cl_link: &str,
+        cl_dir: &Path,
+    ) -> Result<(), ServiceError> {
+        if cl_link.trim().is_empty() {
+            return Err(ServiceError::InvalidRequest(
+                "cl link cannot be empty".to_string(),
+            ));
+        }
+
+        if cl_dir.exists() {
+            tokio::fs::remove_dir_all(cl_dir).await.map_err(|e| {
+                ServiceError::Internal(format!("failed to clear CL dir {:?}: {}", cl_dir, e))
+            })?;
+        }
+        tokio::fs::create_dir_all(cl_dir).await.map_err(|e| {
+            ServiceError::Internal(format!("failed to create CL dir {:?}: {}", cl_dir, e))
+        })?;
+
+        let files = self.fetch_cl_files(cl_link).await?;
+        if files.is_empty() {
+            return Ok(());
+        }
+
+        let client = Self::http_client()?;
+        for file in files {
+            let rel_path = match Self::relative_path_for_mount(&file.path, mount_path) {
+                Some(p) => p,
+                None => continue,
+            };
+            let dest = cl_dir.join(rel_path);
+            match file.action.as_str() {
+                "new" | "modified" => {
+                    self.download_blob_to_path(&client, &file.sha, &dest)
+                        .await?;
+                }
+                "deleted" => {
+                    Self::create_whiteout(&dest)?;
+                }
+                other => {
+                    tracing::warn!(
+                        "Unknown CL action '{}' for path {}, skipping",
+                        other,
+                        file.path
+                    );
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Get or create a Dicfuse instance for the given path.
@@ -852,6 +1111,9 @@ impl AntaresService for AntaresServiceImpl {
         &self,
         request: CreateMountRequest,
     ) -> Result<MountCreated, ServiceError> {
+        let mut request = request;
+        request.path = Self::normalize_mount_path(&request.path);
+
         // 1. Validate request
         Self::validate_request(&request)?;
 
@@ -935,7 +1197,19 @@ impl AntaresService for AntaresServiceImpl {
         let upper_dir = PathBuf::from(&upper_dir_str);
         let cl_dir = cl_dir_str.as_ref().map(PathBuf::from);
 
-        // CL layer support removed: skip building CL layer if provided
+        if let (Some(cl_link), Some(ref cl_dir_str)) = (request.cl.as_deref(), cl_dir_str.as_ref())
+        {
+            let cl_dir_path = PathBuf::from(cl_dir_str);
+            if let Err(err) = self
+                .build_cl_layer(&request.path, cl_link, &cl_dir_path)
+                .await
+            {
+                let _ = std::fs::remove_dir_all(&mountpoint_str);
+                let _ = std::fs::remove_dir_all(&upper_dir_str);
+                let _ = std::fs::remove_dir_all(cl_dir_str);
+                return Err(err);
+            }
+        }
 
         // 5. Get or create Dicfuse instance for this mount (uses cache for subdirectory paths)
         // If a specific base path is requested (not root), get from cache or create a dedicated
@@ -1180,10 +1454,11 @@ impl AntaresService for AntaresServiceImpl {
     }
 
     async fn build_cl(&self, mount_id: Uuid, cl_link: String) -> Result<MountStatus, ServiceError> {
-        // Get mount entry and verify it exists
-        let mounts = self.mounts.read().await;
+        let mut mounts = self.mounts.write().await;
+        let index = self.path_index.write().await;
+
         let entry = mounts
-            .get(&mount_id)
+            .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
         if !matches!(entry.state, MountLifecycle::Mounted) {
             return Err(ServiceError::InvalidRequest(format!(
@@ -1192,50 +1467,124 @@ impl AntaresService for AntaresServiceImpl {
             )));
         }
 
-        // Get or create CL directory path
         let cl_root = crate::util::config::antares_cl_root();
         let cl_dir_str = format!("{}/{}", cl_root, mount_id);
         let cl_dir_path = PathBuf::from(&cl_dir_str);
+        let path = entry.path.clone();
+        let job_id = entry.job_id.clone();
+        let old_cl = entry.cl.clone();
+        let mountpoint = PathBuf::from(&entry.mountpoint);
+        let upper_dir = PathBuf::from(&entry.upper_dir);
+        let existing_cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
+        let dicfuse = entry.fuse.dic.clone();
+        let mut old_fuse = std::mem::replace(&mut entry.fuse, {
+            AntaresFuse::new(
+                mountpoint.clone(),
+                self.dicfuse.clone(),
+                upper_dir.clone(),
+                existing_cl_dir.clone(),
+            )
+            .await
+            .map_err(|e| {
+                ServiceError::Internal(format!("failed to create placeholder fuse: {}", e))
+            })?
+        });
 
-        // Store path for build_cl_layer before releasing lock
-        let _repo_path = entry.path.clone();
-
-        // Release lock before potentially slow CL layer build
+        entry.state = MountLifecycle::Unmounting;
         drop(mounts);
+        drop(index);
 
-        // CL layer building removed - skipping build_cl_layer for this mount
+        if let Err(e) = old_fuse.unmount().await {
+            tracing::error!("Failed to unmount {}: {}", mount_id, e);
+            let mut mounts = self.mounts.write().await;
+            let index = self.path_index.write().await;
+            let _job_index = self.job_index.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                entry.fuse = old_fuse;
+                entry.state = MountLifecycle::Failed {
+                    reason: format!("unmount failed: {}", e),
+                };
+                entry.update_last_seen();
+            }
+            drop(mounts);
+            drop(index);
+            drop(_job_index);
+            return Err(ServiceError::FuseFailure(format!("unmount failed: {}", e)));
+        }
 
-        // Reacquire lock to update entry
-        let mut mounts = self.mounts.write().await;
-        let mut index = self.path_index.write().await;
+        if let Err(e) = self.build_cl_layer(&path, &cl_link, &cl_dir_path).await {
+            tracing::error!("Failed to build CL layer for {}: {}", mount_id, e);
+            let remount_result = old_fuse.mount().await;
+            let mut mounts = self.mounts.write().await;
+            let index = self.path_index.write().await;
+            let _job_index = self.job_index.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                entry.fuse = old_fuse;
+                entry.state = if let Err(remount_err) = remount_result {
+                    MountLifecycle::Failed {
+                        reason: format!("remount after CL failure: {}", remount_err),
+                    }
+                } else {
+                    MountLifecycle::Mounted
+                };
+                entry.update_last_seen();
+            }
+            drop(mounts);
+            drop(index);
+            drop(_job_index);
+            return Err(e);
+        }
 
-        let entry = mounts.get_mut(&mount_id).ok_or_else(|| {
-            // Best-effort cleanup: build_cl created cl_dir_path but the mount vanished.
-            let _ = std::fs::remove_dir_all(&cl_dir_path);
-            ServiceError::NotFound(mount_id)
-        })?;
-        if !matches!(entry.state, MountLifecycle::Mounted) {
-            // Best-effort cleanup: don't leave behind a CL directory for a mount being torn down.
-            let _ = std::fs::remove_dir_all(&cl_dir_path);
-            return Err(ServiceError::InvalidRequest(format!(
-                "mount {} is currently in state {:?}; cannot build CL",
-                mount_id, entry.state
+        let mut new_fuse = AntaresFuse::new(
+            mountpoint.clone(),
+            dicfuse,
+            upper_dir.clone(),
+            Some(cl_dir_path.clone()),
+        )
+        .await
+        .map_err(|e| ServiceError::FuseFailure(format!("failed to create fuse: {}", e)))?;
+        if let Err(e) = new_fuse.mount().await {
+            tracing::error!("Failed to remount {} with CL: {}", mount_id, e);
+            let remount_result = old_fuse.mount().await;
+            let mut mounts = self.mounts.write().await;
+            let index = self.path_index.write().await;
+            let _job_index = self.job_index.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                entry.fuse = old_fuse;
+                entry.state = if let Err(remount_err) = remount_result {
+                    MountLifecycle::Failed {
+                        reason: format!("remount after CL failure: {}", remount_err),
+                    }
+                } else {
+                    MountLifecycle::Mounted
+                };
+                entry.update_last_seen();
+            }
+            drop(mounts);
+            drop(index);
+            drop(_job_index);
+            return Err(ServiceError::FuseFailure(format!(
+                "failed to mount CL view: {}",
+                e
             )));
         }
 
-        // Update entry with new CL info
-        let old_cl = entry.cl.clone();
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+        let _job_index = self.job_index.write().await;
+        let entry = mounts
+            .get_mut(&mount_id)
+            .ok_or(ServiceError::NotFound(mount_id))?;
+
+        entry.fuse = new_fuse;
         entry.cl = Some(cl_link.clone());
         entry.cl_dir = Some(cl_dir_str);
+        entry.state = MountLifecycle::Mounted;
         entry.update_last_seen();
 
-        // Update path index if CL changed (legacy mounts only).
-        // Task-granularity mounts are keyed by job_id/build_id and are not tracked in path_index.
-        if entry.job_id.is_none() && old_cl != entry.cl {
+        if job_id.is_none() && old_cl != entry.cl {
             let path = entry.path.clone();
-            // Remove old index entry
             index.remove(&(path.clone(), old_cl));
-            // Add new index entry
             index.insert((path, entry.cl.clone()), mount_id);
         }
 
@@ -1247,8 +1596,8 @@ impl AntaresService for AntaresServiceImpl {
         );
         drop(mounts);
         drop(index);
+        drop(_job_index);
 
-        // Persist state to file for recovery (CL changes must survive restarts).
         self.persist_state().await;
 
         Ok(status)
@@ -1256,7 +1605,7 @@ impl AntaresService for AntaresServiceImpl {
 
     async fn clear_cl(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
         let mut mounts = self.mounts.write().await;
-        let mut index = self.path_index.write().await;
+        let index = self.path_index.write().await;
 
         let entry = mounts
             .get_mut(&mount_id)
@@ -1274,38 +1623,109 @@ impl AntaresService for AntaresServiceImpl {
             ));
         }
 
-        // Remove CL directory contents
-        if let Some(ref cl_dir) = entry.cl_dir {
-            let cl_path = PathBuf::from(cl_dir);
-            if cl_path.exists() {
-                std::fs::remove_dir_all(&cl_path).map_err(|e| {
-                    ServiceError::Internal(format!("failed to remove CL directory: {}", e))
-                })?;
-                // Recreate empty directory
-                std::fs::create_dir_all(&cl_path).map_err(|e| {
-                    ServiceError::Internal(format!("failed to recreate CL directory: {}", e))
-                })?;
+        let path = entry.path.clone();
+        let job_id = entry.job_id.clone();
+        let old_cl = entry.cl.clone();
+        let mountpoint = PathBuf::from(&entry.mountpoint);
+        let upper_dir = PathBuf::from(&entry.upper_dir);
+        let existing_cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
+        let dicfuse = entry.fuse.dic.clone();
+        let mut old_fuse = std::mem::replace(&mut entry.fuse, {
+            AntaresFuse::new(
+                mountpoint.clone(),
+                self.dicfuse.clone(),
+                upper_dir.clone(),
+                existing_cl_dir.clone(),
+            )
+            .await
+            .map_err(|e| {
+                ServiceError::Internal(format!("failed to create placeholder fuse: {}", e))
+            })?
+        });
+
+        entry.state = MountLifecycle::Unmounting;
+        drop(mounts);
+        drop(index);
+
+        if let Err(e) = old_fuse.unmount().await {
+            tracing::error!("Failed to unmount {}: {}", mount_id, e);
+            let mut mounts = self.mounts.write().await;
+            let index = self.path_index.write().await;
+            let _job_index = self.job_index.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                entry.fuse = old_fuse;
+                entry.state = MountLifecycle::Failed {
+                    reason: format!("unmount failed: {}", e),
+                };
+                entry.update_last_seen();
+            }
+            drop(mounts);
+            drop(index);
+            drop(_job_index);
+            return Err(ServiceError::FuseFailure(format!("unmount failed: {}", e)));
+        }
+
+        if let Some(cl_dir) = &existing_cl_dir {
+            if cl_dir.exists() {
+                if let Err(e) = std::fs::remove_dir_all(cl_dir) {
+                    tracing::warn!("Failed to remove CL directory {:?}: {}", cl_dir, e);
+                }
             }
         }
 
-        // Update path index (legacy mounts only).
-        if entry.job_id.is_none() {
-            let path = entry.path.clone();
-            let old_cl = entry.cl.clone();
+        let mut new_fuse = AntaresFuse::new(mountpoint.clone(), dicfuse, upper_dir.clone(), None)
+            .await
+            .map_err(|e| ServiceError::FuseFailure(format!("failed to create fuse: {}", e)))?;
+        if let Err(e) = new_fuse.mount().await {
+            tracing::error!("Failed to remount {} without CL: {}", mount_id, e);
+            let remount_result = old_fuse.mount().await;
+            let mut mounts = self.mounts.write().await;
+            let index = self.path_index.write().await;
+            let _job_index = self.job_index.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                entry.fuse = old_fuse;
+                entry.state = if let Err(remount_err) = remount_result {
+                    MountLifecycle::Failed {
+                        reason: format!("remount after clear CL failure: {}", remount_err),
+                    }
+                } else {
+                    MountLifecycle::Mounted
+                };
+                entry.update_last_seen();
+            }
+            drop(mounts);
+            drop(index);
+            drop(_job_index);
+            return Err(ServiceError::FuseFailure(format!(
+                "failed to remount without CL: {}",
+                e
+            )));
+        }
+
+        let mut mounts = self.mounts.write().await;
+        let mut index = self.path_index.write().await;
+        let _job_index = self.job_index.write().await;
+        let entry = mounts
+            .get_mut(&mount_id)
+            .ok_or(ServiceError::NotFound(mount_id))?;
+
+        entry.fuse = new_fuse;
+        entry.cl = None;
+        entry.cl_dir = None;
+        entry.state = MountLifecycle::Mounted;
+        entry.update_last_seen();
+
+        if job_id.is_none() {
             index.remove(&(path.clone(), old_cl));
             index.insert((path, None), mount_id);
         }
-
-        // Clear CL from entry
-        entry.cl = None;
-        entry.update_last_seen();
 
         let status = entry.to_status();
         tracing::info!("Cleared CL layer for mount {}", mount_id);
         drop(mounts);
         drop(index);
+        drop(_job_index);
 
-        // Persist state to file for recovery (CL changes must survive restarts).
         self.persist_state().await;
 
         Ok(status)
