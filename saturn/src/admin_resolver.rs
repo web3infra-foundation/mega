@@ -5,7 +5,7 @@
 //! # Assumptions
 //! - Only checks direct membership in `UserGroup::"admin"`
 //! - Admin is the most privileged group; no groups inherit from it
-//! - Path is fixed to `/project/.mega_cedar.json` (monorepo only)
+//! - Path is fixed to `/.mega_cedar.json` (root directory)
 
 use std::collections::HashSet;
 

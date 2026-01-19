@@ -173,18 +173,3 @@ async fn list_token(
     let res = data.into_iter().map(|x| x.into()).collect();
     Ok(Json(CommonResult::success(Some(res))))
 }
-
-#[cfg(test)]
-mod test {
-    use std::path::{Path, PathBuf};
-
-    #[test]
-    fn test_parse_all_cedar_file() {
-        let path = PathBuf::from("/project/mega/src");
-        for component in path.ancestors() {
-            if component != Path::new("/") {
-                println!("{:?}", component.join(".mega_cedar.json"));
-            }
-        }
-    }
-}

@@ -417,25 +417,36 @@ pub fn init_trees(
     let mut root_items = Vec::new();
     let mut trees = Vec::new();
     let mut blobs = Vec::new();
+
+    // Create unique .gitkeep for each root directory to ensure different tree hashes
     for dir in mono_config.root_dirs.clone() {
-        let entity_str =
-            saturn::entitystore::generate_entity(&mono_config.admin, &format!("/{dir}")).unwrap();
-        let blob = Blob::from_content(&entity_str);
+        let gitkeep_content = format!("Placeholder file for /{} directory", dir);
+        let gitkeep_blob = Blob::from_content(&gitkeep_content);
+        blobs.push(gitkeep_blob.clone());
 
         let tree_item = TreeItem {
             mode: TreeItemMode::Blob,
-            id: blob.id,
-            name: String::from(".mega_cedar.json"),
+            id: gitkeep_blob.id,
+            name: String::from(".gitkeep"),
         };
-        let tree = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+        let tree = Tree::from_tree_items(vec![tree_item]).unwrap();
         root_items.push(TreeItem {
             mode: TreeItemMode::Tree,
             id: tree.id,
             name: dir,
         });
         trees.push(tree);
-        blobs.push(blob);
     }
+
+    // Create global .mega_cedar.json in root directory
+    let entity_str = saturn::entitystore::generate_entity(&mono_config.admin, "/").unwrap();
+    let cedar_blob = Blob::from_content(&entity_str);
+    root_items.push(TreeItem {
+        mode: TreeItemMode::Blob,
+        id: cedar_blob.id,
+        name: String::from(".mega_cedar.json"),
+    });
+    blobs.push(cedar_blob);
 
     inject_root_buck_files(&mut root_items, &mut blobs, &mono_config.root_dirs);
 
@@ -884,7 +895,8 @@ mod test {
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
         assert_eq!(mega_trees.len(), dir_nums + 1);
-        assert_eq!(mega_blobs.len(), dir_nums + 3);
+        // Blobs: dir_nums (.gitkeep) + 1 (.mega_cedar.json) + 2 (.buckroot + .buckconfig) + 1 (toolchains/BUCK)
+        assert_eq!(mega_blobs.len(), dir_nums + 4);
     }
 
     #[test]
