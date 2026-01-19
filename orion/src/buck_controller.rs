@@ -3,6 +3,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use anyhow::anyhow;
@@ -467,16 +468,40 @@ async fn get_build_targets(
 struct MountGuard {
     mount_id: String,
     task_id: String,
+    unmounted: AtomicBool,
 }
 
 impl MountGuard {
     fn new(mount_id: String, task_id: String) -> Self {
-        Self { mount_id, task_id }
+        Self {
+            mount_id,
+            task_id,
+            unmounted: AtomicBool::new(false),
+        }
+    }
+
+    async fn unmount(&self) {
+        if self.unmounted.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        match unmount_antares_fs(&self.mount_id).await {
+            Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", self.task_id),
+            Err(e) => {
+                tracing::error!(
+                    "[Task {}] Failed to unmount filesystem: {}",
+                    self.task_id,
+                    e
+                )
+            }
+        }
     }
 }
 
 impl Drop for MountGuard {
     fn drop(&mut self) {
+        if self.unmounted.load(Ordering::Acquire) {
+            return;
+        }
         let mount_id = self.mount_id.clone();
         let task_id: String = self.task_id.clone();
         // Spawn a task to handle the unmounting asynchronously
@@ -520,102 +545,132 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo '{}'", id, repo);
 
-    // Directly mount the entire repository, starting from the root directory /,
-    // to analyze changes and determine what needs to be built.
+    // Mount the repository root requested by the task so target discovery matches repo layout.
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
-    let (mount_point, mount_id) = mount_antares_fs(&id, "/", cl_arg).await?;
-    let _mount_guard = MountGuard::new(mount_id.clone(), id.clone());
-
-    let targets = match get_build_targets(&mount_point, changes).await {
-        Ok(targets) => targets,
-        Err(e) => {
-            let error_msg = format!("Error getting build targets: {}", e);
-            if sender
-                .send(WSMessage::BuildOutput {
-                    id: id.clone(),
-                    output: error_msg.clone(),
-                })
-                .is_err()
-            {
-                tracing::error!("[Task {}] Failed to send BuildOutput for error: {}", id, e);
+    let repo_path = {
+        let trimmed = repo.trim();
+        if trimmed.is_empty() || trimmed == "/" {
+            "/".to_string()
+        } else {
+            let mut normalized = if trimmed.starts_with('/') {
+                trimmed.to_string()
+            } else {
+                format!("/{trimmed}")
+            };
+            normalized = normalized.trim_end_matches('/').to_string();
+            if normalized.is_empty() {
+                "/".to_string()
+            } else {
+                normalized
             }
-            return Err(e.into());
         }
     };
+    let (mount_point, mount_id) = mount_antares_fs(&id, &repo_path, cl_arg).await?;
+    let mount_guard = MountGuard::new(mount_id.clone(), id.clone());
 
-    tracing::info!("[Task {}] Filesystem mounted successfully.", id);
+    let build_result = async {
+        let targets = match get_build_targets(&mount_point, changes).await {
+            Ok(targets) => targets,
+            Err(e) => {
+                let error_msg = format!("Error getting build targets: {}", e);
+                if sender
+                    .send(WSMessage::BuildOutput {
+                        id: id.clone(),
+                        output: error_msg.clone(),
+                    })
+                    .is_err()
+                {
+                    tracing::error!("[Task {}] Failed to send BuildOutput for error: {}", id, e);
+                }
+                return Err(e.into());
+            }
+        };
 
-    let mut cmd = Command::new("buck2");
-    let cmd = cmd
-        .arg("build")
-        .args(&targets)
-        .arg("--target-platforms")
-        .arg("prelude//platforms:default")
-        .arg("--verbose=2")
-        .current_dir(mount_point)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 
-    tracing::debug!("[Task {}] Executing command: {:?}", id, cmd);
+        let mut cmd = Command::new("buck2");
+        let cmd = cmd
+            .arg("build")
+            .args(&targets)
+            .arg("--target-platforms")
+            .arg("prelude//platforms:default")
+            .arg("--verbose=2")
+            .current_dir(mount_point)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
-    let mut child = cmd.spawn()?;
+        tracing::debug!("[Task {}] Executing command: {:?}", id, cmd);
 
-    if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
-        id: id.clone(),
-        phase: TaskPhase::RunningBuild,
-    }) {
-        tracing::error!("Failed to send RunningBuild phase update: {}", e);
-    }
+        let mut child = cmd.spawn()?;
 
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
-    let mut stdout_reader = tokio::io::BufReader::new(stdout).lines();
-    let mut stderr_reader = tokio::io::BufReader::new(stderr).lines();
+        if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
+            id: id.clone(),
+            phase: TaskPhase::RunningBuild,
+        }) {
+            tracing::error!("Failed to send RunningBuild phase update: {}", e);
+        }
 
-    loop {
-        tokio::select! {
-            result = stdout_reader.next_line() => {
-                match result {
-                    Ok(Some(line)) => {
-                        if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
-                            child.kill().await?;
-                            return Err("WebSocket connection lost during build.".into());
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let mut stdout_reader = tokio::io::BufReader::new(stdout).lines();
+        let mut stderr_reader = tokio::io::BufReader::new(stderr).lines();
+
+        let mut exit_status: Option<ExitStatus> = None;
+        loop {
+            tokio::select! {
+                result = stdout_reader.next_line() => {
+                    match result {
+                        Ok(Some(line)) => {
+                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                                child.kill().await?;
+                                return Err("WebSocket connection lost during build.".into());
+                            }
+                        },
+                        Ok(None) => break,
+                        Err(e) => {
+                            tracing::error!("[Task {}] Error reading stdout: {}", id, e);
+                            break;
                         }
-                    },
-                    Ok(None) => break,
-                    Err(e) => {
-                        tracing::error!("[Task {}] Error reading stdout: {}", id, e);
-                        break;
                     }
+                },
+                result = stderr_reader.next_line() => {
+                    match result {
+                        Ok(Some(line)) => {
+                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                                child.kill().await?;
+                                return Err("WebSocket connection lost during build.".into());
+                            }
+                        },
+                        Ok(None) => break,
+                        Err(e) => {
+                            tracing::error!("[Task {}] Error reading stderr: {}", id, e);
+                            break;
+                        },
+                    }
+                },
+                status = child.wait() => {
+                    let status = status?;
+                    tracing::info!("[Task {}] Buck2 process finished with status: {}", id, status);
+                    exit_status = Some(status);
+                    break;
                 }
-            },
-            result = stderr_reader.next_line() => {
-                match result {
-                    Ok(Some(line)) => {
-                        if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
-                            child.kill().await?;
-                            return Err("WebSocket connection lost during build.".into());
-                        }
-                    },
-                    Ok(None) => break,
-                    Err(e) => {
-                        tracing::error!("[Task {}] Error reading stderr: {}", id, e);
-                        break;
-                    },
-                }
-            },
-            status = child.wait() => {
-                let exit_status = status?;
-                tracing::info!("[Task {}] Buck2 process finished with status: {}", id, exit_status);
-                return Ok(exit_status);
             }
         }
-    }
 
-    let status = child.wait().await?;
-    Ok(status)
+        if let Some(status) = exit_status {
+            return Ok(status);
+        }
+
+        let status = child.wait().await?;
+        Ok(status)
+    }
+    .await;
+
+    mount_guard.unmount().await;
+
+    build_result
 }
 
 #[cfg(test)]

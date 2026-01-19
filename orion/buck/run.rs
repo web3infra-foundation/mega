@@ -13,7 +13,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use audit::{audit_cell_arguments, audit_config_arguments};
 use td_util::command::{create_at_file_arg, with_command};
 use tracing::info;
@@ -63,34 +63,63 @@ impl Buck2 {
         command
     }
 
+    fn kill_daemon(&self) {
+        let mut command = self.command();
+        command.arg("kill");
+        let _ = command.status();
+    }
+
+    fn run_output_with_retry<F>(&self, mut make_command: F) -> anyhow::Result<std::process::Output>
+    where
+        F: FnMut() -> Command,
+    {
+        const MAX_ATTEMPTS: usize = 2;
+        for attempt in 0..MAX_ATTEMPTS {
+            let command = make_command();
+            let res = with_command(command, |mut command| Ok(command.output()?))?;
+            if res.status.success() {
+                return Ok(res);
+            }
+
+            let stderr = String::from_utf8_lossy(&res.stderr).to_string();
+            if attempt + 1 < MAX_ATTEMPTS && should_retry_buck2_daemon(&stderr) {
+                tracing::warn!(
+                    "buck2 daemon connection failed; retrying after kill (attempt {}/{})",
+                    attempt + 1,
+                    MAX_ATTEMPTS
+                );
+                self.kill_daemon();
+                continue;
+            }
+
+            return Err(anyhow!("Buck2 stderr: {}", stderr));
+        }
+
+        Err(anyhow!("Buck2 failed after {} attempts", MAX_ATTEMPTS))
+    }
+
     pub fn root(&mut self) -> anyhow::Result<PathBuf> {
         Ok(self.root.clone().expect("buck root unset"))
     }
 
     pub fn cells(&mut self) -> anyhow::Result<String> {
-        let mut command = self.command();
-        command.args(audit_cell_arguments());
-        command.current_dir(self.root()?);
-        let res = with_command(command, |mut command| {
-            let res = command.output()?;
-            res.status.exit_result().with_context(|| {
-                format!("Buck2 stderr: {}", String::from_utf8_lossy(&res.stderr))
-            })?;
-            Ok(res)
+        let root = self.root()?;
+        let res = self.run_output_with_retry(|| {
+            let mut command = self.command();
+            command.args(audit_cell_arguments());
+            command.current_dir(&root);
+            command
         })?;
         Ok(String::from_utf8(res.stdout)?)
     }
 
     pub fn audit_config(&mut self) -> anyhow::Result<String> {
-        let mut command = self.command();
-        command.args(audit_config_arguments());
-        command.current_dir(self.root()?);
-        let res = with_command(command, |mut command| {
-            let res = command.output()?;
-            res.status.exit_result().with_context(|| {
-                format!("Buck2 stderr: {}", String::from_utf8_lossy(&res.stderr))
-            })?;
-            Ok(res)
+        let root = self.root()?;
+        let res = self.run_output_with_retry(|| {
+            let mut command = self.command();
+            command.args(audit_config_arguments());
+            command.current_dir(&root);
+            command
         })?;
         Ok(String::from_utf8(res.stdout)?)
     }
@@ -119,17 +148,18 @@ impl Buck2 {
 
         let (_file, at_file) = create_at_file_arg(targets, "\n")?;
 
-        let mut command = self.command();
-        command
-            .args(targets_arguments())
-            .arg("--output")
-            .arg(output)
-            .arg(at_file)
-            .args(extra_args);
-
-        with_command(command, |mut command| {
-            Ok(command.status()?.exit_result()?)
-        })
+        let res = self.run_output_with_retry(|| {
+            let mut command = self.command();
+            command
+                .args(targets_arguments())
+                .arg("--output")
+                .arg(output)
+                .arg(at_file.clone())
+                .args(extra_args);
+            command
+        })?;
+        res.status.exit_result().context("buck2 targets failed")?;
+        Ok(())
     }
 
     pub fn owners(
@@ -141,26 +171,29 @@ impl Buck2 {
 
         let (_file, at_file) = create_at_file_arg(changes, "\n")?;
 
-        let mut command = self.command();
-        command
-            .arg("uquery")
-            .arg("--json")
-            .arg("owner(\"%s\")")
-            .arg(at_file)
-            .args(extra_args);
-        command.current_dir(self.root()?);
-
-        info!("Running owners query: {:?}", command);
-
-        let res = with_command(command, |mut command| {
-            let res = command.output()?;
-            res.status.exit_result().with_context(|| {
-                format!("Buck2 stderr: {}", String::from_utf8_lossy(&res.stderr))
-            })?;
-            Ok(res)
+        let root = self.root()?;
+        let res = self.run_output_with_retry(|| {
+            let mut command = self.command();
+            command
+                .arg("uquery")
+                .arg("--json")
+                .arg("owner(\"%s\")")
+                .arg(&at_file)
+                .args(extra_args);
+            command.current_dir(&root);
+            command
         })?;
+
+        info!("Running owners query");
         Ok(String::from_utf8(res.stdout)?)
     }
+}
+
+fn should_retry_buck2_daemon(stderr: &str) -> bool {
+    let lower = stderr.to_ascii_lowercase();
+    lower.contains("failed to connect to buck daemon")
+        || lower.contains("no buckd.info timed out")
+        || lower.contains("starting new buck2 daemon")
 }
 
 pub fn targets_arguments() -> &'static [&'static str] {
