@@ -1096,9 +1096,11 @@ impl DictionaryStore {
         let parent_user_path = self.inode_to_user_path(parent_inode)?;
         ensure_dir_tracked(&self.dirs, &parent_user_path);
 
-        // Fast path: already loaded.
+        let ttl = self.dir_sync_ttl();
+
+        // Fast path: already loaded and still fresh.
         if let Some(dir) = self.dirs.get(&parent_user_path) {
-            if dir.loaded {
+            if dir.loaded && !dir_needs_refresh(&dir, ttl) {
                 return Ok(());
             }
         }
@@ -1108,7 +1110,7 @@ impl DictionaryStore {
 
         // Re-check under lock.
         if let Some(dir) = self.dirs.get(&parent_user_path) {
-            if dir.loaded {
+            if dir.loaded && !dir_needs_refresh(&dir, ttl) {
                 return Ok(());
             }
         }
@@ -1807,6 +1809,19 @@ fn ensure_dir_tracked(dirs: &DashMap<String, DirItem>, path: &str) {
                 last_sync: None,
             },
         );
+    }
+}
+
+fn dir_needs_refresh(dir: &DirItem, ttl: Duration) -> bool {
+    if !dir.loaded {
+        return true;
+    }
+    if ttl == Duration::from_secs(0) {
+        return true;
+    }
+    match dir.last_sync {
+        Some(ts) => ts.elapsed() >= ttl,
+        None => true,
     }
 }
 
