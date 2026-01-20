@@ -314,7 +314,8 @@ pub async fn lfs_process_batch(
     state: State<MonoApiServiceState>,
     Json(json): Json<BatchRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_process_batch(&state.storage, json, &state.listen_addr).await;
+    let result =
+        handler::lfs_process_batch(&state.storage.lfs_service, json, &state.listen_addr).await;
 
     match result {
         Ok(res) => {
@@ -354,7 +355,7 @@ pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    let result = handler::lfs_download_object(state.storage.clone(), oid.clone()).await;
+    let result = handler::lfs_download_object(state.storage.lfs_service.clone(), oid.clone()).await;
     match result {
         Ok(byte_stream) => Ok(Response::builder()
             .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
@@ -407,7 +408,7 @@ pub async fn lfs_upload_object(
         .await
         .unwrap();
 
-    let result = handler::lfs_upload_object(&state.storage, &req_obj, body_bytes).await;
+    let result = handler::lfs_upload_object(&state.storage.lfs_service, &req_obj, body_bytes).await;
     match result {
         Ok(_) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)

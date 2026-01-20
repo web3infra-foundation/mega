@@ -1,25 +1,26 @@
-use std::sync::Arc;
-
 use bytes::Bytes;
 use common::errors::MegaError;
 use futures::StreamExt;
 use git_internal::internal::object::blob::Blob;
-
-use crate::object_storage::{
-    MultiObjectByteStream, ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage,
-    fs_object_storage::FsObjectStorage, object_stream::IntoObjectStream,
+use io_orbit::{
+    factory::MegaObjectStorageWrapper,
+    object_storage::{
+        MultiObjectByteStream, ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace,
+    },
 };
+
+use crate::utils::into_obj_stream::IntoObjectStream;
 
 #[derive(Clone)]
 pub struct GitService {
-    pub obj_storage: Arc<dyn ObjectStorage>,
+    pub obj_storage: MegaObjectStorageWrapper,
 }
 
 impl GitService {
     pub fn mock() -> Self {
-        let obj_storage = Arc::new(FsObjectStorage::new("/tmp/mega_test_object_storage"));
-
-        Self { obj_storage }
+        Self {
+            obj_storage: MegaObjectStorageWrapper::mock(),
+        }
     }
 
     pub async fn save_object_from_raw(&self, bytes: Bytes) -> Result<String, MegaError> {
@@ -40,7 +41,8 @@ impl GitService {
 
         let res = self
             .obj_storage
-            .put(&key, Box::pin(blob.into_stream()), meta)
+            .inner
+            .put_stream(&key, Box::pin(blob.into_stream()), meta)
             .await;
 
         Ok(if let Err(e) = res {
@@ -69,7 +71,8 @@ impl GitService {
 
         let res = self
             .obj_storage
-            .put(&key, Box::pin(raw_data.into_stream()), meta)
+            .inner
+            .put_stream(&key, Box::pin(raw_data.into_stream()), meta)
             .await;
 
         let _: () = if let Err(e) = res {
@@ -85,7 +88,7 @@ impl GitService {
             key: hash.to_string(),
         };
 
-        let (mut stream, _meta) = self.obj_storage.get(&key).await?;
+        let (mut stream, _meta) = self.obj_storage.inner.get_stream(&key).await?;
 
         let mut data = Vec::new();
         while let Some(chunk) = stream.next().await {
@@ -97,7 +100,7 @@ impl GitService {
     }
 
     pub fn get_objects_stream(&self, hashes: Vec<String>) -> MultiObjectByteStream<'_> {
-        self.obj_storage.get_many(
+        self.obj_storage.inner.get_many(
             hashes
                 .into_iter()
                 .map(|hash| ObjectKey {
@@ -137,6 +140,6 @@ impl GitService {
         &self,
         objects: MultiObjectByteStream<'_>,
     ) -> Result<(), MegaError> {
-        self.obj_storage.put_many(objects, 16).await
+        self.obj_storage.inner.put_many(objects, 16).await
     }
 }

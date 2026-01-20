@@ -11,7 +11,7 @@ use crate::{
     migration::apply_migrations,
     service::{
         buck_service::BuckService, cl_service::CLService, git_service::GitService,
-        import_service::ImportService, issue_service::IssueService,
+        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
@@ -67,11 +67,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         issue_storage: IssueStorage { base: base.clone() },
         vault_storage: VaultStorage { base: base.clone() },
         conversation_storage: ConversationStorage { base: base.clone() },
-        lfs_object_storage: Arc::new(
-            crate::object_storage::fs_object_storage::FsObjectStorage::new(
-                temp_dir.as_ref().join("lfs_objects"),
-            ),
-        ),
         note_storage: NoteStorage { base: base.clone() },
         commit_binding_storage: CommitBindingStorage { base: base.clone() },
         reviewer_storage: ClReviewerStorage { base: base.clone() },
@@ -92,5 +87,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         git_service: GitService::mock(),
         mono_service: MonoService::mock(),
         import_service: ImportService::mock(),
+        lfs_service: LfsService::mock(),
     }
 }

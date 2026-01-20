@@ -14,6 +14,7 @@ members = [
   "context",
   "scorpio",
   "api-model",
+  "io-orbit",
 ]
 default-members = ["mono", "orion", "orion-server"]
 resolver = "1"
@@ -21,6 +22,7 @@ resolver = "1"
 
 [workspace.dependencies]
 api-model = { path = "api-model" }
+io-orbit = { path = "io-orbit" }
 mono = { path = "mono" }
 common = { path = "common" }
 jupiter = { path = "jupiter" }
@@ -34,7 +36,7 @@ bellatrix = { path = "orion-server/bellatrix" }
 
 context = { path = "context" }
 
-git-internal = "0.4.0"
+git-internal = "0.4.1"
 libvault-core = "0.1.0"
 
 #====
@@ -45,7 +47,7 @@ serde_urlencoded = "0.7"
 tracing = "0.1.44"
 tracing-subscriber = "0.3.22"
 tracing-appender = "0.2.4"
-thiserror = "2.0.17"
+thiserror = "2.0.18"
 clap = "4.5.54"
 
 #====
@@ -79,7 +81,7 @@ hex = "0.4.3"
 
 idgenerator = "2.0.0"
 config = "0.15.19"
-reqwest = "0.13.1" 
+reqwest = "0.13.1"
 lazy_static = "1.5.0"
 uuid = "1.19.0"
 regex = "1.12.2"
@@ -88,11 +90,10 @@ ctrlc = "3.5.1"
 cedar-policy = "4.8.2"
 secp256k1 = "0.30.0"
 pgp = "0.15.0"
-openssl = "0.10.75"
 oauth2 = "5.0.0"
 base64 = "0.22.1"
 aws-config = "1.8.12"
-aws-sdk-s3 = "1.119"
+aws-sdk-s3 = "1.120"
 
 utoipa = { version = "5.4.0", features = ["chrono"] }
 utoipa-axum = "0.2.0"
@@ -137,6 +138,7 @@ redis = "1.0.2"
 redis-test = "1.0.1"
 bincode = "2.0.1"
 rustls = "0.23.36"
+object_store = "0.13.1"
 
 [profile.release]
 debug = true

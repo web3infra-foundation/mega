@@ -22,8 +22,8 @@ use git_internal::{
         pack::{encode::PackEncoder, entry::Entry},
     },
 };
+use io_orbit::object_storage::MultiObjectByteStream;
 use jupiter::{
-    object_storage::MultiObjectByteStream,
     redis::lock::RedLock,
     service::git_service::GitService,
     storage::{Storage, git_db_storage::GitDbStorage},

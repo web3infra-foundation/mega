@@ -75,8 +75,8 @@ admin = ["benjamin.747"]
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
 
-# git object storage type, support values can be "local_fs" or "s3"
-storage_type = "s3"
+# storage type, support values can be "s3", "s3compatible", "gcs" or "local"
+storage_type = "local"
 
 [build]
 
@@ -104,8 +104,8 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 [lfs]
-# lfs file storage type, support values can be "local_fs" or "s3"
-storage_type = "s3"
+#storage type, support values can be "s3", "s3compatible", "gcs" or "local"
+storage_type = "local"
 
 [lfs.ssh]
 # The lfs ssh transport protocol still relies on http to send files
@@ -115,7 +115,10 @@ http_url = "http://localhost:8000"
 # set the local path of the lfs storage
 lfs_file_path = "${base_dir}/lfs"
 
-[s3]
+
+[object_storage]
+
+[object_storage.s3]
 # AWS region name.
 # For AWS S3 this must match the bucket's region.
 # For S3-compatible services (e.g. RustFS), this is usually ignored
@@ -142,6 +145,14 @@ secret_access_key = ""
 # set this to the service endpoint.
 endpoint_url = "http://localhost:9000"
 
+
+[object_storage.gcs]
+# Name of the GCS bucket
+bucket = "gitmega"
+
+[object_storage.local]
+# Root directory where all objects will be stored
+root_dir = "${base_dir}/objects"
 
 [oauth]
 # GitHub OAuth application client id and secret

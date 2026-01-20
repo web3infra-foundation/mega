@@ -74,7 +74,7 @@ pub fn mega_cache() -> PathBuf {
     PathBuf::from(cache_dir)
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 pub struct Config {
     pub base_dir: PathBuf,
     pub log: LogConfig,
@@ -92,7 +92,7 @@ pub struct Config {
     pub redis: RedisConfig,
     #[serde(default)]
     pub buck: Option<BuckConfig>,
-    pub s3: S3Config,
+    pub object_storage: ObjectStorageConfig,
 }
 
 impl Config {
@@ -124,7 +124,7 @@ impl Config {
             build: BuildConfig::default(),
             redis: RedisConfig::default(),
             buck: None,
-            s3: S3Config::default(),
+            object_storage: ObjectStorageConfig::default(),
         }
     }
 
@@ -320,7 +320,7 @@ impl Default for DbConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
-    pub storage_type: StorageType,
+    pub storage_type: ObjectStorageBackend,
     pub import_dir: PathBuf,
     pub admin: Vec<String>,
     pub root_dirs: Vec<String>,
@@ -329,7 +329,7 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
-            storage_type: StorageType::LocalFs,
+            storage_type: ObjectStorageBackend::Local,
             import_dir: PathBuf::from("/third-party"),
             admin: vec!["admin".to_string()],
             root_dirs: vec![
@@ -511,23 +511,15 @@ impl PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
-    pub storage_type: StorageType,
+    pub storage_type: ObjectStorageBackend,
     pub local: LFSLocalConfig,
     pub ssh: LFSSshConfig,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum StorageType {
-    Database,
-    LocalFs,
-    S3,
 }
 
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
-            storage_type: StorageType::LocalFs,
+            storage_type: ObjectStorageBackend::Local,
             local: LFSLocalConfig::default(),
             ssh: LFSSshConfig::default(),
         }
@@ -567,6 +559,40 @@ pub struct S3Config {
     pub access_key_id: String,
     pub secret_access_key: String,
     pub endpoint_url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct GcsConfig {
+    /// GCS bucket name
+    pub bucket: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct LocalConfig {
+    /// Root directory for object storage
+    pub root_dir: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ObjectStorageBackend {
+    S3,
+    S3Compatible,
+    Gcs,
+    #[default]
+    Local,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct ObjectStorageConfig {
+    /// S3-compatible storage configuration
+    pub s3: S3Config,
+
+    /// Google Cloud Storage configuration
+    pub gcs: GcsConfig,
+
+    /// Local filesystem storage configuration
+    pub local: LocalConfig,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

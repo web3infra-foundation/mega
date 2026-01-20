@@ -1,13 +1,13 @@
 use std::{collections::HashMap, ops::Deref};
 
 use callisto::{mega_blob, mega_cl, mega_commit, mega_refs, mega_tag, mega_tree};
-use common::{config::MonoConfig, errors::MegaError, model::Pagination, utils::MEGA_BRANCH_NAME};
+use common::{errors::MegaError, model::Pagination, utils::MEGA_BRANCH_NAME};
 use futures::{StreamExt, stream::FuturesUnordered};
 use git_internal::{
     hash::ObjectHash,
     internal::{
         metadata::EntryMeta,
-        object::{blob::Blob, commit::Commit, tree::Tree},
+        object::{commit::Commit, tree::Tree},
     },
 };
 use sea_orm::{
@@ -24,7 +24,7 @@ use crate::{
         commit_binding_storage::CommitBindingStorage,
         user_storage::UserStorage,
     },
-    utils::converter::{IntoMegaModel, MegaModelConverter},
+    utils::converter::IntoMegaModel,
 };
 #[derive(Clone)]
 pub struct MonoStorage {
@@ -416,29 +416,6 @@ impl MonoStorage {
             }
         }
         Ok(())
-    }
-
-    pub async fn init_monorepo(&self, mono_config: &MonoConfig) -> Vec<Blob> {
-        if self.get_main_ref("/").await.unwrap().is_some() {
-            tracing::info!("Monorepo Directory Already Inited, skip init process!");
-            return vec![];
-        }
-        let converter = MegaModelConverter::init(mono_config);
-        let commit: mega_commit::Model = converter.commit.into_mega_model(EntryMeta::default());
-        mega_commit::Entity::insert(commit.into_active_model())
-            .exec(self.get_connection())
-            .await
-            .unwrap();
-        mega_refs::Entity::insert(converter.refs)
-            .exec(self.get_connection())
-            .await
-            .unwrap();
-
-        let mega_trees = converter.mega_trees.borrow().values().cloned().collect();
-        self.batch_save_model(mega_trees).await.unwrap();
-        let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
-        self.batch_save_model(mega_blobs).await.unwrap();
-        converter.raw_blobs.into_inner()
     }
 
     pub async fn attach_to_monorepo_parent_with_txn(
