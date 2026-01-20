@@ -1,24 +1,32 @@
 # ────── Stage 1: Build ──────
 FROM rust:1.92-bookworm AS builder
 
-# 构建上下文中的父目录将作为 /app 挂载
+# Configure Cargo with increased retry attempts and timeout
+RUN mkdir -p /root/.cargo && \
+    cat > /root/.cargo/config.toml << 'EOF'
+[net]
+retry = 10
+git-fetch-with-cli = true
+EOF
+
+# The parent directory of build context will be mounted as /app
 WORKDIR /app
 
-# 复制整个项目结构（从根目录开始）
+# Copy the entire project structure (from repository root)
 COPY . .
 
-# 进入子项目目录
+# Enter subproject directory
 WORKDIR /app/orion-server
 
-# 构建 release 二进制
+# Build release binary
 RUN cargo build --release
 
 # ────── Stage 2: Runtime ──────
 FROM debian:bookworm-slim
 
-# 安装运行依赖
+# Install runtime dependencies (including curl for health checks)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
 ENV BUILD_LOG_DIR="/tmp/buck2ctl"
@@ -26,10 +34,10 @@ RUN mkdir -p ${BUILD_LOG_DIR}
 
 ENV PORT=8004
 
-# 拷贝构建好的可执行文件
+# Copy built executable
 COPY --from=builder /app/target/release/orion-server /usr/local/bin/app
 
-# 减少体积（可选）
+# Reduce image size (optional)
 RUN strip /usr/local/bin/app || true
 
 EXPOSE 8004

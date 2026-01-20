@@ -23,6 +23,7 @@ use rand::Rng;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _, QueryOrder,
     prelude::DateTimeUtc,
+    QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -157,6 +158,7 @@ pub fn routers() -> Router<AppState> {
             get(get_orion_client_status_by_id),
         )
         .route("/retry-build", post(build_retry_handler))
+        .route("/v2/health", get(health_check_handler))
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -176,6 +178,33 @@ pub async fn start_queue_manager(state: AppState) {
 pub async fn queue_stats_handler(State(state): State<AppState>) -> impl IntoResponse {
     let stats = state.scheduler.get_queue_stats().await;
     (StatusCode::OK, Json(stats))
+}
+
+/// Health check endpoint for Orion Server
+/// Returns simple health status based on database connectivity
+#[utoipa::path(
+    get,
+    path = "/v2/health",
+    responses(
+        (status = 200, description = "Service is healthy", body = serde_json::Value),
+        (status = 503, description = "Service is unhealthy", body = serde_json::Value)
+    )
+)]
+pub async fn health_check_handler(State(state): State<AppState>) -> impl IntoResponse {
+    // Simple health check: verify database connectivity
+    match tasks::Entity::find().limit(1).all(&state.conn).await {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({"status": "healthy"})),
+        ),
+        Err(e) => {
+            tracing::error!("Health check failed: {}", e);
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"status": "unhealthy", "error": format!("{}", e)})),
+            )
+        }
+    }
 }
 
 /// Streams build output logs in real-time using Server-Sent Events (SSE)
