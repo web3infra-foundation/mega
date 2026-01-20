@@ -22,8 +22,7 @@ use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _, QueryOrder,
-    prelude::DateTimeUtc,
-    QuerySelect,
+    QuerySelect, prelude::DateTimeUtc,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -193,10 +192,7 @@ pub async fn queue_stats_handler(State(state): State<AppState>) -> impl IntoResp
 pub async fn health_check_handler(State(state): State<AppState>) -> impl IntoResponse {
     // Simple health check: verify database connectivity
     match tasks::Entity::find().limit(1).all(&state.conn).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(json!({"status": "healthy"})),
-        ),
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "healthy"}))),
         Err(e) => {
             tracing::error!("Health check failed: {}", e);
             (
