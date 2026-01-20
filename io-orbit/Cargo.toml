@@ -1,0 +1,15 @@
+[package]
+name = "io-orbit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { workspace = true }
+
+object_store = { workspace = true, features = ["cloud", "aws", "gcp"] }
+futures = { workspace = true }
+bytes = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }

@@ -20,16 +20,13 @@ pub mod vault_storage;
 use std::sync::{Arc, LazyLock, Weak};
 
 use common::{config::Config, errors::MegaError};
+use io_orbit::factory::ObjectStorageFactory;
 use tokio::sync::Semaphore;
 
 use crate::{
-    object_storage::{
-        ObjectStorage,
-        factory::{ObjectStorageConfig, ObjectStorageFactory},
-    },
     service::{
         buck_service::BuckService, cl_service::CLService, git_service::GitService,
-        import_service::ImportService, issue_service::IssueService,
+        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
@@ -64,7 +61,6 @@ pub struct AppService {
     pub cl_storage: ClStorage,
     pub issue_storage: IssueStorage,
     pub conversation_storage: ConversationStorage,
-    pub lfs_object_storage: Arc<dyn ObjectStorage>,
     pub note_storage: NoteStorage,
     pub commit_binding_storage: CommitBindingStorage,
     pub reviewer_storage: ClReviewerStorage,
@@ -79,9 +75,6 @@ impl AppService {
         // For tests and in-memory workflows we don't need a real persistent
         // object storage. Use a filesystem-backed storage rooted in the system
         // temp directory to provide a lightweight implementation.
-        let lfs_object_storage: Arc<dyn ObjectStorage> = Arc::new(
-            crate::object_storage::fs_object_storage::FsObjectStorage::new(std::env::temp_dir()),
-        );
         Arc::new(Self {
             mono_storage: MonoStorage { base: mock.clone() },
             git_db_storage: GitDbStorage { base: mock.clone() },
@@ -89,7 +82,6 @@ impl AppService {
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
-            lfs_object_storage,
             cl_storage: ClStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
@@ -113,6 +105,7 @@ pub struct Storage {
     pub mono_service: MonoService,
     pub import_service: ImportService,
     pub git_service: GitService,
+    pub lfs_service: LfsService,
     pub config: Weak<Config>,
 }
 
@@ -130,11 +123,16 @@ impl Storage {
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
-        // Initialize ObjectStorage for LFS using the same storage type as configured
-        let lfs_object_storage: Arc<dyn ObjectStorage> = ObjectStorageFactory::create(
-            ObjectStorageConfig::from_config(config.lfs.storage_type.clone(), config.clone()),
-        )
-        .await?;
+        // Initialize LfsService for LFS using the same storage type as configured
+        let lfs_service = LfsService {
+            lfs_storage: lfs_db_storage.clone(),
+            obj_storage: ObjectStorageFactory::build(
+                config.lfs.storage_type,
+                &config.object_storage,
+            )
+            .await?,
+        };
+
         let note_storage = NoteStorage { base: base.clone() };
         let commit_binding_storage = CommitBindingStorage { base: base.clone() };
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
@@ -143,10 +141,10 @@ impl Storage {
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
 
         let git_service = GitService {
-            obj_storage: ObjectStorageFactory::create(ObjectStorageConfig::from_config(
-                config.monorepo.storage_type.clone(),
-                config.clone(),
-            ))
+            obj_storage: ObjectStorageFactory::build(
+                config.monorepo.storage_type,
+                &config.object_storage,
+            )
             .await?,
         };
         let mono_service = MonoService {
@@ -188,7 +186,6 @@ impl Storage {
             cl_storage: cl_storage.clone(),
             issue_storage,
             conversation_storage,
-            lfs_object_storage,
             note_storage,
             commit_binding_storage,
             reviewer_storage,
@@ -217,6 +214,7 @@ impl Storage {
             git_service,
             mono_service,
             import_service,
+            lfs_service,
         })
     }
 
@@ -273,10 +271,6 @@ impl Storage {
         self.app_service.conversation_storage.clone()
     }
 
-    pub fn lfs_object_storage(&self) -> Arc<dyn ObjectStorage> {
-        self.app_service.lfs_object_storage.clone()
-    }
-
     pub fn note_storage(&self) -> NoteStorage {
         self.app_service.note_storage.clone()
     }
@@ -316,6 +310,7 @@ impl Storage {
             git_service: GitService::mock(),
             mono_service: MonoService::mock(),
             import_service: ImportService::mock(),
+            lfs_service: LfsService::mock(),
         }
     }
 }

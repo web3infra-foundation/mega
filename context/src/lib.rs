@@ -33,11 +33,9 @@ impl AppContext {
         let storage_for_vault = storage.clone();
         let vault = vault::integration::vault_core::VaultCore::new(storage_for_vault).await;
 
-        let stg = storage.mono_storage();
-        let blobs = stg.init_monorepo(&config.monorepo).await;
         storage
-            .git_service
-            .put_objects(blobs)
+            .mono_service
+            .init_monorepo(&config.monorepo)
             .await
             .expect("init monorepo failed");
 
