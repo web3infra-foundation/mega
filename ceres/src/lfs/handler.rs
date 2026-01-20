@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::{cmp::min, time::Duration};
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -6,11 +6,16 @@ use callisto::lfs_locks;
 use chrono::prelude::*;
 use common::errors::{GitLFSError, MegaError};
 use futures::{Stream, StreamExt};
+use io_orbit::{
+    factory::MegaObjectStorageWrapper,
+    object_storage::{ObjectKey, ObjectMeta, ObjectNamespace},
+};
 use jupiter::{
-    object_storage::{ObjectKey, ObjectMeta, ObjectNamespace, ObjectStorage},
-    storage::{Storage, lfs_db_storage::LfsDbStorage},
+    service::lfs_service::LfsService, storage::lfs_db_storage::LfsDbStorage,
+    utils::into_obj_stream::IntoObjectStream,
 };
 use rand::prelude::*;
+use reqwest::Method;
 
 use crate::lfs::lfs_structs::{
     BatchRequest, BatchResponse, Lock, LockList, LockListQuery, LockRequest, MetaObject,
@@ -174,17 +179,17 @@ pub async fn lfs_delete_lock(
 /// Reference:
 ///     1. [Git LFS Batch API](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md)
 pub async fn lfs_process_batch(
-    storage: &Storage,
+    service: &LfsService,
     request: BatchRequest,
     listen_addr: &str,
 ) -> Result<BatchResponse, GitLFSError> {
     let objects = request.objects;
 
     let mut response_objects = Vec::new();
-    let file_storage = storage.lfs_object_storage();
-    let db_storage = storage.lfs_db_storage();
+    let file_storage = service.obj_storage.clone();
+    let db_storage = service.lfs_storage.clone();
     for object in objects {
-        let meta_res = lfs_get_meta(db_storage.clone(), &object.oid).await.unwrap();
+        let meta_res = lfs_get_meta(&db_storage, &object.oid).await?;
         let meta = match meta_res {
             Some(meta) => meta,
             None => {
@@ -208,8 +213,8 @@ pub async fn lfs_process_batch(
                 }
             }
         };
-        let file_exist = lfs_object_exists(&*file_storage, &meta.oid).await;
-        let download_url = match lfs_download_url(&*file_storage, &meta.oid, listen_addr).await {
+        let file_exist = lfs_object_exists(&file_storage, &meta.oid).await;
+        let download_url = match lfs_download_url(&file_storage, &meta.oid, listen_addr).await {
             Ok(url) => url,
             Err(e) => {
                 tracing::error!("Failed to generate download URL for {}: {}", meta.oid, e);
@@ -223,7 +228,7 @@ pub async fn lfs_process_batch(
                 continue;
             }
         };
-        let upload_url = match lfs_upload_url(&*file_storage, &meta.oid, listen_addr).await {
+        let upload_url = match lfs_upload_url(&file_storage, &meta.oid, listen_addr).await {
             Ok(url) => url,
             Err(e) => {
                 tracing::error!("Failed to generate upload URL for {}: {}", meta.oid, e);
@@ -260,14 +265,13 @@ pub async fn lfs_process_batch(
 /// Upload object to storage.
 /// if server enable split, split the object and upload each part to storage, save the relationship to database.
 pub async fn lfs_upload_object(
-    storage: &Storage,
+    service: &LfsService,
     req_obj: &RequestObject,
     body_bytes: Vec<u8>,
 ) -> Result<(), GitLFSError> {
-    let db_storage = storage.lfs_db_storage();
-    let file_storage = storage.lfs_object_storage();
+    let db_storage: LfsDbStorage = service.lfs_storage.clone();
 
-    let meta = if let Some(meta) = lfs_get_meta(db_storage.clone(), &req_obj.oid).await? {
+    let meta = if let Some(meta) = lfs_get_meta(&db_storage, &req_obj.oid).await? {
         tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
         meta
     } else {
@@ -276,12 +280,12 @@ pub async fn lfs_upload_object(
 
     let key = lfs_object_key(&meta.oid);
     let size = meta.size;
-    let data = futures::stream::once(async move { Ok(Bytes::from(body_bytes)) });
-    let stream = Box::pin(data);
-    let res = file_storage
-        .put(
+    let res = service
+        .obj_storage
+        .inner
+        .put_stream(
             &key,
-            stream,
+            body_bytes.into_stream(),
             ObjectMeta {
                 size,
                 ..Default::default()
@@ -306,18 +310,18 @@ pub async fn lfs_upload_object(
 /// Download object from storage.
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
 pub async fn lfs_download_object(
-    storage: Storage,
+    service: LfsService,
     oid: String,
 ) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
-    let db_storage = storage.lfs_db_storage();
-    let file_storage = storage.lfs_object_storage();
+    let db_storage = service.lfs_storage.clone();
+    let file_storage = service.obj_storage.clone();
 
-    let meta = lfs_get_meta(db_storage.clone(), &oid).await?;
+    let meta = lfs_get_meta(&db_storage, &oid).await?;
     match meta {
         Some(meta) => {
             // Fetch object from unified object storage.
             let key = lfs_object_key(&meta.oid);
-            let (stream, _meta) = match file_storage.get(&key).await {
+            let (stream, _meta) = match file_storage.inner.get_stream(&key).await {
                 Ok(v) => v,
                 Err(e) => {
                     tracing::error!("Failed to get LFS object {}: {}", meta.oid, e);
@@ -472,7 +476,10 @@ async fn lfs_add_lock(
     }
 }
 
-async fn lfs_get_meta(storage: LfsDbStorage, oid: &str) -> Result<Option<MetaObject>, GitLFSError> {
+async fn lfs_get_meta(
+    storage: &LfsDbStorage,
+    oid: &str,
+) -> Result<Option<MetaObject>, GitLFSError> {
     Ok(storage.get_lfs_object(oid).await.unwrap().map(|m| m.into()))
 }
 
@@ -494,10 +501,10 @@ fn lfs_object_key(oid: &str) -> ObjectKey {
     }
 }
 
-async fn lfs_object_exists(storage: &dyn ObjectStorage, oid: &str) -> bool {
+async fn lfs_object_exists(storage: &MegaObjectStorageWrapper, oid: &str) -> bool {
     let key = lfs_object_key(oid);
 
-    match storage.exists(&key).await {
+    match storage.inner.exists(&key).await {
         Ok(exists) => exists,
         Err(err) => {
             tracing::warn!("Failed to check LFS object {} existence: {}", oid, err);
@@ -507,13 +514,17 @@ async fn lfs_object_exists(storage: &dyn ObjectStorage, oid: &str) -> bool {
 }
 
 async fn lfs_download_url(
-    storage: &dyn ObjectStorage,
+    storage: &MegaObjectStorageWrapper,
     oid: &str,
     hostname: &str,
 ) -> Result<String, MegaError> {
     let key = lfs_object_key(oid);
 
-    if let Some(url) = storage.presign_get(&key).await? {
+    if let Some(url) = storage
+        .inner
+        .signed_url(&key, Method::GET, Duration::from_hours(1))
+        .await?
+    {
         return Ok(url);
     }
 
@@ -521,13 +532,17 @@ async fn lfs_download_url(
 }
 
 async fn lfs_upload_url(
-    storage: &dyn ObjectStorage,
+    storage: &MegaObjectStorageWrapper,
     oid: &str,
     hostname: &str,
 ) -> Result<String, MegaError> {
     let key = lfs_object_key(oid);
 
-    if let Some(url) = storage.presign_put(&key).await? {
+    if let Some(url) = storage
+        .inner
+        .signed_url(&key, Method::PUT, Duration::from_hours(1))
+        .await?
+    {
         return Ok(url);
     }
 

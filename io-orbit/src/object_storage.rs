@@ -1,13 +1,9 @@
-use std::{any::Any, collections::HashMap, fmt, pin::Pin};
+use std::{collections::HashMap, fmt, pin::Pin, time::Duration};
 
 use bytes::Bytes;
 use common::errors::MegaError;
 use futures::{Stream, StreamExt, TryStreamExt};
-
-pub mod factory;
-pub mod fs_object_storage;
-pub mod object_stream;
-pub mod rustfs_object_storage;
+use reqwest::Method;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ObjectKey {
@@ -19,6 +15,28 @@ pub struct ObjectKey {
     /// - lfs: sha256
     /// - log: path like 2025/03/worker.log
     pub key: String,
+}
+
+impl ObjectKey {
+    pub fn default_sharding(&self) -> String {
+        let id = &self.key;
+        if id.len() < 6 {
+            // For short keys, don't shard or use a different strategy
+            return format!("{}/{}", self.namespace, id);
+        }
+        format!(
+            "{}/{}/{}/{}/{}",
+            self.namespace,
+            &id[0..2],
+            &id[2..4],
+            &id[4..6],
+            &id[6..]
+        )
+    }
+
+    pub fn to_object_store_path(&self) -> object_store::path::Path {
+        object_store::path::Path::from(self.default_sharding())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,8 +80,7 @@ pub struct ObjectMeta {
 /// - Uses streaming instead of `Vec<u8>` to avoid loading large objects into memory.
 /// - Suitable for large blobs, pack files, or any content-addressed storage.
 /// - The stream must be fully consumed by the caller.
-pub type ObjectByteStream =
-    Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Sync>>;
+pub type ObjectByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>;
 
 /// A streaming source of multiple objects.
 ///
@@ -83,8 +100,8 @@ pub type MultiObjectByteStream<'a> = Pin<
 >;
 
 #[async_trait::async_trait]
-pub trait ObjectStorage: Send + Sync {
-    fn as_any(&self) -> &dyn Any;
+pub trait MegaObjectStorage: Send + Sync {
+    // fn as_any(&self) -> &dyn Any;
 
     /// Upload a single object to the storage backend.
     ///
@@ -103,7 +120,7 @@ pub trait ObjectStorage: Send + Sync {
     /// - The upload fails
     /// - The stream produces an I/O error
     /// - Backend-specific constraints are violated
-    async fn put(
+    async fn put_stream(
         &self,
         key: &ObjectKey,
         data: ObjectByteStream,
@@ -125,29 +142,23 @@ pub trait ObjectStorage: Send + Sync {
     /// - The object does not exist
     /// - Access is denied
     /// - Backend I/O fails
-    async fn get(&self, key: &ObjectKey) -> Result<(ObjectByteStream, ObjectMeta), MegaError>;
+    async fn get_stream(
+        &self,
+        key: &ObjectKey,
+    ) -> Result<(ObjectByteStream, ObjectMeta), MegaError>;
 
     /// Check whether an object exists.
-    ///
-    /// Default implementation falls back to `get`; concrete storages should
-    /// override for a cheaper metadata-only call.
-    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError> {
-        Ok(self.get(key).await.is_ok())
-    }
+    async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError>;
 
     /// Generate a presigned download URL when supported by the backend.
     ///
     /// Returns `Ok(None)` if the storage does not support presigning.
-    async fn presign_get(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
-        Ok(None)
-    }
-
-    /// Generate a presigned upload URL when supported by the backend.
-    ///
-    /// Returns `Ok(None)` if the storage does not support presigning.
-    async fn presign_put(&self, _key: &ObjectKey) -> Result<Option<String>, MegaError> {
-        Ok(None)
-    }
+    async fn signed_url(
+        &self,
+        key: &ObjectKey,
+        method: Method,
+        expires_in: Duration,
+    ) -> Result<Option<String>, MegaError>;
 
     /// Upload multiple objects concurrently.
     ///
@@ -174,8 +185,7 @@ pub trait ObjectStorage: Send + Sync {
     ) -> Result<(), MegaError> {
         objects
             .try_for_each_concurrent(concurrency, |(key, stream, meta)| async move {
-                self.put(&key, stream, meta).await?;
-                Ok(())
+                self.put_stream(&key, stream, meta).await
             })
             .await
     }
@@ -202,7 +212,7 @@ pub trait ObjectStorage: Send + Sync {
         Box::pin(
             futures::stream::iter(keys)
                 .map(move |key| async move {
-                    let (stream, meta) = self.get(&key).await?;
+                    let (stream, meta) = self.get_stream(&key).await?;
                     Ok((key, stream, meta))
                 })
                 .buffer_unordered(concurrency),
@@ -222,4 +232,44 @@ pub fn dump_error_chain(err: &(dyn std::error::Error + 'static)) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use ObjectNamespace;
+
+    use super::*;
+
+    #[test]
+    fn test_s3_key_lfs() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Lfs,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        // Unified 3-level sharding for LFS objects.
+        assert_eq!(key.default_sharding(), "lfs/ab/cd/ef/1234567890");
+    }
+
+    #[test]
+    fn test_s3_key_git() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Git,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        assert_eq!(key.default_sharding(), "git/ab/cd/ef/1234567890");
+    }
+
+    #[test]
+    fn test_to_object_store_path_basic() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Git,
+            key: "abcdef1234567890".to_string(),
+        };
+
+        let path = key.to_object_store_path();
+
+        assert_eq!(path.as_ref(), "git/ab/cd/ef/1234567890");
+    }
 }

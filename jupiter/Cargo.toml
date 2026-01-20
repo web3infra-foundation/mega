@@ -14,6 +14,7 @@ callisto = { workspace = true }
 common = { workspace = true }
 git-internal = { workspace = true }
 saturn = { workspace = true }
+io-orbit = { workspace = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
@@ -26,7 +27,6 @@ sea-orm-migration = { workspace = true }
 
 tracing = { workspace = true }
 bytes = { workspace = true }
-async-stream = { workspace = true }
 chrono = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
@@ -34,13 +34,7 @@ serde_json = { workspace = true }
 idgenerator = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-std"] }
-tokio-util = { workspace = true, features = ["io"] }
 uuid = { workspace = true }
-aws-config = { workspace = true, features = ["behavior-version-latest"] }
-aws-sdk-s3 = { workspace = true, features = ["rt-tokio", "http-1x"] }
-http-body = { workspace = true }
-http-body-util = { workspace = true }
-anyhow = { workspace = true }
 tempfile = { workspace = true }
 indexmap = { workspace = true }
 url = { workspace = true }

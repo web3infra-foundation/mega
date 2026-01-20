@@ -58,6 +58,9 @@ pub enum MegaError {
     #[error("Not Found error: {0}")]
     NotFound(String),
 
+    #[error("ObjStorage error: {0}")]
+    ObjStorage(String),
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),

@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use callisto::{mega_blob, mega_commit, mega_tag, mega_tree};
-use common::errors::MegaError;
+use common::{config::MonoConfig, errors::MegaError};
 use futures::{StreamExt, stream};
 use git_internal::internal::{
     metadata::{EntryMeta, MetaAttached},
     object::blob::Blob,
     pack::entry::Entry,
 };
-use sea_orm::IntoActiveModel;
+use sea_orm::{IntoActiveModel, TransactionTrait};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
         base_storage::{BaseStorage, StorageConnector},
         mono_storage::MonoStorage,
     },
-    utils::converter::{IntoMegaModel, MegaObjectModel, process_entry},
+    utils::converter::{IntoMegaModel, MegaModelConverter, MegaObjectModel, process_entry},
 };
 
 #[derive(Clone)]
@@ -44,6 +44,40 @@ impl MonoService {
             mono_storage,
             git_service,
         }
+    }
+
+    pub async fn init_monorepo(&self, mono_config: &MonoConfig) -> Result<(), MegaError> {
+        if self.mono_storage.get_main_ref("/").await?.is_some() {
+            tracing::info!("Monorepo Directory Already Inited, skip init process!");
+            return Ok(());
+        }
+        let txn = self.mono_storage.get_connection().begin().await?;
+        let converter = MegaModelConverter::init(mono_config);
+        let commit = converter
+            .commit
+            .into_mega_model(EntryMeta::default())
+            .into_active_model();
+
+        self.mono_storage
+            .batch_save_model_with_txn(vec![commit], Some(&txn))
+            .await?;
+        self.mono_storage
+            .batch_save_model_with_txn(vec![converter.refs], Some(&txn))
+            .await?;
+
+        let mega_trees = converter.mega_trees.borrow().values().cloned().collect();
+        self.mono_storage
+            .batch_save_model_with_txn(mega_trees, Some(&txn))
+            .await?;
+        let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
+        self.mono_storage
+            .batch_save_model_with_txn(mega_blobs, Some(&txn))
+            .await?;
+
+        self.git_service
+            .put_objects(converter.raw_blobs.into_inner())
+            .await?;
+        Ok(txn.commit().await?)
     }
 
     pub async fn save_entry(

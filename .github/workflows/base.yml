@@ -62,10 +62,9 @@ jobs:
         with:
           cache-key: sysdeps
           platform: ubuntu
-
       - name: Run cargo clippy
         run: |
-          cargo clippy --all-targets --all-features -- -D warnings
+          cargo +stable clippy --all-targets --all-features -- -D warnings
 
   test:
     name: Full Test

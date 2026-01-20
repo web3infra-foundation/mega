@@ -27,7 +27,7 @@ use git_internal::{
         pack::{Pack, entry::Entry},
     },
 };
-use jupiter::object_storage::MultiObjectByteStream;
+use io_orbit::object_storage::MultiObjectByteStream;
 use sysinfo::System;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;

@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 api-model = { workspace = true }
+io-orbit = { workspace = true }
 common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
