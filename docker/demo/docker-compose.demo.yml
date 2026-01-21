@@ -171,7 +171,7 @@ services:
   # Set MEGA_UI_IMAGE environment variable to use ECR image, or tag the ECR image as mega:mono-ui-latest-release
   # Default uses local tag (mega:mono-ui-latest-release) if ECR image is tagged locally
   mega_ui:
-    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release}
+    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release}
     container_name: mega-demo-ui
     depends_on:
       mega:
@@ -287,8 +287,8 @@ services:
       CAMPSITE_RUN_MIGRATIONS: ${CAMPSITE_RUN_MIGRATIONS:-1}
 
       # Align with ECS style env vars (for local demo use dev)
-      RAILS_ENV: ${CAMPSITE_RAILS_ENV:-development}
-      RAILS_MASTER_KEY: ${CAMPSITE_RAILS_MASTER_KEY:-}
+      RAILS_ENV: ${CAMPSITE_RAILS_ENV:-demo}
+      RAILS_MASTER_KEY: ${CAMPSITE_RAILS_MASTER_KEY:-51d8cdb046869075795ba82cdd95807a}
       SERVER_COMMAND: ${CAMPSITE_SERVER_COMMAND:-bundle exec puma}
       DEV_APP_URL: ${CAMPSITE_DEV_APP_URL:-http://localhost:3000}
 
