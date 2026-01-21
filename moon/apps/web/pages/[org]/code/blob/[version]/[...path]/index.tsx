@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Theme } from '@radix-ui/themes'
 import { useParams } from 'next/navigation'
 
@@ -10,25 +10,10 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 
-const codeStyle = {
-  borderRadius: 8,
-  width: '80%',
-  background: '#fff',
-  display: 'flex',
-  flexDirection: 'column' as const,
-  overflow: 'hidden',
-  paddingRight: '8px'
-}
-
-const treeStyle = {
-  borderRadius: 8,
-  width: '20%',
-  minWidth: '300px',
-  flexShrink: 0,
-  background: '#fff',
-  overflow: 'auto',
-  paddingRight: '8px'
-}
+const MIN_LEFT_WIDTH = 250
+const MAX_LEFT_WIDTH_PERCENT = 0.4 // Reduced from 0.5 to 0.4 to ensure right side has enough space
+const DEFAULT_LEFT_WIDTH_PERCENT = 0.2
+const MIN_RIGHT_WIDTH = 500 // Add minimum width constraint for right side
 
 function BlobPage() {
   const params = useParams()
@@ -40,17 +25,98 @@ function BlobPage() {
   const { data: blobData, isLoading: isCodeLoading } = useGetBlob({ path: new_path, refs })
   const fileContent = blobData?.data ?? ''
 
+  // Resizable panel state
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [leftWidth, setLeftWidth] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Initialize left width based on container width
+  useEffect(() => {
+    if (containerRef.current && leftWidth === null) {
+      setLeftWidth(containerRef.current.offsetWidth * DEFAULT_LEFT_WIDTH_PERCENT)
+    }
+  }, [leftWidth])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging || !containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newLeftWidth = e.clientX - containerRect.left
+      const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
+
+      // Ensure right side has at least MIN_RIGHT_WIDTH width
+      const maxAllowedLeftWidth = Math.min(maxWidth, containerRect.width - MIN_RIGHT_WIDTH)
+
+      setLeftWidth(Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxAllowedLeftWidth)))
+    },
+    [isDragging]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp])
+
   return (
     <Theme>
       <div className='relative m-4 flex h-[calc(100vh-32px)] flex-col'>
         <BreadCrumb path={path} />
-        {/* tree */}
-        <div className='flex flex-1 gap-4 overflow-hidden'>
-          <div style={treeStyle}>
+        {/* File tree */}
+        <div ref={containerRef} className='flex flex-1 gap-0 overflow-hidden'>
+          <div
+            style={{
+              width: leftWidth ?? '20%',
+              minWidth: MIN_LEFT_WIDTH,
+              flexShrink: 0,
+              borderRadius: 8,
+              background: '#fff',
+              overflow: 'auto',
+              paddingRight: '8px'
+            }}
+          >
             <RepoTree />
           </div>
 
-          <div style={codeStyle}>
+          {/* Resizer handle */}
+          <div
+            onMouseDown={handleMouseDown}
+            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
+          />
+
+          <div
+            style={{
+              flex: 1,
+              borderRadius: 8,
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              paddingLeft: '8px',
+              paddingRight: '8px'
+            }}
+          >
             <div className='flex-shrink-0'>
               <CommitHistory flag={'details'} path={new_path} refs={refs} />
             </div>
