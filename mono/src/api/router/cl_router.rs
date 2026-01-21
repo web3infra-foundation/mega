@@ -8,7 +8,7 @@ use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::model::{
     change_list::{
         AssigneeUpdatePayload, CLDetailRes, ClFilesRes, Condition, FilesChangedPage, ListPayload,
-        MergeBoxRes, MuiTreeNode, UpdateClStatusPayload,
+        MergeBoxRes, MuiTreeNode, UpdateBranchStatusRes, UpdateClStatusPayload,
     },
     conversation::ContentPayload,
     issue::ItemRes,
@@ -49,7 +49,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(labels))
             .routes(routes!(assignees))
             .routes(routes!(edit_title))
-            .routes(routes!(update_cl_status)),
+            .routes(routes!(update_cl_status))
+            .routes(routes!(update_branch_status))
+            .routes(routes!(update_branch)),
     )
 }
 
@@ -332,6 +334,50 @@ async fn cl_files_list(
         })
         .collect::<Vec<ClFilesRes>>();
     Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Get Update Branch status
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "CL link"),
+    ),
+    path = "/{link}/update-status",
+    responses(
+        (status = 200, body = CommonResult<UpdateBranchStatusRes>, content_type = "application/json")
+    ),
+    tag = CL_TAG
+)]
+async fn update_branch_status(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<UpdateBranchStatusRes>>, ApiError> {
+    let res = state.monorepo().update_branch_status(&link).await?;
+    Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Update Branch for Change List
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "CL link"),
+    ),
+    path = "/{link}/update-branch",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = CL_TAG
+)]
+async fn update_branch(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let new_head = state
+        .monorepo()
+        .update_branch(&user.username, &link)
+        .await?;
+    Ok(Json(CommonResult::success(Some(new_head))))
 }
 
 /// Get Merge Box to check merge status

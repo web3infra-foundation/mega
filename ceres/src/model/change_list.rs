@@ -87,6 +87,13 @@ pub struct FilesChangedPage {
     pub page: CommonPage<DiffItem>,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct UpdateBranchStatusRes {
+    pub base_commit: String,
+    pub target_head: String,
+    pub outdated: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, ToSchema)]
 pub struct MuiTreeNode {
     id: String,

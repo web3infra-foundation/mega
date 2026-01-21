@@ -92,7 +92,7 @@ use crate::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
             FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
         },
-        change_list::ClDiffFile,
+        change_list::{ClDiffFile, UpdateBranchStatusRes},
         git::{CreateEntryInfo, EditFilePayload, EditFileResult},
         tag::TagInfo,
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
@@ -256,6 +256,47 @@ impl MonoServiceLogic {
                 if p_ref.ref_name.starts_with("refs/cl/") {
                     push_update(MEGA_BRANCH_NAME);
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Processes ref updates but only for CL refs; never touches main and supports chaining parents.
+    pub fn process_ref_updates_cl_only(
+        result: &TreeUpdateResult,
+        refs: &[mega_refs::Model],
+        commit_msg: &str,
+        parent_override: Option<ObjectHash>,
+        commits: &mut Vec<Commit>,
+        updates: &mut Vec<RefUpdateData>,
+        new_commit_id: &mut String,
+    ) -> Result<(), GitError> {
+        let mut prev_parent: Option<ObjectHash> = None;
+
+        for update in &result.ref_updates {
+            if let Some(p_ref) = refs.iter().find(|r| r.path == update.path) {
+                let parent_ids = if let Some(prev) = prev_parent {
+                    vec![prev]
+                } else if let Some(po) = parent_override {
+                    vec![po]
+                } else {
+                    vec![ObjectHash::from_str(&p_ref.ref_commit_hash).unwrap()]
+                };
+
+                let commit = Commit::from_tree_id(update.tree_id, parent_ids, commit_msg);
+                let commit_id = commit.id.to_string();
+                *new_commit_id = commit_id.clone();
+
+                commits.push(commit);
+                prev_parent = Some(ObjectHash::from_str(&commit_id).unwrap());
+
+                updates.push(RefUpdateData {
+                    path: p_ref.path.clone(),
+                    ref_name: p_ref.ref_name.clone(),
+                    commit_id: commit_id.to_string(),
+                    tree_hash: update.tree_id.to_string(),
+                });
             }
         }
 
@@ -1322,6 +1363,75 @@ impl MonoApiService {
         Ok(new_commit_id)
     }
 
+    /// Apply update result but only update the CL ref (never main).
+    /// Optionally override the parent commit for the first created commit (used by rebase).
+    async fn apply_update_result_cl_only(
+        &self,
+        result: &TreeUpdateResult,
+        commit_msg: &str,
+        cl_link: &str,
+        parent_override: Option<ObjectHash>,
+    ) -> Result<String, GitError> {
+        let storage = self.storage.mono_storage();
+        let mut new_commit_id = String::new();
+        let mut commits: Vec<Commit> = Vec::new();
+
+        let paths: Vec<&str> = result.ref_updates.iter().map(|r| r.path.as_str()).collect();
+
+        let cl_ref = format!("refs/cl/{}", cl_link);
+        let cl_refs: Vec<&str> = vec![cl_ref.as_str()];
+
+        let refs = storage
+            .get_refs_for_paths_and_cls(&paths, Some(cl_refs.as_slice()))
+            .await?;
+
+        let mut updates: Vec<RefUpdateData> = Vec::new();
+
+        MonoServiceLogic::process_ref_updates_cl_only(
+            result,
+            &refs,
+            commit_msg,
+            parent_override,
+            &mut commits,
+            &mut updates,
+            &mut new_commit_id,
+        )?;
+
+        if new_commit_id.is_empty() {
+            return Err(GitError::CustomError(
+                "no commit_id generated: no matching refs found for the update paths".into(),
+            ));
+        }
+
+        storage
+            .batch_update_by_path_concurrent(updates)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        storage
+            .save_mega_commits(commits, None)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let save_trees: Vec<mega_tree::ActiveModel> = result
+            .updated_trees
+            .clone()
+            .into_iter()
+            .map(|save_t| {
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
+                tree_model.commit_id.clone_from(&new_commit_id);
+                tree_model.into()
+            })
+            .collect();
+
+        storage
+            .batch_save_model(save_trees)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        Ok(new_commit_id)
+    }
+
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
     /// * `cl_link` - The link to the merge request.
@@ -1476,6 +1586,281 @@ impl MonoApiService {
             .collect();
 
         Ok(file_paths)
+    }
+
+    /// Return Update Branch status for a CL: only checks whether main/trunk moved past the CL base.
+    pub async fn update_branch_status(
+        &self,
+        cl_link: &str,
+    ) -> Result<UpdateBranchStatusRes, MegaError> {
+        let stg = self.storage.cl_storage();
+        let cl = stg
+            .get_cl(cl_link)
+            .await?
+            .ok_or_else(|| MegaError::Other("CL Not Found".to_string()))?;
+
+        let main_ref = self
+            .storage
+            .mono_storage()
+            .get_main_ref(&cl.path)
+            .await?
+            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?;
+        let target_head = main_ref.ref_commit_hash;
+
+        Ok(UpdateBranchStatusRes {
+            base_commit: cl.from_hash.clone(),
+            target_head: target_head.clone(),
+            outdated: cl.from_hash != target_head,
+        })
+    }
+
+    /// Update Branch (rebase-like) for Open CL: applies CL file changes onto latest target head
+    /// and updates CL's base/head commits. Returns new head commit id on success.
+    pub async fn update_branch(&self, username: &str, cl_link: &str) -> Result<String, GitError> {
+        let stg = self.storage.cl_storage();
+        let conv_stg = self.storage.conversation_storage();
+
+        let cl = stg
+            .get_cl(cl_link)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?
+            .ok_or_else(|| GitError::CustomError("CL Not Found".to_string()))?;
+
+        if cl.status != MergeStatusEnum::Open {
+            return Err(GitError::CustomError(
+                "Only Open CL can update branch".to_string(),
+            ));
+        }
+
+        let main_ref = self
+            .storage
+            .mono_storage()
+            .get_main_ref(&cl.path)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?
+            .ok_or_else(|| GitError::CustomError("Main ref not found".to_string()))?;
+        let target_head = main_ref.ref_commit_hash;
+
+        if target_head == cl.from_hash {
+            return Ok("Already up-to-date".to_string());
+        }
+
+        // Detect file-level conflicts
+        let conflicts = self.detect_update_conflicts(&cl, &target_head).await?;
+
+        if !conflicts.is_empty() {
+            return Err(GitError::CustomError(format!(
+                "Update conflict on files: {}",
+                conflicts.join(", ")
+            )));
+        }
+
+        // Apply CL diffs onto latest target head
+        let old_blobs = self
+            .get_commit_blobs(&cl.from_hash)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let new_blobs = self
+            .get_commit_blobs(&cl.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let cl_changed = self
+            .cl_files_list(old_blobs.clone(), new_blobs.clone())
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        if cl_changed.is_empty() {
+            // No-op rebase: just advance base hash and log.
+            stg.update_cl_hash(cl.clone(), &target_head, &cl.to_hash)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
+            conv_stg
+                .add_conversation(
+                    cl_link,
+                    username,
+                    Some(format!(
+                        "{} updated branch (no changes) to {}",
+                        username,
+                        &target_head[..6]
+                    )),
+                    ConvTypeEnum::Comment,
+                )
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
+            return Ok(cl.to_hash);
+        }
+
+        let mut last_commit_id: Option<String> = None;
+
+        for (idx, diff) in cl_changed.into_iter().enumerate() {
+            let parent_override = if idx == 0 {
+                Some(target_head.as_str())
+            } else {
+                None
+            };
+            match diff {
+                ClDiffFile::New(path, new_hash) => {
+                    let cid = self
+                        .apply_file_blob_update(cl_link, parent_override, &path, new_hash)
+                        .await?;
+                    last_commit_id = Some(cid);
+                }
+                ClDiffFile::Modified(path, _old, new_hash) => {
+                    let cid = self
+                        .apply_file_blob_update(cl_link, parent_override, &path, new_hash)
+                        .await?;
+                    last_commit_id = Some(cid);
+                }
+                ClDiffFile::Deleted(path, _old) => {
+                    let cid = self
+                        .apply_file_delete(cl_link, parent_override, &path)
+                        .await?;
+                    last_commit_id = Some(cid);
+                }
+            }
+        }
+
+        let new_head = last_commit_id
+            .ok_or_else(|| GitError::CustomError("Update branch produced no commit".to_string()))?;
+
+        // Update cl hashes and log
+        stg.update_cl_hash(cl.clone(), &target_head, &new_head)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        conv_stg
+            .add_conversation(
+                cl_link,
+                username,
+                Some(format!(
+                    "{} updated branch to {}",
+                    username,
+                    &target_head[..6]
+                )),
+                ConvTypeEnum::Comment,
+            )
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        Ok(new_head)
+    }
+
+    /// Detect file-level update conflicts between the CL changes and target head.
+    /// A conflict is reported if any file path modified by the CL is also changed
+    /// between `from_hash` and `target_head`.
+    async fn detect_update_conflicts(
+        &self,
+        cl: &mega_cl::Model,
+        target_head: &str,
+    ) -> Result<Vec<String>, GitError> {
+        let old_blobs = self
+            .get_commit_blobs(&cl.from_hash)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let new_blobs = self
+            .get_commit_blobs(&cl.to_hash)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let cl_changed = self
+            .cl_files_list(old_blobs.clone(), new_blobs.clone())
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let target_blobs = self
+            .get_commit_blobs(target_head)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let base_vs_target = self
+            .cl_files_list(old_blobs.clone(), target_blobs.clone())
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let cl_paths: std::collections::HashSet<String> = cl_changed
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect();
+        let target_paths: std::collections::HashSet<String> = base_vs_target
+            .iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect();
+
+        Ok(cl_paths.intersection(&target_paths).cloned().collect())
+    }
+
+    async fn apply_file_blob_update(
+        &self,
+        cl_link: &str,
+        parent_override: Option<&str>,
+        file_path: &std::path::Path,
+        new_blob: ObjectHash,
+    ) -> Result<String, GitError> {
+        let parent_path = file_path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+        let update_chain = self.search_tree_for_update(parent_path).await?;
+
+        let result = MonoServiceLogic::build_result_by_chain(
+            file_path.to_path_buf(),
+            update_chain,
+            new_blob,
+        )
+        .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let cid = self
+            .apply_update_result_cl_only(
+                &result,
+                "update-branch: rebase",
+                cl_link,
+                parent_override.and_then(|p| ObjectHash::from_str(p).ok()),
+            )
+            .await?;
+        Ok(cid)
+    }
+
+    async fn apply_file_delete(
+        &self,
+        cl_link: &str,
+        parent_override: Option<&str>,
+        file_path: &std::path::Path,
+    ) -> Result<String, GitError> {
+        let parent_path = file_path
+            .parent()
+            .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+        let mut update_chain = self.search_tree_for_update(parent_path).await?;
+
+        let parent_tree = update_chain
+            .last()
+            .cloned()
+            .ok_or_else(|| GitError::CustomError("Parent tree not found".to_string()))?;
+
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| GitError::CustomError("Invalid file name".to_string()))?;
+
+        let mut items = parent_tree.tree_items.clone();
+        items.retain(|it| it.name != file_name);
+        let new_parent_tree =
+            Tree::from_tree_items(items).map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        // Pop the parent we just modified; build result for higher-level trees
+        let _ = update_chain.pop();
+
+        let result = MonoServiceLogic::build_result_by_chain(
+            parent_path.to_path_buf(),
+            update_chain,
+            new_parent_tree.id,
+        )
+        .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let cid = self
+            .apply_update_result_cl_only(
+                &result,
+                "update-branch: delete",
+                cl_link,
+                parent_override.and_then(|p| ObjectHash::from_str(p).ok()),
+            )
+            .await?;
+        Ok(cid)
     }
 
     pub async fn cl_files_list(

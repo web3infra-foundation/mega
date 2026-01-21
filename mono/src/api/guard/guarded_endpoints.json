@@ -17,6 +17,8 @@
         "/{link}/files-list": "viewRepo",
         "/{link}/merge-box": "viewRepo",
         "/{link}/status": "editMergeRequest",
+        "/{link}/update-status": "viewRepo",
+        "/{link}/update-branch": "editMergeRequest",
         "/reviewer/{link}": "viewRepo",
         "/reviewer": "editMergeRequest"
     }
