@@ -2,6 +2,8 @@ pub mod base_storage;
 pub mod buck_storage;
 pub mod cl_reviewer_storage;
 pub mod cl_storage;
+pub mod code_review_comment_storage;
+pub mod code_review_thread_storage;
 pub mod commit_binding_storage;
 pub mod conversation_storage;
 pub mod dynamic_sidebar_storage;
@@ -25,8 +27,10 @@ use tokio::sync::Semaphore;
 
 use crate::{
     service::{
-        buck_service::BuckService, cl_service::CLService, git_service::GitService,
-        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
+        buck_service::BuckService, buck_service::BuckService, cl_service::CLService,
+        cl_service::CLService, code_review_service::CodeReviewService, git_service::GitService,
+        git_service::GitService, import_service::ImportService, import_service::ImportService,
+        issue_service::IssueService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
@@ -34,6 +38,8 @@ use crate::{
         buck_storage::BuckStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
+        code_review_comment_storage::CodeReivewCommentStorage,
+        code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
         conversation_storage::ConversationStorage,
         dynamic_sidebar_storage::DynamicSidebarStorage,
@@ -67,6 +73,8 @@ pub struct AppService {
     pub merge_queue_storage: MergeQueueStorage,
     pub buck_storage: BuckStorage,
     pub dynamic_sidebar_storage: DynamicSidebarStorage,
+    pub code_review_comment_storage: CodeReivewCommentStorage,
+    pub code_review_thread_storage: CodeReviewThreadStorage,
 }
 
 impl AppService {
@@ -91,6 +99,8 @@ impl AppService {
             merge_queue_storage: MergeQueueStorage::new(mock.clone()),
             buck_storage: BuckStorage { base: mock.clone() },
             dynamic_sidebar_storage: DynamicSidebarStorage { base: mock.clone() },
+            code_review_comment_storage: CodeReivewCommentStorage { base: mock.clone() },
+            code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
         })
     }
 }
@@ -107,6 +117,7 @@ pub struct Storage {
     pub git_service: GitService,
     pub lfs_service: LfsService,
     pub config: Weak<Config>,
+    pub code_review_service: CodeReviewService,
 }
 
 impl Storage {
@@ -139,6 +150,8 @@ impl Storage {
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
         let buck_storage = BuckStorage { base: base.clone() };
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
+        let code_review_comment_storage = CodeReivewCommentStorage { base: base.clone() };
+        let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
 
         let git_service = GitService {
             obj_storage: ObjectStorageFactory::build(
@@ -192,6 +205,8 @@ impl Storage {
             merge_queue_storage: merge_queue_storage.clone(),
             buck_storage,
             dynamic_sidebar_storage,
+            code_review_comment_storage,
+            code_review_thread_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(
@@ -215,6 +230,7 @@ impl Storage {
             mono_service,
             import_service,
             lfs_service,
+            code_review_service: CodeReviewService::new(base.clone()),
         })
     }
 
@@ -311,6 +327,7 @@ impl Storage {
             mono_service: MonoService::mock(),
             import_service: ImportService::mock(),
             lfs_service: LfsService::mock(),
+            code_review_service: CodeReviewService::mock(),
         }
     }
 }
