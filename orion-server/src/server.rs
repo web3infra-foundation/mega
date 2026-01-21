@@ -31,7 +31,8 @@ use crate::{
         api::task_targets_handler,
         api::get_orion_clients_info,
         api::get_orion_client_status_by_id,
-        api::build_retry_handler
+        api::build_retry_handler,
+        api::health_check_handler
     ),
     components(
         schemas(

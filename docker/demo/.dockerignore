@@ -1,0 +1,25 @@
+# Exclude files / directories not needed in build context for demo services
+
+# VCS
+.git
+
+# IDE / editor config
+.idea/
+.vscode/
+*.code-workspace
+
+# OS metadata
+.DS_Store
+
+# Rust build artifacts
+target/
+**/target/
+
+# Node, Python, others
+node_modules/
+__pycache__/
+
+# Tests, docs, images not required
+/tests/
+/docs/
+
