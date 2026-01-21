@@ -600,9 +600,23 @@ impl MonoRepo {
 
             cl_stg.update_cl_to_hash(cl, &self.to_hash).await?;
         } else {
-            cl_stg
-                .update_cl_hash(cl, &self.from_hash, &self.to_hash)
+            // Freeze CL base for Open CL: do NOT auto-update from_hash here.
+            // Only update to_hash to reflect latest edits, and prompt user to run Update Branch.
+            let username = self.username();
+            let old_base = &cl.from_hash[..6];
+            let new_target = &self.from_hash[..6];
+            comment_stg
+                .add_conversation(
+                    &cl.link,
+                    &username,
+                    Some(format!(
+                        "{} detected upstream changes (base {} → {}). Use Update Branch to sync.",
+                        username, old_base, new_target
+                    )),
+                    ConvTypeEnum::Comment,
+                )
                 .await?;
+            cl_stg.update_cl_to_hash(cl, &self.to_hash).await?;
         }
         Ok(())
     }
