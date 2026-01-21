@@ -17,11 +17,18 @@
 
 ## Prerequisites
 
-### Supported OS
+### System Requirements
 
 * Linux – native Docker & Compose
 * macOS – Docker Desktop
 * Windows – Docker Desktop (WSL2 recommended)
+
+**Hardware** (minimum):
+
+* CPU: 4 cores
+* RAM: 8 GB (16 GB recommended for source builds)
+* Disk: 10 GB free (30 GB recommended if building images locally)
+
 
 ### Required Tools
 
@@ -60,13 +67,14 @@ The main configurable environment variables include:
   - `POSTGRES_PASSWORD`: PostgreSQL password (default: `postgres`)
   - `POSTGRES_DB_MONO`: PostgreSQL database name (default: `mono`, shared by Mega + Orion Server)
   - `MYSQL_ROOT_PASSWORD`: MySQL root password (default: `mysqladmin`)
+    - ⚠️ For production, create a **dedicated low-privilege user** and update the MySQL health-check accordingly (avoid embedding root password).
   - `MYSQL_DATABASE`: Campsite database name (default: `campsite`, uses MySQL)
 
-- **Service Images**：
-  - `MEGA_ENGINE_IMAGE`：Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
-  - `MEGA_UI_IMAGE`：Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release`)
-  - `MEGA_DEV_IMAGE`：Orion Build Client image（default: `public.ecr.aws/m8q5m4u3/mega:mega-dev-0.1.0-pre-release`）
-  - `CAMPSITE_API_IMAGE`：Campsite API image (default uses locally built `campsite-api:latest`, source repo: `https://github.com/web3infra-foundation/campsite`; if development environment encryption configuration (Master Key, etc.) is ready, you can directly set it to public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release to pull the pre-built image)
+- **Service Images**:
+  - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
+  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release`)
+  - `MEGA_DEV_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:mega-dev-0.1.0-pre-release`)
+  - `CAMPSITE_API_IMAGE`: Campsite API image (default uses locally built `campsite-api:latest`, source repo: `https://github.com/web3infra-foundation/campsite`; if development environment encryption configuration (Master Key, etc.) is ready, you can directly set it to `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release` to pull the pre-built image)
   - Before building the image, you need to generate a Rails `master key` and fill it into the `CAMPSITE_RAILS_MASTER_KEY` field in the `.env` file:
     1. Navigate to the Campsite source code directory.
     2. Execute `VISUAL="code -n --wait" ./bin/rails credentials:edit --environment development`.
@@ -205,13 +213,13 @@ Log in with the following credentials:
 
 ### API Health Check Endpoints
 
-- **Mega API**：`GET http://localhost:8000/api/v1/status`
-- **Orion Server**：`GET http://localhost:8004/v2/health`
-- **Campsite API**：`GET http://localhost:8080/health`
+- **Mega API**: `GET http://localhost:8000/api/v1/status`
+- **Orion Server**: `GET http://localhost:8004/v2/health`
+- **Campsite API**: `GET http://localhost:8080/health`
 
 ---
 
-## Frequently Asked Questions (FAQ)
+## FAQ
 
 ### Port Conflict
 
@@ -492,7 +500,7 @@ For a detailed architecture diagram and dependency list, see the [Mega / Orion D
 
 If you run into issues, you can:
 
-1. Read the [FAQ](#常见问题-faq) section of this document.
+1. Read the [FAQ](#faq) section of this document.
 2. Check the service logs for troubleshooting.
 
 ---

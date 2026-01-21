@@ -197,7 +197,7 @@ pub async fn health_check_handler(State(state): State<AppState>) -> impl IntoRes
             tracing::error!("Health check failed: {}", e);
             (
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"status": "unhealthy", "error": format!("{}", e)})),
+                Json(json!({"status": "unhealthy", "error": "database connectivity check failed"})),
             )
         }
     }

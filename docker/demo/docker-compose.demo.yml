@@ -15,7 +15,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB_MONO:-mono}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -243,6 +242,7 @@ services:
     image: ${MEGA_DEV_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mega-dev-0.1.0-pre-release}
     container_name: mega-demo-orion-worker
     command: orion
+    # privileged mode allows nested container builds (Scorpio) inside the worker.
     privileged: true
     depends_on:
       orion_server:
@@ -283,6 +283,8 @@ services:
       DATABASE_URL: ${CAMPSITE_DATABASE_URL:-mysql2://root:${MYSQL_ROOT_PASSWORD:-mysqladmin}@mysql:3306/${MYSQL_DATABASE:-campsite}}
       REDIS_URL: ${CAMPSITE_REDIS_URL:-redis://redis:6379}
       PORT: 8080
+      # Allow toggling migrations from .env
+      CAMPSITE_RUN_MIGRATIONS: ${CAMPSITE_RUN_MIGRATIONS:-1}
 
       # Align with ECS style env vars (for local demo use dev)
       RAILS_ENV: ${CAMPSITE_RAILS_ENV:-development}

@@ -31,6 +31,9 @@ Cargo.lock
 ztm_agent.db
 ztm_agent_db*
 
+# Demo env variables
+docker/demo/.env
+
 # buck2 out
 buck-out
 
