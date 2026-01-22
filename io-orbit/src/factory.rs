@@ -84,6 +84,7 @@ async fn build_s3_compatible(
         .with_access_key_id(&s3_cfg.access_key_id)
         .with_secret_access_key(&s3_cfg.secret_access_key)
         .with_endpoint(&s3_cfg.endpoint_url)
+        .with_allow_http(true)
         .with_virtual_hosted_style_request(false)
         .build()
         .map_err(|e| MegaError::Other(e.to_string()))?;
