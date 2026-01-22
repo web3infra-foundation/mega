@@ -71,7 +71,7 @@ impl CodeReviewService {
                 .or_default()
                 .push(CommentReviewView {
                     comment_id: c.id,
-                    user_id: c.user_id,
+                    user_name: c.user_name,
                     content: c.content,
                     parent_id: c.parent_id,
                     created_at: c.created_at,
@@ -115,7 +115,7 @@ impl CodeReviewService {
         file_path: &str,
         line_number: i32,
         diff_side: DiffSideEnum,
-        user_id: i64,
+        user_name: String,
         content: String,
     ) -> Result<ThreadReviewView, MegaError> {
         let thread = match self
@@ -128,7 +128,7 @@ impl CodeReviewService {
 
         let comment = self
             .code_review_comment
-            .create_code_review_comment(thread.id, user_id, None, Some(content))
+            .create_code_review_comment(thread.id, user_name, None, Some(content))
             .await?;
 
         let thread = self.code_review_thread.touch_thread(thread.id).await?;
@@ -148,7 +148,7 @@ impl CodeReviewService {
         &self,
         thread_id: i64,
         parent_comment_id: i64,
-        user_id: i64,
+        user_name: String,
         content: String,
     ) -> Result<mega_code_review_comment::Model, MegaError> {
         self.code_review_thread
@@ -172,7 +172,12 @@ impl CodeReviewService {
 
         let comment = self
             .code_review_comment
-            .create_code_review_comment(thread_id, user_id, Some(parent_comment_id), Some(content))
+            .create_code_review_comment(
+                thread_id,
+                user_name,
+                Some(parent_comment_id),
+                Some(content),
+            )
             .await?;
 
         Ok(comment)

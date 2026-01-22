@@ -25,7 +25,7 @@ pub struct ThreadReviewView {
 
 pub struct CommentReviewView {
     pub comment_id: i64,
-    pub user_id: i64,
+    pub user_name: String,
     pub content: Option<String>,
     pub parent_id: Option<i64>,
     pub created_at: chrono::NaiveDateTime,
@@ -36,7 +36,7 @@ impl From<mega_code_review_comment::Model> for CommentReviewView {
     fn from(value: mega_code_review_comment::Model) -> Self {
         Self {
             comment_id: value.id,
-            user_id: value.user_id,
+            user_name: value.user_name,
             content: value.content,
             parent_id: value.parent_id,
             created_at: value.created_at,

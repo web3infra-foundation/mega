@@ -56,11 +56,12 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_thread_link_file_line")
+                    .name("idx_thread_anchor")
                     .table(MegaCodeReviewThread::Table)
                     .col(MegaCodeReviewThread::Link)
                     .col(MegaCodeReviewThread::FilePath)
                     .col(MegaCodeReviewThread::LineNumber)
+                    .col(MegaCodeReviewThread::DiffSide)
                     .to_owned(),
             )
             .await?;
@@ -74,7 +75,7 @@ impl MigrationTrait for Migration {
                     .col(pk_bigint(MegaCodeReviewComment::Id))
                     .col(big_integer(MegaCodeReviewComment::ThreadId))
                     .col(big_integer_null(MegaCodeReviewComment::ParentId))
-                    .col(big_integer(MegaCodeReviewComment::UserId))
+                    .col(string(MegaCodeReviewComment::UserName))
                     .col(text_null(MegaCodeReviewComment::Content))
                     .col(date_time(MegaCodeReviewComment::CreatedAt))
                     .col(date_time(MegaCodeReviewComment::UpdatedAt))
@@ -145,7 +146,7 @@ enum MegaCodeReviewComment {
     Id,
     ThreadId,
     ParentId,
-    UserId,
+    UserName,
     Content,
     CreatedAt,
     UpdatedAt,

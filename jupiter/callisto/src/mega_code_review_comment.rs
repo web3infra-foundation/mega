@@ -10,7 +10,7 @@ pub struct Model {
     pub id: i64,
     pub thread_id: i64,
     pub parent_id: Option<i64>,
-    pub user_id: i64,
+    pub user_name: String,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
     pub created_at: DateTime,
