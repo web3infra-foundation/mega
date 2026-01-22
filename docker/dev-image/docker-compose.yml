@@ -21,7 +21,7 @@ services:
   # Scorpio - FUSE Filesystem Service (daemon)
   # ---------------------------------------------------------------------------
   scorpio:
-    image: ${MEGA_DEV_IMAGE:-mega-dev:latest}
+    image: ${ORION_CLIENT_IMAGE:-orion-client:latest}
     container_name: mega-scorpio
     command: scorpio
     profiles:
@@ -52,7 +52,7 @@ services:
   # The worker can run without an Orion Server, but it will keep retrying the
   # WebSocket connection and won't execute builds until tasks are assigned.
   orion-worker:
-    image: ${MEGA_DEV_IMAGE:-mega-dev:latest}
+    image: ${ORION_CLIENT_IMAGE:-orion-client:latest}
     container_name: mega-orion-worker
     command: orion
     profiles:
@@ -83,7 +83,7 @@ services:
   # Development Shell - Tooling Only
   # ---------------------------------------------------------------------------
   dev:
-    image: ${MEGA_DEV_IMAGE:-mega-dev:dev}
+    image: ${ORION_CLIENT_IMAGE:-orion-client:dev}
     container_name: mega-dev-shell
     profiles:
       - dev
