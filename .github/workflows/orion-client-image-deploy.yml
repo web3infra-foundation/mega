@@ -1,11 +1,11 @@
-name: Mega Dev Image deploy
+name: Orion Client Image deploy
 on:
   workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - ".github/workflows/mega-dev-image-deploy.yml"
+      - ".github/workflows/orion-client-image-deploy.yml"
       - "docker/dev-image/**"
       - "orion/**"
       - "scorpio/**"
@@ -52,7 +52,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: m8q5m4u3
           REPOSITORY: mega
-          IMAGE_TAG: mega-dev-0.1.0-pre-release
+          IMAGE_TAG: orion-client-0.1.0-pre-release
         run: |
           set -euo pipefail
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
