@@ -12,8 +12,6 @@ on:
 
 jobs:
   build-and-push:
-    # Run only in upstream repository, skip on forks without credentials
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
