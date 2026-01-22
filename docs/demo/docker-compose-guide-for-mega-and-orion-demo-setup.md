@@ -1,5 +1,3 @@
-# Mega / Orion Demo Environment – Docker Compose Guide
-
 > ⚠️ **Important Notice**: This Docker Compose setup is **for local demo/development only**. Do **NOT** run it in production. Default passwords and test users are included.
 
 ## Table of Contents
@@ -53,6 +51,17 @@ cd mega
 
 ### 2  Configure environment *(optional)*
 
+> **Hosts mapping (required for demo domains)**
+> 
+> The demo uses virtual domains under `gitmono.local`. Add the following line to your operating-system hosts file so that the browser resolves them to your local machine:
+>
+> ```
+> 127.0.0.1 app.gitmono.local git.gitmono.local api.gitmono.local auth.gitmono.local orion.gitmono.local
+> ```
+> 
+> On Linux/macOS this is `/etc/hosts`; on Windows it is `C:\Windows\System32\drivers\etc\hosts`. You can remove the mapping at any time after testing.
+
+
 The demo environment already has sensible default values and can be used as-is. To customize any settings, create a `.env` file under `docker/demo/`:
 
 ```bash
@@ -72,14 +81,9 @@ The main configurable environment variables include:
 
 - **Service Images**:
   - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
-  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release`)
+  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release`)
   - `MEGA_DEV_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:mega-dev-0.1.0-pre-release`)
-  - `CAMPSITE_API_IMAGE`: Campsite API image (default uses locally built `campsite-api:latest`, source repo: `https://github.com/web3infra-foundation/campsite`; if development environment encryption configuration (Master Key, etc.) is ready, you can directly set it to `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release` to pull the pre-built image)
-  - Before building the image, you need to generate a Rails `master key` and fill it into the `CAMPSITE_RAILS_MASTER_KEY` field in the `.env` file:
-    1. Navigate to the Campsite source code directory.
-    2. Execute `VISUAL="code -n --wait" ./bin/rails credentials:edit --environment development`.
-    3. After saving, copy the generated `master key` from the prompt in the terminal.
-    4. Write this key to `CAMPSITE_RAILS_MASTER_KEY=` in `docker/demo/.env` (copied from `.env.example`).
+  - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
   - `CAMPSITE_RUN_MIGRATIONS`: Whether to run database migrations when the container starts; `1` (default) to run, can be changed to `0` after the first successful migration to skip and speed up subsequent starts.
 
 - **RustFS Configuration**:
@@ -209,7 +213,8 @@ Log in with the following credentials:
 | **PostgreSQL** | localhost:5432 | Database (used by Mega & Orion, mapped to host port 5432 in demo) |
 | **MySQL** | localhost:3306 | Database (used by Campsite API, mapped to host port 3306 in demo) |
 | **Redis** | localhost:6379 | Cache service (mapped to host port 6379 in demo) |
-| **RustFS** | http://localhost:9001 | Object storage service & console |
+| **RustFS Console** | http://localhost:9001 | Web console for RustFS object storage |
+| **RustFS S3 API** | http://localhost:9000 | S3-compatible endpoint |
 
 ### API Health Check Endpoints
 
@@ -516,4 +521,3 @@ The demo environment includes the following insecure settings:
 - Simple data-persistence setup
 
 **Do NOT use this configuration in production!**
-
