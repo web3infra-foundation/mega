@@ -83,7 +83,6 @@ jobs:
 
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --builder default \
             --file "$DOCKERFILE_PATH" \
             --tag "$IMAGE_BASE:$IMAGE_TAG" \
             --push \
@@ -100,7 +99,6 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --builder default \
             --file "$DOCKERFILE_PATH" \
             --tag "local/${IMAGE_TAG}" \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
