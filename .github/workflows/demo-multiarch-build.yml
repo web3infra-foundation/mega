@@ -31,7 +31,7 @@ jobs:
             image_tag: mono-0.1.0-pre-release
           # mega UI
           - name: mega-ui
-            dockerfile: docker/mono-ui-dockerfile
+            dockerfile: moon/apps/web/Dockerfile
             image_tag: mega-ui-demo-0.1.0-pre-release
           # orion server
           - name: orion-server
