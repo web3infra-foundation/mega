@@ -15,10 +15,13 @@ on:
       - 'docker/demo/**'
       - '.github/workflows/demo-multiarch-build.yml'
 
+<<<<<<< HEAD
 permissions:
   contents: read
   actions: write
 
+=======
+>>>>>>> e062a050 (ci(demo): optimize build performance and increase timeout)
 env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega
