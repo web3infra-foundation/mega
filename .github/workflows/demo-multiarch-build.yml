@@ -1,0 +1,83 @@
+name: Demo multi-arch images
+
+# Standalone workflow: triggered by demo directory changes or manual dispatch, builds and pushes
+# linux/amd64 and linux/arm64 multi-arch images for the docker/demo compose setup.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'docker/demo/**'
+      - '.github/workflows/demo-multiarch-build.yml'
+
+jobs:
+  build-and-push:
+    # Run only in upstream repository, skip on forks without credentials
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        include:
+          # mono backend
+          - name: mono-engine
+            dockerfile: docker/mono-engine-dockerfile
+            image_tag: mono-0.1.0-pre-release
+          # mega UI
+          - name: mega-ui
+            dockerfile: docker/mono-ui-dockerfile
+            image_tag: mega-ui-demo-0.1.0-pre-release
+          # orion server
+          - name: orion-server
+            dockerfile: orion-server/Dockerfile
+            image_tag: orion-server-0.1.0-pre-release
+          # orion client image (build worker)
+          - name: orion-client-image
+            dockerfile: docker/dev-image/Dockerfile
+            image_tag: orion-client-0.1.0-pre-release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build & push ${{ matrix.name }} (amd64+arm64)
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: m8q5m4u3
+          REPOSITORY: mega
+          IMAGE_TAG: ${{ matrix.image_tag }}
+          DOCKERFILE_PATH: ${{ matrix.dockerfile }}
+        run: |
+          IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
+
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --builder default \
+            --file "$DOCKERFILE_PATH" \
+            --tag "$IMAGE_BASE:$IMAGE_TAG" \
+            --push \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo \
+            --cache-to type=gha,scope=mega-demo,mode=max \
+            .
+

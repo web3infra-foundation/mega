@@ -13,6 +13,17 @@
 
 ---
 
+## Apple Silicon (macOS M1/M2) Quick note
+
+This demo ships **multi-architecture Docker images** (linux/amd64 + linux/arm64). If you are on an Apple Silicon machine:
+
+1. Ensure you are running **Docker Desktop ≥ 4.22** (includes Compose v2 and built-in Rosetta/QEMU).
+2. Simply follow the normal steps—Docker will automatically pull the arm64 layers from the public registry.
+3. If the arm64 variant is not yet available (e.g. you are on a fresh fork), trigger the GitHub workflow **“Demo multi-arch images”**: `Actions → Demo multi-arch images → Run workflow`.
+4. As a fall-back you can force emulation by adding `--platform linux/amd64` after every `docker compose` command, but native arm64 images are strongly recommended.
+
+---
+
 ## Prerequisites
 
 ### System Requirements
@@ -82,7 +93,7 @@ The main configurable environment variables include:
 - **Service Images**:
   - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
   - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release`)
-  - `MEGA_DEV_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:mega-dev-0.1.0-pre-release`)
+  - `ORION_CLIENT_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release`)
   - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
   - `CAMPSITE_RUN_MIGRATIONS`: Whether to run database migrations when the container starts; `1` (default) to run, can be changed to `0` after the first successful migration to skip and speed up subsequent starts.
 
@@ -494,7 +505,7 @@ The demo environment includes the following services:
   - `mega`: Mega backend (Rust)
   - `mega_ui`: Mega Web UI (Next.js)
   - `orion_server`: Orion build server (Rust)
-  - `orion_build_client`: Orion build client (based on the mega-dev image)
+  - `orion_build_client`: Orion build client (based on the orion-client image)
   - `campsite_api`: Campsite API (Ruby/Rails, built locally by default; if you have the encrypted development credentials configured you can pull the pre-built image directly via `CAMPSITE_API_IMAGE=public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
 
 For a detailed architecture diagram and dependency list, see the [Mega / Orion Demo architecture design document](./mega-orion-demo-compose-arch.md).
