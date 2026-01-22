@@ -73,7 +73,12 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
       ) : (
         <div className='ml-3 w-full divide-y rounded-lg border bg-white'>
           <ReviewerSection required={required} actual={actual} />
-          <ChecksSection checks={checks} onStatusChange={setHasCheckFailures} additionalChecks={additionalChecks} />
+          <ChecksSection
+            checks={checks}
+            onStatusChange={setHasCheckFailures}
+            additionalChecks={additionalChecks}
+            clLink={id}
+          />
           {status === 'Draft' && <DraftStatusBanner link={id} />}
 
           <MergeSection

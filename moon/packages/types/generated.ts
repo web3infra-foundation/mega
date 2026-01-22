@@ -3053,6 +3053,10 @@ export type AddToQueueResponse = {
   success: boolean
 }
 
+export type AdminListResponse = {
+  admins: string[]
+}
+
 export type AssigneeUpdatePayload = {
   assignees: string[]
   /** @format int64 */
@@ -3131,6 +3135,7 @@ export type CLDetailRes = {
   merge_timestamp?: number | null
   /** @format int64 */
   open_timestamp: number
+  path: string
   status: MergeStatus
   title: string
 }
@@ -3153,17 +3158,6 @@ export enum CheckType {
   MergeConflict = 'MergeConflict',
   CiStatus = 'CiStatus',
   CodeReview = 'CodeReview'
-}
-
-/** Chunk download object information */
-export type ChunkDownloadObject = {
-  /** Link information for LFS object transfer */
-  link: Link
-  /** @format int64 */
-  offset: number
-  /** @format int64 */
-  size: number
-  sub_oid: string
 }
 
 export type ClFilesRes = {
@@ -3242,6 +3236,14 @@ export type CommonResultAddToQueueResponse = {
   req_result: boolean
 }
 
+export type CommonResultAdminListResponse = {
+  data?: {
+    admins: string[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultBlameResult = {
   /** Complete blame result for a file */
   data?: {
@@ -3275,6 +3277,7 @@ export type CommonResultCLDetailRes = {
     merge_timestamp?: number | null
     /** @format int64 */
     open_timestamp: number
+    path: string
     status: MergeStatus
     title: string
   }
@@ -3480,6 +3483,14 @@ export type CommonResultFilesChangedPage = {
   req_result: boolean
 }
 
+export type CommonResultIsAdminResponse = {
+  data?: {
+    is_admin: boolean
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultIssueDetailRes = {
   data?: {
     assignees: string[]
@@ -3667,6 +3678,16 @@ export type CommonResultTreeResponse = {
   data?: {
     file_tree: Record<string, FileTreeItem>
     tree_items: TreeBriefItem[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultUpdateBranchStatusRes = {
+  data?: {
+    base_commit: string
+    outdated: boolean
+    target_head: string
   }
   err_message: string
   req_result: boolean
@@ -4005,14 +4026,6 @@ export enum FailureType {
   Timeout = 'Timeout'
 }
 
-/** Response for fetching chunk IDs */
-export type FetchChunkResponse = {
-  chunks: ChunkDownloadObject[]
-  oid: string
-  /** @format int64 */
-  size: number
-}
-
 /** File that needs to be uploaded */
 export type FileToUpload = {
   /** File path */
@@ -4059,6 +4072,10 @@ export enum GpgStatus {
   Verified = 'Verified',
   Unverified = 'Unverified',
   NoSignature = 'NoSignature'
+}
+
+export type IsAdminResponse = {
+  is_admin: boolean
 }
 
 export type IssueDetailRes = {
@@ -4591,6 +4608,12 @@ export type UnlockResponse = {
   message: string
 }
 
+export type UpdateBranchStatusRes = {
+  base_commit: string
+  outdated: boolean
+  target_head: string
+}
+
 export type UpdateClStatusPayload = {
   status: string
 }
@@ -4654,16 +4677,21 @@ export type BuildDTO = {
   id: string
   output_file: string
   repo: string
+  /** @format int32 */
+  retry_count: number
   start_at: string
   /** Enumeration of possible task statuses */
   status: TaskStatusEnum
   target: string
+  target_id?: string | null
   task_id: string
 }
 
 /** Request payload for creating a new build task */
 export type BuildRequest = {
   changes: StatusProjectRelativePath[]
+  /** Buck2 target path (e.g. //app:server). Optional for backward compatibility. */
+  target?: string | null
 }
 
 export type CommonPageOrionClientInfo = {
@@ -4765,6 +4793,16 @@ export type PageParamsOrionClientQuery = {
   pagination: Pagination
 }
 
+/** Request structure for Retry a build */
+export type RetryBuildRequest = {
+  /** Request payload for creating a new build task */
+  build: BuildRequest
+  build_id: string
+  /** @format int64 */
+  cl: number
+  cl_link: string
+}
+
 export type StatusProjectRelativePath =
   | {
       Modified: string
@@ -4776,12 +4814,40 @@ export type StatusProjectRelativePath =
       Removed: string
     }
 
+export type TargetLogQuery = {
+  /** @min 0 */
+  limit?: number | null
+  /** @min 0 */
+  offset?: number | null
+  type?: string
+}
+
+export enum TargetState {
+  Pending = 'Pending',
+  Building = 'Building',
+  Completed = 'Completed',
+  Failed = 'Failed',
+  Interrupted = 'Interrupted'
+}
+
+/** Target DTO with a generic builds payload. */
+export type TargetWithBuilds = {
+  builds: BuildDTO[]
+  end_at?: string | null
+  error_summary?: string | null
+  id: string
+  start_at?: string | null
+  state: TargetState
+  target_path: string
+}
+
 /** Task information including current status */
 export type TaskInfoDTO = {
   build_list: BuildDTO[]
   /** @format int64 */
   cl_id: number
   created_at: string
+  targets: TargetWithBuilds[]
   task_id: string
   task_name?: string | null
   template?: any
@@ -4800,8 +4866,6 @@ export type TaskRequest = {
   cl: number
   cl_link: string
   repo: string
-  task_name?: string | null
-  template?: any
 }
 
 /** Enumeration of possible task statuses */
@@ -5947,6 +6011,10 @@ export type PostThreadsV2Data = V2MessageThread
 
 export type PostSignInFigmaData = FigmaKeyPair
 
+export type GetApiAdminListData = CommonResultAdminListResponse
+
+export type GetApiAdminMeData = CommonResultIsAdminResponse
+
 export type GetApiBlameParams = {
   refs?: string
   path?: string
@@ -6016,6 +6084,10 @@ export type DeleteApiClReviewersData = CommonResultString
 export type PostApiClStatusData = CommonResultString
 
 export type PostApiClTitleData = CommonResultString
+
+export type PostApiClUpdateBranchData = CommonResultString
+
+export type GetApiClUpdateStatusData = CommonResultUpdateBranchStatusRes
 
 export type PostApiCommitsHistoryData = CommonResultCommonPageCommitSummary
 
@@ -6123,29 +6195,6 @@ export type PutApiLfsObjectsByObjectIdPayload = number[]
 
 export type PutApiLfsObjectsByObjectIdData = any
 
-export type GetApiLfsObjectsChunksData = FetchChunkResponse
-
-export type GetApiLfsObjectsChunksByChunkIdParams = {
-  /**
-   * Byte offset of the chunk
-   * @format int64
-   * @min 0
-   */
-  offset: number
-  /**
-   * Size of the chunk in bytes
-   * @format int64
-   * @min 0
-   */
-  size: number
-  /** Original object ID */
-  objectId: string
-  /** Chunk ID to download */
-  chunkId: string
-}
-
-export type GetApiLfsObjectsChunksByChunkIdData = any
-
 export type PostApiMergeQueueAddData = CommonResultAddToQueueResponse
 
 export type PostApiMergeQueueCancelAllData = CommonResultValue
@@ -6243,6 +6292,27 @@ export type GetOrionClientStatusByIdData = OrionClientStatus
 
 export type PostOrionClientsInfoData = CommonPageOrionClientInfo
 
+export type PostRetryBuildData = any
+
+export type GetTargetsLogsParams = {
+  /** full | segment */
+  type: string
+  /**
+   * Start line number for segment mode
+   * @min 0
+   */
+  offset?: number
+  /**
+   * Max lines for segment mode
+   * @min 0
+   */
+  limit?: number
+  /** Target ID whose logs to read */
+  targetId: string
+}
+
+export type GetTargetsLogsData = any
+
 export type PostTaskData = any
 
 export type GetTaskBuildListByIdData = string[]
@@ -6271,6 +6341,10 @@ export type GetTaskHistoryOutputData = any
 export type GetTaskOutputByIdData = any
 
 export type GetTasksByClData = TaskInfoDTO[]
+
+export type GetTasksTargetsData = TaskInfoDTO
+
+export type GetHealthV2Data = any
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -6572,6 +6646,31 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       request: (data: PageParamsOrionClientQuery, params: RequestParams = {}) =>
         this.request<PostOrionClientsInfoData>({
           path: `/orion-clients-info`,
+          method: 'POST',
+          body: data,
+          type: ContentType.Json,
+          ...params
+        })
+    }
+  }
+
+  /**
+   * No description
+   *
+   * @tags api
+   * @name PostRetryBuild
+   * @summary Retry the build
+   * @request POST:/retry-build
+   */
+  postRetryBuild = () => {
+    const base = 'POST:/retry-build' as const
+
+    return {
+      baseKey: dataTaggedQueryKey<PostRetryBuildData>([base]),
+      requestKey: () => dataTaggedQueryKey<PostRetryBuildData>([base]),
+      request: (data: RetryBuildRequest, params: RequestParams = {}) =>
+        this.request<PostRetryBuildData>({
+          path: `/retry-build`,
           method: 'POST',
           body: data,
           type: ContentType.Json,
@@ -14627,6 +14726,52 @@ supporting either retrieving the entire log at once or segmenting it by line cou
   }
   v1 = {
     /**
+     * @description Returns a list of all admin usernames. Only admins can access this endpoint.
+     *
+     * @tags User Management
+     * @name GetApiAdminList
+     * @summary GET /api/v1/admin/list
+     * @request GET:/api/v1/admin/list
+     */
+    getApiAdminList: () => {
+      const base = 'GET:/api/v1/admin/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminListData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiAdminListData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiAdminListData>({
+            path: `/api/v1/admin/list`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Returns whether the current user is an admin.
+     *
+     * @tags User Management
+     * @name GetApiAdminMe
+     * @summary GET /api/v1/admin/me
+     * @request GET:/api/v1/admin/me
+     */
+    getApiAdminMe: () => {
+      const base = 'GET:/api/v1/admin/me' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminMeData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiAdminMeData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiAdminMeData>({
+            path: `/api/v1/admin/me`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
      * No description
      *
      * @tags Code Preview
@@ -15245,6 +15390,52 @@ It's for local testing purposes.
             method: 'POST',
             body: data,
             type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Change List
+     * @name PostApiClUpdateBranch
+     * @summary Update Branch for Change List
+     * @request POST:/api/v1/cl/{link}/update-branch
+     */
+    postApiClUpdateBranch: () => {
+      const base = 'POST:/api/v1/cl/{link}/update-branch' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiClUpdateBranchData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiClUpdateBranchData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<PostApiClUpdateBranchData>({
+            path: `/api/v1/cl/${link}/update-branch`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Change List
+     * @name GetApiClUpdateStatus
+     * @summary Get Update Branch status
+     * @request GET:/api/v1/cl/{link}/update-status
+     */
+    getApiClUpdateStatus: () => {
+      const base = 'GET:/api/v1/cl/{link}/update-status' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiClUpdateStatusData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiClUpdateStatusData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiClUpdateStatusData>({
+            path: `/api/v1/cl/${link}/update-status`,
+            method: 'GET',
             ...params
           })
       }
@@ -16106,54 +16297,6 @@ It's for local testing purposes.
     },
 
     /**
-     * @description Fetch chunk IDs for a split object. This handler is also available at `/info/lfs/objects/{object_id}/chunks` for Git LFS client compatibility.
-     *
-     * @tags Git LFS
-     * @name GetApiLfsObjectsChunks
-     * @summary Fetch chunk IDs for a split object
-     * @request GET:/api/v1/lfs/objects/{object_id}/chunks
-     */
-    getApiLfsObjectsChunks: () => {
-      const base = 'GET:/api/v1/lfs/objects/{object_id}/chunks' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiLfsObjectsChunksData>([base]),
-        requestKey: (objectId: string) => dataTaggedQueryKey<GetApiLfsObjectsChunksData>([base, objectId]),
-        request: (objectId: string, params: RequestParams = {}) =>
-          this.request<GetApiLfsObjectsChunksData>({
-            path: `/api/v1/lfs/objects/${objectId}/chunks`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * @description Download a chunk of an LFS object. This handler is also available at `/info/lfs/objects/{object_id}/chunks/{chunk_id}` for Git LFS client compatibility.
-     *
-     * @tags Git LFS
-     * @name GetApiLfsObjectsChunksByChunkId
-     * @summary Download a chunk of an LFS object
-     * @request GET:/api/v1/lfs/objects/{object_id}/chunks/{chunk_id}
-     */
-    getApiLfsObjectsChunksByChunkId: () => {
-      const base = 'GET:/api/v1/lfs/objects/{object_id}/chunks/{chunk_id}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetApiLfsObjectsChunksByChunkIdData>([base]),
-        requestKey: (params: GetApiLfsObjectsChunksByChunkIdParams) =>
-          dataTaggedQueryKey<GetApiLfsObjectsChunksByChunkIdData>([base, params]),
-        request: ({ objectId, chunkId, ...query }: GetApiLfsObjectsChunksByChunkIdParams, params: RequestParams = {}) =>
-          this.request<GetApiLfsObjectsChunksByChunkIdData>({
-            path: `/api/v1/lfs/objects/${objectId}/chunks/${chunkId}`,
-            method: 'GET',
-            query: query,
-            ...params
-          })
-      }
-    },
-
-    /**
      * No description
      *
      * @tags Merge Queue Management
@@ -16961,6 +17104,30 @@ Continuously monitors the log file and streams new content as it becomes availab
       }
     }
   }
+  targetId = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTargetsLogs
+     * @request GET:/targets/{target_id}/logs
+     */
+    getTargetsLogs: () => {
+      const base = 'GET:/targets/{target_id}/logs' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTargetsLogsData>([base]),
+        requestKey: (params: GetTargetsLogsParams) => dataTaggedQueryKey<GetTargetsLogsData>([base, params]),
+        request: ({ targetId, ...query }: GetTargetsLogsParams, params: RequestParams = {}) =>
+          this.request<GetTargetsLogsData>({
+            path: `/targets/${targetId}/logs`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    }
+  }
   cl = {
     /**
      * No description
@@ -16979,6 +17146,54 @@ Continuously monitors the log file and streams new content as it becomes availab
         request: (cl: number, params: RequestParams = {}) =>
           this.request<GetTasksByClData>({
             path: `/tasks/${cl}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  taskId = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTasksTargets
+     * @request GET:/tasks/{task_id}/targets
+     */
+    getTasksTargets: () => {
+      const base = 'GET:/tasks/{task_id}/targets' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTasksTargetsData>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetTasksTargetsData>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetTasksTargetsData>({
+            path: `/tasks/${taskId}/targets`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  health = {
+    /**
+ * No description
+ *
+ * @tags api
+ * @name GetHealthV2
+ * @summary Health check endpoint for Orion Server
+Returns simple health status based on database connectivity
+ * @request GET:/v2/health
+ */
+    getHealthV2: () => {
+      const base = 'GET:/v2/health' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetHealthV2Data>([base]),
+        requestKey: () => dataTaggedQueryKey<GetHealthV2Data>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetHealthV2Data>({
+            path: `/v2/health`,
             method: 'GET',
             ...params
           })

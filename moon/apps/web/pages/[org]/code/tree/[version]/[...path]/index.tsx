@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Theme } from '@radix-ui/themes'
 import { useParams } from 'next/navigation'
 
@@ -21,6 +21,11 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
+
+const MIN_LEFT_WIDTH = 250
+const MAX_LEFT_WIDTH_PERCENT = 0.4
+const DEFAULT_LEFT_WIDTH_PERCENT = 0.2
+const MIN_RIGHT_WIDTH = 500
 
 function TreeDetailPage() {
   const params = useParams()
@@ -43,10 +48,63 @@ function TreeDetailPage() {
   const [isNewCode, setIsNewCode] = useState(false)
   const [newEntryType, setNewEntryType] = useState<'file' | 'folder'>('file')
 
+  // Resizable panel state
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [leftWidth, setLeftWidth] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Initialize left width based on container width
+  useEffect(() => {
+    if (containerRef.current && leftWidth === null) {
+      setLeftWidth(containerRef.current.offsetWidth * DEFAULT_LEFT_WIDTH_PERCENT)
+    }
+  }, [leftWidth])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging || !containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newLeftWidth = e.clientX - containerRect.left
+      const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
+
+      // Ensure right side has at least MIN_RIGHT_WIDTH width
+      const maxAllowedLeftWidth = Math.min(maxWidth, containerRect.width - MIN_RIGHT_WIDTH)
+
+      setLeftWidth(Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxAllowedLeftWidth)))
+    },
+    [isDragging]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp])
+
   const treeStyle = {
     borderRadius: 8,
-    width: '20%',
-    minWidth: '300px',
+    width: leftWidth ?? '20%',
+    minWidth: MIN_LEFT_WIDTH,
     flexShrink: 0,
     background: '#fff',
     height: 'calc(100vh - 96px)',
@@ -56,10 +114,11 @@ function TreeDetailPage() {
 
   const codeStyle = {
     borderRadius: 8,
-    width: 'calc(80% - 8px)',
+    flex: 1,
     background: '#fff',
     height: 'calc(100vh - 96px)',
     overflow: 'auto',
+    paddingLeft: '8px',
     paddingRight: '8px'
   }
 
@@ -96,10 +155,17 @@ function TreeDetailPage() {
             </Button>
           )}
         </div>
-        <div className='flex h-full gap-4'>
+        <div ref={containerRef} className='flex h-full gap-0'>
           <div style={treeStyle}>
             <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
           </div>
+
+          {/* Resizer handle */}
+          <div
+            onMouseDown={handleMouseDown}
+            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
+          />
 
           {!isNewCode ? (
             <div style={codeStyle}>
