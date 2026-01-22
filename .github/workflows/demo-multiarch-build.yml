@@ -29,18 +29,22 @@ jobs:
           - name: mono-engine
             dockerfile: docker/mono-engine-dockerfile
             image_tag: mono-0.1.0-pre-release
+            context: .
           # mega UI
           - name: mega-ui
             dockerfile: moon/apps/web/Dockerfile
             image_tag: mega-ui-demo-0.1.0-pre-release
+            context: moon
           # orion server
           - name: orion-server
             dockerfile: orion-server/Dockerfile
             image_tag: orion-server-0.1.0-pre-release
+            context: .
           # orion client image (build worker)
           - name: orion-client-image
             dockerfile: docker/dev-image/Dockerfile
             image_tag: orion-client-0.1.0-pre-release
+            context: .
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,6 +82,7 @@ jobs:
           REPOSITORY: mega
           IMAGE_TAG: ${{ matrix.image_tag }}
           DOCKERFILE_PATH: ${{ matrix.dockerfile }}
+          BUILD_CONTEXT: ${{ matrix.context || '.' }}
         run: |
           IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
 
@@ -89,13 +94,14 @@ jobs:
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             --cache-from type=gha,scope=mega-demo \
             --cache-to type=gha,scope=mega-demo,mode=max \
-            .
+            "$BUILD_CONTEXT"
 
       - name: Build (no push, fork testing) ${{ matrix.name }} (amd64+arm64)
         if: env.PUBLISH != 'true' || env.HAS_AWS_CREDS != 'true'
         env:
           IMAGE_TAG: ${{ matrix.image_tag }}
           DOCKERFILE_PATH: ${{ matrix.dockerfile }}
+          BUILD_CONTEXT: ${{ matrix.context || '.' }}
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
@@ -105,5 +111,5 @@ jobs:
             --cache-from type=gha,scope=mega-demo \
             --cache-to type=gha,scope=mega-demo,mode=max \
             --output=type=oci,dest=/tmp/${IMAGE_TAG}.oci \
-            .
+            "$BUILD_CONTEXT"
 
