@@ -9,7 +9,6 @@ use std::{
 use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
-use tempfile::TempDir;
 use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
@@ -17,7 +16,10 @@ use td_util_buck::{
     targets::Targets,
     types::{ProjectRelativePath, TargetLabel},
 };
-use tokio::{fs, io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
+use tempfile::TempDir;
+use tokio::{
+    fs, io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration,
+};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;

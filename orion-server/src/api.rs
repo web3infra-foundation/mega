@@ -306,7 +306,13 @@ pub async fn task_history_output_handler(
         let end = params.end.unwrap_or(usize::MAX);
         state
             .log_service
-            .read_log_range(&params.task_id, &params.mount_path, &params.build_id, start, end)
+            .read_log_range(
+                &params.task_id,
+                &params.mount_path,
+                &params.build_id,
+                start,
+                end,
+            )
             .await
     };
 
