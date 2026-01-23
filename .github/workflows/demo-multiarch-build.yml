@@ -15,6 +15,10 @@ on:
       - 'docker/demo/**'
       - '.github/workflows/demo-multiarch-build.yml'
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega
