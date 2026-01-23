@@ -27,6 +27,11 @@ env:
   REPOSITORY: mega
   IMAGE_TAG_BASE: orion-client-0.1.0-pre-release
 
+env:
+  REGISTRY_ALIAS: m8q5m4u3
+  REPOSITORY: mega
+  IMAGE_TAG_BASE: orion-client-0.1.0-pre-release
+
 jobs:
   build-push-single-arch:
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
