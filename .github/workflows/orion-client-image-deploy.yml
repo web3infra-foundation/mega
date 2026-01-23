@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        platform: [linux/amd64]
     steps:
       - uses: actions/checkout@v4
 
@@ -92,6 +92,5 @@ jobs:
         run: |
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
           docker manifest create "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}" \
-            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
-            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64"
           docker manifest push "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}"

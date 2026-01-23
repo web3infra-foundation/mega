@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        platform: [linux/amd64]
         env_name: [demo, staging, openatom, gitmono]
     timeout-minutes: 10
     steps:
@@ -95,8 +95,7 @@ jobs:
         run: |
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
           docker manifest create "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release" \
-            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-amd64" \
-            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-arm64"
+            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-amd64"
           docker manifest push "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release"
 
   deploy:
