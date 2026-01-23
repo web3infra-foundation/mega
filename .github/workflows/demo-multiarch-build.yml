@@ -15,19 +15,10 @@ on:
       - 'docker/demo/**'
       - '.github/workflows/demo-multiarch-build.yml'
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 495aa699 (ci(workflow): add minimal  + resolve Clippy)
 permissions:
   contents: read
   actions: write
 
-<<<<<<< HEAD
-=======
->>>>>>> e062a050 (ci(demo): optimize build performance and increase timeout)
-=======
->>>>>>> 495aa699 (ci(workflow): add minimal  + resolve Clippy)
 env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega
