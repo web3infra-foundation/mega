@@ -407,21 +407,41 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
     Ok(true)
 }
 
+/// Since buck2 targets needs to statx every directory,
+/// which is extremely time-consuming on FUSE, we are using ls first to pre-warm the metadata cache.
+/// The targets logic will be migrated to the monolith later.
+// TODO: Rewrite the targets logic.
+fn preheat(repo_path: &Path) -> anyhow::Result<()> {
+    let preheat_status = std::process::Command::new("ls")
+        .arg("-lR")
+        .current_dir(repo_path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?;
+
+    if !preheat_status.success() {
+        tracing::warn!("Preheat command finished with non-zero status, continuing anyway...");
+    }
+    Ok(())
+}
+
 /// Get target of a specific repo under tmp directory.
 fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
     tracing::debug!("Get targets for repo {repo_path:?}");
+    preheat(repo_path)?;
     let mut command = std::process::Command::new("buck2");
     command.args(targets_arguments());
     command.current_dir(repo_path);
     let (mut child, stdout) = spawn(command)?;
-    let mut writer = file_writer(Path::new(file_name))?;
+    let jsonl_path = PathBuf::from(repo_path).join(file_name);
+    let mut writer = file_writer(&jsonl_path)?;
     std::io::copy(&mut BufReader::new(stdout), &mut writer)
         .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
     writer
         .flush()
         .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
     child.wait()?;
-    Targets::from_file(Path::new(file_name))
+    Targets::from_file(&jsonl_path)
 }
 
 /// Run buck2-change-detector to get targets to build.
@@ -429,11 +449,15 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 /// # Note
 /// `mount_point` must be a mounted repository or CL path.
 async fn get_build_targets(
+    old_repo_mount_point: &str,
     mount_point: &str,
     mega_changes: Vec<Status<ProjectRelativePath>>,
 ) -> anyhow::Result<Vec<TargetLabel>> {
     tracing::info!("Get cells at {:?}", mount_point);
     let mount_path = PathBuf::from(mount_point);
+    let old_repo = PathBuf::from(old_repo_mount_point);
+    tracing::debug!("Analyzing changes {mega_changes:?}");
+
     let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
     let mut cells = CellInfo::parse(
         &buck2
@@ -448,11 +472,13 @@ async fn get_build_targets(
             .map_err(|err| anyhow!("Fail to get config: {}", err))?,
     )?;
 
-    let base = get_repo_targets("base.jsonl", &mount_path)?;
+    let base = get_repo_targets("base.jsonl", &old_repo)?;
     let changes = Changes::new(&cells, mega_changes)?;
+    tracing::debug!("Changes {changes:?}");
     let diff = get_repo_targets("diff.jsonl", &mount_path)?;
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
+    tracing::debug!("Diff targets number: {}", diff.len_targets_upperbound());
 
     let immediate = diff::immediate_target_changes(&base, &diff, &changes, false);
     let recursive = diff::recursive_target_changes(&diff, &changes, &immediate, None, |_| true);
@@ -543,35 +569,35 @@ pub async fn build(
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
-    tracing::info!("[Task {}] Building in repo '{}'", id, repo);
+    tracing::info!("[Task {}] Building in repo /", id);
 
     // Mount the repository root requested by the task so target discovery matches repo layout.
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
-    let repo_path = {
-        let trimmed = repo.trim();
-        if trimmed.is_empty() || trimmed == "/" {
-            "/".to_string()
-        } else {
-            let mut normalized = if trimmed.starts_with('/') {
-                trimmed.to_string()
-            } else {
-                format!("/{trimmed}")
-            };
-            normalized = normalized.trim_end_matches('/').to_string();
-            if normalized.is_empty() {
-                "/".to_string()
-            } else {
-                normalized
-            }
-        }
-    };
+
+    // We will analyze the whole repo
+    let repo_path = "/".to_string();
+    // Used to change ProjectRelativePath relative to root
+    let repo_prefix = repo.strip_prefix("/").unwrap_or(&repo);
+    let changes = changes
+        .into_iter()
+        .map(|p| p.into_map(|rp| ProjectRelativePath::new(repo_prefix).join(rp.as_str())))
+        .collect();
+
+    // We should also mount the repo before cl, for build target analyzing.
+    let id_for_old_repo = format!("{id}-old");
+    let (old_repo_mount_point, mount_id_old_repo) =
+        mount_antares_fs(&id_for_old_repo, &repo_path, None).await?;
+    let mount_guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
+
     let (mount_point, mount_id) = mount_antares_fs(&id, &repo_path, cl_arg).await?;
     let mount_guard = MountGuard::new(mount_id.clone(), id.clone());
 
+    tracing::info!("[Task {}] Filesystem mounted successfully.", id);
+
     let build_result = async {
-        let targets = match get_build_targets(&mount_point, changes).await {
+        let targets = match get_build_targets(&old_repo_mount_point, &mount_point, changes).await {
             Ok(targets) => targets,
             Err(e) => {
                 let error_msg = format!("Error getting build targets: {}", e);
@@ -587,8 +613,6 @@ pub async fn build(
                 return Err(e.into());
             }
         };
-
-        tracing::info!("[Task {}] Filesystem mounted successfully.", id);
 
         let mut cmd = Command::new("buck2");
         let cmd = cmd
@@ -669,6 +693,7 @@ pub async fn build(
     .await;
 
     mount_guard.unmount().await;
+    mount_guard_old_repo.unmount().await;
 
     build_result
 }

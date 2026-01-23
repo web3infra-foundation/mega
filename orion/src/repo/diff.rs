@@ -291,11 +291,6 @@ pub fn immediate_target_changes<'a>(
                 continue;
             }
         };
-        println!(
-            "old {:?} new{:?} name {:?}",
-            old_target.hash, target.hash, target.name
-        );
-
         // "hidden feature" that allows using btd to find rdeps of a "package" (directory)
         // by including directory paths in the changes input
         let change_package = || {
