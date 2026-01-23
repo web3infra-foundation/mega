@@ -3,6 +3,9 @@ import * as Collapsible from '@radix-ui/react-collapsible'
 
 import { AlertIcon, ArrowDownIcon, ArrowUpIcon, CheckIcon, LoadingSpinner } from '@gitmono/ui'
 
+import { useGetClUpdateStatus } from '@/hooks/CL/useGetClUpdateStatus'
+import { usePostClUpdateBranch } from '@/hooks/CL/usePostClUpdateBranch'
+
 import { MergeCheckItem } from './components/MergeCheckItem'
 import type { AdditionalCheckItem, AdditionalCheckStatus, TaskData } from './types/mergeCheck.config'
 import { ADDITIONAL_CHECK_LABELS } from './types/mergeCheck.config'
@@ -11,6 +14,7 @@ interface ChecksSectionProps {
   checks: TaskData[]
   onStatusChange: (hasFailures: boolean) => void
   additionalChecks?: AdditionalCheckItem[]
+  clLink: string
 }
 
 interface CheckStatusProps {
@@ -19,6 +23,9 @@ interface CheckStatusProps {
   inProgressCount: number
   successCount: number
   open: boolean
+  isOutdated: boolean
+  onUpdateBranch: () => void
+  isUpdating: boolean
 }
 
 interface CheckGroupProps {
@@ -34,7 +41,16 @@ interface CheckListProps {
   }
 }
 
-const CheckStatus = ({ hasFailures, failureCount, inProgressCount, successCount, open }: CheckStatusProps) => {
+const CheckStatus = ({
+  hasFailures,
+  failureCount,
+  inProgressCount,
+  successCount,
+  open,
+  isOutdated,
+  onUpdateBranch,
+  isUpdating
+}: CheckStatusProps) => {
   let statusInfo: string[] = []
 
   if (failureCount > 0) {
@@ -61,7 +77,29 @@ const CheckStatus = ({ hasFailures, failureCount, inProgressCount, successCount,
         <p className='font-semibold'>{hasFailures ? 'Some checks were not successful' : 'All checks have passed'}</p>
         <p className='text-sm text-gray-600'>{statusInfo.join(', ')}</p>
       </div>
-      <button className='ml-auto justify-self-end'>{open ? <ArrowUpIcon /> : <ArrowDownIcon />}</button>
+      <div className='ml-auto flex items-center gap-2'>
+        {isOutdated && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onUpdateBranch()
+            }}
+            disabled={isUpdating}
+            style={{ backgroundColor: '#f6f8fa' }}
+            className='flex-shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isUpdating ? (
+              <span className='flex items-center gap-1.5'>
+                <LoadingSpinner />
+                Updating...
+              </span>
+            ) : (
+              'Update branch'
+            )}
+          </button>
+        )}
+        <button>{open ? <ArrowUpIcon /> : <ArrowDownIcon />}</button>
+      </div>
     </div>
   )
 }
@@ -152,7 +190,13 @@ const AdditionalChecksSection = ({ additionalChecks }: AdditionalChecksSectionPr
   )
 }
 
-export function ChecksSection({ checks, onStatusChange, additionalChecks }: ChecksSectionProps) {
+export function ChecksSection({ checks, onStatusChange, additionalChecks, clLink }: ChecksSectionProps) {
+  // Get update status
+  const { data: updateStatus } = useGetClUpdateStatus(clLink, true, 30000)
+
+  // Update branch mutation
+  const { mutate: updateBranch, isPending: isUpdating } = usePostClUpdateBranch()
+
   const summary = useMemo(() => {
     return checks.reduce(
       (acc, check) => {
@@ -182,10 +226,16 @@ export function ChecksSection({ checks, onStatusChange, additionalChecks }: Chec
 
   const [open, setOpen] = useState(false)
 
+  const isOutdated = updateStatus?.data?.outdated || false
+
+  const handleUpdateBranch = () => {
+    updateBranch(clLink)
+  }
+
   return (
     <>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
-        {/* CheckStatus 部分 */}
+        {/* CheckStatus section */}
         <Collapsible.Trigger className='flex w-full cursor-pointer rounded-md hover:bg-gray-100'>
           <CheckStatus
             hasFailures={hasFailures}
@@ -193,10 +243,13 @@ export function ChecksSection({ checks, onStatusChange, additionalChecks }: Chec
             inProgressCount={inProgressCount}
             successCount={successCount}
             open={open}
+            isOutdated={isOutdated}
+            onUpdateBranch={handleUpdateBranch}
+            isUpdating={isUpdating}
           />
         </Collapsible.Trigger>
 
-        {/* CheckList & AdditionalChecks 部分 */}
+        {/* CheckList & AdditionalChecks section */}
         <Collapsible.Content>
           <CheckList groupedChecks={groupedChecks} />
           <AdditionalChecksSection additionalChecks={additionalChecks || []} />
