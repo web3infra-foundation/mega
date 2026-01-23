@@ -134,7 +134,7 @@ export function CommentSection({
 
       {isLoading && (
         <div className='py-4 text-center'>
-          <span className='text-gray-500'>加载中...</span>
+          <span className='text-tertiary'>Loading...</span>
         </div>
       )}
     </div>

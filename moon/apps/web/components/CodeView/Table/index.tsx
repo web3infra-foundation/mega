@@ -56,7 +56,7 @@ const TableComponent = <T extends DirectoryType>({
               const uniqueKey = `row-${index}`
 
               return (
-                <Table.Row className='hover:bg-gray-100' key={uniqueKey}>
+                <Table.Row className='hover:bg-tertiary cursor-pointer' key={uniqueKey}>
                   {memoizedColumns.map((c) => (
                     <Table.Cell
                       onClick={(e) => {

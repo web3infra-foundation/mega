@@ -167,16 +167,16 @@ export const MenuPicker = () => {
       <SettingsSection.Separator />
 
       <div className='max-w-4xl space-y-3 p-4 pt-2 text-sm'>
-        <div className='overflow-hidden rounded-md border'>
+        <div className='border-primary overflow-hidden rounded-md border'>
           <table className='w-full text-sm'>
-            <thead className='bg-secondary border-b'>
+            <thead className='border-primary bg-secondary border-b'>
               <tr>
-                <th className='text-muted-foreground w-10 px-3 py-2 text-left text-[11px] font-medium'></th>
-                <th className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium'>public_id</th>
-                <th className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium'>label</th>
-                <th className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium'>href</th>
-                <th className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium'>visible</th>
-                <th className='text-muted-foreground w-24 px-3 py-2 text-right text-[11px] font-medium'>actions</th>
+                <th className='text-primary w-10 px-3 py-2 text-left text-[11px] font-medium'></th>
+                <th className='text-primary px-3 py-2 text-left text-[11px] font-medium'>public_id</th>
+                <th className='text-primary px-3 py-2 text-left text-[11px] font-medium'>label</th>
+                <th className='text-primary px-3 py-2 text-left text-[11px] font-medium'>href</th>
+                <th className='text-primary px-3 py-2 text-left text-[11px] font-medium'>visible</th>
+                <th className='text-primary w-24 px-3 py-2 text-right text-[11px] font-medium'>actions</th>
               </tr>
             </thead>
             <tbody>
@@ -291,9 +291,7 @@ export const MenuPicker = () => {
                         )
                       }
                       className={`relative inline-flex h-5 w-10 items-center rounded-full border transition-colors ${
-                        item.visible
-                          ? 'border-green-500 bg-green-500/80'
-                          : 'bg-secondary border-border/60 dark:border-border/40'
+                        item.visible ? 'border-green-500 bg-green-500/80' : 'border-primary bg-secondary'
                       }`}
                       aria-pressed={item.visible}
                     >
@@ -320,7 +318,7 @@ export const MenuPicker = () => {
                         }
                         setPendingDelete(item)
                       }}
-                      className='rounded-md border px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50'
+                      className='border-primary rounded-md border px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50'
                       disabled={deleteSidebar.isPending}
                     >
                       Delete
@@ -353,7 +351,7 @@ export const MenuPicker = () => {
               <button
                 type='button'
                 onClick={() => setPendingDelete(null)}
-                className='hover:bg-secondary rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50'
+                className='border-primary bg-primary hover:bg-secondary rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50'
                 disabled={deleteSidebar.isPending}
               >
                 Cancel
@@ -386,7 +384,7 @@ export const MenuPicker = () => {
             <button
               type='button'
               onClick={handleCreate}
-              className='bg-primary/5 hover:bg-primary/10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+              className='border-primary bg-primary/5 hover:bg-primary/10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
             >
               New
             </button>
@@ -396,7 +394,7 @@ export const MenuPicker = () => {
             <button
               onClick={handleReset}
               disabled={isResetting || isFetching}
-              className='hover:bg-secondary rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+              className='border-primary bg-primary/5 hover:bg-primary/10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50'
             >
               {isResetting ? 'Resetting...' : 'Reset'}
             </button>

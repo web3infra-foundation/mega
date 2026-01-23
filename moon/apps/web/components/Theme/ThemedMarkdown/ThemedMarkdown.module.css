@@ -1,0 +1,227 @@
+/* 包装器 */
+.markdownWrapper {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* 基础变量 */
+.markdownBody {
+  --base-size-4: 0.25rem;
+  --base-size-8: 0.5rem;
+  --base-size-16: 1rem;
+  --base-size-24: 1.5rem;
+  --base-size-40: 2.5rem;
+  --base-text-weight-normal: 400;
+  --base-text-weight-medium: 500;
+  --base-text-weight-semibold: 600;
+  --fontStack-monospace: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+
+  -ms-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+  font-size: 16px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  color: var(--fgColor-default);
+  background-color: var(--bg-primary);
+}
+
+/* 亮色主题 */
+.markdownWrapper[data-theme='light'] .markdownBody {
+  color-scheme: light;
+  --fgColor-default: #1f2328;
+  --fgColor-muted: #59636e;
+  --fgColor-accent: #0969da;
+  --bgColor-muted: #f6f8fa;
+  --bgColor-neutral-muted: rgba(129, 139, 152, 0.12);
+  --borderColor-default: #d1d9e0;
+  --borderColor-muted: rgba(209, 217, 224, 0.7);
+}
+
+/* 深色主题 */
+.markdownWrapper[data-theme='dark'] .markdownBody {
+  color-scheme: dark;
+  --fgColor-default: #f0f6fc;
+  --fgColor-muted: #9198a1;
+  --fgColor-accent: #4493f8;
+  --bgColor-muted: #151b23;
+  --bgColor-neutral-muted: rgba(101, 108, 118, 0.2);
+  --borderColor-default: #3d444d;
+  --borderColor-muted: rgba(61, 68, 77, 0.7);
+}
+
+/* 标题 */
+.markdownBody h1,
+.markdownBody h2,
+.markdownBody h3,
+.markdownBody h4,
+.markdownBody h5,
+.markdownBody h6 {
+  margin-top: var(--base-size-24);
+  margin-bottom: var(--base-size-16);
+  font-weight: var(--base-text-weight-semibold, 600);
+  line-height: 1.25;
+}
+
+.markdownBody h1 {
+  margin: 0.67em 0;
+  padding-bottom: 0.3em;
+  font-size: 2em;
+  border-bottom: 1px solid var(--borderColor-muted);
+}
+
+.markdownBody h2 {
+  padding-bottom: 0.3em;
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--borderColor-muted);
+}
+
+.markdownBody h3 {
+  font-size: 1.25em;
+}
+
+.markdownBody h4 {
+  font-size: 1em;
+}
+
+.markdownBody h5 {
+  font-size: 0.875em;
+}
+
+.markdownBody h6 {
+  font-size: 0.85em;
+  color: var(--fgColor-muted);
+}
+
+/* 段落 */
+.markdownBody p {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+/* 链接 */
+.markdownBody a {
+  background-color: transparent;
+  color: var(--fgColor-accent);
+  text-decoration: none;
+}
+
+.markdownBody a:hover {
+  text-decoration: underline;
+}
+
+/* 代码 */
+.markdownBody code,
+.markdownBody tt {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  white-space: break-spaces;
+  background-color: var(--bgColor-neutral-muted);
+  border-radius: 6px;
+  font-family: var(--fontStack-monospace);
+}
+
+.markdownBody pre {
+  padding: var(--base-size-16);
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: var(--bgColor-muted);
+  border-radius: 6px;
+  margin-bottom: var(--base-size-16);
+}
+
+.markdownBody pre code {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  white-space: pre;
+}
+
+/* 列表 */
+.markdownBody ul,
+.markdownBody ol {
+  margin-top: 0;
+  margin-bottom: var(--base-size-16);
+  padding-left: 2em;
+}
+
+/* 引用 */
+.markdownBody blockquote {
+  margin: 0 0 var(--base-size-16) 0;
+  padding: 0 1em;
+  color: var(--fgColor-muted);
+  border-left: 0.25em solid var(--borderColor-default);
+}
+
+/* 表格 */
+.markdownBody table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  margin-bottom: var(--base-size-16);
+}
+
+.markdownBody table th,
+.markdownBody table td {
+  padding: 6px 13px;
+  border: 1px solid var(--borderColor-default);
+}
+
+.markdownBody table th {
+  font-weight: var(--base-text-weight-semibold, 600);
+}
+
+.markdownBody table tr {
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--borderColor-muted);
+}
+
+.markdownBody table tr:nth-child(2n) {
+  background-color: var(--bgColor-muted);
+}
+
+/* 图片 */
+.markdownBody img {
+  max-width: 100%;
+  box-sizing: content-box;
+  background-color: var(--bg-primary);
+}
+
+/* 分隔线 */
+.markdownBody hr {
+  height: 0.25em;
+  padding: 0;
+  margin: var(--base-size-24) 0;
+  background-color: var(--borderColor-default);
+  border: 0;
+}
+
+/* 粗体 */
+.markdownBody b,
+.markdownBody strong {
+  font-weight: var(--base-text-weight-semibold, 600);
+}
+
+/* 斜体 */
+.markdownBody em {
+  font-style: italic;
+}
+
+/* 首尾元素边距 */
+.markdownBody > *:first-child {
+  margin-top: 0 !important;
+}
+
+.markdownBody > *:last-child {
+  margin-bottom: 0 !important;
+}

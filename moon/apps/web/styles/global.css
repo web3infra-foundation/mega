@@ -407,3 +407,19 @@ details summary::-webkit-details-marker {
 [class*='rt-Flex'][class*='max-w-4xl'] {
   margin-top: 16px !important;
 }
+
+/* README preview dark mode inversion */
+.readme-dark-inverted {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.readme-dark-inverted::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-primary);
+  filter: invert(1) hue-rotate(180deg);
+  z-index: -1;
+  border-radius: 0.5rem;
+  pointer-events: none;
+}

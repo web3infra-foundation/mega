@@ -84,15 +84,15 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
   }
 
   return (
-    <div className='flex max-w-[900px] flex-wrap items-center gap-x-1 gap-y-2 text-gray-700'>
+    <div className='text-primary flex max-w-[900px] flex-wrap items-center gap-x-1 gap-y-2'>
       {[...basePath, ...userSegments].map((seg, i, arr) => (
         // eslint-disable-next-line react/no-array-index-key
         <React.Fragment key={i}>
-          <span className='font-medium text-blue-600'>{seg}</span>
-          {i < arr.length - 1 && <span>/</span>}
+          <span className='text-accent font-medium'>{seg}</span>
+          {i < arr.length - 1 && <span className='text-secondary'>/</span>}
         </React.Fragment>
       ))}
-      {[...basePath, ...userSegments].length > 0 && <span>/</span>}
+      {[...basePath, ...userSegments].length > 0 && <span className='text-secondary'>/</span>}
 
       <input
         type='text'
@@ -100,7 +100,7 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
         placeholder='Name your file...'
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className='min-w-[140px] rounded border px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500'
+        className='border-primary bg-primary text-primary placeholder:text-tertiary focus:border-accent focus:ring-accent/20 min-w-[140px] rounded border px-2 py-1 outline-none transition-colors focus:ring-2'
         aria-label='file-path-input'
       />
     </div>

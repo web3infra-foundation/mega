@@ -26,7 +26,7 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
     },
     editorProps: {
       attributes: {
-        class: 'max-w-full focus:outline-none font-mono text-sm leading-6 h-full p-2'
+        class: 'max-w-full focus:outline-none font-mono text-sm leading-6 h-full'
       }
     }
   })
@@ -40,14 +40,14 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
   const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1)
 
   return (
-    <div className={`flex h-full w-full flex-col rounded-xl border border-[#bec7ce] ${disabled ? 'opacity-60' : ''}`}>
-      <div className='flex h-14 w-full items-center rounded-t-xl border border-b-[#d0d9e0] bg-[#f9fbfd] p-4'>
-        <div className='inline-flex rounded-md border border-gray-300 bg-white'>
+    <div className={`border-primary flex h-full w-full flex-col rounded-xl border ${disabled ? 'opacity-60' : ''}`}>
+      <div className='border-b-primary bg-secondary flex h-14 w-full items-center rounded-t-xl border p-4'>
+        <div className='border-primary bg-primary inline-flex rounded-md border'>
           <button
             onClick={() => setIsPreview(false)}
             disabled={disabled}
-            className={`rounded-l-md px-4 py-2 text-sm font-medium ${
-              !isPreview ? 'bg-gray-100 text-gray-900' : 'bg-white text-gray-500 hover:text-gray-700'
+            className={`rounded-l-md px-4 py-2 text-sm font-medium transition-colors ${
+              !isPreview ? 'bg-tertiary text-primary' : 'bg-primary text-tertiary hover:text-secondary'
             } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
           >
             Edit
@@ -55,37 +55,45 @@ export default function MarkdownEditor({ contentState, disabled = false }: Markd
           <button
             onClick={() => setIsPreview(true)}
             disabled={disabled}
-            className={`rounded-r-md px-4 py-2 text-sm font-medium ${
-              isPreview ? 'bg-gray-100 text-gray-900' : 'bg-white text-gray-500 hover:text-gray-700'
+            className={`rounded-r-md px-4 py-2 text-sm font-medium transition-colors ${
+              isPreview ? 'bg-tertiary text-primary' : 'bg-primary text-tertiary hover:text-secondary'
             } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
           >
             Preview
           </button>
         </div>
-        {disabled && <span className='ml-4 text-sm italic text-gray-500'>Folders don&apos;t need content</span>}
+        {disabled && <span className='text-tertiary ml-4 text-sm italic'>Folders don&apos;t need content</span>}
       </div>
 
-      <div className={`flex flex-1 overflow-x-auto ${disabled ? 'bg-gray-100' : ''}`}>
+      <div className={`flex flex-1 overflow-x-auto ${disabled ? 'bg-tertiary' : ''}`}>
         {isPreview ? (
           <div className='prose h-full w-full max-w-none overflow-y-auto px-8 pb-4 pt-6'>
             <Markdown>{content}</Markdown>
           </div>
         ) : (
           <div className='flex h-full w-full font-mono text-sm leading-6'>
-            <div className='select-none rounded-l-xl border-r border-gray-200 bg-gray-50 px-4 text-right text-gray-400'>
+            <div
+              className='border-primary bg-secondary text-quaternary flex select-none flex-col rounded-bl-xl border-r py-2 pr-4 text-right'
+              style={{ paddingLeft: '1rem' }}
+            >
               {lineNumbers.map((n) => (
-                <div key={n}>{n}</div>
+                <div key={n} className='h-6'>
+                  {n}
+                </div>
               ))}
             </div>
             <div
-              className={`flex h-full flex-1 flex-col pl-4 ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
+              className={`flex h-full flex-1 flex-col ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
               onClick={() => {
                 if (!disabled && textEditor) {
                   textEditor.commands.focus()
                 }
               }}
             >
-              <EditorContent editor={textEditor} className='h-full w-full' />
+              <EditorContent
+                editor={textEditor}
+                className='h-full w-full [&_.ProseMirror]:h-full [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-2 [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:h-6'
+              />
             </div>
           </div>
         )}

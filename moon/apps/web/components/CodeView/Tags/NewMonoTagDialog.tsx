@@ -104,7 +104,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
           <div className='flex flex-col gap-2'>
             <label className='text-quaternary text-sm'>Name</label>
             <input
-              className='rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
+              className='border-primary bg-primary text-primary focus:border-accent focus:ring-accent/20 rounded-md border px-2 py-1 text-sm outline-none transition-colors focus:ring-2'
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder='v1.0.0'
@@ -113,7 +113,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
           <div className='flex flex-col gap-2'>
             <label className='text-quaternary text-sm'>Message (optional)</label>
             <textarea
-              className='rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
+              className='border-primary bg-primary text-primary focus:border-accent focus:ring-accent/20 rounded-md border px-2 py-1 text-sm outline-none transition-colors focus:ring-2'
               value={message}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
               placeholder='Release notes'
@@ -132,10 +132,10 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
             </RadioGroup>
 
             {targetMode === 'commit' && (
-              <div className='mt-2 flex flex-col gap-2 rounded-md border p-2'>
+              <div className='border-primary bg-secondary mt-2 flex flex-col gap-2 rounded-md border p-2'>
                 <div className='flex items-center gap-2'>
                   <input
-                    className='flex-1 rounded-md border px-2 py-1 text-sm outline-none focus:ring-2'
+                    className='border-primary bg-primary text-primary focus:border-accent focus:ring-accent/20 flex-1 rounded-md border px-2 py-1 text-sm outline-none transition-colors focus:ring-2'
                     value={target}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTarget(e.target.value)}
                     placeholder='Commit SHA'
@@ -151,7 +151,7 @@ export default function NewMonoTagDialog({ open, onOpenChange, onCreated }: Prop
                   </Button>
                 </div>
                 {/* Inline commit history selector */}
-                <div className='rounded-md border p-0'>
+                <div className='border-primary bg-primary rounded-md border p-0'>
                   <SelectCommandContainer className='flex max-h-[280px] flex-col'>
                     <div className='flex items-center gap-2 p-2'>
                       <SelectCommandInput value={pickerQuery} onValueChange={(v) => setPickerQuery(v)} />
