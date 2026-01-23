@@ -1085,7 +1085,7 @@ impl MonoRepo {
 
             let req: OrionBuildRequest = OrionBuildRequest {
                 cl_link: link.clone(),
-                repo: path_str.to_string(),
+                mount_path: path_str.to_string(),
                 cl: cl_info.id,
                 builds: vec![BuildInfo {
                     changes: counter_changes,
