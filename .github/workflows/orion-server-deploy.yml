@@ -92,8 +92,7 @@ jobs:
         run: |
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
           docker manifest create "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}" \
-            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
-            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64"
           docker manifest push "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}"
 
   deploy:
