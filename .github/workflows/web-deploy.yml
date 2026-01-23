@@ -16,6 +16,10 @@ env:
   REPOSITORY: mega
   IMAGE_TAG_BASE: mega-ui-0.1.0-pre-release
 
+permissions:
+  id-token: write
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -29,6 +33,9 @@ jobs:
         platform: [linux/amd64]
         env_name: [demo, staging, openatom, gitmono]
     timeout-minutes: 10
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +82,8 @@ jobs:
     strategy:
       matrix:
         env_name: [demo, staging, openatom, gitmono]
+    permissions:
+      contents: read
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -101,6 +110,8 @@ jobs:
   deploy:
       needs: manifest
       runs-on: ubuntu-latest
+      permissions:
+        contents: read
       strategy:
         matrix:
           include:

@@ -24,6 +24,11 @@ env:
   REPOSITORY: mega
   IMAGE_TAG_BASE: mono-0.1.0-pre-release
 
+# Required for AWS OIDC
+permissions:
+  id-token: write
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -36,6 +41,9 @@ jobs:
       matrix:
         platform: [linux/amd64]
     timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +82,8 @@ jobs:
     needs: build-push-single-arch
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    permissions:
+      contents: read
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -101,6 +111,8 @@ jobs:
     needs: manifest
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
