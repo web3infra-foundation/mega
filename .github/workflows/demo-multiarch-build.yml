@@ -5,36 +5,30 @@ name: Demo multi-arch images
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Push images to ECR Public (requires AWS creds)"
+        required: false
+        default: "false"
   push:
     paths:
       - 'docker/demo/**'
       - '.github/workflows/demo-multiarch-build.yml'
 
+permissions:
+  contents: read
+  actions: write
+
+env:
+  REGISTRY_ALIAS: m8q5m4u3
+  REPOSITORY: mega
+  PUBLISH: ${{ github.event_name == 'push' || github.event.inputs.publish == 'true' }}
+  HAS_AWS_CREDS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+
 jobs:
-  build-and-push:
-    # Run only in upstream repository, skip on forks without credentials
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+  build-mono-engine:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          # mono backend
-          - name: mono-engine
-            dockerfile: docker/mono-engine-dockerfile
-            image_tag: mono-0.1.0-pre-release
-          # mega UI
-          - name: mega-ui
-            dockerfile: docker/mono-ui-dockerfile
-            image_tag: mega-ui-demo-0.1.0-pre-release
-          # orion server
-          - name: orion-server
-            dockerfile: orion-server/Dockerfile
-            image_tag: orion-server-0.1.0-pre-release
-          # orion client image (build worker)
-          - name: orion-client-image
-            dockerfile: docker/dev-image/Dockerfile
-            image_tag: orion-client-0.1.0-pre-release
+    timeout-minutes: 240
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,9 +39,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          install: true
+          driver: docker-container
+          buildkitd-flags: --debug
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-mono-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mono-
 
       - name: Configure AWS Credentials
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -55,29 +62,261 @@ jobs:
           aws-region: us-east-1
 
       - name: Login to Amazon ECR Public
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
         id: login-ecr-public
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
 
-      - name: Build & push ${{ matrix.name }} (amd64+arm64)
+      - name: Build & push mono-engine (amd64+arm64)
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega
-          IMAGE_TAG: ${{ matrix.image_tag }}
-          DOCKERFILE_PATH: ${{ matrix.dockerfile }}
+          IMAGE_TAG: mono-0.1.0-pre-release
         run: |
-          IMAGE_BASE="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY"
-
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --builder default \
-            --file "$DOCKERFILE_PATH" \
+            --file docker/mono-engine-dockerfile \
             --tag "$IMAGE_BASE:$IMAGE_TAG" \
             --push \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --cache-from type=gha,scope=mega-demo \
-            --cache-to type=gha,scope=mega-demo,mode=max \
+            --cache-from type=gha,scope=mega-demo-mono \
+            --cache-to type=gha,scope=mega-demo-mono,mode=max \
             .
 
+      - name: Build (no push, fork testing) mono-engine (amd64+arm64)
+        if: env.PUBLISH != 'true' || env.HAS_AWS_CREDS != 'true'
+        env:
+          IMAGE_TAG: mono-0.1.0-pre-release
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file docker/mono-engine-dockerfile \
+            --tag "local/mono-engine" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-mono \
+            --cache-to type=gha,scope=mega-demo-mono,mode=max \
+            --output=type=oci,dest=/tmp/mono-engine.oci \
+            .
+
+  build-mega-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          buildkitd-flags: --debug
+
+      - name: Cache pnpm store
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            moon/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('moon/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Configure AWS Credentials
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build & push mega-ui (amd64+arm64)
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          IMAGE_TAG: mega-ui-demo-0.1.0-pre-release
+        run: |
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file moon/apps/web/Dockerfile \
+            --tag "$IMAGE_BASE:$IMAGE_TAG" \
+            --push \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-ui \
+            --cache-to type=gha,scope=mega-demo-ui,mode=max \
+            moon
+
+      - name: Build (no push, fork testing) mega-ui (amd64+arm64)
+        if: env.PUBLISH != 'true' || env.HAS_AWS_CREDS != 'true'
+        env:
+          IMAGE_TAG: mega-ui-demo-0.1.0-pre-release
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file moon/apps/web/Dockerfile \
+            --tag "local/mega-ui" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-ui \
+            --cache-to type=gha,scope=mega-demo-ui,mode=max \
+            --output=type=oci,dest=/tmp/mega-ui.oci \
+            moon
+
+  build-orion-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          buildkitd-flags: --debug
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-orion-server-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-orion-server-
+
+      - name: Configure AWS Credentials
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build & push orion-server (amd64+arm64)
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          IMAGE_TAG: orion-server-0.1.0-pre-release
+        run: |
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file orion-server/Dockerfile \
+            --tag "$IMAGE_BASE:$IMAGE_TAG" \
+            --push \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-orion-server \
+            --cache-to type=gha,scope=mega-demo-orion-server,mode=max \
+            .
+
+      - name: Build (no push, fork testing) orion-server (amd64+arm64)
+        if: env.PUBLISH != 'true' || env.HAS_AWS_CREDS != 'true'
+        env:
+          IMAGE_TAG: orion-server-0.1.0-pre-release
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file orion-server/Dockerfile \
+            --tag "local/orion-server" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-orion-server \
+            --cache-to type=gha,scope=mega-demo-orion-server,mode=max \
+            --output=type=oci,dest=/tmp/orion-server.oci \
+            .
+
+  build-orion-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          buildkitd-flags: --debug
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-orion-client-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-orion-client-
+
+      - name: Configure AWS Credentials
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build & push orion-client (amd64+arm64)
+        if: env.PUBLISH == 'true' && env.HAS_AWS_CREDS == 'true'
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          IMAGE_TAG: orion-client-0.1.0-pre-release
+        run: |
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file docker/dev-image/Dockerfile \
+            --tag "$IMAGE_BASE:$IMAGE_TAG" \
+            --push \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-orion-client \
+            --cache-to type=gha,scope=mega-demo-orion-client,mode=max \
+            .
+
+      - name: Build (no push, fork testing) orion-client (amd64+arm64)
+        if: env.PUBLISH != 'true' || env.HAS_AWS_CREDS != 'true'
+        env:
+          IMAGE_TAG: orion-client-0.1.0-pre-release
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file docker/dev-image/Dockerfile \
+            --tag "local/orion-client" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=gha,scope=mega-demo-orion-client \
+            --cache-to type=gha,scope=mega-demo-orion-client,mode=max \
+            --output=type=oci,dest=/tmp/orion-client.oci \
+            .

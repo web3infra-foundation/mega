@@ -1180,7 +1180,7 @@ impl BuildDTO {
             TaskStatusEnum::Pending
         } else if model.exit_code.is_none() {
             TaskStatusEnum::Interrupted
-        } else if model.exit_code.unwrap() == 0 {
+        } else if model.exit_code == Some(0) {
             TaskStatusEnum::Completed
         } else {
             TaskStatusEnum::Failed

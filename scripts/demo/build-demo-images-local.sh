@@ -1,0 +1,307 @@
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================================
+# Local Multi-Arch Image Builder for Demo Environment
+# ============================================================================
+# This script builds and pushes multi-arch (amd64+arm64) Docker images
+# for the demo environment on your local macOS machine.
+#
+# Prerequisites:
+#   - Docker Desktop with Buildx enabled
+#   - AWS CLI configured with credentials
+#   - Access to Amazon ECR Public
+#   - QEMU (usually auto-installed by Docker Desktop)
+#
+# Usage:
+#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME]
+#
+#   If IMAGE_NAME is provided, only that image will be built.
+#   Otherwise, all 4 images will be built.
+# ============================================================================
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+REGISTRY_ALIAS="m8q5m4u3"
+REPOSITORY="mega"
+REGISTRY="public.ecr.aws"
+
+# Get script directory and repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Try to find repo root by looking for known files
+if [ -f "${SCRIPT_DIR}/../../Cargo.toml" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+elif [ -f "${SCRIPT_DIR}/../../moon/package.json" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+elif [ -f "${PWD}/Cargo.toml" ] || [ -f "${PWD}/moon/package.json" ]; then
+    REPO_ROOT="${PWD}"
+else
+    REPO_ROOT=""
+fi
+
+# Image configurations (ordered for consistent build order)
+declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")
+declare -A IMAGES
+IMAGES[mono-engine]="docker/mono-engine-dockerfile:."
+IMAGES[mega-ui]="moon/apps/web/Dockerfile:moon"
+IMAGES[orion-server]="orion-server/Dockerfile:."
+IMAGES[orion-client]="docker/dev-image/Dockerfile:."
+
+declare -A TAGS
+TAGS[mono-engine]="mono-0.1.0-pre-release"
+TAGS[mega-ui]="mega-ui-demo-0.1.0-pre-release"
+TAGS[orion-server]="orion-server-0.1.0-pre-release"
+TAGS[orion-client]="orion-client-0.1.0-pre-release"
+
+# Functions
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+    
+    # Check if we found repo root
+    if [ -z "${REPO_ROOT}" ] || [ ! -d "${REPO_ROOT}" ]; then
+        log_error "Could not determine repository root."
+        log_error "Please run this script from the mega repository root, or ensure Cargo.toml or moon/package.json exists."
+        exit 1
+    fi
+    
+    # Verify repo root
+    if [ ! -f "${REPO_ROOT}/Cargo.toml" ] && [ ! -f "${REPO_ROOT}/moon/package.json" ]; then
+        log_error "Repository root validation failed: ${REPO_ROOT}"
+        log_error "Expected to find Cargo.toml or moon/package.json in repository root."
+        exit 1
+    fi
+    
+    log_info "Repository root: ${REPO_ROOT}"
+    
+    # Check Docker
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed. Please install Docker Desktop."
+        exit 1
+    fi
+    
+    # Check if Docker is running
+    if ! docker info &> /dev/null; then
+        log_error "Docker daemon is not running. Please start Docker Desktop."
+        exit 1
+    fi
+    
+    # Check Docker Buildx
+    if ! docker buildx version &> /dev/null; then
+        log_error "Docker Buildx is not available. Please enable it in Docker Desktop."
+        exit 1
+    fi
+    
+    # Check AWS CLI
+    if ! command -v aws &> /dev/null; then
+        log_error "AWS CLI is not installed. Please install it: brew install awscli"
+        exit 1
+    fi
+    
+    # Check AWS credentials
+    if ! aws sts get-caller-identity &> /dev/null; then
+        log_error "AWS credentials are not configured. Please run: aws configure"
+        exit 1
+    fi
+    
+    log_info "All prerequisites met ✓"
+}
+
+setup_buildx() {
+    log_info "Setting up Docker Buildx..."
+    
+    # Create a new builder instance if it doesn't exist
+    if ! docker buildx ls | grep -q "mega-builder"; then
+        log_info "Creating new buildx builder: mega-builder"
+        if ! docker buildx create --name mega-builder --driver docker-container --use; then
+            log_error "Failed to create buildx builder"
+            exit 1
+        fi
+        docker buildx inspect --bootstrap
+    else
+        log_info "Using existing buildx builder: mega-builder"
+        docker buildx use mega-builder
+    fi
+    
+    # Verify multi-arch support
+    local platforms=$(docker buildx inspect --bootstrap 2>/dev/null | grep -i "platforms" || echo "")
+    if [[ ! "$platforms" =~ "linux/amd64" ]] || [[ ! "$platforms" =~ "linux/arm64" ]]; then
+        log_warn "Multi-arch support may not be fully enabled. Continuing anyway..."
+        log_warn "Platforms available: $platforms"
+    fi
+    
+    log_info "Buildx setup complete ✓"
+}
+
+login_ecr() {
+    log_info "Logging in to Amazon ECR Public..."
+    
+    if ! aws ecr-public get-login-password --region us-east-1 2>/dev/null | \
+        docker login --username AWS --password-stdin "${REGISTRY}/${REGISTRY_ALIAS}" 2>/dev/null; then
+        log_error "Failed to login to ECR Public. Please check your AWS credentials."
+        exit 1
+    fi
+    
+    log_info "ECR login successful ✓"
+}
+
+build_and_push() {
+    local image_name=$1
+    local dockerfile_path=$(echo "${IMAGES[$image_name]}" | cut -d':' -f1)
+    local build_context=$(echo "${IMAGES[$image_name]}" | cut -d':' -f2)
+    local image_tag="${TAGS[$image_name]}"
+    local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    
+    # Verify paths exist (use absolute paths)
+    local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
+    local full_context="${REPO_ROOT}/${build_context}"
+    
+    if [ ! -f "${full_dockerfile}" ]; then
+        log_error "Dockerfile not found: ${full_dockerfile}"
+        return 1
+    fi
+    
+    if [ ! -d "${full_context}" ]; then
+        log_error "Build context not found: ${full_context}"
+        return 1
+    fi
+    
+    # Additional validation: check if Dockerfile is within or accessible from build context
+    # For most cases, Dockerfile should be accessible from the build context
+    local dockerfile_in_context="${full_context}/${dockerfile_path}"
+    local dockerfile_relative_to_context=""
+    
+    # Try to find Dockerfile relative to context
+    if [ -f "${dockerfile_in_context}" ]; then
+        dockerfile_relative_to_context="${dockerfile_path}"
+    elif [ -f "${full_dockerfile}" ]; then
+        # Dockerfile is outside context, which is fine for buildx
+        dockerfile_relative_to_context="${dockerfile_path}"
+    else
+        log_error "Cannot resolve Dockerfile path relative to build context"
+        return 1
+    fi
+    
+    log_info "Building ${image_name} (${image_tag})..."
+    log_info "  Dockerfile: ${dockerfile_path}"
+    log_info "  Context: ${build_context}"
+    
+    # Change to repo root for build
+    cd "${REPO_ROOT}"
+    
+    # Build cache args - try to use registry cache, but don't fail if it doesn't exist
+    local cache_from_args=()
+    if docker manifest inspect "${image_base}:${image_tag}" &> /dev/null 2>&1; then
+        log_info "  Using registry cache from existing image"
+        cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag}")
+    else
+        log_info "  No existing image found, building from scratch"
+    fi
+    
+    # Build and push multi-arch image with cache
+    # Use array expansion for cache args to handle empty case properly
+    if ! docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --file "${dockerfile_path}" \
+        --tag "${image_base}:${image_tag}" \
+        --push \
+        --progress=plain \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        "${cache_from_args[@]}" \
+        --cache-to type=inline \
+        "${build_context}"; then
+        log_error "Failed to build and push ${image_name}"
+        return 1
+    fi
+    
+    log_info "${image_name} built and pushed successfully ✓"
+    log_info "  Image: ${image_base}:${image_tag}"
+    return 0
+}
+
+build_all() {
+    log_info "Building all demo images..."
+    
+    local failed_images=()
+    for image_name in "${IMAGE_ORDER[@]}"; do
+        echo ""
+        log_info "=========================================="
+        log_info "Building: ${image_name}"
+        log_info "=========================================="
+        if ! build_and_push "${image_name}"; then
+            failed_images+=("${image_name}")
+            log_error "Failed to build ${image_name}, continuing with next image..."
+        fi
+    done
+    
+    echo ""
+    if [ ${#failed_images[@]} -eq 0 ]; then
+        log_info "=========================================="
+        log_info "All images built and pushed successfully!"
+        log_info "=========================================="
+        return 0
+    else
+        log_error "=========================================="
+        log_error "Some images failed to build:"
+        for img in "${failed_images[@]}"; do
+            log_error "  - ${img}"
+        done
+        log_error "=========================================="
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    log_info "Starting local multi-arch image build..."
+    log_info "Registry: ${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    echo ""
+    
+    check_prerequisites
+    setup_buildx
+    login_ecr
+    
+    # Build specific image or all images
+    if [ $# -eq 1 ]; then
+        if [[ -v IMAGES[$1] ]]; then
+            if build_and_push "$1"; then
+                log_info "Done!"
+                exit 0
+            else
+                log_error "Build failed"
+                exit 1
+            fi
+        else
+            log_error "Unknown image: $1"
+            log_info "Available images: ${IMAGE_ORDER[*]}"
+            exit 1
+        fi
+    else
+        if build_all; then
+            log_info "Done!"
+            exit 0
+        else
+            log_error "Some builds failed"
+            exit 1
+        fi
+    fi
+}
+
+# Run main function
+main "$@"
