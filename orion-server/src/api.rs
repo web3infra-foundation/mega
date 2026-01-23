@@ -76,7 +76,9 @@ pub enum TaskStatusEnum {
 /// Request structure for creating a task
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct TaskRequest {
-    pub repo: String,
+    /// Monorepo mount path (Buck2 project root or subdirectory), e.g. "/" or "/third-party/mega"
+    #[serde(rename = "mount_path", alias = "repo", alias = "path")]
+    pub mount_path: String,
     pub cl_link: String,
     pub cl: i64,
     pub builds: Vec<scheduler::BuildRequest>,
@@ -86,7 +88,9 @@ pub struct TaskRequest {
 pub struct TaskHistoryQuery {
     pub task_id: String,
     pub build_id: String,
-    pub repo: String,
+    /// Monorepo mount path (Buck2 project root or subdirectory)
+    #[serde(rename = "mount_path", alias = "repo", alias = "path")]
+    pub mount_path: String,
     pub start: Option<usize>,
     pub end: Option<usize>,
 }
@@ -275,7 +279,7 @@ pub async fn task_output_handler(
     params(
         ("task_id" = String, Query, description = "Task ID whose log to read"),
         ("build_id" = String, Query, description = "Build ID whose log to read"),
-        ("repo" = String, Query, description = "build repository path"),
+        ("mount_path" = String, Query, description = "monorepo mount path (buck project root)"),
         ("start" = Option<usize>, Query, description = "Start line number (0-based)"),
         ("end"  = Option<usize>, Query, description = "End line number"),
     ),
@@ -294,7 +298,7 @@ pub async fn task_history_output_handler(
     let log_result = if matches!((params.start, params.end), (None, None)) {
         state
             .log_service
-            .read_full_log(&params.task_id, &params.repo, &params.build_id)
+            .read_full_log(&params.task_id, &params.mount_path, &params.build_id)
             .await
     } else {
         // Unwrap start/end, default to 0 if needed
@@ -302,7 +306,7 @@ pub async fn task_history_output_handler(
         let end = params.end.unwrap_or(usize::MAX);
         state
             .log_service
-            .read_log_range(&params.task_id, &params.repo, &params.build_id, start, end)
+            .read_log_range(&params.task_id, &params.mount_path, &params.build_id, start, end)
             .await
     };
 
@@ -514,7 +518,7 @@ pub async fn task_handler(
                 state.clone(),
                 task_id,
                 &req.cl_link,
-                &req.repo,
+                &req.mount_path,
                 req.cl,
                 build.clone(),
             )
@@ -528,7 +532,7 @@ pub async fn task_handler(
                     task_id,
                     &req.cl_link,
                     build.clone(),
-                    req.repo.clone(),
+                    req.mount_path.clone(),
                     req.cl,
                     0,
                 )
@@ -1134,7 +1138,13 @@ pub struct BuildDTO {
     pub exit_code: Option<i32>,
     pub start_at: String,
     pub end_at: Option<String>,
-    pub repo: String,
+    /// Monorepo mount path (Buck2 project root or subdirectory)
+    #[serde(rename = "mount_path", alias = "repo", alias = "path")]
+    pub mount_path: String,
+    /// Deprecated: use `mount_path`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(deprecated)]
+    pub repo: Option<String>,
     pub target: String,
     pub args: Option<Value>,
     pub output_file: String,
@@ -1160,7 +1170,8 @@ impl BuildDTO {
             exit_code: model.exit_code,
             start_at: model.start_at.with_timezone(&Utc).to_rfc3339(),
             end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
-            repo: model.repo,
+            mount_path: model.repo.clone(),
+            repo: Some(model.repo),
             target: target_path,
             args: model.args.map(|v| json!(v)),
             output_file: model.output_file,

@@ -9,6 +9,7 @@ use std::{
 use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
+use tempfile::TempDir;
 use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
@@ -16,7 +17,7 @@ use td_util_buck::{
     targets::Targets,
     types::{ProjectRelativePath, TargetLabel},
 };
-use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
+use tokio::{fs, io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
@@ -34,6 +35,56 @@ static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
 const MOUNT_TIMEOUT_SECS: u64 = 7200;
+
+fn normalize_mount_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return "/".to_string();
+    }
+    if trimmed == "/" {
+        return "/".to_string();
+    }
+    let mut normalized = if trimmed.starts_with('/') {
+        trimmed.to_string()
+    } else {
+        format!("/{trimmed}")
+    };
+    normalized = normalized.trim_end_matches('/').to_string();
+    if normalized.is_empty() {
+        "/".to_string()
+    } else {
+        normalized
+    }
+}
+
+async fn has_buckconfig(mount_point: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    let buckconfig_path = Path::new(mount_point).join(".buckconfig");
+    match fs::metadata(&buckconfig_path).await {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn load_buck2_cells(mount_point: &str) -> anyhow::Result<CellInfo> {
+    tracing::info!("Get cells at {:?}", mount_point);
+    let mount_path = PathBuf::from(mount_point);
+    let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path);
+    let mut cells = CellInfo::parse(
+        &buck2
+            .cells()
+            .map_err(|err| anyhow!("Fail to get cells: {}", err))?,
+    )?;
+
+    tracing::debug!("Get config");
+    cells.parse_config_data(
+        &buck2
+            .audit_config()
+            .map_err(|err| anyhow!("Fail to get config: {}", err))?,
+    )?;
+
+    Ok(cells)
+}
 
 /// Mounts filesystem via remote API for repository access.
 ///
@@ -408,20 +459,20 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
 }
 
 /// Get target of a specific repo under tmp directory.
-fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
+fn get_repo_targets(file_path: &Path, repo_path: &Path) -> anyhow::Result<Targets> {
     tracing::debug!("Get targets for repo {repo_path:?}");
     let mut command = std::process::Command::new("buck2");
     command.args(targets_arguments());
     command.current_dir(repo_path);
     let (mut child, stdout) = spawn(command)?;
-    let mut writer = file_writer(Path::new(file_name))?;
+    let mut writer = file_writer(file_path)?;
     std::io::copy(&mut BufReader::new(stdout), &mut writer)
         .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
     writer
         .flush()
         .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
     child.wait()?;
-    Targets::from_file(Path::new(file_name))
+    Targets::from_file(file_path)
 }
 
 /// Run buck2-change-detector to get targets to build.
@@ -431,26 +482,16 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 async fn get_build_targets(
     mount_point: &str,
     mega_changes: Vec<Status<ProjectRelativePath>>,
+    cells: &CellInfo,
 ) -> anyhow::Result<Vec<TargetLabel>> {
-    tracing::info!("Get cells at {:?}", mount_point);
     let mount_path = PathBuf::from(mount_point);
-    let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
-    let mut cells = CellInfo::parse(
-        &buck2
-            .cells()
-            .map_err(|err| anyhow!("Fail to get cells: {}", err))?,
-    )?;
+    let temp_dir = TempDir::new().map_err(|err| anyhow!("Failed to create temp dir: {}", err))?;
+    let base_path = temp_dir.path().join("base.jsonl");
+    let diff_path = temp_dir.path().join("diff.jsonl");
 
-    tracing::debug!("Get config");
-    cells.parse_config_data(
-        &buck2
-            .audit_config()
-            .map_err(|err| anyhow!("Fail to get config: {}", err))?,
-    )?;
-
-    let base = get_repo_targets("base.jsonl", &mount_path)?;
-    let changes = Changes::new(&cells, mega_changes)?;
-    let diff = get_repo_targets("diff.jsonl", &mount_path)?;
+    let base = get_repo_targets(&base_path, &mount_path)?;
+    let changes = Changes::new(cells, mega_changes)?;
+    let diff = get_repo_targets(&diff_path, &mount_path)?;
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
 
@@ -527,7 +568,7 @@ impl Drop for MountGuard {
 ///
 /// # Arguments
 /// * `id` - Build task identifier for logging and tracking
-/// * `repo` - Repository path for filesystem mounting
+/// * `mount_path` - Monorepo path to mount (Buck2 project root or subdirectory)
 /// * `target` - Buck build target specification  
 /// * `args` - Additional command-line arguments for buck
 /// * `cl` - Change List context identifier
@@ -538,40 +579,62 @@ impl Drop for MountGuard {
 /// Process exit status indicating build success or failure
 pub async fn build(
     id: String,
-    repo: String,
+    mount_path: String,
     cl: String,
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
-    tracing::info!("[Task {}] Building in repo '{}'", id, repo);
+    tracing::info!("[Task {}] Building in mount path '{}'", id, mount_path);
 
-    // Mount the repository root requested by the task so target discovery matches repo layout.
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
-    let repo_path = {
-        let trimmed = repo.trim();
-        if trimmed.is_empty() || trimmed == "/" {
-            "/".to_string()
-        } else {
-            let mut normalized = if trimmed.starts_with('/') {
-                trimmed.to_string()
-            } else {
-                format!("/{trimmed}")
-            };
-            normalized = normalized.trim_end_matches('/').to_string();
-            if normalized.is_empty() {
-                "/".to_string()
-            } else {
-                normalized
-            }
-        }
-    };
-    let (mount_point, mount_id) = mount_antares_fs(&id, &repo_path, cl_arg).await?;
+
+    let normalized_mount_path = normalize_mount_path(&mount_path);
+    let (mount_point, mount_id) = mount_antares_fs(&id, &normalized_mount_path, cl_arg).await?;
     let mount_guard = MountGuard::new(mount_id.clone(), id.clone());
 
     let build_result = async {
-        let targets = match get_build_targets(&mount_point, changes).await {
+        if !has_buckconfig(&mount_point).await? {
+            let error_msg = format!(
+                "Mount path '{}' is missing .buckconfig; mount_path must be the Buck2 project root (e.g. '/')",
+                normalized_mount_path
+            );
+            if sender
+                .send(WSMessage::BuildOutput {
+                    id: id.clone(),
+                    output: error_msg.clone(),
+                })
+                .is_err()
+            {
+                tracing::error!(
+                    "[Task {}] Failed to send BuildOutput for buckconfig error",
+                    id
+                );
+            }
+            return Err(error_msg.into());
+        }
+        let cells = match load_buck2_cells(&mount_point) {
+            Ok(cells) => cells,
+            Err(e) => {
+                let error_msg = format!("Error loading buck2 cells: {}", e);
+                if sender
+                    .send(WSMessage::BuildOutput {
+                        id: id.clone(),
+                        output: error_msg.clone(),
+                    })
+                    .is_err()
+                {
+                    tracing::error!(
+                        "[Task {}] Failed to send BuildOutput for cell load error: {}",
+                        id,
+                        e
+                    );
+                }
+                return Err(e.into());
+            }
+        };
+        let targets = match get_build_targets(&mount_point, changes, &cells).await {
             Ok(targets) => targets,
             Err(e) => {
                 let error_msg = format!("Error getting build targets: {}", e);
