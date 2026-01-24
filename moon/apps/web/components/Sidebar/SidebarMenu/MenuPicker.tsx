@@ -6,11 +6,13 @@ import toast from 'react-hot-toast'
 import { Vec } from '@gitmono/types/generated'
 import * as Dialog from '@gitmono/ui/src/Dialog'
 
+import { useAdminCheck } from '@/hooks/admin/useAdminCheck'
 import { useDeleteSidebarById } from '@/hooks/Sidebar/useDeleteSidebarById'
 import { useGetSidebarList } from '@/hooks/Sidebar/useGetSidebarList'
 import { usePostSidebarSync } from '@/hooks/Sidebar/usePostSidebarSync'
 
 export const MenuPicker = () => {
+  const { data: adminCheck } = useAdminCheck()
   const { data, refetch, isFetching } = useGetSidebarList()
   const queryClient = useQueryClient()
   const syncSidebar = usePostSidebarSync()
@@ -152,7 +154,7 @@ export const MenuPicker = () => {
     }))
   }
 
-  if (!data?.data) {
+  if (!adminCheck?.data?.is_admin || !data?.data) {
     return null
   }
 
