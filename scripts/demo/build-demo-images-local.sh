@@ -149,11 +149,28 @@ setup_buildx() {
     fi
     
     # Verify platform support
-    local platforms
-    platforms=$(docker buildx inspect "${builder_name}" --bootstrap 2>/dev/null | grep -i "platforms" || echo "")
-    if [[ ! "$platforms" =~ "linux/arm64" ]]; then
-        log_warn "linux/arm64 support may not be fully enabled. Continuing anyway..."
-        log_warn "Platforms available: $platforms"
+    local platforms_output
+    platforms_output=$(docker buildx inspect "${builder_name}" --bootstrap 2>/dev/null | grep -i "platforms" || echo "")
+    
+    # Parse TARGET_PLATFORMS (comma-separated) and check each platform
+    IFS=',' read -ra REQUESTED_PLATFORMS <<< "${TARGET_PLATFORMS}"
+    local missing_platforms=()
+    
+    for platform in "${REQUESTED_PLATFORMS[@]}"; do
+        # Trim whitespace
+        platform=$(echo "$platform" | xargs)
+        if [[ ! "$platforms_output" =~ "$platform" ]]; then
+            missing_platforms+=("$platform")
+        fi
+    done
+    
+    if [ ${#missing_platforms[@]} -gt 0 ]; then
+        log_warn "Some requested platforms may not be fully enabled:"
+        for missing in "${missing_platforms[@]}"; do
+            log_warn "  - ${missing}"
+        done
+        log_warn "Platforms available: $platforms_output"
+        log_warn "Continuing anyway..."
     fi
     
     log_info "Buildx setup complete ✓"
@@ -176,7 +193,26 @@ build_and_push() {
     local dockerfile_path=$(echo "${IMAGES[$image_name]}" | cut -d':' -f1)
     local build_context=$(echo "${IMAGES[$image_name]}" | cut -d':' -f2)
     local image_tag="${TAGS[$image_name]}"
-    local arch_suffix=$(echo "${TARGET_PLATFORMS}" | cut -d',' -f1 | awk -F'/' '{print $NF}')
+    
+    # Validate single platform build (local script only supports single platform)
+    # Check if TARGET_PLATFORMS contains comma (multiple platforms)
+    if [[ "${TARGET_PLATFORMS}" == *","* ]]; then
+        log_error "Multiple platforms detected in TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+        log_error "This local script only supports single platform builds."
+        log_error "Please set TARGET_PLATFORMS to a single platform (e.g., linux/arm64 or linux/amd64)."
+        exit 1
+    fi
+    
+    # Extract architecture suffix from single platform (e.g., linux/arm64 -> arm64)
+    # This assumes TARGET_PLATFORMS is a single platform in format "os/arch"
+    local arch_suffix=$(echo "${TARGET_PLATFORMS}" | awk -F'/' '{print $NF}')
+    
+    # Validate that we successfully extracted an architecture suffix
+    if [ -z "${arch_suffix}" ]; then
+        log_error "Failed to extract architecture suffix from TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+        log_error "Expected format: os/arch (e.g., linux/arm64 or linux/amd64)"
+        exit 1
+    fi
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
     
