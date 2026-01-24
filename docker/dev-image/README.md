@@ -33,7 +33,7 @@ This image intentionally does **not** start Orion Server or PostgreSQL. It is de
 
 | Tag | Description | Use Case |
 |-----|-------------|----------|
-| `orion-client:runtime` / `orion-client:runtime` | Minimal runtime image | CI/CD, remote tooling |
+| `orion-client:runtime` | Minimal runtime image | CI/CD, remote tooling |
 | `mega-dev:dev` | Development image (includes Rust toolchain) | Local development and debugging |
 
 ### Supported Architectures
