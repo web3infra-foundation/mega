@@ -280,15 +280,20 @@ impl MonoServiceLogic {
             } else if let Some(po) = parent_override {
                 vec![po]
             } else {
-                vec![ObjectHash::from_str(&cl_ref.ref_commit_hash).unwrap()]
+                vec![ObjectHash::from_str(&cl_ref.ref_commit_hash).map_err(|_| {
+                    GitError::CustomError(format!(
+                        "Invalid CL ref hash: {}",
+                        cl_ref.ref_commit_hash
+                    ))
+                })?]
             };
 
             let commit = Commit::from_tree_id(update.tree_id, parent_ids, commit_msg);
-            let commit_id = commit.id.to_string();
-            *new_commit_id = commit_id.clone();
+            let commit_id = commit.id;
+            *new_commit_id = commit_id.to_string();
 
-            commits.push(commit);
-            prev_parent = Some(ObjectHash::from_str(&commit_id).unwrap());
+            commits.push(commit.clone());
+            prev_parent = Some(commit_id);
 
             updates.push(RefUpdateData {
                 path: cl_ref.path.clone(),
@@ -1276,6 +1281,18 @@ impl MonoApiService {
                 ClDiffFile::Deleted(path, _old) => (path.clone(), None),
             };
 
+            // Reject absolute or parent-traversing paths to avoid writing outside repo root.
+            if file_path.is_absolute()
+                || file_path
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
+                return Err(GitError::CustomError(format!(
+                    "Invalid path (traversal/absolute) in CL diff: {:?}",
+                    file_path
+                )));
+            }
+
             let file_name = file_path
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -1316,7 +1333,7 @@ impl MonoApiService {
                     .find(|it| it.name == *comp)
                     .ok_or_else(|| {
                         GitError::CustomError(format!(
-                            "Path '{}' not exist, please create path first!",
+                            "Path '{}' does not exist, please create path first!",
                             comp
                         ))
                     })?;
@@ -1362,7 +1379,6 @@ impl MonoApiService {
                 Some(new_hash) => {
                     if let Some(idx) = items.iter().position(|it| it.name == file_name) {
                         items[idx].id = new_hash;
-                        items[idx].mode = TreeItemMode::Blob;
                     } else {
                         items.push(TreeItem::new(
                             TreeItemMode::Blob,
@@ -1403,10 +1419,9 @@ impl MonoApiService {
                 parent_tree = Tree::from_tree_items(parent_items)
                     .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-                let parent_path_idx = chain_paths
-                    .get(parent_index)
-                    .cloned()
-                    .unwrap_or_else(PathBuf::new);
+                let parent_path_idx = chain_paths.get(parent_index).cloned().ok_or_else(|| {
+                    GitError::CustomError("Tree path chain underflow".to_string())
+                })?;
                 tree_cache.insert(parent_path_idx.clone(), parent_tree.clone());
                 new_trees.insert(parent_tree.id, parent_tree.clone());
                 updated_tree = parent_tree;
@@ -1428,7 +1443,12 @@ impl MonoApiService {
             &result,
             "update-branch: rebase",
             &cl.link,
-            ObjectHash::from_str(target_head).ok(),
+            Some(ObjectHash::from_str(target_head).map_err(|e| {
+                GitError::CustomError(format!(
+                    "Invalid target_head ObjectHash '{}': {}",
+                    target_head, e
+                ))
+            })?),
         )
         .await
     }
@@ -1843,9 +1863,12 @@ impl MonoApiService {
                 username,
                 conflicts.join(", ")
             );
-            let _ = conv_stg
+            if let Err(e) = conv_stg
                 .add_conversation(cl_link, username, Some(conflict_msg), ConvTypeEnum::Comment)
-                .await;
+                .await
+            {
+                tracing::warn!("Failed to add conflict comment to conversation: {}", e);
+            }
             return Err(GitError::CustomError(format!(
                 "Update conflict on files: {}",
                 conflicts.join(", ")
