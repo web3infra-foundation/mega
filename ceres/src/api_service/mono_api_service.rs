@@ -81,6 +81,7 @@ use jupiter::{
     utils::converter::{FromMegaModel, IntoMegaModel, generate_git_keep_with_timestamp},
 };
 use regex::Regex;
+use tracing::debug;
 
 use crate::{
     api_service::{
@@ -1281,6 +1282,18 @@ impl MonoApiService {
                 ClDiffFile::Deleted(path, _old) => (path.clone(), None),
             };
 
+            debug!(
+                cl_link = %cl.link,
+                diff_path = %file_path.to_string_lossy(),
+                diff_kind = %match diff {
+                    ClDiffFile::New(_, _) => "add",
+                    ClDiffFile::Modified(_, _, _) => "edit",
+                    ClDiffFile::Deleted(_, _) => "del",
+                },
+                target_head,
+                "apply_changes: processing diff"
+            );
+
             // Reject absolute or parent-traversing paths to avoid writing outside repo root.
             if file_path.is_absolute()
                 || file_path
@@ -1327,39 +1340,60 @@ impl MonoApiService {
                     .last()
                     .ok_or_else(|| GitError::CustomError("Empty tree chain".to_string()))?;
 
-                let child_item = parent_tree
-                    .tree_items
-                    .iter()
-                    .find(|it| it.name == *comp)
-                    .ok_or_else(|| {
-                        GitError::CustomError(format!(
-                            "Path '{}' does not exist, please create path first!",
+                // Try to find existing child directory; if missing, create an empty tree placeholder
+                let maybe_child = parent_tree.tree_items.iter().find(|it| it.name == *comp);
+                let child_tree = if let Some(child_item) = maybe_child {
+                    if child_item.mode != TreeItemMode::Tree {
+                        debug!(
+                            cl_link = %cl.link,
+                            path_component = %comp,
+                            cursor = %cursor.to_string_lossy(),
+                            mode = ?child_item.mode,
+                            "apply_changes: type conflict (expected directory)"
+                        );
+                        return Err(GitError::CustomError(format!(
+                            "Type conflict: '{}' is not a directory",
                             comp
-                        ))
-                    })?;
-
-                if child_item.mode != TreeItemMode::Tree {
-                    return Err(GitError::CustomError(format!(
-                        "Type conflict: '{}' is not a directory",
-                        comp
-                    )));
-                }
-
-                let child_hash = child_item.id;
-                let child_tree = if let Some(cached) = tree_cache.get(&cursor) {
-                    cached.clone()
+                        )));
+                    }
+                    let child_hash = child_item.id;
+                    if let Some(cached) = tree_cache.get(&cursor) {
+                        cached.clone()
+                    } else {
+                        let model = mono_storage
+                            .get_tree_by_hash(&child_hash.to_string())
+                            .await?
+                            .ok_or_else(|| {
+                                debug!(
+                                    cl_link = %cl.link,
+                                    path_component = %comp,
+                                    cursor = %cursor.to_string_lossy(),
+                                    child_hash = %child_hash,
+                                    "apply_changes: missing child tree in storage"
+                                );
+                                GitError::CustomError(format!(
+                                    "Tree not found for path '{}' with hash {}",
+                                    cursor.to_string_lossy(),
+                                    child_hash
+                                ))
+                            })?;
+                        Tree::from_mega_model(model)
+                    }
                 } else {
-                    let model = mono_storage
-                        .get_tree_by_hash(&child_hash.to_string())
-                        .await?
-                        .ok_or_else(|| {
-                            GitError::CustomError(format!(
-                                "Tree not found for path '{}' with hash {}",
-                                cursor.to_string_lossy(),
-                                child_hash
-                            ))
-                        })?;
-                    Tree::from_mega_model(model)
+                    // Absent in target head: create an empty directory tree and continue
+                    let empty = Tree::from_tree_items(Vec::new())
+                        .map_err(|e| GitError::CustomError(e.to_string()))?;
+                    // Cache the newly created empty directory so subsequent diffs within
+                    // the same path chain reuse the same tree instance.
+                    debug!(
+                        cl_link = %cl.link,
+                        path_component = %comp,
+                        cursor = %cursor.to_string_lossy(),
+                        "apply_changes: synthesize missing directory"
+                    );
+                    tree_cache.insert(cursor.clone(), empty.clone());
+                    new_trees.insert(empty.id, empty.clone());
+                    empty
                 };
 
                 chain_paths.push(cursor.clone());
@@ -1394,6 +1428,17 @@ impl MonoApiService {
 
             let mut updated_tree =
                 Tree::from_tree_items(items).map_err(|e| GitError::CustomError(e.to_string()))?;
+            // If parent tree id did not change (no-op), skip propagation for this diff.
+            if updated_tree.id == parent_tree.id {
+                // keep cache consistent even for no-ops
+                tree_cache.insert(parent_dir_abs.clone(), parent_tree.clone());
+                debug!(
+                    cl_link = %cl.link,
+                    parent_dir = %parent_dir_abs.to_string_lossy(),
+                    "apply_changes: no-op diff skipped"
+                );
+                continue;
+            }
             tree_cache.insert(parent_dir_abs, updated_tree.clone());
             new_trees.insert(updated_tree.id, updated_tree.clone());
 
@@ -1410,10 +1455,23 @@ impl MonoApiService {
                 if let Some(pos) = parent_items.iter().position(|it| it.name == *comp) {
                     parent_items[pos].id = updated_tree.id;
                 } else {
-                    return Err(GitError::CustomError(format!(
-                        "Parent directory missing entry '{}' while rebasing",
-                        comp
-                    )));
+                    // Missing entry: create a new directory item pointing to updated child
+                    parent_items.push(TreeItem::new(
+                        TreeItemMode::Tree,
+                        updated_tree.id,
+                        comp.clone(),
+                    ));
+                    // Keep deterministic ordering
+                    parent_items.sort_by(|a, b| a.name.cmp(&b.name));
+                    debug!(
+                        cl_link = %cl.link,
+                        parent_path = %chain_paths
+                            .get(parent_index)
+                            .map(|p| p.to_string_lossy().to_string())
+                            .unwrap_or_else(|| "<missing>".into()),
+                        created_entry = %comp,
+                        "apply_changes: inserted missing parent entry"
+                    );
                 }
 
                 parent_tree = Tree::from_tree_items(parent_items)
@@ -1606,6 +1664,13 @@ impl MonoApiService {
         )?;
 
         if new_commit_id.is_empty() {
+            debug!(
+                cl_link,
+                ref_name = %cl_ref.ref_name,
+                ref_path = %cl_ref.path,
+                commit_msg,
+                "apply_update_result_cl_only: no commit_id generated"
+            );
             return Err(GitError::CustomError(
                 "no commit_id generated: no matching refs found for the update paths".into(),
             ));
@@ -1888,6 +1953,31 @@ impl MonoApiService {
             .cl_files_list(old_blobs.clone(), new_blobs.clone())
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        if cl_changed.is_empty() {
+            debug!(
+                cl_link,
+                target_head = %target_head,
+                from_hash = %cl.from_hash,
+                "update_branch: no changed files"
+            );
+        } else {
+            let changed: Vec<String> = cl_changed
+                .iter()
+                .map(|f| match f {
+                    ClDiffFile::New(p, _) => format!("ADD:{}", p.to_string_lossy()),
+                    ClDiffFile::Modified(p, _, _) => format!("EDIT:{}", p.to_string_lossy()),
+                    ClDiffFile::Deleted(p, _) => format!("DEL:{}", p.to_string_lossy()),
+                })
+                .collect();
+            debug!(
+                cl_link,
+                target_head = %target_head,
+                from_hash = %cl.from_hash,
+                changed_files = %changed.join(","),
+                "update_branch: changed files detected"
+            );
+        }
 
         if cl_changed.is_empty() {
             // No-op rebase: just advance base hash and log.
