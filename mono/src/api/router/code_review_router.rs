@@ -1,4 +1,7 @@
-use axum::{Json, extract::{Path,State}};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use ceres::model::code_review::{
     CodeReviewResponse, CommentReplyRequest, CommentReviewResponse, InitializeCommentRequest,
     ThreadReviewResponse, ThreadStatusResponse, UpdateCommentRequest,
@@ -171,7 +174,7 @@ async fn resolve_code_review_thread(
 /// Reopen a code review thread
 #[utoipa::path(
     post,
-    params( 
+    params(
         ("thread_id", description = "A numeric ID representing a code review thread"),
     ),
     path = "/{thread_id}/reopen",
