@@ -62,6 +62,8 @@ jobs:
           ARCH_SUFFIX=$(echo "$PLATFORM" | awk -F'/' '{print $2}')
           docker buildx build \
             --platform "$PLATFORM" \
+            --provenance=false \
+            --sbom=false \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
             -f orion-server/Dockerfile \
             --push .
