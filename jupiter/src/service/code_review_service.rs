@@ -118,13 +118,10 @@ impl CodeReviewService {
         user_name: String,
         content: String,
     ) -> Result<ThreadReviewView, MegaError> {
-        let thread = match self
+        let thread = self
             .code_review_thread
             .find_or_create_thread(link, file_path, line_number, diff_side.clone())
-            .await?
-        {
-            t => t,
-        };
+            .await?;
 
         let comment = self
             .code_review_comment

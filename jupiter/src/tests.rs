@@ -10,11 +10,9 @@ use tracing::log;
 use crate::{
     migration::apply_migrations,
     service::{
-        buck_service::BuckService, buck_service::BuckService, cl_service::CLService,
-        cl_service::CLService, code_review_service::CodeReviewService, git_service::GitService,
-        git_service::GitService, import_service::ImportService, import_service::ImportService,
-        issue_service::IssueService, issue_service::IssueService, lfs_service::LfsService,
-        merge_queue_service::MergeQueueService, mono_service::MonoService,
+        buck_service::BuckService, cl_service::CLService, code_review_service::CodeReviewService,
+        git_service::GitService, import_service::ImportService, issue_service::IssueService,
+        lfs_service::LfsService, merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
         AppService, Storage,
