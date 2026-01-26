@@ -21,7 +21,7 @@ function CodeTagDetailPage() {
         <title>Tag {name}</title>
       </Head>
       <Theme>
-        <div className='m-4 rounded-md bg-white p-4'>
+        <div className='border-primary bg-primary m-4 rounded-md border p-4'>
           <div className='mb-4 flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <UIText weight='font-semibold'>{name}</UIText>
@@ -40,7 +40,9 @@ function CodeTagDetailPage() {
                 <UIText quaternary className='mb-1'>
                   Message
                 </UIText>
-                <div className='rounded-md border p-2 text-sm'>{data.data.message || '-'}</div>
+                <div className='border-primary bg-secondary text-primary rounded-md border p-2 text-sm'>
+                  {data.data.message || '-'}
+                </div>
               </div>
             </div>
           )}
@@ -56,7 +58,7 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
       <UIText quaternary className='mb-1'>
         {label}
       </UIText>
-      <div className='rounded-md border p-2 text-sm'>{value || '-'}</div>
+      <div className='border-primary bg-secondary text-primary rounded-md border p-2 text-sm'>{value || '-'}</div>
     </div>
   )
 }

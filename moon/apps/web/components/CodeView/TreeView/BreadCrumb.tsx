@@ -30,7 +30,7 @@ const Breadcrumb = ({ path }: any) => {
       {breadCrumbItems?.map((item: { isLast: any; title: string; href: string | UrlObject }, index: number) => (
         <React.Fragment key={item.title}>
           {/* displayed after the home item and before non-last items */}
-          {index > 0 && <span className='text-gray-400'>/</span>}
+          {index > 0 && <span className='text-tertiary'>/</span>}
           {/* Current breadcrumb item */}
           {item.isLast ? (
             // last item

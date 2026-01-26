@@ -37,8 +37,8 @@ export function CommentItem({
 
       <div className='min-w-0 flex-1'>
         <div className='mb-2 flex items-center space-x-2'>
-          <span className='font-medium text-gray-900'>{author.name}</span>
-          <span className='text-xs text-gray-500'>
+          <span className='text-primary font-medium'>{author.name}</span>
+          <span className='text-tertiary text-xs'>
             {formatDistanceToNow(createdAt, {
               addSuffix: true,
               locale: zhCN
@@ -47,18 +47,18 @@ export function CommentItem({
         </div>
 
         <div className='prose prose-sm max-w-none'>
-          <span className='font-medium text-gray-800'>{content}</span>
+          <span className='text-secondary font-medium'>{content}</span>
         </div>
 
         <div className='mt-3 flex items-center space-x-4'>
           {onReply && (
-            <button onClick={() => onReply(id)} className='text-xs text-gray-500 hover:text-gray-700'>
+            <button onClick={() => onReply(id)} className='text-tertiary hover:text-secondary text-xs'>
               回复
             </button>
           )}
 
           {canEdit && onEdit && (
-            <button onClick={() => onEdit(id)} className='text-xs text-gray-500 hover:text-gray-700'>
+            <button onClick={() => onEdit(id)} className='text-tertiary hover:text-secondary text-xs'>
               编辑
             </button>
           )}

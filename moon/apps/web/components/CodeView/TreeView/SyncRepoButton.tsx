@@ -108,8 +108,8 @@ export default function SyncRepoButton({ currentPath }: Props) {
               <label className='text-quaternary text-sm'>
                 Target Path <span className='text-red-500'>*</span>
               </label>
-              <div className='flex items-center gap-0 overflow-hidden rounded-md border focus-within:ring-2'>
-                <span className='border-r bg-gray-100 px-3 py-2 text-sm text-gray-600'>{basePath}</span>
+              <div className='border-primary flex items-center gap-0 overflow-hidden rounded-md border focus-within:ring-2'>
+                <span className='border-primary bg-tertiary text-secondary border-r px-3 py-2 text-sm'>{basePath}</span>
                 <input
                   className='flex-1 border-none px-3 py-2 text-sm outline-none'
                   value={repoName}
@@ -121,7 +121,7 @@ export default function SyncRepoButton({ currentPath }: Props) {
             </div>
 
             {owner && repo && (
-              <div className='rounded-md bg-gray-50 p-3'>
+              <div className='bg-secondary rounded-md p-3'>
                 <UIText quaternary size='text-xs' className='mb-1'>
                   Will sync from:
                 </UIText>

@@ -106,7 +106,6 @@ function TreeDetailPage() {
     width: leftWidth ?? '20%',
     minWidth: MIN_LEFT_WIDTH,
     flexShrink: 0,
-    background: '#fff',
     height: 'calc(100vh - 96px)',
     overflow: 'auto',
     paddingRight: '8px'
@@ -115,7 +114,6 @@ function TreeDetailPage() {
   const codeStyle = {
     borderRadius: 8,
     flex: 1,
-    background: '#fff',
     height: 'calc(100vh - 96px)',
     overflow: 'auto',
     paddingLeft: '8px',
@@ -156,26 +154,26 @@ function TreeDetailPage() {
           )}
         </div>
         <div ref={containerRef} className='flex h-full gap-0'>
-          <div style={treeStyle}>
+          <div style={treeStyle} className='bg-primary'>
             <RepoTree onCommitInfoChange={(path: string) => setNewPath(path)} />
           </div>
 
           {/* Resizer handle */}
           <div
             onMouseDown={handleMouseDown}
-            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            className='bg-border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
             style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
           />
 
           {!isNewCode ? (
-            <div style={codeStyle}>
+            <div style={codeStyle} className='bg-primary'>
               <div>
                 <CommitHistory flag={'contents'} path={newPath} refs={refs} />
               </div>
               <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent?.data} />
             </div>
           ) : (
-            <div className='pb-18 flex-1 overflow-hidden'>
+            <div className='pb-18 bg-primary flex-1 overflow-hidden'>
               <NewCodeView
                 currentPath={new_path}
                 onClose={handleCloseClick}

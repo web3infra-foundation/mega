@@ -7,33 +7,43 @@
 }
 
 .toolbar {
-  background-color: #f6f8fa;
+  background-color: var(--bg-secondary);
   display: flex;
   align-items: center;
   text-align: center;
   height: 50px;
-  border-bottom: 1px solid #d1d9e0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .toolbarLeftButton {
   padding: 0 20px;
   height: 100%;
   border-radius: 0.5rem;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  border: solid 1px transparent;
+}
+
+.toolbarLeftButton:hover {
+  color: var(--text-primary);
 }
 
 .toolbarLeftButton.active {
-  background-color: #ffffff;
-  border: solid 1px #818b98;
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .toolbarRightButton {
   padding: 0 20px;
   height: 100%;
+  color: var(--text-secondary);
+  transition: all 0.2s;
 }
 
 .toolbarRightButton:hover {
-  background-color: #e0e5ea;
-  transition: all 0.5s;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .bg-blame-1 {
@@ -75,4 +85,8 @@
 .blameContainer span::-moz-selection,
 .codeContainer span::-moz-selection {
   color: inherit;
+}
+
+.previewContainer {
+  position: relative;
 }

@@ -1,19 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import Markdown from 'react-markdown'
-import { codeToTokens } from 'shiki'
-
-import 'github-markdown-css/github-markdown-light.css'
-
-import React from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Avatar } from '@mui/material'
 import { motion } from 'framer-motion'
+import { useTheme } from 'next-themes'
 import { useRouter as useNextRouter } from 'next/dist/client/router'
 import toast from 'react-hot-toast'
+import { codeToTokens } from 'shiki'
 
 import { UsersIcon } from '@gitmono/ui'
 
+import ThemedMarkdown from '@/components/Theme/ThemedMarkdown/index'
 import { useGetBlame } from '@/hooks/useGetBlame'
 import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 import { getLanguageForFile } from '@/utils/shikiLanguageFallback'
@@ -31,7 +28,7 @@ const UserAvatar = React.memo(({ username, zIndex }: { username?: string; zIndex
       <Avatar
         alt={username}
         src={memberData?.user?.avatar_url || ''}
-        sx={{ width: 20, height: 20, border: '2px solid #fff' }}
+        sx={{ width: 20, height: 20, border: '2px solid var(--bg-primary)' }}
         style={{ zIndex }}
       />
     </motion.div>
@@ -97,6 +94,14 @@ const CodeContent = ({
   const [isShikiLoading, setIsShikiLoading] = useState(false)
 
   const nextRouter = useNextRouter()
+  const { theme, resolvedTheme } = useTheme()
+
+  const currentTheme = useMemo(() => {
+    if (theme === 'system') {
+      return resolvedTheme || 'light'
+    }
+    return theme || 'light'
+  }, [theme, resolvedTheme])
 
   const filePath = useMemo(() => path?.join('/') || '', [path])
   const version = (nextRouter.query.version as string) || 'main'
@@ -142,18 +147,16 @@ const CodeContent = ({
     let cancelled = false
 
     setIsShikiLoading(true)
+
+    const shikiTheme = currentTheme === 'dark' ? 'min-dark' : 'min-light'
+
     codeToTokens(fileContent, {
       lang: detectedLanguage as any,
-      theme: 'min-light'
+      theme: shikiTheme
     })
       .then((result) => {
         if (!cancelled) {
           setShikiTokens(result.tokens)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setShikiTokens(fileContent.split('\n').map((line) => [{ content: line, color: '#24292e' }]))
         }
       })
       .finally(() => {
@@ -165,28 +168,7 @@ const CodeContent = ({
     return () => {
       cancelled = true
     }
-  }, [fileContent, detectedLanguage, isCodeLoading])
-
-  // const menuItems: MenuProps = {
-  //   items: [
-  //     {
-  //       label: 'Copy line',
-  //       key: '1'
-  //     },
-  //     {
-  //       label: 'Copy permalink',
-  //       key: '2'
-  //     },
-  //     {
-  //       label: 'View file in GitHub.dev',
-  //       key: '3'
-  //     },
-  //     {
-  //       label: 'View file in different branch/tag',
-  //       key: '4'
-  //     }
-  //   ]
-  // }
+  }, [fileContent, detectedLanguage, isCodeLoading, currentTheme])
 
   useEffect(() => {
     setLfs(isLfsContent(fileContent))
@@ -297,9 +279,9 @@ const CodeContent = ({
     }>
   }) => {
     return (
-      <div className='flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2'>
+      <div className='border-primary bg-secondary flex items-center justify-between border-b px-4 py-2'>
         <div className='flex items-center space-x-2'>
-          <span className='text-xs text-gray-600'>Older</span>
+          <span className='text-secondary text-xs'>Older</span>
           <div className='flex items-center space-x-1'>
             <div className={`h-3 w-3 ${styles['bg-blame-10']}`}></div>
             <div className={`h-3 w-3 ${styles['bg-blame-9']}`}></div>
@@ -312,7 +294,7 @@ const CodeContent = ({
             <div className={`h-3 w-3 ${styles['bg-blame-2']}`}></div>
             <div className={`h-3 w-3 ${styles['bg-blame-1']}`}></div>
           </div>
-          <span className='text-xs text-gray-600'>Newer</span>
+          <span className='text-secondary text-xs'>Newer</span>
         </div>
 
         <div className='flex items-center space-x-3'>
@@ -323,11 +305,13 @@ const CodeContent = ({
               </div>
 
               <div className='flex items-center space-x-1 pl-2 pr-3'>
-                <UsersIcon size={16} className='text-black' />
-                <span className='ml-0 text-xs text-black'>Contributors</span>
+                <UsersIcon size={16} className='text-primary' />
+                <span className='text-primary ml-0 text-xs'>Contributors</span>
               </div>
 
-              <span className='rounded-full bg-gray-200 px-2 py-1 text-xs text-black'>{contributors?.length || 0}</span>
+              <span className='bg-tertiary text-primary rounded-full px-2 py-1 text-xs'>
+                {contributors?.length || 0}
+              </span>
             </div>
           </div>
         </div>
@@ -398,6 +382,8 @@ const CodeContent = ({
     let cancelled = false
 
     const loadBlameTokens = async () => {
+      const shikiTheme = currentTheme === 'dark' ? 'min-dark' : 'min-light'
+
       const results = await Promise.all(
         processedBlameBlocks.map(async (block) => {
           const blockContent = block.lines.map((l) => l.content).join('\n')
@@ -405,11 +391,11 @@ const CodeContent = ({
           try {
             const result = await codeToTokens(blockContent, {
               lang: detectedLanguage as any,
-              theme: 'min-light'
+              theme: shikiTheme
             })
 
             return { block, tokens: result.tokens }
-          } catch {
+          } catch (error) {
             return { block, tokens: null }
           }
         })
@@ -423,8 +409,6 @@ const CodeContent = ({
         block.lines.forEach((line, index) => {
           if (tokens) {
             newMap.set(line.lineNumber, tokens[index] || [])
-          } else {
-            newMap.set(line.lineNumber, [{ content: line.content, color: '#24292e' }])
           }
         })
       }
@@ -437,20 +421,17 @@ const CodeContent = ({
     return () => {
       cancelled = true
     }
-  }, [processedBlameBlocks, detectedLanguage])
+  }, [processedBlameBlocks, detectedLanguage, currentTheme])
 
   const renderCodeView = useCallback(() => {
     if (isCodeLoading || isShikiLoading) {
       return (
-        <div
-          className='animate-pulse'
-          style={{ flex: 1, backgroundColor: '#fff', padding: '0 16px', overflow: 'hidden' }}
-        >
+        <div className='bg-primary animate-pulse' style={{ flex: 1, padding: '0 16px', overflow: 'hidden' }}>
           {Array.from({ length: 10 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className='flex items-center py-1'>
-              <div className='mr-4 h-4 w-12 rounded bg-gray-200'></div>
-              <div className='h-4 rounded bg-gray-200' style={{ width: `${Math.random() * 50 + 30}%` }}></div>
+              <div className='bg-tertiary mr-4 h-4 w-12 rounded'></div>
+              <div className='bg-tertiary h-4 rounded' style={{ width: `${Math.random() * 50 + 30}%` }}></div>
             </div>
           ))}
         </div>
@@ -469,16 +450,16 @@ const CodeContent = ({
       <div className='flex flex-1 flex-col overflow-hidden'>
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div
-            className={`rounded-b-lg border border-gray-200 ${styles.codeContainer}`}
-            style={{ minWidth: 'fit-content', backgroundColor: '#fff', userSelect: 'text' }}
+            className={`border-primary bg-primary rounded-b-lg border ${styles.codeContainer}`}
+            style={{ minWidth: 'fit-content', userSelect: 'text' }}
           >
             {shikiTokens.map((line, index) => {
               return (
                 <div
                   // eslint-disable-next-line react/no-array-index-key
                   key={index}
+                  className={selectedLine === index ? 'bg-blue-50 dark:bg-blue-950/30' : ''}
                   style={{
-                    backgroundColor: selectedLine === index ? '#f0f7ff' : '#fff',
                     padding: '0 16px',
                     fontSize: '14px',
                     fontFamily: 'monospace',
@@ -509,21 +490,21 @@ const CodeContent = ({
   const renderBlameView = useCallback(() => {
     if (isBlameLoading) {
       return (
-        <div className='animate-pulse' style={{ flex: 1, backgroundColor: '#fff', overflow: 'hidden' }}>
+        <div className='bg-primary animate-pulse' style={{ flex: 1, overflow: 'hidden' }}>
           {Array.from({ length: 10 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className='flex border-b border-gray-200 py-2'>
-              <div className='mx-2 w-1 bg-gray-200'></div>
+            <div key={index} className='border-primary flex border-b py-2'>
+              <div className='bg-tertiary mx-2 w-1'></div>
 
               <div className='flex w-[350px] items-center space-x-2 px-3'>
-                <div className='h-4 w-20 rounded bg-gray-200'></div>
-                <div className='h-5 w-5 rounded-full bg-gray-300'></div>
-                <div className='h-4 w-32 rounded bg-gray-200'></div>
+                <div className='bg-tertiary h-4 w-20 rounded'></div>
+                <div className='bg-quaternary h-5 w-5 rounded-full'></div>
+                <div className='bg-tertiary h-4 w-32 rounded'></div>
               </div>
 
               <div className='flex flex-1 items-center px-3'>
-                <div className='mr-4 h-4 w-12 rounded bg-gray-200'></div>
-                <div className='h-4 rounded bg-gray-200' style={{ width: `${Math.random() * 60 + 20}%` }}></div>
+                <div className='bg-tertiary mr-4 h-4 w-12 rounded'></div>
+                <div className='bg-tertiary h-4 rounded' style={{ width: `${Math.random() * 60 + 20}%` }}></div>
               </div>
             </div>
           ))}
@@ -534,7 +515,7 @@ const CodeContent = ({
     if (!blameData?.data) {
       return (
         <div className='flex items-center justify-center p-8'>
-          <div className='text-gray-500'>No blame information available</div>
+          <div className='text-tertiary'>No blame information available</div>
         </div>
       )
     }
@@ -544,8 +525,8 @@ const CodeContent = ({
         <ContributionRecord contributors={blameData.data?.contributors} />
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div
-            className={`rounded-b-lg border border-gray-200 ${styles.blameContainer}`}
-            style={{ minWidth: 'fit-content', backgroundColor: '#fff', userSelect: 'text' }}
+            className={`border-primary bg-primary rounded-b-lg border ${styles.blameContainer}`}
+            style={{ minWidth: 'fit-content', userSelect: 'text' }}
           >
             {processedBlameBlocks.map((block, blockIndex) => {
               const isLastBlock = blockIndex === processedBlameBlocks.length - 1
@@ -554,16 +535,16 @@ const CodeContent = ({
                 <div
                   // eslint-disable-next-line react/no-array-index-key
                   key={`block-${blockIndex}`}
-                  className={`transition-colors duration-150 ${isLastBlock ? '' : 'border-b border-gray-200'}`}
+                  className={`transition-colors duration-150 ${isLastBlock ? '' : 'border-primary border-b'}`}
                 >
                   <div className='flex'>
                     <div className='flex w-1 flex-shrink-0 items-center'>
                       <div className={`${block.colorClass} h-[99%] w-[95%] rounded-sm`}></div>
                     </div>
 
-                    <div className='flex-shrink-0 border-r border-gray-200' style={{ width: '350px' }}>
+                    <div className='border-primary flex-shrink-0 border-r' style={{ width: '350px' }}>
                       <div className='top-0 z-10 flex items-center px-3 py-2'>
-                        <span className='w-[100px] truncate text-xs text-gray-600'>
+                        <span className='text-secondary w-[100px] truncate text-xs'>
                           {formatRelativeTime(block.blameInfo?.commit_time || 0)}
                         </span>
                         <UserAvatar
@@ -571,7 +552,7 @@ const CodeContent = ({
                           zIndex={block.blameInfo?.commit_time || 0}
                         />
                         <div className='ml-2 flex w-[200px] items-center'>
-                          <span className='truncate text-xs text-gray-600' title={block.blameInfo?.commit_summary}>
+                          <span className='text-secondary truncate text-xs' title={block.blameInfo?.commit_summary}>
                             {block.blameInfo?.commit_message || 'No commit message'}
                           </span>
                         </div>
@@ -581,29 +562,29 @@ const CodeContent = ({
                     <div className={`flex-shrink-0 ${block.lines.length === 1 ? 'flex items-center' : ''}`}>
                       {block.lines.map((line) => {
                         const isSelected = selectedLine === line.lineNumber - 1
-                        const lineTokens = blameTokensMap.get(line.lineNumber) || [
-                          { content: line.content, color: '#24292e' }
-                        ]
+                        const lineTokens = blameTokensMap.get(line.lineNumber) || []
 
                         return (
                           <div
                             key={`line-${line.lineNumber}`}
-                            className='flex'
+                            className={`flex items-center ${isSelected ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                             onClick={() => handleLineClick(line.lineNumber - 1)}
                             style={{
-                              backgroundColor: isSelected ? '#f0f7ff' : '#fff',
                               fontSize: '12px',
-                              height: '20px'
+                              minHeight: '20px'
                             }}
                           >
                             <div
-                              className='flex flex-shrink-0 select-none items-center justify-center bg-white text-xs text-gray-500'
+                              className='bg-primary text-tertiary flex flex-shrink-0 select-none items-center justify-center text-xs'
                               style={{ width: '60px' }}
                             >
                               {line.lineNumber}
                             </div>
 
-                            <div className='py-1 pl-3 pr-4 font-mono text-sm' style={{ whiteSpace: 'pre' }}>
+                            <div
+                              className='flex items-center pl-3 pr-4 font-mono text-sm'
+                              style={{ whiteSpace: 'pre' }}
+                            >
                               <span style={{ display: 'inline' }}>
                                 {lineTokens.map((token, key) => (
                                   // eslint-disable-next-line react/no-array-index-key
@@ -627,25 +608,25 @@ const CodeContent = ({
     )
   }, [
     isBlameLoading,
-    blameData,
+    blameData?.data,
     processedBlameBlocks,
+    formatRelativeTime,
     selectedLine,
     blameTokensMap,
-    handleLineClick,
-    formatRelativeTime
+    handleLineClick
   ])
 
   const renderPreviewView = useCallback(() => {
     if (isCodeLoading) {
       return (
-        <div className='animate-pulse p-8' style={{ flex: 1, backgroundColor: '#fff', overflow: 'hidden' }}>
+        <div className='bg-primary animate-pulse p-8' style={{ flex: 1, overflow: 'hidden' }}>
           {Array.from({ length: 3 }).map((_, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className='mb-4'>
-              <div className='mb-2 h-6 rounded bg-gray-200' style={{ width: `${Math.random() * 30 + 40}%` }}></div>
-              <div className='mb-1 h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 20 + 70}%` }}></div>
-              <div className='mb-1 h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 20 + 80}%` }}></div>
-              <div className='h-4 rounded bg-gray-100' style={{ width: `${Math.random() * 30 + 50}%` }}></div>
+              <div className='bg-tertiary mb-2 h-6 rounded' style={{ width: `${Math.random() * 30 + 40}%` }}></div>
+              <div className='bg-tertiary mb-1 h-4 rounded' style={{ width: `${Math.random() * 20 + 70}%` }}></div>
+              <div className='bg-tertiary mb-1 h-4 rounded' style={{ width: `${Math.random() * 20 + 80}%` }}></div>
+              <div className='bg-tertiary h-4 rounded' style={{ width: `${Math.random() * 30 + 50}%` }}></div>
             </div>
           ))}
         </div>
@@ -653,12 +634,12 @@ const CodeContent = ({
     }
 
     return (
-      <div
-        className={`markdown-body overflow-auto rounded-b-lg border border-gray-200 p-8 ${styles.previewContainer}`}
+      <ThemedMarkdown
+        className={`border-primary overflow-auto rounded-b-lg border p-8 ${styles.previewContainer}`}
         style={{ userSelect: 'text' }}
       >
-        <Markdown>{fileContent}</Markdown>
-      </div>
+        {fileContent}
+      </ThemedMarkdown>
     )
   }, [fileContent, isCodeLoading])
 
@@ -676,8 +657,8 @@ const CodeContent = ({
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
-      <div className={`${styles.toolbar} rounded-t-lg border-t border-gray-200`} style={{ flexShrink: 0 }}>
-        <div className='m-2 h-8 rounded-lg bg-gray-200'>
+      <div className={`${styles.toolbar} border-primary rounded-t-lg border-t`} style={{ flexShrink: 0 }}>
+        <div className='bg-tertiary m-2 h-8 rounded-lg'>
           {isMarkdownFile && (
             <button
               className={`${styles.toolbarLeftButton} ${viewMode === 'preview' ? styles.active : ''}`}
@@ -699,7 +680,7 @@ const CodeContent = ({
             Blame
           </button>
         </div>
-        <div className='hidden whitespace-nowrap text-gray-500 2xl:inline'>
+        <div className='text-tertiary hidden whitespace-nowrap 2xl:inline'>
           <span
             className='m-2'
             style={{ minWidth: 0 }}
@@ -707,7 +688,7 @@ const CodeContent = ({
         </div>
 
         <div className='flex-1' />
-        <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
+        <div className='border-primary m-2 h-8 rounded-lg border p-1'>
           <button className={styles.toolbarRightButton} onClick={handleRawView}>
             Raw
           </button>
@@ -719,7 +700,7 @@ const CodeContent = ({
           </button>
         </div>
         {version === 'main' && !lfs && (
-          <div className='m-2 h-8 rounded-lg border border-gray-200 p-1'>
+          <div className='border-primary m-2 h-8 rounded-lg border p-1'>
             <button className={styles.toolbarRightButton} onClick={handleEditClick}>
               Edit
             </button>

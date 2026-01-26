@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import * as RadioGroup from '@radix-ui/react-radio-group'
-import * as SettingsSection from 'components/SettingsSection'
 import { m } from 'framer-motion'
 import { useTheme } from 'next-themes'
 
-import { cn } from '@gitmono/ui/src/utils'
+import { cn } from '@gitmono/ui/utils'
 
+import * as SettingsSection from '@/components/SettingsSection'
 import { Svg } from '@/components/Svg'
 import { Theme, useUpdateTheme } from '@/hooks/useUpdateTheme'
 

@@ -17,13 +17,13 @@ const SshKeyItem = ({ keyData }: { keyData: ListSSHKey }) => {
   const queryClient = useQueryClient()
 
   return (
-    <div className='flex items-center justify-between border-b border-gray-200 py-4 last:border-b-0'>
+    <div className='border-primary flex items-center justify-between border-b py-4 last:border-b-0'>
       <div className='flex items-start'>
-        <LockIcon className='h-6 w-6 text-gray-400' aria-hidden='true' />
+        <LockIcon className='text-quaternary h-6 w-6' aria-hidden='true' />
         <div className='ml-4'>
-          <p className='text-base font-bold text-gray-900'>{keyData.title}</p>
-          <p className='mt-1 font-mono text-sm text-gray-500'>{keyData.finger}</p>
-          <p className='mt-2 text-xs text-gray-500'>
+          <p className='text-primary text-base font-bold'>{keyData.title}</p>
+          <p className='text-tertiary mt-1 font-mono text-sm'>{keyData.finger}</p>
+          <p className='text-tertiary mt-2 text-xs'>
             <HandleTime created_at={keyData.created_at} />
           </p>
         </div>
@@ -39,7 +39,7 @@ const SshKeyItem = ({ keyData }: { keyData: ListSSHKey }) => {
             }
           )
         }
-        className='rounded-md border border-gray-300 px-4 py-1 text-sm font-semibold text-red-500 transition-colors duration-200 hover:bg-red-500 hover:text-white'
+        className='border-primary rounded-md border px-4 py-1 text-sm font-semibold text-red-500 transition-colors duration-200 hover:bg-red-500 hover:text-white'
       >
         Delete
       </button>
@@ -132,9 +132,9 @@ const SSHKeys = () => {
 
   return (
     <>
-      <div className='mx-auto max-w-4xl rounded-lg border border-gray-200 bg-white p-8 font-sans text-gray-700'>
+      <div className='border-primary bg-tertiary text-secondary mx-auto max-w-4xl rounded-lg border p-8 font-sans'>
         <header className='flex items-center justify-between pb-4'>
-          <h1 className='text-3xl font-bold text-gray-900'>SSH keys</h1>
+          <h1 className='text-primary text-3xl font-bold'>SSH keys</h1>
           <Button variant='primary' className='bg-[#1f883d]' leftSlot={<PlusIcon />} onClick={() => setOpen(true)}>
             New SSH key
           </Button>
@@ -145,7 +145,7 @@ const SSHKeys = () => {
         </p>
 
         <section>
-          <h2 className='border-b border-gray-200 pb-2 text-xl font-semibold text-gray-900'>Authentication keys</h2>
+          <h2 className='border-primary text-primary border-b pb-2 text-xl font-semibold'>Authentication keys</h2>
           {isLoading ? (
             <div className='flex h-[400px] items-center justify-center'>
               <LoadingSpinner />

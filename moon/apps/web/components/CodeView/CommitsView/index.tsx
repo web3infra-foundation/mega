@@ -31,18 +31,18 @@ export const formatAssignees = (assignees: string[]): React.ReactNode => {
   if (assignees.length === 1) {
     return (
       <MemberHovercard username={assignees[0]}>
-        <span className='cursor-pointer hover:text-blue-600 hover:underline'>{assignees[0]}</span>
+        <span className='text-accent cursor-pointer transition-colors hover:underline'>{assignees[0]}</span>
       </MemberHovercard>
     )
   } else if (assignees.length === 2) {
     return (
       <>
         <MemberHovercard username={assignees[0]}>
-          <span className='cursor-pointer hover:text-blue-600 hover:underline'>{assignees[0]}</span>
+          <span className='text-accent cursor-pointer transition-colors hover:underline'>{assignees[0]}</span>
         </MemberHovercard>
         {' and '}
         <MemberHovercard username={assignees[1]}>
-          <span className='cursor-pointer hover:text-blue-600 hover:underline'>{assignees[1]}</span>
+          <span className='text-accent cursor-pointer transition-colors hover:underline'>{assignees[1]}</span>
         </MemberHovercard>
       </>
     )
@@ -162,16 +162,16 @@ export const CommitsView: React.FC = () => {
                   return (
                     <div key={item.sha} className='relative flex gap-4'>
                       <div className='relative flex w-5 flex-col items-center'>
-                        <div className='absolute bottom-0 left-1/2 top-0 w-0.5 -translate-x-1/2 transform bg-gray-200' />
+                        <div className='bg-border-muted absolute bottom-0 left-1/2 top-0 w-0.5 -translate-x-1/2 transform' />
                         {index === 0 && (
-                          <div className='relative z-10 mt-3 flex-shrink-0 rounded-full bg-white'>
-                            <GitCommitIcon size={18} className='text-gray-400' />
+                          <div className='bg-primary relative z-10 mt-3 flex-shrink-0 rounded-full'>
+                            <GitCommitIcon size={18} className='text-tertiary' />
                           </div>
                         )}
                       </div>
 
                       <div className='flex flex-1 flex-col'>
-                        <div className='py-3 text-sm text-gray-600'>Commits on {commitDate}</div>
+                        <div className='text-secondary py-3 text-sm'>Commits on {commitDate}</div>
 
                         <div className='flex-1'>
                           <CommitsItem
@@ -181,17 +181,17 @@ export const CommitsView: React.FC = () => {
                               <span
                                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                                   item.gpg_status === 'Verified'
-                                    ? 'border-green-600 text-green-600'
+                                    ? 'border-green-600 text-green-600 dark:border-green-500 dark:text-green-500'
                                     : item.gpg_status === 'Unverified'
-                                      ? 'border-yellow-600 text-yellow-600'
-                                      : 'border-gray-600 text-gray-600'
+                                      ? 'border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500'
+                                      : 'border-border-default text-tertiary'
                                 }`}
                               >
                                 {item.gpg_status}
                               </span>
                             }
                             sha={
-                              <span className='items-center font-mono text-xs text-gray-500'>
+                              <span className='text-tertiary items-center font-mono text-xs'>
                                 {item.sha.substring(0, 7)}
                               </span>
                             }
@@ -201,23 +201,23 @@ export const CommitsView: React.FC = () => {
                                   e.stopPropagation()
                                   copy(item.sha) ? toast.success('Copied to clipboard') : toast.error('Copy failed')
                                 }}
-                                className='text-gray-400 hover:text-gray-600'
+                                className='text-tertiary hover:text-secondary transition-colors'
                               >
                                 <CopyIcon className='h-4 w-4' />
                               </button>
                             }
-                            rightIcon={<ChevronUpDownIcon className='h-5 w-5 rotate-90 text-gray-500' />}
+                            rightIcon={<ChevronUpDownIcon className='text-tertiary h-5 w-5 rotate-90' />}
                             onClick={() => {
                               router.push(`/${scope}/code/commit/${item.sha}`)
                             }}
                           >
-                            <div className='flex items-center gap-2 text-xs leading-4 text-gray-500'>
+                            <div className='text-tertiary flex items-center gap-2 text-xs leading-4'>
                               <div className='h-5 flex-shrink-0'>
                                 <MemberHoverAvatarList authors={[item.committer]} isLeft={true} />
                               </div>
                               <div className='flex items-center gap-1 whitespace-nowrap'>
                                 <span>{formatAssignees([item.committer])}</span>
-                                <span className='text-[11px] text-gray-400'>
+                                <span className='text-quaternary text-[11px]'>
                                   authored{' '}
                                   {formatDistance(fromUnixTime(parseInt(item.date, 10)), new Date(), {
                                     addSuffix: true
