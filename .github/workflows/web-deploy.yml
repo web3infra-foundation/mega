@@ -12,22 +12,32 @@ env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
   AWS_ECS_WEB_SERVICE_NAME: ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }}
+  REGISTRY_ALIAS: m8q5m4u3
+  REPOSITORY: mega
+  IMAGE_TAG_BASE: mega-ui-0.1.0-pre-release
+
+permissions:
+  id-token: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-push-single-arch:
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        platform: [linux/amd64]
         env_name: [demo, staging, openatom, gitmono]
     timeout-minutes: 10
+    permissions:
+      id-token: write
+      contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
@@ -48,22 +58,60 @@ jobs:
         with:
           registry-type: public
 
-      - name: Build, tag, and push docker image (${{ matrix.env_name }}) to Amazon ECR Public
+      - name: Build & push ${{ matrix.env_name }} image for ${{ matrix.platform }}
         working-directory: moon
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega
-          IMAGE_TAG: mega-ui-${{ matrix.env_name }}-0.1.0-pre-release
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          docker build \
+          set -euo pipefail
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          ARCH_SUFFIX=$(echo "$PLATFORM" | awk -F'/' '{print $2}')
+          IMAGE_TAG="mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-$ARCH_SUFFIX"
+          docker buildx build \
+            --platform "$PLATFORM" \
             --build-arg APP_ENV=${{ matrix.env_name }} \
             -f apps/web/Dockerfile \
-            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+            -t "$IMAGE_BASE:$IMAGE_TAG" . \
+            --push
+
+  manifest:
+    needs: build-push-single-arch
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    strategy:
+      matrix:
+        env_name: [demo, staging, openatom, gitmono]
+    permissions:
+      contents: read
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Create & push manifest for ${{ matrix.env_name }}
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+        run: |
+          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          docker manifest create "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release" \
+            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-amd64"
+          docker manifest push "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release"
+
   deploy:
-      needs: build
+      needs: manifest
       runs-on: ubuntu-latest
+      permissions:
+        contents: read
       strategy:
         matrix:
           include:
