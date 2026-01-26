@@ -157,8 +157,8 @@ RUN mkdir -p \
 COPY --from=buck2-downloader /buck2/buck2 /usr/local/bin/
 
 # Copy configuration templates and scripts
-COPY docker/dev-image/scorpio.toml.template /app/config/
-COPY docker/dev-image/entrypoint.sh /app/
+COPY orion/scorpio.toml.template /app/config/
+COPY orion/entrypoint.sh /app/
 
 # Write a small metadata file that the entrypoint can print for debugging.
 RUN printf "GIT_COMMIT=%s\nBUILD_DATE=%s\nBUCK2_VERSION=%s\n" "${GIT_COMMIT}" "${BUILD_DATE}" "${BUCK2_VERSION}" > /etc/mega-image-info

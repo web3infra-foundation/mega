@@ -1,163 +1,534 @@
-## Build Images
+> ⚠️ **Important Notice**: This Docker Compose setup is **for local demo/development only**. Do **NOT** run it in production. Default passwords and test users are included.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Demo Walk-Through](#demo-walk-through)
+- [Service Endpoints](#service-endpoints)
+- [FAQ](#faq)
+- [Stopping & Cleanup](#stopping--cleanup)
+- [Log Streaming](#log-streaming)
+- [Architecture Overview](#architecture-overview)
+
+---
+
+## Apple Silicon (macOS M1/M2) Quick note
+
+This demo ships **multi-architecture Docker images** (linux/amd64 + linux/arm64). If you are on an Apple Silicon machine:
+
+1. Ensure you are running **Docker Desktop ≥ 4.22** (includes Compose v2 and built-in Rosetta/QEMU).
+2. Simply follow the normal steps—Docker will automatically pull the arm64 layers from the public registry.
+3. If the arm64 variant is not yet available (e.g. you are on a fresh fork), trigger the GitHub workflow **“Demo multi-arch images”**: `Actions → Demo multi-arch images → Run workflow`.
+4. As a fall-back you can force emulation by adding `--platform linux/amd64` after every `docker compose` command, but native arm64 images are strongly recommended.
+
+---
+
+## Prerequisites
+
+### System Requirements
+
+* Linux – native Docker & Compose
+* macOS – Docker Desktop
+* Windows – Docker Desktop (WSL2 recommended)
+
+**Hardware** (minimum):
+
+* CPU: 4 cores
+* RAM: 8 GB (16 GB recommended for source builds)
+* Disk: 10 GB free (30 GB recommended if building images locally)
+
+
+### Required Tools
+
+* Docker ≥ 20.10
+* Docker Compose ≥ 2 (bundled with Docker Desktop)
 
 ```bash
-# cd root of the project
+docker --version
+docker compose version
+```
 
-# build postgres image
-docker buildx build -t mega:mono-pg-latest -f ./docker/mono-pg-dockerfile .
+---
 
-# build backend mono engine image (default in release mode)
-docker buildx build -t mega:mono-engine-latest -f ./docker/mono-engine-dockerfile .
+## Quick Start
 
-# build backend mono engine in debug mode
-# docker buildx build -t mega:mono-engine-latest-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
-
-# build frontend mono ui image
-docker buildx build -t mega:mono-ui-latest-release -f ./moon/apps/web/Dockerfile .
-
-# build backend aries engine image (default in release mode)
-docker buildx build -t mega:aries-engine-latest -f ./docker/aries-engine-dockerfile .
-
-## Test Mono Engine
-
-[1] Initiate volume for mono data and postgres data
+### 1  Clone the repo
 
 ```bash
-# Linux or MacOS
-sudo ./docker/init-volume.sh /mnt/data ./config/config.toml
-
-# Windows
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# .\init-volume.ps1 -baseDir "D:\" -configFile ".\config\config.toml"
+git clone https://github.com/web3infra-foundation/mega.git
+cd mega
 ```
 
-[2] Start whole mono engine stack on server with domain
+### 2  Configure environment *(optional)*
+
+> **Hosts mapping (required for demo domains)**
+> 
+> The demo uses virtual domains under `gitmono.local`. Add the following line to your operating-system hosts file so that the browser resolves them to your local machine:
+>
+> ```
+> 127.0.0.1 app.gitmono.local git.gitmono.local api.gitmono.local auth.gitmono.local orion.gitmono.local
+> ```
+> 
+> On Linux/macOS this is `/etc/hosts`; on Windows it is `C:\Windows\System32\drivers\etc\hosts`. You can remove the mapping at any time after testing.
+
+
+The demo environment already has sensible default values and can be used as-is. To customize any settings, create a `.env` file under `docker/demo/`:
 
 ```bash
-# create network
-docker network create mono-network
-
-# run postgres
-docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-latest-release
-docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mega:mono-engine-latest-release
-docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.net -p 3000:3000 mega:mono-ui-latest-release
+cd docker/demo
+# (Optional) copy `.env.example` to `.env` and edit as needed
 ```
 
-[3] Nginx configuration for Mono
+The main configurable environment variables include:
 
-```Nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name git.gitmega.org;
-    return 301 https://$server_name$request_uri;
-}
+- **Database Configuration**:
+  - `POSTGRES_USER`: PostgreSQL username (default: `postgres`)
+  - `POSTGRES_PASSWORD`: PostgreSQL password (default: `postgres`)
+  - `POSTGRES_DB_MONO`: PostgreSQL database name (default: `mono`, shared by Mega + Orion Server)
+  - `MYSQL_ROOT_PASSWORD`: MySQL root password (default: `mysqladmin`)
+    - ⚠️ For production, create a **dedicated low-privilege user** and update the MySQL health-check accordingly (avoid embedding root password).
+  - `MYSQL_DATABASE`: Campsite database name (default: `campsite`, uses MySQL)
 
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
+- **Service Images**:
+  - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
+  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release`)
+  - `ORION_CLIENT_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release`)
+  - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
+  - `CAMPSITE_RUN_MIGRATIONS`: Whether to run database migrations when the container starts; `1` (default) to run, can be changed to `0` after the first successful migration to skip and speed up subsequent starts.
 
-    server_name git.gitmega.org;
+- **RustFS Configuration**:
+  - `RUSTFS_ACCESS_KEY`: RustFS access key (default: `rustfsadmin`)
+  - `RUSTFS_SECRET_KEY`: RustFS secret key (default: `rustfsadmin`)
 
-    ssl_certificate /etc/letsencrypt/live/git.gitmega.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/git.gitmega.org/privkey.pem;
+> **Note**: The demo environment uses default passwords and test users for demonstration purposes only.
 
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    ssl_session_tickets off;
+### 3. Start all services
 
-    ssl_stapling on;
-    ssl_stapling_verify on;
-    resolver 8.8.8.8 8.8.4.4 valid=300s;
-    resolver_timeout 5s;
-
-    add_header Strict-Transport-Security "max-age=63072000" always;
-
-    client_max_body_size 5G;
-
-    access_log /var/log/nginx/git.gitmega.access.log;
-    error_log /var/log/nginx/git.gitmega.error.log;
-
-    location / {
-        proxy_pass  http://127.0.0.1:8000;
-    }
-
-}
-
-server {
-    listen 80;
-    listen [::]:80;
-    server_name console.gitmega.org;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-
-    server_name console.gitmega.org;
-
-    ssl_certificate /etc/letsencrypt/live/console.gitmega.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/console.gitmega.org/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    ssl_session_tickets off;
-
-    ssl_stapling on;
-    ssl_stapling_verify on;
-    resolver 8.8.8.8 8.8.4.4 valid=300s;
-    resolver_timeout 5s;
-
-    add_header Strict-Transport-Security "max-age=63072000" always;
-
-    access_log /var/log/nginx/console.gitmega.access.log;
-    error_log /var/log/nginx/console.gitmega.error.log;
-
-    location / {
-        proxy_pass  http://127.0.0.1:3000;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_set_header Origin $scheme://$host;
-    }
-
-}
-
-```
-
-[4] Run Aries
-
-```
-docker run --rm -it -d --name aries-engine -p 8001:8001 -p 8001:8001/udp mega:aries-engine-latest
-```
-
-## Certbot for SSL Certificate
-
-[1] Install certbot
+Execute in the project root directory:
 
 ```bash
-sudo apt install certbot
+docker compose -f docker/demo/docker-compose.demo.yml up -d
 ```
 
-[2] Get SSL certificate
+This command will:
+
+1. Pull the required Docker images (may take a long time for the first run)
+2. Create Docker networks and volumes
+3. Start all services in dependency order:
+   - First, start infrastructure services (PostgreSQL, MySQL, Redis, RustFS)
+   - Then, start application services (Mega, Orion Server, Campsite API)
+   - Finally, start client services (Mega UI, Orion Build Client)
+
+### 4. Check service status
+
+View the status of all services:
 
 ```bash
-certbot certonly -d "*.gitxxx.org" -d gitxxx.org --manual --preferred-challenges dns-01 --server https://acme-v02.api.letsencrypt.org/directory
+docker compose -f docker/demo/docker-compose.demo.yml ps
 ```
 
-[3] List SSL certificate
+View service logs (follow):
 
 ```bash
-ls /etc/letsencrypt/live/gitxxx.org
+docker compose -f docker/demo/docker-compose.demo.yml logs -f
 ```
+
+View logs for specific services:
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml logs -f mega
+docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_server
+```
+
+### 5. Wait for services to become ready
+
+On the first startup, services may take some time to finish:
+
+- **Database initialization**: PostgreSQL and MySQL need to initialize the databases
+- **Service health checks**: Each service waits for its dependencies to become healthy before starting
+- **Image build**: If using locally built images, the `mega` and `orion_server` services need to be built from source (slower on the first run)
+- **PostgreSQL init script**: On the very first launch the container runs `docker/demo/init-db.sh` automatically (mounted into `/docker-entrypoint-initdb.d/`).  The script does not create extra schemas; it simply prints helpful hints and reminds you that the `mono` database is auto-created by the `POSTGRES_DB` variable.  Because the PostgreSQL data directory is persisted in the `postgres-data` volume, this script is executed only **once** unless you delete the volume.
+
+Typically you should wait **2–5 minutes**. You can monitor service health with the following command:
+
+```bash
+# View the health status of all services
+docker compose -f docker/demo/docker-compose.demo.yml ps
+```
+
+When all services show a status of `healthy` or `running`, you can start using the demo.
+
+---
+
+## Demo walk-through
+
+### 1. Open Mega UI
+
+Open your browser and visit:
+
+```
+http://localhost:3000
+```
+
+### 2. Sign in with the test user
+
+The demo environment includes a built-in test user you can use directly:
+
+- **Username**: `mega` (or as configured by `MEGA_AUTHENTICATION__TEST_USER_NAME`)
+- **Token**: `mega` (or as configured by `MEGA_AUTHENTICATION__TEST_USER_TOKEN`)
+
+### 3. Trigger an Orion build
+
+In Mega UI:
+
+1. Create a new monorepo project or select an existing one
+2. On the project page, find the build-related features
+3. Trigger a Buck2 build task
+4. The build request will be sent to Orion Server and executed by Orion Build Client
+
+### 4. View build results
+
+- **View in the UI**: Build status and logs are displayed in Mega UI
+- **View build client logs**:
+  ```bash
+  docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_build_client
+  ```
+- **View Orion Server logs**:
+  ```bash
+  docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_server
+  ```
+
+### 5. Access the RustFS console (optional)
+
+RustFS object storage provides a web console:
+
+```
+http://localhost:9001/rustfs/console/access-keys
+```
+
+Log in with the following credentials:
+- **Access Key**: `rustfsadmin` (or the value of `RUSTFS_ACCESS_KEY`)
+- **Secret Key**: `rustfsadmin` (or the value of `RUSTFS_SECRET_KEY`)
+
+---
+
+## Service Endpoints
+
+| Service | URL | Description |
+|------|---------|------|
+| **Mega UI** | http://localhost:3000 | Web Frontend UI |
+| **Mega API** | http://localhost:8000 | Mega backend API |
+| **Orion Server** | http://localhost:8004 | Orion build server API |
+| **Campsite API** | http://localhost:8080 | Campsite OAuth/SSO API |
+| **PostgreSQL** | localhost:5432 | Database (used by Mega & Orion, mapped to host port 5432 in demo) |
+| **MySQL** | localhost:3306 | Database (used by Campsite API, mapped to host port 3306 in demo) |
+| **Redis** | localhost:6379 | Cache service (mapped to host port 6379 in demo) |
+| **RustFS Console** | http://localhost:9001 | Web console for RustFS object storage |
+| **RustFS S3 API** | http://localhost:9000 | S3-compatible endpoint |
+
+### API Health Check Endpoints
+
+- **Mega API**: `GET http://localhost:8000/api/v1/status`
+- **Orion Server**: `GET http://localhost:8004/v2/health`
+- **Campsite API**: `GET http://localhost:8080/health`
+
+---
+
+## FAQ
+
+### Port Conflict
+
+**Issue**: Docker reports the port is already allocated
+
+**Solution**:
+
+1. **Update the port mapping in the compose file**:
+   Edit `docker/demo/docker-compose.demo.yml` and adjust the `ports` section, e.g.:
+   ```yaml
+   ports:
+     - "8001:8000"  # Change host port to 8001
+   ```
+
+2. **Stop the service occupying the port**:
+   ```bash
+   # Find the process occupying the port (Linux/macOS)
+   lsof -i :8000
+   # or use netstat (Windows)
+   netstat -ano | findstr :8000
+   ```
+
+### Slow First-Time Start
+
+**Issue**: First run of `docker compose up` takes a long time
+
+**Reason**:
+- Images must be pulled from remote registries (may be large)
+- If you are using locally built images, the `mega` and `orion_server` services need to be built from source
+- PostgreSQL and MySQL databases need to initialize
+
+**Solution**:
+- Be patient; the first startup usually takes **5–15 minutes** (depending on network speed and hardware)
+- You can view progress in real time with `docker compose logs -f`
+- Subsequent starts will be much faster (images are cached)
+
+### Service Start Failure or Health Check Failure
+
+**Issue**: Some services remain in `unhealthy` or `restarting` state
+
+**Troubleshooting Steps**:
+
+1. **View service logs**:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml logs <service_name>
+   ```
+
+2. **Check dependency services**:
+   Ensure infrastructure services (PostgreSQL, MySQL, Redis, RustFS) are healthy:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml ps
+   ```
+
+3. **Check environment variables**:
+   Verify the `.env` file (if present) has correct settings
+
+4. **Check network connectivity**:
+   Ensure container-to-container network communication is normal:
+   ```bash
+   docker network inspect mega-demo-network
+   ```
+
+5. **Restart a service**:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml restart <service_name>
+   ```
+
+### Orion Build Client cannot connect to Orion Server
+
+**Problem**: The `orion_build_client` container cannot connect to `orion_server`.
+
+**Possible causes**:
+- `orion_server` has not fully started yet
+- Incorrect WebSocket address configuration
+- Network issues
+
+**Solution**:
+
+1. Check whether `orion_server` is healthy:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml ps orion_server
+   ```
+
+2. Inspect `orion_build_client` logs:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml logs orion_build_client
+   ```
+
+3. Verify that the environment variable `ORION_WORKER_SERVER_WS` is configured correctly (default: `ws://orion_server:8004/ws`).
+
+### Database connection failure
+
+**Problem**: Mega, Orion, or Campsite cannot connect to the database.
+
+**Troubleshooting steps**:
+
+1. **Check whether PostgreSQL is healthy** (used by Mega and Orion):
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml ps postgres
+   ```
+
+2. **Check whether MySQL is healthy** (used by the Campsite API):
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml ps mysql
+   ```
+
+3. **Check database connection strings**:
+   - Mega/Orion: ensure `DATABASE_URL` or `MEGA_DATABASE__DB_URL` is correctly formatted (PostgreSQL)
+   - Campsite: ensure `CAMPSITE_DATABASE_URL` is correctly formatted (MySQL; format: `mysql2://user:password@host:port/database`)
+
+4. **Test connectivity manually**:
+   ```bash
+   # Test PostgreSQL connection (Mega/Orion)
+   docker compose -f docker/demo/docker-compose.demo.yml exec postgres psql -U postgres -d mono
+   
+   # Test MySQL connection (Campsite)
+   docker compose -f docker/demo/docker-compose.demo.yml exec mysql mysql -u root -p${MYSQL_ROOT_PASSWORD:-mysqladmin} -e "USE campsite; SELECT 1;"
+   ```
+
+### RustFS access failure
+
+**Problem**: Mega or Orion cannot access RustFS object storage.
+
+**Troubleshooting steps**:
+
+1. Check whether RustFS is healthy:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml ps rustfs
+   ```
+
+2. Check S3 configuration:
+   Ensure `MEGA_S3__ENDPOINT_URL` points to `http://rustfs:9000` (in-container address).
+
+3. Check access keys:
+   Ensure `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` match the RustFS configuration.
+
+### Image build failure
+
+**Problem**: `orion_server` failed to build.
+
+**Possible causes**:
+- Docker build context issues
+- Network issues (unable to download dependencies)
+- Insufficient disk space
+
+**Solution**:
+
+1. View detailed build logs:
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml build --no-cache orion_server
+   ```
+
+2. Check disk space:
+   ```bash
+   df -h  # Linux/macOS
+   ```
+
+3. Prune Docker cache:
+   ```bash
+   docker system prune -a
+   ```
+
+---
+
+## Stopping and Cleanup
+
+### Stop services
+
+Stop all services (keep data):
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml stop
+```
+
+Stop and remove containers (keep volumes):
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml down
+```
+
+### Full cleanup (remove all data)
+
+⚠️ **Warning**: The following command will delete all volumes, including database and object storage data. Proceed with caution!
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml down -v
+```
+
+### Clean images (optional)
+
+To remove demo-related Docker images:
+
+```bash
+# List images
+docker images | grep mega
+
+# Remove specific image
+docker rmi <image_id>
+```
+
+---
+
+## View logs
+
+### View logs for all services
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml logs -f
+```
+
+### View logs for a specific service
+
+```bash
+# Mega backend
+docker compose -f docker/demo/docker-compose.demo.yml logs -f mega
+
+# Mega UI
+docker compose -f docker/demo/docker-compose.demo.yml logs -f mega_ui
+
+# Orion Server
+docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_server
+
+# Orion Build Client
+docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_build_client
+
+# Campsite API
+docker compose -f docker/demo/docker-compose.demo.yml logs -f campsite_api
+
+# PostgreSQL
+docker compose -f docker/demo/docker-compose.demo.yml logs -f postgres
+
+# MySQL
+docker compose -f docker/demo/docker-compose.demo.yml logs -f mysql
+
+# Redis
+docker compose -f docker/demo/docker-compose.demo.yml logs -f redis
+
+# RustFS
+docker compose -f docker/demo/docker-compose.demo.yml logs -f rustfs
+```
+
+### View the last N lines of logs
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml logs --tail=100 <service_name>
+```
+
+### View logs for a specific time range
+
+```bash
+docker compose -f docker/demo/docker-compose.demo.yml logs --since 10m <service_name>
+```
+
+---
+
+## Architecture overview
+
+The demo environment includes the following services:
+
+- **Infrastructure**:
+  - `postgres`: PostgreSQL database (used by Mega and Orion Server)
+  - `mysql`: MySQL database (used by the Campsite API)
+  - `redis`: Redis cache
+  - `rustfs`: RustFS object storage (S3-compatible)
+
+- **Application services**:
+  - `mega`: Mega backend (Rust)
+  - `mega_ui`: Mega Web UI (Next.js)
+  - `orion_server`: Orion build server (Rust)
+  - `orion_build_client`: Orion build client (based on the orion-client image)
+  - `campsite_api`: Campsite API (Ruby/Rails, built locally by default; if you have the encrypted development credentials configured you can pull the pre-built image directly via `CAMPSITE_API_IMAGE=public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
+
+For a detailed architecture diagram and dependency list, see the [Mega / Orion Demo architecture design document](./mega-orion-demo-compose-arch.md).
+
+---
+
+## Getting help
+
+If you run into issues, you can:
+
+1. Read the [FAQ](#faq) section of this document.
+2. Check the service logs for troubleshooting.
+
+---
+
+## Warning!
+
+⚠️ **This Docker Compose configuration is intended for local demo / evaluation only and is NOT suitable for production.**
+
+The demo environment includes the following insecure settings:
+- Default passwords and test users
+- HTTPS disabled
+- No security policies configured
+- Simple data-persistence setup
+
+**Do NOT use this configuration in production!**

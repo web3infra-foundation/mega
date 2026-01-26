@@ -2,22 +2,30 @@
 set -euo pipefail
 
 # ============================================================================
-# Local Arm64 Image Builder for Demo Environment
+# Local Image Builder for Demo Environment
 # ============================================================================
-# This script builds and pushes arm64 Docker images for the demo environment
-# on your local machine.
+# This script builds Docker images for the demo environment on your local machine.
+# The script automatically detects the platform (arm64/amd64) based on your machine.
+# By default, images are only built locally. Use --push to push to AWS ECR.
 #
 # Prerequisites:
 #   - Docker Desktop with Buildx enabled
-#   - AWS CLI configured with credentials
-#   - Access to Amazon ECR Public
+#   - (Optional) AWS CLI configured with credentials (only needed for --push)
+#   - (Optional) Access to Amazon ECR Public (only needed for --push)
 #   - QEMU (usually auto-installed by Docker Desktop)
 #
 # Usage:
-#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME]
+#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME] [--push]
+#
+#   Examples:
+#     ./scripts/demo/build-demo-images-local.sh              # Build all images locally
+#     ./scripts/demo/build-demo-images-local.sh --push       # Build and push all images
+#     ./scripts/demo/build-demo-images-local.sh mono-engine  # Build mono-engine locally
+#     ./scripts/demo/build-demo-images-local.sh mono-engine --push  # Build and push mono-engine
 #
 #   If IMAGE_NAME is provided, only that image will be built.
 #   Otherwise, all 4 images will be built.
+#   Use --push flag to push images to AWS ECR (requires AWS credentials).
 # ============================================================================
 
 # Colors for output
@@ -30,8 +38,10 @@ NC='\033[0m' # No Color
 REGISTRY_ALIAS="m8q5m4u3"
 REPOSITORY="mega"
 REGISTRY="public.ecr.aws"
+SHOULD_PUSH=false  # Default: only build, don't push
 
 # Auto-detect platform if not explicitly set
+# The script automatically detects your machine architecture and sets the appropriate platform
 if [ -z "${TARGET_PLATFORMS:-}" ]; then
     MACHINE_ARCH=$(uname -m)
     case "${MACHINE_ARCH}" in
@@ -68,10 +78,10 @@ fi
 # Image configurations (ordered for consistent build order)
 declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")
 declare -A IMAGES
-IMAGES[mono-engine]="docker/mono-engine-dockerfile:."
+IMAGES[mono-engine]="mono/mono-engine-dockerfile:."
 IMAGES[mega-ui]="moon/apps/web/Dockerfile:moon"
 IMAGES[orion-server]="orion-server/Dockerfile:."
-IMAGES[orion-client]="docker/dev-image/Dockerfile:."
+IMAGES[orion-client]="orion/Dockerfile:."
 
 declare -A TAGS
 TAGS[mono-engine]="mono-0.1.0-pre-release"
@@ -129,16 +139,19 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check AWS CLI
-    if ! command -v aws &> /dev/null; then
-        log_error "AWS CLI is not installed. Please install it: brew install awscli"
-        exit 1
-    fi
-    
-    # Check AWS credentials
-    if ! aws sts get-caller-identity &> /dev/null; then
-        log_error "AWS credentials are not configured. Please run: aws configure"
-        exit 1
+    # Only check AWS prerequisites if we need to push
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        # Check AWS CLI
+        if ! command -v aws &> /dev/null; then
+            log_error "AWS CLI is not installed. Please install it: brew install awscli"
+            exit 1
+        fi
+        
+        # Check AWS credentials
+        if ! aws sts get-caller-identity &> /dev/null; then
+            log_error "AWS credentials are not configured. Please run: aws configure"
+            exit 1
+        fi
     fi
     
     log_info "All prerequisites met ✓"
@@ -266,7 +279,11 @@ build_and_push() {
         return 1
     fi
     
-    log_info "Building ${image_name} (${image_tag_with_arch})..."
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        log_info "Building and pushing ${image_name} (${image_tag_with_arch})..."
+    else
+        log_info "Building ${image_name} (${image_tag_with_arch})..."
+    fi
     log_info "  Dockerfile: ${dockerfile_path}"
     log_info "  Context: ${build_context}"
     log_info "  Platforms: ${TARGET_PLATFORMS}"
@@ -275,38 +292,73 @@ build_and_push() {
     cd "${REPO_ROOT}"
     
     # Build cache args - try to use registry cache, but don't fail if it doesn't exist
+    # Only check registry cache if we're pushing (requires AWS access)
     local cache_from_args=()
-    if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
-        log_info "  Using registry cache from existing image"
-        cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
-    else
-        log_info "  No existing image found, building from scratch"
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
+            log_info "  Using registry cache from existing image"
+            cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
+        else
+            log_info "  No existing image found, building from scratch"
+        fi
     fi
     
-    # Build and push multi-arch image with cache
-    # Use array expansion for cache args to handle empty case properly
-    if ! docker buildx build \
-        --builder mega-builder \
-        --platform "${TARGET_PLATFORMS}" \
-        --file "${dockerfile_path}" \
-        --tag "${image_base}:${image_tag_with_arch}" \
-        --push \
-        --progress=plain \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        "${cache_from_args[@]}" \
-        --cache-to type=inline \
-        "${build_context}"; then
-        log_error "Failed to build and push ${image_name}"
+    # Build command arguments
+    local build_args=(
+        --builder mega-builder
+        --platform "${TARGET_PLATFORMS}"
+        --file "${dockerfile_path}"
+        --tag "${image_base}:${image_tag_with_arch}"
+        --progress=plain
+        --build-arg BUILDKIT_INLINE_CACHE=1
+    )
+    
+    # Add --push or --load flag
+    # --push: push to registry (requires AWS credentials)
+    # --load: load image into local Docker (only works for single platform builds)
+    # Note: --push and --load cannot be used together
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        build_args+=(--push)
+    else
+        # Load image into local Docker for local use
+        build_args+=(--load)
+    fi
+    
+    # Add cache arguments
+    build_args+=("${cache_from_args[@]}")
+    
+    # Add cache-to (inline cache is always useful)
+    build_args+=(--cache-to type=inline)
+    
+    # Add build context
+    build_args+=("${build_context}")
+    
+    # Build (and optionally push) image
+    if ! docker buildx build "${build_args[@]}"; then
+        if [ "$SHOULD_PUSH" = "true" ]; then
+            log_error "Failed to build and push ${image_name}"
+        else
+            log_error "Failed to build ${image_name}"
+        fi
         return 1
     fi
     
-    log_info "${image_name} built and pushed successfully ✓"
-    log_info "  Image: ${image_base}:${image_tag_with_arch}"
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        log_info "${image_name} built and pushed successfully ✓"
+        log_info "  Image: ${image_base}:${image_tag_with_arch}"
+    else
+        log_info "${image_name} built successfully ✓"
+        log_info "  Image: ${image_base}:${image_tag_with_arch} (local only)"
+    fi
     return 0
 }
 
 build_all() {
-    log_info "Building all demo images..."
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        log_info "Building and pushing all demo images..."
+    else
+        log_info "Building all demo images..."
+    fi
     
     local failed_images=()
     for image_name in "${IMAGE_ORDER[@]}"; do
@@ -323,7 +375,11 @@ build_all() {
     echo ""
     if [ ${#failed_images[@]} -eq 0 ]; then
         log_info "=========================================="
-        log_info "All images built and pushed successfully!"
+        if [ "$SHOULD_PUSH" = "true" ]; then
+            log_info "All images built and pushed successfully!"
+        else
+            log_info "All images built successfully!"
+        fi
         log_info "=========================================="
         return 0
     else
@@ -339,18 +395,47 @@ build_all() {
 
 # Main execution
 main() {
-    log_info "Starting local arm64 image build..."
+    # Parse command line arguments
+    # Extract --push flag and collect other arguments
+    local args=()
+    for arg in "$@"; do
+        if [ "$arg" = "--push" ]; then
+            SHOULD_PUSH=true
+        else
+            args+=("$arg")
+        fi
+    done
+    
+    # Determine operation mode
+    local mode_info=""
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        mode_info="build and push"
+    else
+        mode_info="build (local only)"
+    fi
+    
+    log_info "Starting local image ${mode_info}..."
     log_info "Registry: ${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        log_info "Mode: Build and push to ECR"
+    else
+        log_info "Mode: Build only (local)"
+    fi
     echo ""
     
     check_prerequisites
     setup_buildx
-    login_ecr
+    
+    # Only login to ECR if we need to push
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        login_ecr
+    fi
     
     # Build specific image or all images
-    if [ $# -eq 1 ]; then
-        if [[ -v IMAGES[$1] ]]; then
-            if build_and_push "$1"; then
+    if [ ${#args[@]} -eq 1 ]; then
+        local image_name="${args[0]}"
+        if [[ -v IMAGES[$image_name] ]]; then
+            if build_and_push "$image_name"; then
                 log_info "Done!"
                 exit 0
             else
@@ -358,11 +443,11 @@ main() {
                 exit 1
             fi
         else
-            log_error "Unknown image: $1"
+            log_error "Unknown image: $image_name"
             log_info "Available images: ${IMAGE_ORDER[*]}"
             exit 1
         fi
-    else
+    elif [ ${#args[@]} -eq 0 ]; then
         if build_all; then
             log_info "Done!"
             exit 0
@@ -370,6 +455,10 @@ main() {
             log_error "Some builds failed"
             exit 1
         fi
+    else
+        log_error "Too many arguments. Usage: $0 [IMAGE_NAME] [--push]"
+        log_info "Available images: ${IMAGE_ORDER[*]}"
+        exit 1
     fi
 }
 

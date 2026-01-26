@@ -6,7 +6,9 @@ on:
       - main
     paths:
       - ".github/workflows/orion-client-image-deploy.yml"
-      - "docker/dev-image/**"
+      - "orion/Dockerfile"
+      - "orion/entrypoint.sh"
+      - "orion/scorpio.toml.template"
       - "orion/**"
       - "scorpio/**"
       - "ceres/**"
@@ -71,7 +73,7 @@ jobs:
             --sbom=false \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX-${{ github.sha }}" \
-            -f docker/dev-image/Dockerfile \
+            -f orion/Dockerfile \
             --push .
 
   manifest:

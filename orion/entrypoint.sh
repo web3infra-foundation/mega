@@ -93,7 +93,7 @@ Examples:
 Environment Variables:
   See .env.example for full list of configurable options.
 
-For more information, see the README.md in docker/dev-image/
+For more information, see the README(orion-client-image).md in orion/
 EOF
 }
 

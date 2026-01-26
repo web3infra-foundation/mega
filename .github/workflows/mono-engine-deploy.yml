@@ -77,7 +77,7 @@ jobs:
             --sbom=false \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX-${{ github.sha }}" \
-            -f ./docker/mono-engine-dockerfile \
+            -f ./mono/mono-engine-dockerfile \
             --push .
 
   manifest:
