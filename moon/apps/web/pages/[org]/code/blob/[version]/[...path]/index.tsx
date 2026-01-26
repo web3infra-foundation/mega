@@ -90,10 +90,10 @@ function BlobPage() {
               minWidth: MIN_LEFT_WIDTH,
               flexShrink: 0,
               borderRadius: 8,
-              background: '#fff',
               overflow: 'auto',
               paddingRight: '8px'
             }}
+            className='bg-primary'
           >
             <RepoTree />
           </div>
@@ -101,7 +101,7 @@ function BlobPage() {
           {/* Resizer handle */}
           <div
             onMouseDown={handleMouseDown}
-            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            className='bg-border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
             style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
           />
 
@@ -109,13 +109,13 @@ function BlobPage() {
             style={{
               flex: 1,
               borderRadius: 8,
-              background: '#fff',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
               paddingLeft: '8px',
               paddingRight: '8px'
             }}
+            className='bg-primary'
           >
             <div className='flex-shrink-0'>
               <CommitHistory flag={'details'} path={new_path} refs={refs} />

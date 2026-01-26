@@ -64,13 +64,13 @@ export function CommentEditor({
   }
 
   return (
-    <div className='rounded-lg border bg-white shadow-sm'>
+    <div className='border-primary bg-primary rounded-lg border shadow-sm'>
       <div className='relative'>
         <EditorContent editor={editor} onKeyDown={handleKeyDown} className='min-h-[80px]' />
       </div>
 
-      <div className='flex items-center justify-between border-t bg-gray-50 p-3'>
-        <div className='flex items-center space-x-2 text-xs text-gray-500'>
+      <div className='border-primary bg-secondary flex items-center justify-between border-t p-3'>
+        <div className='text-tertiary flex items-center space-x-2 text-xs'>
           <span>支持 Markdown 语法</span>
           <span>•</span>
           <span>`Ctrl` + `Enter` 快速发布</span>

@@ -7,16 +7,16 @@ import { TextField } from '@gitmono/ui/TextField'
 
 const CodeViewHeader = () => {
   return (
-    <div className='w-full space-y-4 p-6'>
+    <div className='bg-primary w-full space-y-4 p-6'>
       {/* Ask Copilot Input */}
       <div className='max-w-8xl relative'>
         <TextField
           placeholder='Ask Copilot'
-          additionalClasses='w-full h-13 pl-4 pr-12 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+          additionalClasses='w-full h-13 pl-4 pr-12 rounded-lg border border-primary bg-tertiary text-primary placeholder:text-quaternary focus:ring-2 focus:ring-blue-500 focus:border-transparent'
         />
         <div className='absolute right-3 top-1/2 -translate-y-1/2 transform'>
-          <Button variant='ghost' size='1' className='rounded p-1 hover:bg-gray-100'>
-            <PaperAirplaneIcon className='h-5 w-5 text-gray-400' />
+          <Button variant='ghost' size='1' className='hover:bg-secondary rounded p-1'>
+            <PaperAirplaneIcon className='text-tertiary h-5 w-5' />
           </Button>
         </div>
       </div>
@@ -26,7 +26,7 @@ const CodeViewHeader = () => {
         <Button
           variant='soft'
           size='3'
-          className='!h-12 flex-1 !rounded-2xl !border !border-solid !border-gray-300 !bg-white !text-black hover:!bg-gray-100'
+          className='border-primary !bg-button !text-primary hover:!bg-secondary !h-12 flex-1 !rounded-2xl !border !border-solid'
         >
           <Flex align='center' gap='2'>
             <GitPullRequestIcon className='h-4 w-4 text-[#378f50]' />
@@ -37,7 +37,7 @@ const CodeViewHeader = () => {
         <Button
           variant='soft'
           size='3'
-          className='!h-12 flex-1 !rounded-2xl !border !border-solid !border-gray-300 !bg-white !text-black hover:!bg-gray-100'
+          className='border-primary !bg-button !text-primary hover:!bg-secondary !h-12 flex-1 !rounded-2xl !border !border-solid'
         >
           <Flex align='center' gap='2'>
             <RocketIcon className='h-4 w-4 text-[#A33A77]' />
@@ -48,7 +48,7 @@ const CodeViewHeader = () => {
         <Button
           variant='soft'
           size='3'
-          className='!h-12 flex-1 !rounded-2xl !border !border-solid !border-gray-300 !bg-white !text-black hover:!bg-gray-100'
+          className='border-primary !bg-button !text-primary hover:!bg-secondary !h-12 flex-1 !rounded-2xl !border !border-solid'
         >
           <Flex align='center' gap='2'>
             <GitPullRequestIcon className='h-4 w-4 text-[#378f50]' />

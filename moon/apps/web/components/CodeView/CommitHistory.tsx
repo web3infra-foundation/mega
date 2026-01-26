@@ -11,8 +11,6 @@ import { useGetOrganizationMember } from '@/hooks/useGetOrganizationMember'
 
 const CommitHyStyle = {
   width: '100%',
-  background: '#fff',
-  border: '1px solid #d1d9e0',
   borderRadius: 8
 }
 
@@ -43,15 +41,15 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
 
   return (
     <>
-      <div style={CommitHyStyle}>
+      <div style={CommitHyStyle} className='border-primary bg-primary border'>
         <Flex align='center' className='min-h-[50px] p-1'>
           <MemberHovercard username={commit.author} role='member'>
             <Flex align='center'>
               <Avatar src={memberData?.user?.avatar_url || ''} />
-              <span className='mx-3 font-bold'>{commit.author}</span>
+              <span className='text-primary mx-3 font-bold'>{commit.author}</span>
             </Flex>
           </MemberHovercard>
-          <span className='min-w-0 flex-1 truncate text-sm text-gray-500'>{commit.short_message}</span>
+          <span className='text-tertiary min-w-0 flex-1 truncate text-sm'>{commit.short_message}</span>
           {flag === 'contents' && (
             <Flex>
               <Button
@@ -66,7 +64,7 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
             </Flex>
           )}
 
-          <span className='ml-auto mr-3 text-xs text-gray-400'>
+          <span className='text-quaternary ml-auto mr-3 text-xs'>
             {shortHash} · {formattedDate}
           </span>
 
@@ -91,7 +89,7 @@ export default function CommitHistory({ flag, path, refs }: CommitHistoryProps) 
       </div>
 
       {Expand && commitData && (
-        <p className='ml-4 text-neutral-500'>
+        <p className='text-tertiary ml-4'>
           Signed-off-by: {commitData.author} {'<'}
           {memberData?.user?.email}
           {'>'}

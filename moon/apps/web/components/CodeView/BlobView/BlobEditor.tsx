@@ -149,7 +149,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
       <div className='flex h-full w-full overflow-hidden font-mono text-sm leading-6'>
         <div
           ref={lineNumbersRef}
-          className='h-full select-none overflow-hidden border-r border-gray-200 bg-gray-50 px-4 text-right text-gray-400'
+          className='border-primary bg-secondary text-quaternary h-full select-none overflow-hidden border-r px-4 text-right'
           style={{ flexShrink: 0 }}
         >
           {contentLines.map((_, index) => (
@@ -178,7 +178,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
   const renderPreviewView = () => {
     if (!hasChanges) {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <div className='text-center'>
             <p className='text-lg font-medium'>No changes</p>
             <p className='mt-2 text-sm'>Please edit the file content first</p>
@@ -189,7 +189,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
 
     if (diffPreviewMutation.isPending) {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <div className='text-center'>
             <p className='text-lg font-medium'>Loading...</p>
             <p className='mt-2 text-sm'>Generating diff preview</p>
@@ -200,7 +200,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
 
     if (!fileDiffMetadata) {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <div className='text-center'>
             <p className='text-lg font-medium'>Failed to load diff preview</p>
             <p className='mt-2 text-sm'>Please try again</p>

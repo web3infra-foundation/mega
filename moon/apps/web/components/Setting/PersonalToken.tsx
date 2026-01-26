@@ -18,13 +18,13 @@ const TokenItem = ({ item }: { item: ListToken }) => {
   const fetchTokenList = legacyApiClient.v1.getApiUserTokenList()
 
   return (
-    <div className='flex items-center justify-between border-b border-gray-200 py-4 last:border-b-0'>
+    <div className='border-primary flex items-center justify-between border-b py-4 last:border-b-0'>
       <div className='flex items-start'>
-        <LockIcon className='h-6 w-6 text-gray-400' aria-hidden='true' />
+        <LockIcon className='text-quaternary h-6 w-6' aria-hidden='true' />
         <div className='ml-4'>
-          <p className='text-base font-bold text-gray-900'>Token #{item.id}</p>
-          <p className='mt-1 break-all font-mono text-sm text-gray-500'>{item.token}</p>
-          <p className='mt-2 text-xs text-gray-500'>
+          <p className='text-primary text-base font-bold'>Token #{item.id}</p>
+          <p className='text-tertiary mt-1 break-all font-mono text-sm'>{item.token}</p>
+          <p className='text-tertiary mt-2 text-xs'>
             <HandleTime created_at={item.created_at} />
           </p>
         </div>
@@ -40,7 +40,7 @@ const TokenItem = ({ item }: { item: ListToken }) => {
             }
           )
         }
-        className='rounded-md border border-gray-300 px-4 py-1 text-sm font-semibold text-red-500 transition-colors duration-200 hover:bg-red-500 hover:text-white'
+        className='border-primary rounded-md border px-4 py-1 text-sm font-semibold text-red-500 transition-colors duration-200 hover:bg-red-500 hover:text-white'
       >
         Delete
       </button>
@@ -76,7 +76,7 @@ const CopySpace = ({ copyText }: { copyText: string }) => {
 
   return (
     <div className='mb-4'>
-      <code className='flex-1 break-all rounded border border-gray-200 bg-white px-3 py-2 font-mono text-sm'>
+      <code className='border-primary bg-primary flex-1 break-all rounded border px-3 py-2 font-mono text-sm'>
         {copyText}
       </code>
       <Button variant='flat' className='ml-3' onClick={() => handleCopy(copyText)}>
@@ -105,9 +105,9 @@ const PersonalToken = () => {
   }
 
   return (
-    <div className='mx-auto mt-8 max-w-4xl rounded-lg border border-gray-200 bg-white p-8 font-sans text-gray-700'>
+    <div className='border-primary bg-tertiary text-secondary mx-auto mt-8 max-w-4xl rounded-lg border p-8 font-sans'>
       <header className='flex items-center justify-between pb-4'>
-        <h1 className='text-3xl font-bold text-gray-900'>Personal tokens</h1>
+        <h1 className='text-primary text-3xl font-bold'>Personal tokens</h1>
         <Button
           variant='primary'
           leftSlot={<PlusIcon />}
@@ -127,21 +127,21 @@ const PersonalToken = () => {
 
       {generated && currentUser && (
         <div className='mb-8 rounded-md border border-green-200 bg-green-50 p-4'>
-          <p className='text-sm text-gray-700'>Your new token has been generated.</p>
+          <p className='text-secondary text-sm'>Your new token has been generated.</p>
           <div className='mt-2 flex-col items-center'>
-            <span className='text-sm text-gray-700'>Username:</span>
+            <span className='text-secondary text-sm'>Username:</span>
             <CopySpace copyText={currentUser.username} />
-            <span className='text-sm text-gray-700'>Token:</span>
+            <span className='text-secondary text-sm'>Token:</span>
             <CopySpace copyText={generated} />
           </div>
-          <p className='mt-2 text-xs text-gray-500'>
+          <p className='text-tertiary mt-2 text-xs'>
             Make sure to copy your new token now. You won’t be able to see it again.
           </p>
         </div>
       )}
 
       <section>
-        <h2 className='border-b border-gray-200 pb-2 text-xl font-semibold text-gray-900'>Tokens</h2>
+        <h2 className='border-primary text-primary border-b pb-2 text-xl font-semibold'>Tokens</h2>
         {isLoading || isUserLoading ? (
           <div className='flex h-[400px] items-center justify-center'>
             <LoadingSpinner />

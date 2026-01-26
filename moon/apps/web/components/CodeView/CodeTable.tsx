@@ -1,13 +1,12 @@
 'use client'
 
-import 'github-markdown-css/github-markdown-light.css'
-
 import { useMemo } from 'react'
 import { FolderIcon } from '@heroicons/react/20/solid'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { usePathname, useRouter } from 'next/navigation'
 import { useRouter as useNextRouter } from 'next/router'
-import Markdown from 'react-markdown'
+
+import ThemedMarkdown from '@/components/Theme/ThemedMarkdown'
 
 import FileIcon from './FileIcon/FileIcon'
 import RTable from './Table'
@@ -33,7 +32,6 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
   const markdownContentStyle = {
     margin: ' 0 auto',
     marginTop: 20,
-    border: '1px solid rgba(0, 0, 0, 0.112)',
     padding: '2%',
     borderRadius: '0.5rem'
   }
@@ -47,11 +45,13 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         render: (_, record) => (
           <>
             <div className='flex items-center'>
-              {record.content_type === 'directory' && <FolderIcon className='size-4 text-gray-600' />}
+              {record.content_type === 'directory' && <FolderIcon className='text-secondary size-4' />}
               {record.content_type === 'file' && (
                 <FileIcon filename={record.name} style={{ width: '16px', height: '16px' }} />
               )}
-              <a className='cursor-pointer pl-2 transition-colors duration-300 hover:text-[#69b1ff]'>{record.name}</a>
+              <a className='text-primary cursor-pointer pl-2 transition-colors duration-300 hover:text-[#69b1ff]'>
+                {record.name}
+              </a>
             </div>
           </>
         )
@@ -61,7 +61,7 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         dataIndex: ['commit_message'],
         key: 'commit_message',
         render: (_, { commit_message }) => (
-          <a className='cursor-pointer text-gray-600 transition-colors duration-300 hover:text-[#69b1ff]'>
+          <a className='text-secondary cursor-pointer transition-colors duration-300 hover:text-[#69b1ff]'>
             {commit_message}
           </a>
         )
@@ -109,11 +109,9 @@ const CodeTable = ({ directory, loading, readmeContent }: any) => {
         loading={loading}
       />
       {readmeContent && (
-        <div style={markdownContentStyle}>
-          <div className='markdown-body'>
-            <Markdown>{readmeContent}</Markdown>
-          </div>
-        </div>
+        <ThemedMarkdown style={markdownContentStyle} className='border-primary relative border'>
+          {readmeContent}
+        </ThemedMarkdown>
       )}
     </div>
   )

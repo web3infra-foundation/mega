@@ -85,14 +85,14 @@ const CloneTabs = () => {
                         <Flex align='center'>
                           <input
                             value={_item.inputValue}
-                            className='bg-gray-150 m-2 w-[350px] border-b border-r p-1'
+                            className='bg-quaternary border-primary m-2 w-[350px] border-b border-r p-1'
                             style={{ borderRadius: '5px' }}
                           />
-                          <Button onClick={handleCopy} size='sm' variant='text' className='text-gray-600'>
+                          <Button onClick={handleCopy} size='sm' variant='text' className='text-secondary'>
                             {copied ? <CheckIcon /> : <CopyIcon />}
                           </Button>
                         </Flex>
-                        <div className='ml-2 text-gray-500'>{_item.info}</div>
+                        <div className='text-tertiary ml-2'>{_item.info}</div>
                       </Tabs.Content>
                     )
                   })}

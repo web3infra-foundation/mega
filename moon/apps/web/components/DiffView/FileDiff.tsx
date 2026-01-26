@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChangeTypes, type FileDiffMetadata } from '@pierre/diffs'
 import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
+import { useTheme } from 'next-themes'
 import { Virtuoso } from 'react-virtuoso'
 
 import { CommonPageDiffItem, CommonResultVecMuiTreeNode } from '@gitmono/types'
@@ -34,6 +35,7 @@ export default function FileDiff({
   onLoadMore
 }: FileDiffProps) {
   const virtuosoRef = useRef<any>(null)
+  const { resolvedTheme } = useTheme()
 
   const [pageDataMap, setPageDataMap] = useState<Map<number, DiffItem[]>>(new Map())
 
@@ -133,7 +135,7 @@ export default function FileDiff({
         <PierreFileDiff
           fileDiff={fileDiffMetadata}
           options={{
-            theme: { dark: 'min-dark', light: 'min-light' },
+            theme: resolvedTheme === 'dark' ? 'min-dark' : 'min-light',
             diffStyle: 'unified',
             diffIndicators: 'classic',
             overflow: 'wrap',
@@ -153,8 +155,8 @@ export default function FileDiff({
     if (isBinary) {
       return (
         <div className='p-4 text-center'>
-          <div>Binary file</div>
-          {message && <div className='mt-1 text-sm text-gray-600'>{message}</div>}
+          <div className='text-primary'>Binary file</div>
+          {message && <div className='text-secondary mt-1 text-sm'>{message}</div>}
         </div>
       )
     }
@@ -162,14 +164,14 @@ export default function FileDiff({
     if (message) {
       return (
         <div className='p-4 text-center'>
-          <div>Load Diff</div>
-          <div className='mt-1 text-sm text-gray-600'>{message}</div>
+          <div className='text-primary'>Load Diff</div>
+          <div className='text-secondary mt-1 text-sm'>{message}</div>
         </div>
       )
     }
 
     if (!hasContent) {
-      return <div className='p-4 text-center text-gray-500'>No content change</div>
+      return <div className='text-tertiary p-4 text-center'>No content change</div>
     }
 
     return null
@@ -184,13 +186,13 @@ export default function FileDiff({
         id={file.path}
         key={file.path}
         ref={(el) => void (fileRefs.current[file.path] = el)}
-        className='mb-4 w-full rounded-lg border border-gray-300'
+        className='border-primary mb-4 w-full rounded-lg border'
       >
         <div
           onClick={() => toggleExpanded(file.path)}
           className={cn(
-            'flex cursor-pointer items-center justify-between px-4 py-2 text-sm',
-            isExpanded && 'border-b border-gray-300'
+            'text-primary flex cursor-pointer items-center justify-between px-4 py-2 text-sm',
+            isExpanded && 'border-primary border-b'
           )}
         >
           <span className='flex items-center'>
@@ -224,10 +226,10 @@ export default function FileDiff({
   return (
     <div className='relative mt-3 flex font-sans'>
       {isBlockingLoading && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-white/60'>
-          <div className='flex items-center rounded-md bg-white px-3 py-2 shadow'>
+        <div className='bg-primary/60 fixed inset-0 z-50 flex items-center justify-center'>
+          <div className='bg-primary flex items-center rounded-md px-3 py-2 shadow'>
             <LoadingSpinner />
-            <span className='ml-2 text-sm text-gray-600'>Loading diffs...</span>
+            <span className='text-secondary ml-2 text-sm'>Loading diffs...</span>
           </div>
         </div>
       )}
@@ -238,7 +240,7 @@ export default function FileDiff({
 
       <div className='h-full w-full flex-1 px-4'>
         {fileDiff.length === 0 && !fileChangeIsLoading && page === 1 ? (
-          <div className='flex h-[85vh] items-center justify-center'>No File Changed</div>
+          <div className='text-primary flex h-[85vh] items-center justify-center'>No File Changed</div>
         ) : (
           <Virtuoso
             ref={virtuosoRef}

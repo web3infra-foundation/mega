@@ -102,7 +102,7 @@ export const CommitsDetailView: React.FC = () => {
     return (
       <div className='flex h-[400px] items-center justify-center'>
         <div className='text-center'>
-          <p className='text-lg text-gray-600'>No commit data found</p>
+          <p className='text-secondary text-lg'>No commit data found</p>
         </div>
       </div>
     )
@@ -111,17 +111,17 @@ export const CommitsDetailView: React.FC = () => {
   return (
     <div className='flex flex-col'>
       {/* Commit Header */}
-      <div className='border-gray-200 bg-white px-5 py-4 text-2xl'>
+      <div className='border-primary bg-primary px-5 py-4 text-2xl'>
         <div className='flex items-center justify-between'>
-          <h1 className='mb-3 pt-5 font-semibold text-gray-900'>
+          <h1 className='text-primary mb-3 pt-5 font-semibold'>
             <span className='pr-2'>Commit</span>
-            <code className='rounded bg-gray-100 px-2 py-1 text-gray-800'>
+            <code className='bg-secondary text-primary rounded px-2 py-1'>
               {commitsDetail.commit.sha.substring(0, 7)}
             </code>
           </h1>
 
           <div
-            className='flex items-center gap-1.5 rounded-md border bg-gray-100 px-2 py-1 hover:bg-gray-200'
+            className='border-primary bg-secondary hover:bg-tertiary flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 transition-colors'
             onClick={() => {
               router.push(`/${scope}/code`)
             }}
@@ -131,7 +131,7 @@ export const CommitsDetailView: React.FC = () => {
           </div>
         </div>
 
-        <div className='flex flex-wrap items-center gap-2 text-sm text-gray-600'>
+        <div className='text-secondary flex flex-wrap items-center gap-2 text-sm'>
           <div className='flex items-center gap-2'>
             <MemberHoverAvatarList authors={[commitsDetail.commit.author]} isLeft={true} />
             {formatAssignees([commitsDetail.commit.author])}
@@ -148,10 +148,10 @@ export const CommitsDetailView: React.FC = () => {
             <span
               className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                 commitsDetail.commit.gpg_status === 'Verified'
-                  ? 'border-green-600 text-green-600'
+                  ? 'border-green-600 text-green-600 dark:border-green-500 dark:text-green-500'
                   : commitsDetail.commit.gpg_status === 'Unverified'
-                    ? 'border-yellow-600 text-yellow-600'
-                    : 'border-gray-600 text-gray-600'
+                    ? 'border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500'
+                    : 'border-border-default text-tertiary'
               }`}
             >
               {commitsDetail.commit.gpg_status}
@@ -162,26 +162,26 @@ export const CommitsDetailView: React.FC = () => {
 
       {fileChangeData && (
         <div className='flex flex-col px-5'>
-          <div className='justify-center rounded-lg border border-gray-200'>
-            <div className='border-b px-4 py-2 text-gray-900'> {commitsDetail.commit.short_message}</div>
+          <div className='border-primary justify-center rounded-lg border'>
+            <div className='border-primary text-primary border-b px-4 py-2'> {commitsDetail.commit.short_message}</div>
 
             <div className='flex items-center justify-between px-4 py-2 text-sm'>
               <div className='flex items-center gap-4'>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-gray-700'>{stats.files}</span>
-                  <span className='text-gray-600'>file{stats.files !== 1 ? 's' : ''} changed</span>
+                  <span className='text-primary font-medium'>{stats.files}</span>
+                  <span className='text-secondary'>file{stats.files !== 1 ? 's' : ''} changed</span>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-green-600'>+{stats.additions}</span>
-                  <span className='text-gray-600'>additions</span>
+                  <span className='font-medium text-green-600 dark:text-green-500'>+{stats.additions}</span>
+                  <span className='text-secondary'>additions</span>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-red-600'>-{stats.deletions}</span>
-                  <span className='text-gray-600'>deletions</span>
+                  <span className='font-medium text-red-600 dark:text-red-500'>-{stats.deletions}</span>
+                  <span className='text-secondary'>deletions</span>
                 </div>
               </div>
 
-              <div className='flex items-center gap-2 text-sm text-gray-600'>
+              <div className='text-secondary flex items-center gap-2 text-sm'>
                 {commitsDetail.commit.parents && commitsDetail.commit.parents.length > 0 ? (
                   <>
                     <span>
@@ -191,7 +191,7 @@ export const CommitsDetailView: React.FC = () => {
                       <React.Fragment key={parentSha}>
                         <button
                           onClick={() => router.push(`/${scope}/code/commit/${parentSha}`)}
-                          className='font-mono text-gray-800 underline hover:underline'
+                          className='text-accent font-mono transition-colors hover:underline'
                         >
                           {parentSha.substring(0, 7)}
                         </button>
@@ -199,7 +199,7 @@ export const CommitsDetailView: React.FC = () => {
                       </React.Fragment>
                     ))}
                     <span>commit</span>
-                    <code className='font-mono text-gray-800'>{commitSha.substring(0, 7)}</code>
+                    <code className='text-primary font-mono'>{commitSha.substring(0, 7)}</code>
                     <button
                       onClick={() => {
                         if (copy(commitSha)) {
@@ -208,7 +208,7 @@ export const CommitsDetailView: React.FC = () => {
                           toast.error('Copy failed')
                         }
                       }}
-                      className='text-gray-400 hover:text-gray-600'
+                      className='text-tertiary hover:text-secondary transition-colors'
                       title='Copy full SHA'
                     >
                       <CopyIcon className='h-4 w-4' />
@@ -217,7 +217,7 @@ export const CommitsDetailView: React.FC = () => {
                 ) : (
                   <>
                     <span>commit</span>
-                    <code className='font-mono text-gray-800'>{commitSha.substring(0, 7)}</code>
+                    <code className='text-primary font-mono'>{commitSha.substring(0, 7)}</code>
                     <button
                       onClick={() => {
                         if (copy(commitSha)) {
@@ -226,7 +226,7 @@ export const CommitsDetailView: React.FC = () => {
                           toast.error('Copy failed')
                         }
                       }}
-                      className='text-gray-400 hover:text-gray-600'
+                      className='text-tertiary hover:text-secondary transition-colors'
                       title='Copy full SHA'
                     >
                       <CopyIcon className='h-4 w-4' />
@@ -252,7 +252,7 @@ export const CommitsDetailView: React.FC = () => {
           onLoadMore={() => undefined}
         />
       ) : (
-        <div className='flex h-[200px] items-center justify-center text-gray-500'>No file changes</div>
+        <div className='text-tertiary flex h-[200px] items-center justify-center'>No file changes</div>
       )}
     </div>
   )
