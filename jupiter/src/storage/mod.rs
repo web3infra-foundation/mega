@@ -311,6 +311,14 @@ impl Storage {
         self.app_service.dynamic_sidebar_storage.clone()
     }
 
+    pub fn code_review_thread_storage(&self) -> CodeReviewThreadStorage {
+        self.app_service.code_review_thread_storage.clone()
+    }
+
+    pub fn code_review_comment_storage(&self) -> CodeReivewCommentStorage {
+        self.app_service.code_review_comment_storage.clone()
+    }
+
     pub fn mock() -> Self {
         // During test time, we don't need a AppContext,
         // Put config in a leaked static variable thus the weak reference will always be valid.
