@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # ============================================================================
-# Local Multi-Arch Image Builder for Demo Environment
+# Local Arm64 Image Builder for Demo Environment
 # ============================================================================
-# This script builds and pushes multi-arch (amd64+arm64) Docker images
-# for the demo environment on your local macOS machine.
+# This script builds and pushes arm64 Docker images for the demo environment
+# on your local machine.
 #
 # Prerequisites:
 #   - Docker Desktop with Buildx enabled
@@ -30,6 +30,7 @@ NC='\033[0m' # No Color
 REGISTRY_ALIAS="m8q5m4u3"
 REPOSITORY="mega"
 REGISTRY="public.ecr.aws"
+TARGET_PLATFORMS="${TARGET_PLATFORMS:-linux/arm64}"
 
 # Get script directory and repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -126,24 +127,50 @@ check_prerequisites() {
 setup_buildx() {
     log_info "Setting up Docker Buildx..."
     
-    # Create a new builder instance if it doesn't exist
-    if ! docker buildx ls | grep -q "mega-builder"; then
-        log_info "Creating new buildx builder: mega-builder"
-        if ! docker buildx create --name mega-builder --driver docker-container --use; then
-            log_error "Failed to create buildx builder"
+    local builder_name="mega-builder"
+
+    # Reuse existing builder if present; otherwise create it.
+    # NOTE: `docker buildx ls | grep` is not reliable enough (can false-match), so prefer `inspect`.
+    if docker buildx inspect "${builder_name}" >/dev/null 2>&1; then
+        log_info "Using existing buildx builder: ${builder_name}"
+        docker buildx use "${builder_name}" >/dev/null
+    else
+        log_info "Creating new buildx builder: ${builder_name}"
+        if ! docker buildx create --name "${builder_name}" --driver docker-container --use >/dev/null; then
+            log_error "Failed to create buildx builder: ${builder_name}"
             exit 1
         fi
-        docker buildx inspect --bootstrap
-    else
-        log_info "Using existing buildx builder: mega-builder"
-        docker buildx use mega-builder
+    fi
+
+    # Ensure the builder is bootstrapped (idempotent)
+    if ! docker buildx inspect "${builder_name}" --bootstrap >/dev/null 2>&1; then
+        log_error "Failed to bootstrap buildx builder: ${builder_name}"
+        exit 1
     fi
     
-    # Verify multi-arch support
-    local platforms=$(docker buildx inspect --bootstrap 2>/dev/null | grep -i "platforms" || echo "")
-    if [[ ! "$platforms" =~ "linux/amd64" ]] || [[ ! "$platforms" =~ "linux/arm64" ]]; then
-        log_warn "Multi-arch support may not be fully enabled. Continuing anyway..."
-        log_warn "Platforms available: $platforms"
+    # Verify platform support
+    local platforms_output
+    platforms_output=$(docker buildx inspect "${builder_name}" --bootstrap 2>/dev/null | grep -i "platforms" || echo "")
+    
+    # Parse TARGET_PLATFORMS (comma-separated) and check each platform
+    IFS=',' read -ra REQUESTED_PLATFORMS <<< "${TARGET_PLATFORMS}"
+    local missing_platforms=()
+    
+    for platform in "${REQUESTED_PLATFORMS[@]}"; do
+        # Trim whitespace
+        platform=$(echo "$platform" | xargs)
+        if [[ ! "$platforms_output" =~ "$platform" ]]; then
+            missing_platforms+=("$platform")
+        fi
+    done
+    
+    if [ ${#missing_platforms[@]} -gt 0 ]; then
+        log_warn "Some requested platforms may not be fully enabled:"
+        for missing in "${missing_platforms[@]}"; do
+            log_warn "  - ${missing}"
+        done
+        log_warn "Platforms available: $platforms_output"
+        log_warn "Continuing anyway..."
     fi
     
     log_info "Buildx setup complete ✓"
@@ -166,6 +193,27 @@ build_and_push() {
     local dockerfile_path=$(echo "${IMAGES[$image_name]}" | cut -d':' -f1)
     local build_context=$(echo "${IMAGES[$image_name]}" | cut -d':' -f2)
     local image_tag="${TAGS[$image_name]}"
+    
+    # Validate single platform build (local script only supports single platform)
+    # Check if TARGET_PLATFORMS contains comma (multiple platforms)
+    if [[ "${TARGET_PLATFORMS}" == *","* ]]; then
+        log_error "Multiple platforms detected in TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+        log_error "This local script only supports single platform builds."
+        log_error "Please set TARGET_PLATFORMS to a single platform (e.g., linux/arm64 or linux/amd64)."
+        exit 1
+    fi
+    
+    # Extract architecture suffix from single platform (e.g., linux/arm64 -> arm64)
+    # This assumes TARGET_PLATFORMS is a single platform in format "os/arch"
+    local arch_suffix=$(echo "${TARGET_PLATFORMS}" | awk -F'/' '{print $NF}')
+    
+    # Validate that we successfully extracted an architecture suffix
+    if [ -z "${arch_suffix}" ]; then
+        log_error "Failed to extract architecture suffix from TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+        log_error "Expected format: os/arch (e.g., linux/arm64 or linux/amd64)"
+        exit 1
+    fi
+    local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
     
     # Verify paths exist (use absolute paths)
@@ -198,18 +246,19 @@ build_and_push() {
         return 1
     fi
     
-    log_info "Building ${image_name} (${image_tag})..."
+    log_info "Building ${image_name} (${image_tag_with_arch})..."
     log_info "  Dockerfile: ${dockerfile_path}"
     log_info "  Context: ${build_context}"
+    log_info "  Platforms: ${TARGET_PLATFORMS}"
     
     # Change to repo root for build
     cd "${REPO_ROOT}"
     
     # Build cache args - try to use registry cache, but don't fail if it doesn't exist
     local cache_from_args=()
-    if docker manifest inspect "${image_base}:${image_tag}" &> /dev/null 2>&1; then
+    if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
         log_info "  Using registry cache from existing image"
-        cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag}")
+        cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
     else
         log_info "  No existing image found, building from scratch"
     fi
@@ -217,9 +266,10 @@ build_and_push() {
     # Build and push multi-arch image with cache
     # Use array expansion for cache args to handle empty case properly
     if ! docker buildx build \
-        --platform linux/amd64,linux/arm64 \
+        --builder mega-builder \
+        --platform "${TARGET_PLATFORMS}" \
         --file "${dockerfile_path}" \
-        --tag "${image_base}:${image_tag}" \
+        --tag "${image_base}:${image_tag_with_arch}" \
         --push \
         --progress=plain \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -231,7 +281,7 @@ build_and_push() {
     fi
     
     log_info "${image_name} built and pushed successfully ✓"
-    log_info "  Image: ${image_base}:${image_tag}"
+    log_info "  Image: ${image_base}:${image_tag_with_arch}"
     return 0
 }
 
@@ -269,7 +319,7 @@ build_all() {
 
 # Main execution
 main() {
-    log_info "Starting local multi-arch image build..."
+    log_info "Starting local arm64 image build..."
     log_info "Registry: ${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
     echo ""
     

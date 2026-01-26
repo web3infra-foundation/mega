@@ -33,7 +33,7 @@ This image intentionally does **not** start Orion Server or PostgreSQL. It is de
 
 | Tag | Description | Use Case |
 |-----|-------------|----------|
-| `mega-dev:latest` / `mega-dev:runtime` | Minimal runtime image | CI/CD, remote tooling |
+| `orion-client:runtime` | Minimal runtime image | CI/CD, remote tooling |
 | `mega-dev:dev` | Development image (includes Rust toolchain) | Local development and debugging |
 
 ### Supported Architectures
@@ -56,7 +56,7 @@ This image intentionally does **not** start Orion Server or PostgreSQL. It is de
 ```bash
 cd /path/to/mega
 
-docker build -t mega-dev:latest \
+docker build -t orion-client:runtime \
   --target runtime \
   --build-arg GIT_COMMIT=$(git rev-parse HEAD) \
   --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
@@ -72,7 +72,7 @@ docker run -d --name scorpio \
   -p 2725:2725 \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
   -e SCORPIO_LFS_URL=http://host.docker.internal:8000 \
-  mega-dev:latest scorpio
+  orion-client:runtime scorpio
 
 # Check health
 curl -s http://localhost:2725/antares/health
@@ -105,7 +105,7 @@ docker run -d --name orion-worker \
   --privileged \
   -e SERVER_WS=ws://your-orion-server:8004/ws \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
-  mega-dev:latest orion
+  orion-client:runtime orion
 
 docker logs -f orion-worker
 ```
@@ -136,7 +136,7 @@ docker buildx build \
   --target runtime \
   --build-arg GIT_COMMIT=$(git rev-parse HEAD) \
   --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-  -t mega-dev:latest \
+  -t orion-client:runtime \
   -f docker/dev-image/Dockerfile \
   --push .
 ```
@@ -148,9 +148,9 @@ docker buildx build \
 ### 1) Basic Validation (No FUSE Required)
 
 ```bash
-docker run --rm mega-dev:latest version
-docker run --rm mega-dev:latest buck2 --version
-docker run --rm mega-dev:latest bash -lc "command -v scorpio && command -v orion"
+docker run --rm orion-client:runtime version
+docker run --rm orion-client:runtime buck2 --version
+docker run --rm orion-client:runtime bash -lc "command -v scorpio && command -v orion"
 ```
 
 ### 2) Scorpio Validation (Requires FUSE)
@@ -161,7 +161,7 @@ docker run -d --name scorpio \
   -p 2725:2725 \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
   -e SCORPIO_LFS_URL=http://host.docker.internal:8000 \
-  mega-dev:latest scorpio
+  orion-client:runtime scorpio
 
 curl -s http://localhost:2725/antares/health
 ```
@@ -202,7 +202,7 @@ docker run -d --name scorpio \
   --privileged \
   -v /path/to/scorpio.toml:/app/config/scorpio.toml:ro \
   -p 2725:2725 \
-  mega-dev:latest scorpio -c /app/config/scorpio.toml
+  orion-client:runtime scorpio -c /app/config/scorpio.toml
 ```
 
 ### Orion Worker Configuration
@@ -234,7 +234,7 @@ docker run -d --name scorpio \
   --privileged \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
   -p 2725:2725 \
-  mega-dev:latest scorpio
+  orion-client:runtime scorpio
 ```
 
 #### Mount a Repo (Antares API)
@@ -248,7 +248,7 @@ curl -s -X POST http://localhost:2725/antares/mounts \
 ### Buck2
 
 ```bash
-docker run --rm mega-dev:latest buck2 --version
+docker run --rm orion-client:runtime buck2 --version
 ```
 
 When building from a Scorpio mount, run Buck2 inside the Scorpio container:
@@ -266,7 +266,7 @@ docker run -d --name orion-worker \
   --privileged \
   -e SERVER_WS=ws://your-orion-server:8004/ws \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
-  mega-dev:latest orion
+  orion-client:runtime orion
 ```
 
 ---
@@ -281,7 +281,7 @@ docker run -d --name scorpio \
   -p 2725:2725 \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
   -e SCORPIO_LFS_URL=http://host.docker.internal:8000 \
-  mega-dev:latest scorpio
+  orion-client:runtime scorpio
 
 export REPO_PATH="your/real/repo/path"
 MOUNTPOINT=$(curl -s -X POST http://localhost:2725/antares/mounts \
@@ -297,7 +297,7 @@ docker exec scorpio bash -lc "cd '${MOUNTPOINT}' && buck2 build //..."
 docker run -it --rm \
   -v $(pwd):/workspace \
   -w /workspace \
-  mega-dev:latest bash
+  orion-client:runtime bash
 
 # inside container
 buck2 --version
@@ -310,7 +310,7 @@ docker run -d --name orion-worker \
   --privileged \
   -e SERVER_WS=ws://your-orion-server:8004/ws \
   -e SCORPIO_BASE_URL=http://host.docker.internal:8000 \
-  mega-dev:latest orion
+  orion-client:runtime orion
 
 docker logs -f orion-worker
 ```
