@@ -20,7 +20,7 @@ use crate::{
         buck_storage::BuckStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
-        code_review_comment_storage::CodeReivewCommentStorage,
+        code_review_comment_storage::CodeReviewCommentStorage,
         code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
         conversation_storage::ConversationStorage,
@@ -75,7 +75,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         merge_queue_storage: MergeQueueStorage::new(base.clone()),
         buck_storage: BuckStorage { base: base.clone() },
         dynamic_sidebar_storage: DynamicSidebarStorage { base: base.clone() },
-        code_review_comment_storage: CodeReivewCommentStorage { base: base.clone() },
+        code_review_comment_storage: CodeReviewCommentStorage { base: base.clone() },
         code_review_thread_storage: CodeReviewThreadStorage { base: base.clone() },
     };
 

@@ -36,7 +36,7 @@ use crate::{
         buck_storage::BuckStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
-        code_review_comment_storage::CodeReivewCommentStorage,
+        code_review_comment_storage::CodeReviewCommentStorage,
         code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
         conversation_storage::ConversationStorage,
@@ -71,7 +71,7 @@ pub struct AppService {
     pub merge_queue_storage: MergeQueueStorage,
     pub buck_storage: BuckStorage,
     pub dynamic_sidebar_storage: DynamicSidebarStorage,
-    pub code_review_comment_storage: CodeReivewCommentStorage,
+    pub code_review_comment_storage: CodeReviewCommentStorage,
     pub code_review_thread_storage: CodeReviewThreadStorage,
 }
 
@@ -97,7 +97,7 @@ impl AppService {
             merge_queue_storage: MergeQueueStorage::new(mock.clone()),
             buck_storage: BuckStorage { base: mock.clone() },
             dynamic_sidebar_storage: DynamicSidebarStorage { base: mock.clone() },
-            code_review_comment_storage: CodeReivewCommentStorage { base: mock.clone() },
+            code_review_comment_storage: CodeReviewCommentStorage { base: mock.clone() },
             code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
         })
     }
@@ -148,7 +148,7 @@ impl Storage {
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
         let buck_storage = BuckStorage { base: base.clone() };
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
-        let code_review_comment_storage = CodeReivewCommentStorage { base: base.clone() };
+        let code_review_comment_storage = CodeReviewCommentStorage { base: base.clone() };
         let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
 
         let git_service = GitService {
@@ -313,7 +313,7 @@ impl Storage {
         self.app_service.code_review_thread_storage.clone()
     }
 
-    pub fn code_review_comment_storage(&self) -> CodeReivewCommentStorage {
+    pub fn code_review_comment_storage(&self) -> CodeReviewCommentStorage {
         self.app_service.code_review_comment_storage.clone()
     }
 

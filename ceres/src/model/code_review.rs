@@ -24,7 +24,6 @@ pub struct CommentReplyRequest {
 
 #[derive(Deserialize, Serialize, ToSchema)]
 pub struct UpdateCommentRequest {
-    pub comtent_id: i64,
     pub content: String,
 }
 

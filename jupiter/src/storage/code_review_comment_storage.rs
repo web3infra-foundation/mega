@@ -10,29 +10,18 @@ use sea_orm::{
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
 #[derive(Clone)]
-pub struct CodeReivewCommentStorage {
+pub struct CodeReviewCommentStorage {
     pub base: BaseStorage,
 }
 
-impl Deref for CodeReivewCommentStorage {
+impl Deref for CodeReviewCommentStorage {
     type Target = BaseStorage;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
 }
 
-impl CodeReivewCommentStorage {
-    pub async fn get_comment_by_comment_id(
-        &self,
-        comment_id: i64,
-    ) -> Result<Option<mega_code_review_comment::Model>, MegaError> {
-        let comment = mega_code_review_comment::Entity::find_by_id(comment_id)
-            .one(self.get_connection())
-            .await?;
-
-        Ok(comment)
-    }
-
+impl CodeReviewCommentStorage {
     pub async fn get_comments_by_thread_ids(
         &self,
         thread_ids: &[i64],
@@ -67,7 +56,7 @@ impl CodeReivewCommentStorage {
         let comment =
             mega_code_review_comment::Model::new(thread_id, parent_id, user_name, content);
         let active_comment = comment.into_active_model();
-        let res = active_comment.insert(self.get_connection()).await.unwrap();
+        let res = active_comment.insert(self.get_connection()).await?;
         Ok(res)
     }
 
@@ -84,6 +73,7 @@ impl CodeReivewCommentStorage {
         let mut active_comment: mega_code_review_comment::ActiveModel = model.into();
 
         active_comment.content = Set(comment);
+        active_comment.updated_at = Set(chrono::Utc::now().naive_utc());
 
         let updated_comment = active_comment.update(self.get_connection()).await?;
 

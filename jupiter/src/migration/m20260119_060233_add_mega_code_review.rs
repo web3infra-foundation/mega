@@ -86,6 +86,27 @@ impl MigrationTrait for Migration {
                     .col(text_null(MegaCodeReviewComment::Content))
                     .col(date_time(MegaCodeReviewComment::CreatedAt))
                     .col(date_time(MegaCodeReviewComment::UpdatedAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_comment_thread")
+                            .from(
+                                MegaCodeReviewComment::Table,
+                                MegaCodeReviewComment::ThreadId,
+                            )
+                            .to(MegaCodeReviewThread::Table, MegaCodeReviewThread::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_comment_parent")
+                            .from(
+                                MegaCodeReviewComment::Table,
+                                MegaCodeReviewComment::ParentId,
+                            )
+                            .to(MegaCodeReviewComment::Table, MegaCodeReviewComment::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;

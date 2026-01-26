@@ -6,7 +6,7 @@ use ceres::model::code_review::{
     CodeReviewResponse, CommentReplyRequest, CommentReviewResponse, InitializeCommentRequest,
     ThreadReviewResponse, ThreadStatusResponse, UpdateCommentRequest,
 };
-use common::model::CommonResult;
+use common::{errors::MegaError, model::CommonResult};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -60,7 +60,7 @@ async fn code_review_comment_list(
     params(
         ("link", description = "CL link"),
     ),
-    path = "{/link}/comment/init",
+    path = "/{link}/comment/init",
     responses(
         (status = 200, body = CommonResult<ThreadReviewResponse>, content_type = "application/json")
     ),
@@ -133,10 +133,25 @@ async fn reply_code_review_comment(
     tag = CODE_REVIEW_TAG,
 )]
 async fn update_code_review_comment(
+    user: LoginUser,
     Path(comment_id): Path<i64>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<Json<CommonResult<CommentReviewResponse>>, ApiError> {
+    // Validate ownership
+    let comment = state
+        .storage
+        .code_review_comment_storage()
+        .find_comment_by_id(comment_id)
+        .await?
+        .ok_or_else(|| ApiError::from(MegaError::Other("Comment not found".to_string())))?;
+
+    if comment.user_name != user.username {
+        return Err(ApiError::from(MegaError::Other(
+            "Cannot update others' comments".to_string(),
+        )));
+    }
+
     let comment = state
         .storage
         .code_review_service
@@ -234,9 +249,24 @@ async fn delete_code_review_thread(
     tag = CODE_REVIEW_TAG,
 )]
 async fn delete_code_review_comment(
+    user: LoginUser,
     Path(comment_id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
+    // Validate ownership
+    let comment = state
+        .storage
+        .code_review_comment_storage()
+        .find_comment_by_id(comment_id)
+        .await?
+        .ok_or_else(|| ApiError::from(MegaError::Other("Comment not found".to_string())))?;
+
+    if comment.user_name != user.username {
+        return Err(ApiError::from(MegaError::Other(
+            "Cannot update others' comments".to_string(),
+        )));
+    }
+
     state
         .storage
         .code_review_service

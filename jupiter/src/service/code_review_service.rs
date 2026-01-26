@@ -12,7 +12,7 @@ use crate::{
     },
     storage::{
         base_storage::{BaseStorage, StorageConnector},
-        code_review_comment_storage::CodeReivewCommentStorage,
+        code_review_comment_storage::CodeReviewCommentStorage,
         code_review_thread_storage::CodeReviewThreadStorage,
     },
 };
@@ -20,7 +20,7 @@ use crate::{
 #[derive(Clone)]
 pub struct CodeReviewService {
     pub code_review_thread: CodeReviewThreadStorage,
-    pub code_review_comment: CodeReivewCommentStorage,
+    pub code_review_comment: CodeReviewCommentStorage,
 }
 
 impl CodeReviewService {
@@ -29,7 +29,7 @@ impl CodeReviewService {
             code_review_thread: CodeReviewThreadStorage {
                 base: base_storage.clone(),
             },
-            code_review_comment: CodeReivewCommentStorage {
+            code_review_comment: CodeReviewCommentStorage {
                 base: base_storage.clone(),
             },
         }
@@ -39,7 +39,7 @@ impl CodeReviewService {
         let mock = BaseStorage::mock();
         Self {
             code_review_thread: CodeReviewThreadStorage { base: mock.clone() },
-            code_review_comment: CodeReivewCommentStorage { base: mock.clone() },
+            code_review_comment: CodeReviewCommentStorage { base: mock.clone() },
         }
     }
 
@@ -258,7 +258,7 @@ impl CodeReviewService {
     ) -> Result<mega_code_review_comment::Model, MegaError> {
         let comment = self
             .code_review_comment
-            .get_comment_by_comment_id(comment_id)
+            .find_comment_by_id(comment_id)
             .await?
             .ok_or_else(|| MegaError::Other(format!("Comment {} not found", comment_id)))?;
 

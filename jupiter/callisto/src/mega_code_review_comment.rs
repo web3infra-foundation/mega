@@ -18,6 +18,23 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "Entity",
+        from = "Column::ParentId",
+        to = "Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    SelfRef,
+    #[sea_orm(
+        belongs_to = "super::mega_code_review_thread::Entity",
+        from = "Column::ThreadId",
+        to = "super::mega_code_review_thread::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    MegaCodeReviewThread,
+}
 
 impl ActiveModelBehavior for ActiveModel {}
