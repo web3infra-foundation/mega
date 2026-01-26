@@ -1,7 +1,8 @@
 //! Websocket message protocol for communication between orion worker and server.
 
-use crate::buck2::types::{ProjectRelativePath, Status, TaskPhase};
 use serde::{Deserialize, Serialize};
+
+use crate::buck2::types::{ProjectRelativePath, Status, TaskPhase};
 
 /// Message protocol for WebSocket communication between worker and server.
 #[allow(dead_code)]
