@@ -72,7 +72,6 @@ jobs:
             --provenance=false \
             --sbom=false \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
-            -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX-${{ github.sha }}" \
             -f orion/Dockerfile \
             --push .
 
