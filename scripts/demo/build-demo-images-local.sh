@@ -30,7 +30,27 @@ NC='\033[0m' # No Color
 REGISTRY_ALIAS="m8q5m4u3"
 REPOSITORY="mega"
 REGISTRY="public.ecr.aws"
-TARGET_PLATFORMS="${TARGET_PLATFORMS:-linux/arm64}"
+
+# Auto-detect platform if not explicitly set
+if [ -z "${TARGET_PLATFORMS:-}" ]; then
+    MACHINE_ARCH=$(uname -m)
+    case "${MACHINE_ARCH}" in
+        arm64|aarch64)
+            TARGET_PLATFORMS="linux/arm64"
+            ;;
+        x86_64|amd64)
+            TARGET_PLATFORMS="linux/amd64"
+            ;;
+        *)
+            # Default to arm64 for compatibility (e.g., macOS Apple Silicon)
+            TARGET_PLATFORMS="linux/arm64"
+            echo -e "\033[1;33m[WARN]\033[0m Unknown machine architecture: ${MACHINE_ARCH}, defaulting to ${TARGET_PLATFORMS}"
+            ;;
+    esac
+    echo -e "\033[0;32m[INFO]\033[0m Auto-detected platform: ${TARGET_PLATFORMS} (machine: ${MACHINE_ARCH})"
+else
+    echo -e "\033[0;32m[INFO]\033[0m Using explicit TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+fi
 
 # Get script directory and repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
