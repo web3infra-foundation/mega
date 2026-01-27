@@ -1,6 +1,8 @@
-use common::model::{CommonPage, DiffItem};
+use api_model::common::CommonPage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+use crate::model::change_list::DiffItemSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone, Default)]
 #[serde(rename_all = "PascalCase")]
@@ -40,7 +42,7 @@ pub struct CommitHistoryParams {
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct CommitFilesChangedPage {
     pub commit: CommitSummary,
-    pub page: CommonPage<DiffItem>,
+    pub page: CommonPage<DiffItemSchema>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

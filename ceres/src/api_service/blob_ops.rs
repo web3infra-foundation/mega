@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::model::DiffItem;
 use futures::{StreamExt, stream};
 use git_internal::{
+    DiffItem,
     diff::Diff as GitDiff,
     errors::GitError,
     hash::ObjectHash,
@@ -157,10 +157,7 @@ pub async fn preview_file_diff<T: ApiHandler + ?Sized>(
 
     let read =
         |_: &PathBuf, oid: &ObjectHash| -> Vec<u8> { cache.get(oid).cloned().unwrap_or_default() };
-    let mut items: Vec<DiffItem> = GitDiff::diff(old_entry, new_entry, Vec::new(), read)
-        .into_iter()
-        .map(DiffItem::from)
-        .collect();
+    let mut items: Vec<DiffItem> = GitDiff::diff(old_entry, new_entry, Vec::new(), read);
     Ok(items.pop())
 }
 

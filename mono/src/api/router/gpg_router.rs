@@ -1,7 +1,7 @@
+use api_model::common::CommonResult;
 use axum::{Json, extract::State};
 use callisto::gpg_key::Model;
 use ceres::model::gpg::{GpgKey, NewGpgRequest, RemoveGpgRequest};
-use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

@@ -1,10 +1,11 @@
 use std::{collections::HashMap, ops::Deref};
 
+use api_model::common::Pagination;
 use callisto::{
     check_result, item_assignees, label, mega_cl, mega_conversation, path_check_configs,
     sea_orm_active_enums::MergeStatusEnum,
 };
-use common::{errors::MegaError, model::Pagination};
+use common::errors::MegaError;
 use git_internal::internal::object::commit::Commit;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,

@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
+use api_model::common::CommonResult;
 use axum::{Json, extract::State};
 use callisto::sea_orm_active_enums::ConvTypeEnum;
 use ceres::model::{change_list::AssigneeUpdatePayload, label::LabelUpdatePayload};
-use common::model::CommonResult;
 use jupiter::model::common::LabelAssigneeParams;
 
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};

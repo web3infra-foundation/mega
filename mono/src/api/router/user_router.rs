@@ -1,10 +1,11 @@
+use api_model::common::CommonResult;
 use axum::{
     Json,
     extract::{Path, State},
     routing::get,
 };
 use ceres::model::user::{AddSSHKey, ListSSHKey, ListToken};
-use common::{errors::MegaError, model::CommonResult};
+use common::errors::MegaError;
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
 

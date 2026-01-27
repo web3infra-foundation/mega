@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
@@ -14,10 +15,7 @@ use ceres::model::{
     issue::ItemRes,
     label::LabelUpdatePayload,
 };
-use common::{
-    errors::MegaError,
-    model::{CommonPage, CommonResult, PageParams},
-};
+use common::errors::MegaError;
 use jupiter::service::cl_service::CLService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -291,6 +289,7 @@ async fn cl_files_changed_by_page(
         .monorepo()
         .paged_content_diff(&link, json.pagination)
         .await?;
+    let items = items.into_iter().map(Into::into).collect();
     let res = CommonResult::success(Some(FilesChangedPage {
         page: CommonPage { total, items },
     }));
@@ -619,7 +618,7 @@ fn build_forest(paths: Vec<String>) -> Vec<MuiTreeNode> {
 mod test {
     use std::collections::HashMap;
 
-    use common::model::DiffItem;
+    use git_internal::DiffItem;
 
     use crate::api::router::cl_router::build_forest;
 

@@ -15,6 +15,7 @@ common = { workspace = true }
 git-internal = { workspace = true }
 saturn = { workspace = true }
 io-orbit = { workspace = true }
+api-model = { workspace = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",

@@ -8,8 +8,8 @@
 //! - 401 Unauthorized: No valid session (handled by `LoginUser` extractor)
 //! - 403 Forbidden: Logged in but not admin (for `/list` endpoint)
 
+use api_model::common::CommonResult;
 use axum::{Json, extract::State};
-use common::model::CommonResult;
 use serde::Serialize;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};

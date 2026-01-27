@@ -2,6 +2,7 @@
 //!
 //! This module provides HTTP routes for the Buck upload batch API.
 
+use api_model::common::CommonResult;
 use axum::{
     Json,
     body::Body,
@@ -9,7 +10,6 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
 };
 use ceres::model::buck::*;
-use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

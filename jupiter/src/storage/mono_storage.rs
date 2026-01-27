@@ -1,7 +1,8 @@
 use std::{collections::HashMap, ops::Deref};
 
+use api_model::common::Pagination;
 use callisto::{mega_blob, mega_cl, mega_commit, mega_refs, mega_tag, mega_tree};
-use common::{errors::MegaError, model::Pagination, utils::MEGA_BRANCH_NAME};
+use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
 use futures::{StreamExt, stream::FuturesUnordered};
 use git_internal::{
     hash::ObjectHash,

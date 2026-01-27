@@ -1,10 +1,11 @@
 use std::ops::Deref;
 
+use api_model::common::Pagination;
 use callisto::{
     git_blob, git_commit, git_repo, git_tag, git_tree, import_refs,
     sea_orm_active_enums::RefTypeEnum,
 };
-use common::{errors::MegaError, model::Pagination, utils::generate_id};
+use common::{errors::MegaError, utils::generate_id};
 use futures::Stream;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbBackend, DbErr, EntityTrait,

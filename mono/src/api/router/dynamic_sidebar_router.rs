@@ -1,3 +1,4 @@
+use api_model::common::CommonResult;
 use axum::{
     Json,
     extract::{Path, State},
@@ -5,7 +6,6 @@ use axum::{
 use ceres::model::dynamic_sidebar::{
     CreateSidebarPayload, SidebarMenuListRes, SidebarRes, SidebarSyncPayload, UpdateSidebarPayload,
 };
-use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

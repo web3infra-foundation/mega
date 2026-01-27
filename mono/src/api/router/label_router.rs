@@ -1,9 +1,9 @@
+use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
 };
 use ceres::model::label::{LabelItem, NewLabel};
-use common::model::{CommonPage, CommonResult, PageParams};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

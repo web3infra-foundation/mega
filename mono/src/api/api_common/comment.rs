@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
+use api_model::common::CommonResult;
 use axum::{Json, extract::State};
 use callisto::sea_orm_active_enums::{ConvTypeEnum, ReferenceTypeEnum};
-use common::model::CommonResult;
 use regex::Regex;
 
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};

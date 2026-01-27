@@ -1,3 +1,4 @@
+use api_model::common::CommonResult;
 use axum::{
     Json,
     extract::{Path, State},
@@ -7,7 +8,7 @@ use ceres::model::change_list::{
     ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
     ReviewersResponse,
 };
-use common::{errors::MegaError, model::CommonResult};
+use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
