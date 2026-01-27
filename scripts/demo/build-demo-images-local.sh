@@ -78,7 +78,7 @@ fi
 # Image configurations (ordered for consistent build order)
 declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")
 declare -A IMAGES
-IMAGES[mono-engine]="mono/mono-engine-dockerfile:."
+IMAGES[mono-engine]="mono/Dockerfile:."
 IMAGES[mega-ui]="moon/apps/web/Dockerfile:moon"
 IMAGES[orion-server]="orion-server/Dockerfile:."
 IMAGES[orion-client]="orion/Dockerfile:."
@@ -296,7 +296,26 @@ build_and_push() {
     local cache_from_args=()
     if [ "$SHOULD_PUSH" = "true" ]; then
         if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
-            log_info "  Using registry cache from existing image"
+            # Verify that existing image is a single-architecture image, not a manifest list
+            local manifest_output
+            manifest_output=$(docker manifest inspect "${image_base}:${image_tag_with_arch}" 2>/dev/null || echo "")
+            
+            if echo "$manifest_output" | grep -q '"manifests"'; then
+                log_error "Error: ${image_base}:${image_tag_with_arch} is already a manifest list!"
+                log_error "This script only builds single-architecture images."
+                log_error "Please delete the incorrect manifest list from ECR first:"
+                log_error "  aws ecr-public batch-delete-image \\"
+                log_error "    --repository-name ${REPOSITORY} \\"
+                log_error "    --registry-id ${REGISTRY_ALIAS} \\"
+                log_error "    --image-ids imageTag=${image_tag_with_arch} \\"
+                log_error "    --region us-east-1"
+                log_error ""
+                log_error "Or continue anyway - the build will overwrite it with a single-architecture image."
+                log_warn "Continuing with build (will overwrite manifest list)..."
+                # Continue anyway - buildx build will overwrite it
+            else
+                log_info "  Using registry cache from existing image (single-architecture)"
+            fi
             cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
         else
             log_info "  No existing image found, building from scratch"
@@ -313,16 +332,9 @@ build_and_push() {
         --build-arg BUILDKIT_INLINE_CACHE=1
     )
     
-    # Add --push or --load flag
-    # --push: push to registry (requires AWS credentials)
-    # --load: load image into local Docker (only works for single platform builds)
-    # Note: --push and --load cannot be used together
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        build_args+=(--push)
-    else
-        # Load image into local Docker for local use
-        build_args+=(--load)
-    fi
+    # Always load the image into the local Docker engine first.
+    # This guarantees the pushed artifact is a single-architecture image manifest.
+    build_args+=(--load)
     
     # Add cache arguments
     build_args+=("${cache_from_args[@]}")
@@ -333,17 +345,18 @@ build_and_push() {
     # Add build context
     build_args+=("${build_context}")
     
-    # Build (and optionally push) image
+    # Build (load into local engine)
     if ! docker buildx build "${build_args[@]}"; then
-        if [ "$SHOULD_PUSH" = "true" ]; then
-            log_error "Failed to build and push ${image_name}"
-        else
-            log_error "Failed to build ${image_name}"
-        fi
+        log_error "Failed to build ${image_name}"
         return 1
     fi
-    
+
+    # Push if requested (ensures single-arch manifest is uploaded)
     if [ "$SHOULD_PUSH" = "true" ]; then
+        if ! docker push "${image_base}:${image_tag_with_arch}"; then
+            log_error "Failed to push ${image_name}"
+            return 1
+        fi
         log_info "${image_name} built and pushed successfully ✓"
         log_info "  Image: ${image_base}:${image_tag_with_arch}"
     else
