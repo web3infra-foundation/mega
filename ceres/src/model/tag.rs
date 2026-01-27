@@ -1,4 +1,4 @@
-use common::model::CommonPage;
+use api_model::common::CommonPage;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

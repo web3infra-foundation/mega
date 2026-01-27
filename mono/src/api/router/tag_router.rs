@@ -1,12 +1,12 @@
 use std::path::Path as StdPath;
 
 use anyhow::anyhow;
+use api_model::common::{CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
 };
 use ceres::model::tag::{CreateTagRequest, DeleteTagResponse, TagListResponse, TagResponse};
-use common::model::{CommonResult, PageParams};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -215,7 +215,7 @@ async fn create_tag(
 
 async fn list_tags(
     State(state): State<MonoApiServiceState>,
-    Json(json): Json<common::model::PageParams<String>>,
+    Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<TagListResponse>>, ApiError> {
     let pagination = json.pagination;
     let repo_path_ref = if json.additional.trim().is_empty() {

@@ -10,10 +10,12 @@ use ceres::{
     api_service::state::ProtocolApiState,
     protocol::{ServiceType, SmartProtocol, smart},
 };
-use common::{errors::ProtocolError, model::InfoRefsParams};
+use common::errors::ProtocolError;
 use futures::{TryStreamExt, stream};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
+
+use crate::git_protocol::InfoRefsParams;
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST

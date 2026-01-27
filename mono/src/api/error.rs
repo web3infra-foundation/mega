@@ -1,8 +1,6 @@
+use api_model::common::CommonResult;
 use axum::response::{IntoResponse, Json, Response};
-use common::{
-    errors::{BuckError, MegaError},
-    model::CommonResult,
-};
+use common::errors::{BuckError, MegaError};
 use http::StatusCode;
 
 /// Parse [code:xxx] format from error message.

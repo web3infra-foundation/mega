@@ -1,8 +1,9 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
-use common::{errors::MegaResult, model::CommonHttpOptions};
+use common::errors::MegaResult;
 use context::AppContext;
 
 use crate::server::{
+    CommonHttpOptions,
     http_server::{self},
     ssh_server::{self, SshCustom, SshOptions},
 };

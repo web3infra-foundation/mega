@@ -1,3 +1,4 @@
+use api_model::common::CommonResult;
 use axum::{
     Json,
     extract::{Path, State},
@@ -6,7 +7,6 @@ use ceres::model::merge_queue::{
     AddToQueueRequest, AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse,
     QueueStatus, QueueStatusResponse,
 };
-use common::model::CommonResult;
 use serde_json::{Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 

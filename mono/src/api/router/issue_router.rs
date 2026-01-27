@@ -1,3 +1,4 @@
+use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -9,7 +10,6 @@ use ceres::model::{
     issue::{IssueDetailRes, IssueSuggestions, ItemRes, NewIssue, QueryPayload},
     label::LabelUpdatePayload,
 };
-use common::model::{CommonPage, CommonResult, PageParams};
 use jupiter::service::issue_service::IssueService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 

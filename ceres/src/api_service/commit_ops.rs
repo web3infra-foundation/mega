@@ -4,9 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use api_model::git::commit::LatestCommitInfo;
-use common::model::{CommonPage, DiffItem, Pagination};
+use api_model::{
+    common::{CommonPage, Pagination},
+    git::commit::LatestCommitInfo,
+};
 use git_internal::{
+    DiffItem,
     errors::GitError,
     hash::ObjectHash,
     internal::object::{
@@ -20,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api_service::{ApiHandler, history, tree_ops},
     model::{
-        change_list::MuiTreeNode,
+        change_list::{DiffItemSchema, MuiTreeNode},
         commit::{CommitFilesChangedPage, CommitSummary, GpgStatus},
         git::{CommitBindingInfo, LatestCommitInfoWrapper},
     },
@@ -749,13 +752,13 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
         merged
     };
 
-    Ok(diff_results.into_iter().map(Into::into).collect())
+    Ok(diff_results.into_iter().collect())
 }
 
 #[derive(Serialize, Deserialize)]
 struct CachedDiff {
     filter_paths: Option<Vec<String>>,
-    items: Vec<DiffItem>,
+    items: Vec<DiffItemSchema>,
 }
 
 async fn load_or_compute_diff_items<T: ApiHandler + ?Sized>(
@@ -764,7 +767,7 @@ async fn load_or_compute_diff_items<T: ApiHandler + ?Sized>(
     commit_sha: &str,
     cache_key: &str,
     filter_paths: Option<&[String]>,
-) -> Result<Vec<DiffItem>, GitError> {
+) -> Result<Vec<DiffItemSchema>, GitError> {
     let requested_filter = filter_paths.map(|paths| {
         let mut v: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
         v.sort();
@@ -792,6 +795,8 @@ async fn load_or_compute_diff_items<T: ApiHandler + ?Sized>(
         let commit = handler.get_commit_by_hash(commit_sha).await?;
         compute_commit_diff_items(handler, &commit, filter_paths).await?
     };
+
+    let diffs: Vec<DiffItemSchema> = diffs.clone().into_iter().map(|x| x.into()).collect();
 
     let cache_value = CachedDiff {
         filter_paths: requested_filter,

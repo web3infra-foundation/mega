@@ -1,8 +1,8 @@
 use std::{path::PathBuf, str::FromStr};
 
+use api_model::common::CommonPage;
 use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
-use common::model::{CommonPage, DiffItem};
-use git_internal::hash::ObjectHash;
+use git_internal::{DiffItem, hash::ObjectHash};
 use jupiter::model::{cl_dto::CLDetails, common::ListParams};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -84,7 +84,22 @@ impl From<CLDetails> for CLDetailRes {
 
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedPage {
-    pub page: CommonPage<DiffItem>,
+    pub page: CommonPage<DiffItemSchema>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct DiffItemSchema {
+    pub path: String,
+    pub data: String,
+}
+
+impl From<DiffItem> for DiffItemSchema {
+    fn from(item: DiffItem) -> Self {
+        Self {
+            path: item.path,
+            data: item.data,
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]

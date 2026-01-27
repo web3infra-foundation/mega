@@ -1,21 +1,5 @@
-use clap::Args;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-
-#[derive(Args, Clone, Debug)]
-pub struct CommonHttpOptions {
-    #[arg(long, default_value_t = String::from("127.0.0.1"))]
-    pub host: String,
-
-    #[arg(short = 'p', long, default_value_t = 8000)]
-    pub port: u16,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct InfoRefsParams {
-    pub service: Option<String>,
-    pub refspec: Option<String>,
-}
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CommonResult<T> {
@@ -74,19 +58,4 @@ pub struct PageParams<T> {
 pub struct CommonPage<T> {
     pub total: u64,
     pub items: Vec<T>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub struct DiffItem {
-    pub path: String,
-    pub data: String,
-}
-
-impl From<git_internal::diff::DiffItem> for DiffItem {
-    fn from(value: git_internal::diff::DiffItem) -> Self {
-        Self {
-            path: value.path,
-            data: value.data,
-        }
-    }
 }

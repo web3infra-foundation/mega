@@ -1,19 +1,19 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
-use api_model::git::commit::LatestCommitInfo;
+use api_model::{common::CommonResult, git::commit::LatestCommitInfo};
 use axum::{
     Json,
     extract::{Query, State},
 };
 use ceres::model::{
     blame::{BlameQuery, BlameRequest, BlameResult},
+    change_list::DiffItemSchema,
     git::{
         BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
         EditFileResult, FileTreeItem, TreeCommitItem, TreeHashItem, TreeResponse,
     },
 };
-use common::model::{CommonResult, DiffItem};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -344,16 +344,16 @@ async fn get_file_blame(
     path = "/edit/diff-preview",
     request_body = DiffPreviewPayload,
     responses(
-        (status = 200, body = CommonResult<DiffItem>, content_type = "application/json")
+        (status = 200, body = CommonResult<DiffItemSchema>, content_type = "application/json")
     ),
     tag = CODE_PREVIEW
 )]
 async fn preview_diff(
     state: State<MonoApiServiceState>,
     Json(payload): Json<DiffPreviewPayload>,
-) -> Result<Json<CommonResult<DiffItem>>, ApiError> {
+) -> Result<Json<CommonResult<DiffItemSchema>>, ApiError> {
     let handler = state.api_handler(payload.path.as_ref()).await?;
-    let item = handler.preview_file_diff(payload).await?;
+    let item = handler.preview_file_diff(payload).await?.map(|x| x.into());
     Ok(Json(CommonResult::success(item)))
 }
 

@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use api_model::common::Pagination;
 use async_trait::async_trait;
 use callisto::{git_tag, import_refs};
 use common::errors::MegaError;
@@ -215,7 +216,7 @@ impl ApiHandler for ImportApiService {
     async fn list_tags(
         &self,
         _repo_path: Option<String>,
-        pagination: common::model::Pagination,
+        pagination: Pagination,
     ) -> Result<(Vec<TagInfo>, u64), GitError> {
         let git_storage = self.storage.git_db_storage();
         // annotated tags: fetch paged annotated tags from storage
