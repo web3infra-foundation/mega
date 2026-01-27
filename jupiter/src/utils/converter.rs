@@ -448,6 +448,8 @@ pub fn init_trees(
     });
     blobs.push(cedar_blob);
 
+    inject_cedar_policy_dir(&mut root_items, &mut trees, &mut blobs, &mono_config.admin);
+
     inject_root_buck_files(&mut root_items, &mut blobs, &mono_config.root_dirs);
 
     // Ensure the `toolchains` cell has a BUCK file at repo initialization time.
@@ -530,6 +532,60 @@ system_demo_toolchains()
 fn generate_buckroot_content() -> String {
     // The .buckroot file is usually empty or contains a simple identifier.
     String::new()
+}
+
+/// Generates Cedar policy content that sets admins as default reviewers.
+///
+/// Creates a policy rule that requires all admin users to review changes
+/// across the entire repository (empty path pattern matches all paths).
+fn generate_cedar_policy_content(admin_users: &[String]) -> String {
+    if admin_users.is_empty() {
+        return String::new();
+    }
+
+    // Format reviewer list: ["user1", "user2", ...]
+    let reviewers_formatted = admin_users
+        .iter()
+        .map(|u| format!(r#""{}""#, u))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    generate_cedar_policy_template().replace("{}", &reviewers_formatted)
+}
+
+/// Returns the default Cedar policy template for the repository root.
+fn generate_cedar_policy_template() -> &'static str {
+    r#"permit(action == "code:review", principal, resource)
+    when { resource.path.startsWith("") }
+    to [{}];
+"#
+}
+
+fn inject_cedar_policy_dir(
+    root_items: &mut Vec<TreeItem>,
+    trees: &mut Vec<Tree>,
+    blobs: &mut Vec<Blob>,
+    admin_users: &[String],
+) {
+    let policy_content = generate_cedar_policy_content(admin_users);
+    let policy_blob = Blob::from_content(&policy_content);
+    blobs.push(policy_blob.clone());
+
+    // Create .cedar directory with policies.cedar file
+    let cedar_tree_item = TreeItem {
+        mode: TreeItemMode::Blob,
+        id: policy_blob.id,
+        name: String::from("policies.cedar"),
+    };
+    let cedar_tree = Tree::from_tree_items(vec![cedar_tree_item]).unwrap();
+    trees.push(cedar_tree.clone());
+
+    // Add .cedar directory to root
+    root_items.push(TreeItem {
+        mode: TreeItemMode::Tree,
+        id: cedar_tree.id,
+        name: String::from(".cedar"),
+    });
 }
 
 /// Directories that should be excluded from Buck cell definitions.
@@ -894,9 +950,10 @@ mod test {
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let dir_nums = mono_config.root_dirs.len();
-        assert_eq!(mega_trees.len(), dir_nums + 1);
-        // Blobs: dir_nums (.gitkeep) + 1 (.mega_cedar.json) + 2 (.buckroot + .buckconfig) + 1 (toolchains/BUCK)
-        assert_eq!(mega_blobs.len(), dir_nums + 4);
+        // Trees: dir_nums (sub-directories) + 1 (root) + 1 (.cedar directory)
+        assert_eq!(mega_trees.len(), dir_nums + 2);
+        // Blobs: dir_nums (.gitkeep) + 1 (.mega_cedar.json) + 2 (.buckroot + .buckconfig) + 1 (toolchains/BUCK) + 1 (policies.cedar)
+        assert_eq!(mega_blobs.len(), dir_nums + 5);
     }
 
     #[test]
