@@ -1,5 +1,6 @@
 pub mod buck_service;
 pub mod cl_service;
+pub mod code_review_service;
 pub mod git_service;
 pub mod import_service;
 pub mod issue_service;

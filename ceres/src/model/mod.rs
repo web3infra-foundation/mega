@@ -2,6 +2,7 @@ pub mod blame;
 pub mod buck;
 pub mod change_list;
 pub mod cl;
+pub mod code_review;
 pub mod commit;
 pub mod conversation;
 pub mod dynamic_sidebar;

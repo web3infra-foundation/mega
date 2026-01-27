@@ -56,6 +56,14 @@ pub enum ConvTypeEnum {
     Draft,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "diff_side_enum")]
+pub enum DiffSideEnum {
+    #[sea_orm(string_value = "new")]
+    New,
+    #[sea_orm(string_value = "old")]
+    Old,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
 pub enum MergeStatusEnum {
     #[sea_orm(string_value = "open")]
@@ -122,4 +130,12 @@ pub enum ReferenceTypeEnum {
     BuildRelates,
     #[sea_orm(string_value = "blocks")]
     Blocks,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "thread_status_enum")]
+pub enum ThreadStatusEnum {
+    #[sea_orm(string_value = "resolved")]
+    Resolved,
+    #[sea_orm(string_value = "open")]
+    Open,
 }
