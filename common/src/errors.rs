@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use anyhow::Result;
+use api_model::common::CommonResult;
 use axum::{
     Json,
     http::StatusCode,
@@ -9,8 +10,6 @@ use axum::{
 use cedar_policy::ParseErrors;
 use git_internal::errors::GitError;
 use thiserror::Error;
-
-use crate::model::CommonResult;
 
 pub type MegaResult = Result<(), MegaError>;
 

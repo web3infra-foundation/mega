@@ -11,6 +11,8 @@ path = "src/lib.rs"
 
 [dependencies]
 git-internal = { workspace = true }
+api-model = { workspace = true }
+
 axum = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -26,5 +28,5 @@ utoipa = { workspace = true }
 directories = { workspace = true }
 pgp = { workspace = true }
 cedar-policy = { workspace = true }
-redis = { workspace = true}
+redis = { workspace = true }
 bincode = { workspace = true }

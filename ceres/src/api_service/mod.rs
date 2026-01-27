@@ -4,14 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use api_model::git::commit::LatestCommitInfo;
+use api_model::{common::Pagination, git::commit::LatestCommitInfo};
 use async_trait::async_trait;
-use common::{
-    config::BlameConfig,
-    errors::MegaError,
-    model::{DiffItem, Pagination},
-};
+use common::{config::BlameConfig, errors::MegaError};
 use git_internal::{
+    DiffItem,
     errors::GitError,
     internal::object::{
         commit::Commit,

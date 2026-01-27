@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
+use api_model::common::CommonResult;
 use axum::{Json, extract::State};
 use ceres::model::change_list::CloneRepoPayload;
-use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

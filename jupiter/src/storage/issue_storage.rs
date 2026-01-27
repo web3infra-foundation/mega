@@ -1,10 +1,11 @@
 use std::{collections::HashMap, ops::Deref};
 
+use api_model::common::Pagination;
 use callisto::{
     issue_cl_references, item_assignees, item_labels, label, mega_conversation, mega_issue,
     sea_orm_active_enums::ReferenceTypeEnum,
 };
-use common::{errors::MegaError, model::Pagination};
+use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, RelationTrait, Set,

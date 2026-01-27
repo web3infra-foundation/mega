@@ -14,10 +14,7 @@ use ceres::{
     api_service::{cache::GitObjectCache, state::ProtocolApiState},
     protocol::{ServiceType, SmartProtocol, TransportProtocol},
 };
-use common::{
-    errors::ProtocolError,
-    model::{CommonHttpOptions, InfoRefsParams},
-};
+use common::errors::ProtocolError;
 use context::AppContext;
 use http::{HeaderValue, Method};
 use saturn::entitystore::EntityStore;
@@ -31,12 +28,16 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::{
-    MonoApiServiceState,
-    api_router::{self},
-    guard::cedar_guard::cedar_guard,
-    oauth::{campsite_store::CampsiteApiStore, oauth_client},
-    router::lfs_router,
+use crate::{
+    api::{
+        MonoApiServiceState,
+        api_router::{self},
+        guard::cedar_guard::cedar_guard,
+        oauth::{campsite_store::CampsiteApiStore, oauth_client},
+        router::lfs_router,
+    },
+    git_protocol::InfoRefsParams,
+    server::CommonHttpOptions,
 };
 
 pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {

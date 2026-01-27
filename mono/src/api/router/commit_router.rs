@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use api_model::common::{CommonPage, CommonResult, PageParams, Pagination};
 use axum::{
     Json,
     extract::{Path, State},
@@ -8,7 +9,6 @@ use ceres::model::{
     change_list::MuiTreeNode,
     commit::{CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary},
 };
-use common::model::{CommonPage, CommonResult, PageParams, Pagination};
 use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
 

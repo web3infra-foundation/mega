@@ -1,9 +1,9 @@
+use api_model::common::CommonResult;
 use axum::{
     Json,
     extract::{Path, State},
 };
 use ceres::model::conversation::{ContentPayload, ReactionRequest};
-use common::model::CommonResult;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{

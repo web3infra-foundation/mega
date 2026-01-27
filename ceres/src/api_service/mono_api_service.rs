@@ -43,6 +43,7 @@ use std::{
     time::Duration,
 };
 
+use api_model::common::Pagination;
 use async_trait::async_trait;
 use bytes::Bytes;
 use callisto::{
@@ -51,10 +52,10 @@ use callisto::{
 };
 use common::{
     errors::{BuckError, MegaError},
-    model::{DiffItem, Pagination},
     utils::MEGA_BRANCH_NAME,
 };
 use git_internal::{
+    DiffItem,
     diff::Diff as GitDiff,
     errors::GitError,
     hash::ObjectHash,
@@ -1823,7 +1824,7 @@ impl MonoApiService {
         // Use the unified diff function with configurable algorithm
         let diff_output = GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content);
 
-        Ok(diff_output.into_iter().map(DiffItem::from).collect())
+        Ok(diff_output)
     }
 
     pub async fn get_sorted_changed_file_list(
