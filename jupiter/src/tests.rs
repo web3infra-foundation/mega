@@ -10,9 +10,9 @@ use tracing::log;
 use crate::{
     migration::apply_migrations,
     service::{
-        buck_service::BuckService, cl_service::CLService, git_service::GitService,
-        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
-        merge_queue_service::MergeQueueService, mono_service::MonoService,
+        buck_service::BuckService, cl_service::CLService, code_review_service::CodeReviewService,
+        git_service::GitService, import_service::ImportService, issue_service::IssueService,
+        lfs_service::LfsService, merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
         AppService, Storage,
@@ -20,6 +20,8 @@ use crate::{
         buck_storage::BuckStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
+        code_review_comment_storage::CodeReviewCommentStorage,
+        code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
         conversation_storage::ConversationStorage,
         dynamic_sidebar_storage::DynamicSidebarStorage,
@@ -73,6 +75,8 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         merge_queue_storage: MergeQueueStorage::new(base.clone()),
         buck_storage: BuckStorage { base: base.clone() },
         dynamic_sidebar_storage: DynamicSidebarStorage { base: base.clone() },
+        code_review_comment_storage: CodeReviewCommentStorage { base: base.clone() },
+        code_review_thread_storage: CodeReviewThreadStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
@@ -88,5 +92,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         mono_service: MonoService::mock(),
         import_service: ImportService::mock(),
         lfs_service: LfsService::mock(),
+        code_review_service: CodeReviewService::mock(),
     }
 }

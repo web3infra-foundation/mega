@@ -29,6 +29,8 @@ pub mod mega_blob;
 pub mod mega_cl;
 pub mod mega_cl_commits;
 pub mod mega_cl_reviewer;
+pub mod mega_code_review_comment;
+pub mod mega_code_review_thread;
 pub mod mega_commit;
 pub mod mega_conversation;
 pub mod mega_issue;
