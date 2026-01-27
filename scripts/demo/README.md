@@ -78,7 +78,7 @@ TARGET_PLATFORMS=linux/amd64 ./scripts/demo/build-demo-images-local.sh
 
 | Image Name | Dockerfile Path | Build Context | Tag |
 |------------|----------------|---------------|-----|
-| `mono-engine` | `mono/mono-engine-dockerfile` | `.` (repo root) | `mono-0.1.0-pre-release` |
+| `mono-engine` | `mono/Dockerfile` | `.` (repo root) | `mono-0.1.0-pre-release` |
 | `orion-server` | `orion-server/Dockerfile` | `.` (repo root) | `orion-server-0.1.0-pre-release` |
 | `orion-client` | `orion/Dockerfile` | `.` (repo root) | `orion-client-0.1.0-pre-release` |
 | `mega-ui` | `moon/apps/web/Dockerfile` | `moon` | `mega-ui-demo-0.1.0-pre-release` |
