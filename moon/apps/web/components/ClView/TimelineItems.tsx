@@ -23,6 +23,7 @@ import ReviewComment from '@/components/ClView/ReviewComment'
 import { CommonDetailData } from '@/utils/types'
 
 import { SimpleNoteContentRef } from '../SimpleNoteEditor/SimpleNoteContent'
+import ApproveItem from './ApproveItem'
 import AssigneeItem from './AssigneeItem'
 import CloseItem from './CloseItem'
 import EditItem from './EditItem'
@@ -108,6 +109,10 @@ const TimelineItems = React.memo<{
               icon = <CheckCircleIcon size={24} className='text-blue-500' />
               children = <ReviewComment reviewers={reviewers} conv={conv} id={id} whoamI={type} editorRef={editorRef} />
             }
+            break
+          case 'Approve':
+            icon = <CheckCircleIcon size={24} className='text-green-500' />
+            children = <ApproveItem conv={conv} />
             break
           case 'Merged':
             icon = <FeedMergedIcon size={24} className='text-purple-500' />
