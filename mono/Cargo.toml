@@ -81,3 +81,4 @@ mimalloc = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 serial_test = { workspace = true }
+qlean = "0.1.0"
