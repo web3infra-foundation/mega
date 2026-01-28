@@ -2,30 +2,6 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # Initialization: Create RustFS bucket
-  # ---------------------------------------------------------------------------
-  init-rustfs-bucket:
-    image: amazon/aws-cli:latest
-    container_name: mega-demo-init-rustfs-bucket
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
-      AWS_DEFAULT_REGION: ${OBJECT_STORAGE_S3__REGION:-us-east-1}
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "
-        echo 'Creating bucket ${OBJECT_STORAGE_S3__BUCKET:-mega} in RustFS...' &&
-        aws --endpoint-url=http://rustfs:9000 s3 mb s3://${OBJECT_STORAGE_S3__BUCKET:-mega} 2>&1 || 
-        (echo 'Bucket may already exist, continuing...' && exit 0)
-      "
-    restart: "no"
-    networks:
-      - default
-
-  # ---------------------------------------------------------------------------
   # Core Infra: PostgreSQL
   # ---------------------------------------------------------------------------
   postgres:
@@ -135,8 +111,6 @@ services:
         condition: service_healthy
       campsite_api:
         condition: service_started
-      init-rustfs-bucket:
-        condition: service_completed_successfully
     environment:
       # Database & Redis
       MEGA_DATABASE__DB_TYPE: postgres
@@ -271,7 +245,7 @@ services:
   # Orion Build Client / Worker (based on orion-client image)
   # ---------------------------------------------------------------------------
   orion_build_client:
-    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release}
+    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release-amd64}
     container_name: mega-demo-orion-worker
     command: orion
     # privileged mode allows nested container builds (Scorpio) inside the worker.
