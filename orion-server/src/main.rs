@@ -1,7 +1,9 @@
+
+
 mod api;
 mod auto_retry;
 mod buck2;
-mod common;
+mod orion_common;
 mod log;
 mod model;
 mod scheduler;
@@ -19,11 +21,13 @@ async fn main() {
     // Load environment variables from .env file (optional)
     dotenvy::dotenv().ok();
 
-    // Get server port from environment or use default
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8004".to_string())
-        .parse()
-        .expect("PORT must be a number");
+    // // Get server port from environment or use default
+    // let port: u16 = std::env::var("PORT")
+    //     .unwrap_or_else(|_| "8004".to_string())
+    //     .parse()
+    //     .expect("PORT must be a number");
 
-    server::start_server(port).await;
+    server::start_server().await;
 }
+
+

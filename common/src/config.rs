@@ -93,6 +93,8 @@ pub struct Config {
     #[serde(default)]
     pub buck: Option<BuckConfig>,
     pub object_storage: ObjectStorageConfig,
+    #[serde(default)]
+    pub orion_server: Option<OrionServerConfig>,
 }
 
 impl Config {
@@ -125,6 +127,7 @@ impl Config {
             redis: RedisConfig::default(),
             buck: None,
             object_storage: ObjectStorageConfig::default(),
+            orion_server: None,
         }
     }
 
@@ -667,6 +670,80 @@ impl BlameConfig {
 pub struct BuildConfig {
     pub enable_build: bool,
     pub orion_server: String,
+}
+
+/// Orion Server configuration (flat structure)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OrionServerConfig {
+    // Log storage configuration
+    #[serde(default = "default_logger_storage_mode")]
+    pub logger_storage_mode: String,
+    
+    #[serde(default = "default_build_log_dir")]
+    pub build_log_dir: String,
+    
+    #[serde(default = "default_log_stream_buffer")]
+    pub log_stream_buffer: usize,
+
+    // Database configuration
+    #[serde(default = "default_db_url")]
+    pub db_url: String,
+    
+    #[serde(default = "default_port")]
+    pub port: u16,
+
+    // Mono server integration
+    /// Base URL for Mono server API requests
+    /// Used for building API endpoints like file blob endpoint
+    #[serde(default = "default_monobase_url")]
+    pub monobase_url: String,
+    
+    /// Allowed CORS origins for HTTP API
+    /// Comma-separated list of frontend domains that can access the API
+    #[serde(default = "default_allowed_cors_origins")]
+    pub allowed_cors_origins: String,
+}
+
+fn default_logger_storage_mode() -> String {
+    "local".to_string()
+}
+
+fn default_build_log_dir() -> String {
+    "/tmp/logs".to_string()
+}
+
+fn default_log_stream_buffer() -> usize {
+    4096
+}
+
+fn default_db_url() -> String {
+    "postgres://postgres:postgres@localhost/orion".to_string()
+}
+
+fn default_port() -> u16 {
+    80
+}
+
+fn default_monobase_url() -> String {
+    "http://localhost:8000".to_string()
+}
+
+fn default_allowed_cors_origins() -> String {
+    "http://localhost:3000,http://127.0.0.1:3000".to_string()
+}
+
+impl Default for OrionServerConfig {
+    fn default() -> Self {
+        Self {
+            logger_storage_mode: default_logger_storage_mode(),
+            build_log_dir: default_build_log_dir(),
+            log_stream_buffer: default_log_stream_buffer(),
+            db_url: default_db_url(),
+            port: default_port(),
+            monobase_url: default_monobase_url(),
+            allowed_cors_origins: default_allowed_cors_origins(),
+        }
+    }
 }
 
 /// Buck upload API configuration

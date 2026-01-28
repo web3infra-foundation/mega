@@ -33,7 +33,7 @@ use uuid::Uuid;
 
 use crate::{
     auto_retry::AutoRetryJudger,
-    common::model::{CommonPage, PageParams},
+    orion_common::model::{CommonPage, PageParams},
     log::log_service::{LogEvent, LogService},
     model::{
         builds, targets,
