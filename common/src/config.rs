@@ -679,6 +679,8 @@ pub struct OrionServerConfig {
     #[serde(default = "default_logger_storage_mode")]
     pub logger_storage_mode: String,
 
+    pub storage_type: ObjectStorageBackend,
+
     #[serde(default = "default_build_log_dir")]
     pub build_log_dir: String,
 
@@ -736,6 +738,7 @@ impl Default for OrionServerConfig {
     fn default() -> Self {
         Self {
             logger_storage_mode: default_logger_storage_mode(),
+            storage_type: ObjectStorageBackend::Local,
             build_log_dir: default_build_log_dir(),
             log_stream_buffer: default_log_stream_buffer(),
             db_url: default_db_url(),

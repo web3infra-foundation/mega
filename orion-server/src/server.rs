@@ -3,7 +3,7 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
 use common::{
-    config::{Config, ObjectStorageBackend, c::ConfigError},
+    config::{Config, c::ConfigError},
     errors::MegaError,
 };
 use http::{HeaderValue, Method};
@@ -87,14 +87,15 @@ pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
         "none" => (noop_log_store.clone(), noop_log_store.clone(), false),
         "local" => (
             Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
-            //Arc::new(ObjectStorageFactory::build(ObjectStorageBackend::Local,)),
             noop_log_store.clone(),
             false,
         ),
         "mix" => {
-            let object_store_wrapper =
-                ObjectStorageFactory::build(ObjectStorageBackend::Local, &config.object_storage)
-                    .await?;
+            let object_store_wrapper = ObjectStorageFactory::build(
+                config.orion_server.unwrap_or_default().storage_type,
+                &config.object_storage,
+            )
+            .await?;
             (
                 Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
                 Arc::new(IoOrbitLogStore::new(object_store_wrapper)),
