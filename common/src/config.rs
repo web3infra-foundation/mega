@@ -678,17 +678,17 @@ pub struct OrionServerConfig {
     // Log storage configuration
     #[serde(default = "default_logger_storage_mode")]
     pub logger_storage_mode: String,
-    
+
     #[serde(default = "default_build_log_dir")]
     pub build_log_dir: String,
-    
+
     #[serde(default = "default_log_stream_buffer")]
     pub log_stream_buffer: usize,
 
     // Database configuration
     #[serde(default = "default_db_url")]
     pub db_url: String,
-    
+
     #[serde(default = "default_port")]
     pub port: u16,
 
@@ -697,7 +697,7 @@ pub struct OrionServerConfig {
     /// Used for building API endpoints like file blob endpoint
     #[serde(default = "default_monobase_url")]
     pub monobase_url: String,
-    
+
     /// Allowed CORS origins for HTTP API
     /// Comma-separated list of frontend domains that can access the API
     #[serde(default = "default_allowed_cors_origins")]

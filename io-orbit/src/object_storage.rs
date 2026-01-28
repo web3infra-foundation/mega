@@ -199,55 +199,51 @@ pub trait MegaObjectStorage: Send + Sync {
         // Default implementation: fallback to full stream with client-side filtering
         // Backends that support Range should override this
         let (stream, meta) = self.get_stream(key).await?;
-        
+
         // Client-side range filtering
         let mut skipped = 0u64;
         let end_bound = end;
-        
-        let filtered_stream = stream
-            .try_filter_map(move |chunk| {
-                let chunk_start = skipped;
-                let chunk_len = chunk.len() as u64;
-                let chunk_end = chunk_start + chunk_len;
-                skipped = chunk_end;
-                
-                // Skip chunks before start
-                if chunk_end <= start {
+
+        let filtered_stream = stream.try_filter_map(move |chunk| {
+            let chunk_start = skipped;
+            let chunk_len = chunk.len() as u64;
+            let chunk_end = chunk_start + chunk_len;
+            skipped = chunk_end;
+
+            // Skip chunks before start
+            if chunk_end <= start {
+                return futures::future::ready(Ok(None));
+            }
+
+            // Trim start if needed
+            let mut result = chunk;
+            if chunk_start < start {
+                let skip_bytes = (start - chunk_start) as usize;
+                if skip_bytes >= result.len() {
                     return futures::future::ready(Ok(None));
                 }
-                
-                // Trim start if needed
-                let mut result = chunk;
-                if chunk_start < start {
-                    let skip_bytes = (start - chunk_start) as usize;
-                    if skip_bytes >= result.len() {
+                result = result.slice(skip_bytes..);
+            }
+
+            // Trim end if needed
+            if let Some(end) = end_bound {
+                if chunk_start >= end {
+                    return futures::future::ready(Ok(None));
+                }
+                if chunk_end > end {
+                    let trim_bytes = (chunk_end - end) as usize;
+                    if trim_bytes < result.len() {
+                        result = result.slice(..result.len() - trim_bytes);
+                    } else {
                         return futures::future::ready(Ok(None));
                     }
-                    result = result.slice(skip_bytes..);
                 }
-                
-                // Trim end if needed
-                if let Some(end) = end_bound {
-                    if chunk_start >= end {
-                        return futures::future::ready(Ok(None));
-                    }
-                    if chunk_end > end {
-                        let trim_bytes = (chunk_end - end) as usize;
-                        if trim_bytes < result.len() {
-                            result = result.slice(..result.len() - trim_bytes);
-                        } else {
-                            return futures::future::ready(Ok(None));
-                        }
-                    }
-                }
-                
-                futures::future::ready(Ok(Some(result)))
-            });
-        
-        Ok((
-            Box::pin(filtered_stream),
-            meta,
-        ))
+            }
+
+            futures::future::ready(Ok(Some(result)))
+        });
+
+        Ok((Box::pin(filtered_stream), meta))
     }
 
     /// Check whether an object exists.
@@ -322,7 +318,6 @@ pub trait MegaObjectStorage: Send + Sync {
         )
     }
 
-    
     /// Delete the object at the specified location.
     ///
     /// # Parameters
@@ -332,8 +327,6 @@ pub trait MegaObjectStorage: Send + Sync {
     /// - `Ok(())` if the object is deleted successfully
     /// - `Err(MegaError)` if the object does not exist or deletion fails
     async fn delete(&self, key: &ObjectKey) -> Result<(), MegaError>;
-
-
 }
 
 pub fn dump_error_chain(err: &(dyn std::error::Error + 'static)) -> String {

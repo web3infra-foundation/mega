@@ -1,15 +1,13 @@
 use anyhow::Result;
-
-use crate::log::store::LogStore;
 use futures::{TryStreamExt, stream};
 use io_orbit::{
     factory::MegaObjectStorageWrapper,
     object_storage::{ObjectKey, ObjectNamespace},
 };
-use tokio::io::AsyncReadExt;
-use tokio::io::{AsyncRead};
-use tokio_util::bytes::Bytes;
-use tokio_util::io::StreamReader;
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio_util::{bytes::Bytes, io::StreamReader};
+
+use crate::log::store::LogStore;
 
 pub struct IoOrbitLogStore {
     storage: MegaObjectStorageWrapper,
@@ -190,10 +188,6 @@ impl LogStore for IoOrbitLogStore {
     async fn log_exists(&self, key: &str) -> bool {
         let obj_key = self.to_object_key(key);
 
-        self.storage
-            .inner
-            .exists(&obj_key)
-            .await
-            .unwrap_or(false)
+        self.storage.inner.exists(&obj_key).await.unwrap_or(false)
     }
 }

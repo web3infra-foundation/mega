@@ -1,15 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use common::errors::MegaError;
-use futures::TryStreamExt;
+use futures::{TryStreamExt, stream};
 use object_store::{
     ObjectStore, ObjectStoreExt, PutPayload, aws::AmazonS3, gcp::GoogleCloudStorage,
     local::LocalFileSystem, signer::Signer,
 };
 use reqwest::Method;
-use bytes::Bytes;
-use futures::stream;
 
 use crate::{
     error::IoOrbitError,
@@ -36,7 +34,7 @@ pub enum UploadStrategy {
 /// [`UploadStrategy`] that determines how uploads are performed. It is the
 /// main integration point between Mega's storage abstraction and the
 /// `object_store` crate backends such as S3, GCS, or the local filesystem.
-pub struct  ObjectStoreAdapter {
+pub struct ObjectStoreAdapter {
     /// The concrete backend store used for all object operations.
     pub store: BackendStore,
     /// The upload strategy used when writing new objects.
@@ -103,17 +101,17 @@ impl MegaObjectStorage for ObjectStoreAdapter {
         // Use object_store's Range support
         // object_store 0.13+ supports Range via GetRange
 
-        
         // object_store 0.13's `get_range` takes `Range<u64>`.
         // If `end` is not provided, we resolve it via `head()` to get object size.
         let end = match end {
             Some(end) => end,
-            None => self
-                .to_store()
-                .head(&path)
-                .await
-                .map_err(IoOrbitError::from)?
-                .size as u64,
+            None => {
+                self.to_store()
+                    .head(&path)
+                    .await
+                    .map_err(IoOrbitError::from)?
+                    .size
+            }
         };
 
         let bytes = self
@@ -125,10 +123,7 @@ impl MegaObjectStorage for ObjectStoreAdapter {
         // `get_range` returns fully-buffered Bytes, adapt to our streaming type.
         let stream = stream::once(async move { Ok::<Bytes, std::io::Error>(bytes) });
 
-        Ok((
-            Box::pin(stream),
-            ObjectMeta::default(),
-        ))
+        Ok((Box::pin(stream), ObjectMeta::default()))
     }
 
     async fn signed_url(
@@ -162,10 +157,12 @@ impl MegaObjectStorage for ObjectStoreAdapter {
         Ok(self.to_store().head(&path).await.is_ok())
     }
 
-    
     async fn delete(&self, key: &ObjectKey) -> Result<(), MegaError> {
         let path = key.to_object_store_path();
-        self.to_store().delete(&path).await.map_err(IoOrbitError::from)?;
+        self.to_store()
+            .delete(&path)
+            .await
+            .map_err(IoOrbitError::from)?;
         Ok(())
     }
 }
@@ -253,6 +250,4 @@ impl ObjectStoreAdapter {
 
         Ok(())
     }
-
-
 }

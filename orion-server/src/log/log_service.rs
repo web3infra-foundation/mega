@@ -193,11 +193,13 @@ impl LogService {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use common::config::{LocalConfig, ObjectStorageBackend, ObjectStorageConfig};
+    use tempfile::TempDir;
+
     use super::*;
     use crate::log::store::{io_orbit_store::IoOrbitLogStore, local_log_store::LocalLogStore};
-    use common::config::{LocalConfig, ObjectStorageBackend, ObjectStorageConfig};
-    use std::sync::Arc;
-    use tempfile::TempDir;
 
     async fn create_mix_mode_service() -> (LogService, TempDir) {
         let temp_dir = TempDir::new().unwrap();
@@ -207,9 +209,11 @@ mod tests {
         std::fs::create_dir_all(&local_log_dir).unwrap();
         std::fs::create_dir_all(&cloud_log_dir).unwrap();
 
-        let mut object_storage_config = ObjectStorageConfig::default();
-        object_storage_config.local = LocalConfig {
-            root_dir: cloud_log_dir.to_string_lossy().to_string(),
+        let object_storage_config = ObjectStorageConfig {
+            local: LocalConfig {
+                root_dir: cloud_log_dir.to_string_lossy().to_string(),
+            },
+            ..Default::default()
         };
 
         let object_store_wrapper = io_orbit::factory::ObjectStorageFactory::build(
