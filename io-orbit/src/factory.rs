@@ -3,11 +3,11 @@ use std::{
     sync::Arc,
 };
 
+use aws_config::BehaviorVersion;
 use common::{
     config::{ObjectStorageBackend, ObjectStorageConfig},
     errors::MegaError,
 };
-use aws_config::BehaviorVersion;
 use object_store::{aws::AmazonS3Builder, gcp::GoogleCloudStorageBuilder, local::LocalFileSystem};
 
 use crate::{
