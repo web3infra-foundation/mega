@@ -83,7 +83,7 @@ jobs:
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     strategy:
       matrix:
-        env_name: [demo]
+        env_name: [demo, staging, openatom, gitmono]
     permissions:
       contents: read
     steps:
