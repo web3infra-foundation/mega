@@ -1,28 +1,42 @@
 //! Integration tests for Mega ChangeList (CL) merge and update-branch operations
 //!
-//! These tests run inside a QEMU/KVM virtual machine using qlean crate,
+//! These tests run inside a QEMU/KVM virtual machine using the qlean crate,
 //! testing the complete CL lifecycle: creation, merge, update-branch, and verification.
 //!
-//! Test Scenario:
-//! 1. Initialize repository and push changes to create CL-1
-//! 2. Initialize another repository and push changes to create CL-2
-//! 3. Merge CL-1 and verify CL-2's files-changelist changes
-//! 4. Call CL-2's update-branch and verify files are updated correctly
+//! ## Prerequisites
+//!
+//! This test requires system-level dependencies:
+//! - QEMU/KVM virtualization (qemu-system-x86_64, qemu-img)
+//! - libguestfs-tools (guestfish, virt-copy-out)
+//! - xorriso, sha256sum
+//!
+//! Install on Ubuntu/Debian:
+//! ```bash
+//! sudo apt-get install qemu-system-x86 qemu-utils libguestfs-tools xorriso
+//! ```
+//!
+//! ## Running the Test
+//!
+//! ```bash
+//! # Build mono binary
+//! cargo build --release -p mono
+//!
+//! # Run test (note the --ignored flag)
+//! cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
+//! ```
 //!
 //! ## Known Limitation
 //!
-//! Due to Mega's architectural constraint, the same user can only have one open CL
-//! per path. In this test environment with `enable_http_auth = false`, all git
-//! operations are identified as the "Anonymous" user, which means CL-1 and CL-2
-//! may end up being the same CL.
-//!
-//! The test still validates the CL workflow mechanics (merge, update-branch APIs)
-//! but cannot fully test multi-CL conflict scenarios. This is expected behavior,
-//! not a test failure.
+//! Due to Mega's architectural constraint (one CL per user per path), when running
+//! with `enable_http_auth = false`, all git operations are identified as "Anonymous"
+//! user. This means CL-1 and CL-2 may be the same CL. The test handles this with
+//! warnings and still validates the CL workflow mechanics.
 
-use std::path::{Path, PathBuf};
-use std::sync::Once;
-use std::time::Duration;
+use std::{
+    path::{Path, PathBuf},
+    sync::Once,
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use qlean::{Distro, MachineConfig, create_image, with_machine};
@@ -804,6 +818,7 @@ fn get_mono_binary_path() -> Result<PathBuf> {
 }
 
 #[tokio::test]
+#[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
 async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
     tracing_subscriber_init();
 
