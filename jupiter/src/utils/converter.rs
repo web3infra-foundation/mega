@@ -450,7 +450,7 @@ pub fn init_trees(
 
     inject_cedar_policy_dir(&mut root_items, &mut trees, &mut blobs, &mono_config.admin);
 
-    inject_root_buck_files(&mut root_items, &mut blobs, &mono_config.root_dirs);
+    inject_root_buck_files(&mut root_items, &mut blobs);
 
     // Ensure the `toolchains` cell has a BUCK file at repo initialization time.
     if let Some(toolchains_root_idx) = root_items.iter().position(|item| {
@@ -481,11 +481,7 @@ pub fn init_trees(
 }
 
 /// Injects Buck configuration files (.buckroot and .buckconfig) into the root directory.
-fn inject_root_buck_files(
-    root_items: &mut Vec<TreeItem>,
-    blobs: &mut Vec<Blob>,
-    root_dirs: &[String],
-) {
+fn inject_root_buck_files(root_items: &mut Vec<TreeItem>, blobs: &mut Vec<Blob>) {
     // .buckroot
     let buckroot_content = generate_buckroot_content();
     let buckroot_blob = Blob::from_content(&buckroot_content);
@@ -497,7 +493,7 @@ fn inject_root_buck_files(
     blobs.push(buckroot_blob);
 
     // .buckconfig
-    let buckconfig_content = generate_buckconfig_content(root_dirs);
+    let buckconfig_content = generate_buckconfig_content();
     let buckconfig_blob = Blob::from_content(&buckconfig_content);
     root_items.push(TreeItem {
         mode: TreeItemMode::Blob,
@@ -588,34 +584,15 @@ fn inject_cedar_policy_dir(
     });
 }
 
-/// Directories that should be excluded from Buck cell definitions.
-/// Currently only "doc" is excluded to preserve existing behavior.
-const EXCLUDED_BUCK_CELL_DIRS: &[&str] = &["doc"];
-
-fn generate_buckconfig_content(root_dirs: &[String]) -> String {
-    let normalized_root_dirs = root_dirs
-        .iter()
-        .map(|d| {
-            d.trim_start_matches('/')
-                .trim_start_matches("./")
-                .trim_end_matches('/')
-                .to_string()
-        })
-        .filter(|d| !EXCLUDED_BUCK_CELL_DIRS.contains(&d.as_str()))
-        .collect::<std::collections::HashSet<_>>();
-
-    let mut cells_lines = vec!["  root = .".to_string(), "  prelude = prelude".to_string()];
-
-    for dir in ["toolchains", "project", "release", "third-party"] {
-        if normalized_root_dirs.contains(dir) {
-            cells_lines.push(format!("  {dir} = {dir}"));
-        }
-    }
-
-    cells_lines.push("  buckal = toolchains/buckal-bundles".to_string());
-    cells_lines.push("  none = none".to_string());
-
-    let cells = cells_lines.join("\n");
+fn generate_buckconfig_content() -> String {
+    let cells = [
+        "  root = .",
+        "  prelude = prelude",
+        "  toolchains = toolchains",
+        "  buckal = toolchains/buckal-bundles",
+        "  none = none",
+    ]
+    .join("\n");
 
     format!(
         r#"[cells]
