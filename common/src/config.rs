@@ -334,6 +334,7 @@ impl Default for MonoConfig {
             admin: vec!["admin".to_string()],
             root_dirs: vec![
                 "third-party".to_string(),
+                "toolchains".to_string(),
                 "project".to_string(),
                 "doc".to_string(),
                 "release".to_string(),
