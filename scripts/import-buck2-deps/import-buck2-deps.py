@@ -22,6 +22,7 @@ import argparse
 import collections
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -182,6 +183,17 @@ def _derive_mega_rel_path(scan_root: Path, p: Path) -> str:
                 f"Failed to compute Mega path for '{p}'. "
                 "Make sure the scanned directory is under a 'third-party/' tree."
             ) from e
+
+
+def cleanup_git(repo_dir: Path) -> None:
+    """Remove the .git directory if it exists."""
+    git_dir = repo_dir / ".git"
+    if git_dir.exists() and git_dir.is_dir():
+        try:
+            shutil.rmtree(git_dir)
+        except Exception as e:
+            _eprint(f"Warning: failed to remove {git_dir}: {e}")
+
 
 
 def discover_repos(
@@ -617,6 +629,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=0,
         help="Only process first N discovered repos (0 means no limit).",
     )
+    p.add_argument(
+        "--retry",
+        type=int,
+        default=0,
+        help="Number of retries for failed pushes (default: 0).",
+    )
     return p.parse_args(argv)
 
 
@@ -669,8 +687,8 @@ def main(argv: list[str]) -> int:
         print("No import candidates found.")
         return 0
 
-    total = len(uniq_specs)
-    print(f"Found {total} import candidates.")
+    total_candidates = len(uniq_specs)
+    print(f"Found {total_candidates} import candidates.")
 
     def plan_line(s: RepoSpec) -> str:
         remote_url = args.git_base_url.rstrip("/") + "/" + s.rel_path.lstrip("/")
@@ -688,7 +706,7 @@ def main(argv: list[str]) -> int:
             return 2
 
     if not use_rich:
-        if total <= 50:
+        if total_candidates <= 50:
             for s in uniq_specs:
                 print(f"- {plan_line(s)}")
         else:
@@ -698,138 +716,173 @@ def main(argv: list[str]) -> int:
     gpg_sign = not args.no_gpg_sign
 
     jobs = max(1, int(args.jobs))
-    ui: Union[PlainUI, RichUI]
-    if use_rich:
-        ui = RichUI(total=total, jobs=jobs)
-    else:
-        ui = PlainUI(total=total)
 
-    events: Queue[dict] = Queue()
-    slot_pool: Queue[int] = Queue()
-    for i in range(1, jobs + 1):
-        slot_pool.put(i)
-    stop_event = threading.Event()
-    failures: list[tuple[RepoSpec, str]] = []
-    failures_lock = threading.Lock()
-    successes: list[str] = []
-    successes_lock = threading.Lock()
+    pending_specs = list(uniq_specs)
+    retries = args.retry
+    
+    # We will accumulate final failures if the last attempt still fails.
+    # Or should we just exit non-zero if the last attempt fails?
+    # The requirement is to retry.
+    
+    final_exit_code = 0
 
-    def emit(ev: dict) -> None:
-        events.put(ev)
+    for attempt in range(retries + 1):
+        if not pending_specs:
+            break
+            
+        current_total = len(pending_specs)
+        if attempt > 0:
+            print(f"\n[Retry {attempt}/{retries}] Retrying {current_total} repositories...")
 
-    def process_one(s: RepoSpec) -> None:
-        if stop_event.is_set():
-            emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: skipped (fail-fast)"})
-            emit({"type": "done", "rel": s.rel_path})
-            return
+        ui: Union[PlainUI, RichUI]
+        if use_rich:
+            ui = RichUI(total=current_total, jobs=jobs)
+        else:
+            ui = PlainUI(total=current_total)
 
-        slot = slot_pool.get()
-        try:
+        events: Queue[dict] = Queue()
+        slot_pool: Queue[int] = Queue()
+        for i in range(1, jobs + 1):
+            slot_pool.put(i)
+        stop_event = threading.Event()
+        failures: list[tuple[RepoSpec, str]] = []
+        failures_lock = threading.Lock()
+        successes: list[str] = []
+        successes_lock = threading.Lock()
+
+        def emit(ev: dict) -> None:
+            events.put(ev)
+
+        def process_one(s: RepoSpec) -> None:
             if stop_event.is_set():
                 emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: skipped (fail-fast)"})
                 emit({"type": "done", "rel": s.rel_path})
                 return
 
-            remote_url = args.git_base_url.rstrip("/") + "/" + s.rel_path.lstrip("/")
-            emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "git init/checkout"})
-            git_state = ensure_git_repo(s.repo_dir, branch=args.branch)
-            if git_state != "initialized":
-                emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: existing git repo"})
-
-            if args.buckal_generated:
-                emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "rewrite BUCK deps"})
-                _, total_replacements = rewrite_buck_deps_paths(s.repo_dir)
-                if total_replacements > 0:
-                    emit(
-                        {
-                            "type": "log",
-                            "level": "warning",
-                            "msg": f"{s.rel_path}: rewrote BUCK deps labels ({total_replacements} replacements)",
-                        }
-                    )
-
-            emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "commit"})
-            commit_state = ensure_initial_commit(
-                s.repo_dir,
-                crate_name=s.crate_name,
-                version=s.version,
-                signoff=signoff,
-                gpg_sign=gpg_sign,
-            )
-            if commit_state != "created":
-                emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: already has commits"})
-
-            emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "remote"})
-            remote_state = ensure_remote(s.repo_dir, remote_name=args.remote_name, remote_url=remote_url)
-            if remote_state == "updated":
-                emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: remote updated"})
-
-            emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "push"})
-            push(
-                s.repo_dir,
-                remote_name=args.remote_name,
-                branch=args.branch,
-                force=args.force,
-            )
-            with successes_lock:
-                successes.append(s.rel_path)
-            emit({"type": "done", "rel": s.rel_path})
-            emit({"type": "log", "level": "success", "msg": f"{s.rel_path}: imported"})
-        except Exception as e:
-            err_text = str(e)
-            emit({"type": "log", "level": "error", "msg": f"{s.rel_path}: {_one_line(err_text, 10000)}"})
-            with failures_lock:
-                failures.append((s, str(e)))
-            if args.fail_fast:
-                stop_event.set()
-            emit({"type": "done", "rel": s.rel_path})
-        finally:
-            emit({"type": "clear", "slot": slot})
-            slot_pool.put(slot)
-
-    ui.start()
-    try:
-        with ThreadPoolExecutor(max_workers=jobs) as executor:
-            futures = [executor.submit(process_one, s) for s in uniq_specs]
-            def drain_events() -> None:
-                while True:
-                    try:
-                        ev = events.get_nowait()
-                    except Empty:
-                        return
-                    ui.apply_event(ev)
-
-            while True:
+            slot = slot_pool.get()
+            try:
                 if stop_event.is_set():
-                    for f in futures:
-                        f.cancel()
-                try:
-                    ev = events.get(timeout=0.1)
-                    ui.apply_event(ev)
-                except Empty:
-                    pass
-                if all(f.done() for f in futures):
-                    drain_events()
-                    break
+                    emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: skipped (fail-fast)"})
+                    emit({"type": "done", "rel": s.rel_path})
+                    return
 
-            with failures_lock:
-                failures_snapshot = list(failures)
-            with successes_lock:
-                succeeded = len(successes)
-            ui.apply_event(
-                {
-                    "type": "final",
-                    "total": total,
-                    "succeeded": succeeded,
-                    "failures": [{"rel": s.rel_path, "reason": msg} for s, msg in failures_snapshot],
-                }
-            )
-    finally:
-        ui.stop()
+                remote_url = args.git_base_url.rstrip("/") + "/" + s.rel_path.lstrip("/")
+                emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "git init/checkout"})
+                git_state = ensure_git_repo(s.repo_dir, branch=args.branch)
+                if git_state != "initialized":
+                    emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: existing git repo"})
 
-    if not use_rich:
+                if args.buckal_generated:
+                    emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "rewrite BUCK deps"})
+                    _, total_replacements = rewrite_buck_deps_paths(s.repo_dir)
+                    if total_replacements > 0:
+                        emit(
+                            {
+                                "type": "log",
+                                "level": "warning",
+                                "msg": f"{s.rel_path}: rewrote BUCK deps labels ({total_replacements} replacements)",
+                            }
+                        )
+
+                emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "commit"})
+                commit_state = ensure_initial_commit(
+                    s.repo_dir,
+                    crate_name=s.crate_name,
+                    version=s.version,
+                    signoff=signoff,
+                    gpg_sign=gpg_sign,
+                )
+                if commit_state != "created":
+                    emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: already has commits"})
+
+                emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "remote"})
+                remote_state = ensure_remote(s.repo_dir, remote_name=args.remote_name, remote_url=remote_url)
+                if remote_state == "updated":
+                    emit({"type": "log", "level": "warning", "msg": f"{s.rel_path}: remote updated"})
+
+                emit({"type": "slot", "slot": slot, "rel": s.rel_path, "step": "push"})
+                push(
+                    s.repo_dir,
+                    remote_name=args.remote_name,
+                    branch=args.branch,
+                    force=args.force,
+                )
+                with successes_lock:
+                    successes.append(s.rel_path)
+                emit({"type": "done", "rel": s.rel_path})
+                emit({"type": "log", "level": "success", "msg": f"{s.rel_path}: imported"})
+            except Exception as e:
+                err_text = str(e)
+                emit({"type": "log", "level": "error", "msg": f"{s.rel_path}: {_one_line(err_text, 10000)}"})
+                
+                # Cleanup .git on failure so we can retry cleanly
+                cleanup_git(s.repo_dir)
+                
+                with failures_lock:
+                    failures.append((s, str(e)))
+                if args.fail_fast:
+                    stop_event.set()
+                emit({"type": "done", "rel": s.rel_path})
+            finally:
+                emit({"type": "clear", "slot": slot})
+                slot_pool.put(slot)
+
+        ui.start()
+        try:
+            with ThreadPoolExecutor(max_workers=jobs) as executor:
+                futures = [executor.submit(process_one, s) for s in pending_specs]
+                def drain_events() -> None:
+                    while True:
+                        try:
+                            ev = events.get_nowait()
+                        except Empty:
+                            return
+                        ui.apply_event(ev)
+
+                while True:
+                    if stop_event.is_set():
+                        for f in futures:
+                            f.cancel()
+                    try:
+                        ev = events.get(timeout=0.1)
+                        ui.apply_event(ev)
+                    except Empty:
+                        pass
+                    if all(f.done() for f in futures):
+                        drain_events()
+                        break
+
+                with failures_lock:
+                    failures_snapshot = list(failures)
+                with successes_lock:
+                    succeeded_count = len(successes)
+                ui.apply_event(
+                    {
+                        "type": "final",
+                        "total": current_total,
+                        "succeeded": succeeded_count,
+                        "failures": [{"rel": s.rel_path, "reason": msg} for s, msg in failures_snapshot],
+                    }
+                )
+        finally:
+            ui.stop()
+
+        if not failures_snapshot:
+            # Success!
+            final_exit_code = 0
+            break
+        else:
+            # Prepare for next retry
+            pending_specs = [f[0] for f in failures_snapshot]
+            final_exit_code = 1
+            if attempt == retries:
+                # Last attempt failed
+                _eprint(f"\nFailed to import {len(pending_specs)} repositories after {attempt + 1} attempts.")
+
+    if not use_rich and final_exit_code == 0:
         print("\nAll imports completed successfully.")
-    return 0
+        
+    return final_exit_code
 
 
 if __name__ == "__main__":
