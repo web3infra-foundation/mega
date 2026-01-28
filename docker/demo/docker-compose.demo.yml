@@ -245,7 +245,7 @@ services:
   # Orion Build Client / Worker (based on orion-client image)
   # ---------------------------------------------------------------------------
   orion_build_client:
-    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release-amd64}
+    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release}
     container_name: mega-demo-orion-worker
     command: orion
     # privileged mode allows nested container builds (Scorpio) inside the worker.
