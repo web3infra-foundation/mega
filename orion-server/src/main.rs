@@ -1,11 +1,9 @@
-
-
 mod api;
 mod auto_retry;
 mod buck2;
-mod orion_common;
 mod log;
 mod model;
+mod orion_common;
 mod scheduler;
 mod server;
 
@@ -29,5 +27,3 @@ async fn main() {
 
     server::start_server().await;
 }
-
-

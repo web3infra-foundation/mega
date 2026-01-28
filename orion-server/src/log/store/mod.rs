@@ -1,8 +1,8 @@
 use anyhow::Result;
 
+pub mod io_orbit_store;
 pub mod local_log_store;
 pub mod noop_log_store;
-pub mod io_orbit_store;
 
 /// Trait representing a generic log storage backend.
 ///

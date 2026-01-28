@@ -1,16 +1,15 @@
-
 use anyhow::Result;
 
-use futures::{stream, StreamExt, TryStreamExt};
+use crate::log::store::LogStore;
+use futures::{TryStreamExt, stream};
 use io_orbit::{
     factory::MegaObjectStorageWrapper,
     object_storage::{ObjectKey, ObjectNamespace},
 };
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
-use tokio_util::io::StreamReader;
 use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead};
 use tokio_util::bytes::Bytes;
-use crate::log::store::LogStore;
+use tokio_util::io::StreamReader;
 
 pub struct IoOrbitLogStore {
     storage: MegaObjectStorageWrapper,
@@ -53,7 +52,7 @@ impl IoOrbitLogStore {
         &self,
         stream: io_orbit::object_storage::ObjectByteStream,
     ) -> impl AsyncRead {
-        StreamReader::new(stream.map_err(|e| std::io::Error::other(e)))
+        StreamReader::new(stream.map_err(std::io::Error::other))
     }
 }
 
@@ -103,17 +102,16 @@ impl LogStore for IoOrbitLogStore {
 
     async fn delete(&self, key: &str) -> Result<()> {
         let obj_key = self.to_object_key(key);
-        self.storage.inner.delete(&obj_key).await.map_err(|e| anyhow::anyhow!("Failed to delete log: {}", e))?;
+        self.storage
+            .inner
+            .delete(&obj_key)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to delete log: {}", e))?;
 
         Ok(())
     }
 
-    async fn read_range(
-        &self,
-        key: &str,
-        start_line: usize,
-        end_line: usize,
-    ) -> Result<String> {
+    async fn read_range(&self, key: &str, start_line: usize, end_line: usize) -> Result<String> {
         let obj_key = self.to_object_key(key);
         if end_line <= start_line {
             return Ok(String::new());
@@ -192,6 +190,10 @@ impl LogStore for IoOrbitLogStore {
     async fn log_exists(&self, key: &str) -> bool {
         let obj_key = self.to_object_key(key);
 
-        self.storage.inner.exists(&obj_key).await.unwrap_or_else(|_| false)
+        self.storage
+            .inner
+            .exists(&obj_key)
+            .await
+            .unwrap_or(false)
     }
 }

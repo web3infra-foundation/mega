@@ -1,3 +1,5 @@
+#![feature(duration_constructors_lite)]
+
 pub mod api_service;
 pub mod lfs;
 pub mod merge_checker;

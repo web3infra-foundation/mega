@@ -1,19 +1,6 @@
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
-use axum::{Router, routing::get};
-use chrono::{FixedOffset, Utc};
-use common::errors::MegaError;
-use futures::TryFutureExt;
-use http::{HeaderValue, Method};
-use orion::ws::TaskPhase;
-use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
-use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
-use common::config::c::ConfigError;
-use common::config::{Config, ObjectStorageBackend};
-use io_orbit::factory::ObjectStorageFactory;
+use crate::log::store::io_orbit_store::IoOrbitLogStore;
 use crate::{
     api::{self, AppState},
     log::{
@@ -22,7 +9,19 @@ use crate::{
     },
     model::builds,
 };
-use crate::log::store::io_orbit_store::IoOrbitLogStore;
+use axum::{Router, routing::get};
+use chrono::{FixedOffset, Utc};
+use common::config::c::ConfigError;
+use common::config::{Config, ObjectStorageBackend};
+use common::errors::MegaError;
+use http::{HeaderValue, Method};
+use io_orbit::factory::ObjectStorageFactory;
+use orion::ws::TaskPhase;
+use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
+use tower::ServiceBuilder;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
@@ -63,13 +62,17 @@ use crate::log::store::io_orbit_store::IoOrbitLogStore;
 )]
 pub struct ApiDoc;
 
-pub async fn init_log_service(config: Config) -> Result<LogService,MegaError> {
+pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
     // Read buffer size from environment, defaulting to 4096 if unset or invalid
-    
+
     let buffer = config.orion_server.as_ref().unwrap().log_stream_buffer;
 
-    
-    let log_store_mode = config.orion_server.as_ref().unwrap().logger_storage_mode.clone();
+    let log_store_mode = config
+        .orion_server
+        .as_ref()
+        .unwrap()
+        .logger_storage_mode
+        .clone();
 
     let build_log_dir = config.orion_server.as_ref().unwrap().build_log_dir.clone();
 
@@ -88,8 +91,9 @@ pub async fn init_log_service(config: Config) -> Result<LogService,MegaError> {
             false,
         ),
         "mix" => {
-
-            let object_store_wrapper = ObjectStorageFactory::build(ObjectStorageBackend::Local,&config.object_storage).await?;
+            let object_store_wrapper =
+                ObjectStorageFactory::build(ObjectStorageBackend::Local, &config.object_storage)
+                    .await?;
             (
                 Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
                 Arc::new(IoOrbitLogStore::new(object_store_wrapper)),
@@ -118,11 +122,9 @@ pub async fn init_log_service(config: Config) -> Result<LogService,MegaError> {
     ))
 }
 
-
 async fn load_orion_config() -> Result<Config, ConfigError> {
-
     if let Ok(config_path) = env::var("CONFIG_PATH") {
-        return Config::new(&config_path);   
+        return Config::new(&config_path);
     }
 
     let base_dir = common::config::mega_base();
@@ -134,15 +136,11 @@ async fn load_orion_config() -> Result<Config, ConfigError> {
     }
 
     Ok(Config::default())
-
 }
-
 
 /// Starts the Orion server with the specified port
 /// Initializes database connection, sets up routes, and starts health check tasks
-pub async fn start_server()  {
-
-    
+pub async fn start_server() {
     let config = load_orion_config().await.unwrap();
 
     let orion_server_config = config.orion_server.clone().unwrap();
@@ -151,7 +149,7 @@ pub async fn start_server()  {
         .await
         .expect("Database connection failed");
 
-    let port= orion_server_config.port;
+    let port = orion_server_config.port;
 
     // Initialize the LogService and spawn a background task to watch logs,
     // then create the application state with the same LogService instance.
@@ -169,8 +167,8 @@ pub async fn start_server()  {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
-
-    let origins: Vec<HeaderValue> = orion_server_config.allowed_cors_origins
+    let origins: Vec<HeaderValue> = orion_server_config
+        .allowed_cors_origins
         .split(',')
         .map(|x| x.trim().parse::<HeaderValue>().unwrap())
         .collect();
@@ -216,7 +214,6 @@ pub async fn start_server()  {
     )
     .await
     .unwrap();
-    
 }
 
 /// Background task that monitors worker health and handles timeouts
