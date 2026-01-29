@@ -171,25 +171,7 @@ pub trait MegaObjectStorage: Send + Sync {
     /// - Range is invalid (start >= end, or start >= file size)
     /// Retrieve a range of bytes from an object.
     ///
-    /// # Parameters
-    /// - `key`: Object identifier
-    /// - `start`: Starting byte offset (inclusive)
-    /// - `end`: Ending byte offset (exclusive, None means to end of file)
-    ///
-    /// # Returns
-    /// - A streaming reader for the object data range
-    /// - The object's metadata
-    ///
-    /// # Semantics
-    /// - Uses HTTP Range requests when supported by the backend.
-    /// - For backends that don't support Range requests, falls back to full download with client-side filtering.
-    /// - The returned stream must be consumed by the caller.
-    ///
-    /// # Errors
-    /// Returns an error if:
-    /// - The object does not exist
-    /// - Access is denied
-    /// - Backend I/O fails
+    
     async fn get_range_stream(
         &self,
         key: &ObjectKey,

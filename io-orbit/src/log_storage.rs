@@ -38,11 +38,15 @@ pub struct LogSegmentMeta {
     pub key: String,
 }
 
-/// Log storage trait: append-only logs over [`MegaObjectStorage`].
+/// Append-only log storage built on top of [`MegaObjectStorage`].
 ///
-/// All methods take `key: &ObjectKey` as the **log identifier** (e.g.
-/// `{task_id}/{repo_name}/{build_id}`). It identifies the log as a whole, **not**
-/// a segment. Segment keys live in [`LogSegmentMeta::key`].
+/// Notes:
+/// - `key: &ObjectKey` identifies the **entire log stream** (e.g.
+///   `{task_id}/{repo_name}/{build_id}`), not an individual segment object.
+/// - Segment object keys are an implementation detail recorded in
+///   [`LogSegmentMeta::key`]; callers should not construct or rely on them.
+/// - Implementations may choose any manifest/segment layout as long as reads and
+///   appends preserve the logical log semantics.
 #[async_trait::async_trait]
 pub trait LogStorage: MegaObjectStorage {
     /// Appends `data` to the end of the log identified by `key`.
@@ -53,7 +57,7 @@ pub trait LogStorage: MegaObjectStorage {
     /// * `meta` - Optional metadata for the append.
     ///
     /// # Returns
-    /// * `Ok(len)` - New log length in bytes after append.
+    /// * `Ok(())` - Append completed successfully.
     async fn append(
         &self,
         key: &ObjectKey,
@@ -77,6 +81,13 @@ pub trait LogStorage: MegaObjectStorage {
         length: u64,
     ) -> Result<ObjectByteStream, MegaError>;
 
+    /// Reads a **line range** `[start_line, end_line)` from the log identified by `key`.
+    ///
+    /// - `start_line` is inclusive, `end_line` is exclusive.
+    /// - Line counting is implementation-defined (typically `\n`-delimited).
+    ///
+    /// # Returns
+    /// * `Ok(stream)` - Byte stream containing the requested lines.
     async fn read_lines_range(
         &self,
         key: &ObjectKey,
@@ -84,34 +95,34 @@ pub trait LogStorage: MegaObjectStorage {
         end_line: u64,
     ) -> Result<ObjectByteStream, MegaError>;
 
-    /// Appends `data` only if the current log length equals `expected_offset`.
+    /// Appends `data` to the end of the log in a way that is safe under contention.
     ///
-    /// Used for linearizable append (e.g. single writer or CAS). Returns an error
-    /// if the actual length does not match.
+    /// Implementations typically use an optimistic concurrency mechanism (e.g.
+    /// conditional manifest write / compare-and-swap) to avoid lost updates when
+    /// multiple writers append concurrently.
     ///
     /// # Arguments
     /// * `key` - Log identifier. Not a segment key.
-    /// * `expected_offset` - Current length must equal this, else `Err`.
     /// * `data` - Byte stream to append.
     /// * `meta` - Optional metadata.
     ///
     /// # Returns
-    /// * `Ok(len)` - New log length after append.
+    /// * `Ok(())` - Append completed successfully.
     async fn append_concurrently(
         &self,
         key: &ObjectKey,
-        //expected_offset: u64,
         data: ObjectByteStream,
         meta: ObjectMeta,
     ) -> Result<(), MegaError>;
 
-    /// Loads the manifest for the log identified by `key` and returns its length.
+    /// Loads the manifest for the log identified by `key`.
     ///
     /// # Arguments
     /// * `key` - Log identifier. Not a segment key.
     ///
     /// # Returns
-    /// * `Ok(len)` - Current log length (`LogManifest::len`). `0` if manifest does not exist.
+    /// * `Ok(manifest)` - The current manifest. Implementations may return an
+    ///   "empty" manifest (e.g. `len = 0`) when the log does not exist yet.
     async fn load_manifest(&self, key: &ObjectKey) -> Result<LogManifest, MegaError>;
 
     /// Checks whether the log identified by `key` exists.
