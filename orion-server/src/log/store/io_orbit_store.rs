@@ -105,10 +105,12 @@ impl LogStore for IoOrbitLogStore {
 
     async fn log_exists(&self, key: &str) -> bool {
         let obj_key = self.to_object_key(key);
-        self.storage
-            .inner
-            .log_exists(&obj_key)
-            .await
-            .unwrap_or(false)
+        match self.storage.inner.log_exists(&obj_key).await {
+            Ok(exists) => exists,
+            Err(e) => {
+                tracing::warn!(key = %key, error = %e, "Error checking log existence, treating as non-existent");
+                false
+            }
+        }
     }
 }

@@ -209,17 +209,6 @@ mod tests {
         std::fs::create_dir_all(&local_log_dir).unwrap();
         std::fs::create_dir_all(&cloud_log_dir).unwrap();
 
-        // let object_storage_config = ObjectStorageConfig {
-        //     s3: S3Config {
-        //         region: "us-east-1".to_string(),
-        //         bucket: "mega".to_string(),
-        //         access_key_id: "rustfsadmin".to_string(),
-        //         secret_access_key: "rustfsadmin".to_string(),
-        //         endpoint_url: "http://127.0.0.1:9000".to_string(),
-        //     },
-        //     ..Default::default()
-        // };
-
         let object_storage_config = ObjectStorageConfig {
             local: LocalConfig {
                 root_dir: cloud_log_dir.to_string_lossy().to_string(),

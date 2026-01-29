@@ -66,16 +66,14 @@ pub struct ApiDoc;
 pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
     // Read buffer size from environment, defaulting to 4096 if unset or invalid
 
-    let buffer = config.orion_server.as_ref().unwrap().log_stream_buffer;
-
-    let log_store_mode = config
+    let orion_server = config
         .orion_server
         .as_ref()
-        .unwrap()
-        .logger_storage_mode
-        .clone();
+        .ok_or_else(|| MegaError::Other("orion_server config section missing".to_string()))?;
 
-    let build_log_dir = config.orion_server.as_ref().unwrap().build_log_dir.clone();
+    let buffer = orion_server.log_stream_buffer;
+    let log_store_mode = orion_server.logger_storage_mode.clone();
+    let build_log_dir = orion_server.build_log_dir.clone();
 
     let noop_log_store: Arc<dyn LogStore> = Arc::new(noop_log_store::NoopLogStore::new());
 
@@ -143,19 +141,31 @@ async fn load_orion_config() -> Result<Config, ConfigError> {
 /// Starts the Orion server with the specified port
 /// Initializes database connection, sets up routes, and starts health check tasks
 pub async fn start_server() {
-    let config = load_orion_config().await.unwrap();
+    let config = load_orion_config().await.unwrap_or_else(|e| {
+        eprintln!("Failed to load config: {}", e);
+        std::process::exit(1);
+    });
 
-    let orion_server_config = config.orion_server.clone().unwrap();
-    //let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+    let Some(orion_server_config) = config.orion_server.clone() else {
+        eprintln!("Missing `orion_server` section in config");
+        std::process::exit(1);
+    };
     let conn = Database::connect(orion_server_config.db_url)
         .await
-        .expect("Database connection failed");
+        .unwrap_or_else(|e| {
+            eprintln!("Database connection failed: {e}");
+            std::process::exit(1);
+        });
 
     let port = orion_server_config.port;
 
     // Initialize the LogService and spawn a background task to watch logs,
     // then create the application state with the same LogService instance.
-    let log_service = init_log_service(config).await.unwrap();
+    let log_service = init_log_service(config).await.unwrap_or_else(|e| {
+        eprintln!("Failed to initialize LogService: {}", e);
+        std::process::exit(1);
+    });
+
     let log_service_clone = log_service.clone();
     tokio::spawn(async move {
         log_service_clone.watch_logs().await;
@@ -172,7 +182,19 @@ pub async fn start_server() {
     let origins: Vec<HeaderValue> = orion_server_config
         .allowed_cors_origins
         .split(',')
-        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
+        .filter_map(|x| {
+            let v = x.trim();
+            if v.is_empty() {
+                return None;
+            }
+            match v.parse::<HeaderValue>() {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    tracing::warn!("Invalid CORS origin header value '{v}': {e}");
+                    None
+                }
+            }
+        })
         .collect();
 
     let app = Router::new()
@@ -203,13 +225,19 @@ pub async fn start_server() {
     tracing::info!("Listening on port {}", port);
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to bind 0.0.0.0:{port}: {e}");
+            std::process::exit(1);
+        });
     axum::serve(
         addr,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
-    .unwrap();
+    .unwrap_or_else(|e| {
+        eprintln!("Server error: {e}");
+        std::process::exit(1);
+    });
 }
 
 /// Background task that monitors worker health and handles timeouts
@@ -217,6 +245,8 @@ pub async fn start_server() {
 async fn start_health_check_task(state: AppState) {
     let health_check_interval = Duration::from_secs(30);
     let worker_timeout = Duration::from_secs(90);
+    let utc_offset =
+        FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!("UTC offset must be valid"));
 
     tracing::info!(
         "Health check task started. Interval: {:?}, Worker timeout: {:?}",
@@ -234,7 +264,7 @@ async fn start_health_check_task(state: AppState) {
         // Find workers that haven't sent heartbeat within timeout period
         for entry in state.scheduler.workers.iter() {
             if now.signed_duration_since(entry.value().last_heartbeat)
-                > chrono::Duration::from_std(worker_timeout).unwrap()
+                > chrono::Duration::seconds(worker_timeout.as_secs() as i64)
             {
                 dead_workers.push(entry.key().clone());
             }
@@ -274,9 +304,7 @@ async fn start_health_check_task(state: AppState) {
                     {
                         let update_res = builds::Entity::update_many()
                             .set(builds::ActiveModel {
-                                end_at: Set(Some(
-                                    Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                                )),
+                                end_at: Set(Some(Utc::now().with_timezone(&utc_offset))),
                                 exit_code: Set(None),
                                 ..Default::default()
                             })
@@ -297,7 +325,7 @@ async fn start_health_check_task(state: AppState) {
                             build_model.target_id,
                             crate::model::targets::TargetState::Interrupted,
                             None,
-                            Some(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
+                            Some(Utc::now().with_timezone(&utc_offset)),
                             None,
                         )
                         .await
