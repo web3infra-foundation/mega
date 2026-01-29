@@ -51,7 +51,7 @@ services:
     container_name: mega-demo-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqladmin}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-campsite}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-campsite_api_demo}
     volumes:
       - mysql-data:/var/lib/mysql
     ports:
@@ -120,12 +120,15 @@ services:
       # S3 / RustFS
       # To use S3 storage, set MEGA_MONOREPO__STORAGE_TYPE=s3 and ensure RustFS bucket is created
       MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3}
-      MEGA_S3__ENDPOINT_URL: ${MEGA_S3__ENDPOINT_URL:-http://rustfs:9000}
+      OBJECT_STORAGE_S3__ENDPOINT_URL: ${OBJECT_STORAGE_S3__ENDPOINT_URL:-http://rustfs:9000}
+
       # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
-      MEGA_S3__BUCKET: ${MEGA_S3__BUCKET:-mega}
-      MEGA_S3__REGION: ${MEGA_S3__REGION:-us-east-1}
-      MEGA_S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      MEGA_S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      OBJECT_STORAGE_S3__BUCKET: ${OBJECT_STORAGE_S3__BUCKET:-mega}
+      OBJECT_STORAGE_S3__REGION: ${OBJECT_STORAGE_S3__REGION:-us-east-1}
+      OBJECT_STORAGE_S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      OBJECT_STORAGE_S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      # Force path-style addressing for RustFS (required for local S3-compatible storage)
+      OBJECT_STORAGE_S3__FORCE_PATH_STYLE: ${OBJECT_STORAGE_S3__FORCE_PATH_STYLE:-true}
 
       # Logging & demo user experience
       MEGA_LOG__LEVEL: ${MEGA_LOG__LEVEL:-info}
@@ -149,7 +152,12 @@ services:
       # Directory paths (can be overridden)
       MEGA_BASE_DIR: ${MEGA_BASE_DIR:-/opt/mega}
       MEGA_CACHE_DIR: ${MEGA_CACHE_DIR:-/opt/mega/cache}
+    # Use a wrapper script to fix config.toml before starting the application
+    # The wrapper script modifies endpoint_url from localhost to rustfs, then calls the original start script
+    entrypoint: ["/bin/bash"]
+    command: ["/usr/local/bin/start-mono-wrapper.sh"]
     volumes:
+      - ./start-mono-wrapper.sh:/usr/local/bin/start-mono-wrapper.sh:ro
       - mega-data:/opt/mega
     ports:
       # Container listens on 8000, host port is 8000
@@ -184,8 +192,6 @@ services:
       HOSTNAME: 0.0.0.0
       MEGA_INTERNAL_HOST: ${MEGA_INTERNAL_HOST:-http://mega:8000}
       MEGA_HOST: ${MEGA_HOST:-http://localhost:8000}
-      # Use internal Orion Server address by default to avoid browser CORS issues
-      NEXT_PUBLIC_ORION_API_URL: ${NEXT_PUBLIC_ORION_API_URL:-http://orion_server:8004}
     ports:
       # Container listens on 3000, host port is 3000
       - "3000:3000"
@@ -278,10 +284,6 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # MySQL connection URL format: mysql2://user:password@host:port/database
-      # Using root user for demo purposes
-      DATABASE_URL: ${CAMPSITE_DATABASE_URL:-mysql2://root:${MYSQL_ROOT_PASSWORD:-mysqladmin}@mysql:3306/${MYSQL_DATABASE:-campsite}}
-      REDIS_URL: ${CAMPSITE_REDIS_URL:-redis://redis:6379}
       PORT: 8080
       # Allow toggling migrations from .env
       CAMPSITE_RUN_MIGRATIONS: ${CAMPSITE_RUN_MIGRATIONS:-1}
