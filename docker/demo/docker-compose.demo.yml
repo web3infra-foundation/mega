@@ -49,6 +49,8 @@ services:
   mysql:
     image: mysql:8.0
     container_name: mega-demo-mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqladmin}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-campsite_api_demo}
@@ -57,7 +59,11 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD:-mysqladmin} || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD:-mysqladmin} || exit 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -67,7 +73,7 @@ services:
   # Core Infra: RustFS (S3-compatible object storage)
   # ---------------------------------------------------------------------------
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.0-alpha.81
     container_name: mega-demo-rustfs
     # Use 0.0.0.0:9000 to listen on both IPv4 and IPv6 for Docker network compatibility
     # Note: RUSTFS_SERVER_DOMAINS is not set to avoid virtual-host style conflicts
@@ -98,7 +104,7 @@ services:
   # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release
   # Or use locally built image: mega:mono-engine-latest (after building with docker build)
   # Set MEGA_ENGINE_IMAGE environment variable to override
-  # Priority: MEGA_ENGINE_IMAGE env var > local build (mega:mono-engine-latest) > ECR image  
+  # Priority: MEGA_ENGINE_IMAGE env var > local build (mega:mono-engine-latest) > ECR image
   mega:
     image: ${MEGA_ENGINE_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release}
     container_name: mega-demo-backend
@@ -120,13 +126,13 @@ services:
       # S3 / RustFS
       # To use S3 storage, set MEGA_MONOREPO__STORAGE_TYPE=s3 and ensure RustFS bucket is created
       MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3}
-      OBJECT_STORAGE_S3__ENDPOINT_URL: ${OBJECT_STORAGE_S3__ENDPOINT_URL:-http://rustfs:9000}
+      MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL: ${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-http://rustfs:9000}
 
       # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
-      OBJECT_STORAGE_S3__BUCKET: ${OBJECT_STORAGE_S3__BUCKET:-mega}
-      OBJECT_STORAGE_S3__REGION: ${OBJECT_STORAGE_S3__REGION:-us-east-1}
-      OBJECT_STORAGE_S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      OBJECT_STORAGE_S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
+      MEGA_OBJECT_STORAGE__S3__REGION: ${MEGA_OBJECT_STORAGE__S3__REGION:-us-east-1}
+      MEGA_OBJECT__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      MEGA_OBJECT__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
       # Force path-style addressing for RustFS (required for local S3-compatible storage)
       OBJECT_STORAGE_S3__FORCE_PATH_STYLE: ${OBJECT_STORAGE_S3__FORCE_PATH_STYLE:-true}
 
@@ -170,6 +176,10 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - git.gitmono.local
 
   # ---------------------------------------------------------------------------
   # Mega UI (Next.js)
@@ -186,12 +196,6 @@ services:
         condition: service_healthy
       orion_server:
         condition: service_healthy
-    environment:
-      PORT: 3000
-      # Ensure Next.js listens on all interfaces (0.0.0.0) for healthcheck to work
-      HOSTNAME: 0.0.0.0
-      MEGA_INTERNAL_HOST: ${MEGA_INTERNAL_HOST:-http://mega:8000}
-      MEGA_HOST: ${MEGA_HOST:-http://localhost:8000}
     ports:
       # Container listens on 3000, host port is 3000
       - "3000:3000"
@@ -203,6 +207,10 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - app.gitmono.local
 
   # ---------------------------------------------------------------------------
   # Orion Server (Rust)
@@ -240,6 +248,10 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - orion.gitmono.local
 
   # ---------------------------------------------------------------------------
   # Orion Build Client / Worker (based on orion-client image)
@@ -284,6 +296,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      REDIS_URL: ${CAMPSITE_REDIS_URL:-redis://redis:6379}
       PORT: 8080
       # Allow toggling migrations from .env
       CAMPSITE_RUN_MIGRATIONS: ${CAMPSITE_RUN_MIGRATIONS:-1}
@@ -293,6 +306,11 @@ services:
       RAILS_MASTER_KEY: ${CAMPSITE_RAILS_MASTER_KEY:-51d8cdb046869075795ba82cdd95807a}
       SERVER_COMMAND: ${CAMPSITE_SERVER_COMMAND:-bundle exec puma}
       DEV_APP_URL: ${CAMPSITE_DEV_APP_URL:-http://localhost:3000}
+    networks:
+      default:
+        aliases:
+          - auth.gitmono.local
+          - api.gitmono.local
 
     command:
       - /bin/bash
@@ -338,5 +356,3 @@ volumes:
   orion-logs:
   orion-worker-scorpio-data:
   orion-worker-workspace:
-
-

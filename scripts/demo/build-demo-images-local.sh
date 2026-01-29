@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # ============================================================================
@@ -336,6 +336,10 @@ build_and_push() {
     # This guarantees the pushed artifact is a single-architecture image manifest.
     build_args+=(--load)
     
+    if [ "$image_name" = "mega-ui" ]; then
+        build_args+=(--build-arg APP_ENV=demo)
+    fi
+
     # Add cache arguments
     build_args+=("${cache_from_args[@]}")
     
@@ -344,6 +348,8 @@ build_and_push() {
     
     # Add build context
     build_args+=("${build_context}")
+    
+    log_info "output build args: ${build_args[*]}"
     
     # Build (load into local engine)
     if ! docker buildx build "${build_args[@]}"; then
