@@ -596,9 +596,9 @@ impl ObjectStoreAdapter {
         let bytes = serde_json::to_vec(m)
             .map_err(|e| IoOrbitError::Other(MegaError::Other(e.to_string())))?;
 
-        // 对支持条件写的后端（S3/GCS 等）使用 PutMode::Update，实现多写者安全；
-        // 对 LocalFileSystem 这类尚未实现 Update 的后端，则退化为 Overwrite，
-        // 只保证单写者语义（测试环境主要使用 Local）。
+        // For backends that support conditional writes (S3/GCS etc.), use PutMode::Update for multi-writer safety.
+        // For backends like LocalFileSystem that haven't implemented Update yet, fall back to Overwrite,
+        // which only guarantees single-writer semantics (mainly used in test environments with Local).
         let mode = match (&self.store, ver) {
             (BackendStore::Local(_), Some(_v)) => PutMode::Overwrite,
             (_, Some(v)) => PutMode::Update(v),
