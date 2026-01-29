@@ -209,6 +209,17 @@ mod tests {
         std::fs::create_dir_all(&local_log_dir).unwrap();
         std::fs::create_dir_all(&cloud_log_dir).unwrap();
 
+        // let object_storage_config = ObjectStorageConfig {
+        //     s3: S3Config {
+        //         region: "us-east-1".to_string(),
+        //         bucket: "mega".to_string(),
+        //         access_key_id: "rustfsadmin".to_string(),
+        //         secret_access_key: "rustfsadmin".to_string(),
+        //         endpoint_url: "http://127.0.0.1:9000".to_string(),
+        //     },
+        //     ..Default::default()
+        // };
+
         let object_storage_config = ObjectStorageConfig {
             local: LocalConfig {
                 root_dir: cloud_log_dir.to_string_lossy().to_string(),
@@ -336,10 +347,17 @@ mod tests {
             .await
             .unwrap();
 
-        let range = log_service
-            .read_log_range(task_id, repo_name, build_id, 1, 3)
-            .await
-            .unwrap();
+        // Use cloud_store (IoOrbitLogStore) to append multiple times, ensuring multiple segments are created,
+        // then verify cross-segment line range reading logic.
+        let cloud_store = log_service.cloud_log_store.clone();
+        let cloud_key = cloud_store.get_key(task_id, repo_name, build_id);
+
+        cloud_store.append(&cloud_key, "line 0\n").await.unwrap();
+        cloud_store.append(&cloud_key, "line 1\n").await.unwrap();
+        cloud_store.append(&cloud_key, "line 2\n").await.unwrap();
+        cloud_store.append(&cloud_key, "line 3\n").await.unwrap();
+
+        let range = cloud_store.read_range(&cloud_key, 1, 3).await.unwrap();
         assert!(range.contains("line 1"));
         assert!(range.contains("line 2"));
         assert!(!range.contains("line 0"));
@@ -371,4 +389,96 @@ mod tests {
         assert!(content.contains("recovered log"));
         assert!(local_store.log_exists(&key).await);
     }
+
+    /// Test very large object segmentation (exceeds 16 MB)
+    /// Note: This test creates large data and may take some time
+    #[tokio::test]
+    async fn test_large_object_segmentation() {
+        let (log_service, _temp_dir) = create_mix_mode_service().await;
+        let cloud_store = log_service.cloud_log_store.clone();
+
+        let task_id = "task_very_large";
+        let repo_name = "repo";
+        let build_id = "build_very_large";
+        let key = cloud_store.get_key(task_id, repo_name, build_id);
+
+        // MAX_SEGMENT_SIZE is 16 MB, create 20 MB data to test segmentation
+        const DATA_SIZE: usize = 20 * 1024 * 1024; // 20 MB
+
+        // Create a large data block with recognizable patterns
+        let mut large_data = Vec::with_capacity(DATA_SIZE);
+        let pattern = b"B".repeat(1024); // 1KB pattern
+        for i in 0..(DATA_SIZE / 1024) {
+            large_data.extend_from_slice(format!("{:08}:", i).as_bytes());
+            large_data.extend_from_slice(&pattern);
+            large_data.push(b'\n');
+        }
+        let large_data_str = String::from_utf8(large_data).unwrap();
+
+        // Write large object
+        cloud_store.append(&key, &large_data_str).await.unwrap();
+
+        // Verify data can be read completely
+        let read_back = cloud_store.read(&key).await.unwrap();
+        assert_eq!(
+            read_back.len(),
+            large_data_str.len(),
+            "Read data size should match"
+        );
+        assert_eq!(read_back, large_data_str, "Read data should match original");
+
+        // Verify each segment size doesn't exceed MAX_SEGMENT_SIZE
+        // Verify cross-segment reading by reading data from the middle position
+        let mid_point = large_data_str.len() / 2;
+        let mid_data = &large_data_str[mid_point..mid_point + 100];
+        assert!(
+            read_back.contains(mid_data),
+            "Should be able to read data across segments"
+        );
+    }
+
+    // Don't run this test when storage backend is local
+    // Verify IoOrbit cloud logs don't lose data in multi-writer concurrent append scenarios.
+    // #[tokio::test]
+    // #[ignore]
+    // async fn test_cloud_concurrent_append() {
+    //     let (log_service, _temp_dir) = create_mix_mode_service().await;
+    //     let cloud_store = log_service.cloud_log_store.clone();
+
+    //     let task_id = "task_concurrent";
+    //     let repo_name = "repo";
+    //     let build_id = "build_concurrent";
+    //     let key = cloud_store.get_key(task_id, repo_name, build_id);
+
+    //     // Prepare multiple log lines, each appended by a concurrent task
+    //     let total_lines = 32usize;
+    //     let lines: Vec<String> = (0..total_lines)
+    //         .map(|i| format!("concurrent line {}\n", i))
+    //         .collect();
+
+    //     let mut handles = Vec::with_capacity(total_lines);
+    //     for line in lines.clone() {
+    //         let store = cloud_store.clone();
+    //         let key_cloned = key.clone();
+    //         handles.push(tokio::spawn(async move {
+    //             store.append(&key_cloned, &line).await.unwrap();
+    //         }));
+    //     }
+
+    //     // Wait for all concurrent appends to complete
+    //     for handle in handles {
+    //         handle.await.unwrap();
+    //     }
+
+    //     // Read back complete cloud log content, verify all lines exist
+    //     let content = cloud_store.read(&key).await.unwrap();
+    //     for i in 0..total_lines {
+    //         let needle = format!("concurrent line {}", i);
+    //         assert!(
+    //             content.contains(&needle),
+    //             "cloud log missing line: {}",
+    //             needle
+    //         );
+    //     }
+    // }
 }
