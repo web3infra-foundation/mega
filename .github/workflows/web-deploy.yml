@@ -4,9 +4,9 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/web-deploy.yml'
-      - 'moon/apps/web/**'
-      - 'moon/packages/**'
+      - ".github/workflows/web-deploy.yml"
+      - "moon/apps/web/**"
+      - "moon/packages/**"
 
 env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
@@ -26,7 +26,6 @@ concurrency:
 
 jobs:
   build-push-single-arch:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -43,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -80,7 +79,6 @@ jobs:
   manifest:
     needs: build-push-single-arch
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     strategy:
       matrix:
         env_name: [demo, staging, openatom, gitmono]
@@ -104,32 +102,46 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
+          set -euo pipefail
+
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          docker manifest create "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release" \
-            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-amd64" \
-            "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release-arm64"
-          docker manifest push "$IMAGE_BASE:mega-ui-${{ matrix.env_name }}-0.1.0-pre-release"
+          TAG="mega-ui-${{ matrix.env_name }}-0.1.0-pre-release"
+
+          if [ "${{ matrix.env_name }}" = "demo" ]; then
+            echo "Creating multi-arch manifest for demo (amd64 + arm64)"
+
+            docker manifest create "$IMAGE_BASE:$TAG" \
+              "$IMAGE_BASE:${TAG}-amd64" \
+              "$IMAGE_BASE:${TAG}-arm64"
+          else
+            echo "Creating amd64-only manifest for ${{ matrix.env_name }}"
+
+            docker manifest create "$IMAGE_BASE:$TAG" \
+              "$IMAGE_BASE:${TAG}-amd64"
+          fi
+
+          docker manifest push "$IMAGE_BASE:$TAG"
 
   deploy:
-      needs: manifest
-      runs-on: ubuntu-latest
-      permissions:
-        contents: read
-      strategy:
-        matrix:
-          include:
-            - cluster: gitmega-com
-              service: mega-frontend-development-service-6dcihwup
-            - cluster: gitmono-com-mega-app
-              service: mega-ui-service
-      steps:
-        - name: Force ECS redeploy
-          run: |
-            aws ecs update-service \
-              --cluster ${{ matrix.cluster }} \
-              --service ${{ matrix.service }} \
-              --force-new-deployment
-          env:
-            AWS_REGION: ap-southeast-2
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    needs: manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: mega-frontend-development-service-6dcihwup
+          - cluster: gitmono-com-mega-app
+            service: mega-ui-service
+    steps:
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster ${{ matrix.cluster }} \
+            --service ${{ matrix.service }} \
+            --force-new-deployment
+        env:
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
