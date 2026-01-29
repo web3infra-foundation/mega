@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use aws_config::BehaviorVersion;
 use common::{
     config::{ObjectStorageBackend, ObjectStorageConfig},
     errors::MegaError,
@@ -56,70 +55,6 @@ impl ObjectStorageFactory {
     }
 }
 
-/// Best-effort helper to ensure the configured S3-compatible bucket exists.
-/// Used for local RustFS demo so we don't depend on external scripts or AWS CLI.
-async fn ensure_bucket_exists_s3_compatible(cfg: &ObjectStorageConfig) -> Result<(), MegaError> {
-    let s3_cfg = cfg.s3.clone();
-
-    // If bucket or endpoint is missing, skip silently.
-    if s3_cfg.bucket.is_empty() || s3_cfg.endpoint_url.is_empty() {
-        tracing::warn!(
-            "object_storage.s3.bucket or endpoint_url is empty; skipping automatic bucket creation"
-        );
-        return Ok(());
-    }
-
-    let region = aws_sdk_s3::config::Region::new(s3_cfg.region.clone());
-    let credentials = aws_sdk_s3::config::Credentials::new(
-        s3_cfg.access_key_id.clone(),
-        s3_cfg.secret_access_key.clone(),
-        None,
-        None,
-        "mega-config",
-    );
-
-    let shared_conf = aws_config::defaults(BehaviorVersion::latest())
-        .region(region)
-        .endpoint_url(s3_cfg.endpoint_url.clone())
-        .credentials_provider(credentials)
-        .load()
-        .await;
-
-    let client = aws_sdk_s3::Client::new(&shared_conf);
-
-    tracing::info!(
-        "Ensuring S3-compatible bucket '{}' exists at {}",
-        s3_cfg.bucket,
-        s3_cfg.endpoint_url
-    );
-
-    match client.create_bucket().bucket(&s3_cfg.bucket).send().await {
-        Ok(_) => {
-            tracing::info!("Created S3-compatible bucket '{}'", s3_cfg.bucket);
-        }
-        Err(e) => {
-            let msg = format!("{e}");
-            if msg.contains("BucketAlreadyOwnedByYou")
-                || msg.contains("BucketAlreadyExists")
-                || msg.contains("Conflict")
-            {
-                tracing::info!(
-                    "Bucket '{}' already exists or is owned by us; continuing. ({msg})",
-                    s3_cfg.bucket
-                );
-            } else {
-                tracing::warn!(
-                    "Failed to create S3-compatible bucket '{}': {msg}. \
-                     Proceeding anyway; writes may fail if the bucket truly does not exist.",
-                    s3_cfg.bucket
-                );
-            }
-        }
-    }
-
-    Ok(())
-}
-
 async fn build_s3(cfg: &ObjectStorageConfig) -> Result<MegaObjectStorageWrapper, MegaError> {
     let s3_cfg = cfg.s3.clone();
     let s3 = AmazonS3Builder::new()
@@ -143,15 +78,6 @@ async fn build_s3_compatible(
     cfg: &ObjectStorageConfig,
 ) -> Result<MegaObjectStorageWrapper, MegaError> {
     let s3_cfg = cfg.s3.clone();
-
-    // Best-effort bucket creation for local demo / RustFS.
-    if let Err(e) = ensure_bucket_exists_s3_compatible(cfg).await {
-        tracing::warn!(
-            "Error while ensuring S3-compatible bucket exists (ignored for demo): {}",
-            e
-        );
-    }
-
     let s3 = AmazonS3Builder::new()
         .with_region(&s3_cfg.region)
         .with_bucket_name(&s3_cfg.bucket)
