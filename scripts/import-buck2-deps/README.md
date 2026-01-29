@@ -38,6 +38,7 @@ The Mega relative path is derived starting from the first `third-party/` path co
 - `--ui auto|rich|plain`: Output mode; `auto` enables rich when available
 - `--fail-fast`: Stop after the first failure
 - `--limit N`: Only process the first N import targets (for small-scope validation)
+- `--retry N`: Retry failed repo imports up to N times (default: 0)
 
 
 ## Usage Examples
@@ -78,7 +79,8 @@ python3 scripts/import-buck2-deps/import-buck2-deps.py --dry-run
    - (Optional) Rewrite `BUCK` dependency labels (`--buckal-generated`)
    - If the repo has no commits yet, create an initial commit (by default includes `-s -S`)
    - Configure/update the remote and push to `<git-base-url>/<rel-path>`
-4. Under the rich UI, show a Results summary at the end: Succeeded/Failed/Total, and list failed repos with reasons
+4. If `--retry` is set, retry only the failed repos for up to N additional attempts
+5. Under the rich UI, show a Results summary at the end: Succeeded/Failed/Total, and list failed repos with reasons
 
 ## Configuration
 
@@ -93,6 +95,7 @@ python3 scripts/import-buck2-deps/import-buck2-deps.py --dry-run
 - If a child directory cannot be accessed during scanning: print a Warning and continue scanning other directories
 - If a single repo import fails: list the failed repo and reason in the rich UI Results
 - With `--fail-fast`: stop after the first failure; skipped tasks are not counted as Failed
+- With `--retry N`: retry failed repos up to N times; exit non-zero if still failing after retries
 
 ## Customization
 
