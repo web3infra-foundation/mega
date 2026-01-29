@@ -693,17 +693,6 @@ pub struct OrionServerConfig {
 
     #[serde(default = "default_port")]
     pub port: u16,
-
-    // Mono server integration
-    /// Base URL for Mono server API requests
-    /// Used for building API endpoints like file blob endpoint
-    #[serde(default = "default_monobase_url")]
-    pub monobase_url: String,
-
-    /// Allowed CORS origins for HTTP API
-    /// Comma-separated list of frontend domains that can access the API
-    #[serde(default = "default_allowed_cors_origins")]
-    pub allowed_cors_origins: String,
 }
 
 fn default_logger_storage_mode() -> String {
@@ -723,15 +712,7 @@ fn default_db_url() -> String {
 }
 
 fn default_port() -> u16 {
-    80
-}
-
-fn default_monobase_url() -> String {
-    "http://localhost:8000".to_string()
-}
-
-fn default_allowed_cors_origins() -> String {
-    "http://localhost:3000,http://127.0.0.1:3000".to_string()
+    8004
 }
 
 impl Default for OrionServerConfig {
@@ -743,8 +724,6 @@ impl Default for OrionServerConfig {
             log_stream_buffer: default_log_stream_buffer(),
             db_url: default_db_url(),
             port: default_port(),
-            monobase_url: default_monobase_url(),
-            allowed_cors_origins: default_allowed_cors_origins(),
         }
     }
 }

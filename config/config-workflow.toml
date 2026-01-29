@@ -153,11 +153,4 @@ log_stream_buffer = 4096
 db_url = "postgres://postgres:postgres@localhost/orion"
 
 
-# Mono server integration
-# Base URL for Mono server API requests
-# Used for building API endpoints like file blob endpoint
-monobase_url = "http://git.gitmega.com"
-
-# Allowed CORS origins for HTTP API
-# Comma-separated list of frontend domains that can access the API
-allowed_cors_origins = "http://local.gitmega.com, https://app.gitmega.com, http://app.gitmono.test"
+# (mono integration URL `monobase_url` has been removed; kept here intentionally empty)

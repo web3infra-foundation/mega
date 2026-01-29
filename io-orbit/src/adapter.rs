@@ -189,7 +189,7 @@ fn log_segment_key(log_key: &ObjectKey, start: u64, end: u64) -> ObjectKey {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_millis(0))
-        .as_nanos();
+        .as_millis();
     ObjectKey {
         namespace: log_key.namespace,
         key: format!("{}/segments/{}-{}-{}", log_key.key, start, end, ts),
@@ -304,7 +304,6 @@ impl LogStorage for ObjectStoreAdapter {
         Ok(Box::pin(s))
     }
 
-    //
     async fn read_lines_range(
         &self,
         key: &ObjectKey,
@@ -337,10 +336,17 @@ impl LogStorage for ObjectStoreAdapter {
             while let Some(chunk) = strm.next().await {
                 let chunk = chunk.map_err(MegaError::Io)?;
 
-                for &b in chunk.iter() {
-                    partial_line.extend_from_slice(&[b]);
+                // Process the chunk in slices split by '\n' to avoid
+                // per-byte push overhead while preserving line semantics.
+                for part in chunk.split_inclusive(|&b| b == b'\n') {
+                    if part.is_empty() {
+                        continue;
+                    }
 
-                    if b == b'\n' {
+                    let ends_with_nl = part[part.len() - 1] == b'\n';
+                    partial_line.extend_from_slice(part);
+
+                    if ends_with_nl {
                         // Complete line (including newline)
                         if current_line >= start_line && current_line < end_line {
                             out.extend_from_slice(&partial_line);
@@ -369,7 +375,6 @@ impl LogStorage for ObjectStoreAdapter {
     async fn append_concurrently(
         &self,
         key: &ObjectKey,
-        //expected_offset: u64,
         data: ObjectByteStream,
         _meta: ObjectMeta,
     ) -> Result<(), MegaError> {
@@ -446,12 +451,16 @@ impl LogStorage for ObjectStoreAdapter {
                     }
 
                     // Exponential backoff: delay = min(BASE_DELAY_MS * 2^attempt, MAX_DELAY_MS)
-                    // Add small random jitter to avoid thundering herd effect
+                    // Add small random jitter (time-based) to avoid thundering herd effect
                     if attempt < MAX_RETRIES - 1 {
                         let delay_ms =
                             (BASE_DELAY_MS * (1u64 << attempt.min(10))).min(MAX_DELAY_MS);
-                        // Add 0-10ms random jitter
-                        let jitter_ms = attempt as u64 % 11;
+                        // Add 0-10ms jitter derived from current time, so different
+                        // callers are less likely to pick the same delay.
+                        let jitter_ms = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map(|d| d.subsec_millis() as u64 % 11)
+                            .unwrap_or(0);
                         tokio::time::sleep(Duration::from_millis(delay_ms + jitter_ms)).await;
                     }
                     continue;

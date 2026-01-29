@@ -159,6 +159,10 @@ pub async fn start_server() {
 
     let port = orion_server_config.port;
 
+    // Derive allowed CORS origins from oauth config (or its default when missing).
+    // Do this before `init_log_service(config)` consumes `config`.
+    let oauth_cfg = config.oauth.clone().unwrap_or_default();
+
     // Initialize the LogService and spawn a background task to watch logs,
     // then create the application state with the same LogService instance.
     let log_service = init_log_service(config).await.unwrap_or_else(|e| {
@@ -179,9 +183,9 @@ pub async fn start_server() {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
-    let origins: Vec<HeaderValue> = orion_server_config
+    let origins: Vec<HeaderValue> = oauth_cfg
         .allowed_cors_origins
-        .split(',')
+        .into_iter()
         .filter_map(|x| {
             let v = x.trim();
             if v.is_empty() {
