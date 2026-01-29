@@ -171,7 +171,6 @@ pub trait MegaObjectStorage: Send + Sync {
     /// - Range is invalid (start >= end, or start >= file size)
     /// Retrieve a range of bytes from an object.
     ///
-    
     async fn get_range_stream(
         &self,
         key: &ObjectKey,
