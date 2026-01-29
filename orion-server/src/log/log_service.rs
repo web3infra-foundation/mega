@@ -436,49 +436,4 @@ mod tests {
             "Should be able to read data across segments"
         );
     }
-
-    // Don't run this test when storage backend is local
-    // Verify IoOrbit cloud logs don't lose data in multi-writer concurrent append scenarios.
-    // #[tokio::test]
-    // #[ignore]
-    // async fn test_cloud_concurrent_append() {
-    //     let (log_service, _temp_dir) = create_mix_mode_service().await;
-    //     let cloud_store = log_service.cloud_log_store.clone();
-
-    //     let task_id = "task_concurrent";
-    //     let repo_name = "repo";
-    //     let build_id = "build_concurrent";
-    //     let key = cloud_store.get_key(task_id, repo_name, build_id);
-
-    //     // Prepare multiple log lines, each appended by a concurrent task
-    //     let total_lines = 32usize;
-    //     let lines: Vec<String> = (0..total_lines)
-    //         .map(|i| format!("concurrent line {}\n", i))
-    //         .collect();
-
-    //     let mut handles = Vec::with_capacity(total_lines);
-    //     for line in lines.clone() {
-    //         let store = cloud_store.clone();
-    //         let key_cloned = key.clone();
-    //         handles.push(tokio::spawn(async move {
-    //             store.append(&key_cloned, &line).await.unwrap();
-    //         }));
-    //     }
-
-    //     // Wait for all concurrent appends to complete
-    //     for handle in handles {
-    //         handle.await.unwrap();
-    //     }
-
-    //     // Read back complete cloud log content, verify all lines exist
-    //     let content = cloud_store.read(&key).await.unwrap();
-    //     for i in 0..total_lines {
-    //         let needle = format!("concurrent line {}", i);
-    //         assert!(
-    //             content.contains(&needle),
-    //             "cloud log missing line: {}",
-    //             needle
-    //         );
-    //     }
-    // }
 }

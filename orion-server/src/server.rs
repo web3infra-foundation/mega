@@ -175,12 +175,6 @@ pub async fn start_server() {
         .map(|x| x.trim().parse::<HeaderValue>().unwrap())
         .collect();
 
-    // let origins: Vec<HeaderValue> = std::env::var("ALLOWED_CORS_ORIGINS")
-    //     .unwrap()
-    //     .split(',')
-    //     .map(|x| x.trim().parse::<HeaderValue>().unwrap())
-    //     .collect();
-
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
