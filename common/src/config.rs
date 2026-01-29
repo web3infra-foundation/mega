@@ -515,7 +515,6 @@ impl PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
-    #[serde(default)]
     pub storage_type: ObjectStorageBackend,
     pub local: LFSLocalConfig,
     pub ssh: LFSSshConfig,
