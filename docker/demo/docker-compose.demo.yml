@@ -133,8 +133,8 @@ services:
       # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
       MEGA_OBJECT_STORAGE__S3__BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
       MEGA_OBJECT_STORAGE__S3__REGION: ${MEGA_OBJECT_STORAGE__S3__REGION:-us-east-1}
-      MEGA_OBJECT__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      MEGA_OBJECT__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
       # Force path-style addressing for RustFS (required for local S3-compatible storage)
       OBJECT_STORAGE_S3__FORCE_PATH_STYLE: ${OBJECT_STORAGE_S3__FORCE_PATH_STYLE:-true}
 
