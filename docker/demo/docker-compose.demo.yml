@@ -115,6 +115,8 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_healthy
+      init-rustfs-bucket:
+        condition: service_completed_successfully
       campsite_api:
         condition: service_started
     environment:
@@ -131,8 +133,8 @@ services:
       # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
       MEGA_OBJECT_STORAGE__S3__BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
       MEGA_OBJECT_STORAGE__S3__REGION: ${MEGA_OBJECT_STORAGE__S3__REGION:-us-east-1}
-      MEGA_OBJECT__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      MEGA_OBJECT__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
       # Force path-style addressing for RustFS (required for local S3-compatible storage)
       OBJECT_STORAGE_S3__FORCE_PATH_STYLE: ${OBJECT_STORAGE_S3__FORCE_PATH_STYLE:-true}
 
@@ -180,6 +182,25 @@ services:
       default:
         aliases:
           - git.gitmono.local
+
+  # ---------------------------------------------------------------------------
+  # Init: RustFS bucket (S3-compatible)
+  # ---------------------------------------------------------------------------
+  init-rustfs-bucket:
+    image: alpine:3.20
+    container_name: mega-demo-init-rustfs-bucket
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
+      ENDPOINT: ${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-http://rustfs:9000}
+      ACCESS_KEY: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+    volumes:
+      - ./init-rustfs-bucket.sh:/usr/local/bin/init-rustfs-bucket.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/init-rustfs-bucket.sh"]
+    restart: "no"
 
   # ---------------------------------------------------------------------------
   # Mega UI (Next.js)
@@ -257,7 +278,7 @@ services:
   # Orion Build Client / Worker (based on orion-client image)
   # ---------------------------------------------------------------------------
   orion_build_client:
-    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release}
+    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release-amd64}
     container_name: mega-demo-orion-worker
     command: orion
     # privileged mode allows nested container builds (Scorpio) inside the worker.
