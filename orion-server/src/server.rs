@@ -44,11 +44,16 @@ use crate::{
     components(
         schemas(
             crate::scheduler::BuildRequest,
-            crate::scheduler::LogSegment,
+            api_model::orion::log::LogSegment,
+            api_model::orion::log::LogLinesResponse,
+            api_model::orion::log::TargetLogLinesResponse,
+            api_model::orion::log::LogErrorResponse,
             api::TaskStatusEnum,
             api::BuildDTO,
             api::TargetDTO,
-            api::TargetLogQuery,
+            api_model::orion::log::TargetLogQuery,
+            api_model::orion::log::LogReadMode,
+            api_model::orion::log::TaskHistoryQuery,
             api::TaskInfoDTO,
             api::OrionClientInfo,
             api::OrionClientStatus,

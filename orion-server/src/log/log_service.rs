@@ -3,16 +3,8 @@ use std::{path::Path, sync::Arc};
 use futures::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
 
+use api_model::orion::log::LogEvent;
 use crate::log::store::LogStore;
-
-#[derive(Clone, Debug)]
-pub struct LogEvent {
-    pub task_id: String,
-    pub repo_name: String,
-    pub build_id: String,
-    pub line: String,
-    pub is_end: bool,
-}
 
 #[derive(Clone)]
 pub struct LogService {

@@ -31,9 +31,13 @@ use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use api_model::orion::log::{
+    LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, TargetLogLinesResponse,
+    TargetLogQuery, TaskHistoryQuery,
+};
 use crate::{
     auto_retry::AutoRetryJudger,
-    log::log_service::{LogEvent, LogService},
+    log::log_service::LogService,
     model::{
         builds, targets,
         targets::{TargetState, TargetWithBuilds},
@@ -80,27 +84,6 @@ pub struct TaskRequest {
     pub cl_link: String,
     pub cl: i64,
     pub builds: Vec<scheduler::BuildRequest>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct TaskHistoryQuery {
-    pub task_id: String,
-    pub build_id: String,
-    pub repo: String,
-    pub start: Option<usize>,
-    pub end: Option<usize>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct TargetLogQuery {
-    #[serde(default = "default_log_type")]
-    pub r#type: String,
-    pub offset: Option<usize>,
-    pub limit: Option<usize>,
-}
-
-fn default_log_type() -> String {
-    "full".to_string()
 }
 
 /// Request structure for Retry a build
@@ -280,16 +263,16 @@ pub async fn task_output_handler(
         ("end"  = Option<usize>, Query, description = "End line number"),
     ),
     responses(
-        (status = 200, description = "History Log"),
-        (status = 400, description = "Invalid parameters"),
-        (status = 404, description = "Log file not found"),
-        (status = 500, description = "Failed to operate log file"),
+        (status = 200, description = "History Log", body = api_model::orion::log::LogLinesResponse),
+        (status = 400, description = "Invalid parameters", body = api_model::orion::log::LogErrorResponse),
+        (status = 404, description = "Log file not found", body = api_model::orion::log::LogErrorResponse),
+        (status = 500, description = "Failed to operate log file", body = api_model::orion::log::LogErrorResponse),
     )
 )]
 pub async fn task_history_output_handler(
     State(state): State<AppState>,
     Query(params): Query<TaskHistoryQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<LogLinesResponse>, (StatusCode, Json<LogErrorResponse>)> {
     // Determine which read method to call
     let log_result = if matches!((params.start, params.end), (None, None)) {
         state
@@ -311,26 +294,20 @@ pub async fn task_history_output_handler(
         Ok(content) => content,
         Err(e) => {
             tracing::error!("read log failed: {:?}", e);
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "message": "Failed to read log file"
-                })),
-            );
+                Json(LogErrorResponse {
+                    message: "Failed to read log file".to_string(),
+                }),
+            ));
         }
     };
 
     // Split the content into lines and count them
-    let lines: Vec<&str> = log_content.lines().collect();
+    let lines: Vec<String> = log_content.lines().map(str::to_string).collect();
     let len = lines.len();
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "data": lines,
-            "len": len
-        })),
-    )
+    Ok(Json(LogLinesResponse { data: lines, len }))
 }
 
 #[utoipa::path(
@@ -343,24 +320,29 @@ pub async fn task_history_output_handler(
         ("limit" = Option<usize>, Query, description = "Max lines for segment mode"),
     ),
     responses(
-        (status = 200, description = "Target log content"),
-        (status = 404, description = "Target or log not found", body = serde_json::Value),
-        (status = 500, description = "Failed to read log", body = serde_json::Value)
+        (
+            status = 200,
+            description = "Target log content",
+            body = api_model::orion::log::TargetLogLinesResponse
+        ),
+        (status = 404, description = "Target or log not found", body = api_model::orion::log::LogErrorResponse),
+        (status = 500, description = "Failed to read log", body = api_model::orion::log::LogErrorResponse)
     )
 )]
 pub async fn target_logs_handler(
     State(state): State<AppState>,
     Path(target_id): Path<String>,
     Query(params): Query<TargetLogQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<TargetLogLinesResponse>, (StatusCode, Json<LogErrorResponse>)> {
     let target_uuid = match target_id.parse::<Uuid>() {
         Ok(uuid) => uuid,
         Err(_) => {
-            return (
+            return Err((
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"message": "Invalid target id"})),
-            )
-                .into_response();
+                Json(LogErrorResponse {
+                    message: "Invalid target id".to_string(),
+                }),
+            ));
         }
     };
 
@@ -370,19 +352,21 @@ pub async fn target_logs_handler(
     {
         Ok(Some(target)) => target,
         Ok(None) => {
-            return (
+            return Err((
                 StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"message": "Target not found"})),
-            )
-                .into_response();
+                Json(LogErrorResponse {
+                    message: "Target not found".to_string(),
+                }),
+            ));
         }
         Err(err) => {
             tracing::error!("Failed to load target {}: {}", target_id, err);
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"message": "Failed to read target"})),
-            )
-                .into_response();
+                Json(LogErrorResponse {
+                    message: "Failed to read target".to_string(),
+                }),
+            ));
         }
     };
 
@@ -395,24 +379,26 @@ pub async fn target_logs_handler(
     {
         Ok(Some(build)) => build,
         Ok(None) => {
-            return (
+            return Err((
                 StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"message": "No builds for target"})),
-            )
-                .into_response();
+                Json(LogErrorResponse {
+                    message: "No builds for target".to_string(),
+                }),
+            ));
         }
         Err(err) => {
             tracing::error!("Failed to load build for target {}: {}", target_uuid, err);
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"message": "Failed to load build"})),
-            )
-                .into_response();
+                Json(LogErrorResponse {
+                    message: "Failed to load build".to_string(),
+                }),
+            ));
         }
     };
 
     let repo_segment = LogService::last_segment(&build_model.repo);
-    let log_result = if params.r#type == "segment" {
+    let log_result = if matches!(params.r#type, LogReadMode::Segment) {
         let offset = params.offset.unwrap_or(0);
         let limit = params.limit.unwrap_or(200);
         state
@@ -438,17 +424,13 @@ pub async fn target_logs_handler(
 
     match log_result {
         Ok(content) => {
-            let lines: Vec<&str> = content.lines().collect();
+            let lines: Vec<String> = content.lines().map(str::to_string).collect();
             let len = lines.len();
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "data": lines,
-                    "len": len,
-                    "build_id": build_model.id
-                })),
-            )
-                .into_response()
+            Ok(Json(TargetLogLinesResponse {
+                data: lines,
+                len,
+                build_id: build_model.id.to_string(),
+            }))
         }
         Err(e) => {
             tracing::error!(
@@ -457,11 +439,12 @@ pub async fn target_logs_handler(
                 build_model.id,
                 e
             );
-            (
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"message": "Failed to read log"})),
-            )
-                .into_response()
+                Json(LogErrorResponse {
+                    message: "Failed to read log".to_string(),
+                }),
+            ))
         }
     }
 }
