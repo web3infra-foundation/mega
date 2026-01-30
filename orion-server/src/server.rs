@@ -161,7 +161,7 @@ pub async fn start_server() {
 
     // Derive allowed CORS origins from oauth config (or its default when missing).
     // Do this before `init_log_service(config)` consumes `config`.
-    let oauth_cfg = config.oauth.clone().unwrap_or_default();
+    let oauth_cfg = config.oauth.clone();
 
     // Initialize the LogService and spawn a background task to watch logs,
     // then create the application state with the same LogService instance.

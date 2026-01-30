@@ -131,7 +131,7 @@ mod test {
         let entities = serde_json::from_reader(entities_file).unwrap();
 
         let app_context = load_context(entities);
-        let admin: SaturnEUid = r#"User::"benjamin.747""#.parse().unwrap();
+        let admin: SaturnEUid = r#"User::"benjamin_747""#.parse().unwrap();
         let maintainer: SaturnEUid = r#"User::"besscroft""#.parse().unwrap();
         let anyone: SaturnEUid = r#"User::"anyone""#.parse().unwrap();
         let resource: SaturnEUid = r#"Repository::"project""#.parse().unwrap();
@@ -228,7 +228,7 @@ mod test {
         entities.merge(parent_entities);
 
         let app_context = load_context(entities);
-        let p_admin: SaturnEUid = r#"User::"benjamin.747""#.parse().unwrap();
+        let p_admin: SaturnEUid = r#"User::"benjamin_747""#.parse().unwrap();
         let admin: SaturnEUid = r#"User::"private""#.parse().unwrap();
         let anyone: SaturnEUid = r#"User::"anyone""#.parse().unwrap();
         let private_project: SaturnEUid = r#"Repository::"/project/bens_private""#.parse().unwrap();

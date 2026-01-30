@@ -44,7 +44,8 @@ RUN npx patch-package
 
 COPY --from=builder /app/out/full/ .
 
-RUN cp /app/apps/web/.env.${APP_ENV} /app/apps/web/.env.production
+RUN rm -f /app/apps/web/.env.local \
+  && cp /app/apps/web/.env.${APP_ENV} /app/apps/web/.env.production
 
 RUN npx turbo run build --filter=@gitmono/web
 
