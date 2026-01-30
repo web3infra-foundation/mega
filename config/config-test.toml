@@ -239,4 +239,5 @@ log_stream_buffer = 4096
 db_url = "postgres://postgres:postgres@localhost/orion"
 
 
-# (mono integration URL `monobase_url` has been removed; kept here intentionally empty)
+# Mono server base URL for file/blob API
+monobase_url = "http://localhost:8000"
