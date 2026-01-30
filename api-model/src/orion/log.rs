@@ -2,17 +2,12 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 /// Supported read modes for log APIs.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogReadMode {
+    #[default]
     Full,
     Segment,
-}
-
-impl Default for LogReadMode {
-    fn default() -> Self {
-        Self::Full
-    }
 }
 
 /// Log stream event emitted by Orion worker/build processing.

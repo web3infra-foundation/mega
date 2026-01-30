@@ -1,9 +1,9 @@
 use std::{path::Path, sync::Arc};
 
+use api_model::orion::log::LogEvent;
 use futures::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
 
-use api_model::orion::log::LogEvent;
 use crate::log::store::LogStore;
 
 #[derive(Clone)]
