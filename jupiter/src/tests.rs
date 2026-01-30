@@ -18,6 +18,7 @@ use crate::{
         AppService, Storage,
         base_storage::{BaseStorage, StorageConnector},
         buck_storage::BuckStorage,
+        build_trigger_storage::BuildTriggerStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
         code_review_comment_storage::CodeReviewCommentStorage,
@@ -77,6 +78,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         dynamic_sidebar_storage: DynamicSidebarStorage { base: base.clone() },
         code_review_comment_storage: CodeReviewCommentStorage { base: base.clone() },
         code_review_thread_storage: CodeReviewThreadStorage { base: base.clone() },
+        build_trigger_storage: BuildTriggerStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
