@@ -1,8 +1,13 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
+use common::{
+    config::{Config, c::ConfigError},
+    errors::MegaError,
+};
 use http::{HeaderValue, Method};
+use io_orbit::factory::ObjectStorageFactory;
 use orion::ws::TaskPhase;
 use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
 use tower::ServiceBuilder;
@@ -14,10 +19,11 @@ use crate::{
     api::{self, AppState},
     log::{
         log_service::LogService,
-        store::{LogStore, local_log_store, noop_log_store, s3_log_store},
+        store::{LogStore, io_orbit_store::IoOrbitLogStore, local_log_store, noop_log_store},
     },
     model::builds,
 };
+
 /// OpenAPI documentation configuration
 #[derive(OpenApi)]
 #[openapi(
@@ -57,18 +63,17 @@ use crate::{
 )]
 pub struct ApiDoc;
 
-pub async fn init_log_service() -> LogService {
+pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
     // Read buffer size from environment, defaulting to 4096 if unset or invalid
-    let buffer = std::env::var("LOG_STREAM_BUFFER")
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(4096);
 
-    // Read log store type and bucket/build dir
-    let log_store_type =
-        std::env::var("LOGGER_STORAGE_TYPE").unwrap_or_else(|_| "local".to_string());
-    let bucket_name = std::env::var("BUCKET_NAME").unwrap_or_else(|_| "default-bucket".to_string());
-    let build_log_dir = std::env::var("BUILD_LOG_DIR").unwrap_or_else(|_| "/tmp/logs".to_string());
+    let orion_server = config
+        .orion_server
+        .as_ref()
+        .ok_or_else(|| MegaError::Other("orion_server config section missing".to_string()))?;
+
+    let buffer = orion_server.log_stream_buffer;
+    let log_store_mode = orion_server.logger_storage_mode.clone();
+    let build_log_dir = orion_server.build_log_dir.clone();
 
     let noop_log_store: Arc<dyn LogStore> = Arc::new(noop_log_store::NoopLogStore::new());
 
@@ -76,27 +81,22 @@ pub async fn init_log_service() -> LogService {
         Arc<dyn LogStore>,
         Arc<dyn LogStore>,
         bool,
-    ) = match log_store_type.as_str() {
+    ) = match log_store_mode.as_str() {
         "none" => (noop_log_store.clone(), noop_log_store.clone(), false),
         "local" => (
             Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
             noop_log_store.clone(),
             false,
         ),
-        "s3" => {
-            let access_key =
-                std::env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID must be set for S3");
-            let secret_key = std::env::var("AWS_SECRET_ACCESS_KEY")
-                .expect("AWS_SECRET_ACCESS_KEY must be set for S3");
-            let region =
-                std::env::var("AWS_DEFAULT_REGION").expect("AWS_DEFAULT_REGION must be set for S3");
-
-            let store =
-                s3_log_store::S3LogStore::new(&bucket_name, &region, &access_key, &secret_key)
-                    .await;
+        "mix" => {
+            let object_store_wrapper = ObjectStorageFactory::build(
+                config.orion_server.unwrap_or_default().storage_type,
+                &config.object_storage,
+            )
+            .await?;
             (
                 Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
-                Arc::new(store),
+                Arc::new(IoOrbitLogStore::new(object_store_wrapper)),
                 true,
             )
         }
@@ -107,32 +107,69 @@ pub async fn init_log_service() -> LogService {
     };
 
     tracing::info!(
-        storage_type = %log_store_type,
+        storage_type = %log_store_mode,
         cloud_upload_enabled,
         build_log_dir = %build_log_dir,
         "Initialized log service storage configuration"
     );
 
     // Create the LogService
-    LogService::new(
+    Ok(LogService::new(
         local_log_store,
         cloud_log_store,
         buffer,
         cloud_upload_enabled,
-    )
+    ))
+}
+
+async fn load_orion_config() -> Result<Config, ConfigError> {
+    if let Ok(config_path) = env::var("CONFIG_PATH") {
+        return Config::new(&config_path);
+    }
+
+    let base_dir = common::config::mega_base();
+    if base_dir.exists() {
+        let config_path = base_dir
+            .to_str()
+            .ok_or_else(|| ConfigError::NotFound("Invalid config path".to_string()))?;
+        return Config::new(config_path);
+    }
+
+    Ok(Config::default())
 }
 
 /// Starts the Orion server with the specified port
 /// Initializes database connection, sets up routes, and starts health check tasks
-pub async fn start_server(port: u16) {
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let conn = Database::connect(db_url)
+pub async fn start_server() {
+    let config = load_orion_config().await.unwrap_or_else(|e| {
+        eprintln!("Failed to load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let Some(orion_server_config) = config.orion_server.clone() else {
+        eprintln!("Missing `orion_server` section in config");
+        std::process::exit(1);
+    };
+    let conn = Database::connect(orion_server_config.db_url)
         .await
-        .expect("Database connection failed");
+        .unwrap_or_else(|e| {
+            eprintln!("Database connection failed: {e}");
+            std::process::exit(1);
+        });
+
+    let port = orion_server_config.port;
+
+    // Derive allowed CORS origins from oauth config (or its default when missing).
+    // Do this before `init_log_service(config)` consumes `config`.
+    let oauth_cfg = config.oauth.clone().unwrap_or_default();
 
     // Initialize the LogService and spawn a background task to watch logs,
     // then create the application state with the same LogService instance.
-    let log_service = init_log_service().await;
+    let log_service = init_log_service(config).await.unwrap_or_else(|e| {
+        eprintln!("Failed to initialize LogService: {}", e);
+        std::process::exit(1);
+    });
+
     let log_service_clone = log_service.clone();
     tokio::spawn(async move {
         log_service_clone.watch_logs().await;
@@ -146,10 +183,22 @@ pub async fn start_server(port: u16) {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
-    let origins: Vec<HeaderValue> = std::env::var("ALLOWED_CORS_ORIGINS")
-        .unwrap()
-        .split(',')
-        .map(|x| x.trim().parse::<HeaderValue>().unwrap())
+    let origins: Vec<HeaderValue> = oauth_cfg
+        .allowed_cors_origins
+        .into_iter()
+        .filter_map(|x| {
+            let v = x.trim();
+            if v.is_empty() {
+                return None;
+            }
+            match v.parse::<HeaderValue>() {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    tracing::warn!("Invalid CORS origin header value '{v}': {e}");
+                    None
+                }
+            }
+        })
         .collect();
 
     let app = Router::new()
@@ -180,13 +229,19 @@ pub async fn start_server(port: u16) {
     tracing::info!("Listening on port {}", port);
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{port}"))
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to bind 0.0.0.0:{port}: {e}");
+            std::process::exit(1);
+        });
     axum::serve(
         addr,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
-    .unwrap();
+    .unwrap_or_else(|e| {
+        eprintln!("Server error: {e}");
+        std::process::exit(1);
+    });
 }
 
 /// Background task that monitors worker health and handles timeouts
@@ -194,6 +249,8 @@ pub async fn start_server(port: u16) {
 async fn start_health_check_task(state: AppState) {
     let health_check_interval = Duration::from_secs(30);
     let worker_timeout = Duration::from_secs(90);
+    let utc_offset =
+        FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!("UTC offset must be valid"));
 
     tracing::info!(
         "Health check task started. Interval: {:?}, Worker timeout: {:?}",
@@ -211,7 +268,7 @@ async fn start_health_check_task(state: AppState) {
         // Find workers that haven't sent heartbeat within timeout period
         for entry in state.scheduler.workers.iter() {
             if now.signed_duration_since(entry.value().last_heartbeat)
-                > chrono::Duration::from_std(worker_timeout).unwrap()
+                > chrono::Duration::seconds(worker_timeout.as_secs() as i64)
             {
                 dead_workers.push(entry.key().clone());
             }
@@ -251,9 +308,7 @@ async fn start_health_check_task(state: AppState) {
                     {
                         let update_res = builds::Entity::update_many()
                             .set(builds::ActiveModel {
-                                end_at: Set(Some(
-                                    Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap()),
-                                )),
+                                end_at: Set(Some(Utc::now().with_timezone(&utc_offset))),
                                 exit_code: Set(None),
                                 ..Default::default()
                             })
@@ -274,7 +329,7 @@ async fn start_health_check_task(state: AppState) {
                             build_model.target_id,
                             crate::model::targets::TargetState::Interrupted,
                             None,
-                            Some(Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap())),
+                            Some(Utc::now().with_timezone(&utc_offset)),
                             None,
                         )
                         .await

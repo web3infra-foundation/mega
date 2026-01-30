@@ -13,3 +13,6 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 reqwest = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+serde = { workspace = true }
+serde_json = { workspace = true}
