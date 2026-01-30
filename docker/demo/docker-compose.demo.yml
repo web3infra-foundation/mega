@@ -125,6 +125,9 @@ services:
       MEGA_DATABASE__DB_URL: ${MEGA_DATABASE__DB_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
       MEGA_REDIS__URL: ${MEGA_REDIS__URL:-redis://redis:6379}
 
+      # Monorepo config
+      MEGA_MONOREPO__ADMIN: ${MEGA_MONOREPO__ADMIN}
+
       # S3 / RustFS
       # To use S3 storage, set MEGA_MONOREPO__STORAGE_TYPE=s3 and ensure RustFS bucket is created
       MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3}
@@ -154,8 +157,7 @@ services:
       MEGA_OAUTH__UI_DOMAIN: ${MEGA_OAUTH__UI_DOMAIN:-http://localhost:3000}
       MEGA_OAUTH__COOKIE_DOMAIN: ${MEGA_OAUTH__COOKIE_DOMAIN:-localhost}
       # Note: allowed_cors_origins expects an array format in TOML
-      # For environment variable, use JSON array format or remove this line to use config.toml default
-      # MEGA_OAUTH__ALLOWED_CORS_ORIGINS: ${MEGA_OAUTH__ALLOWED_CORS_ORIGINS:-["http://localhost:3000"]}
+      MEGA_OAUTH__ALLOWED_CORS_ORIGINS: ${MEGA_OAUTH__ALLOWED_CORS_ORIGINS:-"http://app.gitmono.local:3000,http://localhost:3000"}
 
       # Directory paths (can be overridden)
       MEGA_BASE_DIR: ${MEGA_BASE_DIR:-/opt/mega}
@@ -278,7 +280,7 @@ services:
   # Orion Build Client / Worker (based on orion-client image)
   # ---------------------------------------------------------------------------
   orion_build_client:
-    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release-amd64}
+    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release}
     container_name: mega-demo-orion-worker
     command: orion
     # privileged mode allows nested container builds (Scorpio) inside the worker.
@@ -346,6 +348,7 @@ services:
         # Run migrations by default; allow disabling for debugging via CAMPSITE_RUN_MIGRATIONS=0
         # Use $$ to avoid docker compose substituting the variable at parse time.
         if [ "$${CAMPSITE_RUN_MIGRATIONS:-1}" = "1" ]; then
+          bin/rails db:create
           bin/rails db:migrate
         else
           echo "Skipping db:migrate (CAMPSITE_RUN_MIGRATIONS=$${CAMPSITE_RUN_MIGRATIONS})"
