@@ -79,6 +79,22 @@ pub enum MergeStatusEnum {
 #[sea_orm(
     rs_type = "String",
     db_type = "Enum",
+    enum_name = "position_status_enum"
+)]
+pub enum PositionStatusEnum {
+    #[sea_orm(string_value = "ok")]
+    Ok,
+    #[sea_orm(string_value = "moved")]
+    Moved,
+    #[sea_orm(string_value = "ambiguous")]
+    Ambiguous,
+    #[sea_orm(string_value = "outdated")]
+    Outdated,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
     enum_name = "queue_failure_type_enum"
 )]
 pub enum QueueFailureTypeEnum {

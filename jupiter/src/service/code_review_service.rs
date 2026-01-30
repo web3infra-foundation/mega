@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 use callisto::{
     mega_code_review_comment, mega_code_review_thread,
@@ -58,44 +58,64 @@ impl CodeReviewService {
 
         let thread_ids: Vec<i64> = threads.iter().map(|t| t.id).collect();
 
+        // Batch fetch related entities
+        let anchors = self
+            .code_review_thread
+            .get_anchors_by_thread_ids(&thread_ids)
+            .await?;
+        let positions = self
+            .code_review_thread
+            .get_positions_by_thread_ids(&thread_ids)
+            .await?;
         let comments = self
             .code_review_comment
             .get_comments_by_thread_ids(&thread_ids)
             .await?;
 
-        let mut comments_by_thread: HashMap<i64, Vec<CommentReviewView>> = HashMap::new();
+        // Map entities by thread_id or anchor_id
+        let comments_by_thread: HashMap<i64, Vec<_>> =
+            comments.into_iter().fold(HashMap::new(), |mut map, c| {
+                map.entry(c.thread_id).or_default().push(c);
+                map
+            });
 
-        for c in comments {
-            comments_by_thread
-                .entry(c.thread_id)
-                .or_default()
-                .push(CommentReviewView {
-                    comment_id: c.id,
-                    user_name: c.user_name,
-                    content: c.content,
-                    parent_id: c.parent_id,
-                    created_at: c.created_at,
-                    updated_at: c.updated_at,
-                });
-        }
+        let anchors_by_thread: HashMap<i64, Vec<_>> =
+            anchors.into_iter().fold(HashMap::new(), |mut map, a| {
+                map.entry(a.thread_id).or_default().push(a);
+                map
+            });
 
+        let positions_by_anchor: HashMap<i64, _> =
+            positions.into_iter().map(|p| (p.anchor_id, p)).collect();
+
+        // Build ThreadReviewView
         let mut files_map: HashMap<String, Vec<ThreadReviewView>> = HashMap::new();
 
-        for t in threads {
-            let thread_view = ThreadReviewView {
-                thread_id: t.id,
-                line_number: t.line_number,
-                diff_side: t.diff_side,
-                status: t.thread_status,
-                created_at: t.created_at,
-                updated_at: t.updated_at,
-                comments: comments_by_thread.remove(&t.id).unwrap_or_default(),
-            };
+        for thread in &threads {
+            if let Some(thread_anchors) = anchors_by_thread.get(&thread.id) {
+                for anchor in thread_anchors {
+                    let position = positions_by_anchor.get(&anchor.id).ok_or_else(|| {
+                        MegaError::Other(format!("Position not found for anchor {}", anchor.id))
+                    })?;
 
-            files_map
-                .entry(t.file_path.clone())
-                .or_default()
-                .push(thread_view);
+                    let thread_comments = comments_by_thread
+                        .get(&thread.id)
+                        .cloned()
+                        .unwrap_or_default();
+
+                    let thread_view = ThreadReviewView::from_models(
+                        thread.clone(),
+                        anchor.clone(),
+                        position.clone(),
+                        thread_comments,
+                    );
+
+                    files_map
+                        .entry(anchor.file_path.clone())
+                        .or_default()
+                        .push(thread_view);
+                }
+            }
         }
 
         let files = files_map
@@ -113,14 +133,27 @@ impl CodeReviewService {
         &self,
         link: &str,
         file_path: &str,
-        line_number: i32,
         diff_side: DiffSideEnum,
+        anchor_commit_sha: &str,
+        original_line_number: i32,
+        normalized_content: &str,
+        context_before: &str,
+        context_after: &str,
         user_name: String,
         content: String,
     ) -> Result<ThreadReviewView, MegaError> {
-        let thread = self
+        let (thread, anchor, position) = self
             .code_review_thread
-            .find_or_create_thread(link, file_path, line_number, diff_side.clone())
+            .create_thread_by_anchor(
+                link,
+                file_path,
+                &diff_side,
+                anchor_commit_sha,
+                original_line_number,
+                normalized_content,
+                context_before,
+                context_after,
+            )
             .await?;
 
         let comment = self
@@ -130,15 +163,12 @@ impl CodeReviewService {
 
         let thread = self.code_review_thread.touch_thread(thread.id).await?;
 
-        Ok(ThreadReviewView {
-            thread_id: thread.id,
-            line_number: thread.line_number,
-            diff_side: thread.diff_side,
-            status: thread.thread_status,
-            created_at: thread.created_at,
-            updated_at: thread.updated_at,
-            comments: vec![comment.into()],
-        })
+        Ok(ThreadReviewView::from_models(
+            thread,
+            anchor,
+            position,
+            vec![comment],
+        ))
     }
 
     pub async fn reply_to_comment(
@@ -147,7 +177,7 @@ impl CodeReviewService {
         parent_comment_id: i64,
         user_name: String,
         content: String,
-    ) -> Result<mega_code_review_comment::Model, MegaError> {
+    ) -> Result<CommentReviewView, MegaError> {
         self.code_review_thread
             .find_thread_by_id(thread_id)
             .await?
@@ -177,14 +207,14 @@ impl CodeReviewService {
             )
             .await?;
 
-        Ok(comment)
+        Ok(comment.into())
     }
 
     pub async fn update_comment(
         &self,
         comment_id: i64,
         new_content: String,
-    ) -> Result<mega_code_review_comment::Model, MegaError> {
+    ) -> Result<CommentReviewView, MegaError> {
         self.code_review_comment
             .find_comment_by_id(comment_id)
             .await?
@@ -195,7 +225,7 @@ impl CodeReviewService {
             .update_code_review_comment(comment_id, Some(new_content))
             .await?;
 
-        Ok(updated_comment)
+        Ok(updated_comment.into())
     }
 
     pub async fn resolve_thread(

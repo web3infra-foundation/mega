@@ -3,25 +3,35 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::sea_orm_active_enums::ThreadStatusEnum;
+use super::sea_orm_active_enums::{DiffSideEnum, PositionStatusEnum};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "mega_code_review_thread")]
+#[sea_orm(table_name = "mega_code_review_position")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub link: String,
-    pub thread_status: ThreadStatusEnum,
+    #[sea_orm(unique)]
+    pub anchor_id: i64,
+    pub commit_sha: String,
+    pub file_path: String,
+    pub diff_side: DiffSideEnum,
+    pub line_number: i32,
+    pub confidence: i32,
+    pub position_status: PositionStatusEnum,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::mega_code_review_anchor::Entity")]
+    #[sea_orm(
+        belongs_to = "super::mega_code_review_anchor::Entity",
+        from = "Column::AnchorId",
+        to = "super::mega_code_review_anchor::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     MegaCodeReviewAnchor,
-    #[sea_orm(has_many = "super::mega_code_review_comment::Entity")]
-    MegaCodeReviewComment,
 }
 
 impl Related<super::mega_code_review_anchor::Entity> for Entity {
