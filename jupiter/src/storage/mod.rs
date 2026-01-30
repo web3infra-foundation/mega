@@ -1,5 +1,6 @@
 pub mod base_storage;
 pub mod buck_storage;
+pub mod build_trigger_storage;
 pub mod cl_reviewer_storage;
 pub mod cl_storage;
 pub mod code_review_comment_storage;
@@ -34,6 +35,7 @@ use crate::{
     storage::{
         base_storage::{BaseStorage, StorageConnector},
         buck_storage::BuckStorage,
+        build_trigger_storage::BuildTriggerStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
         code_review_comment_storage::CodeReviewCommentStorage,
@@ -73,6 +75,7 @@ pub struct AppService {
     pub dynamic_sidebar_storage: DynamicSidebarStorage,
     pub code_review_comment_storage: CodeReviewCommentStorage,
     pub code_review_thread_storage: CodeReviewThreadStorage,
+    pub build_trigger_storage: BuildTriggerStorage,
 }
 
 impl AppService {
@@ -99,6 +102,7 @@ impl AppService {
             dynamic_sidebar_storage: DynamicSidebarStorage { base: mock.clone() },
             code_review_comment_storage: CodeReviewCommentStorage { base: mock.clone() },
             code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
+            build_trigger_storage: BuildTriggerStorage { base: mock.clone() },
         })
     }
 }
@@ -150,6 +154,7 @@ impl Storage {
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
         let code_review_comment_storage = CodeReviewCommentStorage { base: base.clone() };
         let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
+        let build_trigger_storage = BuildTriggerStorage { base: base.clone() };
 
         let git_service = GitService {
             obj_storage: ObjectStorageFactory::build(
@@ -205,6 +210,7 @@ impl Storage {
             dynamic_sidebar_storage,
             code_review_comment_storage,
             code_review_thread_storage,
+            build_trigger_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(
@@ -315,6 +321,10 @@ impl Storage {
 
     pub fn code_review_comment_storage(&self) -> CodeReviewCommentStorage {
         self.app_service.code_review_comment_storage.clone()
+    }
+
+    pub fn build_trigger_storage(&self) -> BuildTriggerStorage {
+        self.app_service.build_trigger_storage.clone()
     }
 
     pub fn mock() -> Self {

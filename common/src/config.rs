@@ -87,12 +87,14 @@ pub struct Config {
     pub blame: BlameConfig,
     // Not used in mega app
     #[serde(default)]
-    pub oauth: Option<OauthConfig>,
+    pub oauth: OauthConfig,
     pub build: BuildConfig,
     pub redis: RedisConfig,
     #[serde(default)]
     pub buck: Option<BuckConfig>,
     pub object_storage: ObjectStorageConfig,
+    #[serde(default)]
+    pub orion_server: Option<OrionServerConfig>,
 }
 
 impl Config {
@@ -102,7 +104,12 @@ impl Config {
             .add_source(
                 c::Environment::with_prefix("mega")
                     .prefix_separator("_")
-                    .separator("__"),
+                    .separator("__")
+                    .try_parsing(true)
+                    .with_list_parse_key("oauth.allowed_cors_origins")
+                    .with_list_parse_key("monorepo.admin")
+                    .with_list_parse_key("monorepo.root_dirs")
+                    .list_separator(","),
             );
 
         let config = variable_placeholder_substitute(builder);
@@ -120,11 +127,12 @@ impl Config {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             blame: BlameConfig::default(),
-            oauth: None,
+            oauth: OauthConfig::default(),
             build: BuildConfig::default(),
             redis: RedisConfig::default(),
             buck: None,
             object_storage: ObjectStorageConfig::default(),
+            orion_server: None,
         }
     }
 
@@ -667,6 +675,71 @@ impl BlameConfig {
 pub struct BuildConfig {
     pub enable_build: bool,
     pub orion_server: String,
+}
+
+/// Orion Server configuration (flat structure)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OrionServerConfig {
+    // Log storage configuration
+    #[serde(default = "default_logger_storage_mode")]
+    pub logger_storage_mode: String,
+
+    pub storage_type: ObjectStorageBackend,
+
+    #[serde(default = "default_build_log_dir")]
+    pub build_log_dir: String,
+
+    #[serde(default = "default_log_stream_buffer")]
+    pub log_stream_buffer: usize,
+
+    // Database configuration
+    #[serde(default = "default_db_url")]
+    pub db_url: String,
+
+    #[serde(default = "default_port")]
+    pub port: u16,
+
+    /// Mono server base URL for file/blob API (e.g. file blob endpoint). Replaces MONOBASE_URL env.
+    #[serde(default = "default_monobase_url")]
+    pub monobase_url: String,
+}
+
+fn default_monobase_url() -> String {
+    "http://localhost:8000".to_string()
+}
+
+fn default_logger_storage_mode() -> String {
+    "local".to_string()
+}
+
+fn default_build_log_dir() -> String {
+    "/tmp/logs".to_string()
+}
+
+fn default_log_stream_buffer() -> usize {
+    4096
+}
+
+fn default_db_url() -> String {
+    "postgres://postgres:postgres@localhost/orion".to_string()
+}
+
+fn default_port() -> u16 {
+    8004
+}
+
+impl Default for OrionServerConfig {
+    fn default() -> Self {
+        Self {
+            logger_storage_mode: default_logger_storage_mode(),
+            storage_type: ObjectStorageBackend::Local,
+            build_log_dir: default_build_log_dir(),
+            log_stream_buffer: default_log_stream_buffer(),
+            db_url: default_db_url(),
+            port: default_port(),
+            monobase_url: default_monobase_url(),
+        }
+    }
 }
 
 /// Buck upload API configuration

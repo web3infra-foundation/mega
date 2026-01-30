@@ -1,7 +1,16 @@
 use std::{fs, path::Path, process::Command, time::Duration};
 
+use once_cell::sync::OnceCell;
 use tokio_retry::{Retry, strategy::ExponentialBackoff};
 use uuid::Uuid;
+
+/// Mono base URL for file/blob API, set at startup from config (or default).
+static MONO_BASE_URL: OnceCell<String> = OnceCell::new();
+
+/// Set the mono base URL from config. Call once at server startup.
+pub fn set_mono_base_url(url: String) {
+    let _ = MONO_BASE_URL.set(url);
+}
 
 /// Download files from file blob API using two hash values and save them to a new folder in tmp directory
 async fn download_files_to_tmp(
@@ -65,9 +74,12 @@ async fn download_single_file(
     Ok(())
 }
 
-/// Get the base URL for API requests
+/// Get the base URL for API requests (from config, or default).
 fn base_url() -> String {
-    std::env::var("MONOBASE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
+    MONO_BASE_URL
+        .get()
+        .cloned()
+        .unwrap_or_else(|| "http://localhost:8000".to_string())
 }
 
 /// Get the file blob API endpoint

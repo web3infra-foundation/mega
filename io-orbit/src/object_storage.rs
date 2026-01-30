@@ -147,6 +147,35 @@ pub trait MegaObjectStorage: Send + Sync {
         key: &ObjectKey,
     ) -> Result<(ObjectByteStream, ObjectMeta), MegaError>;
 
+    /// Retrieve a range of bytes from an object.
+    ///
+    /// # Parameters
+    /// - `key`: Object identifier
+    /// - `start`: Starting byte offset (inclusive)
+    /// - `end`: Ending byte offset (exclusive, None means to end of file)
+    ///
+    /// # Returns
+    /// - A streaming reader for the object data range
+    /// - The object's metadata
+    ///
+    /// # Semantics
+    /// - Uses HTTP Range requests when supported by the backend.
+    /// - For backends that don't support Range requests, falls back to full download.
+    /// - The returned stream must be consumed by the caller.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The object does not exist
+    /// - Access is denied
+    /// - Backend I/O fails
+    /// - Range is invalid (start >= end, or start >= file size)
+    async fn get_range_stream(
+        &self,
+        key: &ObjectKey,
+        start: u64,
+        end: Option<u64>,
+    ) -> Result<(ObjectByteStream, ObjectMeta), MegaError>;
+
     /// Check whether an object exists.
     async fn exists(&self, key: &ObjectKey) -> Result<bool, MegaError>;
 
@@ -218,6 +247,16 @@ pub trait MegaObjectStorage: Send + Sync {
                 .buffer_unordered(concurrency),
         )
     }
+
+    /// Delete the object at the specified location.
+    ///
+    /// # Parameters
+    /// - `key`: Object identifier
+    ///
+    /// # Returns
+    /// - `Ok(())` if the object is deleted successfully
+    /// - `Err(MegaError)` if the object does not exist or deletion fails
+    async fn delete(&self, key: &ObjectKey) -> Result<(), MegaError>;
 }
 
 pub fn dump_error_chain(err: &(dyn std::error::Error + 'static)) -> String {

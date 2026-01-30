@@ -222,3 +222,22 @@ cleanup_interval = 300
 # Retention days for completed sessions (default: 7)
 # Completed sessions older than this will be deleted along with file records
 completed_retention_days = 7
+
+
+[orion_server]
+# Log storage configuration
+logger_storage_mode = "mix"
+#storage type, support values can be "s3", "s3compatible", "gcs" or "local"
+storage_type = "local"
+
+port = 8004
+
+build_log_dir = "/tmp/megadir/buck2ctl"
+log_stream_buffer = 4096
+
+# Database configuration
+db_url = "postgres://postgres:postgres@localhost/orion"
+
+
+# Mono server base URL for file/blob API
+monobase_url = "http://localhost:8000"

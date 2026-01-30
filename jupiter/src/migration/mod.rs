@@ -78,6 +78,7 @@ mod m20260108_085945_remove_splited_in_lfs_objects;
 mod m20260108_105158_remove_storage_type_enum;
 mod m20260115_000000_create_targets_table;
 mod m20260119_060233_add_mega_code_review;
+mod m20260127_081517_create_build_triggers;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -146,6 +147,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260108_105158_remove_storage_type_enum::Migration),
             Box::new(m20260115_000000_create_targets_table::Migration),
             Box::new(m20260119_060233_add_mega_code_review::Migration),
+            Box::new(m20260127_081517_create_build_triggers::Migration),
         ]
     }
 }
