@@ -1,6 +1,11 @@
 # ────── Stage 1: Build ──────
 FROM rust:1.92-bookworm AS builder
 
+# Install build dependencies (libclang required by zstd-sys/bindgen)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libclang-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 # Configure Cargo with increased retry attempts and timeout
 RUN mkdir -p /root/.cargo && \
     cat > /root/.cargo/config.toml << 'EOF'
