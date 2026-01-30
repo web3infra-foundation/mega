@@ -698,6 +698,14 @@ pub struct OrionServerConfig {
 
     #[serde(default = "default_port")]
     pub port: u16,
+
+    /// Mono server base URL for file/blob API (e.g. file blob endpoint). Replaces MONOBASE_URL env.
+    #[serde(default = "default_monobase_url")]
+    pub monobase_url: String,
+}
+
+fn default_monobase_url() -> String {
+    "http://localhost:8000".to_string()
 }
 
 fn default_logger_storage_mode() -> String {
@@ -729,6 +737,7 @@ impl Default for OrionServerConfig {
             log_stream_buffer: default_log_stream_buffer(),
             db_url: default_db_url(),
             port: default_port(),
+            monobase_url: default_monobase_url(),
         }
     }
 }
