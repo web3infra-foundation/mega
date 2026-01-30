@@ -87,7 +87,7 @@ pub struct Config {
     pub blame: BlameConfig,
     // Not used in mega app
     #[serde(default)]
-    pub oauth: Option<OauthConfig>,
+    pub oauth: OauthConfig,
     pub build: BuildConfig,
     pub redis: RedisConfig,
     #[serde(default)]
@@ -104,7 +104,12 @@ impl Config {
             .add_source(
                 c::Environment::with_prefix("mega")
                     .prefix_separator("_")
-                    .separator("__"),
+                    .separator("__")
+                    .try_parsing(true)
+                    .with_list_parse_key("oauth.allowed_cors_origins")
+                    .with_list_parse_key("monorepo.admin")
+                    .with_list_parse_key("monorepo.root_dirs")
+                    .list_separator(","),
             );
 
         let config = variable_placeholder_substitute(builder);
@@ -122,7 +127,7 @@ impl Config {
             authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             blame: BlameConfig::default(),
-            oauth: None,
+            oauth: OauthConfig::default(),
             build: BuildConfig::default(),
             redis: RedisConfig::default(),
             buck: None,

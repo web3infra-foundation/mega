@@ -1,7 +1,7 @@
 {
     "users": {
-        "User::\"benjamin.747\"": {
-            "euid": "User::\"benjamin.747\"",
+        "User::\"benjamin_747\"": {
+            "euid": "User::\"benjamin_747\"",
             "parents": [
                 "UserGroup::\"admin\""
             ]

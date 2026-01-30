@@ -70,7 +70,7 @@ import_dir = "/third-party"
 
 # Set System Admin(s) in directory init, these users will be added to the admin group
 # Supports multiple admins: admin = ["user1", "user2", "user3"]
-admin = ["benjamin.747"]
+admin = ["benjamin_747"]
 
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
