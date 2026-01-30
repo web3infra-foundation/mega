@@ -11,16 +11,21 @@ use object_store::{aws::AmazonS3Builder, gcp::GoogleCloudStorageBuilder, local::
 
 use crate::{
     adapter::{BackendStore, ObjectStoreAdapter, UploadStrategy},
+    log_storage::LogStorage,
     object_storage::MegaObjectStorage,
 };
 
+pub trait MegaObjectStorageWithLog: MegaObjectStorage + LogStorage {}
+
+impl<T: MegaObjectStorage + LogStorage> MegaObjectStorageWithLog for T {}
+
 #[derive(Clone)]
 pub struct MegaObjectStorageWrapper {
-    pub inner: Arc<dyn MegaObjectStorage>,
+    pub inner: Arc<dyn MegaObjectStorageWithLog>,
 }
 
 impl MegaObjectStorageWrapper {
-    pub fn new(inner: Arc<dyn MegaObjectStorage>) -> Self {
+    pub fn new(inner: Arc<dyn MegaObjectStorageWithLog>) -> Self {
         Self { inner }
     }
 

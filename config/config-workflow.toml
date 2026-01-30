@@ -136,3 +136,21 @@ allowed_cors_origins = [
     "https://app.gitmega.com",
     "http://app.gitmono.test",
 ]
+
+
+[orion_server]
+# Log storage configuration
+logger_storage_mode = "mix"
+#storage type, support values can be "s3", "s3compatible", "gcs" or "local"
+storage_type = "local"
+
+port = 8004
+
+build_log_dir = "/tmp/megadir/buck2ctl"
+log_stream_buffer = 4096
+
+# Database configuration
+db_url = "postgres://postgres:postgres@localhost/orion"
+
+
+# (mono integration URL `monobase_url` has been removed; kept here intentionally empty)
