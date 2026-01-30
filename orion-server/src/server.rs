@@ -17,6 +17,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     api::{self, AppState},
+    buck2::set_mono_base_url,
     log::{
         log_service::LogService,
         store::{LogStore, io_orbit_store::IoOrbitLogStore, local_log_store, noop_log_store},
@@ -158,6 +159,9 @@ pub async fn start_server() {
         });
 
     let port = orion_server_config.port;
+
+    // Set mono base URL for buck2 file/blob API (from config).
+    set_mono_base_url(orion_server_config.monobase_url.clone());
 
     // Derive allowed CORS origins from oauth config (or its default when missing).
     // Do this before `init_log_service(config)` consumes `config`.
