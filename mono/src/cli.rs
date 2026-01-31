@@ -49,6 +49,11 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
         Config::default()
     };
 
+    // Initialize hash algorithm from configuration
+    // **Multi-hash support**: Sets thread-local hash kind based on monorepo config.
+    // This must be done early, before any ObjectHash operations.
+    git_internal::hash::set_hash_kind(config.monorepo.hash_algorithm.to_hash_kind());
+
     init_log(&config.log);
 
     ctrlc::set_handler(move || {

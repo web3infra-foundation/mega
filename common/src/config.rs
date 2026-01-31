@@ -326,12 +326,57 @@ impl Default for DbConfig {
     }
 }
 
+/// Hash algorithm configuration for the monorepo.
+///
+/// **Multi-hash support**: This enum determines which hash algorithm is used
+/// for Git objects in the monorepo. Once a repository is initialized with a
+/// specific algorithm, it cannot be changed.
+///
+/// Currently supported algorithms:
+/// - `sha1`: SHA-1 (20 bytes, 40 hex chars) - Git default, widely compatible
+/// - `sha256`: SHA-256 (32 bytes, 64 hex chars) - More secure, Git 2.29+ required
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum HashAlgorithm {
+    /// SHA-1 hash algorithm (default)
+    /// Produces 40-character hex strings
+    #[default]
+    Sha1,
+    /// SHA-256 hash algorithm
+    /// Produces 64-character hex strings
+    Sha256,
+}
+
+impl HashAlgorithm {
+    /// Returns the expected length of hex-encoded hash strings
+    pub const fn hex_len(&self) -> usize {
+        match self {
+            HashAlgorithm::Sha1 => 40,
+            HashAlgorithm::Sha256 => 64,
+        }
+    }
+
+    /// Converts to git-internal HashKind
+    pub fn to_hash_kind(self) -> git_internal::hash::HashKind {
+        match self {
+            HashAlgorithm::Sha1 => git_internal::hash::HashKind::Sha1,
+            HashAlgorithm::Sha256 => git_internal::hash::HashKind::Sha256,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub storage_type: ObjectStorageBackend,
     pub import_dir: PathBuf,
     pub admin: Vec<String>,
     pub root_dirs: Vec<String>,
+    /// Hash algorithm for Git objects in this monorepo.
+    ///
+    /// **Multi-hash support**: Defaults to SHA-1 for backward compatibility.
+    /// Set to `sha256` for new repositories that require stronger hashing.
+    #[serde(default)]
+    pub hash_algorithm: HashAlgorithm,
 }
 
 impl Default for MonoConfig {
@@ -347,6 +392,7 @@ impl Default for MonoConfig {
                 "doc".to_string(),
                 "release".to_string(),
             ],
+            hash_algorithm: HashAlgorithm::default(),
         }
     }
 }
@@ -1026,5 +1072,42 @@ mod test {
         config.upload_concurrency_limit = 100;
         config.large_file_concurrency_limit = 20;
         assert!(config.validate().is_ok());
+    }
+
+    // ==================== Multi-hash support tests ====================
+
+    #[test]
+    fn test_hash_algorithm_default_is_sha1() {
+        let algo = HashAlgorithm::default();
+        assert_eq!(algo, HashAlgorithm::Sha1);
+    }
+
+    #[test]
+    fn test_hash_algorithm_hex_len() {
+        assert_eq!(HashAlgorithm::Sha1.hex_len(), 40);
+        assert_eq!(HashAlgorithm::Sha256.hex_len(), 64);
+    }
+
+    #[test]
+    fn test_hash_algorithm_to_hash_kind() {
+        use git_internal::hash::HashKind;
+        assert_eq!(HashAlgorithm::Sha1.to_hash_kind(), HashKind::Sha1);
+        assert_eq!(HashAlgorithm::Sha256.to_hash_kind(), HashKind::Sha256);
+    }
+
+    #[test]
+    fn test_mono_config_default_hash_algorithm() {
+        let config = MonoConfig::default();
+        assert_eq!(config.hash_algorithm, HashAlgorithm::Sha1);
+    }
+
+    #[test]
+    fn test_hash_algorithm_serde_lowercase() {
+        // Test that serde deserializes lowercase strings correctly
+        let sha1: HashAlgorithm = serde_json::from_str("\"sha1\"").unwrap();
+        assert_eq!(sha1, HashAlgorithm::Sha1);
+        
+        let sha256: HashAlgorithm = serde_json::from_str("\"sha256\"").unwrap();
+        assert_eq!(sha256, HashAlgorithm::Sha256);
     }
 }
