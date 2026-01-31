@@ -218,25 +218,6 @@ pub struct TaskScheduler {
     pub conn: DatabaseConnection,
 }
 
-/// Log segment read result
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct LogSegment {
-    /// build id / log file name
-    pub build_id: String,
-    /// Requested starting offset
-    pub offset: u64,
-    /// Bytes actually read
-    pub len: usize,
-    /// UTF-8 (lossy) decoded data slice
-    pub data: String,
-    /// Next offset (offset + len)
-    pub next_offset: u64,
-    /// Total file size in bytes
-    pub file_size: u64,
-    /// Whether we reached end of file
-    pub eof: bool,
-}
-
 /// Errors when reading a log segment
 #[allow(dead_code)]
 #[derive(Debug)]
