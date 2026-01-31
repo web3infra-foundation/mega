@@ -156,13 +156,16 @@ impl BlobFsStore for PathBuf {
     ///
     /// Added WhiteOut file support to avoid some unexpected errors.
     /// Add a Blob Object into the folder by a hash.
+    ///
+    /// **Multi-hash support**: Accepts both SHA-1 (40 chars) and SHA-256 (64 chars) hashes.
     fn add_blob_to_hash(&self, hash: &str, blob: &[u8]) -> Result<()> {
+        // **Multi-hash support**: Accept both SHA-1 (40 chars) and SHA-256 (64 chars)
         match hash.len() {
-            40 => (),
+            40 | 64 => (),
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
-                    "Hash must be 40 characters long",
+                    "Hash must be 40 (SHA-1) or 64 (SHA-256) characters long",
                 ))
             }
         };
@@ -176,9 +179,12 @@ impl BlobFsStore for PathBuf {
     }
 
     /// Get the content from a Blob Object by a hash.
+    ///
+    /// **Multi-hash support**: Accepts both SHA-1 (40 chars) and SHA-256 (64 chars) hashes.
     fn get_blob_by_hash(&self, hash: &str) -> Result<Vec<u8>> {
+        // **Multi-hash support**: Accept both SHA-1 (40 chars) and SHA-256 (64 chars)
         match hash.len() {
-            40 => {
+            40 | 64 => {
                 let object_path = self.join("objects");
                 let hash_path = object_path.join(&hash[0..2]);
                 let blob_path = hash_path.join(&hash[2..]);
@@ -187,22 +193,25 @@ impl BlobFsStore for PathBuf {
             }
             _ => Err(Error::new(
                 ErrorKind::InvalidInput,
-                "Hash must be 40 characters long",
+                "Hash must be 40 (SHA-1) or 64 (SHA-256) characters long",
             )),
         }
     }
 
+    /// **Multi-hash support**: Handles both SHA-1 (40 chars) and SHA-256 (64 chars) hashes.
     fn list_blobs(&self, index_db: &sled::Db) -> Result<Vec<Blob>> {
         let hashmap = index_db.db_list()?;
         let object_path = self.join("objects");
         hashmap
             .values()
             .map(|hash| {
+                // **Multi-hash support**: First 2 chars for directory, works for both hash types
                 let hash_flag = hash.get(0..2).ok_or(Error::new(
                     ErrorKind::InvalidInput,
-                    "Hash must be 40 characters long",
+                    "Hash must be at least 2 characters long",
                 ))?;
                 let hash_path = object_path.join(hash_flag);
+                // ObjectHash::from_str automatically handles both 40 and 64 char hashes
                 let sha_hash = ObjectHash::from_str(hash)
                     .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
@@ -647,5 +656,89 @@ mod test {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_add_blob_sha1_40_chars() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        // 40-char SHA-1 hash
+        let sha1_hash = "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3";
+        let data = b"test content";
+
+        let result = store_path.add_blob_to_hash(sha1_hash, data);
+        assert!(result.is_ok(), "SHA-1 (40 chars) should be accepted");
+    }
+
+    #[test]
+    fn test_add_blob_sha256_64_chars() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        // 64-char SHA-256 hash
+        let sha256_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let data = b"test content";
+
+        let result = store_path.add_blob_to_hash(sha256_hash, data);
+        assert!(result.is_ok(), "SHA-256 (64 chars) should be accepted");
+    }
+
+    #[test]
+    fn test_add_blob_invalid_length() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        // Invalid length (not 40 or 64)
+        let invalid_hash = "abc123";
+        let data = b"test content";
+
+        let result = store_path.add_blob_to_hash(invalid_hash, data);
+        assert!(result.is_err(), "Invalid hash length should be rejected");
+    }
+
+    #[test]
+    fn test_get_blob_sha1_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        let sha1_hash = "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3";
+        let data = b"test content for sha1";
+
+        store_path.add_blob_to_hash(sha1_hash, data).unwrap();
+        let retrieved = store_path.get_blob_by_hash(sha1_hash).unwrap();
+
+        assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn test_get_blob_sha256_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        let sha256_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let data = b"test content for sha256";
+
+        store_path.add_blob_to_hash(sha256_hash, data).unwrap();
+        let retrieved = store_path.get_blob_by_hash(sha256_hash).unwrap();
+
+        assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn test_get_blob_invalid_length() {
+        let temp_dir = TempDir::new().unwrap();
+        let store_path = temp_dir.path().to_path_buf();
+
+        let invalid_hash = "abc123";
+
+        let result = store_path.get_blob_by_hash(invalid_hash);
+        assert!(result.is_err(), "Invalid hash length should be rejected");
     }
 }

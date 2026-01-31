@@ -72,9 +72,15 @@ impl SmartProtocol {
         } else {
             "HEAD"
         };
+        // **Multi-hash support**: Build capability list with dynamic object-format
+        // The object-format capability tells clients which hash algorithm the repository uses.
+        let object_format = match git_internal::hash::get_hash_kind() {
+            git_internal::hash::HashKind::Sha1 => "object-format=sha1",
+            git_internal::hash::HashKind::Sha256 => "object-format=sha256",
+        };
         let cap_list = match service_type {
-            ServiceType::UploadPack => format!("{UPLOAD_CAP_LIST}{COMMON_CAP_LIST}"),
-            ServiceType::ReceivePack => format!("{RECEIVE_CAP_LIST}{COMMON_CAP_LIST}"),
+            ServiceType::UploadPack => format!("{UPLOAD_CAP_LIST}{COMMON_CAP_LIST} {object_format}"),
+            ServiceType::ReceivePack => format!("{RECEIVE_CAP_LIST}{COMMON_CAP_LIST} {object_format}"),
         };
         let pkt_line = format!("{head_hash}{SP}{name}{NUL}{cap_list}{LF}");
         let mut ref_list = vec![pkt_line];
