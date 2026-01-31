@@ -43,23 +43,31 @@ pub struct ManifestFile {
     pub path: String,
     /// File size in bytes
     pub size: u64,
-    /// File hash in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
-    /// Example: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    /// File hash in "algorithm:HEXSTRING" format (case-insensitive, normalized to lowercase)
+    ///
+    /// **Multi-hash support**: Accepts both SHA-1 and SHA-256:
+    /// - SHA-1: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709" (40 hex chars)
+    /// - SHA-256: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (64 hex chars)
     pub hash: String,
 }
 
-/// Parse and validate ObjectHash in "sha1:HEXSTRING" format
+/// Parse and validate ObjectHash in "algorithm:HEXSTRING" format
 ///
+/// **Multi-hash support**: Accepts both SHA-1 (40 hex chars) and SHA-256 (64 hex chars).
 /// This is a shared helper function used by both ManifestFile and FileChange.
 /// It normalizes the hash to lowercase for consistency with Git conventions.
 ///
 /// # Arguments
-/// * `input` - The hash string in "sha1:HEXSTRING" format
+/// * `input` - The hash string in "algorithm:HEXSTRING" format
 /// * `field_name` - The name of the field (for error messages)
+///
+/// # Supported Algorithms
+/// - `sha1`: 40-character hex string
+/// - `sha256`: 64-character hex string
 ///
 /// # Returns
 /// The parsed ObjectHash or an error if format is invalid
-pub fn parse_sha1_hash(
+pub fn parse_object_hash(
     input: &str,
     field_name: &str,
 ) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
@@ -81,26 +89,64 @@ pub fn parse_sha1_hash(
     let hash_hex = parts[1].to_lowercase(); // Normalize to lowercase (Git convention)
 
     match algorithm.as_str() {
-        "sha1" => ObjectHash::from_str(&hash_hex).map_err(|e| {
-            MegaError::Other(format!(
-                "Invalid ObjectHash in {}: '{}', error: {}",
-                field_name, hash_hex, e
-            ))
-        }),
+        "sha1" => {
+            // Validate SHA-1 hash length (40 hex chars)
+            if hash_hex.len() != 40 {
+                return Err(MegaError::Other(format!(
+                    "Invalid SHA-1 hash length in {}: expected 40 chars, got {}",
+                    field_name,
+                    hash_hex.len()
+                )));
+            }
+            ObjectHash::from_str(&hash_hex).map_err(|e| {
+                MegaError::Other(format!(
+                    "Invalid ObjectHash in {}: '{}', error: {}",
+                    field_name, hash_hex, e
+                ))
+            })
+        }
+        "sha256" => {
+            // Validate SHA-256 hash length (64 hex chars)
+            if hash_hex.len() != 64 {
+                return Err(MegaError::Other(format!(
+                    "Invalid SHA-256 hash length in {}: expected 64 chars, got {}",
+                    field_name,
+                    hash_hex.len()
+                )));
+            }
+            ObjectHash::from_str(&hash_hex).map_err(|e| {
+                MegaError::Other(format!(
+                    "Invalid ObjectHash in {}: '{}', error: {}",
+                    field_name, hash_hex, e
+                ))
+            })
+        }
         other => Err(MegaError::Other(format!(
-            "Unsupported hash algorithm in {}: '{}', only 'sha1' is supported",
+            "Unsupported hash algorithm in {}: '{}', supported: 'sha1', 'sha256'",
             field_name, other
         ))),
     }
 }
 
+/// Backward-compatible alias for parse_object_hash
+///
+/// **Deprecated**: Use `parse_object_hash` instead for multi-hash support.
+#[deprecated(since = "0.2.0", note = "Use parse_object_hash for multi-hash support")]
+pub fn parse_sha1_hash(
+    input: &str,
+    field_name: &str,
+) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
+    parse_object_hash(input, field_name)
+}
+
 impl ManifestFile {
     /// Parse and validate hash format
     ///
-    /// Expects format: "sha1:HEXSTRING" (case-insensitive, normalized to lowercase)
+    /// **Multi-hash support**: Accepts both SHA-1 and SHA-256 formats.
+    /// Expects format: "algorithm:HEXSTRING" (case-insensitive, normalized to lowercase)
     /// Returns the parsed ObjectHash or an error if format is invalid
     pub fn parse_hash(&self) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
-        parse_sha1_hash(&self.hash, "hash field")
+        parse_object_hash(&self.hash, "hash field")
     }
 }
 
@@ -180,9 +226,11 @@ pub struct CompleteResponse {
 pub struct FileChange {
     /// Relative file path within the repository (e.g., "src/main.rs")
     pub path: String,
-    /// ObjectHash of the blob in "sha1:HEXSTRING" format (case-insensitive, normalized to lowercase)
-    /// Already saved in raw_blob table
-    /// Example: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    /// ObjectHash of the blob in "algorithm:HEXSTRING" format (case-insensitive, normalized to lowercase)
+    ///
+    /// **Multi-hash support**: Accepts both SHA-1 and SHA-256:
+    /// - SHA-1: "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709" (40 hex chars)
+    /// - SHA-256: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (64 hex chars)
     pub blob_id: String,
     /// File mode: "100644" (normal), "100755" (executable), "120000" (symlink)
     pub mode: String,
@@ -199,12 +247,14 @@ impl FileChange {
 
     /// Parse and validate blob hash format
     ///
-    /// Expects format: "sha1:HEXSTRING" (case-insensitive, normalized to lowercase)
+    /// **Multi-hash support**: Accepts both SHA-1 and SHA-256 formats.
+    /// Expects format: "algorithm:HEXSTRING" (case-insensitive, normalized to lowercase)
     /// Returns the parsed ObjectHash or an error if format is invalid
+    #[allow(deprecated)]
     pub fn parse_blob_hash(
         &self,
     ) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {
-        parse_sha1_hash(&self.blob_id, "blob_id")
+        parse_object_hash(&self.blob_id, "blob_id")
     }
 
     /// Parse mode string to TreeItemMode
@@ -226,5 +276,90 @@ impl FileChange {
                 TreeItemMode::Blob
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_object_hash_sha1_valid() {
+        let result = parse_object_hash(
+            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
+            "test",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_object_hash_sha256_valid() {
+        let result = parse_object_hash(
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "test",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_object_hash_sha1_wrong_length() {
+        let result = parse_object_hash("sha1:abc123", "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expected 40"));
+    }
+
+    #[test]
+    fn test_parse_object_hash_sha256_wrong_length() {
+        let result = parse_object_hash("sha256:abc123", "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expected 64"));
+    }
+
+    #[test]
+    fn test_parse_object_hash_unsupported_algorithm() {
+        let result = parse_object_hash("md5:abc123", "test");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported hash algorithm"));
+    }
+
+    #[test]
+    fn test_parse_object_hash_missing_colon() {
+        let result = parse_object_hash("sha1abc123", "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("algorithm:hex"));
+    }
+
+    #[test]
+    fn test_parse_object_hash_case_insensitive() {
+        // Algorithm should be case-insensitive
+        let result = parse_object_hash(
+            "SHA1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
+            "test",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_manifest_file_parse_hash_sha256() {
+        let file = ManifestFile {
+            path: "test.txt".to_string(),
+            size: 100,
+            hash: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                .to_string(),
+        };
+        assert!(file.parse_hash().is_ok());
+    }
+
+    #[test]
+    fn test_file_change_parse_blob_hash_sha256() {
+        let change = FileChange::new(
+            "test.txt".to_string(),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+            "100644".to_string(),
+        );
+        assert!(change.parse_blob_hash().is_ok());
     }
 }

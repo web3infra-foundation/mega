@@ -418,21 +418,34 @@ impl BuckService {
             .into());
         }
 
-        if !hash.starts_with("sha1:") {
+        // **Multi-hash support**: Validate hash format for sha1 or sha256
+        let (algorithm, hash_part) = if let Some(rest) = hash.strip_prefix("sha1:") {
+            ("sha1", rest)
+        } else if let Some(rest) = hash.strip_prefix("sha256:") {
+            ("sha256", rest)
+        } else {
             return Err(BuckError::ValidationError(format!(
-                "Hash must start with 'sha1:': {}",
+                "Hash must start with 'sha1:' or 'sha256:': {}",
                 hash
             ))
             .into());
-        }
-        let hash_part = &hash[5..];
-        if hash_part.len() != 40
+        };
+
+        let expected_len = match algorithm {
+            "sha1" => 40,
+            "sha256" => 64,
+            _ => unreachable!(),
+        };
+
+        if hash_part.len() != expected_len
             || !hash_part
                 .chars()
                 .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
         {
             return Err(BuckError::ValidationError(format!(
-                "Invalid hash format (must be 40 lowercase hex chars): {}",
+                "Invalid {} hash format (must be {} lowercase hex chars): {}",
+                algorithm.to_uppercase(),
+                expected_len,
                 hash
             ))
             .into());
@@ -490,20 +503,29 @@ impl BuckService {
         Ok(())
     }
 
-    /// Parse hash string by stripping the "sha1:" prefix if present.
+    /// Parse hash string by stripping the algorithm prefix if present.
+    ///
+    /// **Multi-hash support**: Accepts both SHA-1 and SHA-256 formats.
     ///
     /// # Arguments
-    /// * `hash` - Hash string that may or may not have "sha1:" prefix
+    /// * `hash` - Hash string that may have "sha1:" or "sha256:" prefix
     ///
     /// # Returns
-    /// Returns the hash without the prefix
+    /// Returns the hash without the prefix (40 or 64 hex chars)
     pub fn parse_hash(&self, hash: &str) -> Result<String, MegaError> {
-        let hash_str = hash.strip_prefix("sha1:").unwrap_or(hash);
+        // **Multi-hash support**: Strip either sha1: or sha256: prefix
+        let hash_str = if let Some(rest) = hash.strip_prefix("sha1:") {
+            rest
+        } else if let Some(rest) = hash.strip_prefix("sha256:") {
+            rest
+        } else {
+            hash
+        };
 
-        // Validate ObjectHash format
-        if hash_str.len() != 40 {
+        // Validate ObjectHash format - accept both 40 (SHA-1) and 64 (SHA-256) chars
+        if hash_str.len() != 40 && hash_str.len() != 64 {
             return Err(BuckError::ValidationError(format!(
-                "Invalid ObjectHash length: expected 40, got {}",
+                "Invalid ObjectHash length: expected 40 or 64, got {}",
                 hash_str.len()
             ))
             .into());

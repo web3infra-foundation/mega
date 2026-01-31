@@ -1074,8 +1074,6 @@ mod test {
         assert!(config.validate().is_ok());
     }
 
-    // ==================== Multi-hash support tests ====================
-
     #[test]
     fn test_hash_algorithm_default_is_sha1() {
         let algo = HashAlgorithm::default();
