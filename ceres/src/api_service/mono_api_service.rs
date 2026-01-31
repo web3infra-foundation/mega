@@ -2949,12 +2949,12 @@ mod test {
         let commit_hash = ObjectHash::Sha1([3u8; 20]);
 
         let item1 = TreeItem {
-            id: id1.clone(),
+            id: id1,
             name: "file1.txt".into(),
             mode: TreeItemMode::Blob,
         };
         let item2 = TreeItem {
-            id: id2.clone(),
+            id: id2,
             name: "file2.txt".into(),
             mode: TreeItemMode::Blob,
         };
@@ -2976,7 +2976,7 @@ mod test {
         };
 
         let commit_a = Commit {
-            id: commit_hash.clone(),
+            id: commit_hash,
             tree_id: ObjectHash::Sha1([8u8; 20]),
             parent_commit_ids: vec![],
             author: fake_sig.clone(),
@@ -3389,7 +3389,6 @@ mod test {
         let diff_output: Vec<DiffItem> =
             GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content)
                 .into_iter()
-                .map(DiffItem::from)
                 .collect();
 
         // Verify diff output contains expected content
@@ -3437,7 +3436,6 @@ mod test {
         let diff_output: Vec<DiffItem> =
             GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content)
                 .into_iter()
-                .map(DiffItem::from)
                 .collect();
 
         assert!(

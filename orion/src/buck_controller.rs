@@ -427,21 +427,41 @@ fn preheat(repo_path: &Path) -> anyhow::Result<()> {
 
 /// Get target of a specific repo under tmp directory.
 fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
-    tracing::debug!("Get targets for repo {repo_path:?}");
-    preheat(repo_path)?;
-    let mut command = std::process::Command::new("buck2");
-    command.args(targets_arguments());
-    command.current_dir(repo_path);
-    let (mut child, stdout) = spawn(command)?;
+    const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
-    let mut writer = file_writer(&jsonl_path)?;
-    std::io::copy(&mut BufReader::new(stdout), &mut writer)
-        .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
-    writer
-        .flush()
-        .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
-    child.wait()?;
-    Targets::from_file(&jsonl_path)
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
+        preheat(repo_path)?;
+        let mut command = std::process::Command::new("buck2");
+        command.args(targets_arguments());
+        command.current_dir(repo_path);
+        let (mut child, stdout) = spawn(command)?;
+        let mut writer = file_writer(&jsonl_path)?;
+        std::io::copy(&mut BufReader::new(stdout), &mut writer)
+            .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
+        writer
+            .flush()
+            .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
+        let status = child.wait()?;
+        if status.success() {
+            return Targets::from_file(&jsonl_path);
+        }
+
+        tracing::warn!(
+            "buck2 targets failed with status {} for repo {:?}",
+            status,
+            repo_path
+        );
+        if attempt < MAX_ATTEMPTS {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    }
+
+    Err(anyhow!(
+        "buck2 targets failed after {MAX_ATTEMPTS} attempts for repo {:?}",
+        repo_path
+    ))
 }
 
 /// Run buck2-change-detector to get targets to build.
@@ -553,7 +573,7 @@ impl Drop for MountGuard {
 ///
 /// # Arguments
 /// * `id` - Build task identifier for logging and tracking
-/// * `repo` - Repository path for filesystem mounting
+/// * `mount_path` - Monorepo path to mount (Buck2 project root or subdirectory)
 /// * `target` - Buck build target specification  
 /// * `args` - Additional command-line arguments for buck
 /// * `cl` - Change List context identifier
@@ -571,7 +591,6 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo /", id);
 
-    // Mount the repository root requested by the task so target discovery matches repo layout.
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
@@ -580,40 +599,90 @@ pub async fn build(
     let repo_path = "/".to_string();
     // Used to change ProjectRelativePath relative to root
     let repo_prefix = repo.strip_prefix("/").unwrap_or(&repo);
-    let changes = changes
+    let changes: Vec<Status<ProjectRelativePath>> = changes
         .into_iter()
         .map(|p| p.into_map(|rp| ProjectRelativePath::new(repo_prefix).join(rp.as_str())))
         .collect();
 
-    // We should also mount the repo before cl, for build target analyzing.
-    let id_for_old_repo = format!("{id}-old");
-    let (old_repo_mount_point, mount_id_old_repo) =
-        mount_antares_fs(&id_for_old_repo, &repo_path, None).await?;
-    let mount_guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
+    const MAX_TARGETS_ATTEMPTS: usize = 2;
+    let mut mount_point = None;
+    let mut mount_guard = None;
+    let mut mount_guard_old_repo = None;
+    let mut targets: Vec<TargetLabel> = Vec::new();
+    let mut last_targets_error: Option<anyhow::Error> = None;
 
-    let (mount_point, mount_id) = mount_antares_fs(&id, &repo_path, cl_arg).await?;
-    let mount_guard = MountGuard::new(mount_id.clone(), id.clone());
+    for attempt in 1..=MAX_TARGETS_ATTEMPTS {
+        // We should also mount the repo before cl, for build target analyzing.
+        let id_for_old_repo = format!("{id}-old-{attempt}");
+        let (old_repo_mount_point, mount_id_old_repo) =
+            mount_antares_fs(&id_for_old_repo, &repo_path, None).await?;
+        let guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
 
-    tracing::info!("[Task {}] Filesystem mounted successfully.", id);
+        let id_for_repo = format!("{id}-{attempt}");
+        let (repo_mount_point, mount_id) =
+            mount_antares_fs(&id_for_repo, &repo_path, cl_arg).await?;
+        let guard = MountGuard::new(mount_id.clone(), id_for_repo);
+
+        tracing::info!(
+            "[Task {}] Filesystem mounted successfully (attempt {}/{}).",
+            id,
+            attempt,
+            MAX_TARGETS_ATTEMPTS
+        );
+
+        match get_build_targets(&old_repo_mount_point, &repo_mount_point, changes.clone()).await {
+            Ok(found_targets) => {
+                mount_point = Some(repo_mount_point);
+                mount_guard = Some(guard);
+                mount_guard_old_repo = Some(guard_old_repo);
+                targets = found_targets;
+                break;
+            }
+            Err(e) => {
+                guard.unmount().await;
+                guard_old_repo.unmount().await;
+                last_targets_error = Some(e);
+                if attempt == MAX_TARGETS_ATTEMPTS {
+                    break;
+                }
+                tracing::warn!(
+                    "[Task {}] Failed to get build targets (attempt {}/{}): {}. Retrying with fresh mounts...",
+                    id,
+                    attempt,
+                    MAX_TARGETS_ATTEMPTS,
+                    last_targets_error.as_ref().unwrap()
+                );
+            }
+        }
+    }
+
+    let mount_point = match mount_point {
+        Some(value) => value,
+        None => {
+            let err = last_targets_error
+                .map(|e| anyhow!("Error getting build targets: {e}"))
+                .unwrap_or_else(|| anyhow!("Error getting build targets: mount point missing"));
+            let error_msg = err.to_string();
+            if sender
+                .send(WSMessage::BuildOutput {
+                    id: id.clone(),
+                    output: error_msg.clone(),
+                })
+                .is_err()
+            {
+                tracing::error!(
+                    "[Task {}] Failed to send BuildOutput for target discovery error",
+                    id
+                );
+            }
+            return Err(err.into());
+        }
+    };
+    let mount_guard = mount_guard.ok_or("Mount guard missing after target discovery")?;
+    let mount_guard_old_repo =
+        mount_guard_old_repo.ok_or("Old repo mount guard missing after target discovery")?;
 
     let build_result = async {
-        let targets = match get_build_targets(&old_repo_mount_point, &mount_point, changes).await {
-            Ok(targets) => targets,
-            Err(e) => {
-                let error_msg = format!("Error getting build targets: {}", e);
-                if sender
-                    .send(WSMessage::BuildOutput {
-                        id: id.clone(),
-                        output: error_msg.clone(),
-                    })
-                    .is_err()
-                {
-                    tracing::error!("[Task {}] Failed to send BuildOutput for error: {}", id, e);
-                }
-                return Err(e.into());
-            }
-        };
-
         let mut cmd = Command::new("buck2");
         let cmd = cmd
             .arg("build")

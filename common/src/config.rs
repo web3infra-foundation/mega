@@ -986,8 +986,10 @@ mod test {
 
     #[test]
     fn test_buck_config_validate_upload_limit_zero() {
-        let mut config = BuckConfig::default();
-        config.upload_concurrency_limit = 0;
+        let config = BuckConfig {
+            upload_concurrency_limit: 0,
+            ..Default::default()
+        };
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("upload_concurrency_limit"));
@@ -995,8 +997,10 @@ mod test {
 
     #[test]
     fn test_buck_config_validate_large_file_limit_zero() {
-        let mut config = BuckConfig::default();
-        config.large_file_concurrency_limit = 0;
+        let config = BuckConfig {
+            large_file_concurrency_limit: 0,
+            ..Default::default()
+        };
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("large_file_concurrency_limit"));
@@ -1004,8 +1008,10 @@ mod test {
 
     #[test]
     fn test_buck_config_validate_max_files_zero() {
-        let mut config = BuckConfig::default();
-        config.max_files = 0;
+        let config = BuckConfig {
+            max_files: 0,
+            ..Default::default()
+        };
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("max_files"));
@@ -1013,8 +1019,10 @@ mod test {
 
     #[test]
     fn test_buck_config_validate_session_timeout_zero() {
-        let mut config = BuckConfig::default();
-        config.session_timeout = 0;
+        let config = BuckConfig {
+            session_timeout: 0,
+            ..Default::default()
+        };
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("session_timeout"));
@@ -1022,9 +1030,11 @@ mod test {
 
     #[test]
     fn test_buck_config_validate_valid_values() {
-        let mut config = BuckConfig::default();
-        config.upload_concurrency_limit = 100;
-        config.large_file_concurrency_limit = 20;
+        let config = BuckConfig {
+            upload_concurrency_limit: 100,
+            large_file_concurrency_limit: 20,
+            ..Default::default()
+        };
         assert!(config.validate().is_ok());
     }
 }
