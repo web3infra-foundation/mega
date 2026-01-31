@@ -1300,17 +1300,30 @@ mod tests {
     }
 
     /// Test hash format validation
+    ///
+    /// **Multi-hash support**: Both SHA-1 and SHA-256 hashes are now valid.
     #[test]
     fn test_hash_format_validation() {
-        // Valid format: "sha1:HEXSTRING"
-        let valid = FileChange::new(
+        // Valid format: "sha1:HEXSTRING" (40 chars)
+        let valid_sha1 = FileChange::new(
             "file.txt".to_string(),
             "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709".to_string(),
             "100644".to_string(),
         );
         assert!(
-            valid.parse_blob_hash().is_ok(),
+            valid_sha1.parse_blob_hash().is_ok(),
             "Valid sha1 hash should be accepted"
+        );
+
+        // Valid format: "sha256:HEXSTRING" (64 chars) - Multi-hash support
+        let valid_sha256 = FileChange::new(
+            "file.txt".to_string(),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+            "100644".to_string(),
+        );
+        assert!(
+            valid_sha256.parse_blob_hash().is_ok(),
+            "Valid sha256 hash should be accepted (multi-hash support)"
         );
 
         // Invalid formats
@@ -1323,10 +1336,7 @@ mod tests {
             ("sha1:", "empty hash"),
             ("sha1:invalid", "non-hexadecimal characters"),
             ("sha1:abc", "hash too short"),
-            (
-                "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "unsupported algorithm (sha256)",
-            ),
+            ("sha256:abc", "sha256 hash too short"),
             (
                 ":da39a3ee5e6b4b0d3255bfef95601890afd80709",
                 "missing algorithm name",
