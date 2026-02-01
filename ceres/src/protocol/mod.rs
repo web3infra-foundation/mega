@@ -6,7 +6,6 @@ use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
     errors::{MegaError, ProtocolError},
-    utils::ZERO_ID,
 };
 use http::{HeaderMap, HeaderValue};
 use import_refs::RefCommand;

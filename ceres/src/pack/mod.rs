@@ -12,7 +12,6 @@ use bytes::Bytes;
 use common::{
     config::PackConfig,
     errors::{MegaError, ProtocolError},
-    utils::ZERO_ID,
 };
 use futures::{Stream, TryStreamExt, future::join_all};
 use git_internal::{
@@ -164,7 +163,7 @@ pub trait RepoHandler: Send + Sync + 'static {
     async fn check_default_branch(&self) -> bool;
 
     fn find_head_hash(&self, refs: Vec<Refs>) -> (String, Vec<Refs>) {
-        let mut head_hash = ZERO_ID.to_string();
+        let mut head_hash = common::utils::get_current_zero_id().to_string();
         for git_ref in refs.iter() {
             if git_ref.default_branch {
                 head_hash.clone_from(&git_ref.ref_hash);

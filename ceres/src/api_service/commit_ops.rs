@@ -282,8 +282,8 @@ pub async fn resolve_start_commit<T: ApiHandler + ?Sized>(
         ));
     }
 
-    // Try to resolve as commit SHA (support short SHA: 7-40 hex digits)
-    if (7..=40).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
+    // Try to resolve as commit SHA (support short SHA: 7-64 hex digits for SHA-1/SHA-256)
+    if (7..=64).contains(&ref_str.len()) && ref_str.chars().all(|c| c.is_ascii_hexdigit()) {
         let commit = handler.get_commit_by_hash(ref_str).await?;
 
         // Defensive: ensure the resolved commit actually matches the requested SHA

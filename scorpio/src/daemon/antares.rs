@@ -658,6 +658,16 @@ impl AntaresServiceImpl {
         Ok(body.data.unwrap_or_default())
     }
 
+    fn strip_hash_prefix(oid: &str) -> &str {
+        if let Some(stripped) = oid.strip_prefix("sha1:") {
+            stripped
+        } else if let Some(stripped) = oid.strip_prefix("sha256:") {
+            stripped
+        } else {
+            oid
+        }
+    }
+
     async fn download_blob_to_path(
         &self,
         client: &Client,
@@ -665,7 +675,7 @@ impl AntaresServiceImpl {
         dest: &Path,
     ) -> Result<(), ServiceError> {
         let base_url = crate::util::config::base_url();
-        let clean_oid = oid.trim_start_matches("sha1:");
+        let clean_oid = Self::strip_hash_prefix(oid);
         let url = format!("{base_url}/api/v1/file/blob/{clean_oid}");
         let resp = client
             .get(url)
@@ -2633,3 +2643,29 @@ mod tests {
         assert_eq!(status.cl, None);
     }
 }
+
+    #[test]
+    fn test_strip_hash_prefix() {
+        // Test SHA-1 prefix
+        assert_eq!(
+            AntaresServiceImpl::strip_hash_prefix("sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
+            "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
+        );
+
+        // Test SHA-256 prefix
+        assert_eq!(
+            AntaresServiceImpl::strip_hash_prefix("sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+
+        // Test no prefix (pass-through)
+        assert_eq!(
+            AntaresServiceImpl::strip_hash_prefix("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
+            "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
+        );
+
+        // Test explicit empty or malformed (should be safe)
+        assert_eq!(AntaresServiceImpl::strip_hash_prefix(""), "");
+        assert_eq!(AntaresServiceImpl::strip_hash_prefix("sha1:"), "");
+    }
+

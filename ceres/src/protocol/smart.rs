@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     api_service::state::ProtocolApiState,
     protocol::{
-        Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol, ZERO_ID,
+        Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol,
         import_refs::RefCommand,
     },
 };
@@ -67,7 +67,7 @@ impl SmartProtocol {
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let (head_hash, git_refs) = repo_handler.refs_with_head_hash().await;
-        let name = if head_hash == ZERO_ID {
+        let name = if common::utils::is_zero_id(&head_hash) {
             "capabilities^{}"
         } else {
             "HEAD"
@@ -121,10 +121,17 @@ impl SmartProtocol {
 
             match commands {
                 b"want" => {
-                    want.insert(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                    let line = String::from_utf8(dst.clone()).unwrap();
+                    let hash_part = if let Some((hash, _)) = line[5..].split_once('\0') {
+                        hash
+                    } else {
+                        line[5..].trim()
+                    };
+                    want.insert(hash_part.trim().to_string());
                 }
                 b"have" => {
-                    have.insert(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                    let line = String::from_utf8(dst.clone()).unwrap();
+                    have.insert(line[5..].trim().to_string());
                 }
                 b"done" => break,
                 other => {
@@ -136,7 +143,9 @@ impl SmartProtocol {
                 }
             };
             if !read_first_line {
-                self.parse_capabilities(core::str::from_utf8(&dst[46..]).unwrap());
+                if let Some(pos) = dst.iter().position(|&b| b == 0) && pos + 1 < dst.len() {
+                    self.parse_capabilities(core::str::from_utf8(&dst[pos + 1..]).unwrap());
+                }
                 read_first_line = true;
             }
         }
@@ -358,7 +367,7 @@ impl SmartProtocol {
             // Only process successful branch updates (not tags or failed commands)
             if command.ref_type == RefTypeEnum::Branch
                 && command.status == "ok"
-                && command.new_id != ZERO_ID
+                && !common::utils::is_zero_id(&command.new_id)
                 && let Err(e) = self.bind_commit_to_user(state, &command.new_id).await
             {
                 tracing::warn!("Failed to bind commit {} to user: {}", command.new_id, e);

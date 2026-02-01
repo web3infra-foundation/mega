@@ -7,6 +7,24 @@ pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Err(_) => panic!("can't get ZERO_ID"),
 };
 
+pub const ZERO_ID_SHA256: &str = match std::str::from_utf8(&[b'0'; 64]) {
+    Ok(s) => s,
+    Err(_) => panic!("can't get ZERO_ID_SHA256"),
+};
+
+/// Check if a hash string is a zero ID (either SHA-1 or SHA-256)
+pub fn is_zero_id(s: &str) -> bool {
+    (s.len() == 40 || s.len() == 64) && s.chars().all(|c| c == '0')
+}
+
+/// Get the ZERO_ID string for the current hash algorithm configuration
+pub fn get_current_zero_id() -> &'static str {
+    match git_internal::hash::get_hash_kind() {
+        git_internal::hash::HashKind::Sha1 => ZERO_ID,
+        git_internal::hash::HashKind::Sha256 => ZERO_ID_SHA256,
+    }
+}
+
 pub fn generate_id() -> i64 {
     // Call `next_id` to generate a new unique id.
     IdInstance::next_id()

@@ -1,5 +1,5 @@
 use callisto::{import_refs, mega_refs, sea_orm_active_enums::RefTypeEnum};
-use common::utils::{MEGA_BRANCH_NAME, ZERO_ID, generate_id};
+use common::utils::{MEGA_BRANCH_NAME, generate_id};
 use serde::{Deserialize, Serialize};
 
 ///
@@ -63,9 +63,9 @@ impl RefCommand {
     const FAILED_STATUS: &'static str = "ng";
 
     pub fn new(old_id: String, new_id: String, ref_name: String) -> Self {
-        let command_type = if ZERO_ID == old_id {
+        let command_type = if common::utils::is_zero_id(&old_id) {
             CommandType::Create
-        } else if ZERO_ID == new_id {
+        } else if common::utils::is_zero_id(&new_id) {
             CommandType::Delete
         } else {
             CommandType::Update

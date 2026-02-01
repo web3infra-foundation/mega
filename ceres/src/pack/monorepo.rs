@@ -20,7 +20,7 @@ use callisto::{
 };
 use common::{
     errors::MegaError,
-    utils::{self, ZERO_ID},
+    utils,
 };
 use git_internal::{
     errors::GitError,
@@ -120,7 +120,7 @@ impl RepoHandler for MonoRepo {
                                     .unwrap(),
                             );
                         } else {
-                            return (ZERO_ID.to_string(), vec![]);
+                            return (common::utils::get_current_zero_id().to_string(), vec![]);
                         }
                     }
                 }
@@ -556,7 +556,8 @@ impl MonoRepo {
         {
             Some(cl) => cl.link.clone(),
             None => {
-                if self.from_hash == "0".repeat(40) {
+                // **Multi-hash support**: Check for zero hash (40 chars for SHA-1, 64 chars for SHA-256)
+                if utils::is_zero_id(&self.from_hash) {
                     return Err(MegaError::Other(
                         "Can not init directory under monorepo directory!".to_string(),
                     ));
@@ -911,7 +912,7 @@ impl MonoRepo {
             let lookup_path = PathBuf::from(&policy_relative_path);
 
             // Fetch policy content: try from_hash for existing, fall back to to_hash for new
-            let content = if self.from_hash != ZERO_ID {
+            let content = if !utils::is_zero_id(&self.from_hash) {
                 if let Ok(Some(content)) = mono_api_service
                     .get_blob_as_string(lookup_path.clone(), Some(&self.from_hash))
                     .await

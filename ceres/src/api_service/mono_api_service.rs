@@ -698,8 +698,8 @@ impl ApiHandler for MonoApiService {
             return self.get_tree_by_hash(&refs.ref_tree_hash).await;
         }
 
-        // condition 2: commit hash
-        if refs.len() == 40 && refs.chars().all(|c| c.is_ascii_hexdigit()) {
+        // **Multi-hash support**: Accept both SHA-1 (40 chars) and SHA-256 (64 chars)
+        if (refs.len() == 40 || refs.len() == 64) && refs.chars().all(|c| c.is_ascii_hexdigit()) {
             let commit = self.get_commit_by_hash(refs).await?;
             return self.get_tree_by_hash(&commit.tree_id.to_string()).await;
         }
