@@ -37,35 +37,35 @@ export function WorkWithChatDialog() {
   }
 
   return (
-    <div className='w-full rounded-lg bg-gray-100'>
-      {/* Top Icon and Title - White background */}
-      <div className='mb-0 flex flex-col items-center rounded-t-lg p-4' style={{ backgroundColor: '#ffffff' }}>
+    <div className='bg-secondary w-full rounded-lg'>
+      {/* Top Icon and Title */}
+      <div className='bg-primary mb-0 flex flex-col items-center rounded-t-lg p-4'>
         <div
           className='mb-3 flex h-16 w-16 items-center justify-center rounded-lg'
           style={{ backgroundColor: '#52b5f2' }}
         >
           <DiscussionClosedIcon size={24} className='text-black' />
         </div>
-        <UIText size='text-lg' weight='font-medium' className='text-gray-700'>
-          Work with <span style={{ color: '#111214' }}>Chat</span>
+        <UIText size='text-lg' weight='font-medium' className='text-secondary'>
+          Work with <span className='text-primary'>Chat</span>
         </UIText>
       </div>
 
       {/* Input box with border and full width */}
-      <div className='w-full rounded-lg border border-gray-300' style={{ backgroundColor: '#f3f4f5' }}>
+      <div className='border-primary bg-tertiary w-full rounded-lg border'>
         {/* @Chat header section with rounded top corners */}
-        <div className='flex items-center gap-2 rounded-t-lg px-3 py-2' style={{ backgroundColor: '#e6e8ea' }}>
+        <div className='bg-secondary flex items-center gap-2 rounded-t-lg px-3 py-2'>
           <div className='flex h-6 w-6 items-center justify-center rounded' style={{ backgroundColor: '#52b5f2' }}>
             <DiscussionClosedIcon size={14} className='text-black' />
           </div>
-          <UIText size='text-sm' weight='font-medium' className='text-gray-700'>
+          <UIText size='text-sm' weight='font-medium' className='text-secondary'>
             @Chat
           </UIText>
           <Button
             variant='plain'
             iconOnly={<BuildIcon style={{ fontSize: 14 }} />}
             accessibilityLabel='Build settings'
-            className='h-5 w-5 p-0 text-gray-600'
+            className='text-tertiary h-5 w-5 p-0'
           />
         </div>
 
@@ -79,11 +79,12 @@ export function WorkWithChatDialog() {
               onFocus={handleFocus}
               onBlur={handleBlur}
               placeholder=''
-              className='w-full resize-none border-0 bg-transparent text-sm focus:outline-none focus:ring-0'
+              className={`w-full resize-none border-0 bg-transparent text-sm focus:outline-none focus:ring-0 ${
+                isShowingHint ? 'text-quaternary' : 'text-primary'
+              }`}
               style={{
                 minHeight: '60px',
-                lineHeight: '1.4',
-                color: isShowingHint ? '#8d9297' : '#374151'
+                lineHeight: '1.4'
               }}
               rows={3}
             />
@@ -97,19 +98,19 @@ export function WorkWithChatDialog() {
                 variant='plain'
                 iconOnly={<MentionIcon size={16} />}
                 accessibilityLabel='Mention'
-                className='h-6 w-6 p-0 text-gray-600 hover:text-gray-800'
+                className='text-tertiary hover:text-primary h-6 w-6 p-0'
               />
               <Button
                 variant='plain'
                 iconOnly={<HashIcon size={16} />}
                 accessibilityLabel='Add hashtag'
-                className='h-6 w-6 p-0 text-gray-600 hover:text-gray-800'
+                className='text-tertiary hover:text-primary h-6 w-6 p-0'
               />
               <Button
                 variant='plain'
                 iconOnly={<ImageIcon size={16} />}
                 accessibilityLabel='Add image'
-                className='h-6 w-6 p-0 text-gray-600 hover:text-gray-800'
+                className='text-tertiary hover:text-primary h-6 w-6 p-0'
               />
             </div>
 
@@ -120,7 +121,7 @@ export function WorkWithChatDialog() {
                 <Button
                   variant='plain'
                   size='sm'
-                  className='h-6 px-2 text-xs text-gray-600'
+                  className='text-tertiary h-6 px-2 text-xs'
                   rightSlot={<ChevronDownIcon size={12} />}
                 >
                   {autoMode}
@@ -133,15 +134,12 @@ export function WorkWithChatDialog() {
                 variant='plain'
                 iconOnly={<SparklesIcon size={16} />}
                 accessibilityLabel='AI assistant'
-                className='h-6 w-6 p-0 text-gray-600 hover:text-gray-800'
+                className='text-tertiary hover:text-primary h-6 w-6 p-0'
               />
 
               {/* Microphone icon */}
-              <div
-                className='flex h-6 w-6 cursor-pointer items-center justify-center rounded-md hover:opacity-80'
-                style={{ backgroundColor: '#e2e4e7' }}
-              >
-                <MicrophoneIcon size={16} style={{ color: '#45484d' }} />
+              <div className='bg-quaternary hover:bg-tertiary flex h-6 w-6 cursor-pointer items-center justify-center rounded-md'>
+                <MicrophoneIcon size={16} className='text-secondary' />
               </div>
 
               {/* Send button */}

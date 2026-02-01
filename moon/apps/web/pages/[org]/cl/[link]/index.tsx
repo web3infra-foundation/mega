@@ -9,6 +9,7 @@ import {
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider } from '@primer/react'
 import { useAtom } from 'jotai'
+import { useTheme } from 'next-themes'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import { toast } from 'react-hot-toast'
@@ -53,6 +54,7 @@ import { PageWithLayout } from '@/utils/types'
 const CLDetailPage: PageWithLayout<any> = () => {
   const router = useRouter()
   const { link: tempId } = router.query
+  const { theme } = useTheme()
 
   const [item_id] = useAtom(clIdAtom)
 
@@ -280,13 +282,13 @@ const CLDetailPage: PageWithLayout<any> = () => {
           {Icon && <Icon size={16} className='mr-1 text-white' />}
           <span>{label}</span>
         </div>
-        {(clDetail as any)?.path && <span className='text-sm text-gray-500'>{(clDetail as any).path}</span>}
+        {(clDetail as any)?.path && <span className='text-tertiary text-sm'>{(clDetail as any).path}</span>}
       </div>
     )
   }
 
   return (
-    <ThemeProvider>
+    <ThemeProvider colorMode={theme === 'dark' ? 'dark' : 'light'}>
       <BaseStyles>
         <div className='h-screen overflow-auto p-6'>
           {clDetail && (

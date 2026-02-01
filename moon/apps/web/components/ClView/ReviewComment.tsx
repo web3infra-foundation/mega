@@ -105,20 +105,22 @@ const ReviewComment = React.memo<ReviewCommentProps>(
 
     return (
       <div
-        className={`overflow-hidden rounded-lg border-2 bg-white ${
-          isResolved ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'
+        className={`overflow-hidden rounded-lg border-2 ${
+          isResolved
+            ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+            : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'
         }`}
       >
-        <div className='bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800'>
+        <div className='bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200'>
           📝 Review Comment
           {isResolved && (
-            <span className='ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800'>
+            <span className='ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200'>
               ✓ Resolved
             </span>
           )}
         </div>
 
-        <div className='flex items-center justify-between border-b border-blue-200 px-4 py-2'>
+        <div className='border-primary flex items-center justify-between border-b px-4 py-2'>
           <div className='flex items-center space-x-3'>
             <div className='cursor-pointer'>
               <ConditionalWrap
@@ -148,7 +150,7 @@ const ReviewComment = React.memo<ReviewCommentProps>(
                 </UIText>
               </ConditionalWrap>
             </div>
-            <div className='text-sm text-gray-500 hover:text-gray-700'>
+            <div className='text-tertiary hover:text-secondary text-sm'>
               <HandleTime created_at={conv.created_at} />
             </div>
           </div>
@@ -158,7 +160,7 @@ const ReviewComment = React.memo<ReviewCommentProps>(
                 size='sm'
                 variant='base'
                 onClick={handleResolve}
-                className='border-green-300 text-green-600 hover:bg-green-50'
+                className='border-green-300 text-green-600 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950'
               >
                 Resolve Conversation
               </Button>
