@@ -270,7 +270,7 @@ F5MtAwnDBeT2Qg==
 =Q/C5
 -----END PGP PUBLIC KEY BLOCK-----
 "#;
-    let pub_key = SignedPublicKey::from_string(&pk)
+    let pub_key = SignedPublicKey::from_string(pk)
         .expect("unable to parse key")
         .0;
     let sig = StandaloneSignature::from_string(&sig)
@@ -280,6 +280,4 @@ F5MtAwnDBeT2Qg==
     sig.signature
         .verify(&pub_key, bytes)
         .expect("unable to verify");
-
-    assert!(true);
 }
