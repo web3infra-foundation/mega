@@ -285,10 +285,7 @@ mod tests {
 
     #[test]
     fn test_parse_object_hash_sha1_valid() {
-        let result = parse_object_hash(
-            "sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "test",
-        );
+        let result = parse_object_hash("sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3", "test");
         assert!(result.is_ok());
     }
 
@@ -319,10 +316,12 @@ mod tests {
     fn test_parse_object_hash_unsupported_algorithm() {
         let result = parse_object_hash("md5:abc123", "test");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported hash algorithm"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unsupported hash algorithm")
+        );
     }
 
     #[test]
@@ -335,10 +334,7 @@ mod tests {
     #[test]
     fn test_parse_object_hash_case_insensitive() {
         // Algorithm should be case-insensitive
-        let result = parse_object_hash(
-            "SHA1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "test",
-        );
+        let result = parse_object_hash("SHA1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3", "test");
         assert!(result.is_ok());
     }
 

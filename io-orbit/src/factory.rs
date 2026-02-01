@@ -31,7 +31,13 @@ impl MegaObjectStorageWrapper {
 
     pub fn mock() -> Self {
         if !exists("/tmp/mega_test_object_storage").expect("mock err") {
-            create_dir("/tmp/mega_test_object_storage").expect("init mock file err")
+            match create_dir("/tmp/mega_test_object_storage") {
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    // 文件已存在，忽略此错误
+                }
+                Err(e) => panic!("init mock file err: {:?}", e),
+            }
         }
         let fs = LocalFileSystem::new_with_prefix("/tmp/mega_test_object_storage")
             .expect("mock init error");

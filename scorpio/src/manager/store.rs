@@ -661,8 +661,9 @@ mod test {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_add_blob_sha1_40_chars() {

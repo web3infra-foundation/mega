@@ -2644,28 +2644,29 @@ mod tests {
     }
 }
 
-    #[test]
-    fn test_strip_hash_prefix() {
-        // Test SHA-1 prefix
-        assert_eq!(
-            AntaresServiceImpl::strip_hash_prefix("sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
-            "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
-        );
+#[test]
+fn test_strip_hash_prefix() {
+    // Test SHA-1 prefix
+    assert_eq!(
+        AntaresServiceImpl::strip_hash_prefix("sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
+        "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
+    );
 
-        // Test SHA-256 prefix
-        assert_eq!(
-            AntaresServiceImpl::strip_hash_prefix("sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
+    // Test SHA-256 prefix
+    assert_eq!(
+        AntaresServiceImpl::strip_hash_prefix(
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
 
-        // Test no prefix (pass-through)
-        assert_eq!(
-            AntaresServiceImpl::strip_hash_prefix("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
-            "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
-        );
+    // Test no prefix (pass-through)
+    assert_eq!(
+        AntaresServiceImpl::strip_hash_prefix("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"),
+        "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
+    );
 
-        // Test explicit empty or malformed (should be safe)
-        assert_eq!(AntaresServiceImpl::strip_hash_prefix(""), "");
-        assert_eq!(AntaresServiceImpl::strip_hash_prefix("sha1:"), "");
-    }
-
+    // Test explicit empty or malformed (should be safe)
+    assert_eq!(AntaresServiceImpl::strip_hash_prefix(""), "");
+    assert_eq!(AntaresServiceImpl::strip_hash_prefix("sha1:"), "");
+}

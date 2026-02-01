@@ -1104,7 +1104,7 @@ mod test {
         // Test that serde deserializes lowercase strings correctly
         let sha1: HashAlgorithm = serde_json::from_str("\"sha1\"").unwrap();
         assert_eq!(sha1, HashAlgorithm::Sha1);
-        
+
         let sha256: HashAlgorithm = serde_json::from_str("\"sha256\"").unwrap();
         assert_eq!(sha256, HashAlgorithm::Sha256);
     }

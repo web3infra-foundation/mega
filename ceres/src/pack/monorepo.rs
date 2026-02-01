@@ -18,10 +18,7 @@ use bellatrix::{
 use callisto::{
     entity_ext::generate_link, mega_cl, mega_commit, mega_refs, sea_orm_active_enums::ConvTypeEnum,
 };
-use common::{
-    errors::MegaError,
-    utils,
-};
+use common::{errors::MegaError, utils};
 use git_internal::{
     errors::GitError,
     hash::ObjectHash,

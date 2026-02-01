@@ -4,9 +4,7 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 use base64::{engine::general_purpose, prelude::*};
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
-use common::{
-    errors::{MegaError, ProtocolError},
-};
+use common::errors::{MegaError, ProtocolError};
 use http::{HeaderMap, HeaderValue};
 use import_refs::RefCommand;
 use jupiter::redis::lock::RedLock;

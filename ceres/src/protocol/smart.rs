@@ -79,8 +79,12 @@ impl SmartProtocol {
             git_internal::hash::HashKind::Sha256 => "object-format=sha256",
         };
         let cap_list = match service_type {
-            ServiceType::UploadPack => format!("{UPLOAD_CAP_LIST}{COMMON_CAP_LIST} {object_format}"),
-            ServiceType::ReceivePack => format!("{RECEIVE_CAP_LIST}{COMMON_CAP_LIST} {object_format}"),
+            ServiceType::UploadPack => {
+                format!("{UPLOAD_CAP_LIST}{COMMON_CAP_LIST} {object_format}")
+            }
+            ServiceType::ReceivePack => {
+                format!("{RECEIVE_CAP_LIST}{COMMON_CAP_LIST} {object_format}")
+            }
         };
         let pkt_line = format!("{head_hash}{SP}{name}{NUL}{cap_list}{LF}");
         let mut ref_list = vec![pkt_line];
@@ -143,7 +147,9 @@ impl SmartProtocol {
                 }
             };
             if !read_first_line {
-                if let Some(pos) = dst.iter().position(|&b| b == 0) && pos + 1 < dst.len() {
+                if let Some(pos) = dst.iter().position(|&b| b == 0)
+                    && pos + 1 < dst.len()
+                {
                     self.parse_capabilities(core::str::from_utf8(&dst[pos + 1..]).unwrap());
                 }
                 read_first_line = true;
