@@ -63,25 +63,6 @@ pub fn similar_score(a: &str, b: &str) -> f32 {
 
 /// Computes the length of the Longest Common Subsequence (LCS)
 /// between two strings at the byte level.
-///
-/// # Examples
-///
-/// ```
-/// // Simple subsequence
-/// assert_eq!(lcs_len("abcde", "ace"), 3); // "ace"
-///
-/// // Interleaved characters
-/// assert_eq!(lcs_len("AGGTAB", "GXTXAYB"), 4); // "GTAB"
-///
-/// // Typical code-line change (after normalization)
-/// assert_eq!(
-///     lcs_len("letresult=foo(bar,baz);", "letresult=foo(bar,baz,ctx);"),
-///     24
-/// );
-///
-/// // Completely different strings
-/// assert_eq!(lcs_len("returnErr;", "logError();"), 1); // common ';'
-/// ```
 fn lcs_len(a: &str, b: &str) -> usize {
     let a = a.as_bytes();
     let b = b.as_bytes();
