@@ -30,4 +30,10 @@ impl Related<super::mega_code_review_anchor::Entity> for Entity {
     }
 }
 
+impl Related<super::mega_code_review_comment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaCodeReviewComment.def()
+    }
+}
+
 impl ActiveModelBehavior for ActiveModel {}

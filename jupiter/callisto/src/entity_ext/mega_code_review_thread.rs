@@ -32,12 +32,6 @@ impl Related<crate::mega_cl::Entity> for Entity {
     }
 }
 
-impl Related<crate::mega_code_review_comment::Entity> for Entity {
-    fn to() -> sea_orm::RelationDef {
-        Relation::Comment.def()
-    }
-}
-
 impl mega_code_review_thread::Model {
     pub fn new(link: &str, thread_status: ThreadStatusEnum) -> Self {
         let now = chrono::Utc::now().naive_utc();
