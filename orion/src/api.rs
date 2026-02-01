@@ -8,7 +8,7 @@ use crate::{buck_controller, repo::sapling::status::Status, ws::WSMessage};
 /// Parameters required to execute a buck build operation.
 #[derive(Debug)]
 pub struct BuildRequest {
-    /// Repository path or identifier
+    /// Monorepo mount path (Buck2 project root or subdirectory)
     pub repo: String,
     /// Change List identifier for context
     pub cl: String,

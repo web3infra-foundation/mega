@@ -41,7 +41,9 @@ pub struct BuildInfo {
 #[derive(Serialize, Debug)]
 pub struct OrionBuildRequest {
     pub cl_link: String,
-    pub repo: String,
+    /// Monorepo mount path (Buck2 project root or subdirectory)
+    #[serde(rename = "mount_path", alias = "repo", alias = "path")]
+    pub mount_path: String,
     pub cl: i64,
     pub builds: Vec<BuildInfo>,
 }

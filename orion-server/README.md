@@ -46,7 +46,7 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
     - **Request Body:**
         ```json
         {
-            "repo": "string",
+            "mount_path": "string",      // monorepo mount path (buck project root), e.g. "/" or "/third-party/mega"
             "target": "string",
             "args": ["string", ...],      // optional
             "cl": "string"                // optional, Change List number
@@ -65,7 +65,7 @@ Orion Server is a Buck2 build task scheduling service written in Rust. It provid
 curl -X POST http://localhost:8004/task \
     -H "Content-Type: application/json" \
     -d '{
-        "repo": "buck2-rust-third-party",
+        "mount_path": "/third-party/mega",
         "target": "root//:rust-third-party",
         "args": [""],
         "cl": "123"
@@ -78,7 +78,7 @@ curl -X POST http://localhost:8004/task \
     - **Request Body:**
         ```json
         {
-            "repo": "string",
+            "mount_path": "string",      // monorepo mount path (buck project root), e.g. "/" or "/third-party/mega"
             "buck_hash": "string",
             "buckconfig_hash": "string",
             "args": ["string", ...],      // optional

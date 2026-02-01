@@ -80,12 +80,12 @@ pub enum TaskStatusEnum {
 /// Request structure for creating a task
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct TaskRequest {
+    #[serde(rename = "repo", alias = "mount_path", alias = "path")]
     pub repo: String,
     pub cl_link: String,
     pub cl: i64,
     pub builds: Vec<scheduler::BuildRequest>,
 }
-
 /// Request structure for Retry a build
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct RetryBuildRequest {
