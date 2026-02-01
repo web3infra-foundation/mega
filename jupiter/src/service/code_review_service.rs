@@ -439,7 +439,6 @@ pub fn try_tier2_diff_hunk_shift(
         .iter()
         .find(|item| item.path == anchor.file_path)?;
 
-    // Parse unified diff into hunks
     let hunks = match parse_unified_diff(&diff_item.data) {
         Ok(hunks) => hunks,
         Err(e) => {
