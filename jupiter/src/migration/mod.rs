@@ -148,11 +148,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260108_105158_remove_storage_type_enum::Migration),
             Box::new(m20260115_000000_create_targets_table::Migration),
             Box::new(m20260119_060233_add_mega_code_review::Migration),
-<<<<<<< HEAD
             Box::new(m20260127_081517_create_build_triggers::Migration),
-=======
             Box::new(m20260128_080549_add_mega_code_review_anchor_and_position::Migration),
->>>>>>> dba5dcef (refactor(code_review): add anchor and position to locat code thread)
         ]
     }
 }
