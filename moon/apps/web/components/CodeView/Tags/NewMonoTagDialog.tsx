@@ -18,9 +18,8 @@ import { Dialog } from '@gitmono/ui/Dialog'
 
 import { useCreateMonoTag } from '@/hooks/useCreateMonoTag'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
-import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
-
 import { useGetLatestCommit } from '@/hooks/useGetLatestCommit'
+import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
 interface Props {
   open: boolean
