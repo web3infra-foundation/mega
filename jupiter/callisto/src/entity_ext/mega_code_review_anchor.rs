@@ -29,6 +29,7 @@ impl RelationTrait for Relation {
 }
 
 impl mega_code_review_anchor::Model {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         thread_id: i64,
         file_path: &str,

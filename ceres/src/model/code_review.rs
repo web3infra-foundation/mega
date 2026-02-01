@@ -45,10 +45,11 @@ pub enum ThreadStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum PositionStatus {
-    Ok,
-    Moved,
+    Exact,
+    Shifted,
+    PendingReanchor,
     Ambiguous,
-    Outdated,
+    NotFound,
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -232,24 +233,26 @@ impl From<ThreadStatus> for ThreadStatusEnum {
     }
 }
 
-impl From<PositionStatusEnum> for PositionStatus {
-    fn from(value: PositionStatusEnum) -> Self {
+impl From<PositionStatus> for PositionStatusEnum {
+    fn from(value: PositionStatus) -> Self {
         match value {
-            PositionStatusEnum::Ok => PositionStatus::Ok,
-            PositionStatusEnum::Moved => PositionStatus::Moved,
-            PositionStatusEnum::Ambiguous => PositionStatus::Ambiguous,
-            PositionStatusEnum::Outdated => PositionStatus::Outdated,
+            PositionStatus::Exact => PositionStatusEnum::Exact,
+            PositionStatus::Shifted => PositionStatusEnum::Shifted,
+            PositionStatus::PendingReanchor => PositionStatusEnum::PendingReanchor,
+            PositionStatus::Ambiguous => PositionStatusEnum::Ambiguous,
+            PositionStatus::NotFound => PositionStatusEnum::NotFound,
         }
     }
 }
 
-impl From<PositionStatus> for PositionStatusEnum {
-    fn from(value: PositionStatus) -> Self {
+impl From<PositionStatusEnum> for PositionStatus {
+    fn from(value: PositionStatusEnum) -> Self {
         match value {
-            PositionStatus::Ok => PositionStatusEnum::Ok,
-            PositionStatus::Moved => PositionStatusEnum::Moved,
-            PositionStatus::Ambiguous => PositionStatusEnum::Ambiguous,
-            PositionStatus::Outdated => PositionStatusEnum::Outdated,
+            PositionStatusEnum::Exact => PositionStatus::Exact,
+            PositionStatusEnum::Shifted => PositionStatus::Shifted,
+            PositionStatusEnum::PendingReanchor => PositionStatus::PendingReanchor,
+            PositionStatusEnum::Ambiguous => PositionStatus::Ambiguous,
+            PositionStatusEnum::NotFound => PositionStatus::NotFound,
         }
     }
 }

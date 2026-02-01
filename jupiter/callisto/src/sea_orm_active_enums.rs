@@ -82,14 +82,16 @@ pub enum MergeStatusEnum {
     enum_name = "position_status_enum"
 )]
 pub enum PositionStatusEnum {
-    #[sea_orm(string_value = "ok")]
-    Ok,
-    #[sea_orm(string_value = "moved")]
-    Moved,
+    #[sea_orm(string_value = "exact")]
+    Exact,
+    #[sea_orm(string_value = "shifted")]
+    Shifted,
+    #[sea_orm(string_value = "pending_reanchor")]
+    PendingReanchor,
     #[sea_orm(string_value = "ambiguous")]
     Ambiguous,
-    #[sea_orm(string_value = "outdated")]
-    Outdated,
+    #[sea_orm(string_value = "not_found")]
+    NotFound,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(

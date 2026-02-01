@@ -208,8 +208,9 @@ enum MegaCodeReviewPosition {
 struct PositionStatusEnum;
 #[derive(Iden, EnumIter)]
 pub enum PositionStatus {
-    Ok,
-    Moved,
+    Exact,
+    Shifted,
+    PendingReanchor,
     Ambiguous,
-    Outdated,
+    NotFound,
 }
