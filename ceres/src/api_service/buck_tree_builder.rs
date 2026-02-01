@@ -762,15 +762,15 @@ mod tests {
 
             // Find direct children in dir_trees (paths whose parent == "a")
             for (child_path, child_tree) in &dir_trees {
-                if let Some(parent) = child_path.parent() {
-                    if parent == dir_path {
-                        let child_name = child_path.file_name().unwrap().to_str().unwrap();
-                        items.push(TreeItem {
-                            mode: TreeItemMode::Tree,
-                            id: child_tree.id,
-                            name: child_name.to_string(),
-                        });
-                    }
+                if let Some(parent) = child_path.parent()
+                    && parent == dir_path
+                {
+                    let child_name = child_path.file_name().unwrap().to_str().unwrap();
+                    items.push(TreeItem {
+                        mode: TreeItemMode::Tree,
+                        id: child_tree.id,
+                        name: child_name.to_string(),
+                    });
                 }
             }
 
@@ -803,15 +803,15 @@ mod tests {
 
             // Find direct children in dir_trees (paths whose parent == "")
             for (child_path, child_tree) in &dir_trees {
-                if let Some(parent) = child_path.parent() {
-                    if parent.as_os_str().is_empty() {
-                        let child_name = child_path.file_name().unwrap().to_str().unwrap();
-                        items.push(TreeItem {
-                            mode: TreeItemMode::Tree,
-                            id: child_tree.id,
-                            name: child_name.to_string(),
-                        });
-                    }
+                if let Some(parent) = child_path.parent()
+                    && parent.as_os_str().is_empty()
+                {
+                    let child_name = child_path.file_name().unwrap().to_str().unwrap();
+                    items.push(TreeItem {
+                        mode: TreeItemMode::Tree,
+                        id: child_tree.id,
+                        name: child_name.to_string(),
+                    });
                 }
             }
 
@@ -880,15 +880,15 @@ mod tests {
 
         // Simulate the child directory linking logic
         for (child_path, child_tree) in &dir_trees {
-            if let Some(parent) = child_path.parent() {
-                if parent == current_dir.as_path() {
-                    let child_name = child_path.file_name().unwrap().to_str().unwrap();
-                    items.push(TreeItem {
-                        mode: TreeItemMode::Tree,
-                        id: child_tree.id,
-                        name: child_name.to_string(),
-                    });
-                }
+            if let Some(parent) = child_path.parent()
+                && parent == current_dir.as_path()
+            {
+                let child_name = child_path.file_name().unwrap().to_str().unwrap();
+                items.push(TreeItem {
+                    mode: TreeItemMode::Tree,
+                    id: child_tree.id,
+                    name: child_name.to_string(),
+                });
             }
         }
 
