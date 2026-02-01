@@ -682,11 +682,12 @@ impl BuckService {
                         )
                     } else {
                         files_unchanged += 1;
-                        (
-                            upload_status::SKIPPED.to_string(),
-                            None,
-                            Some(format!("sha1:{}", normalized_old_hash)),
-                        )
+                        let blob_id = if normalized_old_hash.len() == 64 {
+                            format!("sha256:{}", normalized_old_hash)
+                        } else {
+                            format!("sha1:{}", normalized_old_hash)
+                        };
+                        (upload_status::SKIPPED.to_string(), None, Some(blob_id))
                     }
                 }
             };

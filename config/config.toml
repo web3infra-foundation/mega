@@ -75,6 +75,11 @@ admin = ["benjamin_747"]
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
 
+# Hash algorithm for Git objects in this monorepo.
+# Support values: "sha1" (default) or "sha256".
+# Note: Once initialized, the hash algorithm cannot be changed for existing data.
+hash_algorithm = "sha1"
+
 # storage type, support values can be "s3", "s3compatible", "gcs" or "local"
 storage_type = "local"
 

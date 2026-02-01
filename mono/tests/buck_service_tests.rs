@@ -482,7 +482,7 @@ async fn test_process_manifest_success() {
         .await
         .unwrap();
 
-    // Create manifest with new files
+    // Create manifest with new files (Mixed SHA-1 and SHA-256)
     let payload = ManifestPayload {
         files: vec![
             jupiter::service::buck_service::ManifestFile {
@@ -493,7 +493,8 @@ async fn test_process_manifest_success() {
             jupiter::service::buck_service::ManifestFile {
                 path: "file2.txt".to_string(),
                 size: 200,
-                hash: "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_string(),
+                hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    .to_string(),
             },
         ],
         commit_message: Some("Test commit".to_string()),

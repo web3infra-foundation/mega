@@ -93,9 +93,10 @@ pub fn parse_object_hash(
             // Validate SHA-1 hash length (40 hex chars)
             if hash_hex.len() != 40 {
                 return Err(MegaError::Other(format!(
-                    "Invalid SHA-1 hash length in {}: expected 40 chars, got {}",
+                    "Invalid SHA-1 hash length in {}: expected 40 chars, got {} chars. Hash: '{}'",
                     field_name,
-                    hash_hex.len()
+                    hash_hex.len(),
+                    hash_hex
                 )));
             }
             ObjectHash::from_str(&hash_hex).map_err(|e| {
@@ -109,9 +110,10 @@ pub fn parse_object_hash(
             // Validate SHA-256 hash length (64 hex chars)
             if hash_hex.len() != 64 {
                 return Err(MegaError::Other(format!(
-                    "Invalid SHA-256 hash length in {}: expected 64 chars, got {}",
+                    "Invalid SHA-256 hash length in {}: expected 64 chars, got {} chars. Hash: '{}'",
                     field_name,
-                    hash_hex.len()
+                    hash_hex.len(),
+                    hash_hex
                 )));
             }
             ObjectHash::from_str(&hash_hex).map_err(|e| {
@@ -250,7 +252,6 @@ impl FileChange {
     /// **Multi-hash support**: Accepts both SHA-1 and SHA-256 formats.
     /// Expects format: "algorithm:HEXSTRING" (case-insensitive, normalized to lowercase)
     /// Returns the parsed ObjectHash or an error if format is invalid
-    #[allow(deprecated)]
     pub fn parse_blob_hash(
         &self,
     ) -> Result<git_internal::hash::ObjectHash, common::errors::MegaError> {

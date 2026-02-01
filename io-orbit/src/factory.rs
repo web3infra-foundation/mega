@@ -34,7 +34,7 @@ impl MegaObjectStorageWrapper {
             match create_dir("/tmp/mega_test_object_storage") {
                 Ok(_) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                    // 文件已存在，忽略此错误
+                    // Directory already exists, ignore this error
                 }
                 Err(e) => panic!("init mock file err: {:?}", e),
             }

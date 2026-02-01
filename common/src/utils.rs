@@ -1,10 +1,12 @@
+use std::sync::OnceLock;
+
 use idgenerator::IdInstance;
 use regex::Regex;
 use serde_json::{Value, json};
 
-pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
+pub const ZERO_ID_SHA1: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Ok(s) => s,
-    Err(_) => panic!("can't get ZERO_ID"),
+    Err(_) => panic!("can't get ZERO_ID_SHA1"),
 };
 
 pub const ZERO_ID_SHA256: &str = match std::str::from_utf8(&[b'0'; 64]) {
@@ -20,7 +22,7 @@ pub fn is_zero_id(s: &str) -> bool {
 /// Get the ZERO_ID string for the current hash algorithm configuration
 pub fn get_current_zero_id() -> &'static str {
     match git_internal::hash::get_hash_kind() {
-        git_internal::hash::HashKind::Sha1 => ZERO_ID,
+        git_internal::hash::HashKind::Sha1 => ZERO_ID_SHA1,
         git_internal::hash::HashKind::Sha256 => ZERO_ID_SHA256,
     }
 }
@@ -73,8 +75,9 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 pub fn parse_commit_msg(msg_gpg: &str) -> (&str, Option<&str>) {
     const SIG_PATTERN: &str = r"^gpgsig (-----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
     const GPGSIG_PREFIX_LEN: usize = 7; // length of "gpgsig "
+    static SIG_REGEX: OnceLock<Regex> = OnceLock::new();
 
-    let sig_regex = Regex::new(SIG_PATTERN).unwrap();
+    let sig_regex = SIG_REGEX.get_or_init(|| Regex::new(SIG_PATTERN).unwrap());
     if let Some(caps) = sig_regex.captures(msg_gpg) {
         let signature = caps.get(1).unwrap().as_str();
 
@@ -92,13 +95,16 @@ pub fn check_conventional_commits_message(msg: &str) -> bool {
     #[allow(unused_variables)]
     let body_footer = msg.lines().skip(1).collect::<Vec<_>>().join("\n");
 
-    let unicode_pattern = r"\p{L}\p{N}\p{P}\p{S}\p{Z}";
-    // type only support characters&numbers, others fields support all unicode characters
-    let regex_str = format!(
-        r"^(?P<type>[\p{{L}}\p{{N}}_-]+)(?:\((?P<scope>[{unicode_pattern}]+)\))?!?: (?P<description>[{unicode_pattern}]+)$",
-    );
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        let unicode_pattern = r"\p{L}\p{N}\p{P}\p{S}\p{Z}";
+        // type only support characters&numbers, others fields support all unicode characters
+        let regex_str = format!(
+            r"^(?P<type>[\p{{L}}\p{{N}}_-]+)(?:\((?P<scope>[{unicode_pattern}]+)\))?!?: (?P<description>[{unicode_pattern}]+)$",
+        );
+        Regex::new(&regex_str).unwrap()
+    });
 
-    let re = Regex::new(&regex_str).unwrap();
     const RECOMMENDED_TYPES: [&str; 8] = [
         "build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor",
     ];

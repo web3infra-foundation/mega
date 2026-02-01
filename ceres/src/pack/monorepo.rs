@@ -656,8 +656,8 @@ impl MonoRepo {
                 (None, _) => {
                     continue;
                 }
-                (Some(sha1), _) => {
-                    let tree = mono_stg.get_tree_by_hash(&sha1.to_string()).await?.unwrap();
+                (Some(hash), _) => {
+                    let tree = mono_stg.get_tree_by_hash(&hash.to_string()).await?.unwrap();
                     search_trees.push((path, Tree::from_mega_model(tree)));
                 }
             }

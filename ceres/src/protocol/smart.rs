@@ -126,16 +126,15 @@ impl SmartProtocol {
             match commands {
                 b"want" => {
                     let line = String::from_utf8(dst.clone()).unwrap();
-                    let hash_part = if let Some((hash, _)) = line[5..].split_once('\0') {
-                        hash
-                    } else {
-                        line[5..].trim()
-                    };
-                    want.insert(hash_part.trim().to_string());
+                    if let Some(hash) = extract_hash_from_pkt_line(&line) {
+                        want.insert(hash);
+                    }
                 }
                 b"have" => {
                     let line = String::from_utf8(dst.clone()).unwrap();
-                    have.insert(line[5..].trim().to_string());
+                    if let Some(hash) = extract_hash_from_pkt_line(&line) {
+                        have.insert(hash);
+                    }
                 }
                 b"done" => break,
                 other => {
@@ -483,6 +482,19 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
     (pkt_length, pkt_line)
 }
 
+/// Parse "want" or "have" line to extract the hash
+/// Supports both SHA-1 (40) and SHA-256 (64)
+pub fn extract_hash_from_pkt_line(line: &str) -> Option<String> {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() >= 2 {
+        let hash = parts[1];
+        let hash_part = hash.split('\0').next().unwrap_or(hash);
+        Some(hash_part.trim().to_string())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 pub mod test {
     use std::{process::Command, time::Duration};
@@ -496,8 +508,41 @@ pub mod test {
     use crate::protocol::{
         Capability, SmartProtocol,
         import_refs::{CommandType, RefCommand},
-        smart::{add_pkt_line_string, read_pkt_line, read_until_white_space},
+        smart::{
+            add_pkt_line_string, extract_hash_from_pkt_line, read_pkt_line, read_until_white_space,
+        },
     };
+
+    #[test]
+    pub fn test_extract_hash_from_pkt_line() {
+        // SHA-1
+        let line = "want a94a8fe5ccb19ba61c4c0873d391e987982fbbd3\n";
+        assert_eq!(
+            extract_hash_from_pkt_line(line),
+            Some("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3".to_string())
+        );
+
+        // SHA-256
+        let line = "want e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n";
+        assert_eq!(
+            extract_hash_from_pkt_line(line),
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string())
+        );
+
+        // With capabilities (SHA-1)
+        let line = "want a94a8fe5ccb19ba61c4c0873d391e987982fbbd3\0multi_ack_detailed\n";
+        assert_eq!(
+            extract_hash_from_pkt_line(line),
+            Some("a94a8fe5ccb19ba61c4c0873d391e987982fbbd3".to_string())
+        );
+
+        // With capabilities (SHA-256)
+        let line = "want e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\0multi_ack_detailed\n";
+        assert_eq!(
+            extract_hash_from_pkt_line(line),
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string())
+        );
+    }
 
     #[test]
     pub fn test_read_pkt_line() {

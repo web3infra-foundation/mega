@@ -2352,7 +2352,7 @@ impl MonoApiService {
 
         let existing_file_hashes: HashMap<PathBuf, String> = existing_file_hashes
             .into_iter()
-            .map(|(path, sha1)| (path, sha1.to_string()))
+            .map(|(path, hash)| (path, hash.to_string()))
             .collect();
 
         // Convert payload to service layer type
@@ -2463,7 +2463,13 @@ impl MonoApiService {
             .map(|f| {
                 let blob_id = f.blob_id.as_ref().unwrap();
                 let normalized_blob_id =
-                    format!("sha1:{}", blob_id.strip_prefix("sha1:").unwrap_or(blob_id));
+                    if blob_id.starts_with("sha1:") || blob_id.starts_with("sha256:") {
+                        blob_id.to_string()
+                    } else if blob_id.len() == 64 {
+                        format!("sha256:{}", blob_id)
+                    } else {
+                        format!("sha1:{}", blob_id)
+                    };
                 FileChange::new(
                     f.file_path.clone(),
                     normalized_blob_id,

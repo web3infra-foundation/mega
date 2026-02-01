@@ -169,6 +169,14 @@ impl BlobFsStore for PathBuf {
                 ))
             }
         };
+
+        if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Hash must contain only hexadecimal characters (0-9, a-f, A-F)",
+            ));
+        }
+
         let object_path = self.join("objects");
         let hash_path = object_path.join(&hash[0..2]);
         std::fs::create_dir_all(&hash_path)?;
@@ -185,6 +193,12 @@ impl BlobFsStore for PathBuf {
         // **Multi-hash support**: Accept both SHA-1 (40 chars) and SHA-256 (64 chars)
         match hash.len() {
             40 | 64 => {
+                if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "Hash must contain only hexadecimal characters (0-9, a-f, A-F)",
+                    ));
+                }
                 let object_path = self.join("objects");
                 let hash_path = object_path.join(&hash[0..2]);
                 let blob_path = hash_path.join(&hash[2..]);
