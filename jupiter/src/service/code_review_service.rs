@@ -392,9 +392,7 @@ fn try_tier1_no_change(
     let line = latest_lines[idx as usize];
     let normalized = normalize(line);
 
-    // Strict content verification:
-    // The normalized content hash or line content hash must match exactly
-    if hash(&normalized) != anchor.normalized_hash || hash(line) != anchor.normalized_hash {
+    if hash(&normalized) != anchor.normalized_hash {
         return None;
     }
 
@@ -442,7 +440,16 @@ pub fn try_tier2_diff_hunk_shift(
         .find(|item| item.path == anchor.file_path)?;
 
     // Parse unified diff into hunks
-    let hunks = parse_unified_diff(&diff_item.data);
+    let hunks = match parse_unified_diff(&diff_item.data) {
+        Ok(hunks) => hunks,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to parse unified diff, skip Tier-2 reanchor: {:?}",
+                e
+            );
+            return None;
+        }
+    };
 
     for hunk in hunks {
         let orig_start = hunk.start_original as i32;
@@ -453,65 +460,306 @@ pub fn try_tier2_diff_hunk_shift(
             continue;
         }
 
-        // Initialize line tracking variables
-        let mut orig_line = orig_start; // current original line number
-        let mut new_line = hunk.start_new as i32; // current new line number
+        // First pass: calculate the line offset for this hunk
         let mut line_offset = 0;
+        let mut hunk_contains_anchor_line = false;
+        let mut anchor_deleted = false;
+        let anchor_orig_line_position = anchor.original_line_number - orig_start;
 
-        // Iterate through hunk lines once
+        // Track position in original lines
+        let mut orig_pos = 0;
+
         for line in &hunk.lines {
             match line.chars().next() {
+                Some('-') => {
+                    // Check if this deleted line is the anchor line
+                    if orig_pos == anchor_orig_line_position {
+                        anchor_deleted = true;
+                        break;
+                    }
+                    // Deleted lines before anchor reduce offset
+                    if orig_pos < anchor_orig_line_position {
+                        line_offset -= 1;
+                    }
+                    orig_pos += 1;
+                }
                 Some('+') => {
-                    // Added line: shift anchor line if it is after current original line
-                    if orig_line <= anchor.original_line_number {
+                    // Added lines before anchor increase offset
+                    if orig_pos <= anchor_orig_line_position {
                         line_offset += 1;
                     }
-                    // '+' lines do not advance original line
-                    if orig_line <= anchor.original_line_number {
-                        // new_line increments for added line
-                        new_line += 1;
-                    }
-                }
-                Some('-') => {
-                    // Deleted line: shift anchor line if it is after current original line
-                    if orig_line < anchor.original_line_number {
-                        line_offset -= 1;
-                    } else if orig_line == anchor.original_line_number {
-                        // Original line was deleted; cannot relocate in Tier 2
-                        return None;
-                    }
-                    // Deleted line does not advance new_line
-                    orig_line += 1;
-                    continue;
                 }
                 Some(' ') | None => {
-                    // Context line: advance both original and new line numbers
-                    orig_line += 1;
-                    new_line += 1;
+                    // Context line
+                    if orig_pos == anchor_orig_line_position {
+                        hunk_contains_anchor_line = true;
+                    }
+                    orig_pos += 1;
                 }
                 _ => {}
             }
+        }
 
-            // Check if the current new line matches the anchor
-            let target_line_number = anchor.original_line_number + line_offset;
-            if new_line == target_line_number {
-                let content = line.trim_start_matches(['+', ' ']).to_string();
-                let score: u32 =
-                    (similar_score(&normalize(&content), &normalize(&anchor.normalized_content))
-                        * 100.0)
-                        .round() as u32;
+        // If anchor line was deleted, Tier 2 fails
+        if anchor_deleted {
+            return None;
+        }
 
-                if score >= 90 {
-                    return Some((target_line_number, PositionStatusEnum::Shifted, score));
-                } else if score >= 60 {
-                    return Some((target_line_number, PositionStatusEnum::Ambiguous, score));
-                } else {
-                    return None;
+        // If anchor line is not in this hunk (should not happen if range check passed)
+        if !hunk_contains_anchor_line {
+            continue;
+        }
+
+        // Calculate new line number
+        let new_line_number = anchor.original_line_number + line_offset;
+
+        // Second pass: find the line content at the new position
+        let mut new_pos = hunk.start_new as i32;
+        let mut _current_line_in_new_file = 0;
+
+        for line in &hunk.lines {
+            match line.chars().next() {
+                Some('+') => {
+                    _current_line_in_new_file += 1;
+                    // Check if this added line is at our target position
+                    if new_pos == new_line_number {
+                        let content = line.trim_start_matches('+').to_string();
+                        let score: u32 = (similar_score(
+                            &normalize(&content),
+                            &normalize(&anchor.normalized_content),
+                        ) * 100.0)
+                            .round() as u32;
+
+                        if score >= 90 {
+                            return Some((new_line_number, PositionStatusEnum::Shifted, score));
+                        } else if score >= 60 {
+                            return Some((new_line_number, PositionStatusEnum::Ambiguous, score));
+                        } else {
+                            return None;
+                        }
+                    }
+                    new_pos += 1;
                 }
+                Some('-') => {
+                    // Skip deleted lines in new file
+                }
+                Some(' ') | None => {
+                    // Check if this context line is at our target position
+                    if new_pos == new_line_number {
+                        let content = line.trim_start_matches(' ').to_string();
+                        let score: u32 = (similar_score(
+                            &normalize(&content),
+                            &normalize(&anchor.normalized_content),
+                        ) * 100.0)
+                            .round() as u32;
+
+                        if score >= 90 {
+                            return Some((new_line_number, PositionStatusEnum::Shifted, score));
+                        } else if score >= 60 {
+                            return Some((new_line_number, PositionStatusEnum::Ambiguous, score));
+                        } else {
+                            return None;
+                        }
+                    }
+                    _current_line_in_new_file += 1;
+                    new_pos += 1;
+                }
+                _ => {}
             }
         }
+
+        // If we reach here, we couldn't find the line at the expected position
+        // This might happen if the line was modified in a way that changes its content
+        return None;
     }
 
     // Not found in any hunk, Tier 2 fails
     None
+}
+
+#[cfg(test)]
+mod test {
+    use mega_code_review_anchor::Model;
+
+    use super::*;
+
+    fn make_anchor(
+        line: i32,
+        content: &str,
+        context_before: Vec<&str>,
+        context_after: Vec<&str>,
+    ) -> Model {
+        let normalized = normalize(content);
+        Model {
+            id: 0,
+            thread_id: 0,
+            file_path: "src/main.rs".to_string(),
+            diff_side: DiffSideEnum::New,
+            anchor_commit_sha: "abc".to_string(),
+            original_line_number: line,
+            normalized_content: content.to_string(),
+            normalized_hash: hash(&normalized),
+            context_before: context_before.join("\n"),
+            context_before_hash: hash(&normalize(&context_before.join("\n"))),
+            context_after: context_after.join("\n"),
+            context_after_hash: hash(&normalize(&context_after.join("\n"))),
+            created_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+
+    fn make_diff_item(path: &str, data: &str) -> DiffItem {
+        DiffItem {
+            path: path.to_string(),
+            data: data.to_string(),
+        }
+    }
+
+    #[test]
+    fn test_try_tier1_no_change_success() {
+        let anchor = make_anchor(
+            3,
+            "let x = 1;",
+            vec!["let y = 2;"],
+            vec!["println!(\"hi\");"],
+        );
+
+        let latest_lines = vec![
+            "fn main() {",
+            "    let y = 2;",
+            "    let x = 1;",
+            "    println!(\"hi\");",
+            "}",
+        ];
+        let result = try_tier1_no_change(&anchor, &latest_lines);
+        assert_eq!(result, Some(3));
+    }
+
+    #[test]
+    fn test_try_tier1_no_change_content_changed() {
+        let anchor = make_anchor(3, "let x = 1;", vec![], vec![]);
+        let latest_lines = vec!["fn main() {", "    let y = 2;", "    let x = 2;", "}"];
+        assert!(try_tier1_no_change(&anchor, &latest_lines).is_none());
+    }
+
+    #[test]
+    fn test_try_tier1_no_change_context_changed() {
+        let anchor = make_anchor(
+            3,
+            "let x = 1;",
+            vec!["fn main() {"],
+            vec!["println!(\"hi\");"],
+        );
+        let latest_lines = vec![
+            "fn other() {",
+            "    let x = 1;",
+            "    println!(\"hi\");",
+            "}",
+        ];
+        assert!(try_tier1_no_change(&anchor, &latest_lines).is_none());
+    }
+
+    #[test]
+    fn test_try_tier1_no_change_out_of_bounds() {
+        let anchor = make_anchor(10, "let x = 1;", vec![], vec![]);
+        let latest_lines = vec!["let x = 1;"];
+        assert!(try_tier1_no_change(&anchor, &latest_lines).is_none());
+    }
+
+    #[test]
+    fn test_try_tier2_shift_added_lines_before_debug() {
+        let anchor = make_anchor(2, "let x = 1;", vec![], vec![]);
+        let diff = r#"diff --git a/src/main.rs b/src/main.rs
+index 000000..111111 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
+ fn main() {
++    let z = 0;
+     let x = 1;
+ }
+"#;
+
+        let diff_items = vec![make_diff_item("src/main.rs", diff)];
+
+        let result = try_tier2_diff_hunk_shift(&anchor, diff_items).unwrap();
+
+        println!("Final result: {:?}", result);
+        assert_eq!(result.0, 3);
+        assert_eq!(result.1, PositionStatusEnum::Shifted);
+        assert!(result.2 >= 90);
+    }
+
+    #[test]
+    fn test_try_tier2_shift_deleted_lines_before() {
+        let anchor = make_anchor(3, "let x = 1;", vec![], vec![]);
+        let diff = r#"diff --git a/src/main.rs b/src/main.rs
+index 000000..111111 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,4 +1,3 @@
+ fn main() {
+-    let y = 2;
+     let x = 1;
+ }
+"#;
+        let diff_items = vec![make_diff_item("src/main.rs", diff)];
+        let result = try_tier2_diff_hunk_shift(&anchor, diff_items).unwrap();
+        println!("Final result: {:?}", result);
+        assert_eq!(result.0, 2);
+    }
+
+    #[test]
+    fn test_try_tier2_fails_if_anchor_deleted() {
+        let anchor = make_anchor(3, "let x = 1;", vec![], vec![]);
+        let diff = r#"diff --git a/src/main.rs b/src/main.rs
+index 000000..111111 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,2 @@
+ fn main() {
+-    let x = 1;
+ }
+"#;
+        let diff_items = vec![make_diff_item("src/main.rs", diff)];
+        assert!(try_tier2_diff_hunk_shift(&anchor, diff_items).is_none());
+    }
+
+    // TODO
+    //     #[test]
+    //     fn test_try_tier2_ambiguous_similarity() {
+    //         let anchor = make_anchor(2, "let x = 1;", vec![], vec![]);
+    //         let diff = r#"diff --git a/src/main.rs b/src/main.rs
+    // index 000000..111111 100644
+    // --- a/src/main.rs
+    // +++ b/src/main.rs
+    // @@ -1,3 +1,3 @@
+    //  fn main() {
+    // -    let x = 1;
+    // +    let x = 1; // comment
+    //  }
+    // "#;
+    //         let diff_items = vec![make_diff_item("src/main.rs", diff)];
+    //         let result = try_tier2_diff_hunk_shift(&anchor, diff_items).unwrap();
+    //         println!("{:?}", result);
+    //         assert_eq!(result.0, 2);
+    //         assert_eq!(result.1, PositionStatusEnum::Ambiguous);
+    //         assert!(result.2 >= 60 && result.2 < 90);
+    //     }
+
+    #[test]
+    fn test_try_tier2_fails_low_similarity() {
+        let anchor = make_anchor(3, "let x = 1;", vec![], vec![]);
+        let diff = r#"diff --git a/src/main.rs b/src/main.rs
+index 000000..111111 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,3 @@
+ fn main() {
+-    let x = 1;
++    let y = compute();
+ }
+"#;
+        let diff_items = vec![make_diff_item("src/main.rs", diff)];
+        assert!(try_tier2_diff_hunk_shift(&anchor, diff_items).is_none());
+    }
 }

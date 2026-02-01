@@ -1213,21 +1213,38 @@ impl MonoRepo {
                         }
                     };
 
+                    let (diff_content, _) = mono_api_service
+                        .paged_content_diff(cl_link, Pagination::default())
+                        .await?;
+
+                    let mut blob_cache: HashMap<String, String> = HashMap::new();
+
                     for anchor in thread_anchors {
-                        let file_path = PathBuf::from(&anchor.file_path);
+                        let file_path = anchor.file_path.clone();
 
-                        let latest_blob = mono_api_service
-                            .get_blob_as_string(file_path.clone(), Some(&to_hash))
-                            .await?;
+                        // Fetch blob once per file
+                        let latest_blob = if let Some(blob) = blob_cache.get(&file_path) {
+                            blob.clone()
+                        } else {
+                            let blob = mono_api_service
+                                .get_blob_as_string(PathBuf::from(&file_path), Some(&to_hash))
+                                .await?
+                                .expect("latest blob must exist");
 
-                        let (diff_content, _) = mono_api_service
-                            .paged_content_diff(cl_link, Pagination::default())
-                            .await?;
+                            blob_cache.insert(file_path.clone(), blob.clone());
+                            blob
+                        };
 
+                        // Reanchor
                         if let Err(e) = self
                             .storage
                             .code_review_service
-                            .reanchor_thread(anchor, latest_blob, diff_content, &self.to_hash)
+                            .reanchor_thread(
+                                anchor,
+                                Some(latest_blob),
+                                diff_content.clone(),
+                                &self.to_hash,
+                            )
                             .await
                         {
                             tracing::error!("Reanchor failed for anchor {}: {:?}", anchor.id, e);

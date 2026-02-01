@@ -50,6 +50,10 @@ pub fn generate_hash_content(content: &str) -> String {
     hex::encode(result)
 }
 
+pub fn normalize(s: &str) -> String {
+    s.split_whitespace().collect::<String>()
+}
+
 pub fn is_same_content(content: &str, hash: &str) -> bool {
     generate_hash_content(content) == hash
 }

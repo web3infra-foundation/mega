@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
 use crate::{
-    entity_ext::{generate_hash_content, generate_id},
+    entity_ext::{generate_hash_content, generate_id, normalize},
     mega_code_review_anchor::{self, Column, Entity},
     sea_orm_active_enums::DiffSideEnum,
 };
@@ -50,11 +50,11 @@ impl mega_code_review_anchor::Model {
             anchor_commit_sha: anchor_commit_sha.to_owned(),
             original_line_number,
             normalized_content: normalized_content.to_owned(),
-            normalized_hash: generate_hash_content(normalized_content),
+            normalized_hash: generate_hash_content(&normalize(normalized_content)),
             context_before: context_before.to_owned(),
-            context_before_hash: generate_hash_content(context_before),
+            context_before_hash: generate_hash_content(&normalize(context_before)),
             context_after: context_after.to_owned(),
-            context_after_hash: generate_hash_content(context_after),
+            context_after_hash: generate_hash_content(&normalize(context_after)),
             created_at: now,
         }
     }

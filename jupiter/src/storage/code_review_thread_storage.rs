@@ -342,7 +342,7 @@ impl CodeReviewThreadStorage {
             active_position.line_number = Set(line_number);
         }
 
-        let updated_model = active_position.insert(self.get_connection()).await?;
+        let updated_model = active_position.update(self.get_connection()).await?;
         Ok(updated_model)
     }
 

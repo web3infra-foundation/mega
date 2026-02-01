@@ -108,7 +108,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create mage code review psoition
+        // Create mega code review position
         manager
             .create_table(
                 Table::create()
