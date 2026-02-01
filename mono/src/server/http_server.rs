@@ -143,11 +143,6 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
         }
     });
 
-    tokio::spawn(super::init_tasks::run_initialization_tasks(
-        host.clone(),
-        port,
-    ));
-
     tokio::pin!(server_handle);
 
     tokio::select! {
