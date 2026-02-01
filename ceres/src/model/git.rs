@@ -187,6 +187,15 @@ pub struct EditFilePayload {
     /// platform username (used to verify and bind commit to user)
     #[serde(default)]
     pub author_username: Option<String>,
+    /// 
+    #[serde(default)]
+    pub cl_link: Option<String>,
+    /// 
+    #[serde(default)]
+    pub skip_build: bool,
+    /// if true, force creating new cl regardless of the existence of opening cl
+    #[serde(default)]
+    pub force_create: bool,
 }
 
 /// Response body after saving an edited file
@@ -198,6 +207,7 @@ pub struct EditFileResult {
     pub new_oid: String,
     /// Saved file path
     pub path: String,
+    pub cl_link: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

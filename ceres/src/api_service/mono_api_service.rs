@@ -43,11 +43,13 @@ use std::{
     time::Duration,
 };
 
+use bellatrix::Bellatrix;
 use api_model::common::Pagination;
 use async_trait::async_trait;
 use bytes::Bytes;
 use callisto::{
     mega_cl, mega_refs, mega_tag, mega_tree,
+    entity_ext::generate_link,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum},
 };
 use common::{
@@ -398,15 +400,23 @@ impl ApiHandler for MonoApiService {
             .apply_update_result(&result, &payload.commit_message, None)
             .await?;
 
+        let username = payload.author_username.clone().unwrap_or("Anonymous".to_string());
+        let cl = self.find_or_create_cl_for_edit(payload.force_create, &new_commit_id, &payload.commit_message, &payload.path, &username).await?;
+
         self.storage
             .mono_service
             .save_blobs(&new_commit_id, vec![new_blob.clone()])
             .await?;
 
+        if !payload.skip_build {
+            self.trigger_build_for_cl(&cl.link).await?;
+        }
+
         Ok(EditFileResult {
             commit_id: new_commit_id,
             new_oid: new_blob.id.to_string(),
             path: payload.path,
+            cl_link: Some(cl.link),
         })
     }
 
@@ -1025,6 +1035,200 @@ impl MonoApiService {
             message: tag.message,
             created_at: tag.created_at.and_utc().to_rfc3339(),
         }
+    }
+
+    /// Finds or creates a Change List (CL) for file edits.
+    /// This method determines whether to create a new CL or reuse an existing one based on the `force_create` flag,
+    /// Otherwise, it attempts to find an open CL for the given user and path. If no such CL exists, a new one is created.
+    ///
+    /// # Arguments
+    /// * `force_create` - Whether to force the creation of a new CL, even if an open CL exists.
+    /// * `to_hash` - The commit hash representing the new state after the edit.
+    /// * `commit_message` - The message describing the changes made in the CL.
+    /// * `file_path` - The path of the file being edited.
+    /// * `username` - The username of the user performing the edit.
+    ///
+    /// # Returns
+    /// A `Result` containing the `mega_cl::Model` representing the found or created CL on success,
+    /// or a `GitError` on failure.
+    async fn find_or_create_cl_for_edit(
+        &self,
+        force_create: bool,
+        to_hash: &str,
+        commit_message: &str,
+        file_path: &str,
+        username: &str,
+    ) -> Result<mega_cl::Model, GitError> {
+        let path = PathBuf::from(file_path);
+        let repo_path = path.parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string());
+
+        let storage = self.storage.cl_storage();
+
+        // If not forcing creation, attempt to find an existing open CL for the user and path
+        if !force_create
+            && let Some(existing_cl) = storage.get_open_cl_by_path(&repo_path, username).await
+            .map_err(|e| GitError::CustomError(format!("Failed to fetch CL: {}", e)))? {
+            return Ok(existing_cl); // Return the existing CL if found
+        }
+
+        let cl_link = generate_link();
+
+        let from_hash = self
+            .storage
+            .mono_storage()
+            .get_main_ref(&repo_path)
+            .await?
+            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?
+            .ref_commit_hash;
+
+        // Create and return a new CL model
+        let cl = storage.new_cl_model(
+            &repo_path,
+            &cl_link,
+            &commit_message,
+            &from_hash,
+            &to_hash,
+            username,
+        ).await
+        .map_err(|e| GitError::CustomError(format!("Failed to create CL: {}", e)))?;
+
+        Ok(cl)
+    }
+
+
+    /// Triggers a build for the specified Change List (CL).
+    /// It spawns a background task to handle the build process, ensuring that the main application flow remains responsive.
+                       ///
+    /// # Arguments
+    /// * `cl_link` - The unique identifier (link) of the CL for which the build is to be triggered.
+    ///
+    /// # Returns
+    /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully triggered,
+    /// or a `GitError` if an error occurred during the process.
+    async fn trigger_build_for_cl(&self, cl_link: &str) -> Result<(), GitError> {
+        let service = self.clone();
+        let cl_link = cl_link.to_string();
+
+        // Spawn a background task to handle the build process
+        tokio::spawn(async move {
+            if let Err(e) = service.async_trigger_build(&cl_link).await {
+                tracing::error!("Failed to trigger build for CL {}: {}", cl_link, e);
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Asynchronously triggers a build for the specified Change List (CL).
+    /// This method is responsible for executing the actual build process after determining that a build is necessary.
+    ///
+    /// # Arguments
+    /// * `cl_link` - The unique identifier (link) of the CL for which the build isto be triggered.
+    ///
+    /// # Returns
+    /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully executed,
+    /// or a `GitError` if an error occurred during the process.
+    async fn async_trigger_build(&self, cl_link: &str) -> Result<(), GitError> {
+        let cl = self.storage
+            .cl_storage()
+            .get_cl(cl_link)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get CL: {}", e)))?
+            .ok_or_else(|| GitError::CustomError("CL not found".to_string()))?;
+
+        let changed_files = self.get_sorted_changed_file_list(&cl.link, None)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get changed files: {}", e)))?;
+
+        if !self.should_trigger_build(&changed_files) {
+            tracing::debug!("No build needed for CL: {}", cl_link);
+            return Ok(());
+        }
+
+        self.trigger_bellatrix_build(&cl, &changed_files).await
+            .map_err(|e| GitError::CustomError(format!("Failed to trigger Bellatrix build: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Triggers a Bellatrix build for the specified CL and its changed files.
+    ///
+    /// This method constructs the necessary build request payload containing the CL's
+    /// changes and sends it to the Bellatrix build system. It ensures that only relevant
+    /// file changes are included in the build request, filtering out unnecessary entries.
+    ///
+    /// # Arguments
+    /// * `cl` - The Change List (CL) model containing metadata about the changes.
+    /// * `changed_files` - A slice of strings representing the paths of changed files.
+    ///
+    /// # Returns
+    /// * `Ok(())` - If the build was successfully triggered.
+    /// * `Err(GitError)` - If an error occurred during the process, such as invalid paths
+    ///                     or failure to communicate with the Bellatrix service.
+    async fn trigger_bellatrix_build(
+        &self,
+        cl: &mega_cl::Model,
+        changed_files: &[String],
+    ) -> Result<(), GitError> {
+        let config = self.storage.config();
+        let bellatrix = Bellatrix::new(config.build.clone());
+        if !bellatrix.enable_build() {
+            return Ok(());
+        }
+        let cl_base = PathBuf::from(&cl.path);
+        let changes: Vec<_> = changed_files
+            .iter()
+            .filter_map(|file_path| {
+                let full_path = cl_base.join(file_path);
+                let status = if file_path.ends_with("new") {
+                    Some(bellatrix::orion_client::Status::Added(
+                        bellatrix::orion_client::ProjectRelativePath::from_abs(
+                            &full_path.to_string_lossy(),
+                            &cl.path,
+                        )?
+                    ))
+                } else if file_path.ends_with("deleted") {
+                    Some(bellatrix::orion_client::Status::Removed(
+                        bellatrix::orion_client::ProjectRelativePath::from_abs(
+                            &full_path.to_string_lossy(),
+                            &cl.path,
+                        )?
+                    ))
+                } else {
+                    Some(bellatrix::orion_client::Status::Modified(
+                        bellatrix::orion_client::ProjectRelativePath::from_abs(
+                            &full_path.to_string_lossy(),
+                            &cl.path,
+                        )?
+                    ))
+                };
+                status
+            })
+            .collect();
+
+        if changes.is_empty() {
+            return Ok(());
+        }
+
+        let build_request = bellatrix::orion_client::OrionBuildRequest {
+            cl_link: cl.link.clone(),
+            repo: cl.path.clone(),
+            cl: cl.id,
+            builds: vec![bellatrix::orion_client::BuildInfo {
+                changes,
+            }],
+        };
+
+        tracing::info!("Triggering build for CL {}: {:?}", cl.link, build_request);
+        let _ = bellatrix.on_post_receive(build_request).await;
+
+        Ok(())
+    }
+
+    fn should_trigger_build(&self, _: &[String]) -> bool {
+        true
     }
 
     async fn create_annotated_tag_mono(
