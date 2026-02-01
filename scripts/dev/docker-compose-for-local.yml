@@ -1,0 +1,395 @@
+# version: "3.8"  # Removed: version is obsolete in Docker Compose v2+
+
+services:
+  # ---------------------------------------------------------------------------
+  # Core Infra: PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: mega-demo-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Main DB is primarily used by mono; orion will be created by init script
+      # Note: campsite database is now managed by MySQL service
+      POSTGRES_DB: ${POSTGRES_DB_MONO:-mono}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Core Infra: Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7
+    container_name: mega-demo-redis
+    command: ["redis-server", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Core Infra: MySQL (for Campsite API)
+  # ---------------------------------------------------------------------------
+  # Note: For demo purposes, using root user only. For production, create dedicated user.
+  mysql:
+    image: mysql:8.0
+    container_name: mega-demo-mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqladmin}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-campsite_api_demo}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD:-mysqladmin} || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Core Infra: RustFS (S3-compatible object storage)
+  # ---------------------------------------------------------------------------
+  rustfs:
+    image: rustfs/rustfs:1.0.0-alpha.81
+    container_name: mega-demo-rustfs
+    # Use 0.0.0.0:9000 to listen on both IPv4 and IPv6 for Docker network compatibility
+    # Note: RUSTFS_SERVER_DOMAINS is not set to avoid virtual-host style conflicts
+    # We use path-style addressing (force_path_style=true) in the S3 client
+    command: --address 0.0.0.0:9000 --console-enable --access-key ${RUSTFS_ACCESS_KEY:-rustfsadmin} --secret-key ${RUSTFS_SECRET_KEY:-rustfsadmin} /data
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_CONSOLE_ENABLE: ${RUSTFS_CONSOLE_ENABLE:-true}
+      # RUSTFS_SERVER_DOMAINS removed - using path-style addressing instead of virtual-host style
+    volumes:
+      - rustfs-data:/data
+    ports:
+      # API port: 9000 (container) -> 9000 (host)
+      # Console port: 9001 (container) -> 9001 (host) - if RustFS console uses separate port
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Mega / Mono Engine (Rust backend)
+  # ---------------------------------------------------------------------------
+  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release
+  # Or use locally built image: mega:mono-engine-latest (after building with docker build)
+  # Set MEGA_ENGINE_IMAGE environment variable to override
+  # Priority: MEGA_ENGINE_IMAGE env var > local build (mega:mono-engine-latest) > ECR image
+  mega:
+    image: ${MEGA_ENGINE_IMAGE:-mega-dev:mono-latest}
+    container_name: mega-demo-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      init-rustfs-bucket:
+        condition: service_completed_successfully
+      campsite_api:
+        condition: service_started
+    environment:
+      # Database & Redis
+      MEGA_DATABASE__DB_TYPE: postgres
+      MEGA_DATABASE__DB_URL: ${MEGA_DATABASE__DB_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
+      MEGA_REDIS__URL: ${MEGA_REDIS__URL:-redis://redis:6379}
+
+      # Monorepo config
+      MEGA_MONOREPO__ADMIN: ${MEGA_MONOREPO__ADMIN}
+
+      # S3 / RustFS
+      # To use S3 storage, set MEGA_MONOREPO__STORAGE_TYPE=s3 and ensure RustFS bucket is created
+      MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3}
+      MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL: ${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-http://rustfs:9000}
+
+      # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
+      MEGA_OBJECT_STORAGE__S3__BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
+      MEGA_OBJECT_STORAGE__S3__REGION: ${MEGA_OBJECT_STORAGE__S3__REGION:-us-east-1}
+      MEGA_OBJECT_STORAGE__S3__ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      MEGA_OBJECT_STORAGE__S3__SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      # Force path-style addressing for RustFS (required for local S3-compatible storage)
+      OBJECT_STORAGE_S3__FORCE_PATH_STYLE: ${OBJECT_STORAGE_S3__FORCE_PATH_STYLE:-true}
+
+      # Logging & demo user experience
+      MEGA_LOG__LEVEL: ${MEGA_LOG__LEVEL:-info}
+      MEGA_LOG__PRINT_STD: ${MEGA_LOG__PRINT_STD:-true}
+      MEGA_AUTHENTICATION__ENABLE_TEST_USER: ${MEGA_AUTHENTICATION__ENABLE_TEST_USER:-true}
+      MEGA_AUTHENTICATION__TEST_USER_NAME: ${MEGA_AUTHENTICATION__TEST_USER_NAME:-mega}
+      MEGA_AUTHENTICATION__TEST_USER_TOKEN: ${MEGA_AUTHENTICATION__TEST_USER_TOKEN:-mega}
+
+      # Orion build integration
+      MEGA_BUILD__ENABLE_BUILD: ${MEGA_BUILD__ENABLE_BUILD:-true}
+      MEGA_BUILD__ORION_SERVER: ${MEGA_BUILD__ORION_SERVER:-http://orion_server:8004}
+
+      # Campsite integration (OAuth / SSO etc.)
+      MEGA_OAUTH__CAMPSITE_API_DOMAIN: ${MEGA_OAUTH__CAMPSITE_API_DOMAIN:-http://campsite_api:8080}
+      MEGA_OAUTH__UI_DOMAIN: ${MEGA_OAUTH__UI_DOMAIN:-http://localhost:3000}
+      MEGA_OAUTH__COOKIE_DOMAIN: ${MEGA_OAUTH__COOKIE_DOMAIN:-localhost}
+      # Note: allowed_cors_origins expects an array format in TOML
+      MEGA_OAUTH__ALLOWED_CORS_ORIGINS: ${MEGA_OAUTH__ALLOWED_CORS_ORIGINS:-"http://app.gitmono.local:3000,http://localhost:3000"}
+
+      # Directory paths (can be overridden)
+      MEGA_BASE_DIR: ${MEGA_BASE_DIR:-/opt/mega}
+      MEGA_CACHE_DIR: ${MEGA_CACHE_DIR:-/opt/mega/cache}
+    # Use a wrapper script to fix config.toml before starting the application
+    # The wrapper script modifies endpoint_url from localhost to rustfs, then calls the original start script
+    entrypoint: ["/bin/bash"]
+    command: ["/usr/local/bin/start-mono-wrapper.sh"]
+    volumes:
+      - ./start-mono-wrapper.sh:/usr/local/bin/start-mono-wrapper.sh:ro
+      - mega-data:/opt/mega
+    ports:
+      # Container listens on 8000, host port is 8000
+      - "8000:8000"
+    healthcheck:
+      # Mega backend health check
+      # NOTE: The ECR mono image may not include curl/wget/busybox. Use bash built-in /dev/tcp.
+      test: ["CMD-SHELL", "bash -lc 'echo > /dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - git.gitmono.local
+
+  # ---------------------------------------------------------------------------
+  # Init: RustFS bucket (S3-compatible)
+  # ---------------------------------------------------------------------------
+  init-rustfs-bucket:
+    image: alpine:3.20
+    container_name: mega-demo-init-rustfs-bucket
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      BUCKET: ${MEGA_OBJECT_STORAGE__S3__BUCKET:-mega}
+      ENDPOINT: ${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-http://rustfs:9000}
+      ACCESS_KEY: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+    volumes:
+      - ./init-rustfs-bucket.sh:/usr/local/bin/init-rustfs-bucket.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/init-rustfs-bucket.sh"]
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Mega UI (Next.js)
+  # ---------------------------------------------------------------------------
+  # Use locally built image: mega-dev:mega-ui-demo-latest (built via scripts/dev/build-dev-images-local.sh)
+  # Or use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release
+  # Set MEGA_UI_IMAGE environment variable to use ECR image
+  mega_ui:
+    image: ${MEGA_UI_IMAGE:-mega-dev:mega-ui-demo-latest}
+    container_name: mega-demo-ui
+    depends_on:
+      mega:
+        condition: service_healthy
+      orion_server:
+        condition: service_healthy
+    ports:
+      # Container listens on 3000, host port is 3000
+      - "3000:3000"
+    healthcheck:
+      # NOTE: mega-ui image may not include curl/wget/busybox. Use bash built-in /dev/tcp.
+      # With HOSTNAME=0.0.0.0, Next.js will listen on all interfaces, so 127.0.0.1 should work
+      test: ["CMD-SHELL", "bash -lc 'echo > /dev/tcp/127.0.0.1/3000' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - app.gitmono.local
+
+  # ---------------------------------------------------------------------------
+  # Orion Server (Rust)
+  # ---------------------------------------------------------------------------
+  orion_server:
+    # Use locally built image: mega-dev:orion-server-latest (built via scripts/dev/build-dev-images-local.sh)
+    # Or use pre-built image from ECR Public
+    image: ${ORION_SERVER_IMAGE:-mega-dev:orion-server-latest}
+    container_name: mega-demo-orion-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${ORION_DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
+      PORT: 8004
+      BUILD_LOG_DIR: ${ORION_BUILD_LOG_DIR:-/tmp/buck2ctl}
+      ALLOWED_CORS_ORIGINS: ${ORION_ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000}
+      LOGGER_STORAGE_TYPE: ${ORION_LOGGER_STORAGE_TYPE:-local}
+      BUCKET_NAME: ${ORION_BUCKET_NAME:-orion-logs}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+    volumes:
+      - orion-logs:/tmp/buck2ctl
+    ports:
+      # Container listens on 8004, host port is 8004
+      - "8004:8004"
+    healthcheck:
+      # Orion Server health check - use /v2/health endpoint
+      test: ["CMD-SHELL", "curl -f http://localhost:8004/v2/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - orion.gitmono.local
+
+  # ---------------------------------------------------------------------------
+  # Orion Build Client / Worker (based on orion-client image)
+  # ---------------------------------------------------------------------------
+  orion_build_client:
+    image: ${ORION_CLIENT_IMAGE:-mega-dev:orion-client-latest}
+    container_name: mega-demo-orion-worker
+    command: orion
+    # privileged mode allows nested container builds (Scorpio) inside the worker.
+    privileged: true
+    depends_on:
+      orion_server:
+        condition: service_started
+    environment:
+      SERVER_WS: ${ORION_WORKER_SERVER_WS:-ws://orion_server:8004/ws}
+      ORION_WORKER_ID: ${ORION_WORKER_ID:-}
+      BUCK_PROJECT_ROOT: ${BUCK_PROJECT_ROOT:-/workspace}
+      BUILD_TMP: ${BUILD_TMP:-/tmp/orion-builds}
+      SCORPIO_API_BASE_URL: ${SCORPIO_API_BASE_URL:-http://127.0.0.1:2725}
+      ORION_WORKER_START_SCORPIO: ${ORION_WORKER_START_SCORPIO:-true}
+      SCORPIO_BASE_URL: ${SCORPIO_BASE_URL:-http://mega:8000}
+      SCORPIO_LFS_URL: ${SCORPIO_LFS_URL:-http://mega:8000}
+      SCORPIO_STORE_PATH: /data/scorpio/store
+      SCORPIO_WORKSPACE: /workspace/mount
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - orion-worker-scorpio-data:/data/scorpio
+      - orion-worker-workspace:/workspace
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Campsite API (Ruby)
+  # ---------------------------------------------------------------------------
+  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release
+  # Note: Campsite API requires MySQL database, not PostgreSQL
+  campsite_api:
+    image: ${CAMPSITE_API_IMAGE:-public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release}
+    container_name: mega-demo-campsite-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: ${CAMPSITE_REDIS_URL:-redis://redis:6379}
+      PORT: 8080
+      # Allow toggling migrations from .env
+      CAMPSITE_RUN_MIGRATIONS: ${CAMPSITE_RUN_MIGRATIONS:-1}
+
+      # Align with ECS style env vars (for local demo use dev)
+      RAILS_ENV: ${CAMPSITE_RAILS_ENV:-demo}
+      RAILS_MASTER_KEY: ${CAMPSITE_RAILS_MASTER_KEY:-51d8cdb046869075795ba82cdd95807a}
+      SERVER_COMMAND: ${CAMPSITE_SERVER_COMMAND:-bundle exec puma}
+      DEV_APP_URL: ${CAMPSITE_DEV_APP_URL:-http://localhost:3000}
+    networks:
+      default:
+        aliases:
+          - auth.gitmono.local
+          - api.gitmono.local
+
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        # Wait for MySQL to accept TCP connections (service_healthy can still be a bit early)
+        until (echo > /dev/tcp/mysql/3306) >/dev/null 2>&1; do
+          echo "waiting mysql..."
+          sleep 1
+        done
+
+        # Run migrations by default; allow disabling for debugging via CAMPSITE_RUN_MIGRATIONS=0
+        # Use $$ to avoid docker compose substituting the variable at parse time.
+        if [ "$${CAMPSITE_RUN_MIGRATIONS:-1}" = "1" ]; then
+          bin/rails db:create
+          bin/rails db:migrate
+        else
+          echo "Skipping db:migrate (CAMPSITE_RUN_MIGRATIONS=$${CAMPSITE_RUN_MIGRATIONS})"
+        fi
+
+        exec ${CAMPSITE_SERVER_COMMAND:-bundle exec puma}
+    ports:
+      # Container listens on 8080, host port is 8080
+      - "8080:8080"
+    healthcheck:
+      # Campsite API health check
+      # NOTE: avoid curl dependency; use bash built-in /dev/tcp
+      test: ["CMD-SHELL", "bash -lc 'echo > /dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Gateway: Nginx (Reverse Proxy)
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: mega-demo-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - mega
+      - mega_ui
+      - orion_server
+      - campsite_api
+    restart: unless-stopped
+
+networks:
+  default:
+    name: mega-demo-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  mysql-data:
+  rustfs-data:
+  mega-data:
+  orion-logs:
+  orion-worker-scorpio-data:
+  orion-worker-workspace:
