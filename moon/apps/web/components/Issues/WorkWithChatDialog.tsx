@@ -40,10 +40,7 @@ export function WorkWithChatDialog() {
     <div className='bg-secondary w-full rounded-lg'>
       {/* Top Icon and Title */}
       <div className='bg-primary mb-0 flex flex-col items-center rounded-t-lg p-4'>
-        <div
-          className='mb-3 flex h-16 w-16 items-center justify-center rounded-lg'
-          style={{ backgroundColor: '#52b5f2' }}
-        >
+        <div className='mb-3 flex h-16 w-16 items-center justify-center rounded-lg bg-[#52b5f2]'>
           <DiscussionClosedIcon size={24} className='text-black' />
         </div>
         <UIText size='text-lg' weight='font-medium' className='text-secondary'>

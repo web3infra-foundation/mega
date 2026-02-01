@@ -123,6 +123,7 @@
   line-height: 1.45;
   background-color: var(--bgColor-muted);
   border-radius: 6px;
+  font-family: var(--fontStack-monospace);
   margin-bottom: var(--base-size-16);
 }
 

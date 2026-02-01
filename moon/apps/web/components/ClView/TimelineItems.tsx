@@ -64,7 +64,7 @@ const TimelineWrapper = React.memo<TimelineWrapperProps>(({ convItems = [] }) =>
   const { theme } = useTheme()
 
   return (
-    <ThemeProvider colorMode={theme === 'dark' ? 'night' : 'day'}>
+    <ThemeProvider colorMode={theme === 'dark' ? 'dark' : 'light'}>
       <BaseStyles>
         <Timeline clipSidebar>
           {convItems?.map((item) => (
