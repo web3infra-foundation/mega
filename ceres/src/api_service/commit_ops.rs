@@ -454,7 +454,7 @@ pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
 
     // Final sort: by committer timestamp descending
     let mut result = matched_by_author;
-    result.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
+    result.sort_by_key(|b| std::cmp::Reverse(b.committer.timestamp));
     Ok(result)
 }
 

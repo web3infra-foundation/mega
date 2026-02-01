@@ -172,8 +172,17 @@ pub struct DiffPreviewPayload {
     pub refs: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EditCLMode {
+    /// force create new cl
+    ForceCreate,
+    /// try to reuse old cl, if none, wil
+    TryReuse(Option<String>),
+}
 /// Request body for saving an edited file with conflict detection.
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+#[schema(title = "编辑文件请求", description = "编辑文件内容的请求体")]
 pub struct EditFilePayload {
     /// Full file path like "/project/dir/file.rs"
     pub path: String,
@@ -187,17 +196,11 @@ pub struct EditFilePayload {
     /// platform username (used to verify and bind commit to user)
     #[serde(default)]
     pub author_username: Option<String>,
-    /// 
-    #[serde(default)]
-    pub cl_link: Option<String>,
-    /// 
+    /// if true, skip build
     #[serde(default)]
     pub skip_build: bool,
-    /// if true, force creating new cl regardless of the existence of opening cl
-    #[serde(default)]
-    pub force_create: bool,
+    pub mode: EditCLMode,
 }
-
 /// Response body after saving an edited file
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EditFileResult {

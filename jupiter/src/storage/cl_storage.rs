@@ -224,16 +224,9 @@ impl ClStorage {
         to_hash: &str,
         username: &str,
     ) -> Result<String, MegaError> {
-        self.new_cl_model(
-            path,
-            link,
-            title,
-            from_hash,
-            to_hash,
-            username,
-        )
-        .await
-        .map(|res| res.link)
+        self.new_cl_model(path, link, title, from_hash, to_hash, username)
+            .await
+            .map(|res| res.link)
     }
 
     pub async fn new_cl_model(

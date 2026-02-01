@@ -43,13 +43,13 @@ use std::{
     time::Duration,
 };
 
-use bellatrix::Bellatrix;
 use api_model::common::Pagination;
 use async_trait::async_trait;
+use bellatrix::Bellatrix;
 use bytes::Bytes;
 use callisto::{
-    mega_cl, mega_refs, mega_tag, mega_tree,
     entity_ext::generate_link,
+    mega_cl, mega_refs, mega_tag, mega_tree,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum},
 };
 use common::{
@@ -97,7 +97,7 @@ use crate::{
             FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
         },
         change_list::{ClDiffFile, UpdateBranchStatusRes},
-        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        git::{CreateEntryInfo, EditCLMode, EditFilePayload, EditFileResult},
         tag::TagInfo,
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
     },
@@ -400,9 +400,20 @@ impl ApiHandler for MonoApiService {
             .apply_update_result(&result, &payload.commit_message, None)
             .await?;
 
-        let username = payload.author_username.clone().unwrap_or("Anonymous".to_string());
-        let cl = self.find_or_create_cl_for_edit(payload.force_create, &new_commit_id, &payload.commit_message, &payload.path, &username).await?;
+        let username = payload
+            .author_username
+            .clone()
+            .unwrap_or("Anonymous".to_string());
 
+        let cl = self
+            .find_or_create_cl_for_edit(
+                payload.mode,
+                &new_commit_id,
+                &payload.commit_message,
+                &payload.path,
+                &username,
+            )
+            .await?;
         self.storage
             .mono_service
             .save_blobs(&new_commit_id, vec![new_blob.clone()])
@@ -1037,6 +1048,41 @@ impl MonoApiService {
         }
     }
 
+    async fn create_new_cl(
+        &self,
+        repo_path: &str,
+        commit_message: &str,
+        to_hash: &str,
+        username: &str,
+    ) -> Result<mega_cl::Model, GitError> {
+        let cl_link = generate_link();
+
+        let from_hash = self
+            .storage
+            .mono_storage()
+            .get_main_ref(repo_path)
+            .await?
+            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?
+            .ref_commit_hash;
+
+        // Create and return a new CL model
+        let cl = self
+            .storage
+            .cl_storage()
+            .new_cl_model(
+                repo_path,
+                &cl_link,
+                commit_message,
+                &from_hash,
+                to_hash,
+                username,
+            )
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to create CL: {}", e)))?;
+
+        Ok(cl)
+    }
+
     /// Finds or creates a Change List (CL) for file edits.
     /// This method determines whether to create a new CL or reuse an existing one based on the `force_create` flag,
     /// Otherwise, it attempts to find an open CL for the given user and path. If no such CL exists, a new one is created.
@@ -1053,54 +1099,51 @@ impl MonoApiService {
     /// or a `GitError` on failure.
     async fn find_or_create_cl_for_edit(
         &self,
-        force_create: bool,
+        mode: EditCLMode,
         to_hash: &str,
         commit_message: &str,
         file_path: &str,
         username: &str,
     ) -> Result<mega_cl::Model, GitError> {
         let path = PathBuf::from(file_path);
-        let repo_path = path.parent()
+        let repo_path = path
+            .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "/".to_string());
 
         let storage = self.storage.cl_storage();
-
-        // If not forcing creation, attempt to find an existing open CL for the user and path
-        if !force_create
-            && let Some(existing_cl) = storage.get_open_cl_by_path(&repo_path, username).await
-            .map_err(|e| GitError::CustomError(format!("Failed to fetch CL: {}", e)))? {
-            return Ok(existing_cl); // Return the existing CL if found
+        match mode {
+            EditCLMode::ForceCreate => {
+                self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                    .await
+            }
+            EditCLMode::TryReuse(None) => {
+                if let Some(existing_cl) =
+                    storage
+                        .get_open_cl_by_path(&repo_path, username)
+                        .await
+                        .map_err(|e| GitError::CustomError(format!("Failed to fetch CL: {}", e)))?
+                {
+                    Ok(existing_cl)
+                } else {
+                    self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                        .await
+                }
+            }
+            EditCLMode::TryReuse(Some(link)) => {
+                match self.storage.cl_storage().get_cl(&link).await {
+                    Ok(Some(model)) => Ok(model),
+                    _ => {
+                        self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                            .await
+                    }
+                }
+            }
         }
-
-        let cl_link = generate_link();
-
-        let from_hash = self
-            .storage
-            .mono_storage()
-            .get_main_ref(&repo_path)
-            .await?
-            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?
-            .ref_commit_hash;
-
-        // Create and return a new CL model
-        let cl = storage.new_cl_model(
-            &repo_path,
-            &cl_link,
-            &commit_message,
-            &from_hash,
-            &to_hash,
-            username,
-        ).await
-        .map_err(|e| GitError::CustomError(format!("Failed to create CL: {}", e)))?;
-
-        Ok(cl)
     }
-
 
     /// Triggers a build for the specified Change List (CL).
     /// It spawns a background task to handle the build process, ensuring that the main application flow remains responsive.
-                       ///
     /// # Arguments
     /// * `cl_link` - The unique identifier (link) of the CL for which the build is to be triggered.
     ///
@@ -1131,14 +1174,16 @@ impl MonoApiService {
     /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully executed,
     /// or a `GitError` if an error occurred during the process.
     async fn async_trigger_build(&self, cl_link: &str) -> Result<(), GitError> {
-        let cl = self.storage
+        let cl = self
+            .storage
             .cl_storage()
             .get_cl(cl_link)
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to get CL: {}", e)))?
             .ok_or_else(|| GitError::CustomError("CL not found".to_string()))?;
 
-        let changed_files = self.get_sorted_changed_file_list(&cl.link, None)
+        let changed_files = self
+            .get_sorted_changed_file_list(&cl.link, None)
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to get changed files: {}", e)))?;
 
@@ -1147,8 +1192,11 @@ impl MonoApiService {
             return Ok(());
         }
 
-        self.trigger_bellatrix_build(&cl, &changed_files).await
-            .map_err(|e| GitError::CustomError(format!("Failed to trigger Bellatrix build: {}", e)))?;
+        self.trigger_bellatrix_build(&cl, &changed_files)
+            .await
+            .map_err(|e| {
+                GitError::CustomError(format!("Failed to trigger Bellatrix build: {}", e))
+            })?;
 
         Ok(())
     }
@@ -1165,8 +1213,7 @@ impl MonoApiService {
     ///
     /// # Returns
     /// * `Ok(())` - If the build was successfully triggered.
-    /// * `Err(GitError)` - If an error occurred during the process, such as invalid paths
-    ///                     or failure to communicate with the Bellatrix service.
+    /// * `Err(GitError)` - If an error occurred during the process, such as invalid paths or failure to communicate with the Bellatrix service.
     async fn trigger_bellatrix_build(
         &self,
         cl: &mega_cl::Model,
@@ -1182,29 +1229,28 @@ impl MonoApiService {
             .iter()
             .filter_map(|file_path| {
                 let full_path = cl_base.join(file_path);
-                let status = if file_path.ends_with("new") {
+                if file_path.ends_with("new") {
                     Some(bellatrix::orion_client::Status::Added(
                         bellatrix::orion_client::ProjectRelativePath::from_abs(
                             &full_path.to_string_lossy(),
                             &cl.path,
-                        )?
+                        )?,
                     ))
                 } else if file_path.ends_with("deleted") {
                     Some(bellatrix::orion_client::Status::Removed(
                         bellatrix::orion_client::ProjectRelativePath::from_abs(
                             &full_path.to_string_lossy(),
                             &cl.path,
-                        )?
+                        )?,
                     ))
                 } else {
                     Some(bellatrix::orion_client::Status::Modified(
                         bellatrix::orion_client::ProjectRelativePath::from_abs(
                             &full_path.to_string_lossy(),
                             &cl.path,
-                        )?
+                        )?,
                     ))
-                };
-                status
+                }
             })
             .collect();
 
@@ -1216,9 +1262,7 @@ impl MonoApiService {
             cl_link: cl.link.clone(),
             repo: cl.path.clone(),
             cl: cl.id,
-            builds: vec![bellatrix::orion_client::BuildInfo {
-                changes,
-            }],
+            builds: vec![bellatrix::orion_client::BuildInfo { changes }],
         };
 
         tracing::info!("Triggering build for CL {}: {:?}", cl.link, build_request);
