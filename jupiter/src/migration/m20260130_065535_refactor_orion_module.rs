@@ -34,6 +34,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Tasks::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(Tasks::Changes).json_binary().not_null())
                     .col(ColumnDef::new(Tasks::RepoName).string().not_null())
+                    .col(ColumnDef::new(Tasks::CL).string().not_null())
                     .col(
                         ColumnDef::new(Tasks::CreatedAt)
                             .timestamp_with_time_zone()
@@ -145,6 +146,7 @@ enum Tasks {
     Id,
     Changes,
     RepoName,
+    CL,
     CreatedAt,
 }
 
