@@ -69,13 +69,13 @@ const CheckStatus = ({
   return (
     <div className='flex w-full items-center px-3 py-0'>
       {hasFailures ? (
-        <AlertIcon className='mr-3 h-5 w-5 text-yellow-600' />
+        <AlertIcon className='mr-3 h-5 w-5 text-yellow-600 dark:text-yellow-500' />
       ) : (
-        <CheckIcon className='mr-3 h-5 w-5 text-green-700' />
+        <CheckIcon className='mr-3 h-5 w-5 text-green-700 dark:text-green-400' />
       )}
       <div>
         <p className='font-semibold'>{hasFailures ? 'Some checks were not successful' : 'All checks have passed'}</p>
-        <p className='text-sm text-gray-600'>{statusInfo.join(', ')}</p>
+        <p className='text-tertiary text-sm'>{statusInfo.join(', ')}</p>
       </div>
       <div className='ml-auto flex items-center gap-2'>
         {isOutdated && (
@@ -85,8 +85,7 @@ const CheckStatus = ({
               onUpdateBranch()
             }}
             disabled={isUpdating}
-            style={{ backgroundColor: '#f6f8fa' }}
-            className='flex-shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50'
+            className='border-primary bg-secondary hover:bg-tertiary text-secondary flex-shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50'
           >
             {isUpdating ? (
               <span className='flex items-center gap-1.5'>
@@ -106,7 +105,7 @@ const CheckStatus = ({
 
 const CheckGroup = ({ title, checks }: CheckGroupProps) => (
   <div className='mb-2'>
-    <h4 className='px-2 py-1 text-xs font-bold uppercase text-gray-500'>
+    <h4 className='text-tertiary px-2 py-1 text-xs font-bold uppercase'>
       {title} ({checks.length})
     </h4>
     <div>
@@ -141,25 +140,25 @@ const getStatusIcon = (status: AdditionalCheckStatus) => {
 }
 
 const AdditionalCheckItemComponent = ({ check }: AdditionalCheckItemProps) => (
-  <div className='flex items-start border-b border-gray-100 px-2 py-2 last:border-b-0'>
+  <div className='border-primary flex items-start border-b px-2 py-2 last:border-b-0'>
     <div className='mr-3 mt-0.5 flex-shrink-0'>{getStatusIcon(check.result)}</div>
     <div className='min-w-0 flex-1'>
       <div className='flex items-center justify-between'>
-        <h5 className='text-sm font-medium text-gray-900'>{ADDITIONAL_CHECK_LABELS[check.type]}</h5>
+        <h5 className='text-primary text-sm font-medium'>{ADDITIONAL_CHECK_LABELS[check.type]}</h5>
         <span
           className={`rounded-full px-2 py-1 text-xs font-medium ${
             check.result === 'PASSED'
-              ? 'bg-green-100 text-green-800'
+              ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200'
               : check.result === 'FAILED'
-                ? 'bg-red-100 text-red-800'
-                : 'bg-gray-100 text-gray-800'
+                ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200'
+                : 'bg-secondary text-secondary'
           }`}
         >
           {check.result.toLowerCase()}
         </span>
       </div>
       {check.result === 'FAILED' && (
-        <ul className='mt-1 list-inside list-disc text-sm text-red-600'>
+        <ul className='mt-1 list-inside list-disc text-sm text-red-600 dark:text-red-400'>
           <li className='list-inside'>{check.message}</li>
         </ul>
       )}
@@ -178,7 +177,7 @@ const AdditionalChecksSection = ({ additionalChecks }: AdditionalChecksSectionPr
 
   return (
     <div className='mt-2 border-t pt-2'>
-      <h4 className='mb-2 px-2 py-1 text-xs font-bold uppercase text-gray-500'>
+      <h4 className='text-tertiary mb-2 px-2 py-1 text-xs font-bold uppercase'>
         Additional Checks ({additionalChecks.length})
       </h4>
       <div className='space-y-1'>
@@ -236,7 +235,7 @@ export function ChecksSection({ checks, onStatusChange, additionalChecks, clLink
     <>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         {/* CheckStatus section */}
-        <Collapsible.Trigger className='flex w-full cursor-pointer rounded-md hover:bg-gray-100'>
+        <Collapsible.Trigger className='hover:bg-tertiary flex w-full cursor-pointer rounded-md'>
           <CheckStatus
             hasFailures={hasFailures}
             failureCount={failureCount}

@@ -1,5 +1,6 @@
 import { BaseStyles, ThemeProvider } from '@primer/react'
 import { GetServerSideProps } from 'next'
+import { useTheme } from 'next-themes'
 
 import IssueDetailPage from '@/components/Issues/IssueDetailPage'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -23,9 +24,11 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
 }
 
 const OrganizationIssueDetailPage: PageWithLayout<any> = ({ link }) => {
+  const { theme } = useTheme()
+
   return (
     <>
-      <ThemeProvider>
+      <ThemeProvider colorMode={theme === 'dark' ? 'dark' : 'light'}>
         <BaseStyles>
           <IssueDetailPage link={link} key={link} />
         </BaseStyles>

@@ -47,7 +47,7 @@ export function OrderDropdown({ sortOptions, timeOptions, currentSort, currentTi
     <DropdownMenu
       key='order'
       align='end'
-      desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+      desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-primary' }}
       items={[
         {
           type: 'item',

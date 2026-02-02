@@ -165,7 +165,7 @@ const GPGKeys = () => {
 
   return (
     <>
-      <div className='border-primary bg-tertiary text-secondary mx-auto max-w-4xl rounded-lg border p-8 font-sans'>
+      <div className='border-primary bg-primary dark:bg-tertiary text-secondary mx-auto max-w-4xl rounded-lg border p-8 font-sans'>
         <header className='flex items-center justify-between pb-4'>
           <h1 className='text-primary text-3xl font-bold'>GPG keys</h1>
           <Button variant='primary' className='bg-[#1f883d]' leftSlot={<PlusIcon />} onClick={() => setOpen(true)}>

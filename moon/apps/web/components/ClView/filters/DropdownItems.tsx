@@ -20,8 +20,8 @@ export const DropdownItemwithAvatar = ({
       )}
     >
       <MemberAvatar size='sm' member={member} />
-      <span className='text-sm font-semibold'>{member.user.display_name}</span>
-      <span className='ml-1 text-xs text-gray-500'>{member.user.username}</span>
+      <span className='text-primary text-sm font-semibold'>{member.user.display_name}</span>
+      <span className='text-tertiary ml-1 text-xs'>{member.user.username}</span>
     </div>
   )
 }
@@ -38,8 +38,8 @@ export const DropdownItemwithLabel = ({ classname, label }: { classname?: string
         className='h-3.5 w-3.5 rounded-full border'
         style={{ backgroundColor: label.color, borderColor: label.color }}
       />
-      <span className='text-sm font-semibold'>{label.name}</span>
-      <span className='ml-1 text-xs text-gray-500'>{label.description}</span>
+      <span className='text-primary text-sm font-semibold'>{label.name}</span>
+      <span className='text-tertiary ml-1 text-xs'>{label.description}</span>
     </div>
   )
 }

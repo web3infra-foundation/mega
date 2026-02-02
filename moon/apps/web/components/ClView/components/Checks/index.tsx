@@ -168,13 +168,13 @@ const Checks = ({ cl }: { cl: number }) => {
   // Handle tasks loading state
   if (isTasksLoading) {
     return (
-      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
-        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+      <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
           <span>
-            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+            <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
           </span>
         </div>
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <div className='flex items-center gap-3'>
             <LoadingSpinner />
             <span>Loading tasks...</span>
@@ -187,13 +187,13 @@ const Checks = ({ cl }: { cl: number }) => {
   // Handle tasks error or empty state
   if (isTasksError) {
     return (
-      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
-        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+      <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
           <span>
-            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+            <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
           </span>
         </div>
-        <div className='flex h-full items-center justify-center text-red-500'>
+        <div className='flex h-full items-center justify-center text-red-500 dark:text-red-400'>
           <span>Failed to fetch tasks</span>
         </div>
       </div>
@@ -204,13 +204,13 @@ const Checks = ({ cl }: { cl: number }) => {
 
   if (!isTasksLoading && (!tasks || tasks.length === 0 || validTasks.length === 0)) {
     return (
-      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
-        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+      <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
           <span>
-            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+            <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
           </span>
         </div>
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <span>No tasks available</span>
         </div>
       </div>
@@ -221,7 +221,7 @@ const Checks = ({ cl }: { cl: number }) => {
   const renderLogContent = () => {
     if (!buildid) {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <span>Select a build to view logs</span>
         </div>
       )
@@ -232,7 +232,7 @@ const Checks = ({ cl }: { cl: number }) => {
     // If status is undefined or idle, user needs to select a build
     if (!status || status === 'idle') {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <span>Select a build to view logs</span>
         </div>
       )
@@ -240,7 +240,7 @@ const Checks = ({ cl }: { cl: number }) => {
 
     if (status === 'loading') {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <span>Loading logs...</span>
         </div>
       )
@@ -248,7 +248,7 @@ const Checks = ({ cl }: { cl: number }) => {
 
     if (status === 'error') {
       return (
-        <div className='flex h-full items-center justify-center text-red-500'>
+        <div className='flex h-full items-center justify-center text-red-500 dark:text-red-400'>
           <span>Failed to fetch logs</span>
         </div>
       )
@@ -256,7 +256,7 @@ const Checks = ({ cl }: { cl: number }) => {
 
     if (status === 'empty') {
       return (
-        <div className='flex h-full items-center justify-center text-gray-500'>
+        <div className='text-tertiary flex h-full items-center justify-center'>
           <span>No logs available</span>
         </div>
       )
@@ -272,7 +272,7 @@ const Checks = ({ cl }: { cl: number }) => {
 
     // Fallback: show select prompt
     return (
-      <div className='flex h-full items-center justify-center text-gray-500'>
+      <div className='text-tertiary flex h-full items-center justify-center'>
         <span>Select a build to view logs</span>
       </div>
     )
@@ -280,14 +280,17 @@ const Checks = ({ cl }: { cl: number }) => {
 
   return (
     <>
-      <div className='bg-[#f6f8fa]' style={{ height: `calc(100vh - 104px)` }}>
-        <div className='flex h-[60px] items-center border-b bg-white px-4'>
+      <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+        <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
           <span>
-            <h2 className='text-bold fz-[14px] text-[#59636e]'>[] tasks status interface</h2>
+            <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
           </span>
         </div>
         <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
-          <div className='h-full overflow-y-auto border-r' style={{ width: leftWidth ?? '40%', flexShrink: 0 }}>
+          <div
+            className='border-primary h-full overflow-y-auto border-r'
+            style={{ width: leftWidth ?? '40%', flexShrink: 0 }}
+          >
             {validTasks.map((t) => (
               <Task key={t.task_id} list={t} logStatus={logStatus} />
             ))}
@@ -295,7 +298,7 @@ const Checks = ({ cl }: { cl: number }) => {
           {/* Resizer handle */}
           <div
             onMouseDown={handleMouseDown}
-            className='h-full w-1 flex-shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400'
+            className='border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
             style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
           />
           <div className='flex-1'>{renderLogContent()}</div>
