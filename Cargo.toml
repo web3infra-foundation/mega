@@ -78,6 +78,7 @@ smallvec = "1.15.1"
 bytes = "1.11"
 chrono = { version = "0.4.43", features = ["serde"] }
 hex = "0.4.3"
+sha2 = "0.10.9"
 
 idgenerator = "2.0.0"
 config = "0.15.19"
