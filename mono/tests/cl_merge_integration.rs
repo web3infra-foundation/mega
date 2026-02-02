@@ -25,12 +25,15 @@
 //! cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
 //! ```
 //!
-//! ## Known Limitation
+//! ## Test Design
 //!
-//! Due to Mega's architectural constraint (one CL per user per path), when running
-//! with `enable_http_auth = false`, all git operations are identified as "Anonymous"
-//! user. This means CL-1 and CL-2 may be the same CL. The test handles this with
-//! warnings and still validates the CL workflow mechanics.
+//! This test enables HTTP authentication (`enable_http_auth = true`) to ensure that:
+//! - Each user has their own CL (one CL per user per path)
+//! - CL-1 and CL-2 created by different users are distinct
+//! - The test can verify the complete multi-user CL workflow
+//!
+//! Test users and their tokens are defined as constants (TEST_TOKEN_A, TEST_TOKEN_B)
+//! and inserted directly into the database during setup for simplicity.
 
 use std::{
     path::{Path, PathBuf},
@@ -48,6 +51,22 @@ const MEGA_PORT: u16 = 8000;
 const POSTGRES_USER: &str = "mega";
 const POSTGRES_PASSWORD: &str = "mega";
 const POSTGRES_DB: &str = "mono";
+
+// Timing constants for test operations
+const CL_CREATE_WAIT_SECS: u64 = 1; // Wait time after CL creation
+const POST_MERGE_WAIT_SECS: u64 = 2; // Wait time after merge operation
+const POST_REBASE_WAIT_SECS: u64 = 2; // Wait time after rebase operation
+const MEGA_STARTUP_WAIT_SECS: u64 = 5; // Wait time after starting Mega service
+const DB_OP_WAIT_SECS: u64 = 2; // Wait time after database operations
+
+// Test users configuration
+const TEST_USER_A: &str = "user_a";
+const TEST_USER_B: &str = "user_b";
+const TEST_USER_A_EMAIL: &str = "user_a@test.com";
+const TEST_USER_B_EMAIL: &str = "user_b@test.com";
+// Test user tokens (constant values for testing)
+const TEST_TOKEN_A: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const TEST_TOKEN_B: &str = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
 
 fn tracing_subscriber_init() {
     static INIT: Once = Once::new();
@@ -151,7 +170,7 @@ async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
 
     tracing::info!("Starting PostgreSQL...");
     exec_check(vm, "service postgresql start").await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(DB_OP_WAIT_SECS)).await;
 
     tracing::info!("Configuring PostgreSQL...");
 
@@ -235,7 +254,7 @@ async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
     .await?;
 
     exec_check(vm, "service postgresql restart").await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(DB_OP_WAIT_SECS)).await;
 
     tracing::info!("PostgreSQL setup complete.");
     Ok(())
@@ -256,6 +275,30 @@ async fn setup_redis(vm: &mut qlean::Machine) -> Result<()> {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     tracing::info!("Redis setup complete.");
+    Ok(())
+}
+
+/// Setup test users and tokens in database
+///
+/// This function inserts pre-defined constant tokens for test users.
+/// Tokens are constants defined at the top of the file for simplicity.
+async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("Setting up test users and tokens...");
+
+    // Insert constant tokens into database with random IDs
+    tracing::info!("  Creating token for {}", TEST_USER_A);
+    exec_check(vm, &format!(
+        "PGPASSWORD={} psql -h 127.0.0.1 -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
+        POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_DB, TEST_USER_A, TEST_TOKEN_A
+    )).await?;
+
+    tracing::info!("  Creating token for {}", TEST_USER_B);
+    exec_check(vm, &format!(
+        "PGPASSWORD={} psql -h 127.0.0.1 -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
+        POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_DB, TEST_USER_B, TEST_TOKEN_B
+    )).await?;
+
+    tracing::info!("Test users and tokens setup complete.");
     Ok(())
 }
 
@@ -294,8 +337,8 @@ connect_timeout = 3
 sqlx_logging = false
 
 [authentication]
-enable_http_auth = false
-enable_test_user = true
+enable_http_auth = true
+enable_test_user = false
 test_user_name = "mega"
 test_user_token = "mega"
 
@@ -355,7 +398,7 @@ url = "redis://127.0.0.1:6379"
     tracing::info!("Starting Mega service in background...");
     exec_check(vm, "nohup mono service http > /tmp/mega.log 2>&1 &").await?;
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(MEGA_STARTUP_WAIT_SECS)).await;
 
     let ps_output = exec_check(vm, "ps aux | grep '[m]ono' || true").await?;
     tracing::debug!("Mega process status: {}", ps_output);
@@ -367,14 +410,25 @@ url = "redis://127.0.0.1:6379"
 }
 
 /// Configure git and initialize mono repository
-async fn setup_mono_repository(vm: &mut qlean::Machine) -> Result<()> {
+async fn setup_mono_repository(
+    vm: &mut qlean::Machine,
+    auth_username: &str,
+    auth_token: &str,
+) -> Result<()> {
     tracing::info!("Configuring git...");
     exec_check(vm, "git config --global user.name 'Test User'").await?;
     exec_check(vm, "git config --global user.email 'test@example.com'").await?;
 
+    // Clean up any existing mono repository
+    exec_check(vm, "rm -rf /tmp/mono").await?;
+
     tracing::info!("Cloning mono repository from Mega service...");
     // Mega service auto-initializes the monorepo on startup with root_dirs
-    let clone_output = exec_check(vm, "git clone http://127.0.0.1:8000/.git /tmp/mono").await?;
+    let clone_url = format!(
+        "http://{}:{}@127.0.0.1:8000/.git",
+        auth_username, auth_token
+    );
+    let clone_output = exec_check(vm, &format!("git clone {} /tmp/mono", clone_url)).await?;
     tracing::debug!("Clone output: {}", clone_output);
 
     // Add a test file to the cloned repository
@@ -400,6 +454,8 @@ async fn create_change_list(
     vm: &mut qlean::Machine,
     repo_name: &str,
     monorepo_path: &str,  // e.g., "project", "third-party"
+    auth_username: &str,  // HTTP auth username (for token)
+    auth_token: &str,     // HTTP auth token
     git_user_name: &str,  // Git user name for this repository
     git_user_email: &str, // Git user email for this repository
     files: Vec<(&str, &str)>,
@@ -407,7 +463,10 @@ async fn create_change_list(
     validate_repo_name(repo_name)?;
 
     let repo_path = format!("/tmp/{}", repo_name);
-    let clone_url = format!("http://127.0.0.1:8000/{}.git", monorepo_path);
+    let clone_url = format!(
+        "http://{}:{}@127.0.0.1:8000/{}.git",
+        auth_username, auth_token, monorepo_path
+    );
     let clone_cmd = format!("git clone {} {}", clone_url, repo_path);
 
     exec_check(vm, &clone_cmd)
@@ -436,7 +495,7 @@ async fn create_change_list(
     .context("Failed to set git user.email")?;
 
     tracing::info!(
-        "  → Configured git user: {} <{}>",
+        "  Configured git user: {} <{}>",
         git_user_name,
         git_user_email
     );
@@ -456,6 +515,10 @@ async fn create_change_list(
             .context(format!("Failed to write file: {}", filename))?;
     }
 
+    // Debug: check git status before commit
+    let git_status = exec_check(vm, &format!("cd {} && git status --short", repo_path)).await?;
+    tracing::info!("  Git status for {}: {}", repo_name, git_status);
+
     let commit_cmd = format!(
         "cd {} && git add . && git commit -m 'feat: Add {} files'",
         repo_path, repo_name
@@ -464,12 +527,20 @@ async fn create_change_list(
         .await
         .context("Failed to commit changes")?;
 
+    // Debug: check commit details
+    let git_show = exec_check(
+        vm,
+        &format!("cd {} && git show --name-status --oneline HEAD", repo_path),
+    )
+    .await?;
+    tracing::info!("  Commit details for {}: {}", repo_name, git_show);
+
     exec_check(vm, &format!("cd {} && git push", repo_path))
         .await
         .context("Failed to push changes")?;
 
     // Wait for CL creation to complete
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(CL_CREATE_WAIT_SECS)).await;
 
     // Query CL list via API to get the most recent CL
     let list_response = exec_check(
@@ -515,30 +586,49 @@ async fn create_change_list(
 
     let cl_author = items[0]["author"].as_str().unwrap_or("unknown");
 
-    tracing::info!("  → Created CL: {} (author: {})", cl_link, cl_author);
+    tracing::info!("  Created CL: {} (author: {})", cl_link, cl_author);
 
     Ok(cl_link)
 }
 
-/// Get files-changed count for a CL
+/// Get file list and count for a CL using files-list API
 async fn get_cl_files_count(vm: &mut qlean::Machine, cl_link: &str) -> Result<u64> {
+    // Use files-list API instead of files-changed API
+    // The files-changed API's total field is inaccurate, but files-list returns correct data
     let files_cmd = exec_check(
         vm,
         &format!(
-            r#"curl -s -X POST http://127.0.0.1:8000/api/v1/cl/{}/files-changed \
-                -H "Content-Type: application/json" \
-                -d "{{\"additional\":\"\",\"pagination\":{{\"page\":1,\"per_page\":100}}}}""#,
+            "curl -s http://127.0.0.1:8000/api/v1/cl/{}/files-list",
             cl_link
         ),
     )
     .await?;
 
     let json: Value =
-        serde_json::from_str(&files_cmd).context("Failed to parse files-changed response")?;
+        serde_json::from_str(&files_cmd).context("Failed to parse files-list response")?;
 
-    let total = json["data"]["page"]["total"]
-        .as_u64()
-        .ok_or_else(|| anyhow::anyhow!("Failed to parse total count"))?;
+    // Check if request was successful
+    if !json["req_result"].as_bool().unwrap_or(false) {
+        anyhow::bail!(
+            "files-list API returned error: {}",
+            json["err_message"].as_str().unwrap_or("Unknown error")
+        );
+    }
+
+    // Get the files array and count its length
+    let files = json["data"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("files-list data is not an array"))?;
+
+    let total = files.len() as u64;
+
+    // Log detailed file list for debugging
+    tracing::info!("  Files in CL {} (count: {}):", cl_link, total);
+    for item in files {
+        if let Some(file_path) = item.get("path").and_then(|v| v.as_str()) {
+            tracing::info!("      - {}", file_path);
+        }
+    }
 
     Ok(total)
 }
@@ -592,7 +682,7 @@ async fn get_update_branch_status(vm: &mut qlean::Machine, cl_link: &str) -> Res
     // Log the key fields
     if let Some(data) = json.get("data") {
         tracing::info!(
-            "  → base_commit: {}, target_head: {}, outdated: {}",
+            "   base_commit: {}, target_head: {}, outdated: {}",
             data.get("base_commit")
                 .and_then(|v| v.as_str())
                 .unwrap_or("N/A"),
@@ -626,139 +716,149 @@ async fn update_branch(vm: &mut qlean::Machine, cl_link: &str) -> Result<String>
 
 /// Test: CL Merge and Update-Branch Workflow
 async fn test_cl_merge_and_update_branch(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("╔════════════════════════════════════════════════════════════╗");
-    tracing::info!("║  Test: CL Merge and Update-Branch Integration             ║");
-    tracing::info!("╚════════════════════════════════════════════════════════════╝");
+    tracing::info!("============================================================");
+    tracing::info!("Test: CL Merge and Update-Branch Integration");
+    tracing::info!("============================================================");
     tracing::info!("");
 
-    // Phase 1: Create two CLs
-    tracing::info!("📋 Phase 1: Creating Change Lists");
-    tracing::info!("  → Creating CL-1 with repo_a files in /project");
+    // Phase 1: Create two CLs with different users
+    tracing::info!("Phase 1: Creating Change Lists");
+    tracing::info!(
+        "  Creating CL-1 with files including common.txt (user: {})",
+        TEST_USER_A
+    );
     let cl1 = create_change_list(
         vm,
         "repo_a",
         "project",
-        "user_a",
-        "user_a@test.com",
+        TEST_USER_A,
+        TEST_TOKEN_A,
+        TEST_USER_A,
+        TEST_USER_A_EMAIL,
         vec![
+            ("common.txt", "Initial content by user_a"),
             ("repo_a/file1.txt", "Content A1"),
-            ("repo_a/file2.txt", "Content A2"),
         ],
     )
     .await
     .context("Failed to create CL-1")?;
-    tracing::info!("  ✓ CL-1 created: {}", cl1);
+    tracing::info!("  CL-1 created: {}", cl1);
 
-    tracing::info!("  → Creating CL-2 with repo_b files in /project");
+    tracing::info!(
+        "  Creating CL-2 with files including common.txt (user: {})",
+        TEST_USER_B
+    );
     let cl2 = create_change_list(
         vm,
         "repo_b",
         "project",
-        "user_b",
-        "user_b@test.com",
+        TEST_USER_B,
+        TEST_TOKEN_B,
+        TEST_USER_B,
+        TEST_USER_B_EMAIL,
         vec![
-            ("repo_b/file3.txt", "Content B1"),
-            ("repo_b/file4.txt", "Content B2"),
+            ("common.txt", "Modified by user_b - conflicts with CL-1!"),
+            ("repo_b/file2.txt", "Content B1"),
         ],
     )
     .await
     .context("Failed to create CL-2")?;
-    tracing::info!("  ✓ CL-2 created: {}", cl2);
+    tracing::info!("  CL-2 created: {}", cl2);
     tracing::info!("");
 
-    // Check if CL-1 and CL-2 are the same (expected due to single-user limitation)
+    // Verify CL-1 and CL-2 are distinct (now that we have HTTP auth)
     if cl1 == cl2 {
-        tracing::warn!(
-            "  ⚠ CL-1 and CL-2 have the same link ({}) due to Mega's one-CL-per-user-per-path constraint",
+        anyhow::bail!(
+            "CL-1 and CL-2 have the same link ({}). With HTTP auth enabled, each user should have their own CL!",
             cl1
         );
-        tracing::warn!(
-            "  → This is expected behavior when all operations use the same user (Anonymous)"
-        );
-        tracing::warn!("  → Test will still verify CL workflow mechanics");
     } else {
-        tracing::info!("  ✓ CL-1 ({}) and CL-2 ({}) are distinct CLs", cl1, cl2);
+        tracing::info!(
+            "  CL-1 ({}) and CL-2 ({}) are distinct CLs (expected)",
+            cl1,
+            cl2
+        );
     }
     tracing::info!("");
 
     // Phase 2: Pre-merge baseline
-    tracing::info!("📊 Phase 2: Pre-merge Baseline");
+    tracing::info!("Phase 2: Pre-merge Baseline");
     let files_before = get_cl_files_count(vm, &cl2).await?;
-    tracing::info!("  ✓ CL-2 files count: {}", files_before);
+    tracing::info!("  CL-2 files count: {}", files_before);
     tracing::info!("");
 
     // Phase 3: Merge CL-1
-    tracing::info!("🔀 Phase 3: Merging CL-1");
-    tracing::info!("  → Updating CL-1 status to 'open'");
+    tracing::info!("Phase 3: Merging CL-1");
+    tracing::info!("  Updating CL-1 status to 'open'");
     update_cl_status(vm, &cl1, "open")
         .await
         .context("Failed to update CL-1 status")?;
 
-    tracing::info!("  → Merging CL-1 into /project main");
+    tracing::info!("  Merging CL-1 into /project main");
     merge_change_list(vm, &cl1)
         .await
         .context("Failed to merge CL-1")?;
-    tracing::info!("  ✓ CL-1 merged successfully");
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tracing::info!("  CL-1 merged successfully");
+    tokio::time::sleep(Duration::from_secs(POST_MERGE_WAIT_SECS)).await;
     tracing::info!("");
 
     // Phase 4: Post-merge verification
-    tracing::info!("🔍 Phase 4: Post-merge Verification");
+    tracing::info!("Phase 4: Post-merge Verification");
     let files_after = get_cl_files_count(vm, &cl2)
         .await
         .context("Failed to get CL-2 files count")?;
-    tracing::info!("  ✓ CL-2 files count: {}", files_after);
+    tracing::info!("  CL-2 files count: {}", files_after);
 
     if files_after != files_before {
         tracing::warn!(
-            "  ⚠ CL-2 files count changed (before: {}, after: {})",
+            "  CL-2 files count changed (before: {}, after: {})",
             files_before,
             files_after
         );
     } else {
-        tracing::info!("  ✓ CL-2 files count unchanged (expected before rebase)");
+        tracing::info!("  CL-2 files count unchanged (expected before rebase)");
     }
     tracing::info!("");
 
     // Phase 5: Update-branch detection
-    tracing::info!("🔄 Phase 5: Update-Branch Detection");
+    tracing::info!("Phase 5: Update-Branch Detection");
     let needs_update = get_update_branch_status(vm, &cl2)
         .await
         .context("Failed to check update-branch status")?;
 
     if !needs_update {
-        tracing::warn!("  ⚠ CL-2 not marked as outdated (may be expected in current setup)");
+        tracing::warn!("  CL-2 not marked as outdated (may be expected in current setup)");
     } else {
-        tracing::info!("  ✓ CL-2 correctly detected as outdated");
+        tracing::info!("  CL-2 correctly detected as outdated");
     }
     tracing::info!("");
 
     // Phase 6: Rebase CL-2
-    tracing::info!("🔧 Phase 6: Rebasing CL-2");
-    tracing::info!("  → Calling update-branch for CL-2");
+    tracing::info!("Phase 6: Rebasing CL-2");
+    tracing::info!("  Calling update-branch for CL-2");
     update_branch(vm, &cl2)
         .await
         .context("Failed to update CL-2 branch")?;
-    tracing::info!("  ✓ CL-2 update-branch completed");
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tracing::info!("  CL-2 update-branch completed");
+    tokio::time::sleep(Duration::from_secs(POST_REBASE_WAIT_SECS)).await;
     tracing::info!("");
 
     // Phase 7: Final verification
-    tracing::info!("✅ Phase 7: Final Verification");
+    tracing::info!("Phase 7: Final Verification");
     let files_final = get_cl_files_count(vm, &cl2)
         .await
         .context("Failed to get final CL-2 files count")?;
-    tracing::info!("  ✓ CL-2 final files count: {}", files_final);
+    tracing::info!("  CL-2 final files count: {}", files_final);
 
     tracing::info!("");
-    tracing::info!("╔════════════════════════════════════════════════════════════╗");
-    tracing::info!("║  ✅ TEST PASSED                                            ║");
-    tracing::info!("╠════════════════════════════════════════════════════════════╣");
-    tracing::info!("║  Summary:                                                  ║");
-    tracing::info!("║  • CL operations completed successfully                    ║");
-    tracing::info!("║  • Merge workflow: ✓                                       ║");
-    tracing::info!("║  • Update-branch workflow: ✓                               ║");
-    tracing::info!("╚════════════════════════════════════════════════════════════╝");
+    tracing::info!("============================================================");
+    tracing::info!("TEST PASSED");
+    tracing::info!("============================================================");
+    tracing::info!("Summary:");
+    tracing::info!("  CL operations completed successfully");
+    tracing::info!("  Merge workflow: OK");
+    tracing::info!("  Update-branch workflow: OK");
+    tracing::info!("============================================================");
     tracing::info!("");
 
     Ok(())
@@ -818,7 +918,7 @@ fn get_mono_binary_path() -> Result<PathBuf> {
 }
 
 #[tokio::test]
-#[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
+//#[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
 async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
     tracing_subscriber_init();
 
@@ -836,13 +936,13 @@ async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
 
     with_machine(&image, &config, |vm| {
         Box::pin(async move {
-            tracing::info!("════════════════════════════════════════════════════════════");
-            tracing::info!("  Mega CL Integration Test Suite");
-            tracing::info!("  Environment: QEMU/KVM Virtual Machine");
-            tracing::info!("════════════════════════════════════════════════════════════");
+            tracing::info!("============================================================");
+            tracing::info!("Mega CL Integration Test Suite");
+            tracing::info!("Environment: QEMU/KVM Virtual Machine");
+            tracing::info!("============================================================");
             tracing::info!("");
 
-            tracing::info!("⚙️  Setting up test environment...");
+            tracing::info!("Setting up test environment...");
             setup_postgres(vm)
                 .await
                 .context("PostgreSQL setup failed")?;
@@ -850,19 +950,23 @@ async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
             setup_mega_service(vm, &binary_path)
                 .await
                 .context("Mega service setup failed")?;
-            setup_mono_repository(vm)
+            setup_test_users(vm)
+                .await
+                .context("Test users setup failed")?;
+            // Initialize monorepo using user_a's credentials
+            setup_mono_repository(vm, TEST_USER_A, TEST_TOKEN_A)
                 .await
                 .context("Monorepo initialization failed")?;
-            tracing::info!("✓ Environment ready");
+            tracing::info!("Environment ready");
             tracing::info!("");
 
             // Run test scenarios
             test_cl_merge_and_update_branch(vm).await?;
 
             tracing::info!("");
-            tracing::info!("════════════════════════════════════════════════════════════");
-            tracing::info!("  ✅ ALL INTEGRATION TESTS PASSED");
-            tracing::info!("════════════════════════════════════════════════════════════");
+            tracing::info!("============================================================");
+            tracing::info!("ALL INTEGRATION TESTS PASSED");
+            tracing::info!("============================================================");
 
             Ok(())
         })
