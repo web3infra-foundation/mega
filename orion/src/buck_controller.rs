@@ -689,6 +689,9 @@ pub async fn build(
             .args(&targets)
             .arg("--target-platforms")
             .arg("prelude//platforms:default")
+            // Avoid failing the whole build when a target is explicitly incompatible
+            // with the selected platform (e.g., macOS-only crates on Linux builders).
+            .arg("--skip-incompatible-targets")
             .arg("--verbose=2")
             .current_dir(mount_point)
             .stdout(Stdio::piped())
