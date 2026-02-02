@@ -31,8 +31,9 @@ pub enum WSMessage {
         orion_version: String,
     },
 
-    Heartbeat,
     // Sent when a task is in the build process and its execution phase changes.
+    Heartbeat,
+
     TaskPhaseUpdate {
         id: String,
         phase: TaskPhase,

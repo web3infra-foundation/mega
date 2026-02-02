@@ -4,9 +4,16 @@ use std::{
 };
 
 use anyhow::Result;
-use api_model::orion::log::{
-    LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, TargetLogLinesResponse,
-    TargetLogQuery, TaskHistoryQuery,
+use api_model::{
+    buck2::{
+        api::TaskBuildRequest,
+        types::{ProjectRelativePath, Status},
+        ws::WSMessage,
+    },
+    orion::log::{
+        LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, TargetLogLinesResponse,
+        TargetLogQuery, TaskHistoryQuery,
+    },
 };
 use axum::{
     Json, Router,
@@ -461,18 +468,21 @@ pub async fn target_logs_handler(
 )]
 pub async fn task_handler(
     State(state): State<AppState>,
-    Json(req): Json<TaskRequest>,
+    Json(req): Json<TaskBuildRequest>,
 ) -> impl IntoResponse {
     // create task id
     let task_id = Uuid::now_v7();
+    let task_name = format!("CL-{}-{}", req.cl_link, task_id.to_string());
 
     // Process each build
     let mut results = Vec::with_capacity(req.builds.len());
     // Insert task into the database using the model's insert method
+    // TODO: replace with the new Task model
     if let Err(err) = tasks::Model::insert_task(
         task_id,
-        req.cl,
-        None,
+        // TODO: replace with new Task, use cl_link as cl identifier
+        req.cl_link.to_string(),
+        Some(task_name),
         None,
         chrono::Utc::now().into(),
         &state.conn,
@@ -489,53 +499,49 @@ pub async fn task_handler(
             .into_response();
     }
 
-    for build in &req.builds {
-        // Check if there are idle workers available
-        if state.scheduler.has_idle_workers() {
-            // Have idle workers, directly dispatch task (keep original logic)
-            let result: BuildResult = handle_immediate_task_dispatch(
-                state.clone(),
+    // Check if there are idle workers available
+    if state.scheduler.has_idle_workers() {
+        // Have idle workers, directly dispatch task (keep original logic)
+        let result: BuildResult = handle_immediate_task_dispatch(
+            state.clone(),
+            task_id,
+            &req.cl_link,
+            &req.repo,
+            req.changes.clone(),
+            None,
+        )
+        .await;
+        results.push(result);
+    } else {
+        // No idle workers, add task to queue
+        match state
+            .scheduler
+            .enqueue_task(
                 task_id,
                 &req.cl_link,
-                &req.repo,
-                req.cl,
-                build.clone(),
+                req.repo.clone(),
+                req.changes.clone(),
+                0,
             )
-            .await;
-            results.push(result);
-        } else {
-            // No idle workers, add task to queue
-            match state
-                .scheduler
-                .enqueue_task(
-                    task_id,
-                    &req.cl_link,
-                    build.clone(),
-                    req.repo.clone(),
-                    req.cl,
-                    0,
-                )
-                .await
-            {
-                Ok(build_id) => {
-                    tracing::info!("Build {}/{} queued for later processing", task_id, build_id);
-                    let result: BuildResult = BuildResult {
-                        build_id: build_id.to_string(),
-                        status: "queued".to_string(),
-                        message: "Task queued for processing when workers become available"
-                            .to_string(),
-                    };
-                    results.push(result);
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to queue task: {}", e);
-                    let result: BuildResult = BuildResult {
-                        build_id: "".to_string(),
-                        status: "error".to_string(),
-                        message: format!("Unable to queue task: {}", e),
-                    };
-                    results.push(result);
-                }
+            .await
+        {
+            Ok(build_id) => {
+                tracing::info!("Build {}/{} queued for later processing", task_id, build_id);
+                let result: BuildResult = BuildResult {
+                    build_id: build_id.to_string(),
+                    status: "queued".to_string(),
+                    message: "Task queued for processing when workers become available".to_string(),
+                };
+                results.push(result);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to queue task: {}", e);
+                let result: BuildResult = BuildResult {
+                    build_id: "".to_string(),
+                    status: "error".to_string(),
+                    message: format!("Unable to queue task: {}", e),
+                };
+                results.push(result);
             }
         }
     }
@@ -553,10 +559,11 @@ pub async fn task_handler(
 async fn handle_immediate_task_dispatch(
     state: AppState,
     task_id: Uuid,
-    cl_link: &str,
     repo: &str,
-    cl: i64,
-    req: BuildRequest,
+    cl_link: &str,
+    changes: Vec<Status<ProjectRelativePath>>,
+    // TODO: if reused for retry here, use targets
+    targets: Option<Vec<String>>,
 ) -> BuildResult {
     // Find all idle workers
     let idle_workers = state.scheduler.get_idle_workers();
@@ -576,8 +583,9 @@ async fn handle_immediate_task_dispatch(
         rng.random_range(0..idle_workers.len())
     };
     let chosen_id = idle_workers[chosen_index].clone();
-    let build_id = Uuid::now_v7();
-    let target_path = req.target_path();
+
+    // Create new build event
+    let build_event_id = Uuid::now_v7();
 
     let target_model = match state.scheduler.ensure_target(task_id, &target_path).await {
         Ok(target) => target,
@@ -610,13 +618,12 @@ async fn handle_immediate_task_dispatch(
     // Create build information structure
     let build_info = BuildInfo {
         task_id: task_id.to_string(),
-        build_id: build_id.to_string(),
+        build_id: build_event_id.to_string(),
         target_id: target_model.id.to_string(),
-        target_path: target_path.clone(),
         repo: repo.to_string(),
-        changes: req.changes.clone(),
+        changes: changes.clone(),
         start_at,
-        cl: cl.to_string(),
+        cl_link: cl_link.to_string(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
         retry_count: 0,
@@ -624,7 +631,7 @@ async fn handle_immediate_task_dispatch(
 
     // Use the model's insert_build method for direct insertion
     if let Err(err) = builds::Model::insert_build(
-        build_id,
+        build_event_id,
         task_id,
         target_model.id,
         repo.to_string(),
@@ -642,10 +649,10 @@ async fn handle_immediate_task_dispatch(
     println!("insert build");
 
     // Create WebSocket message for the worker (use first build's args)
-    let msg: WSMessage = WSMessage::Task {
-        id: build_id.to_string(),
+    let msg = WSMessage::Task {
+        id: build_event_id.to_string(),
         repo: repo.to_string(),
-        changes: req.changes.clone(),
+        changes: changes.clone(),
         cl_link: cl_link.to_string(),
     };
 

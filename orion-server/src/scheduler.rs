@@ -4,12 +4,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use api_model::buck2::{
+    types::{ProjectRelativePath, Status},
+    ws::WSMessage,
+};
 use chrono::FixedOffset;
 use dashmap::DashMap;
-use orion::{
-    repo::sapling::status::{ProjectRelativePath, Status},
-    ws::{TaskPhase, WSMessage},
-};
+use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
@@ -45,16 +46,16 @@ impl BuildRequest {
 }
 
 /// Pending task waiting for dispatch
+/// TODO: Used to called PendingTask
 #[derive(Debug, Clone)]
-pub struct PendingTask {
+pub struct PendingBuildEvent {
+    pub build_event_id: Uuid,
     pub task_id: Uuid,
     pub cl_link: String,
-    pub build_id: Uuid,
     pub repo: String,
-    pub target_id: Uuid,
-    pub target_path: String,
-    pub cl: i64,
-    pub request: BuildRequest,
+    pub target_id: Option<Uuid>,
+    pub target_path: Option<String>,
+    pub changes: Vec<Status<ProjectRelativePath>>,
     pub retry_count: i32,
     pub created_at: Instant,
 }
@@ -84,7 +85,7 @@ impl Default for TaskQueueConfig {
 #[derive(Debug)]
 pub struct TaskQueue {
     /// Queue storage (FIFO)
-    queue: VecDeque<PendingTask>,
+    queue: VecDeque<PendingBuildEvent>,
     /// Queue configuration
     config: TaskQueueConfig,
 }
@@ -98,7 +99,7 @@ impl TaskQueue {
     }
 
     /// Add task-bound build to the end of queue
-    pub fn enqueue(&mut self, task: PendingTask) -> Result<(), String> {
+    pub fn enqueue(&mut self, task: PendingBuildEvent) -> Result<(), String> {
         // Check if queue is full
         if self.queue.len() >= self.config.max_queue_size {
             return Err("Queue is full".to_string());
@@ -109,12 +110,12 @@ impl TaskQueue {
     }
 
     /// Remove task-bound build from the front of queue
-    pub fn dequeue(&mut self) -> Option<PendingTask> {
+    pub fn dequeue(&mut self) -> Option<PendingBuildEvent> {
         self.queue.pop_front()
     }
 
     /// Clean up expired task-bound build
-    pub fn cleanup_expired(&mut self) -> Vec<PendingTask> {
+    pub fn cleanup_expired(&mut self) -> Vec<PendingBuildEvent> {
         let now = Instant::now();
         let mut expired_tasks = Vec::new();
 
@@ -156,12 +157,13 @@ pub struct TaskQueueStats {
 pub struct BuildInfo {
     pub task_id: String,
     pub build_id: String,
-    pub target_id: String,
-    pub target_path: String,
+    pub cl_link: String,
     pub repo: String,
+    // pub target_id: String,
+    // TODO: remove if not used
+    // pub target_path: String,
     pub start_at: DateTimeUtc,
     pub changes: Vec<Status<ProjectRelativePath>>,
-    pub cl: String,
     pub _worker_id: String,
     pub auto_retry_judger: AutoRetryJudger,
     pub retry_count: i32,
@@ -260,58 +262,63 @@ impl TaskScheduler {
         targets::Entity::find_or_create(&self.conn, task_id, target_path.to_string()).await
     }
 
-    /// Add task-bound build to queue
+    /// Bound corresponding task build ID to the given task and enqueue
+    /// Used when idle worker is not available
     pub async fn enqueue_task(
         &self,
         task_id: Uuid,
         cl_link: &str,
-        request: BuildRequest,
         repo: String,
-        cl: i64,
+        changes: Vec<Status<ProjectRelativePath>>,
         retry_count: i32,
     ) -> Result<Uuid, String> {
-        let build_id = Uuid::now_v7();
+        let build_event_id = Uuid::now_v7();
 
-        self.enqueue_task_with_build_id(build_id, task_id, cl_link, request, repo, cl, retry_count)
-            .await?;
+        self.enqueue_task_with_build_id(
+            build_event_id,
+            task_id,
+            cl_link,
+            repo,
+            changes,
+            retry_count,
+        )
+        .await?;
 
-        Ok(build_id)
+        Ok(build_event_id)
     }
 
-    /// Add task-bound build to queue
+    /// Enqueue task build with given BuildEvent ID
     #[allow(clippy::too_many_arguments)]
     pub async fn enqueue_task_with_build_id(
         &self,
-        build_id: Uuid,
+        build_event_id: Uuid,
         task_id: Uuid,
         cl_link: &str,
-        request: BuildRequest,
         repo: String,
-        cl: i64,
+        changes: Vec<Status<ProjectRelativePath>>,
         retry_count: i32,
     ) -> Result<(), String> {
-        let target_path = request.target_path();
+        // TODO: replace with the new target model
         let target_model = self
             .ensure_target(task_id, &target_path)
             .await
             .map_err(|e| e.to_string())?;
 
-        let pending_task = PendingTask {
+        let pending_build_event = PendingBuildEvent {
             task_id,
             cl_link: cl_link.to_string(),
-            build_id,
-            target_id: target_model.id,
-            target_path,
-            request,
+            build_event_id,
+            target_id: None,
+            target_path: None,
+            changes: changes,
             created_at: Instant::now(),
             repo,
-            cl,
             retry_count,
         };
 
         {
             let mut queue = self.pending_tasks.lock().await;
-            queue.enqueue(pending_task)?;
+            queue.enqueue(pending_build_event)?;
         }
 
         // Notify that there's a new task to process
@@ -326,7 +333,7 @@ impl TaskScheduler {
     }
 
     /// Clean up expired task-bound builds
-    pub async fn cleanup_expired_tasks(&self) -> Vec<PendingTask> {
+    pub async fn cleanup_expired_tasks(&self) -> Vec<PendingBuildEvent> {
         let mut queue = self.pending_tasks.lock().await;
         queue.cleanup_expired()
     }
@@ -393,7 +400,7 @@ impl TaskScheduler {
     }
 
     /// Dispatch single task
-    async fn dispatch_task(&self, pending_task: PendingTask) -> Result<(), String> {
+    async fn dispatch_task(&self, pending_build_event: PendingBuildEvent) -> Result<(), String> {
         let idle_workers = self.get_idle_workers();
         if idle_workers.is_empty() {
             return Err("No idle workers available".to_string());
@@ -410,24 +417,25 @@ impl TaskScheduler {
 
         // Create build information
         let build_info = BuildInfo {
-            task_id: pending_task.task_id.to_string(),
-            build_id: pending_task.build_id.to_string(),
-            target_id: pending_task.target_id.to_string(),
-            target_path: pending_task.target_path.clone(),
-            repo: pending_task.repo.clone(),
+            task_id: pending_build_event.task_id.to_string(),
+            build_id: pending_build_event.build_event_id.to_string(),
+            cl_link: pending_build_event.cl_link.clone(),
+            // target_id: pending_build_event.target_id.to_string(),
+            // target_path: pending_build_event.target_path.clone(),
+            repo: pending_build_event.repo.clone(),
             start_at,
-            changes: pending_task.request.changes.clone(),
-            cl: pending_task.cl.to_string(),
+            changes: pending_build_event.changes.clone(),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
-            retry_count: pending_task.retry_count,
+            retry_count: pending_build_event.retry_count,
         };
 
         // Insert build record (fail fast if insertion fails)
         if let Err(e) = (builds::ActiveModel {
-            id: Set(pending_task.build_id),
-            task_id: Set(pending_task.task_id),
-            target_id: Set(pending_task.target_id),
+            id: Set(pending_build_event.build_event_id),
+            task_id: Set(pending_build_event.task_id),
+            // target_id: Set(pending_build_event.target_id),
+            target_id: Set(None),
             exit_code: Set(None),
             start_at: Set(start_at_tz),
             end_at: Set(None),
@@ -435,9 +443,9 @@ impl TaskScheduler {
             args: Set(None),
             output_file: Set(format!(
                 "{}/{}/{}.log",
-                pending_task.task_id,
-                LogService::last_segment(&pending_task.repo),
-                pending_task.build_id
+                pending_build_event.task_id,
+                LogService::last_segment(&pending_build_event.repo),
+                pending_build_event.build_event_id
             )),
             created_at: Set(start_at_tz),
             retry_count: Set(0),
@@ -447,21 +455,24 @@ impl TaskScheduler {
         {
             tracing::error!(
                 "Failed to insert build {} for task {}: {}",
-                pending_task.build_id,
-                pending_task.task_id,
+                pending_build_event.build_event_id,
+                pending_build_event.task_id,
                 e
             );
-            return Err(format!("Failed to insert build {}", pending_task.build_id));
+            return Err(format!(
+                "Failed to insert build {}",
+                pending_build_event.build_event_id
+            ));
         }
 
         println!("insert build");
 
         // Create WebSocket message
         let msg = WSMessage::Task {
-            id: pending_task.build_id.to_string(),
-            repo: pending_task.repo,
-            cl_link: pending_task.cl_link.to_string(),
-            changes: pending_task.request.changes.clone(),
+            id: pending_build_event.build_event_id.to_string(),
+            repo: pending_build_event.repo,
+            cl_link: pending_build_event.cl_link.to_string(),
+            changes: pending_build_event.changes.clone(),
         };
 
         // Send task to worker
@@ -470,7 +481,9 @@ impl TaskScheduler {
                 // Only mark Building after send succeeds
                 if let Err(e) = targets::update_state(
                     &self.conn,
-                    pending_task.target_id,
+                    //TODO: update target_id here
+                    // pending_task.target_id,
+                    0,
                     TargetState::Building,
                     Some(start_at_tz),
                     None,
@@ -482,15 +495,15 @@ impl TaskScheduler {
                 }
 
                 worker.status = WorkerStatus::Busy {
-                    task_id: pending_task.build_id.to_string(),
+                    task_id: pending_build_event.build_event_id.to_string(),
                     phase: None,
                 };
                 self.active_builds
-                    .insert(pending_task.build_id.to_string(), build_info);
+                    .insert(pending_build_event.build_event_id.to_string(), build_info);
                 tracing::info!(
                     "Queued task {}/{} dispatched to worker {}",
-                    pending_task.task_id,
-                    pending_task.build_id,
+                    pending_build_event.task_id,
+                    pending_build_event.build_event_id,
                     chosen_id
                 );
                 Ok(())
@@ -498,7 +511,8 @@ impl TaskScheduler {
                 // Send failed: best-effort mark target back to Pending
                 let _ = targets::update_state(
                     &self.conn,
-                    pending_task.target_id,
+                    // TODO: update target_id here
+                    pending_build_event.target_id,
                     TargetState::Pending,
                     Some(start_at_tz),
                     None,
@@ -564,7 +578,7 @@ impl TaskScheduler {
                         tracing::debug!(
                             "Expired build: {}/{} ({})",
                             task.task_id,
-                            task.build_id,
+                            task.build_event_id,
                             task.repo
                         );
                     }
@@ -595,34 +609,26 @@ mod tests {
         let mut queue = TaskQueue::new(config);
 
         // Create test tasks
-        let task1 = PendingTask {
+        let task1 = PendingBuildEvent {
             task_id: Uuid::now_v7(),
-            build_id: Uuid::now_v7(),
-            target_id: Uuid::now_v7(),
-            target_path: "//app:server".to_string(),
-            request: BuildRequest {
-                changes: vec![],
-                target: None,
-            },
+            build_event_id: Uuid::now_v7(),
+            target_id: Some(Uuid::now_v7()),
+            target_path: Some("//app:server".to_string()),
+            changes: vec![],
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
-            cl: 123456,
             cl_link: "test".to_string(),
             retry_count: 0,
         };
 
-        let task2 = PendingTask {
+        let task2 = PendingBuildEvent {
             task_id: Uuid::now_v7(),
-            build_id: Uuid::now_v7(),
-            target_id: Uuid::now_v7(),
-            target_path: "//app:server2".to_string(),
-            request: BuildRequest {
-                changes: vec![],
-                target: None,
-            },
+            build_event_id: Uuid::now_v7(),
+            target_id: Some(Uuid::now_v7()),
+            target_path: Some("//app:server2".to_string()),
+            changes: vec![],
             created_at: Instant::now(),
             repo: "/test2/repo".to_string(),
-            cl: 123457,
             cl_link: "test".to_string(),
             retry_count: 0,
         };
@@ -632,11 +638,11 @@ mod tests {
         assert!(queue.enqueue(task2.clone()).is_ok());
 
         let dequeued1 = queue.dequeue().unwrap();
-        assert_eq!(dequeued1.build_id, task1.build_id);
+        assert_eq!(dequeued1.build_event_id, task1.build_event_id);
         assert_eq!(dequeued1.repo, "/test/repo");
 
         let dequeued2 = queue.dequeue().unwrap();
-        assert_eq!(dequeued2.build_id, task2.build_id);
+        assert_eq!(dequeued2.build_event_id, task2.build_event_id);
         assert_eq!(dequeued2.repo, "/test2/repo");
     }
 
@@ -650,18 +656,14 @@ mod tests {
         };
         let mut queue = TaskQueue::new(config);
 
-        let task = PendingTask {
+        let task = PendingBuildEvent {
             task_id: Uuid::now_v7(),
-            build_id: Uuid::now_v7(),
-            target_id: Uuid::now_v7(),
-            target_path: "//app:server".to_string(),
-            request: BuildRequest {
-                changes: vec![],
-                target: None,
-            },
+            build_event_id: Uuid::now_v7(),
+            target_id: Some(Uuid::now_v7()),
+            target_path: Some("//app:server".to_string()),
+            changes: vec![],
             created_at: Instant::now(),
             repo: "/test/repo".to_string(),
-            cl: 123456,
             cl_link: "test".to_string(),
             retry_count: 0,
         };

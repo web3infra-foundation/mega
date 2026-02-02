@@ -19,7 +19,7 @@ pub struct TaskBuildRequest {
     /// The repository base path
     pub repo: String,
     /// The change list link (URL)
-    pub cl: String,
+    pub cl_link: String,
     /// The list of file diff changes
     pub changes: Vec<Status<ProjectRelativePath>>,
 }
