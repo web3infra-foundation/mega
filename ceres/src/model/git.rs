@@ -177,12 +177,11 @@ pub struct DiffPreviewPayload {
 pub enum EditCLMode {
     /// force create new cl
     ForceCreate,
-    /// try to reuse old cl, if none, wil
+    /// try to reuse old cl, if none, will search existing open cl, and create new cl if not found
     TryReuse(Option<String>),
 }
 /// Request body for saving an edited file with conflict detection.
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
-#[schema(title = "编辑文件请求", description = "编辑文件内容的请求体")]
 pub struct EditFilePayload {
     /// Full file path like "/project/dir/file.rs"
     pub path: String,
