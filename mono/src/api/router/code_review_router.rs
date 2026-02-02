@@ -79,8 +79,12 @@ async fn initialize_code_review_comment(
         .create_inline_comment(
             &link,
             &paload.file_path,
-            paload.line_number,
             paload.diff_side.into(),
+            &paload.anchor_commit_sha,
+            paload.original_line_number,
+            &paload.normalized_content,
+            &paload.context_before,
+            &paload.context_after,
             user.username,
             paload.content,
         )

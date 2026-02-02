@@ -1,36 +1,40 @@
 use callisto::{
-    mega_code_review_comment, mega_code_review_thread,
-    sea_orm_active_enums::{DiffSideEnum, ThreadStatusEnum},
+    mega_code_review_thread,
+    sea_orm_active_enums::{DiffSideEnum, PositionStatusEnum, ThreadStatusEnum},
 };
 use jupiter::model::code_review_dto::{
-    CodeReviewViews, CommentReviewView, FileReviewView, ThreadReviewView,
+    AnchorView, CodeReviewViews, CommentReviewView, FileReviewView, PositionView, ThreadReviewView,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct InitializeCommentRequest {
     pub file_path: String,
-    pub line_number: i32,
+    pub anchor_commit_sha: String,
+    pub original_line_number: i32,
+    pub normalized_content: String,
+    pub context_before: String,
+    pub context_after: String,
     pub diff_side: DiffSide,
     pub content: String,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct CommentReplyRequest {
     pub parent_comment_id: i64,
     pub content: String,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct UpdateCommentRequest {
     pub content: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum DiffSide {
-    Old,
-    New,
+    Deletions,
+    Additions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -39,40 +43,68 @@ pub enum ThreadStatus {
     Resolved,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum PositionStatus {
+    Exact,
+    Shifted,
+    PendingReanchor,
+    Ambiguous,
+    NotFound,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct CodeReviewResponse {
     pub link: String,
     pub files: Vec<FileReviewResponse>,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct FileReviewResponse {
     pub file_path: String,
     pub threads: Vec<ThreadReviewResponse>,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct ThreadReviewResponse {
     pub thread_id: i64,
-    pub line_number: i32,
-    pub diff_side: DiffSide,
     pub status: ThreadStatus,
     pub created_at: String,
     pub updated_at: String,
+    pub anchor: AnchorResponse,
+    pub position: PositionResponse,
     pub comments: Vec<CommentReviewResponse>,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct ThreadStatusResponse {
     pub thread_id: i64,
     pub link: String,
-    pub file_path: String,
-    pub line_number: i32,
-    pub diff_side: DiffSide,
     pub status: ThreadStatus,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct AnchorResponse {
+    pub anchor_id: i64,
+    pub file_path: String,
+    pub diff_side: DiffSide,
+    pub anchor_commit_sha: String,
+    pub original_line_number: i32,
+    pub normalized_content: String,
+    pub context_before: String,
+    pub context_after: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct PositionResponse {
+    pub position_id: i64,
+    pub anchor_id: i64,
+    pub commit_sha: String,
+    pub line_number: i32,
+    pub confidence: i32,
+    pub position_status: PositionStatus,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct CommentReviewResponse {
     pub comment_id: i64,
     pub user_name: String,
@@ -82,15 +114,62 @@ pub struct CommentReviewResponse {
     pub updated_at: String,
 }
 
-impl From<mega_code_review_comment::Model> for CommentReviewResponse {
-    fn from(value: mega_code_review_comment::Model) -> Self {
+impl From<CodeReviewViews> for CodeReviewResponse {
+    fn from(value: CodeReviewViews) -> Self {
         Self {
-            comment_id: value.id,
-            user_name: value.user_name,
-            content: value.content,
-            parent_id: value.parent_id,
+            link: value.link,
+            files: value.files.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<FileReviewView> for FileReviewResponse {
+    fn from(value: FileReviewView) -> Self {
+        Self {
+            file_path: value.file_path,
+            threads: value.threads.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ThreadReviewView> for ThreadReviewResponse {
+    fn from(value: ThreadReviewView) -> Self {
+        Self {
+            thread_id: value.thread_id,
+            status: value.status.into(),
             created_at: value.created_at.to_string(),
             updated_at: value.updated_at.to_string(),
+            anchor: value.anchor.into(),
+            position: value.position.into(),
+            comments: value.comments.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<AnchorView> for AnchorResponse {
+    fn from(value: AnchorView) -> Self {
+        Self {
+            anchor_id: value.anchor_id,
+            file_path: value.file_path,
+            diff_side: value.diff_side.into(),
+            anchor_commit_sha: value.anchor_commit_sha,
+            original_line_number: value.original_line_number,
+            normalized_content: value.normalized_content,
+            context_before: value.context_before,
+            context_after: value.context_after,
+        }
+    }
+}
+
+impl From<PositionView> for PositionResponse {
+    fn from(value: PositionView) -> Self {
+        Self {
+            position_id: value.position_id,
+            anchor_id: value.anchor_id,
+            commit_sha: value.commit_sha,
+            line_number: value.line_number,
+            confidence: value.confidence,
+            position_status: value.position_status.into(),
         }
     }
 }
@@ -108,46 +187,12 @@ impl From<CommentReviewView> for CommentReviewResponse {
     }
 }
 
-impl From<ThreadReviewView> for ThreadReviewResponse {
-    fn from(value: ThreadReviewView) -> Self {
-        Self {
-            thread_id: value.thread_id,
-            line_number: value.line_number,
-            diff_side: value.diff_side.into(),
-            status: value.status.into(),
-            created_at: value.created_at.to_string(),
-            updated_at: value.updated_at.to_string(),
-            comments: value.comments.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
 impl From<mega_code_review_thread::Model> for ThreadStatusResponse {
     fn from(value: mega_code_review_thread::Model) -> Self {
         Self {
             thread_id: value.id,
             link: value.link,
-            file_path: value.file_path,
-            line_number: value.line_number,
-            diff_side: value.diff_side.into(),
             status: value.thread_status.into(),
-        }
-    }
-}
-
-impl From<FileReviewView> for FileReviewResponse {
-    fn from(value: FileReviewView) -> Self {
-        Self {
-            file_path: value.file_path,
-            threads: value.threads.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-impl From<CodeReviewViews> for CodeReviewResponse {
-    fn from(value: CodeReviewViews) -> Self {
-        Self {
-            link: value.link,
-            files: value.files.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -155,8 +200,8 @@ impl From<CodeReviewViews> for CodeReviewResponse {
 impl From<DiffSideEnum> for DiffSide {
     fn from(value: DiffSideEnum) -> Self {
         match value {
-            DiffSideEnum::Old => DiffSide::Old,
-            DiffSideEnum::New => DiffSide::New,
+            DiffSideEnum::Old => DiffSide::Deletions,
+            DiffSideEnum::New => DiffSide::Additions,
         }
     }
 }
@@ -164,8 +209,8 @@ impl From<DiffSideEnum> for DiffSide {
 impl From<DiffSide> for DiffSideEnum {
     fn from(value: DiffSide) -> Self {
         match value {
-            DiffSide::Old => DiffSideEnum::Old,
-            DiffSide::New => DiffSideEnum::New,
+            DiffSide::Deletions => DiffSideEnum::Old,
+            DiffSide::Additions => DiffSideEnum::New,
         }
     }
 }
@@ -184,6 +229,30 @@ impl From<ThreadStatus> for ThreadStatusEnum {
         match value {
             ThreadStatus::Open => ThreadStatusEnum::Open,
             ThreadStatus::Resolved => ThreadStatusEnum::Resolved,
+        }
+    }
+}
+
+impl From<PositionStatus> for PositionStatusEnum {
+    fn from(value: PositionStatus) -> Self {
+        match value {
+            PositionStatus::Exact => PositionStatusEnum::Exact,
+            PositionStatus::Shifted => PositionStatusEnum::Shifted,
+            PositionStatus::PendingReanchor => PositionStatusEnum::PendingReanchor,
+            PositionStatus::Ambiguous => PositionStatusEnum::Ambiguous,
+            PositionStatus::NotFound => PositionStatusEnum::NotFound,
+        }
+    }
+}
+
+impl From<PositionStatusEnum> for PositionStatus {
+    fn from(value: PositionStatusEnum) -> Self {
+        match value {
+            PositionStatusEnum::Exact => PositionStatus::Exact,
+            PositionStatusEnum::Shifted => PositionStatus::Shifted,
+            PositionStatusEnum::PendingReanchor => PositionStatus::PendingReanchor,
+            PositionStatusEnum::Ambiguous => PositionStatus::Ambiguous,
+            PositionStatusEnum::NotFound => PositionStatus::NotFound,
         }
     }
 }
