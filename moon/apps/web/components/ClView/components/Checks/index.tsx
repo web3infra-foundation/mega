@@ -27,8 +27,13 @@ const Checks = ({ cl }: { cl: number }) => {
 
   // Resizable panel state
   const containerRef = useRef<HTMLDivElement>(null)
+  const leftPanelRef = useRef<HTMLDivElement>(null)
+  const rightPanelRef = useRef<HTMLDivElement>(null)
   const [leftWidth, setLeftWidth] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const scrollPositionRef = useRef<number>(0)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+  const startWidthRef = useRef<number>(0)
 
   // Initialize left width based on container width
   useEffect(() => {
@@ -37,43 +42,110 @@ const Checks = ({ cl }: { cl: number }) => {
     }
   }, [leftWidth])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!containerRef.current || !leftPanelRef.current) return
+
+    // Directly manipulate DOM without triggering React re-render
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const newLeftWidth = e.clientX - containerRect.left
+    const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
+    const clampedWidth = Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxWidth))
+
+    // Update DOM directly for smooth dragging
+    leftPanelRef.current.style.width = `${clampedWidth}px`
   }, [])
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging || !containerRef.current) return
-
-      const containerRect = containerRef.current.getBoundingClientRect()
-      const newLeftWidth = e.clientX - containerRect.left
-      const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
-
-      setLeftWidth(Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxWidth)))
-    },
-    [isDragging]
-  )
 
   const handleMouseUp = useCallback(() => {
+    // Remove event listeners
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+
+    // Show right panel immediately using DOM
+    if (rightPanelRef.current) {
+      rightPanelRef.current.style.display = 'block'
+    }
+
+    // Update React state only once when dragging ends
+    if (leftPanelRef.current) {
+      const finalWidth = leftPanelRef.current.offsetWidth
+
+      setLeftWidth(finalWidth)
+    }
     setIsDragging(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    if (isDragging) {
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+
+      // Immediately hide right panel using DOM (no re-render)
+      if (rightPanelRef.current) {
+        rightPanelRef.current.style.display = 'none'
+      }
+
+      // Save scroll position
+      if (logContainerRef.current) {
+        const lazyLogElement = logContainerRef.current.querySelector('.react-lazylog')
+
+        if (lazyLogElement) {
+          scrollPositionRef.current = lazyLogElement.scrollTop
+        }
+      }
+
+      // Save current width
+      if (leftPanelRef.current) {
+        startWidthRef.current = leftPanelRef.current.offsetWidth
+      }
+
+      // Update state asynchronously (won't block dragging)
+      requestAnimationFrame(() => {
+        setIsDragging(true)
+      })
+
+      // Add event listeners immediately
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
-    }
+    },
+    [handleMouseMove, handleMouseUp]
+  )
 
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+  useEffect(() => {
+    if (!isDragging) {
+      // Restore scroll position after dragging ends
+      if (logContainerRef.current && scrollPositionRef.current > 0) {
+        // Use requestAnimationFrame to ensure DOM is updated
+        requestAnimationFrame(() => {
+          const lazyLogElement = logContainerRef.current?.querySelector('.react-lazylog')
+
+          if (lazyLogElement) {
+            lazyLogElement.scrollTop = scrollPositionRef.current
+          }
+        })
+      }
     }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+  }, [isDragging])
+
+  // Reset scroll position when buildid changes
+  useEffect(() => {
+    // Clear saved scroll position when switching to a different build
+    scrollPositionRef.current = 0
+
+    // Reset scroll to top for new build
+    if (logContainerRef.current) {
+      requestAnimationFrame(() => {
+        const lazyLogElement = logContainerRef.current?.querySelector('.react-lazylog')
+
+        if (lazyLogElement) {
+          lazyLogElement.scrollTop = 0
+        }
+      })
+    }
+  }, [buildid])
 
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
@@ -264,8 +336,8 @@ const Checks = ({ cl }: { cl: number }) => {
 
     if (status === 'success' && logsMap[buildid] && eventSourcesRef.current[buildid]) {
       return (
-        <div className='h-full select-text [&_*]:select-text'>
-          <LazyLog extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive follow />
+        <div ref={logContainerRef} className='h-full select-text [&_*]:select-text'>
+          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive />
         </div>
       )
     }
@@ -288,6 +360,7 @@ const Checks = ({ cl }: { cl: number }) => {
         </div>
         <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
           <div
+            ref={leftPanelRef}
             className='border-primary h-full overflow-y-auto border-r'
             style={{ width: leftWidth ?? '40%', flexShrink: 0 }}
           >
@@ -301,7 +374,14 @@ const Checks = ({ cl }: { cl: number }) => {
             className='border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
             style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
           />
-          <div className='flex-1'>{renderLogContent()}</div>
+          <div ref={rightPanelRef} className='flex-1' style={{ display: isDragging ? 'none' : 'block' }}>
+            {renderLogContent()}
+          </div>
+          {isDragging && (
+            <div className='text-tertiary flex flex-1 items-center justify-center'>
+              <span>Resizing...</span>
+            </div>
+          )}
         </div>
       </div>
     </>
