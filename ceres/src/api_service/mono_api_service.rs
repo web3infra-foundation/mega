@@ -1125,6 +1125,9 @@ impl MonoApiService {
                         .await
                         .map_err(|e| GitError::CustomError(format!("Failed to fetch CL: {}", e)))?
                 {
+                    storage
+                        .update_cl_to_hash(existing_cl.clone(), to_hash)
+                        .await?;
                     Ok(existing_cl)
                 } else {
                     self.create_new_cl(&repo_path, commit_message, to_hash, username)
@@ -1133,7 +1136,10 @@ impl MonoApiService {
             }
             EditCLMode::TryReuse(Some(link)) => {
                 match self.storage.cl_storage().get_cl(&link).await {
-                    Ok(Some(model)) => Ok(model),
+                    Ok(Some(model)) => {
+                        storage.update_cl_to_hash(model.clone(), to_hash).await?;
+                        Ok(model)
+                    }
                     _ => {
                         self.create_new_cl(&repo_path, commit_message, to_hash, username)
                             .await
