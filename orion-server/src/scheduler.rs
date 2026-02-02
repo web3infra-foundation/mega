@@ -50,6 +50,7 @@ pub struct PendingTask {
     pub task_id: Uuid,
     pub cl_link: String,
     pub build_id: Uuid,
+    /// Monorepo mount path (Buck2 project root or subdirectory)
     pub repo: String,
     pub target_id: Uuid,
     pub target_path: String,
@@ -158,6 +159,7 @@ pub struct BuildInfo {
     pub build_id: String,
     pub target_id: String,
     pub target_path: String,
+    /// Monorepo mount path (Buck2 project root or subdirectory)
     pub repo: String,
     pub start_at: DateTimeUtc,
     pub changes: Vec<Status<ProjectRelativePath>>,

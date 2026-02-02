@@ -9,6 +9,7 @@ use std::{
     vec,
 };
 
+use api_model::common::Pagination;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bellatrix::{
@@ -16,12 +17,15 @@ use bellatrix::{
     orion_client::{BuildInfo, OrionBuildRequest, ProjectRelativePath, Status},
 };
 use callisto::{
-    entity_ext::generate_link, mega_cl, mega_commit, mega_refs, sea_orm_active_enums::ConvTypeEnum,
+    entity_ext::generate_link,
+    mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
+    sea_orm_active_enums::{ConvTypeEnum, PositionStatusEnum},
 };
 use common::{
     errors::MegaError,
     utils::{self, ZERO_ID},
 };
+use futures::{StreamExt, stream};
 use git_internal::{
     errors::GitError,
     hash::ObjectHash,
@@ -156,6 +160,7 @@ impl RepoHandler for MonoRepo {
         self.save_or_update_cl().await?;
         self.traverses_tree_and_update_filepath().await?;
         self.post_cl_operation().await?;
+        self.reanchor_code_review_threads().await?;
         Ok(())
     }
 
@@ -1085,7 +1090,7 @@ impl MonoRepo {
 
             let req: OrionBuildRequest = OrionBuildRequest {
                 cl_link: link.clone(),
-                repo: path_str.to_string(),
+                mount_path: path_str.to_string(),
                 cl: cl_info.id,
                 builds: vec![BuildInfo {
                     changes: counter_changes,
@@ -1117,6 +1122,152 @@ impl MonoRepo {
     ) -> Result<Vec<crate::model::change_list::ClDiffFile>, MegaError> {
         let api_service: MonoApiService = self.into();
         api_service.cl_files_list(old_files, new_files).await
+    }
+
+    // Mark code review threads whose anchors may be affected by this change as outdated.
+    // These threads will require reanchoring to restore accurate code positions.
+    pub async fn reanchor_code_review_threads(&self) -> Result<(), MegaError> {
+        let mono_api_service: MonoApiService = self.into();
+        let link_guard = self.cl_link.read().await;
+        let cl_link = link_guard
+            .as_ref()
+            .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
+
+        // Marks code review threads as outdated if their file paths
+        // are affected by the latest change list.
+        let changed_files = self.get_changed_files().await?;
+        let files_with_threads = self
+            .storage
+            .code_review_thread_storage()
+            .get_files_with_threads_by_link(cl_link)
+            .await?;
+
+        let files_with_threads_set: HashSet<&String> = files_with_threads.iter().collect();
+
+        // Intersection: files that are changed AND have threads
+        let affected_files: Vec<String> = changed_files
+            .into_iter()
+            .filter(|file| files_with_threads_set.contains(file))
+            .collect();
+
+        tracing::info!(
+            "Reanchor code review thread in cl_link: {}, affected files: {:?}",
+            cl_link,
+            affected_files
+        );
+
+        let pending_reanchor_threads = self
+            .storage
+            .code_review_thread_storage()
+            .find_threads_by_file_paths(affected_files)
+            .await?;
+
+        let pending_reanchor_thread_ids: Vec<i64> = pending_reanchor_threads
+            .iter()
+            .map(|thread| thread.id)
+            .collect();
+
+        // Mark as PendingReanchor
+        self.storage
+            .code_review_thread_storage()
+            .mark_positions_status_by_thread_ids(
+                &pending_reanchor_thread_ids,
+                PositionStatusEnum::PendingReanchor,
+            )
+            .await?;
+
+        // Start reanchor
+        let anchors = self
+            .storage
+            .code_review_thread_storage()
+            .get_anchors_by_thread_ids(&pending_reanchor_thread_ids)
+            .await?;
+
+        let mono_api_service = Arc::new(mono_api_service);
+        let mut anchors_map: HashMap<i64, Vec<mega_code_review_anchor::Model>> = HashMap::new();
+        for anchor in anchors {
+            anchors_map
+                .entry(anchor.thread_id)
+                .or_default()
+                .push(anchor);
+        }
+
+        let reanchor_tasks: Vec<_> = pending_reanchor_threads
+            .into_iter()
+            .map(|thread| {
+                let mono_api_service = Arc::clone(&mono_api_service);
+                let anchors_map = anchors_map.clone();
+                let to_hash = self.to_hash.clone();
+
+                async move {
+                    let thread_id = thread.id;
+
+                    let thread_anchors = match anchors_map.get(&thread_id) {
+                        Some(anchors) => anchors,
+                        None => {
+                            tracing::warn!("Thread {} has no anchors", thread_id);
+                            return Err(MegaError::Other(format!(
+                                "Thread {} has no anchors",
+                                thread_id
+                            )));
+                        }
+                    };
+
+                    let (diff_content, _) = mono_api_service
+                        .paged_content_diff(cl_link, Pagination::default())
+                        .await?;
+
+                    let mut blob_cache: HashMap<String, String> = HashMap::new();
+
+                    for anchor in thread_anchors {
+                        let file_path = anchor.file_path.clone();
+
+                        // Fetch blob once per file
+                        let latest_blob = if let Some(blob) = blob_cache.get(&file_path) {
+                            blob.clone()
+                        } else {
+                            let blob = mono_api_service
+                                .get_blob_as_string(PathBuf::from(&file_path), Some(&to_hash))
+                                .await?
+                                .expect("latest blob must exist");
+
+                            blob_cache.insert(file_path.clone(), blob.clone());
+                            blob
+                        };
+
+                        // Reanchor
+                        if let Err(e) = self
+                            .storage
+                            .code_review_service
+                            .reanchor_thread(
+                                anchor,
+                                Some(latest_blob),
+                                diff_content.clone(),
+                                &self.to_hash,
+                            )
+                            .await
+                        {
+                            tracing::error!("Reanchor failed for anchor {}: {:?}", anchor.id, e);
+                        }
+                    }
+
+                    Ok(())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let results: Vec<Result<(), MegaError>> = stream::iter(reanchor_tasks)
+            .buffer_unordered(self.storage.get_recommended_batch_concurrency())
+            .collect()
+            .await;
+
+        for res in results {
+            if let Err(e) = res {
+                tracing::error!("Reanchor task failed: {:?}", e);
+            }
+        }
+
+        Ok(())
     }
 }
 

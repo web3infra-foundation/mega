@@ -46,6 +46,8 @@ redis = { workspace = true, features = [
     "connection-manager",
 ] }
 rustls = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 redis-test = { workspace = true, features = ["aio"] }

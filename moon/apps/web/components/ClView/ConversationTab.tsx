@@ -192,11 +192,13 @@ export const ConversationTab = React.memo<ConversationTabProps>(
           emptyExtra={
             clDetail &&
             clDetail.status === 'Open' && (
-              <div className='mt-2 text-xs text-gray-900'>
+              <div className='text-primary mt-2 text-xs'>
                 <span>Still in progress? </span>
                 <ConvertToDraftDialog
                   trigger={
-                    <span className='cursor-pointer text-gray-500 underline hover:text-gray-700'>Convert to draft</span>
+                    <span className='text-tertiary hover:text-secondary cursor-pointer underline'>
+                      Convert to draft
+                    </span>
                   }
                   link={clDetail.link}
                 />
@@ -214,12 +216,14 @@ export const ConversationTab = React.memo<ConversationTabProps>(
                   const isApproved = reviewer?.approved ?? false
 
                   return (
-                    <div key={i} className='mb-4 flex items-center gap-2 px-4 text-sm text-gray-500'>
+                    <div key={i} className='text-tertiary mb-4 flex items-center gap-2 px-4 text-sm'>
                       <MemberAvatar size='sm' member={memberMap.get(i)} />
                       <span className='flex-1'>{i}</span>
                       <span
                         className={`ml-2 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          isApproved
+                            ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200'
+                            : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200'
                         }`}
                       >
                         {isApproved ? 'Approved' : 'Pending'}
@@ -241,7 +245,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(
                             e.stopPropagation()
                             handleDeleteReviewer(i)
                           }}
-                          className='pointer-events-auto cursor-pointer rounded-full border-2 hover:bg-red-800'
+                          className='pointer-events-auto cursor-pointer rounded-full border-2 hover:bg-red-800 hover:text-white'
                         >
                           <TrashIcon />
                         </span>
@@ -250,11 +254,11 @@ export const ConversationTab = React.memo<ConversationTabProps>(
                   )
                 })}
                 {clDetail && clDetail.status === 'Open' && (
-                  <div className='pointer-events-auto mt-2 px-4 text-xs text-gray-900'>
+                  <div className='text-primary pointer-events-auto mt-2 px-4 text-xs'>
                     <span>Still in progress? </span>
                     <ConvertToDraftDialog
                       trigger={
-                        <span className='cursor-pointer text-gray-500 underline hover:text-gray-700'>
+                        <span className='text-tertiary hover:text-secondary cursor-pointer underline'>
                           Convert to draft
                         </span>
                       }
@@ -281,7 +285,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(
             return (
               <>
                 {names.map((i) => (
-                  <div key={i} className='mb-4 flex items-center gap-2 px-4 text-sm text-gray-500'>
+                  <div key={i} className='text-tertiary mb-4 flex items-center gap-2 px-4 text-sm'>
                     <MemberAvatar size='sm' member={memberMap.get(i)} />
                     <span>{i}</span>
                   </div>
@@ -327,7 +331,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(
         <BadgeItem title='Type' items={labels} />
         <BadgeItem title='Projects' items={labels} />
         <BadgeItem title='Milestones' items={labels} />
-        <div className='w-full' style={{ marginTop: '24px' }}>
+        <div className='mt-6 w-full'>
           <WorkWithChatDialog />
         </div>
       </div>
