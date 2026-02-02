@@ -65,6 +65,7 @@ pub struct MonoApiServiceState {
     pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
     pub entity_store: EntityStore,
+    pub bellatrix: Arc<Bellatrix>,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -149,11 +150,10 @@ impl MonoApiServiceState {
     }
 
     pub fn build_trigger_service(&self) -> BuildTriggerService {
-        let bellatrix = Arc::new(Bellatrix::new(self.storage.config().build.clone()));
         BuildTriggerService::new(
             self.storage.clone(),
             self.git_object_cache.clone(),
-            bellatrix,
+            self.bellatrix.clone(),
         )
     }
 

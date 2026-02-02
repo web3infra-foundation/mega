@@ -10,6 +10,7 @@ use axum::{
     response::Response,
     routing::any,
 };
+use bellatrix::Bellatrix;
 use ceres::{
     api_service::{cache::GitObjectCache, state::ProtocolApiState},
     protocol::{ServiceType, SmartProtocol, TransportProtocol},
@@ -261,6 +262,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
         git_object_cache,
+        bellatrix: Arc::new(Bellatrix::new(storage.config().build.clone())),
     };
 
     let origins: Vec<HeaderValue> = oauth_config

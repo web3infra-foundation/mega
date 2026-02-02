@@ -43,8 +43,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
+    build_trigger::{BuildTriggerService, GitPushEvent},
     merge_checker::CheckerRegistry,
-    model::change_list::BuckFile,
+    model::change_list::{BuckFile, ClDiffFile},
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -1044,7 +1045,7 @@ impl MonoRepo {
             .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
 
         if self.bellatrix.enable_build() {
-            let event = crate::build_trigger::GitPushEvent {
+            let event = GitPushEvent {
                 repo_path: cl_info.path.clone(),
                 from_hash: cl_info.from_hash.clone(),
                 commit_hash: cl_info.to_hash.clone(),
@@ -1053,7 +1054,7 @@ impl MonoRepo {
                 triggered_by: self.username.clone(),
             };
 
-            let _trigger_id = crate::build_trigger::BuildTriggerService::handle_git_push_event(
+            let _trigger_id = BuildTriggerService::handle_git_push_event(
                 self.storage.clone(),
                 self.git_object_cache.clone(),
                 self.bellatrix.clone(),
@@ -1079,7 +1080,7 @@ impl MonoRepo {
         &self,
         old_files: Vec<(PathBuf, ObjectHash)>,
         new_files: Vec<(PathBuf, ObjectHash)>,
-    ) -> Result<Vec<crate::model::change_list::ClDiffFile>, MegaError> {
+    ) -> Result<Vec<ClDiffFile>, MegaError> {
         let api_service: MonoApiService = self.into();
         api_service.cl_files_list(old_files, new_files).await
     }

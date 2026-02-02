@@ -7,6 +7,7 @@ use jupiter::storage::Storage;
 
 use crate::api_service::cache::GitObjectCache;
 
+mod changes_calculator;
 mod dispatcher;
 mod git_push_handler;
 mod manual_handler;

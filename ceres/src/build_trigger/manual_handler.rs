@@ -5,32 +5,71 @@ use chrono::Utc;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
 
-use super::git_push_handler::GitPushHandler;
+use super::changes_calculator::ChangesCalculator;
 use crate::{
     api_service::cache::GitObjectCache,
     build_trigger::{
-        BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext, TriggerHandler,
+        BuildTrigger, BuildTriggerPayload, BuildTriggerType, ManualPayload, TriggerContext,
+        TriggerHandler,
     },
 };
 
 /// Handler for manual build triggers.
 pub struct ManualHandler {
-    git_push_handler: GitPushHandler,
+    storage: Storage,
+    changes_calculator: ChangesCalculator,
 }
 
 impl ManualHandler {
     pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
         Self {
-            git_push_handler: GitPushHandler::new(storage, git_object_cache),
+            storage: storage.clone(),
+            changes_calculator: ChangesCalculator::new(storage, git_object_cache),
         }
+    }
+
+    /// Get the parent commit hash for a given commit.
+    /// Returns the first parent if available, otherwise returns the same commit hash.
+    async fn get_parent_commit(&self, commit_hash: &str) -> Result<String, MegaError> {
+        let commit = self
+            .storage
+            .mono_storage()
+            .get_commit_by_hash(commit_hash)
+            .await?
+            .ok_or_else(|| {
+                MegaError::Other(format!("[code:404] Commit not found: {}", commit_hash))
+            })?;
+
+        // Parse parents_id JSON array
+        let parent_ids: Vec<String> =
+            serde_json::from_value(commit.parents_id.clone()).unwrap_or_default();
+
+        // Use first parent if available, otherwise return same hash (initial commit case)
+        Ok(parent_ids
+            .first()
+            .cloned()
+            .unwrap_or_else(|| commit_hash.to_string()))
     }
 }
 
 #[async_trait]
 impl TriggerHandler for ManualHandler {
     async fn handle(&self, context: &TriggerContext) -> Result<BuildTrigger, MegaError> {
-        // Reuse GitPushHandler logic for getting builds
-        let builds = self.git_push_handler.get_builds_for_commit(context).await?;
+        let from_hash = if context.from_hash == context.commit_hash {
+            self.get_parent_commit(&context.commit_hash).await?
+        } else {
+            context.from_hash.clone()
+        };
+
+        let adjusted_context = TriggerContext {
+            from_hash: from_hash.clone(),
+            ..context.clone()
+        };
+
+        let builds = self
+            .changes_calculator
+            .get_builds_for_commit(&adjusted_context)
+            .await?;
 
         let cl_link = context.cl_link.clone().unwrap_or_else(|| {
             format!(
@@ -44,7 +83,7 @@ impl TriggerHandler for ManualHandler {
             trigger_type: BuildTriggerType::Manual,
             trigger_source: context.trigger_source,
             trigger_time: Utc::now(),
-            payload: BuildTriggerPayload::Manual(crate::build_trigger::ManualPayload {
+            payload: BuildTriggerPayload::Manual(ManualPayload {
                 repo: context.repo_path.clone(),
                 commit_hash: context.commit_hash.clone(),
                 triggered_by: context

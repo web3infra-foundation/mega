@@ -9,7 +9,10 @@ use crate::{
     api_service::cache::GitObjectCache,
     build_trigger::{
         RefResolver, TriggerRegistry,
-        model::{BuildParams, ListTriggersParams, TriggerContext, TriggerRecord, TriggerResponse},
+        model::{
+            BuildParams, GitPushEvent, ListTriggersParams, TriggerContext, TriggerRecord,
+            TriggerResponse,
+        },
     },
 };
 
@@ -43,13 +46,11 @@ impl BuildTriggerService {
         Ok(())
     }
 
-    /// Static helper to handle git push events from the pack layer
-    /// This acts as a boundary to decouple monorepo logic from build trigger internals
     pub async fn handle_git_push_event(
         storage: Storage,
-        git_cache: Arc<crate::api_service::cache::GitObjectCache>,
+        git_cache: Arc<GitObjectCache>,
         bellatrix: Arc<Bellatrix>,
-        event: crate::build_trigger::model::GitPushEvent,
+        event: GitPushEvent,
     ) -> Result<Option<i64>, MegaError> {
         if !bellatrix.enable_build() {
             return Ok(None);
@@ -86,7 +87,7 @@ impl BuildTriggerService {
             .await
             .map_err(|_| {
                 let ref_str = ref_name.unwrap_or_else(|| "main".to_string());
-                MegaError::Other(format!("[code:400] Reference not found: {}", ref_str))
+                MegaError::Other(format!("[code:404] Reference not found: {}", ref_str))
             })?;
 
         // 2. Build context

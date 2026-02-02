@@ -5,23 +5,24 @@ use chrono::Utc;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
 
-use super::git_push_handler::GitPushHandler;
+use super::changes_calculator::ChangesCalculator;
 use crate::{
     api_service::cache::GitObjectCache,
     build_trigger::{
-        BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext, TriggerHandler,
+        BuildTrigger, BuildTriggerPayload, BuildTriggerType, RetryPayload, TriggerContext,
+        TriggerHandler,
     },
 };
 
 /// Handler for retry build triggers.
 pub struct RetryHandler {
-    git_push_handler: GitPushHandler,
+    changes_calculator: ChangesCalculator,
 }
 
 impl RetryHandler {
     pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
         Self {
-            git_push_handler: GitPushHandler::new(storage, git_object_cache),
+            changes_calculator: ChangesCalculator::new(storage, git_object_cache),
         }
     }
 }
@@ -29,8 +30,11 @@ impl RetryHandler {
 #[async_trait]
 impl TriggerHandler for RetryHandler {
     async fn handle(&self, context: &TriggerContext) -> Result<BuildTrigger, MegaError> {
-        // Reuse GitPushHandler logic for getting builds
-        let builds = self.git_push_handler.get_builds_for_commit(context).await?;
+        // Compute builds from trigger context
+        let builds = self
+            .changes_calculator
+            .get_builds_for_commit(context)
+            .await?;
 
         let cl_link = context.cl_link.clone().unwrap_or_else(|| {
             format!(
@@ -44,7 +48,7 @@ impl TriggerHandler for RetryHandler {
             trigger_type: BuildTriggerType::Retry,
             trigger_source: context.trigger_source,
             trigger_time: Utc::now(),
-            payload: BuildTriggerPayload::Retry(crate::build_trigger::RetryPayload {
+            payload: BuildTriggerPayload::Retry(RetryPayload {
                 repo: context.repo_path.clone(),
                 from_hash: context.from_hash.clone(),
                 commit_hash: context.commit_hash.clone(),
