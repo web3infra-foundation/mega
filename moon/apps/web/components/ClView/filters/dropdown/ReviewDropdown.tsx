@@ -42,7 +42,7 @@ export function ReviewDropdown({ options, value, onChange, onClose }: ReviewDrop
       key='review'
       align='end'
       onOpenChange={handleOpenChange}
-      desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+      desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-primary' }}
       items={items}
       trigger={
         <Button size='sm' variant={'plain'} tooltipShortcut='Reviews'>

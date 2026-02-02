@@ -225,20 +225,20 @@ export default function FileDiff({
 
   return (
     <div className='relative mt-3 flex font-sans'>
-      {isBlockingLoading && (
-        <div className='bg-primary/60 fixed inset-0 z-50 flex items-center justify-center'>
-          <div className='bg-primary flex items-center rounded-md px-3 py-2 shadow'>
-            <LoadingSpinner />
-            <span className='text-secondary ml-2 text-sm'>Loading diffs...</span>
-          </div>
-        </div>
-      )}
-
       <div className='sticky top-5 h-[80vh] w-[300px] overflow-y-auto rounded-lg p-2'>
         <FileTree treeData={treeData} treeDataLoading={treeIsLoading} onFileClick={scrollToFile} />
       </div>
 
-      <div className='h-full w-full flex-1 px-4'>
+      <div className='relative h-full w-full flex-1 px-4'>
+        {isBlockingLoading && (
+          <div className='bg-primary/80 absolute inset-0 z-10 flex items-center justify-center rounded-lg'>
+            <div className='bg-primary flex items-center rounded-md px-3 py-2 shadow-lg'>
+              <LoadingSpinner />
+              <span className='text-secondary ml-2 text-sm'>Loading diffs...</span>
+            </div>
+          </div>
+        )}
+
         {fileDiff.length === 0 && !fileChangeIsLoading && page === 1 ? (
           <div className='text-primary flex h-[85vh] items-center justify-center'>No File Changed</div>
         ) : (

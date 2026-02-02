@@ -22,15 +22,15 @@ interface QueueItemsListProps {
 const getStatusIcon = (status: QueueStatus) => {
   switch (status) {
     case QueueStatus.Waiting:
-      return <GitPullRequestIcon className='text-[#378f50]' />
+      return <GitPullRequestIcon className='text-[#378f50] dark:text-green-400' />
     case QueueStatus.Testing:
-      return <GitPullRequestIcon className='text-[#2f81f7]' />
+      return <GitPullRequestIcon className='text-[#2f81f7] dark:text-blue-400' />
     case QueueStatus.Merging:
-      return <GitMergeIcon className='text-[#986ee2]' />
+      return <GitMergeIcon className='text-[#986ee2] dark:text-purple-400' />
     case QueueStatus.Merged:
-      return <GitMergeIcon className='text-gray-500' />
+      return <GitMergeIcon className='text-tertiary' />
     case QueueStatus.Failed:
-      return <GitPullRequestClosedIcon className='text-[#d1242f]' />
+      return <GitPullRequestClosedIcon className='text-[#d1242f] dark:text-red-400' />
     default:
       return null
   }
@@ -88,17 +88,17 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
   }
 
   const header = (
-    <BreadcrumbTitlebarContainer className='justify-between bg-gray-100 pl-3 pr-3'>
+    <BreadcrumbTitlebarContainer className='bg-secondary justify-between pl-3 pr-3'>
       <div className='flex items-center gap-3'>
         <GitPullRequestClosedIcon />
         <span className='p-2 font-medium'>{sortedItems.length} Queued</span>
 
-        {sortedItems.length > 0 && <span className='text-sm text-gray-500'>{stats.failed_count} Failing</span>}
+        {sortedItems.length > 0 && <span className='text-tertiary text-sm'>{stats.failed_count} Failing</span>}
       </div>
 
       <div className='flex items-center gap-2'>
         <button
-          className='rounded-md bg-gray-200 px-2 py-1 text-sm text-gray-700 hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50'
+          className='bg-secondary hover:bg-tertiary text-secondary rounded-md px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50'
           onClick={handleCancelAllClick}
           disabled={isCancellingAll || cancellableCount === 0}
         >
@@ -116,7 +116,7 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
             const labels = <ItemLabels item={{ labels: [] } as any} />
 
             const subline = (
-              <div className='mt-1 space-y-1 text-sm text-gray-500'>
+              <div className='text-tertiary mt-1 space-y-1 text-sm'>
                 {queueItem.status !== QueueStatus.Failed && (
                   <div className='flex flex-wrap items-center gap-2'>
                     <span className='font-medium'>{queueItem.status}</span>
@@ -136,7 +136,7 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
                       {queueItem.retry_count > 0 && <span>• {queueItem.retry_count} retries</span>}
                     </div>
 
-                    <div className='text-sm text-red-500'>
+                    <div className='text-sm text-red-500 dark:text-red-400'>
                       <div
                         className='max-w-md cursor-help truncate leading-snug'
                         title={`${queueItem.error.failure_type}: ${queueItem.error.message}`}
@@ -151,7 +151,7 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
             )
 
             const right = (
-              <div className='flex items-center gap-4 text-sm text-gray-500'>
+              <div className='text-tertiary flex items-center gap-4 text-sm'>
                 <div className='flex gap-2'>
                   {queueItem.status === QueueStatus.Merging && (
                     <div className='flex items-center pr-5'>
@@ -161,7 +161,7 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
 
                   {queueItem.status === QueueStatus.Failed && queueItem.retry_count < 3 && (
                     <button
-                      className='rounded-md bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600 disabled:opacity-50'
+                      className='rounded-md bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700'
                       onClick={(e) => handleRetry(queueItem.cl_link, e)}
                       disabled={isRetrying}
                     >
@@ -171,7 +171,7 @@ export const QueueItemsList: React.FC<QueueItemsListProps> = ({ items, stats, is
 
                   {queueItem.status !== QueueStatus.Merging && queueItem.status !== QueueStatus.Merged && (
                     <button
-                      className='rounded-md bg-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-300 disabled:opacity-50'
+                      className='bg-secondary hover:bg-tertiary text-secondary rounded-md px-2 py-1 text-xs disabled:opacity-50'
                       onClick={(e) => handleCancelClick(queueItem.cl_link, e)}
                       disabled={isRemoving}
                     >

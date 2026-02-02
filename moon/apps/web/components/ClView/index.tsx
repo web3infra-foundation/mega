@@ -358,8 +358,8 @@ export default function CLView() {
           id='/[org]/cl'
           className={cn('@container', 'max-w-full lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl')}
         >
-          <div className='group flex min-h-[35px] items-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-all focus-within:border-blue-500 focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-100 hover:border-gray-400'>
-            <div className='flex items-center text-gray-400'>
+          <div className='border-primary bg-primary group flex min-h-[35px] items-center rounded-md border px-3 shadow-sm transition-all focus-within:border-blue-500 focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-100 hover:border-blue-400 dark:focus-within:ring-blue-900'>
+            <div className='text-quaternary flex items-center'>
               <SearchIcon className='h-4 w-4' />
             </div>
 
@@ -368,7 +368,7 @@ export default function CLView() {
               value={searchQuery}
               readOnly
               placeholder='Filter change list by author, labels , assignee, or review...'
-              className='w-full flex-1 border-none bg-transparent text-sm text-gray-400 outline-none ring-0 focus:outline-none focus:ring-0'
+              className='text-secondary placeholder:text-quaternary w-full flex-1 border-none bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0'
             />
 
             {searchQuery && (
@@ -376,7 +376,7 @@ export default function CLView() {
                 onClick={() => {
                   clearAllFilters()
                 }}
-                className='flex items-center justify-center rounded-md p-1 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600'
+                className='text-quaternary hover:bg-tertiary hover:text-secondary flex items-center justify-center rounded-md p-1 transition-all'
                 title='Clear search'
               >
                 <XIcon className='h-4 w-4' />

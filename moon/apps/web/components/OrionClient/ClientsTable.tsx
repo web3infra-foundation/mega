@@ -82,7 +82,7 @@ export function ClientsTable({ clients, isLoading, statusFilter, onStatusChange,
             options={statusOptions}
             onChange={(v) => onStatusChange(v as OrionClientStatus | 'all')}
           >
-            <SelectTrigger className='text-muted-foreground h-auto w-full justify-start gap-1 border-none bg-transparent p-0 text-[11px] font-semibold uppercase shadow-none ring-0 focus:outline-none focus:ring-0'>
+            <SelectTrigger className='text-muted-foreground h-auto w-full justify-start gap-1 !border-none !bg-transparent p-0 text-[11px] font-semibold uppercase !shadow-none ring-0 focus:outline-none focus:ring-0'>
               <SelectValue placeholder='Status' />
             </SelectTrigger>
           </Select>

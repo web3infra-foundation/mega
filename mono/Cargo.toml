@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 api-model = { workspace = true }
+bellatrix = { workspace = true }
 common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }

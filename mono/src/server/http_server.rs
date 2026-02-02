@@ -10,6 +10,7 @@ use axum::{
     response::Response,
     routing::any,
 };
+use bellatrix::Bellatrix;
 use ceres::{
     api_service::{cache::GitObjectCache, state::ProtocolApiState},
     protocol::{ServiceType, SmartProtocol, TransportProtocol},
@@ -143,11 +144,6 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
         }
     });
 
-    tokio::spawn(super::init_tasks::run_initialization_tasks(
-        host.clone(),
-        port,
-    ));
-
     tokio::pin!(server_handle);
 
     tokio::select! {
@@ -266,6 +262,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
         git_object_cache,
+        bellatrix: Arc::new(Bellatrix::new(storage.config().build.clone())),
     };
 
     let origins: Vec<HeaderValue> = oauth_config
@@ -429,6 +426,7 @@ pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
 pub const BUCK_TAG: &str = "Buck Upload API";
 pub const LFS_TAG: &str = "Git LFS";
 pub const CODE_REVIEW_TAG: &str = "Code Review";
+pub const BUILD_TRIGGER_TAG: &str = "Build Trigger";
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;

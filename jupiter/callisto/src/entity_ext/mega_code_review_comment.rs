@@ -21,12 +21,6 @@ impl RelationTrait for Relation {
     }
 }
 
-impl Related<crate::mega_code_review_thread::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Thread.def()
-    }
-}
-
 impl mega_code_review_comment::Model {
     pub fn new(
         thread_id: i64,

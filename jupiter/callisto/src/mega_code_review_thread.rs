@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::sea_orm_active_enums::{DiffSideEnum, ThreadStatusEnum};
+use super::sea_orm_active_enums::ThreadStatusEnum;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "mega_code_review_thread")]
@@ -11,9 +11,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub link: String,
-    pub file_path: String,
-    pub line_number: i32,
-    pub diff_side: DiffSideEnum,
     pub thread_status: ThreadStatusEnum,
     pub created_at: DateTime,
     pub updated_at: DateTime,
@@ -21,8 +18,22 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_one = "super::mega_code_review_anchor::Entity")]
+    MegaCodeReviewAnchor,
     #[sea_orm(has_many = "super::mega_code_review_comment::Entity")]
     MegaCodeReviewComment,
+}
+
+impl Related<super::mega_code_review_anchor::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaCodeReviewAnchor.def()
+    }
+}
+
+impl Related<super::mega_code_review_comment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaCodeReviewComment.def()
+    }
 }
 
 impl ActiveModelBehavior for ActiveModel {}

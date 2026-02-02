@@ -1,5 +1,6 @@
 pub mod admin_router;
 pub mod buck_router;
+pub mod build_trigger_router;
 pub mod cl_router;
 pub mod code_review_router;
 pub mod commit_router;

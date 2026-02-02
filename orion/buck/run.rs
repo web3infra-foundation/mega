@@ -200,6 +200,8 @@ pub fn targets_arguments() -> &'static [&'static str] {
     &[
         "targets",
         "//...",
+        "--target-platforms",
+        "prelude//platforms:default",
         "--streaming",
         "--keep-going",
         "--no-cache",

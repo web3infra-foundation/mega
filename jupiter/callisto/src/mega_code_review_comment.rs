@@ -37,4 +37,10 @@ pub enum Relation {
     MegaCodeReviewThread,
 }
 
+impl Related<super::mega_code_review_thread::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaCodeReviewThread.def()
+    }
+}
+
 impl ActiveModelBehavior for ActiveModel {}
