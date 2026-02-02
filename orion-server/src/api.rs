@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Result;
-use api_model::orion::log::{
+use api_model::buck2::types::{
     LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, TargetLogLinesResponse,
     TargetLogQuery, TaskHistoryQuery,
 };
@@ -263,10 +263,10 @@ pub async fn task_output_handler(
         ("end"  = Option<usize>, Query, description = "End line number"),
     ),
     responses(
-        (status = 200, description = "History Log", body = api_model::orion::log::LogLinesResponse),
-        (status = 400, description = "Invalid parameters", body = api_model::orion::log::LogErrorResponse),
-        (status = 404, description = "Log file not found", body = api_model::orion::log::LogErrorResponse),
-        (status = 500, description = "Failed to operate log file", body = api_model::orion::log::LogErrorResponse),
+        (status = 200, description = "History Log", body = api_model::buck2::types::LogLinesResponse),
+        (status = 400, description = "Invalid parameters", body = api_model::buck2::types::LogErrorResponse),
+        (status = 404, description = "Log file not found", body = api_model::buck2::types::LogErrorResponse),
+        (status = 500, description = "Failed to operate log file", body = api_model::buck2::types::LogErrorResponse),
     )
 )]
 pub async fn task_history_output_handler(
@@ -323,10 +323,10 @@ pub async fn task_history_output_handler(
         (
             status = 200,
             description = "Target log content",
-            body = api_model::orion::log::TargetLogLinesResponse
+            body = api_model::buck2::types::TargetLogLinesResponse
         ),
-        (status = 404, description = "Target or log not found", body = api_model::orion::log::LogErrorResponse),
-        (status = 500, description = "Failed to read log", body = api_model::orion::log::LogErrorResponse)
+        (status = 404, description = "Target or log not found", body = api_model::buck2::types::LogErrorResponse),
+        (status = 500, description = "Failed to read log", body = api_model::buck2::types::LogErrorResponse)
     )
 )]
 pub async fn target_logs_handler(
