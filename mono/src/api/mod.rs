@@ -4,11 +4,13 @@ use std::{
 };
 
 use axum::extract::FromRef;
+use bellatrix::Bellatrix;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
         mono_api_service::MonoApiService, state::ProtocolApiState,
     },
+    build_trigger::service::BuildTriggerService,
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
@@ -63,6 +65,7 @@ pub struct MonoApiServiceState {
     pub session_store: Option<CampsiteApiStore>,
     pub listen_addr: String,
     pub entity_store: EntityStore,
+    pub bellatrix: Arc<Bellatrix>,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -144,6 +147,14 @@ impl MonoApiServiceState {
 
     fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
         self.storage.dynamic_sidebar_storage()
+    }
+
+    pub fn build_trigger_service(&self) -> BuildTriggerService {
+        BuildTriggerService::new(
+            self.storage.clone(),
+            self.git_object_cache.clone(),
+            self.bellatrix.clone(),
+        )
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
