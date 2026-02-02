@@ -12,10 +12,7 @@ use std::{
 use api_model::common::Pagination;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use bellatrix::{
-    Bellatrix,
-    orion_client::{BuildInfo, OrionBuildRequest, ProjectRelativePath, Status},
-};
+use bellatrix::Bellatrix;
 use callisto::{
     entity_ext::generate_link,
     mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
@@ -46,8 +43,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
+    build_trigger::{BuildTriggerService, GitPushEvent},
     merge_checker::CheckerRegistry,
-    model::change_list::BuckFile,
+    model::change_list::{BuckFile, ClDiffFile},
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -1047,59 +1045,22 @@ impl MonoRepo {
             .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
 
         if self.bellatrix.enable_build() {
-            let old_files = self.get_commit_blobs(&cl_info.from_hash).await?;
-            let new_files = self.get_commit_blobs(&cl_info.to_hash).await?;
-            let cl_diff_files = self.cl_files_list(old_files, new_files.clone()).await?;
-
-            let cl_base = PathBuf::from(&cl_info.path);
-            let changes = cl_diff_files
-                .into_iter()
-                .map(|m| {
-                    let mut item: crate::model::change_list::ClFilesRes = m.into();
-                    item.path = cl_base.join(item.path).to_string_lossy().to_string();
-                    item
-                })
-                .collect::<Vec<_>>();
-
-            let path_str = cl_base.to_str().ok_or_else(|| {
-                MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base))
-            })?;
-            let counter_changes: Vec<_> = changes
-                .iter()
-                .filter(|&s| PathBuf::from(&s.path).starts_with(&cl_base))
-                .map(|s| {
-                    let path = ProjectRelativePath::from_abs(&s.path, path_str).unwrap();
-                    if s.action == "new" {
-                        Status::Added(path)
-                    } else if s.action == "deleted" {
-                        Status::Removed(path)
-                    } else if s.action == "modified" {
-                        Status::Modified(path)
-                    } else {
-                        unreachable!()
-                    }
-                })
-                .collect();
-
-            tracing::info!(
-                "Trigger bellatrix build for cl: {}, changes: {:?}, repo: {}",
-                cl_info.id,
-                counter_changes,
-                path_str
-            );
-
-            let req: OrionBuildRequest = OrionBuildRequest {
-                cl_link: link.clone(),
-                mount_path: path_str.to_string(),
-                cl: cl_info.id,
-                builds: vec![BuildInfo {
-                    changes: counter_changes,
-                }],
+            let event = GitPushEvent {
+                repo_path: cl_info.path.clone(),
+                from_hash: cl_info.from_hash.clone(),
+                commit_hash: cl_info.to_hash.clone(),
+                cl_link: cl_info.link.clone(),
+                cl_id: Some(cl_info.id),
+                triggered_by: self.username.clone(),
             };
-            let bellatrix = self.bellatrix.clone();
-            tokio::spawn(async move {
-                let _ = bellatrix.on_post_receive(req).await;
-            });
+
+            let _trigger_id = BuildTriggerService::handle_git_push_event(
+                self.storage.clone(),
+                self.git_object_cache.clone(),
+                self.bellatrix.clone(),
+                event,
+            )
+            .await?;
         }
 
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
@@ -1119,7 +1080,7 @@ impl MonoRepo {
         &self,
         old_files: Vec<(PathBuf, ObjectHash)>,
         new_files: Vec<(PathBuf, ObjectHash)>,
-    ) -> Result<Vec<crate::model::change_list::ClDiffFile>, MegaError> {
+    ) -> Result<Vec<ClDiffFile>, MegaError> {
         let api_service: MonoApiService = self.into();
         api_service.cl_files_list(old_files, new_files).await
     }
