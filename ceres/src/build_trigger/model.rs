@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt};
 
+use callisto::mega_cl;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -12,6 +13,7 @@ pub enum BuildTriggerType {
     Retry,
     Webhook,
     Schedule,
+    ContentEdit,
 }
 
 impl fmt::Display for BuildTriggerType {
@@ -22,6 +24,7 @@ impl fmt::Display for BuildTriggerType {
             BuildTriggerType::Retry => "retry",
             BuildTriggerType::Webhook => "webhook",
             BuildTriggerType::Schedule => "schedule",
+            BuildTriggerType::ContentEdit => "content_edit",
         };
         write!(f, "{}", s)
     }
@@ -346,6 +349,25 @@ impl TriggerContext {
             cl_id,
             params: None,
             original_trigger_id: Some(original_trigger_id),
+            ref_name: None,
+            ref_type: None,
+        }
+    }
+}
+
+impl From<mega_cl::Model> for TriggerContext {
+    fn from(cl: mega_cl::Model) -> Self {
+        TriggerContext {
+            trigger_type: BuildTriggerType::ContentEdit,
+            trigger_source: TriggerSource::User,
+            triggered_by: Some(cl.username),
+            repo_path: cl.path,
+            from_hash: cl.from_hash,
+            commit_hash: cl.to_hash,
+            cl_link: Some(cl.link),
+            cl_id: Some(cl.id),
+            params: None,
+            original_trigger_id: None,
             ref_name: None,
             ref_type: None,
         }

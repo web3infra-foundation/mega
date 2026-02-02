@@ -91,6 +91,7 @@ use crate::{
         ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache,
         state::ProtocolApiState, tree_ops,
     },
+    build_trigger::BuildTriggerService,
     model::{
         buck::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
@@ -1151,29 +1152,8 @@ impl MonoApiService {
     /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully triggered,
     /// or a `GitError` if an error occurred during the process.
     async fn trigger_build_for_cl(&self, cl_link: &str) -> Result<(), GitError> {
-        let service = self.clone();
-        let cl_link = cl_link.to_string();
-
-        // Spawn a background task to handle the build process
-        tokio::spawn(async move {
-            if let Err(e) = service.async_trigger_build(&cl_link).await {
-                tracing::error!("Failed to trigger build for CL {}: {}", cl_link, e);
-            }
-        });
-
-        Ok(())
-    }
-
-    /// Asynchronously triggers a build for the specified Change List (CL).
-    /// This method is responsible for executing the actual build process after determining that a build is necessary.
-    ///
-    /// # Arguments
-    /// * `cl_link` - The unique identifier (link) of the CL for which the build isto be triggered.
-    ///
-    /// # Returns
-    /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully executed,
-    /// or a `GitError` if an error occurred during the process.
-    async fn async_trigger_build(&self, cl_link: &str) -> Result<(), GitError> {
+        let config = self.storage.config();
+        let bellatrix = Bellatrix::new(config.build.clone());
         let cl = self
             .storage
             .cl_storage()
@@ -1182,97 +1162,21 @@ impl MonoApiService {
             .map_err(|e| GitError::CustomError(format!("Failed to get CL: {}", e)))?
             .ok_or_else(|| GitError::CustomError("CL not found".to_string()))?;
 
-        let changed_files = self
-            .get_sorted_changed_file_list(&cl.link, None)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get changed files: {}", e)))?;
+        let storage = self.storage.clone();
+        let git_cache = self.git_object_cache.clone();
 
-        if !self.should_trigger_build(&changed_files) {
-            tracing::debug!("No build needed for CL: {}", cl_link);
-            return Ok(());
-        }
-
-        self.trigger_bellatrix_build(&cl, &changed_files)
-            .await
-            .map_err(|e| {
-                GitError::CustomError(format!("Failed to trigger Bellatrix build: {}", e))
-            })?;
+        // Spawn a background task to handle the build process
+        tokio::spawn(async move {
+            let _ = BuildTriggerService::build_by_context(
+                storage,
+                git_cache,
+                bellatrix.into(),
+                cl.into(),
+            )
+            .await;
+        });
 
         Ok(())
-    }
-
-    /// Triggers a Bellatrix build for the specified CL and its changed files.
-    ///
-    /// This method constructs the necessary build request payload containing the CL's
-    /// changes and sends it to the Bellatrix build system. It ensures that only relevant
-    /// file changes are included in the build request, filtering out unnecessary entries.
-    ///
-    /// # Arguments
-    /// * `cl` - The Change List (CL) model containing metadata about the changes.
-    /// * `changed_files` - A slice of strings representing the paths of changed files.
-    ///
-    /// # Returns
-    /// * `Ok(())` - If the build was successfully triggered.
-    /// * `Err(GitError)` - If an error occurred during the process, such as invalid paths or failure to communicate with the Bellatrix service.
-    async fn trigger_bellatrix_build(
-        &self,
-        cl: &mega_cl::Model,
-        changed_files: &[String],
-    ) -> Result<(), GitError> {
-        let config = self.storage.config();
-        let bellatrix = Bellatrix::new(config.build.clone());
-        if !bellatrix.enable_build() {
-            return Ok(());
-        }
-        let cl_base = PathBuf::from(&cl.path);
-        let changes: Vec<_> = changed_files
-            .iter()
-            .filter_map(|file_path| {
-                let full_path = cl_base.join(file_path);
-                if file_path.ends_with("new") {
-                    Some(bellatrix::orion_client::Status::Added(
-                        bellatrix::orion_client::ProjectRelativePath::from_abs(
-                            &full_path.to_string_lossy(),
-                            &cl.path,
-                        )?,
-                    ))
-                } else if file_path.ends_with("deleted") {
-                    Some(bellatrix::orion_client::Status::Removed(
-                        bellatrix::orion_client::ProjectRelativePath::from_abs(
-                            &full_path.to_string_lossy(),
-                            &cl.path,
-                        )?,
-                    ))
-                } else {
-                    Some(bellatrix::orion_client::Status::Modified(
-                        bellatrix::orion_client::ProjectRelativePath::from_abs(
-                            &full_path.to_string_lossy(),
-                            &cl.path,
-                        )?,
-                    ))
-                }
-            })
-            .collect();
-
-        if changes.is_empty() {
-            return Ok(());
-        }
-
-        let build_request = bellatrix::orion_client::OrionBuildRequest {
-            cl_link: cl.link.clone(),
-            repo: cl.path.clone(),
-            cl: cl.id,
-            builds: vec![bellatrix::orion_client::BuildInfo { changes }],
-        };
-
-        tracing::info!("Triggering build for CL {}: {:?}", cl.link, build_request);
-        let _ = bellatrix.on_post_receive(build_request).await;
-
-        Ok(())
-    }
-
-    fn should_trigger_build(&self, _: &[String]) -> bool {
-        true
     }
 
     async fn create_annotated_tag_mono(
