@@ -4,34 +4,32 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "tasks")]
+#[sea_orm(table_name = "targets")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    pub task_id: Uuid,
     #[sea_orm(column_type = "JsonBinary")]
-    pub changes: Json,
-    pub repo_name: String,
-    pub cl: String,
-    pub created_at: DateTimeWithTimeZone,
+    pub path: Json,
+    #[sea_orm(column_type = "Text")]
+    pub target_state: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::build_events::Entity")]
-    BuildEvents,
-    #[sea_orm(has_many = "super::targets::Entity")]
-    Targets,
+    #[sea_orm(
+        belongs_to = "super::tasks::Entity",
+        from = "Column::TaskId",
+        to = "super::tasks::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Tasks,
 }
 
-impl Related<super::build_events::Entity> for Entity {
+impl Related<super::tasks::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::BuildEvents.def()
-    }
-}
-
-impl Related<super::targets::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Targets.def()
+        Relation::Tasks.def()
     }
 }
 
