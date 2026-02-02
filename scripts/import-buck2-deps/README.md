@@ -11,6 +11,7 @@ The Mega relative path is derived starting from the first `third-party/` path co
 - Automatically discovers import targets by scanning the directory tree and identifying version directories containing a `BUCK` file (by default, version directories must look like `x.y.z`)
 - Skips directories that already have a Git repository somewhere above them to avoid duplicate imports
 - For each import target, automatically runs: repo init, branch create/switch, initial commit, remote configuration, and push to Mega
+- Always removes the per-repo `.git` directory after processing so reruns rediscover candidates
 - Optionally rewrites `//third-party/...` dependency labels in `BUCK` to `//...` (for buckal generated artifacts)
 - Supports concurrent imports (`--jobs`)
 - Supports an interactive UI (`--ui`): rich (if available) or plain; in rich mode, logs keep only the most recent 12 lines and show a Results summary at the end
@@ -79,6 +80,7 @@ python3 scripts/import-buck2-deps/import-buck2-deps.py --dry-run
    - (Optional) Rewrite `BUCK` dependency labels (`--buckal-generated`)
    - If the repo has no commits yet, create an initial commit (by default includes `-s -S`)
    - Configure/update the remote and push to `<git-base-url>/<rel-path>`
+   - Remove the local `.git` directory under the version directory
 4. If `--retry` is set, retry only the failed repos for up to N additional attempts
 5. Under the rich UI, show a Results summary at the end: Succeeded/Failed/Total, and list failed repos with reasons
 
@@ -94,6 +96,7 @@ python3 scripts/import-buck2-deps/import-buck2-deps.py --dry-run
 - If the scan root does not exist, is not a directory, or is not readable: print an Error and exit with code 2
 - If a child directory cannot be accessed during scanning: print a Warning and continue scanning other directories
 - If a single repo import fails: list the failed repo and reason in the rich UI Results
+- After each repo attempt (success or failure), the script removes the local `.git` directory under that repo directory so retries/reruns start cleanly
 - With `--fail-fast`: stop after the first failure; skipped tasks are not counted as Failed
 - With `--retry N`: retry failed repos up to N times; exit non-zero if still failing after retries
 
