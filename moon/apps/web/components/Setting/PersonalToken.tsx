@@ -75,11 +75,11 @@ const CopySpace = ({ copyText }: { copyText: string }) => {
   }
 
   return (
-    <div className='mb-4'>
-      <code className='border-primary bg-primary flex-1 break-all rounded border px-3 py-2 font-mono text-sm'>
+    <div className='mb-4 flex items-center gap-3'>
+      <code className='border-primary bg-secondary flex-1 break-all rounded border px-3 py-2 font-mono text-sm'>
         {copyText}
       </code>
-      <Button variant='flat' className='ml-3' onClick={() => handleCopy(copyText)}>
+      <Button variant='flat' onClick={() => handleCopy(copyText)}>
         {copied ? 'Copied' : 'Copy'}
       </Button>
     </div>
@@ -105,7 +105,7 @@ const PersonalToken = () => {
   }
 
   return (
-    <div className='border-primary bg-tertiary text-secondary mx-auto mt-8 max-w-4xl rounded-lg border p-8 font-sans'>
+    <div className='border-primary bg-primary dark:bg-tertiary text-secondary mx-auto mt-8 max-w-4xl rounded-lg border p-8 font-sans'>
       <header className='flex items-center justify-between pb-4'>
         <h1 className='text-primary text-3xl font-bold'>Personal tokens</h1>
         <Button
@@ -126,16 +126,20 @@ const PersonalToken = () => {
       </p>
 
       {generated && currentUser && (
-        <div className='mb-8 rounded-md border border-green-200 bg-green-50 p-4'>
-          <p className='text-secondary text-sm'>Your new token has been generated.</p>
-          <div className='mt-2 flex-col items-center'>
-            <span className='text-secondary text-sm'>Username:</span>
-            <CopySpace copyText={currentUser.username} />
-            <span className='text-secondary text-sm'>Token:</span>
-            <CopySpace copyText={generated} />
+        <div className='mb-8 rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950'>
+          <p className='text-sm text-green-800 dark:text-green-200'>Your new token has been generated.</p>
+          <div className='mt-3 flex flex-col gap-2'>
+            <div>
+              <span className='text-sm font-medium text-green-700 dark:text-green-300'>Username:</span>
+              <CopySpace copyText={currentUser.username} />
+            </div>
+            <div>
+              <span className='text-sm font-medium text-green-700 dark:text-green-300'>Token:</span>
+              <CopySpace copyText={generated} />
+            </div>
           </div>
-          <p className='text-tertiary mt-2 text-xs'>
-            Make sure to copy your new token now. You won’t be able to see it again.
+          <p className='mt-3 text-xs text-green-600 dark:text-green-400'>
+            Make sure to copy your new token now. You won&apos;t be able to see it again.
           </p>
         </div>
       )}

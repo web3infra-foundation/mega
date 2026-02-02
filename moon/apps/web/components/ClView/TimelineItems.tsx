@@ -1,7 +1,4 @@
 import React, { useMemo } from 'react'
-
-import '@primer/primitives/dist/css/functional/themes/light.css'
-
 import {
   CheckCircleIcon,
   CommentIcon,
@@ -14,6 +11,7 @@ import {
   RepoPushIcon
 } from '@primer/octicons-react'
 import { BaseStyles, ThemeProvider, Timeline } from '@primer/react'
+import { useTheme } from 'next-themes'
 
 import { ConversationItem, ReviewerInfo } from '@gitmono/types/generated'
 
@@ -63,8 +61,10 @@ const TimelineItem = React.memo(({ badge, children, isOver }: TimelineItemProps)
 TimelineItem.displayName = 'TimelineItem'
 
 const TimelineWrapper = React.memo<TimelineWrapperProps>(({ convItems = [] }) => {
+  const { theme } = useTheme()
+
   return (
-    <ThemeProvider>
+    <ThemeProvider colorMode={theme === 'dark' ? 'dark' : 'light'}>
       <BaseStyles>
         <Timeline clipSidebar>
           {convItems?.map((item) => (
@@ -106,38 +106,38 @@ const TimelineItems = React.memo<{
               icon = <CommentIcon />
               children = <CLComment conv={conv} id={id} whoamI={type} editorRef={editorRef} />
             } else {
-              icon = <CheckCircleIcon size={24} className='text-blue-500' />
+              icon = <CheckCircleIcon size={24} className='text-blue-500 dark:text-blue-400' />
               children = <ReviewComment reviewers={reviewers} conv={conv} id={id} whoamI={type} editorRef={editorRef} />
             }
             break
           case 'Approve':
-            icon = <CheckCircleIcon size={24} className='text-green-500' />
+            icon = <CheckCircleIcon size={24} className='text-green-500 dark:text-green-400' />
             children = <ApproveItem conv={conv} />
             break
           case 'Merged':
-            icon = <FeedMergedIcon size={24} className='text-purple-500' />
+            icon = <FeedMergedIcon size={24} className='text-purple-500 dark:text-purple-400' />
             children = <MergedItem conv={conv} />
             isOver = true
             break
           case 'Closed':
-            icon = <FeedPullRequestClosedIcon size={24} className='text-red-600' />
+            icon = <FeedPullRequestClosedIcon size={24} className='text-red-600 dark:text-red-400' />
             children = <CloseItem conv={conv} />
             isOver = true
             break
           case 'Draft':
-            icon = <GitPullRequestDraftIcon size={16} className='text-[#6e7781]' />
+            icon = <GitPullRequestDraftIcon size={16} className='text-tertiary' />
             children = <EditItem conv={conv} />
             break
           case 'Reopen':
-            icon = <FeedPullRequestOpenIcon size={24} className='text-green-500' />
+            icon = <FeedPullRequestOpenIcon size={24} className='text-green-500 dark:text-green-400' />
             children = <ReopenItem conv={conv} />
             break
           case 'Assignee':
-            icon = <PersonIcon size={24} />
+            icon = <PersonIcon size={24} className='text-tertiary' />
             children = <AssigneeItem conv={conv} />
             break
           case 'Label':
-            icon = <FeedTagIcon size={24} className='text-cyan-500' />
+            icon = <FeedTagIcon size={24} className='text-cyan-500 dark:text-cyan-400' />
             children = <LabelItem conv={conv} />
             break
           case 'ForcePush':

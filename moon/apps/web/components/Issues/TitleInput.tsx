@@ -73,10 +73,10 @@ const TitleInput = ({
         {!isEdit && (
           <>
             <div className='flex w-full items-center justify-between'>
-              <UIText size='text-2xl' weight='font-bold' className='-tracking-[1px] lg:flex'>
+              <UIText size='text-2xl' weight='font-bold' className='text-primary -tracking-[1px] lg:flex'>
                 {`${title || ''}`}
                 <span>&nbsp;</span>
-                <span className='font-light !text-[#59636e]'>${id}</span>
+                <span className='text-tertiary font-light'>${id}</span>
               </UIText>
               <Button
                 onClick={() => {

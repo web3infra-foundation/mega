@@ -1,11 +1,9 @@
-/* 包装器 */
 .markdownWrapper {
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
 }
 
-/* 基础变量 */
 .markdownBody {
   --base-size-4: 0.25rem;
   --base-size-8: 0.5rem;
@@ -29,7 +27,6 @@
   background-color: var(--bg-primary);
 }
 
-/* 亮色主题 */
 .markdownWrapper[data-theme='light'] .markdownBody {
   color-scheme: light;
   --fgColor-default: #1f2328;
@@ -41,7 +38,6 @@
   --borderColor-muted: rgba(209, 217, 224, 0.7);
 }
 
-/* 深色主题 */
 .markdownWrapper[data-theme='dark'] .markdownBody {
   color-scheme: dark;
   --fgColor-default: #f0f6fc;
@@ -53,7 +49,6 @@
   --borderColor-muted: rgba(61, 68, 77, 0.7);
 }
 
-/* 标题 */
 .markdownBody h1,
 .markdownBody h2,
 .markdownBody h3,
@@ -96,13 +91,11 @@
   color: var(--fgColor-muted);
 }
 
-/* 段落 */
 .markdownBody p {
   margin-top: 0;
   margin-bottom: 10px;
 }
 
-/* 链接 */
 .markdownBody a {
   background-color: transparent;
   color: var(--fgColor-accent);
@@ -113,7 +106,6 @@
   text-decoration: underline;
 }
 
-/* 代码 */
 .markdownBody code,
 .markdownBody tt {
   padding: 0.2em 0.4em;
@@ -122,7 +114,6 @@
   white-space: break-spaces;
   background-color: var(--bgColor-neutral-muted);
   border-radius: 6px;
-  font-family: var(--fontStack-monospace);
 }
 
 .markdownBody pre {
@@ -132,6 +123,7 @@
   line-height: 1.45;
   background-color: var(--bgColor-muted);
   border-radius: 6px;
+  font-family: var(--fontStack-monospace);
   margin-bottom: var(--base-size-16);
 }
 
@@ -144,7 +136,6 @@
   white-space: pre;
 }
 
-/* 列表 */
 .markdownBody ul,
 .markdownBody ol {
   margin-top: 0;
@@ -152,7 +143,6 @@
   padding-left: 2em;
 }
 
-/* 引用 */
 .markdownBody blockquote {
   margin: 0 0 var(--base-size-16) 0;
   padding: 0 1em;
@@ -160,7 +150,6 @@
   border-left: 0.25em solid var(--borderColor-default);
 }
 
-/* 表格 */
 .markdownBody table {
   border-spacing: 0;
   border-collapse: collapse;
@@ -190,14 +179,12 @@
   background-color: var(--bgColor-muted);
 }
 
-/* 图片 */
 .markdownBody img {
   max-width: 100%;
   box-sizing: content-box;
   background-color: var(--bg-primary);
 }
 
-/* 分隔线 */
 .markdownBody hr {
   height: 0.25em;
   padding: 0;
@@ -206,18 +193,15 @@
   border: 0;
 }
 
-/* 粗体 */
 .markdownBody b,
 .markdownBody strong {
   font-weight: var(--base-text-weight-semibold, 600);
 }
 
-/* 斜体 */
 .markdownBody em {
   font-style: italic;
 }
 
-/* 首尾元素边距 */
 .markdownBody > *:first-child {
   margin-top: 0 !important;
 }

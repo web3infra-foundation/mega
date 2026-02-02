@@ -65,13 +65,13 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
 
   return (
     <div className='flex'>
-      <FeedMergedIcon size={24} className='ml-1 text-gray-500' />
+      <FeedMergedIcon size={24} className='text-tertiary ml-1' />
       {isReviewerLoading && isAdditionLoading ? (
         <div className='flex h-[400px] items-center justify-center'>
           <LoadingSpinner />
         </div>
       ) : (
-        <div className='ml-3 w-full divide-y rounded-lg border bg-white'>
+        <div className='border-primary bg-primary ml-3 w-full divide-y rounded-lg border'>
           <ReviewerSection required={required} actual={actual} />
           <ChecksSection
             checks={checks}

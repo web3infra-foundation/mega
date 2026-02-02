@@ -26,18 +26,18 @@ export function CheckGroup({ title, summary, status, children }: CheckGroupProps
   return (
     <div className={`border-l-4 ${color} rounded`}>
       <Collapsible.Root open={isOpen} onOpenChange={setIsOpen}>
-        <Collapsible.Trigger className='flex w-full items-center justify-between rounded-t bg-gray-50 p-3'>
+        <Collapsible.Trigger className='bg-secondary flex w-full items-center justify-between rounded-t p-3'>
           <div className='flex items-center'>
-            <h4 className='font-bold text-gray-900'>{title}</h4>
-            <span className='ml-4 text-sm text-gray-600'>{summary}</span>
+            <h4 className='text-primary font-bold'>{title}</h4>
+            <span className='text-tertiary ml-4 text-sm'>{summary}</span>
           </div>
           {isOpen ? (
-            <ArrowUpIcon className='h-5 w-5 text-gray-500' />
+            <ArrowUpIcon className='text-tertiary h-5 w-5' />
           ) : (
-            <ArrowDownIcon className='h-5 w-5 text-gray-500' />
+            <ArrowDownIcon className='text-tertiary h-5 w-5' />
           )}
         </Collapsible.Trigger>
-        <Collapsible.Content className='rounded-b bg-white p-2'>{children}</Collapsible.Content>
+        <Collapsible.Content className='bg-primary rounded-b p-2'>{children}</Collapsible.Content>
       </Collapsible.Root>
     </div>
   )
