@@ -70,12 +70,12 @@ export const Task = ({ list, logStatus }: { list: TaskInfoDTO; logStatus: Record
     <>
       <div
         onClick={() => setExtend(!extend)}
-        className='flex w-full cursor-pointer items-center gap-4 border border-t-0 bg-[#fff] pl-4'
+        className='border-primary bg-primary flex w-full cursor-pointer items-center gap-4 border border-t-0 pl-4'
       >
         {extend ? <ChevronRightIcon size={16} /> : <ChevronDownIcon size={16} />}
         <div className='flex flex-col justify-center'>
-          <span className='font-weight fz-[14px] text-[#1f2328]'>{list.task_name}</span>
-          <span className='fz-[12px] font-light text-[#59636e]'>{formatDateTime(list.created_at)}</span>
+          <span className='text-primary font-weight fz-[14px]'>{list.task_name}</span>
+          <span className='text-tertiary fz-[12px] font-light'>{formatDateTime(list.created_at)}</span>
         </div>
         {/* {extend && list} */}
       </div>
@@ -114,7 +114,7 @@ export const TaskItem = ({ build, logStatus }: { build: BuildDTO; logStatus?: Lo
       >
         {/* {identifyStatus(statusMap.get(build.id)?.status || Status.NotFound)} */}
         {identifyStatus(build.status || Status.NotFound)}
-        <span className={`cursor-pointer hover:text-[#1f2328] ${textColor}`}>{build.id}</span>
+        <span className={`hover:text-primary cursor-pointer ${textColor}`}>{build.id}</span>
       </div>
     </>
   )
@@ -123,9 +123,9 @@ export const TaskItem = ({ build, logStatus }: { build: BuildDTO; logStatus?: Lo
 export const identifyStatus = (status: Status[keyof Status]) => {
   switch (status) {
     case Status.Completed:
-      return <CheckIcon size={14} className='text-[#1a7f37]' />
+      return <CheckIcon size={14} className='text-green-700 dark:text-green-400' />
     case Status.Failed:
-      return <XIcon size={14} className='text-[#d53d46]' />
+      return <XIcon size={14} className='text-red-600 dark:text-red-400' />
     case Status.Building:
       return <LoadingSpinner />
     case Status.Pending:
@@ -134,6 +134,6 @@ export const identifyStatus = (status: Status[keyof Status]) => {
       return <LoadingSpinner />
 
     default:
-      return <XIcon size={14} className='text-[#d53d46]' />
+      return <XIcon size={14} className='text-red-600 dark:text-red-400' />
   }
 }

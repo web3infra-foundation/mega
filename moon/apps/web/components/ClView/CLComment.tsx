@@ -45,8 +45,8 @@ const Comment = React.memo<CommentProps>(({ conv, id, whoamI, editorRef }: Comme
   const [refresh, setRefresh] = useAtom(refreshAtom)
 
   return (
-    <div className='overflow-hidden rounded-lg border border-gray-300 bg-white'>
-      <div className='flex items-center justify-between border-b border-gray-300 px-4 py-2'>
+    <div className='border-primary bg-primary overflow-hidden rounded-lg border'>
+      <div className='border-primary flex items-center justify-between border-b px-4 py-2'>
         <div className='flex items-center space-x-3'>
           <div className='cursor-pointer'>
             <ConditionalWrap
@@ -76,7 +76,7 @@ const Comment = React.memo<CommentProps>(({ conv, id, whoamI, editorRef }: Comme
               </UIText>
             </ConditionalWrap>
           </div>
-          <div className='text-sm text-gray-500 hover:text-gray-700'>
+          <div className='text-tertiary hover:text-secondary text-sm'>
             <HandleTime created_at={conv.created_at} />
           </div>
         </div>

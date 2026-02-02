@@ -82,7 +82,7 @@ export function FilterDropdown({
         onOpenChange={handleOpenChange}
         key={name}
         align='end'
-        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-primary' }}
         items={[
           {
             type: 'item',
@@ -115,7 +115,7 @@ export function FilterDropdown({
         align='end'
         open={open}
         onOpenChange={handleOpenChange}
-        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-white' }}
+        desktop={{ width: 'w-72 max-h-[50vh] overflow-auto bg-primary' }}
         items={[
           {
             type: 'item',
