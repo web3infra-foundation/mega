@@ -16,9 +16,10 @@ use crate::{
         error::ApiError,
         notes::note_router,
         router::{
-            admin_router, buck_router, cl_router, code_review_router, commit_router, conv_router,
-            dynamic_sidebar_router, gpg_router, issue_router, label_router, merge_queue_router,
-            preview_router, repo_router, reviewer_router, tag_router, user_router,
+            admin_router, buck_router, build_trigger_router, cl_router, code_review_router,
+            commit_router, conv_router, dynamic_sidebar_router, gpg_router, issue_router,
+            label_router, merge_queue_router, preview_router, repo_router, reviewer_router,
+            tag_router, user_router,
         },
     },
     server::http_server::SYSTEM_COMMON,
@@ -46,6 +47,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .merge(buck_router::routers())
         .merge(admin_router::routers())
         .merge(code_review_router::routers())
+        .merge(build_trigger_router::routers())
 }
 
 /// Health Check

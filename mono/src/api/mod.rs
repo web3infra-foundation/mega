@@ -4,11 +4,13 @@ use std::{
 };
 
 use axum::extract::FromRef;
+use bellatrix::Bellatrix;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
         mono_api_service::MonoApiService, state::ProtocolApiState,
     },
+    build_trigger::service::BuildTriggerService,
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
@@ -144,6 +146,15 @@ impl MonoApiServiceState {
 
     fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
         self.storage.dynamic_sidebar_storage()
+    }
+
+    pub fn build_trigger_service(&self) -> BuildTriggerService {
+        let bellatrix = Arc::new(Bellatrix::new(self.storage.config().build.clone()));
+        BuildTriggerService::new(
+            self.storage.clone(),
+            self.git_object_cache.clone(),
+            bellatrix,
+        )
     }
 
     async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {

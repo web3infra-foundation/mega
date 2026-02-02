@@ -424,6 +424,7 @@ pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
 pub const BUCK_TAG: &str = "Buck Upload API";
 pub const LFS_TAG: &str = "Git LFS";
 pub const CODE_REVIEW_TAG: &str = "Code Review";
+pub const BUILD_TRIGGER_TAG: &str = "Build Trigger";
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;
