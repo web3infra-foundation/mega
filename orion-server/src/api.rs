@@ -4,17 +4,13 @@ use std::{
 };
 
 use anyhow::Result;
-use api_model::{
-    buck2::{
+use api_model::buck2::{
         api::TaskBuildRequest,
-        types::{ProjectRelativePath, Status},
+        types::{
+            LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, ProjectRelativePath, Status, TargetLogLinesResponse, TargetLogQuery, TaskHistoryQuery
+        },
         ws::WSMessage,
-    },
-    orion::log::{
-        LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, TargetLogLinesResponse,
-        TargetLogQuery, TaskHistoryQuery,
-    },
-};
+    };
 use axum::{
     Json, Router,
     extract::{
@@ -270,10 +266,10 @@ pub async fn task_output_handler(
         ("end"  = Option<usize>, Query, description = "End line number"),
     ),
     responses(
-        (status = 200, description = "History Log", body = api_model::orion::log::LogLinesResponse),
-        (status = 400, description = "Invalid parameters", body = api_model::orion::log::LogErrorResponse),
-        (status = 404, description = "Log file not found", body = api_model::orion::log::LogErrorResponse),
-        (status = 500, description = "Failed to operate log file", body = api_model::orion::log::LogErrorResponse),
+        (status = 200, description = "History Log", body = api_model::buck2::types::LogLinesResponse),
+        (status = 400, description = "Invalid parameters", body = api_model::buck2::types::LogErrorResponse),
+        (status = 404, description = "Log file not found", body = api_model::buck2::types::LogErrorResponse),
+        (status = 500, description = "Failed to operate log file", body = api_model::buck2::types::LogErrorResponse),
     )
 )]
 pub async fn task_history_output_handler(
@@ -330,10 +326,10 @@ pub async fn task_history_output_handler(
         (
             status = 200,
             description = "Target log content",
-            body = api_model::orion::log::TargetLogLinesResponse
+            body = api_model::buck2::types::TargetLogLinesResponse
         ),
-        (status = 404, description = "Target or log not found", body = api_model::orion::log::LogErrorResponse),
-        (status = 500, description = "Failed to read log", body = api_model::orion::log::LogErrorResponse)
+        (status = 404, description = "Target or log not found", body = api_model::buck2::types::LogErrorResponse),
+        (status = 500, description = "Failed to read log", body = api_model::buck2::types::LogErrorResponse)
     )
 )]
 pub async fn target_logs_handler(
@@ -877,7 +873,7 @@ async fn process_message(
                         }
                     }
                 }
-                WSMessage::BuildOutput { id, output } => {
+                WSMessage::TaskBuildOutput { id, output } => {
                     // Write build output to the associated log file
                     if let Some(build_info) = state.scheduler.active_builds.get(&id) {
                         let log_event = LogEvent {
@@ -908,7 +904,7 @@ async fn process_message(
                         build_info.auto_retry_judger.judge_by_output(&output);
                     }
                 }
-                WSMessage::BuildComplete {
+                WSMessage::TaskBuildComplete {
                     id,
                     success,
                     exit_code,
