@@ -814,16 +814,13 @@ def main(argv: list[str]) -> int:
             except Exception as e:
                 err_text = str(e)
                 emit({"type": "log", "level": "error", "msg": f"{s.rel_path}: {_one_line(err_text, 10000)}"})
-                
-                # Cleanup .git on failure so we can retry cleanly
-                cleanup_git(s.repo_dir)
-                
                 with failures_lock:
                     failures.append((s, str(e)))
                 if args.fail_fast:
                     stop_event.set()
                 emit({"type": "done", "rel": s.rel_path})
             finally:
+                cleanup_git(s.repo_dir)
                 emit({"type": "clear", "slot": slot})
                 slot_pool.put(slot)
 
