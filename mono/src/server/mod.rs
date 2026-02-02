@@ -1,7 +1,6 @@
 use clap::Args;
 
 pub mod http_server;
-pub mod init_tasks;
 pub mod ssh_server;
 
 #[derive(Args, Clone, Debug)]
