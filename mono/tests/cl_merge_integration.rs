@@ -450,6 +450,7 @@ async fn setup_mono_repository(
 
 /// Create a Change List by cloning, modifying, and pushing
 /// Create a change list by cloning from a specific monorepo path
+#[allow(clippy::too_many_arguments)]
 async fn create_change_list(
     vm: &mut qlean::Machine,
     repo_name: &str,
@@ -918,7 +919,7 @@ fn get_mono_binary_path() -> Result<PathBuf> {
 }
 
 #[tokio::test]
-//#[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
+#[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
 async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
     tracing_subscriber_init();
 
