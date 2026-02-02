@@ -6,16 +6,32 @@ use http::StatusCode;
 /// Parse [code:xxx] format from error message.
 /// Returns (status_code, clean_message) if found, None otherwise.
 fn parse_error_code(err_str: &str) -> Option<(&str, &str)> {
-    if err_str.starts_with("[code:")
-        && let Some(code_end) = err_str.find(']').filter(|&idx| idx >= 6)
-    {
-        let code = &err_str[6..code_end];
-        // Use safe .get() to avoid potential panic on unicode boundaries
-        let msg = err_str.get(code_end + 1..)?.trim();
-        Some((code, msg))
-    } else {
-        None
+    // Find [code:xxx] anywhere in the string
+    let start = err_str.find("[code:")?;
+    let code_start = start + 6; // Skip "[code:"
+
+    // Find the closing bracket after [code:
+    let remaining = &err_str[start..];
+    let code_end_relative = remaining.find(']')?;
+
+    // Ensure we have at least one character for the code
+    if code_end_relative <= 6 {
+        return None;
     }
+
+    let code_end = start + code_end_relative;
+    let code = &err_str[code_start..code_end];
+
+    // Validate that code is not empty and contains only valid characters
+    if code.is_empty() || !code.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    // Extract message after the closing bracket; allow empty messages for compatibility
+    let msg_start = code_end + 1;
+    let msg = err_str.get(msg_start..).unwrap_or("").trim_start();
+
+    Some((code, msg))
 }
 
 #[derive(Debug)]
