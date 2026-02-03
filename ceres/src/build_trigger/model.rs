@@ -13,7 +13,7 @@ pub enum BuildTriggerType {
     Retry,
     Webhook,
     Schedule,
-    ContentEdit,
+    WebEdit,
 }
 
 impl fmt::Display for BuildTriggerType {
@@ -24,7 +24,7 @@ impl fmt::Display for BuildTriggerType {
             BuildTriggerType::Retry => "retry",
             BuildTriggerType::Webhook => "webhook",
             BuildTriggerType::Schedule => "schedule",
-            BuildTriggerType::ContentEdit => "content_edit",
+            BuildTriggerType::WebEdit => "webedit",
         };
         write!(f, "{}", s)
     }
@@ -147,6 +147,19 @@ pub struct SchedulePayload {
     pub cl_id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebEditPayload {
+    pub repo: String,
+    pub from_hash: String,
+    pub commit_hash: String,
+    pub cl_link: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_id: Option<i64>,
+    pub builds: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triggered_by: Option<String>,
+}
+
 /// Trigger payload - stores context specific to each trigger type
 /// This enum is serialized to JSON and stored in database's trigger_payload column
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +170,7 @@ pub enum BuildTriggerPayload {
     Retry(RetryPayload),
     Webhook(WebhookPayload),
     Schedule(SchedulePayload),
+    WebEdit(WebEditPayload),
 }
 
 impl BuildTriggerPayload {
@@ -167,6 +181,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.repo,
             BuildTriggerPayload::Webhook(p) => &p.repo,
             BuildTriggerPayload::Schedule(p) => &p.repo,
+            BuildTriggerPayload::WebEdit(p) => &p.repo,
         }
     }
 
@@ -177,6 +192,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.commit_hash,
             BuildTriggerPayload::Webhook(p) => &p.commit_hash,
             BuildTriggerPayload::Schedule(p) => &p.commit_hash,
+            BuildTriggerPayload::WebEdit(p) => &p.commit_hash,
         }
     }
 
@@ -187,6 +203,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.cl_link,
             BuildTriggerPayload::Webhook(p) => &p.cl_link,
             BuildTriggerPayload::Schedule(p) => &p.cl_link,
+            BuildTriggerPayload::WebEdit(p) => &p.cl_link,
         }
     }
 
@@ -197,6 +214,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => p.cl_id,
             BuildTriggerPayload::Webhook(p) => p.cl_id,
             BuildTriggerPayload::Schedule(p) => p.cl_id,
+            BuildTriggerPayload::WebEdit(p) => p.cl_id,
         }
     }
 
@@ -207,6 +225,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => Some(&p.triggered_by),
             BuildTriggerPayload::Webhook(_) => None,
             BuildTriggerPayload::Schedule(_) => None,
+            BuildTriggerPayload::WebEdit(p) => p.triggered_by.as_deref(),
         }
     }
 
@@ -217,6 +236,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.from_hash,
             BuildTriggerPayload::Webhook(_) => "",
             BuildTriggerPayload::Schedule(_) => "",
+            BuildTriggerPayload::WebEdit(p) => &p.from_hash,
         }
     }
 }
@@ -358,7 +378,7 @@ impl TriggerContext {
 impl From<mega_cl::Model> for TriggerContext {
     fn from(cl: mega_cl::Model) -> Self {
         TriggerContext {
-            trigger_type: BuildTriggerType::ContentEdit,
+            trigger_type: BuildTriggerType::WebEdit,
             trigger_source: TriggerSource::User,
             triggered_by: Some(cl.username),
             repo_path: cl.path,

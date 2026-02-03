@@ -14,6 +14,7 @@ mod manual_handler;
 mod model;
 mod ref_resolver;
 mod retry_handler;
+mod web_edit_handler;
 
 // Export all models from the single model file
 pub use model::*;
@@ -64,6 +65,10 @@ impl TriggerRegistry {
             git_object_cache.clone(),
         )));
         registry.register(Box::new(RetryHandler::new(
+            storage.clone(),
+            git_object_cache.clone(),
+        )));
+        registry.register(Box::new(WebEditHandler::new(
             storage.clone(),
             git_object_cache.clone(),
         )));
