@@ -55,6 +55,7 @@ impl BuildDispatcher {
             BuildTriggerPayload::Retry(p) => (&p.cl_link, &p.repo, &p.builds, p.cl_id),
             BuildTriggerPayload::Webhook(p) => (&p.cl_link, &p.repo, &p.builds, p.cl_id),
             BuildTriggerPayload::Schedule(p) => (&p.cl_link, &p.repo, &p.builds, p.cl_id),
+            BuildTriggerPayload::WebEdit(p) => (&p.cl_link, &p.repo, &p.builds, p.cl_id),
         };
 
         let builds: Vec<SerializableBuildInfo> = serde_json::from_value(builds_json.clone())

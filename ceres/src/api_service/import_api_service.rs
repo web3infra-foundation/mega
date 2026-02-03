@@ -469,6 +469,7 @@ impl ApiHandler for ImportApiService {
             commit_id: new_commit_id,
             new_oid: new_blob.id.to_string(),
             path: payload.path,
+            cl_link: None,
         })
     }
 }

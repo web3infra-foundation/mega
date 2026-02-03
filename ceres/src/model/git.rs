@@ -172,6 +172,14 @@ pub struct DiffPreviewPayload {
     pub refs: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EditCLMode {
+    /// force create new cl
+    ForceCreate,
+    /// try to reuse old cl, if none, will search existing open cl, and create new cl if not found
+    TryReuse(Option<String>),
+}
 /// Request body for saving an edited file with conflict detection.
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct EditFilePayload {
@@ -187,6 +195,15 @@ pub struct EditFilePayload {
     /// platform username (used to verify and bind commit to user)
     #[serde(default)]
     pub author_username: Option<String>,
+    /// if true, skip build
+    #[serde(default)]
+    pub skip_build: bool,
+    #[serde(default = "default_edit_mode")]
+    pub mode: EditCLMode,
+}
+
+fn default_edit_mode() -> EditCLMode {
+    EditCLMode::TryReuse(None)
 }
 
 /// Response body after saving an edited file
@@ -198,6 +215,7 @@ pub struct EditFileResult {
     pub new_oid: String,
     /// Saved file path
     pub path: String,
+    pub cl_link: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
