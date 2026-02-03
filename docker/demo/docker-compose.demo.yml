@@ -130,7 +130,7 @@ services:
 
       # S3 / RustFS
       # To use S3 storage, set MEGA_MONOREPO__STORAGE_TYPE=s3 and ensure RustFS bucket is created
-      MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3}
+      MEGA_MONOREPO__STORAGE_TYPE: ${MEGA_MONOREPO__STORAGE_TYPE:-s3compatible}
       MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL: ${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-http://rustfs:9000}
 
       # RustFS requires bucket names to follow S3 naming rules: 3-63 chars, lowercase, alphanumeric, hyphens
@@ -250,17 +250,18 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${ORION_DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
-      PORT: 8004
-      BUILD_LOG_DIR: ${ORION_BUILD_LOG_DIR:-/tmp/buck2ctl}
-      ALLOWED_CORS_ORIGINS: ${ORION_ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000}
-      LOGGER_STORAGE_TYPE: ${ORION_LOGGER_STORAGE_TYPE:-local}
-      BUCKET_NAME: ${ORION_BUCKET_NAME:-orion-logs}
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
-      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      # Use MEGA config scheme for orion-server
+      CONFIG_PATH: /etc/mega/config.toml
+      MEGA_ORION_SERVER__DB_URL: ${ORION_DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
+      MEGA_ORION_SERVER__PORT: 8004
+      MEGA_ORION_SERVER__BUILD_LOG_DIR: ${ORION_BUILD_LOG_DIR:-/tmp/buck2ctl}
+      MEGA_ORION_SERVER__LOGGER_STORAGE_MODE: ${ORION_LOGGER_STORAGE_MODE:-local}
+      MEGA_ORION_SERVER__STORAGE_TYPE: ${ORION_STORAGE_TYPE:-local}
+      MEGA_ORION_SERVER__MONOBASE_URL: ${ORION_MONOBASE_URL:-http://mega:8000}
+      MEGA_OAUTH__ALLOWED_CORS_ORIGINS: ${ORION_ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000}
     volumes:
       - orion-logs:/tmp/buck2ctl
+      - ../../config/config.toml:/etc/mega/config.toml:ro
     ports:
       # Container listens on 8004, host port is 8004
       - "8004:8004"
