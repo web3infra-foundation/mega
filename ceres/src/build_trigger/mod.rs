@@ -24,6 +24,7 @@ use git_push_handler::GitPushHandler;
 use manual_handler::ManualHandler;
 use retry_handler::RetryHandler;
 pub use service::BuildTriggerService;
+use web_edit_handler::WebEditHandler;
 
 /// Trait for handling different types of build triggers.
 #[async_trait]

@@ -9,8 +9,8 @@ use super::changes_calculator::ChangesCalculator;
 use crate::{
     api_service::cache::GitObjectCache,
     build_trigger::{
-        BuildTrigger, BuildTriggerPayload, BuildTriggerType, WebEditPayload, TriggerContext,
-        TriggerHandler,
+        BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext, TriggerHandler,
+        WebEditPayload,
     },
 };
 

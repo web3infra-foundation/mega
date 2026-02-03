@@ -1085,11 +1085,14 @@ impl MonoApiService {
     }
 
     /// Finds or creates a Change List (CL) for file edits.
-    /// This method determines whether to create a new CL or reuse an existing one based on the `force_create` flag,
-    /// Otherwise, it attempts to find an open CL for the given user and path. If no such CL exists, a new one is created.
+    /// This method determines whether to create a new CL or reuse an existing one based on the
+    /// [`EditCLMode`] passed in `mode`. For example, `EditCLMode::ForceCreate` will always create
+    /// a new CL, while `EditCLMode::TryReuse` will attempt to find an open CL for the given user
+    /// and path and only create a new one if none exists.
     ///
     /// # Arguments
-    /// * `force_create` - Whether to force the creation of a new CL, even if an open CL exists.
+    /// * `mode` - Controls whether to force creation of a new CL (`ForceCreate`) or try to reuse an
+    ///   existing open CL for the user and path when possible (`TryReuse`).
     /// * `to_hash` - The commit hash representing the new state after the edit.
     /// * `commit_message` - The message describing the changes made in the CL.
     /// * `file_path` - The path of the file being edited.
@@ -1176,7 +1179,7 @@ impl MonoApiService {
             let _ = BuildTriggerService::build_by_context(
                 storage,
                 git_cache,
-                bellatrix.into(),
+                Arc::new(bellatrix),
                 cl.into(),
             )
             .await;

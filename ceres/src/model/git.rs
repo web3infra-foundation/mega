@@ -198,8 +198,14 @@ pub struct EditFilePayload {
     /// if true, skip build
     #[serde(default)]
     pub skip_build: bool,
+    #[serde(default = "default_edit_mode")]
     pub mode: EditCLMode,
 }
+
+fn default_edit_mode() -> EditCLMode {
+    EditCLMode::TryReuse(None)
+}
+
 /// Response body after saving an edited file
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EditFileResult {
