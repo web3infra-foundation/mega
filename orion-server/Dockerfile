@@ -1,50 +1,45 @@
-# ────── Stage 1: Build ──────
-FROM rust:1.92-bookworm AS builder
+# ────── Stage 0: Chef ──────
+FROM rust:1.93-bookworm AS chef
+RUN cargo install cargo-chef
+WORKDIR /app
 
-# Install build dependencies (libclang required by zstd-sys/bindgen)
+# ────── Stage 1: Planner ──────
+FROM chef AS planner
+COPY . .
+
+WORKDIR /app
+RUN cargo chef prepare --bin orion-server --recipe-path recipe.json
+
+# ────── Stage 2: Builder ──────
+FROM chef AS builder
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libclang-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure Cargo with increased retry attempts and timeout
-RUN mkdir -p /root/.cargo && \
-    cat > /root/.cargo/config.toml << 'EOF'
-[net]
-retry = 10
-git-fetch-with-cli = true
-EOF
-
-# The parent directory of build context will be mounted as /app
 WORKDIR /app
 
-# Copy the entire project structure (from repository root)
+COPY --from=planner /app/recipe.json recipe.json
+
+RUN cargo chef cook --bin orion-server --release --recipe-path recipe.json
+
 COPY . .
 
-# Enter subproject directory
-WORKDIR /app/orion-server
+RUN cargo build -p orion-server --release
 
-# Build release binary
-RUN cargo build --release
-
-# ────── Stage 2: Runtime ──────
+# ────── Stage 3: Runtime ──────
 FROM debian:bookworm-slim
 
-# Install runtime dependencies (including curl for health checks)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-ENV BUILD_LOG_DIR="/tmp/buck2ctl"
-RUN mkdir -p ${BUILD_LOG_DIR}
-
-ENV PORT=8004
-
 # Copy built executable
-COPY --from=builder /app/target/release/orion-server /usr/local/bin/app
+COPY --from=builder /app/target/release/orion-server /usr/local/bin/orion-server
 
 # Reduce image size (optional)
-RUN strip /usr/local/bin/app || true
+RUN strip /usr/local/bin/orion-server || true
 
 EXPOSE 8004
 
-CMD ["app"]
+CMD ["orion-server"]

@@ -251,7 +251,6 @@ services:
         condition: service_healthy
     environment:
       # Use MEGA config scheme for orion-server
-      CONFIG_PATH: /etc/mega/config.toml
       MEGA_ORION_SERVER__DB_URL: ${ORION_DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB_MONO:-mono}}
       MEGA_ORION_SERVER__PORT: 8004
       MEGA_ORION_SERVER__BUILD_LOG_DIR: ${ORION_BUILD_LOG_DIR:-/tmp/buck2ctl}
@@ -261,7 +260,6 @@ services:
       MEGA_OAUTH__ALLOWED_CORS_ORIGINS: ${ORION_ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000}
     volumes:
       - orion-logs:/tmp/buck2ctl
-      - ../../config/config.toml:/etc/mega/config.toml:ro
     ports:
       # Container listens on 8004, host port is 8004
       - "8004:8004"

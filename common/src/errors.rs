@@ -8,6 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use cedar_policy::ParseErrors;
+use config::ConfigError;
 use git_internal::errors::GitError;
 use thiserror::Error;
 
@@ -15,6 +16,9 @@ pub type MegaResult = Result<(), MegaError>;
 
 #[derive(Error, Debug)]
 pub enum MegaError {
+    #[error("config error: {0}")]
+    Config(#[from] ConfigError),
+
     // --- Redis ---
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),

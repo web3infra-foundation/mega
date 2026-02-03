@@ -1,23 +1,27 @@
+[workspace.package]
+edition = "2024"
+
 [workspace]
 members = [
-  "mono",
-  "common",
-  "jupiter",
+  "api-model",
   "ceres",
-  "vault",
-  "saturn",
-  "orion",
-  "orion-server",
+  "common",
+  "context",
   "extensions/rag/chat",
   "extensions/rag/index",
   "extensions/observatory",
-  "context",
-  "scorpio",
-  "api-model",
   "io-orbit",
+  "jupiter",
+  "jupiter/callisto",
+  "mono",
+  "orion",
+  "orion-server",
+  "saturn",
+  "scorpio",
+  "vault",
 ]
 default-members = ["mono", "orion", "orion-server"]
-resolver = "1"
+resolver = "3"
 
 
 [workspace.dependencies]
@@ -30,7 +34,6 @@ ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
-observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 bellatrix = { path = "orion-server/bellatrix" }
 
@@ -93,8 +96,6 @@ secp256k1 = "0.30.0"
 pgp = "0.15.0"
 oauth2 = "5.0.0"
 base64 = "0.22.1"
-aws-config = "1.8.12"
-aws-sdk-s3 = "1.120"
 
 utoipa = { version = "5.4.0", features = ["chrono"] }
 utoipa-axum = "0.2.0"
@@ -141,6 +142,7 @@ bincode = "2.0.1"
 rustls = "0.23.36"
 object_store = "0.13.1"
 qlean = "0.1.1"
+toml = "0.9"
 
 [profile.release]
 debug = true

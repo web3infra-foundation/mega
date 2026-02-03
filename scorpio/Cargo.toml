@@ -40,17 +40,10 @@ uuid = { version = "1.14.0", features = ["v4"] }
 # - 0.1.6 had issues with incomplete async support and incorrect error handling, causing panics in Scorpio.
 # NOTE: Verify release notes at the libfuse-fs repository before upgrading versions.
 libfuse-fs = "0.1.9"
-regex = "1.11.1"
 whoami = "1.6.0"
-wax = "0.6.0"
-ignore = "0.4.23"
-url = "2.5.4"
-walkdir = "2.5.0"
 thiserror = "2.0.12"
 crossbeam = "0.8.4"
-fs_extra = "1.2"
 dashmap = "6.1.0"
-chrono = "0.4.24"
 ring = "0.17.8"
 hex = "0.4.3"
 

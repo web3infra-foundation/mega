@@ -4,7 +4,10 @@ use std::{env, path::PathBuf};
 
 use clap::{Arg, ArgMatches, Command};
 use common::{
-    config::{Config, LogConfig},
+    config::{
+        Config, LogConfig,
+        loader::{ConfigInput, ConfigLoader},
+    },
     errors::{MegaError, MegaResult},
 };
 use tracing_subscriber::fmt::writer::MakeWriterExt;
@@ -28,28 +31,27 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
         None => cli().try_get_matches().unwrap_or_else(|e| e.exit()),
     };
 
-    // Load configuration from the config file or default location
-    let current_dir = env::current_dir()?;
-    let base_dir = common::config::mega_base();
-    let config_path = current_dir.join("config/config.toml");
-    let config_path_alt = base_dir.join("etc/config.toml");
-
-    let config = if let Some(path) = matches.get_one::<PathBuf>("config").cloned() {
-        Config::new(path.to_str().unwrap()).unwrap()
-    } else if config_path.exists() {
-        Config::new(config_path.to_str().unwrap()).unwrap()
-    } else if config_path_alt.exists() {
-        Config::new(config_path_alt.to_str().unwrap()).unwrap()
-    } else {
-        eprintln!(
-            "can't find config.toml under {:?} or {:?}, you can manually set config.toml path with --config parameter",
-            env::current_dir().unwrap(),
-            base_dir
-        );
-        Config::default()
+    let cli_path = matches.get_one::<PathBuf>("config").cloned();
+    let input = ConfigInput {
+        cli_path,
+        env_path: std::env::var_os("MEGA_CONFIG").map(PathBuf::from),
     };
+    let loaded = ConfigLoader::new(input).load()?;
+
+    let config = Config::new(loaded.path.to_str().ok_or_else(|| {
+        MegaError::Other(format!(
+            "Config path contains invalid UTF-8: {:?}",
+            loaded.path
+        ))
+    })?)?;
 
     init_log(&config.log);
+
+    tracing::info!(
+        source = ?loaded.source,
+        path = %loaded.path.display(),
+        "config loaded"
+    );
 
     ctrlc::set_handler(move || {
         tracing::info!("Received Ctrl-C signal, exiting...");

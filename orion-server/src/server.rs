@@ -1,9 +1,12 @@
-use std::{env, net::SocketAddr, sync::Arc, time::Duration};
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
 use common::{
-    config::{Config, c::ConfigError},
+    config::{
+        Config,
+        loader::{ConfigInput, ConfigLoader},
+    },
     errors::MegaError,
 };
 use http::{HeaderValue, Method};
@@ -127,20 +130,25 @@ pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
     ))
 }
 
-async fn load_orion_config() -> Result<Config, ConfigError> {
-    if let Ok(config_path) = env::var("CONFIG_PATH") {
-        return Config::new(&config_path);
-    }
+async fn load_orion_config() -> Result<Config, MegaError> {
+    let input = ConfigInput {
+        cli_path: None,
+        env_path: env::var_os("MEGA_CONFIG").map(PathBuf::from),
+    };
 
-    let base_dir = common::config::mega_base();
-    if base_dir.exists() {
-        let config_path = base_dir
-            .to_str()
-            .ok_or_else(|| ConfigError::NotFound("Invalid config path".to_string()))?;
-        return Config::new(config_path);
-    }
+    let loaded = ConfigLoader::new(input).load()?;
+    tracing::info!(
+        source = ?loaded.source,
+        path = %loaded.path.display(),
+        "config loaded"
+    );
 
-    Ok(Config::default())
+    Config::new(loaded.path.to_str().ok_or_else(|| {
+        MegaError::Other(format!(
+            "Config path contains invalid UTF-8: {:?}",
+            loaded.path
+        ))
+    })?)
 }
 
 /// Starts the Orion server with the specified port

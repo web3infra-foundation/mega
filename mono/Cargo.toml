@@ -1,11 +1,11 @@
 [package]
 name = "mono"
 version = "0.1.0"
-edition = "2024"
 authors = ["Quanyi Ma <genedna@gmail.com>"]
 keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+edition.workspace = true
 
 [lib]
 name = "mono"
