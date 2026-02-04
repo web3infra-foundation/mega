@@ -6,26 +6,21 @@ set -euo pipefail
 # ============================================================================
 # This script builds Docker images for the demo environment on your local machine.
 # The script automatically detects the platform (arm64/amd64) based on your machine.
-# By default, images are only built locally. Use --push to push to AWS ECR.
 #
 # Prerequisites:
 #   - Docker Desktop with Buildx enabled
-#   - (Optional) AWS CLI configured with credentials (only needed for --push)
-#   - (Optional) Access to Amazon ECR Public (only needed for --push)
 #   - QEMU (usually auto-installed by Docker Desktop)
+#   - git (for versioning)
 #
 # Usage:
-#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME] [--push]
+#   ./scripts/dev/build-dev-images-for-local.sh [IMAGE_NAME]
 #
 #   Examples:
-#     ./scripts/demo/build-demo-images-local.sh              # Build all images locally
-#     ./scripts/demo/build-demo-images-local.sh --push       # Build and push all images
-#     ./scripts/demo/build-demo-images-local.sh mono-engine  # Build mono-engine locally
-#     ./scripts/demo/build-demo-images-local.sh mono-engine --push  # Build and push mono-engine
+#     ./scripts/dev/build-dev-images-for-local.sh              # Build all images locally
+#     ./scripts/dev/build-dev-images-for-local.sh mono-engine  # Build mono-engine locally
 #
 #   If IMAGE_NAME is provided, only that image will be built.
 #   Otherwise, all 4 images will be built.
-#   Use --push flag to push images to AWS ECR (requires AWS credentials).
 # ============================================================================
 
 # Colors for output
@@ -35,10 +30,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-REGISTRY_ALIAS="m8q5m4u3"
-REPOSITORY="mega"
-REGISTRY="public.ecr.aws"
-SHOULD_PUSH=false  # Default: only build, don't push
+REPOSITORY="mega-dev"
 
 # Auto-detect platform if not explicitly set
 # The script automatically detects your machine architecture and sets the appropriate platform
@@ -75,6 +67,27 @@ else
     REPO_ROOT=""
 fi
 
+# Validate Repo Root
+if [ -z "$REPO_ROOT" ]; then
+    printf "${RED}[ERROR]${NC} Could not determine repository root. Please run this script from within the git repository.\n"
+    exit 1
+fi
+
+# Get git hash
+if ! command -v git &> /dev/null; then
+    printf "${RED}[ERROR]${NC} git is not installed. Please install git to proceed.\n"
+    exit 1
+fi
+
+# Ensure we are in a git repository
+if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree &> /dev/null; then
+    printf "${RED}[ERROR]${NC} $REPO_ROOT is not a valid git repository.\n"
+    exit 1
+fi
+
+GIT_HASH=$(git -C "$REPO_ROOT" rev-parse --short HEAD)
+printf "${GREEN}[INFO]${NC} Detected Git Hash: %s\n" "${GIT_HASH}"
+
 # Image configurations (ordered for consistent build order)
 declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")
 get_image_config() {
@@ -88,10 +101,10 @@ get_image_config() {
 
 get_image_tag() {
     case "$1" in
-        "mono-engine") echo "mono-0.1.0-pre-release" ;;
-        "mega-ui") echo "mega-ui-demo-0.1.0-pre-release" ;;
-        "orion-server") echo "orion-server-0.1.0-pre-release" ;;
-        "orion-client") echo "orion-client-0.1.0-pre-release" ;;
+        "mono-engine") echo "mono-${GIT_HASH}" ;;
+        "mega-ui") echo "mega-ui-demo-${GIT_HASH}" ;;
+        "orion-server") echo "orion-server-${GIT_HASH}" ;;
+        "orion-client") echo "orion-client-${GIT_HASH}" ;;
     esac
 }
 
@@ -152,21 +165,6 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Only check AWS prerequisites if we need to push
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        # Check AWS CLI
-        if ! command -v aws &> /dev/null; then
-            log_error "AWS CLI is not installed. Please install it: brew install awscli"
-            exit 1
-        fi
-        
-        # Check AWS credentials
-        if ! aws sts get-caller-identity &> /dev/null; then
-            log_error "AWS credentials are not configured. Please run: aws configure"
-            exit 1
-        fi
-    fi
-    
     log_info "All prerequisites met ✓"
 }
 
@@ -176,7 +174,6 @@ setup_buildx() {
     local builder_name="mega-builder"
 
     # Reuse existing builder if present; otherwise create it.
-    # NOTE: `docker buildx ls | grep` is not reliable enough (can false-match), so prefer `inspect`.
     if docker buildx inspect "${builder_name}" >/dev/null 2>&1; then
         log_info "Using existing buildx builder: ${builder_name}"
         docker buildx use "${builder_name}" >/dev/null
@@ -222,19 +219,7 @@ setup_buildx() {
     log_info "Buildx setup complete ✓"
 }
 
-login_ecr() {
-    log_info "Logging in to Amazon ECR Public..."
-    
-    if ! aws ecr-public get-login-password --region us-east-1 2>/dev/null | \
-        docker login --username AWS --password-stdin "${REGISTRY}/${REGISTRY_ALIAS}" 2>/dev/null; then
-        log_error "Failed to login to ECR Public. Please check your AWS credentials."
-        exit 1
-    fi
-    
-    log_info "ECR login successful ✓"
-}
-
-build_and_push() {
+build_image() {
     local image_name=$1
     local config=$(get_image_config "$image_name")
     local dockerfile_path=$(echo "$config" | cut -d':' -f1)
@@ -251,7 +236,6 @@ build_and_push() {
     fi
     
     # Extract architecture suffix from single platform (e.g., linux/arm64 -> arm64)
-    # This assumes TARGET_PLATFORMS is a single platform in format "os/arch"
     local arch_suffix=$(echo "${TARGET_PLATFORMS}" | awk -F'/' '{print $NF}')
     
     # Validate that we successfully extracted an architecture suffix
@@ -261,7 +245,8 @@ build_and_push() {
         exit 1
     fi
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
-    local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    local image_base="${REPOSITORY}"
+    local latest_tag="${image_tag%-${GIT_HASH}}-latest"
     
     # Verify paths exist (use absolute paths)
     local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
@@ -277,27 +262,7 @@ build_and_push() {
         return 1
     fi
     
-    # Additional validation: check if Dockerfile is within or accessible from build context
-    # For most cases, Dockerfile should be accessible from the build context
-    local dockerfile_in_context="${full_context}/${dockerfile_path}"
-    local dockerfile_relative_to_context=""
-    
-    # Try to find Dockerfile relative to context
-    if [ -f "${dockerfile_in_context}" ]; then
-        dockerfile_relative_to_context="${dockerfile_path}"
-    elif [ -f "${full_dockerfile}" ]; then
-        # Dockerfile is outside context, which is fine for buildx
-        dockerfile_relative_to_context="${dockerfile_path}"
-    else
-        log_error "Cannot resolve Dockerfile path relative to build context"
-        return 1
-    fi
-    
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        log_info "Building and pushing ${image_name} (${image_tag_with_arch})..."
-    else
-        log_info "Building ${image_name} (${image_tag_with_arch})..."
-    fi
+    log_info "Building ${image_name} (${image_tag_with_arch})..."
     log_info "  Dockerfile: ${dockerfile_path}"
     log_info "  Context: ${build_context}"
     log_info "  Platforms: ${TARGET_PLATFORMS}"
@@ -305,60 +270,24 @@ build_and_push() {
     # Change to repo root for build
     cd "${REPO_ROOT}"
     
-    # Build cache args - try to use registry cache, but don't fail if it doesn't exist
-    # Only check registry cache if we're pushing (requires AWS access)
-    local cache_from_args=()
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
-            # Verify that existing image is a single-architecture image, not a manifest list
-            local manifest_output
-            manifest_output=$(docker manifest inspect "${image_base}:${image_tag_with_arch}" 2>/dev/null || echo "")
-            
-            if echo "$manifest_output" | grep -q '"manifests"'; then
-                log_error "Error: ${image_base}:${image_tag_with_arch} is already a manifest list!"
-                log_error "This script only builds single-architecture images."
-                log_error "Please delete the incorrect manifest list from ECR first:"
-                log_error "  aws ecr-public batch-delete-image \\"
-                log_error "    --repository-name ${REPOSITORY} \\"
-                log_error "    --registry-id ${REGISTRY_ALIAS} \\"
-                log_error "    --image-ids imageTag=${image_tag_with_arch} \\"
-                log_error "    --region us-east-1"
-                log_error ""
-                log_error "Or continue anyway - the build will overwrite it with a single-architecture image."
-                log_warn "Continuing with build (will overwrite manifest list)..."
-                # Continue anyway - buildx build will overwrite it
-            else
-                log_info "  Using registry cache from existing image (single-architecture)"
-            fi
-            cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
-        else
-            log_info "  No existing image found, building from scratch"
-        fi
-    fi
-    
     # Build command arguments
     local build_args=(
         --builder mega-builder
         --platform "${TARGET_PLATFORMS}"
         --file "${dockerfile_path}"
         --tag "${image_base}:${image_tag_with_arch}"
+        --tag "${image_base}:${latest_tag}"
         --progress=plain
         --build-arg BUILDKIT_INLINE_CACHE=1
     )
     
     # Always load the image into the local Docker engine first.
-    # This guarantees the pushed artifact is a single-architecture image manifest.
     build_args+=(--load)
     
     if [ "$image_name" = "mega-ui" ]; then
         build_args+=(--build-arg APP_ENV=demo)
     fi
 
-    # Add cache arguments
-    if [ ${#cache_from_args[@]} -gt 0 ]; then
-        build_args+=("${cache_from_args[@]}")
-    fi
-    
     # Add cache-to (inline cache is always useful)
     build_args+=(--cache-to type=inline)
     
@@ -373,27 +302,14 @@ build_and_push() {
         return 1
     fi
 
-    # Push if requested (ensures single-arch manifest is uploaded)
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        if ! docker push "${image_base}:${image_tag_with_arch}"; then
-            log_error "Failed to push ${image_name}"
-            return 1
-        fi
-        log_info "${image_name} built and pushed successfully ✓"
-        log_info "  Image: ${image_base}:${image_tag_with_arch}"
-    else
-        log_info "${image_name} built successfully ✓"
-        log_info "  Image: ${image_base}:${image_tag_with_arch} (local only)"
-    fi
+    log_info "${image_name} built successfully ✓"
+    log_info "  Image: ${image_base}:${image_tag_with_arch} (local only)"
+    log_info "  Latest: ${image_base}:${latest_tag}"
     return 0
 }
 
 build_all() {
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        log_info "Building and pushing all demo images..."
-    else
-        log_info "Building all demo images..."
-    fi
+    log_info "Building all demo images..."
     
     local failed_images=()
     for image_name in "${IMAGE_ORDER[@]}"; do
@@ -401,7 +317,7 @@ build_all() {
         log_info "=========================================="
         log_info "Building: ${image_name}"
         log_info "=========================================="
-        if ! build_and_push "${image_name}"; then
+        if ! build_image "${image_name}"; then
             failed_images+=("${image_name}")
             log_error "Failed to build ${image_name}, continuing with next image..."
         fi
@@ -410,11 +326,7 @@ build_all() {
     echo ""
     if [ ${#failed_images[@]} -eq 0 ]; then
         log_info "=========================================="
-        if [ "$SHOULD_PUSH" = "true" ]; then
-            log_info "All images built and pushed successfully!"
-        else
-            log_info "All images built successfully!"
-        fi
+        log_info "All images built successfully!"
         log_info "=========================================="
         return 0
     else
@@ -430,47 +342,19 @@ build_all() {
 
 # Main execution
 main() {
-    # Parse command line arguments
-    # Extract --push flag and collect other arguments
-    local args=()
-    for arg in "$@"; do
-        if [ "$arg" = "--push" ]; then
-            SHOULD_PUSH=true
-        else
-            args+=("$arg")
-        fi
-    done
-    
-    # Determine operation mode
-    local mode_info=""
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        mode_info="build and push"
-    else
-        mode_info="build (local only)"
-    fi
-    
-    log_info "Starting local image ${mode_info}..."
-    log_info "Registry: ${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        log_info "Mode: Build and push to ECR"
-    else
-        log_info "Mode: Build only (local)"
-    fi
+    log_info "Starting local image build..."
+    log_info "Repository: ${REPOSITORY}"
+    log_info "Git Hash: ${GIT_HASH}"
     echo ""
     
     check_prerequisites
     setup_buildx
     
-    # Only login to ECR if we need to push
-    if [ "$SHOULD_PUSH" = "true" ]; then
-        login_ecr
-    fi
-    
     # Build specific image or all images
-    if [ ${#args[@]} -eq 1 ]; then
-        local image_name="${args[0]}"
+    if [ $# -eq 1 ]; then
+        local image_name="$1"
         if is_valid_image "$image_name"; then
-            if build_and_push "$image_name"; then
+            if build_image "$image_name"; then
                 log_info "Done!"
                 exit 0
             else
@@ -482,7 +366,7 @@ main() {
             log_info "Available images: ${IMAGE_ORDER[*]}"
             exit 1
         fi
-    elif [ ${#args[@]} -eq 0 ]; then
+    elif [ $# -eq 0 ]; then
         if build_all; then
             log_info "Done!"
             exit 0
@@ -491,7 +375,7 @@ main() {
             exit 1
         fi
     else
-        log_error "Too many arguments. Usage: $0 [IMAGE_NAME] [--push]"
+        log_error "Too many arguments. Usage: $0 [IMAGE_NAME]"
         log_info "Available images: ${IMAGE_ORDER[*]}"
         exit 1
     fi
