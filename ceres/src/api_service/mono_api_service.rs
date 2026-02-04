@@ -88,7 +88,7 @@ use tracing::debug;
 
 use crate::{
     api_service::{
-        ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache,
+        ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache, commit_ops,
         state::ProtocolApiState, tree_ops,
     },
     build_trigger::BuildTriggerService,
@@ -1066,13 +1066,10 @@ impl MonoApiService {
     ) -> Result<mega_cl::Model, GitError> {
         let cl_link = generate_link();
 
-        let from_hash = self
-            .storage
-            .mono_storage()
-            .get_main_ref(repo_path)
+        let from_hash = commit_ops::resolve_start_commit(self, None)
             .await?
-            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?
-            .ref_commit_hash;
+            .id
+            .to_string();
 
         // Create and return a new CL model
         let cl = self
