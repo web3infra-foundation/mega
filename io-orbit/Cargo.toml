@@ -3,6 +3,10 @@ name = "io-orbit"
 version = "0.1.0"
 edition.workspace = true
 
+[lib]
+name = "io_orbit"
+path = "src/lib.rs"
+
 
 [dependencies]
 common = { workspace = true }

@@ -3,9 +3,15 @@ name = "orion-server"
 version = "0.1.0"
 edition.workspace = true
 
+
+[[bin]]
+name = "orion-server"
+path = "src/main.rs"
+
+
 [dependencies]
 orion = { workspace = true }
-common = { workspace = true}
+common = { workspace = true }
 io-orbit = { workspace = true }
 api-model = { workspace = true }
 
