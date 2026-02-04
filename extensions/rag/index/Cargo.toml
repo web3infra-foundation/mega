@@ -3,6 +3,10 @@ name = "index"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "index"
+path = "src/lib.rs"
+
 [dependencies]
 syn = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
